@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "llmnormalizer.h"
 
+#include "tabledata.h"
+
 #include <QStringList>
 
 // The normalizer runs at the top of DocumentSerializer::parse, so both
@@ -370,15 +372,79 @@ QString transformProse(const QString &line)
 
 // ---- pass A: fix 1, code fence inside a table cell ----
 
-// A fence opening directly under a table row, closed by a "``` | cells |"
-// line, swallows the rest of the document today (the closing line never
+// The fence continues a table row the writer left unfinished. Three things
+// must hold, and each one rules out a shape that ordinary Markdown produces:
+//
+//  1. The row sits on the IMMEDIATELY preceding line — the chat reference's
+//     rule, not merely the previous non-blank line. With a blank line
+//     between, a canonical table-then-code-block document would false-trigger
+//     and the fixed-point guarantee would break.
+//  2. Walking back over contiguous row lines reaches a delimiter row with a
+//     matching header above it, so a lone pipe in prose is not table context.
+//     TableData's own recognizers decide what delimiters and headers are,
+//     which keeps the normalizer and the parser from drifting apart.
+//  3. That last row is short — fewer cells than the header. A complete row
+//     followed by a fence is a code block under a finished table, whereas the
+//     broken shape always cuts off mid-row, which is why the repair appends
+//     the code and the trailing cells to it.
+//
+// The walk back is bounded like the forward lookahead, so a document made
+// entirely of pipe-bearing lines cannot make the pass quadratic.
+bool continuesTruncatedRow(const QStringList &out)
+{
+    if (out.isEmpty() || !out.last().contains(QLatin1Char('|')))
+        return false;
+    const int stop = qMax(1, out.size() - kLookaheadLines);
+    for (int j = out.size() - 1; j >= stop; --j) {
+        const QString &line = out.at(j);
+        if (!line.contains(QLatin1Char('|')))
+            return false;  // the run of rows ended without a delimiter
+        if (!TableData::isDelimiterRow(line))
+            continue;
+        if (!TableData::looksLikeTableStart(out.at(j - 1), line))
+            return false;
+        return TableData::cellCount(out.last())
+             < TableData::cellCount(out.at(j - 1));
+    }
+    return false;
+}
+
+// The malformed closer fix 1 repairs, defined exactly: the line begins (after
+// optional indentation) with a run of at least `len` backticks, and the
+// remainder resumes the table row — it starts with a pipe. Fills *cells with
+// that remainder.
+//
+// Everything else is excluded by construction, which is what keeps valid
+// Markdown intact: an inner fence opener ("```python") fails the pipe test, a
+// backtick run in the middle of a code line fails the line-start test, and a
+// shorter run inside a longer fence ("```" within a "````" block) fails the
+// length test.
+bool malformedTableCloser(const QString &line, int len, QString *cells)
+{
+    const QString t = line.trimmed();
+    int n = 0;
+    while (n < t.size() && t.at(n) == QLatin1Char('`'))
+        ++n;
+    if (n < len)
+        return false;
+    const QString rest = t.mid(n).trimmed();
+    if (!rest.startsWith(QLatin1Char('|')))
+        return false;
+    *cells = rest;
+    return true;
+}
+
+// A fence opening directly inside a table body, closed by a "``` | cells |"
+// line, would swallow the rest of the document (that closing line never
 // closes the fence). The repair inlines the code into the row as a code
 // span: table integrity wins over code line breaks (decision of record).
-// Port of ReplyDisplay.vue:608. The trigger requires the row on the
-// IMMEDIATELY preceding line — the chat reference's rule — not merely the
-// previous non-blank line: with a blank line between, a canonical
-// table-then-code-block document would false-trigger whenever the code
-// contains a "``` extra text" line, breaking the fixed-point guarantee.
+// Port of ReplyDisplay.vue:608, tightened on both ends — the chat reference
+// treats any pipe-bearing line as table context and any later three-backtick
+// occurrence as the closer, which rewrites ordinary prose.
+//
+// A legitimate closer encountered first settles the question: the fence is an
+// ordinary code block after the table and nothing is repaired. Only a fence
+// that has no legitimate closer before its malformed one is the broken shape.
 QStringList tableFencePass(const QStringList &lines)
 {
     QStringList out;
@@ -401,57 +467,46 @@ QStringList tableFencePass(const QStringList &lines)
             ++i;
             continue;
         }
-        const bool tableContext = f.ch == QLatin1Char('`') && !out.isEmpty()
-            && out.last().contains(QLatin1Char('|'));
-        if (tableContext) {
-            // The first subsequent line containing ``` decides: trailing
-            // cells mean the broken-table shape; a bare fence is an
-            // ordinary code block after the table.
+        if (f.ch == QLatin1Char('`') && continuesTruncatedRow(out)) {
+            // Whichever comes first decides: a legitimate closer means an
+            // ordinary code block sitting under the table, a malformed one
+            // means the broken-table shape.
             int closeAt = -1;
+            QString cells;
             for (int j = i + 1;
                  j < lines.size() && j - i <= kLookaheadLines; ++j) {
-                if (lines.at(j).contains(QLatin1String("```"))) {
+                if (fenceClose(lines.at(j), f))
+                    break;
+                if (malformedTableCloser(lines.at(j), f.len, &cells)) {
                     closeAt = j;
                     break;
                 }
             }
             if (closeAt >= 0) {
-                const QString &closeLine = lines.at(closeAt);
-                const int tick = closeLine.indexOf(QLatin1String("```"));
-                int afterPos = tick;
-                while (afterPos < closeLine.size()
-                       && closeLine.at(afterPos) == QLatin1Char('`'))
-                    ++afterPos;
-                const QString before = closeLine.left(tick).trimmed();
-                const QString after = closeLine.mid(afterPos).trimmed();
-                if (!after.isEmpty()) {
-                    QStringList codeParts;
-                    for (int q = i + 1; q < closeAt; ++q) {
-                        const QString piece = lines.at(q).trimmed();
-                        if (!piece.isEmpty())
-                            codeParts.append(piece);
-                    }
-                    if (!before.isEmpty())
-                        codeParts.append(before);
-                    QString code = codeParts.join(QLatin1Char(' '));
-                    // Pipes in the code would split the cell; \| survives
-                    // TableData's unescape-escape round-trip.
-                    code.replace(QLatin1String("|"), QLatin1String("\\|"));
-                    const QString span = code.isEmpty() ? QString()
-                        : code.contains(QLatin1Char('`'))
-                            ? code
-                            : QLatin1Char('`') + code + QLatin1Char('`');
-                    QString row = stripTrailingWhitespace(out.last());
-                    if (row.endsWith(QLatin1Char('|'))) {
-                        row.chop(1);
-                        row = stripTrailingWhitespace(row);
-                    }
-                    row += QLatin1String(" | ") + span
-                         + QLatin1Char(' ') + after;
-                    out.last() = row;
-                    i = closeAt + 1;
-                    continue;
+                QStringList codeParts;
+                for (int q = i + 1; q < closeAt; ++q) {
+                    const QString piece = lines.at(q).trimmed();
+                    if (!piece.isEmpty())
+                        codeParts.append(piece);
                 }
+                QString code = codeParts.join(QLatin1Char(' '));
+                // Pipes in the code would split the cell; \| survives
+                // TableData's unescape-escape round-trip.
+                code.replace(QLatin1String("|"), QLatin1String("\\|"));
+                const QString span = code.isEmpty() ? QString()
+                    : code.contains(QLatin1Char('`'))
+                        ? code
+                        : QLatin1Char('`') + code + QLatin1Char('`');
+                QString row = stripTrailingWhitespace(out.last());
+                if (row.endsWith(QLatin1Char('|'))) {
+                    row.chop(1);
+                    row = stripTrailingWhitespace(row);
+                }
+                row += QLatin1String(" | ") + span
+                     + QLatin1Char(' ') + cells;
+                out.last() = row;
+                i = closeAt + 1;
+                continue;
             }
         }
         out.append(line);

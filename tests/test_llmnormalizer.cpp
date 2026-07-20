@@ -25,6 +25,10 @@ private slots:
     void testTableCodeFencePipesEscaped();
     void testBareFenceAfterTableIsCodeBlock();
     void testUnclosedFenceWithoutTableRunsToEof();
+    void testProsePipeBeforeFenceIsNotTableContext();
+    void testCompleteTableRowBeforeFenceIsCodeBlock();
+    void testLongerFenceKeepsInnerFencesIntact();
+    void testFenceContentMentioningBackticksSurvives();
 
     // Fix 3: \(...\) and \[...\] math delimiters
     void testInlineParenMath();
@@ -50,12 +54,17 @@ private slots:
     // Load-bearing properties
     void testIdempotenceOnAllFixtures();
     void testCanonicalCorpusFixedPoint();
+    void testValidMarkdownCorpusUnchanged();
     void testLookaheadBoundKeepsLinearTime();
 
 private:
     // Every fixture that exercises a rewrite also lands here for the
     // idempotence sweep.
     QStringList allFixtures() const;
+
+    // Documents that are already valid Markdown holding none of the LLM
+    // constructs. The normalizer must return each byte-identically.
+    QStringList validMarkdownCorpus() const;
 
     static QString tableCodeFenceFixture()
     {
@@ -252,6 +261,101 @@ void TestLlmNormalizer::testUnclosedFenceWithoutTableRunsToEof()
     QCOMPARE(blocks.size(), 2);
     QCOMPARE(blocks[1].type, Block::CodeBlock);
     QCOMPARE(blocks[1].content, QStringLiteral("code\nmore code"));
+}
+
+void TestLlmNormalizer::testProsePipeBeforeFenceIsNotTableContext()
+{
+    // A pipe in prose is not a table. Without a delimiter row establishing
+    // one, a fence on the next line is an ordinary code block however its
+    // content is punctuated.
+    const QString md = QStringLiteral(
+        "Columns: name | value\n"
+        "```\n"
+        "Write ``` to open a fence.\n"
+        "```\n");
+    QCOMPARE(LlmNormalizer::normalize(md), md);
+
+    const auto blocks = parsed(md);
+    QCOMPARE(blocks.size(), 2);
+    QCOMPARE(blocks[0].type, Block::Paragraph);
+    QCOMPARE(blocks[1].type, Block::CodeBlock);
+    QCOMPARE(blocks[1].content,
+             QStringLiteral("Write ``` to open a fence."));
+
+    // A single pipe-bearing row with no delimiter row above is not context
+    // either, even when the fence content does look like a broken closer.
+    const QString lone = QStringLiteral(
+        "| just a line with pipes |\n```\n``` | y |\n```\n");
+    QCOMPARE(LlmNormalizer::normalize(lone), lone);
+}
+
+void TestLlmNormalizer::testCompleteTableRowBeforeFenceIsCodeBlock()
+{
+    // The broken shape always cuts off mid-row, so the row above the fence
+    // has fewer cells than the header. A complete row means the table
+    // finished and the fence is an ordinary code block — even when its
+    // content happens to read like a malformed closer.
+    const QString md = QStringLiteral(
+        "| a | b |\n|---|---|\n| 1 | 2 |\n"
+        "```\n"
+        "``` | y |\n"
+        "```\n");
+    QCOMPARE(LlmNormalizer::normalize(md), md);
+
+    const auto blocks = parsed(md);
+    QCOMPARE(blocks.size(), 2);
+    QCOMPARE(blocks[0].type, Block::Table);
+    QCOMPARE(blocks[1].type, Block::CodeBlock);
+    QCOMPARE(blocks[1].content, QStringLiteral("``` | y |"));
+}
+
+void TestLlmNormalizer::testLongerFenceKeepsInnerFencesIntact()
+{
+    // A four-backtick fence wrapping a three-backtick one is how Markdown
+    // documents Markdown. The inner "```python" is content, not a closer:
+    // its run is shorter than the opener's and it resumes no table row.
+    const QString md = QStringLiteral(
+        "Use the a | b syntax to chain.\n"
+        "````\n"
+        "```python\n"
+        "print(1)\n"
+        "```\n"
+        "````\n"
+        "\n"
+        "After.\n");
+    QCOMPARE(LlmNormalizer::normalize(md), md);
+
+    const auto blocks = parsed(md);
+    QCOMPARE(blocks.size(), 3);
+    QCOMPARE(blocks[1].type, Block::CodeBlock);
+    QCOMPARE(blocks[1].content,
+             QStringLiteral("```python\nprint(1)\n```"));
+    QCOMPARE(blocks[2].content, QStringLiteral("After."));
+
+    // The same nesting directly under a real table.
+    const QString table = QStringLiteral(
+        "| a | b |\n|---|---|\n| 1 | 2 |\n"
+        "````\n```js\nx\n```\n````\n");
+    QCOMPARE(LlmNormalizer::normalize(table), table);
+}
+
+void TestLlmNormalizer::testFenceContentMentioningBackticksSurvives()
+{
+    // Backtick runs away from the line start are code content, whatever
+    // follows them.
+    const QString md = QStringLiteral(
+        "| a | b |\n|---|---|\n| x |\n"
+        "```\n"
+        "printf('%s', s); ``` | not a cell |\n"
+        "```\n");
+    // The row IS truncated here, so the trigger's other two conditions hold
+    // — only the closer definition keeps this document intact.
+    QCOMPARE(LlmNormalizer::normalize(md), md);
+
+    // A tilde fence is never the broken shape: fix 1 repairs backtick fences.
+    const QString tilde = QStringLiteral(
+        "| a | b |\n|---|---|\n| x |\n~~~\ncode ``` | y |\n~~~\n");
+    QCOMPARE(LlmNormalizer::normalize(tilde), tilde);
 }
 
 // ---------------------------------------------------------------- fix 3
@@ -500,7 +604,7 @@ void TestLlmNormalizer::testIdempotenceOnAllFixtures()
 {
     // parse runs on every load, so a second pass over already-fixed text
     // must change nothing.
-    const QStringList fixtures = allFixtures();
+    const QStringList fixtures = allFixtures() + validMarkdownCorpus();
     for (const QString &fixture : fixtures) {
         const QString once = LlmNormalizer::normalize(fixture);
         QCOMPARE(LlmNormalizer::normalize(once), once);
@@ -537,6 +641,58 @@ void TestLlmNormalizer::testCanonicalCorpusFixedPoint()
     DocumentSerializer serializer;
     const QString canonical = serializer.serialize(&model);
     QCOMPARE(LlmNormalizer::normalize(canonical), canonical);
+}
+
+QStringList TestLlmNormalizer::validMarkdownCorpus() const
+{
+    return {
+        // Pipes in prose, with and without a fence following.
+        QStringLiteral("The | character separates alternatives: a | b | c.\n"
+                       "Regexes use it too, as in /foo|bar/.\n"),
+        QStringLiteral("Options: a | b\n```bash\nls\n```\n"),
+        QStringLiteral("- shell pipe: `ls | wc`\n```bash\nls\n```\n"),
+        QStringLiteral("Columns: name | value\n"
+                       "```\nWrite ``` to open a fence.\n```\n"),
+        // Fenced code whose content holds backtick runs.
+        QStringLiteral("```\na ``` b ```` c\n```\n"),
+        QStringLiteral("````\n```python\nprint(1)\n```\n````\n"),
+        QStringLiteral("`````\n````md\n```js\n1\n```\n````\n`````\n"),
+        QStringLiteral("Pipe | here\n"
+                       "`````\n````md\n```js\n1\n```\n````\n`````\n"),
+        // Tables next to code blocks, with and without a blank line.
+        QStringLiteral("| a | b |\n|---|---|\n| 1 | 2 |\n```\ncode\n```\n"),
+        QStringLiteral("| a | b |\n|---|---|\n| 1 | 2 |\n"
+                       "\n```\n``` | y |\n```\n"),
+        QStringLiteral("| a | b |\n|---|---|\n| 1 | 2 |\n"
+                       "```\n``` | y |\n```\n"),
+        QStringLiteral("| a | b |\n|---|---|\n| 1 | 2 |\n"
+                       "````\n```js\nx\n```\n````\n"),
+        QStringLiteral("```\ncode\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n"),
+        // A delimiter-shaped line that begins no table.
+        QStringLiteral("---\n```\n``` | x |\n```\n"),
+        // Tilde fences, indented fences, and ordinary structure.
+        QStringLiteral("| a | b |\n|---|---|\n| x |\n"
+                       "~~~\ncode ``` | y |\n~~~\n"),
+        QStringLiteral("Text | with pipe\n  ```\n  indented ``` | z |\n  ```\n"),
+        QStringLiteral("# Title\n\nA paragraph.\n\n"
+                       "1. one\n2. two\n\n> quoted\n\n| a |\n|---|\n| 1 |\n"),
+    };
+}
+
+void TestLlmNormalizer::testValidMarkdownCorpusUnchanged()
+{
+    // The property the normalizer owes every user who never touched an LLM:
+    // valid Markdown holding none of the targeted constructs comes back
+    // byte-identical. Anything looser here rewrites files on open.
+    const QStringList corpus = validMarkdownCorpus();
+    for (const QString &doc : corpus) {
+        const QString out = LlmNormalizer::normalize(doc);
+        QVERIFY2(out == doc,
+                 qPrintable(QStringLiteral("normalize rewrote a valid "
+                                           "document.\n--- in ---\n%1"
+                                           "--- out ---\n%2")
+                                .arg(doc, out)));
+    }
 }
 
 void TestLlmNormalizer::testLookaheadBoundKeepsLinearTime()
