@@ -8,6 +8,7 @@
 #include "notefrontmatter.h"
 #include "block.h"
 #include "perflog.h"
+#include "persistencepool.h"
 #include "insertblockcommand.h"
 
 #include <QFile>
@@ -510,8 +511,9 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
     const int undoIndex = m_undoStack ? m_undoStack->index() : -1;
     const quint64 generation = ++m_asyncSaveGeneration;
     m_autosaveRequestedWhileRunning = false;
-    m_activeWriteCancel = WriteCancellationPtr::create();
+    m_activeWriteCancel = makeCancellationToken();
     m_asyncSaveWatcher.setFuture(QtConcurrent::run(
+        persistenceThreadPool(),
         &DocumentManager::writeSnapshotToFile,
         operation,
         filePath,
@@ -536,7 +538,7 @@ void DocumentManager::flushPendingEdits()
 void DocumentManager::cancelPendingWrites()
 {
     if (m_activeWriteCancel)
-        m_activeWriteCancel->cancelled.storeRelease(1);
+        m_activeWriteCancel->cancel();
     // The flag alone is a race: the worker may already be past its check. Wait
     // for it to finish so the caller can change the path knowing no write is
     // still running against the old one.
@@ -710,7 +712,7 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
     // bytes at filePath. If the note has moved since this worker started, that
     // rename would resurrect it at the old location, so drop the temporary
     // file and report a cancellation rather than a failure.
-    if (cancel && cancel->cancelled.loadAcquire() != 0) {
+    if (isCancelled(cancel)) {
         file.cancelWriting();
         result.cancelled = true;
         result.committed = false;
@@ -937,6 +939,7 @@ void DocumentManager::writeJournal()
     m_pendingJournalChars = fileText.size();
     m_journalRequestedWhileRunning = false;
     m_asyncJournalWatcher.setFuture(QtConcurrent::run(
+        persistenceThreadPool(),
         &DocumentManager::writeSnapshotToFile,
         QStringLiteral("note.journal_write"),
         m_journalPath,

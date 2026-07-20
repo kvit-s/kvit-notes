@@ -67,6 +67,7 @@ add_library(kvit-core STATIC
     src/extensionregistry.cpp
     src/block.cpp
     src/perflog.cpp
+    src/persistencepool.cpp
     src/blockattributes.cpp
     src/shortcutcatalog.cpp
     src/accessibilityannouncer.cpp

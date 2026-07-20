@@ -307,6 +307,14 @@ qt_add_executable(test_notecollection test_notecollection.cpp)
 target_link_libraries(test_notecollection PRIVATE kvit-core Qt6::Test)
 add_test(NAME NoteCollectionTests COMMAND test_notecollection)
 
+# Cancellation and GUI responsiveness of the collection's background work
+# (A2). Times the vault-switch and shutdown paths, which must not wait out a
+# running scan.
+qt_add_executable(test_asynccancellation test_asynccancellation.cpp)
+target_link_libraries(test_asynccancellation PRIVATE kvit-core Qt6::Test
+                      Qt6::Concurrent)
+add_test(NAME AsyncCancellationTests COMMAND test_asynccancellation)
+
 # Wiki-link navigation history
 qt_add_executable(test_navigationhistory test_navigationhistory.cpp)
 target_link_libraries(test_navigationhistory PRIVATE kvit-core Qt6::Test)
