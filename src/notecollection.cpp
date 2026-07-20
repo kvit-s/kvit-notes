@@ -1846,12 +1846,31 @@ void NoteCollection::applyAsyncIndexSaveResult()
 void NoteCollection::cancelAsyncIndexSave()
 {
     ++m_asyncIndexSaveGeneration;
+
+    // saveIndexFileIfDirtyAsync clears the dirty flag BEFORE the write starts,
+    // and leaves it to applyAsyncIndexSaveResult to set it back when the write
+    // fails. Cancelling suppresses that handler and discards any queued
+    // request too, so whatever those carried would be forgotten: the
+    // collection would believe the sidecar on disk matches memory when nothing
+    // had been written.
+    //
+    // refresh() cancels while the collection stays open, so this is ordinary
+    // use, not only shutdown. Restoring the flag here rather than in a result
+    // handler is deliberate — the handler is precisely what cancellation stops
+    // running. Being wrong in this direction costs one redundant rewrite;
+    // being wrong in the other leaves a stale index nothing will ever correct.
+    const bool abandonedUnwrittenWork =
+        m_indexSaveQueued || m_asyncIndexSaveWatcher.isRunning();
+
     m_indexSaveQueued = false;
     if (m_asyncIndexSaveWatcher.isRunning()) {
         const QSignalBlocker blocker(&m_asyncIndexSaveWatcher);
         m_asyncIndexSaveWatcher.cancel();
         m_asyncIndexSaveWatcher.waitForFinished();
     }
+
+    if (abandonedUnwrittenWork)
+        m_indexDirty = true;
 }
 
 // ----------------------------------------------------------- wiki-links

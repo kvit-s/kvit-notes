@@ -287,6 +287,12 @@ public:
     // whether the wait was entered at all.
     bool listingWatcherIsRunningForTesting() const;
     bool refreshWatcherIsRunningForTesting() const;
+    // Test seam: the asynchronous index-save sequence, which is otherwise
+    // only reachable through a scan. Lets a test show that cancelling a save
+    // leaves the index marked as still owing a write.
+    void markIndexDirtyForTesting() { markIndexDirty(); }
+    void saveIndexFileIfDirtyAsyncForTesting() { saveIndexFileIfDirtyAsync(); }
+    void cancelAsyncIndexSaveForTesting() { cancelAsyncIndexSave(); }
 
 signals:
     void rootChanged();
