@@ -9,6 +9,8 @@
 
 #include "notecollection.h"
 
+#include "faultinjection.h"
+
 // Unit suite for the collection object, over real temporary
 // directories. The contracts under test: the scan reads and
 // never writes; every operation is reflected on disk and in the index;
@@ -1569,14 +1571,12 @@ void TestNoteCollection::testBenchmark500NoteOpen()
                             .arg(elapsed)));
 }
 
-namespace {
 // A read-only .kvit directory stands in for a full disk or a read-only
 // mount: the sidecar writes fail while the notes themselves stay writable.
-constexpr QFileDevice::Permissions kReadOnlyDir =
-    QFileDevice::ReadOwner | QFileDevice::ExeOwner;
-constexpr QFileDevice::Permissions kWritableDir =
-    QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner;
-} // namespace
+// FaultInjection::DeniedWrites restores the permissions on scope exit, so an
+// assertion that fails below cannot leave the directory unwritable for the
+// next test, and it skips rather than passing vacuously under a user that
+// bypasses the permission bits.
 
 void TestNoteCollection::testFailedIndexWriteKeepsIndexDirty()
 {
@@ -1585,11 +1585,15 @@ void TestNoteCollection::testFailedIndexWriteKeepsIndexDirty()
     const QString kvitDir = m_dir->filePath(".kvit");
     QVERIFY(QDir().mkpath(kvitDir));
 
-    QVERIFY(QFile::setPermissions(kvitDir, kReadOnlyDir));
-    // The note itself is written; only the index sidecar fails.
-    m_collection->setTags("A.md", {"one"});
-    const bool stillDirty = m_collection->indexDirtyForTesting();
-    QVERIFY(QFile::setPermissions(kvitDir, kWritableDir)); // restore first
+    bool stillDirty = false;
+    {
+        FaultInjection::DeniedWrites denied(kvitDir);
+        if (!denied.supported())
+            QSKIP(qPrintable(denied.skipReason()));
+        // The note itself is written; only the index sidecar fails.
+        m_collection->setTags("A.md", {"one"});
+        stillDirty = m_collection->indexDirtyForTesting();
+    }
 
     QVERIFY2(stillDirty,
              "a failed index write cleared the dirty flag, so the change "
@@ -1604,10 +1608,14 @@ void TestNoteCollection::testFailedCollectionWriteIsReported()
     QVERIFY(QDir().mkpath(kvitDir));
 
     QSignalSpy failedSpy(m_collection, &NoteCollection::operationFailed);
-    QVERIFY(QFile::setPermissions(kvitDir, kReadOnlyDir));
-    m_collection->setTagColor("one", "#ff0000"); // writes collection.json
-    const int failures = failedSpy.count();
-    QVERIFY(QFile::setPermissions(kvitDir, kWritableDir)); // restore first
+    int failures = 0;
+    {
+        FaultInjection::DeniedWrites denied(kvitDir);
+        if (!denied.supported())
+            QSKIP(qPrintable(denied.skipReason()));
+        m_collection->setTagColor("one", "#ff0000"); // writes collection.json
+        failures = failedSpy.count();
+    }
 
     QVERIFY2(failures > 0,
              "a failed collection-state write was not surfaced to the user");

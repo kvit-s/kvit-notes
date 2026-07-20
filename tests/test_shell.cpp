@@ -17,6 +17,32 @@
 #include "blockmodel.h"
 #include "extensionregistry.h"
 
+#include <QRegularExpression>
+#include <QSet>
+
+namespace {
+
+// Warnings emitted while the shell loads. QML resolves bindings lazily and
+// reports every failure — an unknown context property, a type the qrc does
+// not carry, a binding loop — as a warning on the message handler and then
+// carries on with an undefined value. Loading therefore "succeeds" no matter
+// how much of the shell failed to wire up, which is precisely how a renamed
+// context property or a resource missing from the qrc used to merge green.
+// Capturing the warnings turns each one into a test failure.
+QStringList g_loadWarnings;
+QtMessageHandler g_previousHandler = nullptr;
+
+void capturingHandler(QtMsgType type, const QMessageLogContext &context,
+                      const QString &message)
+{
+    if (type == QtWarningMsg || type == QtCriticalMsg || type == QtFatalMsg)
+        g_loadWarnings << message;
+    if (g_previousHandler)
+        g_previousHandler(type, context, message);
+}
+
+} // namespace
+
 // The shell as the application actually composes it: AppContext wired up and
 // qml/main.qml loaded from the shipped resource.
 //
@@ -41,12 +67,73 @@ private slots:
         m_context = std::make_unique<AppContext>();
         m_context->openSettings(m_dir.filePath(QStringLiteral("settings.json")));
         m_context->installContextProperties(&m_engine);
+
+        g_loadWarnings.clear();
+        g_previousHandler = qInstallMessageHandler(capturingHandler);
         m_engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
+        // Bindings evaluate as the scene is built; let the queue drain so a
+        // late failure is captured too.
+        QCoreApplication::processEvents();
+        qInstallMessageHandler(g_previousHandler);
     }
 
     void theComposedContextLoadsTheShell()
     {
         QVERIFY(!m_engine.rootObjects().isEmpty());
+    }
+
+    // The composition gate. A context property renamed out from under the
+    // shell, a QML file missing from resources.qrc, an import that does not
+    // resolve, or a binding that references something that is not there all
+    // surface here as a warning rather than as a failed load.
+    void loadingTheShellEmitsNoQmlWarnings()
+    {
+        if (!g_loadWarnings.isEmpty()) {
+            QString report = QStringLiteral(
+                "Loading qml/main.qml produced %1 warning(s):\n")
+                    .arg(g_loadWarnings.size());
+            for (const QString &warning : g_loadWarnings)
+                report += QStringLiteral("  - ") + warning + QLatin1Char('\n');
+            QFAIL(qPrintable(report));
+        }
+    }
+
+    // The names the shell binds to are a contract between C++ and QML that
+    // neither compiler checks. Pinning the published set means a rename has
+    // to be made deliberately, in both places, rather than discovered later
+    // as an undefined value at runtime.
+    void everyPublishedContextPropertyIsAccountedFor()
+    {
+        static const QStringList expected = {
+            "blockModel", "markdownFormatter", "undoStack", "documentManager",
+            "clipboard", "blockMenuModel", "mathCommandModel",
+            "documentSelection", "documentSearch", "documentOutline",
+            "documentStats", "documentExporter", "documentSerializer",
+            "noteCollection", "folderTreeModel", "noteListModel",
+            "collectionSearch", "startupController", "noteTemplates",
+            "documentImporter", "embedMetadata", "egressPolicy", "appSettings",
+            "perfLog",
+            "theme", "typography", "codeLanguageList", "imageAssets",
+            "blockAttributes", "shortcutCatalog", "a11y", "systemTray",
+            "globalHotkey", "fileWatcher", "navigationHistory", "updateChecker",
+            "quickSwitcherModel", "tableTools", "todoMeta", "kanbanTools",
+            "queryTools", "mathRenderer", "blockKinds", "extensions",
+        };
+        const QStringList actual = m_context->installedContextPropertyNames();
+
+        const QSet<QString> expectedSet(expected.begin(), expected.end());
+        const QSet<QString> actualSet(actual.begin(), actual.end());
+        const QSet<QString> added = actualSet - expectedSet;
+        const QSet<QString> removed = expectedSet - actualSet;
+        QVERIFY2(added.isEmpty() && removed.isEmpty(),
+                 qPrintable(QStringLiteral(
+                     "Published context properties changed. Added: [%1]. "
+                     "Removed: [%2]. Update the shell's bindings and this "
+                     "list together.")
+                        .arg(QStringList(added.begin(), added.end()).join(", "),
+                             QStringList(removed.begin(), removed.end())
+                                 .join(", "))));
+        QCOMPARE(actual.size(), expected.size());   // no duplicate publishes
     }
 
     void withNoModuleInstalledEverySlotIsInert()

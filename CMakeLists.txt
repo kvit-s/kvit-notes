@@ -51,6 +51,31 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTes
 # the public repo is then the deletion of those paths, not an exclusion list.
 option(KVIT_AGENT "Build the premium agent module (src/agent, qml/agent)" OFF)
 
+# AddressSanitizer + UndefinedBehaviorSanitizer. A separate build rather than
+# a default, because the instrumentation costs roughly 2x runtime and changes
+# the allocator, so it is a job of its own rather than something every build
+# carries. Deterministic suites only: the sanitizers report on what actually
+# executes, and the Qt Quick suites do not execute the same way twice here.
+#
+#   cmake -S . -B build-asan -DKVIT_SANITIZE=ON && ctest --test-dir build-asan -L unit
+#
+# GCC and Clang share these flags; MSVC has ASan but not UBSan and needs a
+# different spelling, so the option is a no-op there rather than a broken
+# build.
+option(KVIT_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(KVIT_SANITIZE)
+    if(MSVC)
+        message(WARNING "KVIT_SANITIZE is not wired for MSVC; building without sanitizers")
+    else()
+        # -fno-omit-frame-pointer keeps the reports' stacks readable;
+        # -fno-sanitize-recover makes UBSan fail the run rather than log and
+        # continue, so a violation cannot pass as a green test.
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer
+                            -fno-sanitize-recover=undefined)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+endif()
+
 # Vendored MicroTeX: the math typesetting engine
 # behind the MathRenderer seam. Built as a static `microtex` target.
 add_subdirectory(third_party/microtex)

@@ -19,10 +19,34 @@
 #include "remoteimageprovider.h"
 
 AppContext::AppContext(QObject *parent)
+    : AppContext(Options{}, parent)
+{
+}
+
+AppContext::AppContext(const Options &options, QObject *parent)
     : QObject(parent)
+    , m_options(options)
     , m_egressFetcher(std::make_unique<EgressFetcher>())
 {
     wire();
+}
+
+void AppContext::setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher)
+{
+    if (!fetcher)
+        return;
+    // EmbedMetadata borrows its fetcher, so hand it the new one before the
+    // previous override is destroyed at the end of this scope. The default
+    // it is replacing is the EgressFetcher, which owns the only
+    // QNetworkAccessManager in the tree — so a harness that does not call
+    // this reaches the network for real.
+    //
+    // Only the wire is swapped. EgressPolicy still sits in front of it, and
+    // m_egressFetcher stays wired to the remote image provider, so consent
+    // and address validation behave under test exactly as they ship.
+    std::unique_ptr<EmbedFetcher> previous = std::move(m_embedFetcherOverride);
+    m_embedFetcherOverride = std::move(fetcher);
+    m_embedMetadata.setFetcher(m_embedFetcherOverride.get());
 }
 
 AppContext::~AppContext() = default;
@@ -99,7 +123,8 @@ void AppContext::wire()
     // System integration seams. The tray shows only where a status-notifier
     // host exists; both route their actions through their signals so the
     // in-app path (quick capture, tray menu) works regardless.
-    m_systemTray.show();
+    if (m_options.showSystemTray)
+        m_systemTray.show();
     // No system-wide grab is registered on ANY platform: GlobalHotkey is a
     // seam with no backend behind it (X11 XGrabKey, the GlobalShortcuts
     // portal, RegisterHotKey, and the macOS equivalent are all unwritten), so
@@ -175,10 +200,12 @@ void AppContext::openSettings(const QString &settingsPath)
     m_typography.setSettings(&m_settingsStore);
 
     PerfLog &perfLog = PerfLog::instance();
-    if (!perfLog.hasEnvironmentOverride())
+    if (m_options.configureLoggingFromSettings
+        && !perfLog.hasEnvironmentOverride())
         perfLog.configureFromSetting(
             m_settingsStore.value(QStringLiteral("perf.logging"), QVariant()));
-    if (perfLog.enabled() && !perfLog.hasLogFilePath()) {
+    if (m_options.configureLoggingFromSettings && perfLog.enabled()
+        && !perfLog.hasLogFilePath()) {
         perfLog.setLogFilePath(
             QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation))
                 .filePath(QStringLiteral("perf.log")));
@@ -248,60 +275,69 @@ void AppContext::installContextProperties(QQmlEngine *engine)
         return;
     QQmlContext *context = engine->rootContext();
 
-    context->setContextProperty("blockModel", &m_blockModel);
-    context->setContextProperty("markdownFormatter", &m_markdownFormatter);
-    context->setContextProperty("undoStack", &m_undoStack);
-    context->setContextProperty("documentManager", &m_documentManager);
-    context->setContextProperty("clipboard", &m_clipboardHelper);
-    context->setContextProperty("blockMenuModel", &m_blockMenuModel);
-    context->setContextProperty("mathCommandModel", &m_mathCommandModel);
-    context->setContextProperty("documentSelection", &m_documentSelection);
-    context->setContextProperty("documentSearch", &m_documentSearch);
-    context->setContextProperty("documentOutline", &m_documentOutline);
-    context->setContextProperty("documentStats", &m_documentStats);
-    context->setContextProperty("documentExporter", &m_documentExporter);
-    context->setContextProperty("documentSerializer", &m_documentSerializer);
-    context->setContextProperty("noteCollection", &m_noteCollection);
-    context->setContextProperty("folderTreeModel", &m_folderTreeModel);
-    context->setContextProperty("noteListModel", &m_noteListModel);
-    context->setContextProperty("collectionSearch", &m_collectionSearch);
-    context->setContextProperty("startupController", &m_startupController);
-    context->setContextProperty("noteTemplates", &m_noteTemplates);
-    context->setContextProperty("documentImporter", &m_documentImporter);
-    context->setContextProperty("embedMetadata", &m_embedMetadata);
+    // Every property goes through one helper so the published set is
+    // recorded as it is built. A test reads it back and compares it with the
+    // names the shell binds to; nothing has to be kept in sync by hand.
+    m_installedProperties.clear();
+    auto publish = [&](const char *name, const auto &value) {
+        m_installedProperties << QString::fromLatin1(name);
+        context->setContextProperty(name, value);
+    };
+
+    publish("blockModel", &m_blockModel);
+    publish("markdownFormatter", &m_markdownFormatter);
+    publish("undoStack", &m_undoStack);
+    publish("documentManager", &m_documentManager);
+    publish("clipboard", &m_clipboardHelper);
+    publish("blockMenuModel", &m_blockMenuModel);
+    publish("mathCommandModel", &m_mathCommandModel);
+    publish("documentSelection", &m_documentSelection);
+    publish("documentSearch", &m_documentSearch);
+    publish("documentOutline", &m_documentOutline);
+    publish("documentStats", &m_documentStats);
+    publish("documentExporter", &m_documentExporter);
+    publish("documentSerializer", &m_documentSerializer);
+    publish("noteCollection", &m_noteCollection);
+    publish("folderTreeModel", &m_folderTreeModel);
+    publish("noteListModel", &m_noteListModel);
+    publish("collectionSearch", &m_collectionSearch);
+    publish("startupController", &m_startupController);
+    publish("noteTemplates", &m_noteTemplates);
+    publish("documentImporter", &m_documentImporter);
+    publish("embedMetadata", &m_embedMetadata);
     // Delegates ask this before rendering anything remote; see EgressPolicy.
-    context->setContextProperty("egressPolicy", &m_egressPolicy);
-    context->setContextProperty("appSettings", &m_settingsStore);
-    context->setContextProperty("perfLog", &PerfLog::instance());
-    context->setContextProperty("theme", &m_theme);
-    context->setContextProperty("typography", &m_typography);
+    publish("egressPolicy", &m_egressPolicy);
+    publish("appSettings", &m_settingsStore);
+    publish("perfLog", &PerfLog::instance());
+    publish("theme", &m_theme);
+    publish("typography", &m_typography);
     // The canonical code-highlight language ids: the single
     // source of truth for the language picker and the /code aliases, so the
     // UI list can never drift from what the highlighter recognizes.
-    context->setContextProperty(
+    publish(
         "codeLanguageList",
         QVariant::fromValue(CodeLanguages::supportedLanguages()));
-    context->setContextProperty("imageAssets", &m_imageAssets);
+    publish("imageAssets", &m_imageAssets);
     // The per-block attribute reader/editor: delegates read typed
     // presentation values off a block's `attributes` payload, and the
     // attribute editors compute a new payload to hand to setBlockAttributes.
-    context->setContextProperty("blockAttributes", &m_blockAttributes);
+    publish("blockAttributes", &m_blockAttributes);
     // The shortcut catalog (features.md §13): the source the shortcut
     // reference renders and the test_shortcutmap audit checks.
-    context->setContextProperty("shortcutCatalog", &m_shortcutCatalog);
+    publish("shortcutCatalog", &m_shortcutCatalog);
     // The live-region announcer: dynamic changes speak
     // through this seam to assistive technology.
-    context->setContextProperty("a11y", &m_a11y);
-    context->setContextProperty("systemTray", &m_systemTray);
-    context->setContextProperty("globalHotkey", &m_globalHotkey);
-    context->setContextProperty("fileWatcher", &m_fileWatcher);
-    context->setContextProperty("navigationHistory", &m_navigationHistory);
-    context->setContextProperty("updateChecker", &m_updateChecker);
-    context->setContextProperty("quickSwitcherModel", &m_quickSwitcherModel);
-    context->setContextProperty("tableTools", &m_tableTools);
-    context->setContextProperty("todoMeta", &m_todoMeta);
-    context->setContextProperty("kanbanTools", &m_kanbanTools);
-    context->setContextProperty("queryTools", &m_queryTools);
+    publish("a11y", &m_a11y);
+    publish("systemTray", &m_systemTray);
+    publish("globalHotkey", &m_globalHotkey);
+    publish("fileWatcher", &m_fileWatcher);
+    publish("navigationHistory", &m_navigationHistory);
+    publish("updateChecker", &m_updateChecker);
+    publish("quickSwitcherModel", &m_quickSwitcherModel);
+    publish("tableTools", &m_tableTools);
+    publish("todoMeta", &m_todoMeta);
+    publish("kanbanTools", &m_kanbanTools);
+    publish("queryTools", &m_queryTools);
     // Math: the MicroTeX seam. The provider owns rendering under
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.
@@ -312,13 +348,13 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // to an Image's `source` would bypass every one of them.
     engine->addImageProvider(QStringLiteral("remote"),
                              new RemoteImageProvider(m_egressFetcher.get()));
-    context->setContextProperty("mathRenderer", &m_mathTools);
+    publish("mathRenderer", &m_mathTools);
 
     // The two extension seams: block-kind registration and QML slot
     // injection. Both are inert in the open build: no module is installed,
     // so `blockKinds` reports only the built-in fence kinds and every
     // `extensions` slot resolves to an empty source.
-    context->setContextProperty("blockKinds", &BlockKindRegistry::instance());
-    context->setContextProperty("extensions", &ExtensionRegistry::instance());
+    publish("blockKinds", &BlockKindRegistry::instance());
+    publish("extensions", &ExtensionRegistry::instance());
     ExtensionRegistry::instance().installContextProperties(context);
 }
