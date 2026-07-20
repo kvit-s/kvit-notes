@@ -14,7 +14,7 @@ import QtQuick.Dialogs
 import Qt.labs.qmlmodels
 import Kvit 1.0
 
-ApplicationWindow {
+KvitShell {
     id: root
 
     // First-run default; every later launch restores the persisted
@@ -1276,9 +1276,11 @@ ApplicationWindow {
     // the make-room. The drop commits ONE pre-applied command.
     // Multi-block drags (the handle of a selected block) show a drop
     // indicator instead and commit one compound move.
-    property alias blockDrag: blockDrag
-    QtObject {
-        id: blockDrag
+    // Declared by KvitShell; this instance supplies the behaviour and keeps
+    // main.qml's scope, so it still drives blockListView and the edge
+    // scroller directly.
+    blockDrag: BlockDragState {
+        id: blockDragState
 
         property bool active: false
         property bool isMulti: false
@@ -1391,8 +1393,8 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Escape"
-        enabled: blockDrag.active
-        onActivated: blockDrag.cancel()
+        enabled: blockDragState.active
+        onActivated: blockDragState.cancel()
     }
 
     // The floating drag proxy: snapshots of up to three dragged blocks
@@ -1401,7 +1403,7 @@ ApplicationWindow {
     Item {
         id: dragProxy
         objectName: "dragProxy"
-        visible: blockDrag.active
+        visible: blockDragState.active
         z: 1000
         width: 300
         height: proxyColumn.height
@@ -1463,7 +1465,7 @@ ApplicationWindow {
         }
 
         Rectangle {
-            visible: blockDrag.dragCount > 1
+            visible: blockDragState.dragCount > 1
             anchors.left: proxyColumn.right
             anchors.top: proxyColumn.top
             anchors.leftMargin: -12
@@ -1474,7 +1476,7 @@ ApplicationWindow {
             color: Theme.accent
             Text {
                 anchors.centerIn: parent
-                text: blockDrag.dragCount
+                text: blockDragState.dragCount
                 color: Theme.onAccent
                 font.pixelSize: 11
                 font.bold: true
@@ -3826,15 +3828,15 @@ ApplicationWindow {
             id: dropIndicator
             objectName: "dropIndicator"
             parent: blockListView
-            visible: blockDrag.active && blockDrag.isMulti
-                     && blockDrag.indicatorGap >= 0
+            visible: blockDragState.active && blockDragState.isMulti
+                     && blockDragState.indicatorGap >= 0
             x: 40
             width: blockListView.width - 48
             height: 3
             radius: 1.5
             color: Theme.accent
             y: {
-                var gap = blockDrag.indicatorGap
+                var gap = blockDragState.indicatorGap
                 if (gap < 0)
                     return 0
                 var yContent = 0

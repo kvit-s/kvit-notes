@@ -8,6 +8,8 @@
         <file>qml/NumberedListDelegate.qml</file>
         <file>qml/TodoDelegate.qml</file>
         <file>qml/BlockDelegateBase.qml</file>
+        <file>qml/BlockDragState.qml</file>
+        <file>qml/KvitShell.qml</file>
         <file>qml/QuoteDelegate.qml</file>
         <file>qml/CodeBlockDelegate.qml</file>
         <file>qml/LanguagePicker.qml</file>

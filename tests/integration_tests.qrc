@@ -10,6 +10,8 @@
         <file alias="qml/NumberedListDelegate.qml">../qml/NumberedListDelegate.qml</file>
         <file alias="qml/TodoDelegate.qml">../qml/TodoDelegate.qml</file>
         <file alias="qml/BlockDelegateBase.qml">../qml/BlockDelegateBase.qml</file>
+        <file alias="qml/BlockDragState.qml">../qml/BlockDragState.qml</file>
+        <file alias="qml/KvitShell.qml">../qml/KvitShell.qml</file>
         <file alias="qml/QuoteDelegate.qml">../qml/QuoteDelegate.qml</file>
         <file alias="qml/CodeBlockDelegate.qml">../qml/CodeBlockDelegate.qml</file>
         <file alias="qml/LanguagePicker.qml">../qml/LanguagePicker.qml</file>
