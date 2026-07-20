@@ -43,6 +43,26 @@ Item {
     readonly property string resolvedSource:
         imageAssets.resolve(media.path, noteDir,
                             noteCollection.isOpen ? noteCollection.rootPath : "")
+    // Remote media needs the reader's approval before the player is given a
+    // URL, for the same reason images do: opening a note must not contact the
+    // hosts it names.
+    //
+    // Consent is where the enforcement stops for media. Playback streams
+    // through QtMultimedia's own network stack, so once an origin is approved
+    // the address validation and byte caps EgressFetcher applies elsewhere do
+    // not cover the media stream. Routing a seekable stream through the
+    // fetcher would mean buffering whole files, so the gate is the approval;
+    // devel.md records the gap.
+    readonly property bool isRemote: /^https?:\/\//i.test(root.resolvedSource)
+    readonly property string playbackSource: {
+        var r = egressPolicy.revision
+        if (!root.isRemote)
+            return root.resolvedSource
+        return egressPolicy.isAllowed(root.resolvedSource) ? root.resolvedSource : ""
+    }
+    readonly property bool awaitingConsent:
+        root.resolvedSource !== "" && root.playbackSource === ""
+
     readonly property string extension: {
         var p = media.path
         var dot = p.lastIndexOf(".")
@@ -52,10 +72,13 @@ Item {
         ["mp3", "wav", "ogg", "flac", "m4a"].indexOf(extension) !== -1
     readonly property bool isVideo:
         ["mp4", "webm", "mkv", "mov"].indexOf(extension) !== -1
-    // The player could not open the file (missing, or a codec the backend
-    // rejects): show the fallback card instead of a dead control bar.
+    // The player has nothing to play: the file is missing, the backend
+    // rejects the codec, or the media is remote and not yet approved. All
+    // three show the fallback card rather than a dead control bar; the card
+    // itself distinguishes the consent case.
     readonly property bool hasError:
-        resolvedSource === "" || player.error !== MediaPlayer.NoError
+        resolvedSource === "" || awaitingConsent
+        || player.error !== MediaPlayer.NoError
     readonly property int maxWidth: Math.max(120, root.width - 96)
     readonly property int videoWidth:
         Math.min(media.width > 0 ? media.width : 480, maxWidth)
@@ -148,7 +171,7 @@ Item {
     MediaPlayer {
         id: player
         objectName: "mediaPlayer"
-        source: root.resolvedSource
+        source: root.playbackSource
         audioOutput: AudioOutput { id: audioOut; volume: 0.8 }
         videoOutput: root.isVideo ? videoFrame : null
     }
@@ -237,11 +260,46 @@ Item {
                     color: theme.textMuted; font.pixelSize: 11; elide: Text.ElideMiddle
                 }
                 Text {
+                    visible: !root.awaitingConsent
                     text: root.resolvedSource === ""
                           ? qsTr("File not found")
                           : qsTr("Cannot play this file: ") + player.errorString
                     color: theme.danger; font.pixelSize: 11
                     width: parent.width; wrapMode: Text.Wrap
+                }
+                Row {
+                    visible: root.awaitingConsent
+                    spacing: 8
+                    Rectangle {
+                        objectName: "mediaLoadButton"
+                        width: mediaLoadLabel.implicitWidth + 16
+                        height: mediaLoadLabel.implicitHeight + 8
+                        radius: 4
+                        visible: egressPolicy.canRequestConsent(root.resolvedSource)
+                        color: theme.hoverTint
+                        border.color: mediaLoadArea.containsMouse ? theme.accent
+                                                                  : theme.border
+                        Text {
+                            id: mediaLoadLabel
+                            anchors.centerIn: parent
+                            text: qsTr("Load media")
+                            font.pixelSize: 11
+                            color: mediaLoadArea.containsMouse ? theme.textPrimary
+                                                               : theme.textMuted
+                        }
+                        MouseArea {
+                            id: mediaLoadArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: egressPolicy.allowOrigin(root.resolvedSource)
+                        }
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Remote media not loaded")
+                        color: theme.textMuted; font.pixelSize: 11
+                    }
                 }
             }
 

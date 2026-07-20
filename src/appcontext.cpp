@@ -11,56 +11,16 @@
 #include <QTimer>
 #include <QUrl>
 
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
-
 #include "blockkindregistry.h"
 #include "codelanguages.h"
 #include "diagrams/diagramcanvas.h"
 #include "extensionregistry.h"
 #include "perflog.h"
-
-namespace {
-
-// The real embed fetcher: pulls a page's HTML through a
-// QNetworkAccessManager with a bounded timeout and safe redirects. Tests wire
-// a fake instead, so the suite never touches the network.
-class NetworkEmbedFetcher : public EmbedFetcher
-{
-public:
-    void fetch(const QString &url,
-               std::function<void(bool, const QString &)> done) override
-    {
-        QNetworkRequest req((QUrl(url)));
-        req.setHeader(QNetworkRequest::UserAgentHeader,
-                      QByteArrayLiteral("KvitEmbed/1.0"));
-        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-        QNetworkReply *reply = m_nam.get(req);
-        QTimer *timer = new QTimer(reply);
-        timer->setSingleShot(true);
-        QObject::connect(timer, &QTimer::timeout, reply, &QNetworkReply::abort);
-        timer->start(8000);
-        QObject::connect(reply, &QNetworkReply::finished, reply, [reply, done]() {
-            if (reply->error() != QNetworkReply::NoError) {
-                done(false, QString());
-            } else {
-                done(true, QString::fromUtf8(reply->readAll().left(200000)));
-            }
-            reply->deleteLater();
-        });
-    }
-
-private:
-    QNetworkAccessManager m_nam;
-};
-
-} // namespace
+#include "remoteimageprovider.h"
 
 AppContext::AppContext(QObject *parent)
     : QObject(parent)
-    , m_embedFetcher(std::make_unique<NetworkEmbedFetcher>())
+    , m_egressFetcher(std::make_unique<EgressFetcher>())
 {
     wire();
 }
@@ -118,9 +78,18 @@ void AppContext::wire()
     m_noteTemplates.setCollection(&m_noteCollection);
     // Import into the collection (features.md §12.6).
     m_documentImporter.setCollection(&m_noteCollection);
-    // Embed preview cards (features.md §1.2.14).
-    m_embedMetadata.setFetcher(m_embedFetcher.get());
+    // Every outbound request in the app runs over one fetcher, which asks one
+    // policy. Embed previews, the images those previews name, remote images
+    // and media in a note, and the update check all pass through here.
+    m_egressFetcher->setPolicy(&m_egressPolicy);
+    // Embed preview cards (features.md §1.2.14). The card is inert until the
+    // reader approves the origin, so a note cannot fetch by being opened.
+    m_embedMetadata.setFetcher(m_egressFetcher.get());
+    m_embedMetadata.setPolicy(&m_egressPolicy);
     m_embedMetadata.setCollection(&m_noteCollection);
+    // The update check shares this transport, but the launcher hands it over
+    // (KvitApplication::start), so composing an AppContext in a test still
+    // yields an update checker with no fetcher and no way to reach the wire.
 
     m_startupController.setCollection(&m_noteCollection);
     m_startupController.setDocumentManager(&m_documentManager);
@@ -206,6 +175,13 @@ void AppContext::openSettings(const QString &settingsPath)
     // once-per-day stamp from the same store.
     m_updateChecker.setSettings(&m_settingsStore);
 
+    // Remote-content consent: the master switch and the origins the reader
+    // has approved. Attached here rather than in wire() for the same reason
+    // Theme is — the policy reads its stored values on attach, and a store
+    // that has not been opened yet would answer with defaults and drop every
+    // approval the reader made in an earlier session.
+    m_egressPolicy.setSettings(&m_settingsStore);
+
     // Close-to-tray is opt-in (tray.closeToTray, default off): closing the
     // last window quits unless the user chose to stay resident in the tray.
     m_systemTray.setSettings(&m_settingsStore);
@@ -265,6 +241,8 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     context->setContextProperty("noteTemplates", &m_noteTemplates);
     context->setContextProperty("documentImporter", &m_documentImporter);
     context->setContextProperty("embedMetadata", &m_embedMetadata);
+    // Delegates ask this before rendering anything remote; see EgressPolicy.
+    context->setContextProperty("egressPolicy", &m_egressPolicy);
     context->setContextProperty("appSettings", &m_settingsStore);
     context->setContextProperty("perfLog", &PerfLog::instance());
     context->setContextProperty("theme", &m_theme);
@@ -300,6 +278,12 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.
     engine->addImageProvider(QStringLiteral("math"), new MathImageProvider);
+    // The only way a remote image reaches QML: image://remote/<url> fetches
+    // through the egress fetcher, so consent, address validation, redirect
+    // revalidation and the byte cap all apply. Binding a remote URL straight
+    // to an Image's `source` would bypass every one of them.
+    engine->addImageProvider(QStringLiteral("remote"),
+                             new RemoteImageProvider(m_egressFetcher.get()));
     context->setContextProperty("mathRenderer", &m_mathTools);
 
     // The two extension seams: block-kind registration and QML slot

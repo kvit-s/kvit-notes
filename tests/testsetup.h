@@ -8,6 +8,7 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QDir>
+#include <QStandardPaths>
 #include <QFile>
 
 #include "blockkindregistry.h"
@@ -47,6 +48,7 @@
 #include "collectionsearch.h"
 #include "notetemplates.h"
 #include "documentimporter.h"
+#include "egresspolicy.h"
 #include "embedmetadata.h"
 #include "settingsstore.h"
 #include "perflog.h"
@@ -230,9 +232,25 @@ public slots:
         documentImporter->setCollection(noteCollection);
         engine->rootContext()->setContextProperty("documentImporter", documentImporter);
 
+        // No collection is open here, so EmbedMetadata falls back to the
+        // per-user cache directory, which survives between runs. Clear it, or
+        // a card another run already fetched renders from cache and the
+        // inert-by-default assertions pass or fail depending on history.
+        QDir(QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+                 .filePath(QStringLiteral("embedcache")))
+            .removeRecursively();
+
+        // The consent gate the delegates ask before rendering anything
+        // remote. It starts empty, exactly as it does for a real reader, so
+        // the Qt Quick tests see the inert cards first and grant approval
+        // themselves when they mean to exercise the loaded state.
+        EgressPolicy *egressPolicy = new EgressPolicy(engine);
+        engine->rootContext()->setContextProperty("egressPolicy", egressPolicy);
+
         EmbedMetadata *embedMetadata = new EmbedMetadata(engine);
         embedMetadata->setFetcher(new FakeEmbedFetcher);
         embedMetadata->setCollection(noteCollection);
+        embedMetadata->setPolicy(egressPolicy);
         engine->rootContext()->setContextProperty("embedMetadata", embedMetadata);
 
         if (!m_collectionDir.isValid())

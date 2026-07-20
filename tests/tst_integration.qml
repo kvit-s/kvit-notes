@@ -8199,11 +8199,24 @@ Item {
             var card = findChild(deleg, "embedCard")
             verify(card !== null, "embed card renders")
 
-            // Metadata from the fake fetcher fills the card title.
+            // The card is inert until the reader asks for it: opening a note
+            // must not contact the host the note names. The title shows the
+            // URL and a Load button is offered.
+            egressPolicy.forgetAllOrigins()
             var title = findChild(deleg, "embedTitle")
+            verify(title.text.indexOf("Example Page Title") === -1,
+                   "an unapproved embed shows no fetched metadata")
+            var loadButton = findChild(deleg, "embedLoadButton")
+            verify(loadButton !== null && loadButton.visible,
+                   "the inert card offers to load the preview")
+
+            // Clicking it approves the origin and fills the card.
+            mouseClick(loadButton)
             tryVerify(function() {
                 return title.text.indexOf("Example Page Title") !== -1
-            }, 2000, "embed title from OpenGraph")
+            }, 2000, "embed title from OpenGraph after the reader loads it")
+            verify(egressPolicy.isAllowed("https://example.com/article"),
+                   "loading a preview approves its origin")
 
             // Round-trips byte-identically as an image expression.
             compare(blockModel.getContent(1), "![](https://example.com/article)")

@@ -67,10 +67,29 @@ The full manual is [usage.md](usage.md); the product specification is
 
 ## Privacy
 
-Kvit makes no network requests except an optional update check: one GET to
-the GitHub Releases API at startup, at most once per day, to show a
-passive notice when a newer version exists. Settings → General turns it
-off. There is no telemetry of any kind.
+There is no telemetry of any kind, and opening a note never contacts
+anything. A note can name any address in a link preview, an image, or an
+embedded video, and fetching one on sight would tell that site you opened
+the note, when, and from what address. So nothing remote loads until you
+ask for it: previews, remote images and remote media render as inert cards
+with a Load button, and the site you approve is remembered for next time.
+Settings → General lists how many sites you have approved, forgets them in
+one click, and offers a switch that loads remote content automatically if
+you would rather work that way.
+
+Two requests do not need per-site approval:
+
+- **The update check**, if you leave it on: one GET to the GitHub Releases
+  API at startup, at most once per day, to show a passive notice when a
+  newer version exists. Settings → General turns it off.
+- **Content you approved earlier**, which loads without asking again.
+
+Every request the app makes, approved or not, goes through one policy
+that restricts it to http and https, refuses URLs carrying credentials,
+resolves the hostname and rejects loopback, private, link-local and cloud
+metadata addresses before connecting, re-checks each redirect the same way,
+and abandons a response that exceeds its size limit or arrives with the
+wrong content type.
 
 ## Building from source
 

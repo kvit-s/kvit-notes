@@ -6,10 +6,6 @@
 #include <QDate>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
-#include <QTimer>
 
 #include "settingsstore.h"
 
@@ -17,39 +13,6 @@ namespace {
 
 const QString kEnabledKey = QStringLiteral("updates.checkEnabled");
 const QString kLastCheckKey = QStringLiteral("updates.lastCheck");
-
-class NetworkUpdateFetcher : public QObject, public UpdateFetcher
-{
-public:
-    explicit NetworkUpdateFetcher(QObject *parent) : QObject(parent) {}
-
-    void fetch(const QUrl &url,
-               std::function<void(bool, const QByteArray &)> done) override
-    {
-        QNetworkRequest req(url);
-        req.setHeader(QNetworkRequest::UserAgentHeader,
-                      QByteArrayLiteral("KvitNotes-UpdateCheck/1.0"));
-        req.setRawHeader(QByteArrayLiteral("Accept"),
-                         QByteArrayLiteral("application/vnd.github+json"));
-        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-        QNetworkReply *reply = m_nam.get(req);
-        QTimer *timer = new QTimer(reply);
-        timer->setSingleShot(true);
-        QObject::connect(timer, &QTimer::timeout, reply, &QNetworkReply::abort);
-        timer->start(8000);
-        QObject::connect(reply, &QNetworkReply::finished, reply, [reply, done]() {
-            if (reply->error() != QNetworkReply::NoError)
-                done(false, QByteArray());
-            else
-                done(true, reply->readAll().left(200000));
-            reply->deleteLater();
-        });
-    }
-
-private:
-    QNetworkAccessManager m_nam;
-};
 
 // One dotted-release + optional prerelease pair, e.g. "1.2.0-rc3".
 struct ParsedVersion {
@@ -100,11 +63,6 @@ int compareIdentifier(const QString &a, const QString &b)
 }
 
 } // namespace
-
-UpdateFetcher *createNetworkUpdateFetcher(QObject *parent)
-{
-    return new NetworkUpdateFetcher(parent);
-}
 
 UpdateChecker::UpdateChecker(QObject *parent)
     : QObject(parent)

@@ -104,7 +104,10 @@ add_library(kvit-core STATIC
     src/documentstats.cpp
     src/documentexporter.cpp
     src/documentimporter.cpp
+    src/egressfetcher.cpp
+    src/egresspolicy.cpp
     src/embedmetadata.cpp
+    src/remoteimageprovider.cpp
     src/notetemplates.cpp
     src/notefrontmatter.cpp
     src/wikilinkscanner.cpp

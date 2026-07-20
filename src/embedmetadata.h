@@ -11,9 +11,10 @@
 #include <functional>
 
 class NoteCollection;
+class EgressPolicy;
 
-// The network seam: fetch a page's HTML. The app wires a
-// QNetworkAccessManager-backed implementation; tests wire a fake that returns
+// The network seam: fetch a page's HTML. The app wires EgressFetcher, which
+// applies the egress policy; tests wire a fake that returns
 // canned HTML (or a canned failure), so the suite is hermetic and never
 // touches the network. `done(success, html)` may be called synchronously (the
 // fake) or asynchronously (the real fetcher).
@@ -43,11 +44,23 @@ public:
     // (<root>/.kvit/embedcache) when open; otherwise a per-user cache path.
     void setFetcher(EmbedFetcher *fetcher) { m_fetcher = fetcher; }
     void setCollection(NoteCollection *collection) { m_collection = collection; }
+    // The consent gate. Without one wired, no fetch happens at all: a build
+    // that forgot to install the policy must not fall back to fetching
+    // whatever a note names.
+    void setPolicy(EgressPolicy *policy) { m_policy = policy; }
 
     // Request metadata for a URL: emits metadataReady(url) when available
     // (immediately from cache, or after the fetch). A second request for a
     // URL already in flight is coalesced. QML re-reads via cachedMetadata.
+    // Request metadata for a URL. Cached metadata is reported immediately;
+    // anything else requires that the reader has approved the URL's origin,
+    // because this is the call a note triggers just by being opened. A
+    // refused request emits consentRequired(url) and touches no socket.
     Q_INVOKABLE void requestMetadata(const QString &url);
+
+    // True when a card has no metadata yet and the policy would refuse to
+    // fetch it: the state where the card must stay inert and offer to load.
+    Q_INVOKABLE bool needsConsent(const QString &url) const;
 
     // The cached metadata map, or an empty map if not yet fetched. Keys:
     // "url", "title", "description", "image", "favicon", "video" (bool),
@@ -67,6 +80,9 @@ public:
 
 signals:
     void metadataReady(const QString &url);
+    // The card was asked to load and the policy said no. QML re-reads
+    // needsConsent() and keeps the inert card.
+    void consentRequired(const QString &url);
 
 private:
     QString cacheDir() const;
@@ -76,6 +92,7 @@ private:
 
     EmbedFetcher *m_fetcher = nullptr;
     NoteCollection *m_collection = nullptr;
+    EgressPolicy *m_policy = nullptr;
     QSet<QString> m_inFlight;
 };
 

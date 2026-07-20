@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest/QtTest>
 #include "embedmetadata.h"
+#include "egresspolicy.h"
 #include "notecollection.h"
 
 #include <QSignalSpy>
@@ -36,6 +37,7 @@ private slots:
     void testRequestFetchesParsesAndCaches();
     void testCacheHitDoesNotRefetch();
     void testFailedFetchIsFallback();
+    void testUnapprovedOriginIsNotFetched();
 };
 
 void TestEmbedMetadata::testIsEmbedUrl_data()
@@ -102,9 +104,15 @@ void TestEmbedMetadata::testRequestFetchesParsesAndCaches()
     CannedFetcher fetcher;
     fetcher.html = "<meta property=\"og:title\" content=\"Cached Title\">";
 
+    // Fetching requires the reader to have approved the origin; these tests
+    // are about what happens once they have.
+    EgressPolicy policy;
+    policy.allowOrigin("https://example.com/page");
+
     EmbedMetadata em;
     em.setCollection(&coll);
     em.setFetcher(&fetcher);
+    em.setPolicy(&policy);
     QSignalSpy spy(&em, &EmbedMetadata::metadataReady);
 
     const QString url = "https://example.com/page";
@@ -124,9 +132,12 @@ void TestEmbedMetadata::testCacheHitDoesNotRefetch()
     QVERIFY(coll.openRoot(dir.path()));
     CannedFetcher fetcher;
     fetcher.html = "<meta property=\"og:title\" content=\"First\">";
+    EgressPolicy policy;
+    policy.allowOrigin("https://example.com/page");
     EmbedMetadata em;
     em.setCollection(&coll);
     em.setFetcher(&fetcher);
+    em.setPolicy(&policy);
 
     const QString url = "https://example.com/page";
     em.requestMetadata(url);
@@ -143,9 +154,12 @@ void TestEmbedMetadata::testFailedFetchIsFallback()
     QVERIFY(coll.openRoot(dir.path()));
     CannedFetcher fetcher;
     fetcher.succeed = false;
+    EgressPolicy policy;
+    policy.allowOrigin("https://unreachable.test/x");
     EmbedMetadata em;
     em.setCollection(&coll);
     em.setFetcher(&fetcher);
+    em.setPolicy(&policy);
     QSignalSpy spy(&em, &EmbedMetadata::metadataReady);
 
     const QString url = "https://unreachable.test/x";
@@ -154,6 +168,41 @@ void TestEmbedMetadata::testFailedFetchIsFallback()
     const QVariantMap m = em.cachedMetadata(url);
     QCOMPARE(m.value("ok").toBool(), false);        // the fallback card
     QCOMPARE(m.value("title").toString(), QString("unreachable.test"));
+}
+
+// Opening a note names URLs; it does not approve them. Without an approval
+// the fetcher is never called, so the host never learns the note was opened.
+void TestEmbedMetadata::testUnapprovedOriginIsNotFetched()
+{
+    QTemporaryDir dir;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(dir.path()));
+    CannedFetcher fetcher;
+    fetcher.html = "<meta property=\"og:title\" content=\"Should not load\">";
+
+    EgressPolicy policy;      // nothing approved
+    EmbedMetadata em;
+    em.setCollection(&coll);
+    em.setFetcher(&fetcher);
+    em.setPolicy(&policy);
+    QSignalSpy ready(&em, &EmbedMetadata::metadataReady);
+    QSignalSpy consent(&em, &EmbedMetadata::consentRequired);
+
+    const QString url = "https://example.com/page";
+    em.requestMetadata(url);
+    QCOMPARE(fetcher.calls, 0);
+    QCOMPARE(ready.count(), 0);
+    QCOMPARE(consent.count(), 1);
+    QVERIFY(em.needsConsent(url));
+    QVERIFY(em.cachedMetadata(url).isEmpty());
+
+    // A build that never wired a policy fetches nothing either, rather than
+    // falling back to the old fetch-on-sight behavior.
+    EmbedMetadata unwired;
+    unwired.setCollection(&coll);
+    unwired.setFetcher(&fetcher);
+    unwired.requestMetadata(url);
+    QCOMPARE(fetcher.calls, 0);
 }
 
 QTEST_MAIN(TestEmbedMetadata)

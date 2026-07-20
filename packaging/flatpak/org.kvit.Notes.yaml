@@ -13,7 +13,11 @@ finish-args:
   - --device=dri
   # Notes live where the user keeps them; a vault is an ordinary folder.
   - --filesystem=home
-  # The optional update check and embed preview cards.
+  # The optional update check, and remote content the reader approves
+  # (preview cards, images, media). Nothing is fetched without that
+  # approval: EgressPolicy gates every request, so this permission is not
+  # what decides whether a note can reach the network. See devel.md
+  # "Network egress goes through one policy".
   - --share=network
   # Media blocks (audio/video playback).
   - --socket=pulseaudio
