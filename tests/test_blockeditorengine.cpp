@@ -5,6 +5,7 @@
 #include <QTextDocument>
 #include <QTextBlock>
 #include <QTextLayout>
+#include <QFontMetricsF>
 #include <QSignalSpy>
 #include <QSyntaxHighlighter>
 #include <QtMath>

@@ -232,17 +232,34 @@ target_compile_definitions(kvit-core PRIVATE
 # into the executable, so any binary linking kvit-core gets a complete editor:
 # QuickControls2 for the shell's style, Network for the embed fetcher, and
 # Multimedia for the media block's QML imports.
+# PUBLIC only where kvit-core's own headers expose the module, so a consumer
+# that includes them compiles. Everything else is an implementation detail and
+# is PRIVATE: it still links into the final binary, but it no longer becomes
+# part of the contract every consumer inherits.
+#
+#   Gui, Quick   - QImage/QColor/QTextDocument and QQuickItem/QQmlEngine appear
+#                  in headers.
+#   Network      - the egress fetcher and update checker expose types.
+#   Concurrent   - QFuture appears in the async persistence and collection
+#                  headers.
+#   microtex     - the math renderer's headers use it.
+#
+# Widgets is only forward-declared (kvitapplication.h) or unused in headers;
+# Sql appears in one comment; QuickControls2 and Multimedia are used by a
+# single .cpp and by QML imports at runtime, not by any header.
 target_link_libraries(kvit-core PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Quick
+    Qt6::Network
+    Qt6::Concurrent
+    microtex
+)
+target_link_libraries(kvit-core PRIVATE
     Qt6::QuickControls2
     Qt6::Widgets
     Qt6::Multimedia
-    Qt6::Network
-    Qt6::Concurrent
     Qt6::Sql
-    microtex
 )
 
 target_include_directories(kvit-core PUBLIC src)
@@ -270,6 +287,9 @@ qt_add_executable(kvit-notes
 
 target_link_libraries(kvit-notes PRIVATE
     kvit-core
+    # main.cpp constructs the QApplication itself, so the executable needs
+    # Widgets directly rather than inheriting it from kvit-core.
+    Qt6::Widgets
 )
 
 if(KVIT_AGENT)
