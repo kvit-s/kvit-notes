@@ -46,7 +46,7 @@ Item {
     // What the rendered view/preview shows: the live (debounced) source while
     // editing, else the committed content.
     readonly property string renderTex: editing ? previewTex : content
-    readonly property string errorText: mathRenderer.errorFor(renderTex)
+    readonly property string errorText: MathRenderer.errorFor(renderTex)
 
     // previewTex starts as a binding to content, but the debounce assigns
     // it imperatively, which destroys that binding for the delegate's whole
@@ -61,7 +61,7 @@ Item {
     // Display math renders at the paragraph text size, optically matched to
     // the text font's x-height — the displaystyle layout supplies the large
     // operators; the letters themselves stay at prose size like LaTeX.
-    readonly property int mathPixelSize: mathRenderer.opticalMathPixelSize(
+    readonly property int mathPixelSize: MathRenderer.opticalMathPixelSize(
         typography.fontFamily, typography.sizeForBlockType(Block.Paragraph))
     readonly property int pngMathVerticalPadding:
         Math.max(2, Math.ceil(root.mathPixelSize * 0.12))
@@ -89,7 +89,7 @@ Item {
     function mathSource(tex) {
         if (tex.trim().length === 0)
             return ""
-        return "image://math/" + mathRenderer.encode(tex)
+        return "image://math/" + MathRenderer.encode(tex)
              + "?fg=" + argbHex(theme.textPrimary)
              + "&size=" + root.mathPixelSize
              + "&dpr=" + root.currentDpr().toFixed(2)

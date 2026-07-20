@@ -30,7 +30,7 @@ Item {
     property bool isFocused: focusTarget.activeFocus
     property bool isHovered: hoverArea.containsMouse
 
-    readonly property var board: kanbanTools.parse(content)
+    readonly property var board: KanbanTools.parse(content)
     readonly property var columns: board.columns
     // Session-scoped collapse state and label filter.
     property var collapsed: ({})
@@ -265,7 +265,7 @@ Item {
                                     color: columnItem.colIndex > 0 ? theme.textMuted : theme.textFaint
                                     TapHandler {
                                         enabled: columnItem.colIndex > 0
-                                        onTapped: root.writeBoard(kanbanTools.moveColumn(
+                                        onTapped: root.writeBoard(KanbanTools.moveColumn(
                                             root.content, columnItem.colIndex, columnItem.colIndex - 1))
                                     }
                                 }
@@ -276,7 +276,7 @@ Item {
                                            ? theme.textMuted : theme.textFaint
                                     TapHandler {
                                         enabled: columnItem.colIndex < root.columns.length - 1
-                                        onTapped: root.writeBoard(kanbanTools.moveColumn(
+                                        onTapped: root.writeBoard(KanbanTools.moveColumn(
                                             root.content, columnItem.colIndex, columnItem.colIndex + 1))
                                     }
                                 }
@@ -285,7 +285,7 @@ Item {
                                     text: "+"; font.pixelSize: 16; color: theme.textMuted
                                     TapHandler {
                                         onTapped: root.writeBoard(
-                                            kanbanTools.addCard(root.content, columnItem.colIndex, "New card"))
+                                            KanbanTools.addCard(root.content, columnItem.colIndex, "New card"))
                                     }
                                 }
                             }
@@ -299,7 +299,7 @@ Item {
                             onDropped: function(drop) {
                                 if (!drop.source || drop.source.cardColIndex === undefined) return
                                 var toIdx = columnItem.colData.cards.length
-                                root.writeBoard(kanbanTools.moveCard(root.content,
+                                root.writeBoard(KanbanTools.moveCard(root.content,
                                     drop.source.cardColIndex, drop.source.cardIndex,
                                     columnItem.colIndex, toIdx))
                                 drop.accept()
@@ -369,7 +369,7 @@ Item {
                                         enabled: !cardDrag.active
                                         onDropped: function(drop) {
                                             if (!drop.source || drop.source.cardColIndex === undefined) return
-                                            root.writeBoard(kanbanTools.moveCard(root.content,
+                                            root.writeBoard(KanbanTools.moveCard(root.content,
                                                 drop.source.cardColIndex, drop.source.cardIndex,
                                                 cardItem.cardColIndex, cardItem.cardIndex))
                                             drop.accept()
@@ -394,7 +394,7 @@ Item {
                                                 Text { anchors.centerIn: parent; visible: cardItem.cardData.done
                                                     text: "✓"; color: theme.onAccent; font.pixelSize: 9 }
                                                 TapHandler {
-                                                    onTapped: root.writeBoard(kanbanTools.toggleCardDone(
+                                                    onTapped: root.writeBoard(KanbanTools.toggleCardDone(
                                                         root.content, cardItem.cardColIndex, cardItem.cardIndex))
                                                 }
                                             }
@@ -449,7 +449,7 @@ Item {
                     color: "transparent"; border.width: 1; border.color: theme.border
                     Text { anchors.centerIn: parent; text: "+ Column"; color: theme.textMuted; font.pixelSize: 12 }
                     TapHandler {
-                        onTapped: root.writeBoard(kanbanTools.addColumn(root.content, "New column"))
+                        onTapped: root.writeBoard(KanbanTools.addColumn(root.content, "New column"))
                     }
                 }
             }
@@ -480,7 +480,7 @@ Item {
         }
         function save() {
             var labels = labelsField.text.split(",").map(function(s){return s.trim()}).filter(function(s){return s.length})
-            root.writeBoard(kanbanTools.setCard(root.content, col, idx,
+            root.writeBoard(KanbanTools.setCard(root.content, col, idx,
                 titleField.text.trim(), doneBox.checked, labels, dueField.text.trim(), descField.text.trim()))
             close()
         }
@@ -490,7 +490,7 @@ Item {
         // reach), as one undo step.
         function moveToColumn(targetCol) {
             var destCount = root.columns[targetCol].cards.length
-            root.writeBoard(kanbanTools.moveCard(root.content, col, idx, targetCol, destCount))
+            root.writeBoard(KanbanTools.moveCard(root.content, col, idx, targetCol, destCount))
             close()
         }
         contentItem: Column {
@@ -521,7 +521,7 @@ Item {
                 spacing: 6
                 Button { text: qsTr("Save"); onClicked: cardEditor.save() }
                 Button { text: qsTr("Delete card"); onClicked: {
-                    root.writeBoard(kanbanTools.removeCard(root.content, cardEditor.col, cardEditor.idx))
+                    root.writeBoard(KanbanTools.removeCard(root.content, cardEditor.col, cardEditor.idx))
                     cardEditor.close() } }
                 Button { text: qsTr("Cancel"); onClicked: cardEditor.close() }
             }

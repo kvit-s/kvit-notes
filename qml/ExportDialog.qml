@@ -5,11 +5,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import Kvit 1.0
 
 // Export dialog (features.md §12.5): choose a format
 // (Markdown, HTML, PDF, plain text) and a scope (the open note, the note-list
 // selection, or the whole collection), then a destination. The actual export
-// runs through documentExporter, which builds one self-contained HTML string
+// runs through DocumentExporter, which builds one self-contained HTML string
 // and prints PDF from it.
 Dialog {
     id: exportDialog
@@ -64,10 +65,10 @@ Dialog {
         // editor's current markdown for that one note. Exporting snapshots
         // rather than saving: it must not write to the user's notes.
         if (appWindow && appWindow.currentNoteRelPath !== "")
-            documentExporter.setLiveNote(appWindow.currentNoteRelPath, blockModel)
+            DocumentExporter.setLiveNote(appWindow.currentNoteRelPath, blockModel)
         else
-            documentExporter.clearLiveNote()
-        documentExporter.setImageContext(noteDir, root)
+            DocumentExporter.clearLiveNote()
+        DocumentExporter.setImageContext(noteDir, root)
     }
 
     // Kick off the correct destination picker for the chosen scope.
@@ -143,10 +144,10 @@ Dialog {
         id: saveFileDialog
         objectName: "exportSaveFileDialog"
         fileMode: FileDialog.SaveFile
-        defaultSuffix: documentExporter.extensionFor(exportDialog.format)
+        defaultSuffix: DocumentExporter.extensionFor(exportDialog.format)
         onAccepted: {
             var path = exportDialog.appWindow.urlToLocalPath(selectedFile)
-            var ok = documentExporter.writeModel(
+            var ok = DocumentExporter.writeModel(
                 blockModel, exportDialog.currentTitle(),
                 exportDialog.format, path)
             exportDialog.appWindow.showTransientStatus(
@@ -164,14 +165,14 @@ Dialog {
             var dir = exportDialog.appWindow.urlToLocalPath(selectedFolder)
             var count = 0
             if (exportDialog.scope === "selection")
-                count = documentExporter.exportNotes(
+                count = DocumentExporter.exportNotes(
                     noteCollection, exportDialog.selectedPaths(), dir,
                     exportDialog.format, singleFileCheck.checked)
             else
-                count = documentExporter.exportCollection(
+                count = DocumentExporter.exportCollection(
                     noteCollection, dir, exportDialog.format,
                     singleFileCheck.checked)
-            documentExporter.clearLiveNote()
+            DocumentExporter.clearLiveNote()
             exportDialog.appWindow.showTransientStatus(
                 count > 0 ? (qsTr("Exported ") + count + qsTr(" notes to ") + dir)
                           : qsTr("Export failed"))

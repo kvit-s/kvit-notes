@@ -317,7 +317,7 @@ Item {
         else if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
             dpr = Screen.devicePixelRatio
         dpr = Math.round(dpr * 100) / 100
-        return "image://math/" + mathRenderer.encode(tex)
+        return "image://math/" + MathRenderer.encode(tex)
              + "?fg=" + fg + "&size=" + sz + "&dpr=" + dpr.toFixed(2)
              + "&vpad=" + delegate.inlineMathVerticalPadding
     }
@@ -502,7 +502,7 @@ Item {
     // Copy markdown in every clipboard flavor (§5.1). Shared by the
     // cross-block and in-block copy/cut paths.
     function copyMarkdownToClipboard(md) {
-        clipboard.setMarkdown(md, markdownFormatter.toHtml(md))
+        clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
     }
 
     function crossBlockDeleteRange() {
@@ -723,7 +723,7 @@ Item {
         var selDep = textArea.selectionStart + "," + textArea.selectionEnd
         var mdStart = editorEngine.toMarkdownPosition(textArea.selectionStart)
         var mdEnd = editorEngine.toMarkdownPosition(textArea.selectionEnd)
-        var info = markdownFormatter.colorSpanAt(editorEngine.markdown,
+        var info = MarkdownFormatter.colorSpanAt(editorEngine.markdown,
                                                  mdStart, mdEnd)
         return info.found ? info.color : ""
     }
@@ -882,7 +882,7 @@ Item {
     // block is dropped so the paste does not leave a blank line behind.
     function pasteStructuredMarkdown(idx, before, pasted, after) {
         blockModel.updateContent(idx, before)
-        var inserted = documentSerializer.insertMarkdownAt(blockModel, idx + 1,
+        var inserted = DocumentSerializer.insertMarkdownAt(blockModel, idx + 1,
                                                            pasted)
         if (inserted === 0) {
             blockModel.updateContent(idx, before + after)
@@ -2193,8 +2193,8 @@ Item {
                 // pair.
                 function toggleSpan(typeName) {
                     toggleFormatting(function(md, s, e) {
-                        return markdownFormatter.toggleSpanType(md, s, e, typeName)
-                    }, markdownFormatter.getMarkerLength(typeName))
+                        return MarkdownFormatter.toggleSpanType(md, s, e, typeName)
+                    }, MarkdownFormatter.getMarkerLength(typeName))
                 }
 
                 function toggleBold() { toggleSpan("bold") }
@@ -2210,12 +2210,12 @@ Item {
                     if (!value) return
                     var openLen = ("<span style=\"color:" + value + "\">").length
                     toggleFormatting(function(md, s, e) {
-                        return markdownFormatter.applyColor(md, s, e, value)
+                        return MarkdownFormatter.applyColor(md, s, e, value)
                     }, openLen)
                 }
                 function removeColorSpan() {
                     toggleFormatting(function(md, s, e) {
-                        return markdownFormatter.removeColor(md, s, e)
+                        return MarkdownFormatter.removeColor(md, s, e)
                     }, 0)
                 }
 
@@ -2233,7 +2233,7 @@ Item {
                     // All three flavors (§5.1): text for plain targets, HTML
                     // so rich-text targets get formatting instead of raw
                     // syntax, and the internal marker for pasting back.
-                    clipboard.setMarkdown(md, markdownFormatter.toHtml(md))
+                    clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
                     return true
                 }
 

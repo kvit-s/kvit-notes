@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The toolbar (features.md §9.2): a block type dropdown, formatting
 // toggles reflecting the caret's span membership, an insert menu over
@@ -133,7 +134,7 @@ Rectangle {
             font.pixelSize: 14
             flat: true
             text: "←"
-            enabled: navigationHistory.canGoBack
+            enabled: NavigationHistory.canGoBack
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Back (Alt+Left)")
             onClicked: if (appWindow) appWindow.navigateBack()
@@ -147,7 +148,7 @@ Rectangle {
             font.pixelSize: 14
             flat: true
             text: "→"
-            enabled: navigationHistory.canGoForward
+            enabled: NavigationHistory.canGoForward
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Forward (Alt+Right)")
             onClicked: if (appWindow) appWindow.navigateForward()

@@ -4,10 +4,11 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // Document statistics popover (features.md §19.1): the six
 // counts and reading time for the document (and the selection when one is
-// active), plus the session word delta. Reads documentStats live behind a
+// active), plus the session word delta. Reads DocumentStats live behind a
 // 200 ms coalescing timer while open — off the keystroke path — mirroring the
 // status bar's counting discipline.
 Popup {
@@ -31,16 +32,16 @@ Popup {
             ? targetBlock.selectedDisplayText : ""
 
     function recompute() {
-        docStats = documentStats.documentStats()
+        docStats = DocumentStats.DocumentStats()
         // Selection stats: a block selection, cross-block text range, or an
         // in-block selection, assembled as display text like the status bar.
         var selText = statsPopup.selectionText()
         selStats = selText === null ? null
-                                    : documentStats.statsForText(selText)
+                                    : DocumentStats.statsForText(selText)
     }
 
     // The selected text as DISPLAY text (markers stripped), or null when
-    // nothing is selected — the same representation documentStats counts.
+    // nothing is selected — the same representation DocumentStats counts.
     function selectionText() {
         if (documentSelection.hasBlockSelection) {
             var idx = documentSelection.selectedIndexes()

@@ -132,19 +132,14 @@ private slots:
     void everyPublishedContextPropertyIsAccountedFor()
     {
         static const QStringList expected = {
-            "blockModel", "markdownFormatter", "undoStack", "documentManager",
-            "clipboard", "blockMenuModel", "mathCommandModel",
+            "blockModel", "undoStack", "documentManager",
+            "clipboard",
             "documentSelection", "documentSearch", "documentOutline",
-            "documentStats", "documentExporter", "documentSerializer",
             "noteCollection", "noteListModel",
-            "collectionSearch", "noteTemplates",
-            "documentImporter", "embedMetadata", "egressPolicy", "appSettings",
+            "collectionSearch", "noteTemplates", "egressPolicy", "appSettings",
             "perfLog",
             "theme", "typography", "codeLanguageList", "imageAssets",
-            "blockAttributes", "a11y", "systemTray",
-            "navigationHistory", "updateChecker",
-            "tableTools", "todoMeta", "kanbanTools",
-            "mathRenderer", "blockKinds", "extensions",
+            "blockAttributes", "a11y", "blockKinds", "extensions",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
 
@@ -184,6 +179,21 @@ private slots:
             QStringLiteral("FileWatcher"),     QStringLiteral("ShortcutCatalog"),
             QStringLiteral("QuickSwitcherModel"),
             QStringLiteral("FolderTreeModel"),
+            QStringLiteral("MarkdownFormatter"),
+            QStringLiteral("BlockMenuModel"),
+            QStringLiteral("MathCommandModel"),
+            QStringLiteral("DocumentStats"),
+            QStringLiteral("DocumentExporter"),
+            QStringLiteral("DocumentSerializer"),
+            QStringLiteral("DocumentImporter"),
+            QStringLiteral("EmbedMetadata"),
+            QStringLiteral("SystemTray"),
+            QStringLiteral("NavigationHistory"),
+            QStringLiteral("UpdateChecker"),
+            QStringLiteral("TableTools"),
+            QStringLiteral("KanbanTools"),
+            QStringLiteral("TodoMeta"),
+            QStringLiteral("MathRenderer"),
         };
 
         // A second composition, wired exactly like the one under test.
@@ -193,21 +203,24 @@ private slots:
         QQmlEngine otherEngine;
         other.installContextProperties(&otherEngine);
 
-        // Identity, not just existence. Qt default-constructs a QML_SINGLETON
-        // whose create() it does not find, which yields a perfectly valid
-        // object wired to nothing — no warning, no null, just a folder tree
-        // that is always empty. Only comparing addresses catches that.
-        QCOMPARE(m_engine.singletonInstance<QObject *>(
-                     QStringLiteral("Kvit"), QStringLiteral("FolderTreeModel")),
-                 static_cast<QObject *>(m_context->folderTreeModel()));
-        QCOMPARE(m_engine.singletonInstance<QObject *>(
-                     QStringLiteral("Kvit"), QStringLiteral("QuickSwitcherModel")),
-                 static_cast<QObject *>(m_context->quickSwitcherModel()));
-
         for (const QString &type : singletons) {
+
             QObject *mine =
                 m_engine.singletonInstance<QObject *>(QStringLiteral("Kvit"), type);
             QVERIFY2(mine, qPrintable(type + QStringLiteral(" resolved to null")));
+
+            // Identity, not just existence. Qt default-constructs a
+            // QML_SINGLETON whose factory it does not find, and the result is
+            // a valid object of the right class, distinct per engine, wired
+            // to nothing — so every cheaper assertion here passes while the
+            // shell renders empty. Comparing against what this composition
+            // registered for that same type is what catches it.
+            QObject *registered =
+                m_context->services()->lookup(mine->metaObject());
+            QVERIFY2(mine == registered,
+                     qPrintable(type + QStringLiteral(" is not this context's "
+                                                      "instance; the engine "
+                                                      "constructed its own")));
 
             QObject *theirs =
                 otherEngine.singletonInstance<QObject *>(QStringLiteral("Kvit"), type);

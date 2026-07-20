@@ -100,7 +100,7 @@ Popup {
     }
 
     function refilter() {
-        rows = blockMenuModel.itemsFor(query)
+        rows = BlockMenuModel.itemsFor(query)
         highlightIndex = firstEntryIndex()
         if (menuList)  // the content item may not be instantiated yet
             menuList.positionViewAtBeginning()
@@ -150,7 +150,7 @@ Popup {
         // type alone would bring back "Code Block" for every one of them.
         // The "/code <language>" rows carry no entryId and are not recorded.
         if (row.entryId !== undefined)
-            blockMenuModel.noteUsedEntry(row.entryId)
+            BlockMenuModel.noteUsedEntry(row.entryId)
         dismiss()
         // Media types insert rather than convert: an empty Image block has
         // no path, so the menu hands off to the insert flow. Image and Media

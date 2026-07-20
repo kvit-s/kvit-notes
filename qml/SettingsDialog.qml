@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The settings dialog: Appearance — the features.md §10.1 theme picker
 // and the §10.3 accent/highlight color selection — and Typography — the
@@ -440,8 +441,8 @@ Dialog {
                 CheckBox {
                     objectName: "updateCheckToggle"
                     text: qsTr("Check for new releases once a day")
-                    checked: updateChecker.enabled
-                    onToggled: updateChecker.enabled = checked
+                    checked: UpdateChecker.enabled
+                    onToggled: UpdateChecker.enabled = checked
                 }
                 Label {
                     Layout.fillWidth: true
@@ -456,17 +457,17 @@ Dialog {
                 }
 
                 Label {
-                    visible: systemTray.available
+                    visible: SystemTray.available
                     text: qsTr("System tray")
                     font.bold: true
                     color: theme.textSecondary
                 }
                 CheckBox {
                     objectName: "closeToTrayToggle"
-                    visible: systemTray.available
+                    visible: SystemTray.available
                     text: qsTr("Keep running in the tray when the window is closed")
-                    checked: systemTray.closeToTray
-                    onToggled: systemTray.closeToTray = checked
+                    checked: SystemTray.closeToTray
+                    onToggled: SystemTray.closeToTray = checked
                 }
                 Item { Layout.fillHeight: true }
             }

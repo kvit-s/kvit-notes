@@ -18,8 +18,8 @@ EditableBlock {
     contentStrikeout: root.checked
 
     // The metadata tail (📅 date / priority emoji) is chrome, not text.
-    metaTail: todoMeta.tail(content)
-    readonly property var meta: todoMeta.parse(content)
+    metaTail: TodoMeta.tail(content)
+    readonly property var meta: TodoMeta.parse(content)
     // Sub-task progress; re-evaluates on structural change (count) and on the
     // model's data updates that bump it.
     readonly property var progress: {
@@ -34,13 +34,13 @@ EditableBlock {
 
     function setDue(iso) {
         blockModel.updateContent(root.index,
-            todoMeta.build(meta.text, iso, meta.priority))
+            TodoMeta.build(meta.text, iso, meta.priority))
     }
     function cyclePriority() {
         var p = meta.priority
         var next = p === 0 ? -1 : (p === -1 ? 1 : (p === 1 ? 2 : 0))
         blockModel.updateContent(root.index,
-            todoMeta.build(meta.text, meta.due, next))
+            TodoMeta.build(meta.text, meta.due, next))
     }
 
     leadingChrome: Component {

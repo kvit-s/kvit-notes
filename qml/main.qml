@@ -305,9 +305,9 @@ ApplicationWindow {
     // changes: the handlers and Connections below.
     function applyPersistedSessionState() {
         panelsVisible = appSettings.value("panels.visible", true)
-        blockMenuModel.setRecentTypes(
+        BlockMenuModel.setRecentTypes(
             appSettings.value("blockMenu.recent", []))
-        mathCommandModel.setRecentCommands(
+        MathCommandModel.setRecentCommands(
             appSettings.value("math.recentCommands", []))
         // Read both sort keys before assigning either: the first
         // assignment fires projectionChanged, whose save handler below
@@ -365,18 +365,18 @@ ApplicationWindow {
         appSettings.setValue("panels.visible", panelsVisible)
 
     Connections {
-        target: blockMenuModel
+        target: BlockMenuModel
         function onRecentChanged() {
             appSettings.setValue("blockMenu.recent",
-                                 blockMenuModel.recentTypes())
+                                 BlockMenuModel.recentTypes())
         }
     }
 
     Connections {
-        target: mathCommandModel
+        target: MathCommandModel
         function onRecentChanged() {
             appSettings.setValue("math.recentCommands",
-                                 mathCommandModel.recentCommands())
+                                 MathCommandModel.recentCommands())
         }
     }
 
@@ -489,7 +489,7 @@ ApplicationWindow {
             documentSelection.clear()
         if (!documentManager.open(documentManager.toLocalFileUrl(abs)))
             return false
-        navigationHistory.visit(relPath, departingY)
+        NavigationHistory.visit(relPath, departingY)
         noteCollection.setLastOpenNote(relPath)
         root.lastFocusedBlock = 0
         blockListView.currentIndex = 0
@@ -504,12 +504,12 @@ ApplicationWindow {
     // Back/forward over the note history; scroll positions restore after
     // the (synchronous) model load settles.
     function navigateBack() {
-        var entry = navigationHistory.goBack(blockListView.contentY)
+        var entry = NavigationHistory.goBack(blockListView.contentY)
         if (entry.ok)
             openHistoryEntry(entry)
     }
     function navigateForward() {
-        var entry = navigationHistory.goForward(blockListView.contentY)
+        var entry = NavigationHistory.goForward(blockListView.contentY)
         if (entry.ok)
             openHistoryEntry(entry)
     }
@@ -593,7 +593,7 @@ ApplicationWindow {
     function executeRenamePlan(planId, updateLinks) {
         var openRelPath = root.currentNoteRelPath
         var openBody = openRelPath !== ""
-            ? documentSerializer.serialize(blockModel) : ""
+            ? DocumentSerializer.serialize(blockModel) : ""
         var wasDirty = documentManager.isDirty
         var result = noteCollection.applyRenamePlan(
             planId, updateLinks, openRelPath, openBody)
@@ -711,7 +711,7 @@ ApplicationWindow {
             return relPath
         // The note is open and empty; load the expanded body, then apply the
         // template's metadata and save through the normal path.
-        documentSerializer.loadIntoModel(blockModel, inst.body || "")
+        DocumentSerializer.loadIntoModel(blockModel, inst.body || "")
         var tags = inst.tags || []
         for (var i = 0; i < tags.length; i++)
             noteCollection.addTag(relPath, tags[i])
@@ -736,7 +736,7 @@ ApplicationWindow {
         if (documentManager.isDirty)
             documentManager.save()
         var fm = noteCollection.frontMatterFor(currentNoteRelPath)
-        var full = (fm ? fm : "") + documentSerializer.serialize(blockModel)
+        var full = (fm ? fm : "") + DocumentSerializer.serialize(blockModel)
         return noteTemplates.writeTemplate(name, full)
     }
 
@@ -1489,9 +1489,9 @@ ApplicationWindow {
         // flavor (§5.1): plain text, rendered HTML for rich-text targets, and
         // the internal marker so pasting back into Kvit is lossless.
         function copyBlocksToClipboard() {
-            var md = documentSerializer.serializeBlocks(
+            var md = DocumentSerializer.serializeBlocks(
                 blockModel, documentSelection.selectedIndexes())
-            clipboard.setMarkdown(md, markdownFormatter.toHtml(md))
+            clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
         }
 
         // Remove the selected blocks and land the cursor on the block
@@ -1613,12 +1613,12 @@ ApplicationWindow {
                         var plain = pasteText.split("\n").map(function(line) {
                             return editorEngine.stripFormatting(line)
                         }).join("\n")
-                        var plainCount = documentSerializer.insertPlainTextAt(
+                        var plainCount = DocumentSerializer.insertPlainTextAt(
                             blockModel, insertAt, plain)
                         if (plainCount > 0)
                             selectRange(insertAt, insertAt + plainCount - 1)
                     } else {
-                        var count = documentSerializer.insertMarkdownAt(
+                        var count = DocumentSerializer.insertMarkdownAt(
                             blockModel, insertAt, pasteText)
                         if (count > 0)
                             selectRange(insertAt, insertAt + count - 1)
@@ -1888,7 +1888,7 @@ ApplicationWindow {
         onActivated: root.openQuickCapture()
     }
     Connections {
-        target: systemTray
+        target: SystemTray
         function onQuickCaptureRequested() { root.openQuickCapture() }
         function onNewNoteRequested() { root.createNoteInCurrentScope() }
         function onShowWindowRequested() {
@@ -2292,7 +2292,7 @@ ApplicationWindow {
         onSizePicked: function(cols, rows) {
             if (targetIndex < 0) return
             blockModel.convertBlock(targetIndex, Block.Table,
-                                    tableTools.emptyTable(cols, rows))
+                                    TableTools.emptyTable(cols, rows))
             var idx = targetIndex
             Qt.callLater(function() {
                 var item = blockListView.itemAtIndex(idx)
@@ -2861,9 +2861,9 @@ ApplicationWindow {
 
         onAccepted: {
             var count = pendingPlain
-                ? documentSerializer.insertPlainTextAt(
+                ? DocumentSerializer.insertPlainTextAt(
                     blockModel, pendingIndex, pendingText)
-                : documentSerializer.insertMarkdownAt(
+                : DocumentSerializer.insertMarkdownAt(
                     blockModel, pendingIndex, pendingText)
             if (count > 0)
                 selectRange(pendingIndex, pendingIndex + count - 1)
@@ -3014,7 +3014,7 @@ ApplicationWindow {
                     var fm = noteCollection.frontMatterFor(root.currentNoteRelPath)
                     noteCollection.noteSaved(filePath,
                                              (fm ? fm : "")
-                                             + documentSerializer.serialize(blockModel))
+                                             + DocumentSerializer.serialize(blockModel))
                 } else {
                     noteCollection.noteSaved(filePath)
                 }
@@ -3909,9 +3909,9 @@ ApplicationWindow {
             // the browser. Never a popup.
             Text {
                 objectName: "updateNoticeText"
-                visible: updateChecker.updateAvailable
-                text: updateChecker.updateAvailable
-                    ? qsTr("Update available: v%1").arg(updateChecker.latestVersion)
+                visible: UpdateChecker.updateAvailable
+                text: UpdateChecker.updateAvailable
+                    ? qsTr("Update available: v%1").arg(UpdateChecker.latestVersion)
                     : ""
                 font.pixelSize: 11
                 font.underline: updateNoticeMouse.containsMouse
@@ -3922,7 +3922,7 @@ ApplicationWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Qt.openUrlExternally(updateChecker.releaseUrl)
+                    onClicked: Qt.openUrlExternally(UpdateChecker.releaseUrl)
                 }
             }
 

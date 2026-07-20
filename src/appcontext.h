@@ -156,12 +156,12 @@ public:
     // their fence kinds before the shell loads.
     ExtensionRegistry *extensions() { return &m_extensions; }
     BlockKindRegistry *blockKinds() { return &m_blockKinds; }
-    // Exposed so a test can assert that the QML singleton of the same type
-    // resolves to THIS composition's object rather than to one the QML engine
-    // default-constructed for itself, which looks identical from QML and is
-    // wired to nothing.
-    FolderTreeModel *folderTreeModel() { return &m_folderTreeModel; }
-    QuickSwitcherModel *quickSwitcherModel() { return &m_quickSwitcherModel; }
+    // What the QML singletons must resolve to. Exposed so a test can compare
+    // each singleton against the object registered for its type, and so catch
+    // the engine default-constructing one of its own — which looks identical
+    // from QML and is wired to nothing. See
+    // everySingletonResolvesWithinItsOwnComposition in tests/test_shell.cpp.
+    const KvitQml::ServiceTable *services() const { return &m_services; }
     // The one transport and the one policy. The launcher hands the fetcher
     // to the update checker; nothing else in the tree opens a connection.
     EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }

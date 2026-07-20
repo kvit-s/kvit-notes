@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Window
+import Kvit 1.0
 
 // Embed preview card (features.md §1.2.14): an image
 // expression ![](url) whose URL is a web page or video host, rendered as a
@@ -79,14 +80,14 @@ Item {
     function refreshMeta() {
         if (embedUrl === "")
             return
-        var cached = embedMetadata.cachedMetadata(embedUrl)
+        var cached = EmbedMetadata.cachedMetadata(embedUrl)
         if (cached && cached.url !== undefined) {
             meta = cached
             return
         }
         meta = ({})
         if (remoteAllowed)
-            embedMetadata.requestMetadata(embedUrl)
+            EmbedMetadata.requestMetadata(embedUrl)
     }
     // The reader asked for this card specifically: approve the origin, which
     // covers the page and the thumbnail and favicon it names, then fetch.
@@ -94,16 +95,16 @@ Item {
         if (embedUrl === "")
             return
         egressPolicy.allowOrigin(embedUrl)
-        embedMetadata.requestMetadata(embedUrl)
+        EmbedMetadata.requestMetadata(embedUrl)
     }
     Component.onCompleted: refreshMeta()
     onEmbedUrlChanged: refreshMeta()
     onRemoteAllowedChanged: refreshMeta()
     Connections {
-        target: embedMetadata
+        target: EmbedMetadata
         function onMetadataReady(u) {
             if (u === root.embedUrl)
-                root.meta = embedMetadata.cachedMetadata(u)
+                root.meta = EmbedMetadata.cachedMetadata(u)
         }
     }
 

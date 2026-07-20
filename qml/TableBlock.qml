@@ -32,7 +32,7 @@ Item {
     property bool isHovered: hoverArea.containsMouse
 
     // Parsed grid (re-evaluates on content change).
-    readonly property var grid: tableTools.parse(content)
+    readonly property var grid: TableTools.parse(content)
     readonly property int columns: grid.valid ? grid.columns : 0
     readonly property int dataRows: grid.valid ? grid.rowCount : 0
 
@@ -95,23 +95,23 @@ Item {
         focusTarget.forceActiveFocus()  // keep the block "focused" for the shell
     }
     function commitCell(r, c, value) {
-        var md = tableTools.setCell(content, r, c, value)
+        var md = TableTools.setCell(content, r, c, value)
         if (md !== content)
             writeTable(md)
     }
     function cellText(r, c) {
-        return tableTools.cellValue(content, r, c)
+        return TableTools.cellValue(content, r, c)
     }
     function moveCell(forward) {
         var r = activeRow, c = activeCol
         if (forward) {
             if (c + 1 < columns) { editCell(r, c + 1); return }
             if (r === -1) { editCell(dataRows > 0 ? 0 : -1, 0)
-                if (dataRows === 0) { writeTable(tableTools.insertRow(content, -1)); editCell(0, 0) }
+                if (dataRows === 0) { writeTable(TableTools.insertRow(content, -1)); editCell(0, 0) }
                 return }
             if (r + 1 < dataRows) { editCell(r + 1, 0); return }
             // Last cell: append a row and land in it.
-            writeTable(tableTools.insertRow(content, dataRows - 1))
+            writeTable(TableTools.insertRow(content, dataRows - 1))
             editCell(dataRows, 0)  // dataRows is the new row's index after insert
         } else {
             if (c - 1 >= 0) { editCell(r, c - 1); return }
@@ -123,7 +123,7 @@ Item {
     function sortBy(col) {
         // Cycle: ascending, then descending on a repeat.
         var asc = !(root._lastSortCol === col && root._lastSortAsc)
-        writeTable(tableTools.sortByColumn(content, col, asc))
+        writeTable(TableTools.sortByColumn(content, col, asc))
         root._lastSortCol = col
         root._lastSortAsc = asc
     }
@@ -268,7 +268,7 @@ Item {
                             visible: !cell.isActive
                             anchors.fill: parent
                             anchors.margins: 6
-                            text: markdownFormatter.toHtml(
+                            text: MarkdownFormatter.toHtml(
                                 root.cellText(rowItem.rowIndex, cell.colIndex))
                             textFormat: Text.RichText
                             wrapMode: Text.Wrap
@@ -333,7 +333,7 @@ Item {
                 focusPolicy: Qt.NoFocus
                 font.pixelSize: 11
                 onClicked: root.writeTable(
-                    tableTools.insertRow(root.content, root.dataRows - 1))
+                    TableTools.insertRow(root.content, root.dataRows - 1))
             }
             Button {
                 objectName: "tableAddColumn"
@@ -341,7 +341,7 @@ Item {
                 focusPolicy: Qt.NoFocus
                 font.pixelSize: 11
                 onClicked: root.writeTable(
-                    tableTools.insertColumn(root.content, root.columns - 1))
+                    TableTools.insertColumn(root.content, root.columns - 1))
             }
         }
     }

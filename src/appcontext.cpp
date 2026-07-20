@@ -297,6 +297,21 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_shortcutCatalog);
     m_services.add(&m_quickSwitcherModel);
     m_services.add(&m_folderTreeModel);
+    m_services.add(&m_markdownFormatter);
+    m_services.add(&m_blockMenuModel);
+    m_services.add(&m_mathCommandModel);
+    m_services.add(&m_documentStats);
+    m_services.add(&m_documentExporter);
+    m_services.add(&m_documentSerializer);
+    m_services.add(&m_documentImporter);
+    m_services.add(&m_embedMetadata);
+    m_services.add(&m_systemTray);
+    m_services.add(&m_navigationHistory);
+    m_services.add(&m_updateChecker);
+    m_services.add(&m_tableTools);
+    m_services.add(&m_kanbanTools);
+    m_services.add(&m_todoMeta);
+    m_services.add(&m_mathTools);
     KvitQml::attachServices(engine, &m_services);
 
     // Every property goes through one helper so the published set is
@@ -312,24 +327,16 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     };
 
     publish("blockModel", &m_blockModel);
-    publish("markdownFormatter", &m_markdownFormatter);
     publish("undoStack", &m_undoStack);
     publish("documentManager", &m_documentManager);
     publish("clipboard", &m_clipboardHelper);
-    publish("blockMenuModel", &m_blockMenuModel);
-    publish("mathCommandModel", &m_mathCommandModel);
     publish("documentSelection", &m_documentSelection);
     publish("documentSearch", &m_documentSearch);
     publish("documentOutline", &m_documentOutline);
-    publish("documentStats", &m_documentStats);
-    publish("documentExporter", &m_documentExporter);
-    publish("documentSerializer", &m_documentSerializer);
     publish("noteCollection", &m_noteCollection);
     publish("noteListModel", &m_noteListModel);
     publish("collectionSearch", &m_collectionSearch);
     publish("noteTemplates", &m_noteTemplates);
-    publish("documentImporter", &m_documentImporter);
-    publish("embedMetadata", &m_embedMetadata);
     // Delegates ask this before rendering anything remote; see EgressPolicy.
     publish("egressPolicy", &m_egressPolicy);
     publish("appSettings", &m_settingsStore);
@@ -350,12 +357,6 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // The live-region announcer: dynamic changes speak
     // through this seam to assistive technology.
     publish("a11y", &m_a11y);
-    publish("systemTray", &m_systemTray);
-    publish("navigationHistory", &m_navigationHistory);
-    publish("updateChecker", &m_updateChecker);
-    publish("tableTools", &m_tableTools);
-    publish("todoMeta", &m_todoMeta);
-    publish("kanbanTools", &m_kanbanTools);
     // Math: the MicroTeX seam. The provider owns rendering under
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.
@@ -366,7 +367,6 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // to an Image's `source` would bypass every one of them.
     engine->addImageProvider(QStringLiteral("remote"),
                              new RemoteImageProvider(m_egressFetcher.get()));
-    publish("mathRenderer", &m_mathTools);
 
     // The two extension seams: block-kind registration and QML slot
     // injection. Both are inert in the open build: no module is installed,

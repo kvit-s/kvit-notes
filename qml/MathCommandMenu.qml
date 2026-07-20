@@ -82,7 +82,7 @@ Popup {
     function glyphSource(tex) {
         if (!tex || tex.length === 0)
             return ""
-        return "image://math/" + mathRenderer.encode(tex)
+        return "image://math/" + MathRenderer.encode(tex)
              + "?fg=" + argbHex(theme.textPrimary)
              + "&size=" + menu.glyphPixelSize
              + "&dpr=" + (Screen.devicePixelRatio > 0
@@ -94,7 +94,7 @@ Popup {
         displayContext = display === true
         anchorRect = rect
         query = ""
-        cats = mathCommandModel.categories()
+        cats = MathCommandModel.categories()
         categoryIndex = 0
         inCategoryPane = false
         reloadGrid()
@@ -121,7 +121,7 @@ Popup {
     }
 
     function refilter() {
-        rows = completionMode ? mathCommandModel.itemsFor(query) : []
+        rows = completionMode ? MathCommandModel.itemsFor(query) : []
         highlightIndex = rows.length > 0 ? 0 : -1
         if (completionList)
             completionList.positionViewAtBeginning()
@@ -129,7 +129,7 @@ Popup {
 
     function reloadGrid() {
         gridRows = cats.length > 0
-            ? mathCommandModel.itemsForCategory(cats[categoryIndex]) : []
+            ? MathCommandModel.itemsForCategory(cats[categoryIndex]) : []
         gridIndex = gridRows.length > 0 ? 0 : -1
     }
 
@@ -214,7 +214,7 @@ Popup {
         if (!row || row.kind !== "entry")
             return
         var h = host
-        mathCommandModel.noteUsed(row.name)
+        MathCommandModel.noteUsed(row.name)
         dismiss()
         if (h && h.applyMathCommand)
             h.applyMathCommand(row)
