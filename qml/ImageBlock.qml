@@ -130,10 +130,10 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
+        if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
             return false
-        return root.shell.blockDrag.isMulti ? delegate.blockSelected
-                                     : root.shell.blockDrag.sourceIndex === delegate.index
+        return delegate.shell.blockDrag.isMulti ? delegate.blockSelected
+                                     : delegate.shell.blockDrag.sourceIndex === delegate.index
     }
 
     function focusSelectionHandler() {
@@ -142,8 +142,8 @@ BlockDelegateBase {
 
     onIsFocusedChanged: {
         if (isFocused) {
-            if (root.shell && root.shell.lastFocusedBlock !== undefined)
-                root.shell.lastFocusedBlock = index
+            if (delegate.shell && delegate.shell.lastFocusedBlock !== undefined)
+                delegate.shell.lastFocusedBlock = index
         }
     }
 
@@ -636,8 +636,8 @@ BlockDelegateBase {
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
-                        ? root.shell.lastFocusedBlock : -1
+                var anchor = delegate.shell && delegate.shell.lastFocusedBlock !== undefined
+                        ? delegate.shell.lastFocusedBlock : -1
                 if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
                     DocumentSelection.selectBlock(anchor)
@@ -714,22 +714,22 @@ BlockDelegateBase {
             }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                if (!root.shell || !root.shell.blockDrag) return
+                if (!delegate.shell || !delegate.shell.blockDrag) return
                 var sp = imageHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5
                         && Math.abs(mouse.y - pressY) < 5)
                         return
                     dragging = true
-                    root.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
+                    delegate.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
                 } else {
-                    root.shell.blockDrag.update(sp.x, sp.y)
+                    delegate.shell.blockDrag.update(sp.x, sp.y)
                 }
             }
             onReleased: {
                 if (dragging) {
                     dragging = false
-                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop()
+                    if (delegate.shell && delegate.shell.blockDrag) delegate.shell.blockDrag.drop()
                     return
                 }
                 if (delegate.listView)
@@ -740,7 +740,7 @@ BlockDelegateBase {
             onCanceled: {
                 if (dragging) {
                     dragging = false
-                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel()
+                    if (delegate.shell && delegate.shell.blockDrag) delegate.shell.blockDrag.cancel()
                 }
             }
         }

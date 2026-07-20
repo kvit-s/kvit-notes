@@ -274,8 +274,8 @@ BlockDelegateBase {
     // not per character. Applied to the content, not the delegate root, so it
     // never fights the pooling opacity guard.
     readonly property real typewriterDim: {
-        if (root.shell && root.shell.typewriterMode !== undefined && root.shell.typewriterMode
-            && root.shell.caretBlockIndex >= 0 && root.shell.caretBlockIndex !== delegate.index)
+        if (delegate.shell && delegate.shell.typewriterMode !== undefined && delegate.shell.typewriterMode
+            && delegate.shell.caretBlockIndex >= 0 && delegate.shell.caretBlockIndex !== delegate.index)
             return 0.32
         return 1.0
     }
@@ -313,10 +313,16 @@ BlockDelegateBase {
         var fg = h(c.a) + h(c.r) + h(c.g) + h(c.b)
         var sz = delegate.inlineMathPixelSize
         var dpr = 1
-        if (root.shell && root.shell.devicePixelRatio !== undefined && root.shell.devicePixelRatio > 0)
-            dpr = root.shell.devicePixelRatio
-        else if (root.shell && root.shell.screen && root.shell.screen.devicePixelRatio > 0)
-            dpr = root.shell.screen.devicePixelRatio
+        // Qt's type description for ApplicationWindow omits devicePixelRatio,
+        // which is documented QML API, so the linter cannot see it. Same gap
+        // as Qt.application.screens in main.qml, and scoped the same way.
+        // qmllint disable missing-property
+        if (delegate.shell && delegate.shell.devicePixelRatio !== undefined && delegate.shell.devicePixelRatio > 0)
+            dpr = delegate.shell.devicePixelRatio
+        // qmllint enable missing-property
+        // The window's own screen is this item's screen, so the attached
+        // Screen below answers what delegate.shell.screen used to — typed, and
+        // still correct when the cast yields null.
         else if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
             dpr = Screen.devicePixelRatio
         dpr = Math.round(dpr * 100) / 100
@@ -344,17 +350,17 @@ BlockDelegateBase {
     // selection): it stays in place as §21.4's space-holder, dimmed,
     // while the floating proxy follows the pointer.
     readonly property bool isDragSource: {
-        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
+        if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
             return false
-        return root.shell.blockDrag.isMulti ? delegate.blockSelected
-                                     : root.shell.blockDrag.sourceIndex === delegate.index
+        return delegate.shell.blockDrag.isMulti ? delegate.blockSelected
+                                     : delegate.shell.blockDrag.sourceIndex === delegate.index
     }
 
     // The window's cross-block drag coordinator (Window.window only
     // attaches to Items, so the TextArea's PointHandler routes through
     // this delegate-level helper).
     function dragCoordinator() {
-        return root.shell && root.shell.crossBlockDrag ? root.shell.crossBlockDrag : null
+        return delegate.shell && delegate.shell.crossBlockDrag ? delegate.shell.crossBlockDrag : null
     }
 
     // Focus the window-level handler that owns keys while a block
@@ -1125,7 +1131,7 @@ BlockDelegateBase {
     // null. Gates the key forwarding and the query updates so a menu
     // targeting another block never affects this one.
     function activeBlockMenu() {
-        var menu = root.shell ? root.shell.blockMenu : null
+        var menu = delegate.shell ? delegate.shell.blockMenu : null
         return (menu && menu.visible && menu.targetIndex === delegate.index)
                 ? menu : null
     }
@@ -1153,7 +1159,7 @@ BlockDelegateBase {
     // The window's math command menu while it is open FOR THIS EDITOR,
     // else null (the activeBlockMenu() pattern).
     function activeMathMenu() {
-        var menu = root.shell ? root.shell.mathCommandMenu : null
+        var menu = delegate.shell ? delegate.shell.mathCommandMenu : null
         return (menu && menu.visible && menu.targets(textArea)) ? menu : null
     }
 
@@ -1171,7 +1177,7 @@ BlockDelegateBase {
     // The window's wiki-link menu while it is open FOR THIS EDITOR, else
     // null (the activeMathMenu() pattern).
     function activeWikiMenu() {
-        var menu = root.shell ? root.shell.wikiLinkMenu : null
+        var menu = delegate.shell ? delegate.shell.wikiLinkMenu : null
         return (menu && menu.visible && menu.targets(textArea)) ? menu : null
     }
 
@@ -1231,8 +1237,8 @@ BlockDelegateBase {
     // steal it right back from this TextArea.
     onIsFocusedChanged: {
         if (isFocused) {
-            if (root.shell && root.shell.lastFocusedBlock !== undefined)
-                root.shell.lastFocusedBlock = index
+            if (delegate.shell && delegate.shell.lastFocusedBlock !== undefined)
+                delegate.shell.lastFocusedBlock = index
         }
         if (!isFocused) {
             editorRequested = false
@@ -1244,8 +1250,8 @@ BlockDelegateBase {
             // portion; otherwise focus loss clears the highlight. A
             // context menu targeting this block holds the selection: its
             // Cut/Copy/formatting act on it.
-            var menuHolds = root.shell && root.shell.contextMenuHoldsSelection
-                            && root.shell.contextMenuHoldsSelection(delegate)
+            var menuHolds = delegate.shell && delegate.shell.contextMenuHoldsSelection
+                            && delegate.shell.contextMenuHoldsSelection(delegate)
             if (!DocumentSelection.hasTextSelection && !menuHolds)
                 textArea.deselect()
         }
@@ -1491,7 +1497,7 @@ BlockDelegateBase {
                             if (!pressed
                                 || (pressedButtons & Qt.RightButton))
                                 return
-                            if (!root.shell || !root.shell.blockDrag)
+                            if (!delegate.shell || !delegate.shell.blockDrag)
                                 return
                             var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
                             if (!dragging) {
@@ -1499,9 +1505,9 @@ BlockDelegateBase {
                                     && Math.abs(mouse.y - pressY) < 5)
                                     return
                                 dragging = true
-                                root.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
+                                delegate.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
                             } else {
-                                root.shell.blockDrag.update(sp.x, sp.y)
+                                delegate.shell.blockDrag.update(sp.x, sp.y)
                             }
                         }
                         onReleased: function(mouse) {
@@ -1509,8 +1515,8 @@ BlockDelegateBase {
                                 return
                             if (dragging) {
                                 dragging = false
-                                if (root.shell && root.shell.blockDrag)
-                                    root.shell.blockDrag.drop()
+                                if (delegate.shell && delegate.shell.blockDrag)
+                                    delegate.shell.blockDrag.drop()
                                 return
                             }
                             if (delegate.listView)
@@ -1521,8 +1527,8 @@ BlockDelegateBase {
                         onCanceled: {
                             if (dragging) {
                                 dragging = false
-                                if (root.shell && root.shell.blockDrag)
-                                    root.shell.blockDrag.cancel()
+                                if (delegate.shell && delegate.shell.blockDrag)
+                                    delegate.shell.blockDrag.cancel()
                             }
                         }
                     }
@@ -2346,7 +2352,7 @@ BlockDelegateBase {
                     anchors.fill: parent
                     acceptedButtons: Qt.RightButton
                     onPressed: function(mouse) {
-                        if (!root.shell || !root.shell.openTextContextMenu)
+                        if (!delegate.shell || !delegate.shell.openTextContextMenu)
                             return
                         var pos = textArea.positionAt(mouse.x, mouse.y)
                         if (textArea.selectionEnd <= textArea.selectionStart
@@ -2412,8 +2418,8 @@ BlockDelegateBase {
                         else if (cx - delegate.codeHScroll < 0)
                             delegate.codeHScroll = Math.max(0, cx - 4)
                     }
-                    if (root.shell && root.shell.typewriterMode !== undefined
-                        && root.shell.typewriterMode && textArea.activeFocus
+                    if (delegate.shell && delegate.shell.typewriterMode !== undefined
+                        && delegate.shell.typewriterMode && textArea.activeFocus
                         && !delegate.isPooled)
                         AppActions.requestCenterCaretLine(delegate)
                     // A caret move can reveal/hide a math span and shifts
@@ -3603,8 +3609,8 @@ BlockDelegateBase {
             }
             if (shift && !ctrl && !textArea.activeFocus) {
                 if (!DocumentSelection.hasBlockSelection) {
-                    var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
-                            ? root.shell.lastFocusedBlock : -1
+                    var anchor = delegate.shell && delegate.shell.lastFocusedBlock !== undefined
+                            ? delegate.shell.lastFocusedBlock : -1
                     if (anchor >= 0 && anchor !== delegate.index)
                         DocumentSelection.selectBlock(anchor)
                 }

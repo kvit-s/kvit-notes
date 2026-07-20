@@ -82,10 +82,16 @@ BlockDelegateBase {
         return h(c.a) + h(c.r) + h(c.g) + h(c.b)
     }
     function currentDpr() {
+        // Qt's type description for ApplicationWindow omits devicePixelRatio,
+        // which is documented QML API, so the linter cannot see it. Same gap
+        // as Qt.application.screens in main.qml, and scoped the same way.
+        // qmllint disable missing-property
         if (root.shell && root.shell.devicePixelRatio !== undefined && root.shell.devicePixelRatio > 0)
             return Math.round(root.shell.devicePixelRatio * 100) / 100
-        if (root.shell && root.shell.screen && root.shell.screen.devicePixelRatio > 0)
-            return Math.round(root.shell.screen.devicePixelRatio * 100) / 100
+        // qmllint enable missing-property
+        // The window's own screen is this item's screen, so the attached
+        // Screen below answers what root.shell.screen used to — typed, and
+        // still correct when the cast yields null.
         if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
             return Math.round(Screen.devicePixelRatio * 100) / 100
         return 1
