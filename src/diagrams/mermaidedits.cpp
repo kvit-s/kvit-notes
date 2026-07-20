@@ -124,6 +124,26 @@ Result postChecked(const Ctx &ctx, const QString &newSource,
     return r;
 }
 
+// postChecked plus a check that the edit achieved what it set out to do.
+// "Still parses" is a weaker property than "means what was asked": an edit can
+// leave a source that parses perfectly and says exactly what it said before,
+// and silently reporting success for that teaches the user the gesture does
+// nothing.
+template <typename Check>
+Result postCheckedExpecting(const Ctx &ctx, const QString &newSource,
+                            Check intentHolds, const QString &intentError,
+                            const QString &newId = QString())
+{
+    const Result base = postChecked(ctx, newSource, newId);
+    if (!base.ok)
+        return base;
+    MermaidParser parser;
+    const ParseResult after = parser.parse(newSource);
+    if (!intentHolds(after))
+        return fail(intentError);
+    return base;
+}
+
 const Node *findNode(const Ctx &ctx, const QString &id)
 {
     const int i = ctx.pr.flowchart.indexOfNode(id);
@@ -419,15 +439,32 @@ Result setNodeLabel(const QString &source, const QString &nodeId,
     if (refuse)
         return fail(QStringLiteral("Labels cannot contain a double quote"));
     QString out = source;
-    if (n->labelSpan.valid()) {
+    if (n->labelInShapeData && n->labelSpan.valid()) {
+        // The label lives in an `@{ … }` block, whose value is a quoted
+        // string. The label is already known to hold no double quote.
+        out.replace(n->labelSpan.start, n->labelSpan.length,
+                    QLatin1Char('"') + newLabel + QLatin1Char('"'));
+    } else if (n->labelSpan.valid()) {
         out.replace(n->labelSpan.start, n->labelSpan.length, rendered);
+    } else if (n->hasShapeData) {
+        // A block with no `label:` entry: appending `[…]` after the id would
+        // read as the label here and be overridden by the block in
+        // mermaid.js, so the two disagree about what the node says.
+        return fail(QStringLiteral("This node is declared with `@{ … }`; add a "
+                                   "`label:` entry to it to rename the node"));
     } else if (n->idSpan.valid()) {
         out.insert(n->idSpan.end(), QStringLiteral("[") + rendered
                                         + QStringLiteral("]"));
     } else {
         return fail(QStringLiteral("The node has no editable declaration"));
     }
-    return postChecked(ctx, out);
+    // The edit is only done if the label actually came out the other side.
+    // Reporting success while the source still says something else is worse
+    // than refusing, because the user sees no reason to try again.
+    return postCheckedExpecting(ctx, out, [&](const ParseResult &after) {
+        const int i = after.flowchart.indexOfNode(nodeId);
+        return i >= 0 && after.flowchart.nodes.at(i).label == newLabel;
+    }, QStringLiteral("The label did not take effect; refused"));
 }
 
 Result setNodeShape(const QString &source, const QString &nodeId,
@@ -441,6 +478,13 @@ Result setNodeShape(const QString &source, const QString &nodeId,
         return fail(QStringLiteral("Unknown node: %1").arg(nodeId));
     const auto delims = shapeDelimiters(shape);
     QString out = source;
+    if (n->hasShapeData) {
+        // The `@{ shape: … }` entry decides the shape and would override any
+        // bracket form written here, so there is no edit to make that both
+        // this parser and mermaid.js would read the same way.
+        return fail(QStringLiteral("This node's shape is set by its `@{ … }` "
+                                   "block; edit the `shape:` entry there"));
+    }
     if (n->shapeSpan.valid() && n->labelSpan.valid()) {
         const QString rawLabel =
             source.mid(n->labelSpan.start, n->labelSpan.length);
@@ -480,8 +524,15 @@ Result renameNode(const QString &source, const QString &oldId,
     if (findNode(ctx, newId))
         return fail(QStringLiteral("A node named %1 already exists")
                         .arg(newId));
-    // Replace every AST-known reference span, last first.
+    // Replace every AST-known reference span, last first. The arrangement
+    // comment is keyed by node id, so its entry is renamed in the same pass:
+    // done separately it would be a second edit that could half-apply, and
+    // left alone the node silently loses its pinned position on the next
+    // layout.
     QList<SourceSpan> refs = n->refSpans;
+    for (const PosEntry &pe : ctx.pr.flowchart.posEntries)
+        if (pe.id == oldId && pe.idSpan.valid())
+            refs.append(pe.idSpan);
     std::sort(refs.begin(), refs.end(),
               [](const SourceSpan &a, const SourceSpan &b) {
                   return a.start > b.start;
@@ -630,6 +681,20 @@ Result setEdgeStroke(const QString &source, int edgeIndex, EdgeStroke stroke)
         return fail(QStringLiteral("The edge has no locatable arrow"));
     if (e.invisible)
         return fail(QStringLiteral("Invisible links have no style"));
+    // `A & B --> C` expands to several edges that all point at one arrow in
+    // the source. Rewriting it would restyle every edge in the group, so the
+    // gesture is refused rather than applied to links the user did not pick.
+    int sharing = 0;
+    for (const Edge &other : edges)
+        if (other.opSpan.valid() && other.opSpan.start == e.opSpan.start
+            && other.opSpan.length == e.opSpan.length)
+            ++sharing;
+    if (sharing > 1) {
+        return fail(QStringLiteral("This link is written as a group (`A & B "
+                                   "--> C`) and shares one arrow with %1 "
+                                   "others; write it on its own line to style "
+                                   "it separately").arg(sharing - 1));
+    }
     QString out = source;
     out.replace(e.opSpan.start, e.opSpan.length, edgeOpText(e, stroke));
     return postChecked(ctx, out);

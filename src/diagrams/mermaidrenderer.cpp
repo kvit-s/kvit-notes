@@ -52,31 +52,36 @@ RenderResult compute(const QString &source, const LayoutOptions &opts)
     if (pr.hasErrors())
         r.firstError = pr.firstError();
 
+    // `valid` gates the canvas's last-good preview: it swaps in the new scene
+    // only while valid is true. A source that failed to parse must therefore
+    // not be valid just because one node survived, or a typo mid-edit replaces
+    // the working diagram with whatever fragment happened to parse.
+    const bool clean = !pr.hasErrors();
     if (pr.type == DiagramType::Flowchart) {
         LayoutOptions o = opts;
         o.direction = pr.flowchart.direction;
         r.scene = layoutFlowchart(pr.flowchart, o);
-        r.valid = !pr.flowchart.nodes.isEmpty();
+        r.valid = clean && !pr.flowchart.nodes.isEmpty();
         return r;
     }
     if (pr.type == DiagramType::Sequence && pr.supported) {
         r.scene = layoutSequence(pr.sequence, opts);
-        r.valid = !pr.sequence.participants.isEmpty();
+        r.valid = clean && !pr.sequence.participants.isEmpty();
         return r;
     }
     if (pr.type == DiagramType::Class && pr.supported) {
         r.scene = layoutClassDiagram(pr.classDiagram, opts);
-        r.valid = !pr.classDiagram.classes.isEmpty();
+        r.valid = clean && !pr.classDiagram.classes.isEmpty();
         return r;
     }
     if (pr.type == DiagramType::State && pr.supported) {
         r.scene = layoutStateDiagram(pr.stateDiagram, opts);
-        r.valid = !pr.stateDiagram.states.isEmpty();
+        r.valid = clean && !pr.stateDiagram.states.isEmpty();
         return r;
     }
     if (pr.type == DiagramType::Er && pr.supported) {
         r.scene = layoutErDiagram(pr.er, opts);
-        r.valid = !pr.er.entities.isEmpty();
+        r.valid = clean && !pr.er.entities.isEmpty();
         return r;
     }
 

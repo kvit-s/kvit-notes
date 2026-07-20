@@ -12,6 +12,7 @@
 #include <QVector>
 
 #include "mathrenderer.h"
+#include "diagrams/diagrambudget.h"
 
 // Render corpus for the MicroTeX seam. These are the first thing built once
 // the library is vendored: they prove the resource root resolves (fonts +
@@ -381,6 +382,65 @@ class TestMathRenderer : public QObject
     }
 
 private slots:
+    // ---- M11: raster budget ----
+
+    // A formula a note can carry must not be able to ask for an unbounded
+    // backing store. Before the cap, 400,000 characters of `x` laid out to
+    // 3,906,817 x 9 pixels — a 134 MiB image that took six seconds to build,
+    // and errorFor() built one of its own before the image provider built a
+    // second for display.
+    void overlongFormulaIsRefusedNotRasterized()
+    {
+        QElapsedTimer t;
+        t.start();
+        QString error;
+        const QImage image = MathRenderer::render(
+            QStringLiteral("x").repeated(400000), 20, QColor(Qt::black), 1.0,
+            &error, 0);
+        const qint64 ms = t.elapsed();
+        QVERIFY2(image.isNull(), "an over-long formula must not rasterize");
+        QVERIFY2(!error.isEmpty(), "the refusal must say why");
+        QVERIFY2(ms < 1000, qPrintable(QStringLiteral("took %1 ms").arg(ms)));
+        // The same source is refused by the validity check, so the block shows
+        // an error rather than silently rendering nothing.
+        QVERIFY(!MathRenderer::errorFor(
+                     QStringLiteral("x").repeated(400000)).isEmpty());
+    }
+
+    void formulaAtTheLengthLimitStillRenders()
+    {
+        QString error;
+        const QImage image = MathRenderer::render(
+            QStringLiteral("x").repeated(4000), 20, QColor(Qt::black), 1.0,
+            &error, 0);
+        QVERIFY2(!image.isNull(), qPrintable(error));
+    }
+
+    // Text size and device pixel ratio multiply into the same backing store.
+    void hugeDevicePixelRatioIsBounded()
+    {
+        QString error;
+        const QImage image = MathRenderer::render(QStringLiteral("x^2"), 20,
+                                                  QColor(Qt::black), 1000.0,
+                                                  &error, 0);
+        const qint64 pixels = qint64(image.width()) * image.height();
+        QVERIFY2(pixels <= Diagram::kMaxRasterPixels,
+                 qPrintable(QStringLiteral("raster %1 x %2 exceeds the budget")
+                                .arg(image.width()).arg(image.height())));
+    }
+
+    void hugeTextSizeIsBounded()
+    {
+        QString error;
+        const QImage image = MathRenderer::render(QStringLiteral("x^2"), 100000,
+                                                  QColor(Qt::black), 1.0,
+                                                  &error, 0);
+        const qint64 pixels = qint64(image.width()) * image.height();
+        QVERIFY2(pixels <= Diagram::kMaxRasterPixels,
+                 qPrintable(QStringLiteral("raster %1 x %2 exceeds the budget")
+                                .arg(image.width()).arg(image.height())));
+    }
+
     void availableCommandsEnumerates()
     {
         // The math-command menu's completion corpus: symbols, builtin

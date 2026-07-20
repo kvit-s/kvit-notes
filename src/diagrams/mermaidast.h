@@ -78,6 +78,14 @@ struct Node {
     SourceSpan labelSpan;           // raw text between the shape brackets
     SourceSpan shapeSpan;           // the whole bracket construct `[label]`
     QList<SourceSpan> refSpans;     // every id reference, declaration included
+    // An `A@{ shape: …, label: … }` block declares the node instead of, or in
+    // addition to, bracket syntax, and the block wins wherever both appear.
+    // Editing such a node therefore has to rewrite the block: appending
+    // bracket syntax produces a source this parser and mermaid.js read
+    // differently. `labelSpan` then covers the block's label value, quotes
+    // included, rather than bracket-inner text.
+    bool hasShapeData = false;
+    bool labelInShapeData = false;
 };
 
 struct Edge {
@@ -206,6 +214,9 @@ struct PosEntry {
     QString id;
     double x = 0;
     double y = 0;
+    // Where this entry's id sits in the source, so renaming a node can carry
+    // its pinned position with it in the same edit.
+    SourceSpan idSpan;
 };
 
 struct FlowchartAst {

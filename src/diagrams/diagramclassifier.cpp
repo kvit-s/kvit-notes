@@ -394,8 +394,16 @@ int countFramedRegions(const QList<LineInfo> &lines)
 
 // Vertical boundaries recurring in roughly the same column region (+/- 2) across
 // consecutive rows — a tolerant base signal.
+//
+// analyzeLine walks each line left to right, so both column lists are ascending
+// and a two-pointer merge decides "is any pair within the tolerance" in one pass
+// over the two rows. Comparing every column against every column instead is
+// quadratic in the worst case, which two 50,000-stroke rows with no column in
+// common reach inside the 256 KiB inspection cap: 11.5 seconds of blocking work
+// on paste or note open, from input a note can carry.
 int countRecurringVerticalRows(const QList<LineInfo> &lines)
 {
+    constexpr int kColumnTolerance = 2;
     int rows = 0;
     QList<int> prev;
     for (const LineInfo &l : lines) {
@@ -404,11 +412,20 @@ int countRecurringVerticalRows(const QList<LineInfo> &lines)
             continue;
         }
         bool matched = false;
-        for (int c : l.vColumns) {
-            for (int p : prev) {
-                if (qAbs(c - p) <= 2) { matched = true; break; }
+        int i = 0;
+        int j = 0;
+        while (i < l.vColumns.size() && j < prev.size()) {
+            const int delta = l.vColumns.at(i) - prev.at(j);
+            if (qAbs(delta) <= kColumnTolerance) {
+                matched = true;
+                break;
             }
-            if (matched) break;
+            // Advance whichever side is behind; neither can pair with anything
+            // the other has already passed.
+            if (delta > 0)
+                ++j;
+            else
+                ++i;
         }
         if (matched)
             ++rows;

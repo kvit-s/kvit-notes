@@ -7,8 +7,10 @@
 #include "mermaidclass.h"
 #include "mermaidstate.h"
 #include "mermaider.h"
+#include "diagrambudget.h"
 
 #include <QStringList>
+#include <QtMath>
 
 namespace Mermaid {
 
@@ -188,8 +190,16 @@ void parsePosLines(const QString &body, int baseOffset, ParseResult &result)
             lineEnd = body.size();
         const QString line = body.mid(lineStart, lineEnd - lineStart);
         const QString trimmed = line.trimmed();
-        if (trimmed.startsWith(QLatin1String("%%"))
-            && trimmed.mid(2).trimmed().startsWith(kPrefix)) {
+        // The directive must be the whole token: `mermaid-flow:position …` is
+        // an ordinary comment, and treating it as an arrangement line hands it
+        // to the next drag to overwrite.
+        const QString comment = trimmed.startsWith(QLatin1String("%%"))
+            ? trimmed.mid(2).trimmed() : QString();
+        const bool isPosDirective =
+            comment.startsWith(kPrefix)
+            && (comment.size() == kPrefix.size()
+                || comment.at(kPrefix.size()).isSpace());
+        if (isPosDirective) {
             if (ast.hasPosLine) {
                 result.diagnostics.append(
                     { lineNo, 1,
@@ -200,11 +210,37 @@ void parsePosLines(const QString &body, int baseOffset, ParseResult &result)
                 ast.hasPosLine = true;
                 ast.posLineSpan = { baseOffset + lineStart,
                                     int(line.size()) };
-                const QString entries = trimmed.mid(2).trimmed()
-                                            .mid(kPrefix.size()).trimmed();
-                const QStringList parts =
-                    entries.split(u' ', Qt::SkipEmptyParts);
-                for (const QString &part : parts) {
+                const QString afterPrefix = comment.mid(kPrefix.size());
+                const QString entries = afterPrefix.trimmed();
+                bool clamped = false;
+                // Where `entries` begins inside the raw line, so each entry's
+                // id can be located in the source and renamed in place.
+                int lead = 0;
+                while (lead < line.size() && line.at(lead).isSpace())
+                    ++lead;
+                int afterMarker = 2;
+                while (afterMarker < trimmed.size()
+                       && trimmed.at(afterMarker).isSpace())
+                    ++afterMarker;
+                int entriesLead = 0;
+                while (entriesLead < afterPrefix.size()
+                       && afterPrefix.at(entriesLead).isSpace())
+                    ++entriesLead;
+                const int entriesStart = baseOffset + lineStart + lead
+                    + afterMarker + kPrefix.size() + entriesLead;
+                // Walk the entries keeping each one's offset; splitting throws
+                // positions away.
+                int scan = 0;
+                while (scan < entries.size()) {
+                    while (scan < entries.size() && entries.at(scan) == u' ')
+                        ++scan;
+                    if (scan >= entries.size())
+                        break;
+                    const int partStart = scan;
+                    while (scan < entries.size() && entries.at(scan) != u' ')
+                        ++scan;
+                    const QString part = entries.mid(partStart,
+                                                     scan - partStart);
                     const int eq = part.indexOf(u'=');
                     if (eq <= 0)
                         continue;   // malformed entry: skipped
@@ -213,17 +249,41 @@ void parsePosLines(const QString &body, int baseOffset, ParseResult &result)
                     if (nums.size() != 2 && nums.size() != 4)
                         continue;
                     bool okX = false, okY = false;
-                    const double x = nums.at(0).toDouble(&okX);
-                    const double y = nums.at(1).toDouble(&okY);
+                    double x = nums.at(0).toDouble(&okX);
+                    double y = nums.at(1).toDouble(&okY);
                     if (!okX || !okY)
                         continue;
+                    // `toDouble` accepts "inf" and "nan". A non-finite center
+                    // poisons every bound derived from it, so the entry is
+                    // dropped outright; an out-of-range finite one clamps, so
+                    // the node stays visible at the edge.
+                    if (!qIsFinite(x) || !qIsFinite(y)) {
+                        clamped = true;
+                        continue;
+                    }
+                    if (qAbs(x) > Diagram::kMaxPinnedCoordinate
+                        || qAbs(y) > Diagram::kMaxPinnedCoordinate) {
+                        x = qBound(-Diagram::kMaxPinnedCoordinate, x,
+                                   Diagram::kMaxPinnedCoordinate);
+                        y = qBound(-Diagram::kMaxPinnedCoordinate, y,
+                                   Diagram::kMaxPinnedCoordinate);
+                        clamped = true;
+                    }
                     // A `,width,height` suffix parses; the dimensions are
                     // ignored and dropped on the next arrangement write.
                     PosEntry entry;
                     entry.id = part.left(eq);
                     entry.x = x;
                     entry.y = y;
+                    entry.idSpan = { entriesStart + partStart, eq };
                     ast.posEntries.append(entry);
+                }
+                if (clamped) {
+                    result.diagnostics.append(
+                        { lineNo, 1,
+                          QStringLiteral("Arrangement coordinates outside the "
+                                         "supported range were clamped"),
+                          Diagnostic::Warning });
                 }
             }
         }
@@ -322,26 +382,40 @@ void FlowParser::applyShapeData(int nodeIndex, const Token &data)
 {
     if (nodeIndex < 0)
         return;
-    // Split into entries at commas and newlines outside quotes.
-    QStringList entries;
+    m_ast.nodes[nodeIndex].hasShapeData = true;
+    // Split into entries at commas and newlines outside quotes, keeping each
+    // entry's offset inside the block so a value can be located in the source.
+    struct Entry { QString text; int start; };
+    QList<Entry> entries;
     QString cur;
+    int curStart = 0;
     bool inQuote = false;
-    for (const QChar ch : data.text) {
+    for (int i = 0; i < data.text.size(); ++i) {
+        const QChar ch = data.text.at(i);
         if (ch == u'"') {
             inQuote = !inQuote;
             cur += ch;
         } else if (!inQuote && (ch == u',' || ch == u'\n')) {
-            entries << cur;
+            entries.append({ cur, curStart });
             cur.clear();
+            curStart = i + 1;
         } else {
             cur += ch;
         }
     }
-    entries << cur;
-    for (const QString &entryRaw : entries) {
+    entries.append({ cur, curStart });
+    for (const Entry &e : entries) {
+        const QString &entryRaw = e.text;
         const QString entry = entryRaw.trimmed();
         if (entry.isEmpty())
             continue;
+        // Offset of `entry` inside the block body, past the whitespace
+        // `trimmed()` removed from the front.
+        int entryStart = e.start;
+        while (entryStart < data.text.size()
+               && data.text.at(entryStart).isSpace()
+               && entryStart - e.start < entryRaw.size())
+            ++entryStart;
         const int colon = entry.indexOf(u':');
         if (colon < 0) {
             diag(data.line, data.column,
@@ -363,6 +437,20 @@ void FlowParser::applyShapeData(int nodeIndex, const Token &data)
             m_ast.nodes[nodeIndex].shape = sh;
         } else if (key == QLatin1String("label")) {
             m_ast.nodes[nodeIndex].label = val.left(kMaxLabelChars);
+            // The value's span in the source, quotes included, so an edit
+            // rewrites the block entry instead of appending bracket syntax
+            // the block would then override.
+            const QString rawVal = entry.mid(colon + 1);
+            int valStart = entryStart + colon + 1;
+            int lead = 0;
+            while (lead < rawVal.size() && rawVal.at(lead).isSpace())
+                ++lead;
+            const int valLen = rawVal.trimmed().size();
+            if (data.labelOffset >= 0 && valLen > 0) {
+                m_ast.nodes[nodeIndex].labelSpan = {
+                    m_base + data.labelOffset + valStart + lead, valLen };
+                m_ast.nodes[nodeIndex].labelInShapeData = true;
+            }
         } else {
             diag(data.line, data.column,
                  QStringLiteral("Shape data key \"%1\" is ignored in Kvit")

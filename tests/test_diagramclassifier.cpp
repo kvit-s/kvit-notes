@@ -196,6 +196,52 @@ private slots:
         QVERIFY(!r.isDiagram);
     }
 
+    // Two dense rows of vertical strokes whose columns never come within the
+    // +/- 2 proximity window, which is the worst case for the recurring-column
+    // scan: no early exit, every column on one row compared against every
+    // column on the other. Both rows fit inside the inspection cap, so this is
+    // reachable from an ordinary paste or note open.
+    void adversarialVerticalColumnsStayCheap()
+    {
+        // Box-drawing strokes, so each row also counts as a base-signal line
+        // and the scan is actually reached.
+        const int n = 50000;
+        const QChar bar(0x2502);
+        QString content = QString(n, bar);
+        content += u'\n';
+        content += QString(n + 3, u' ');
+        content += QString(n, bar);
+        content += QStringLiteral("\n┌──┐\n");
+        QVERIFY(content.size() <= DiagramClassifier::kInspectionCapChars);
+
+        QElapsedTimer t;
+        t.start();
+        DiagramClassifier::classify(content);
+        const qint64 ms = t.elapsed();
+        qInfo("adversarial classify took %lld ms", ms);
+        QVERIFY2(ms < 250, qPrintable(QStringLiteral("classify took %1 ms")
+                                          .arg(ms)));
+    }
+
+    // A full-cap input of dense box-drawing, to catch any other path in
+    // classify() that is worse than linear in the accepted input size.
+    void capSizedInputStaysCheap()
+    {
+        QString content;
+        const QString row = QStringLiteral("┌─┬─┐ ├─┼─┤ └─┴─┘ │ │ │ ──> A1\n");
+        while (content.size() + row.size()
+               <= DiagramClassifier::kInspectionCapChars)
+            content += row;
+
+        QElapsedTimer t;
+        t.start();
+        DiagramClassifier::classify(content);
+        const qint64 ms = t.elapsed();
+        qInfo("cap-sized classify took %lld ms", ms);
+        QVERIFY2(ms < 250, qPrintable(QStringLiteral("classify took %1 ms")
+                                          .arg(ms)));
+    }
+
     void emptyContentRejected()
     {
         QVERIFY(!DiagramClassifier::looksLikeDiagram(QString()));

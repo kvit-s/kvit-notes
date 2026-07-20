@@ -54,7 +54,9 @@ public:
 private:
     // Line arms per cell (bitmask of ArmUp..ArmRight); 0 = not a line cell.
     enum Arm { ArmUp = 1, ArmDown = 2, ArmLeft = 4, ArmRight = 8 };
-    void ensure(int row, int col);
+    // Grow the grid to cover (row, col). False when the cell lies outside
+    // the export budget and the caller must skip it.
+    bool ensure(int row, int col);
     void mergeArms(int row, int col, int arms, bool doubleVertical = false);
     static QChar charForArms(int arms, bool doubleVertical);
 

@@ -7,6 +7,7 @@
 #include "diagrams/diagramlayout.h"
 #include "diagrams/mermaidedits.h"
 #include "diagrams/mermaidparser.h"
+#include "diagrams/mermaidrenderer.h"
 
 using namespace Mermaid;
 using namespace Diagram;
@@ -47,6 +48,180 @@ class TestMermaidEdits : public QObject
     }
 
 private slots:
+    // ---- M12 verification: editing round trips ----
+
+    // The canvas keeps the last-good scene only while `valid` is false, so a
+    // source that failed to parse must not report a renderable scene just
+    // because one node survived.
+    void partialParseIsNotValid()
+    {
+        // A dangling arrow: the parser reports an error and still recovers one
+        // node, which used to be enough to be called valid and to replace the
+        // working diagram mid-edit.
+        const RenderResult r = Diagram::render(
+            QStringLiteral("flowchart TD\n  A[Good]\n  --> \n"), opts());
+        QVERIFY2(r.hasError, "expected this source to fail to parse");
+        QVERIFY2(!r.valid,
+                 "a parse with errors must not replace the last-good scene");
+    }
+
+    void cleanParseIsStillValid()
+    {
+        const RenderResult r = Diagram::render(
+            QStringLiteral("flowchart TD\n  A[One] --> B[Two]\n"), opts());
+        QVERIFY(!r.hasError);
+        QVERIFY2(r.valid, "a clean parse must still produce a scene");
+    }
+
+    // `A@{ shape: circle, label: "Old" }` carries its label in the shape-data
+    // block. Inserting `[New]` after the id leaves the block to win, so the
+    // edit must either rewrite the block or refuse — never report success
+    // while changing nothing.
+    void labelEditOnExtendedNodeTakesEffect()
+    {
+        const QString src = QStringLiteral(
+            "flowchart TD\n  A@{ shape: circle, label: \"Old\" }\n");
+        const Edits::Result r =
+            Edits::setNodeLabel(src, QStringLiteral("A"),
+                                QStringLiteral("New"));
+        QVERIFY2(r.ok, qPrintable(r.error));
+        const ParseResult after = parse(r.source);
+        const int i = after.flowchart.indexOfNode(QStringLiteral("A"));
+        QVERIFY(i >= 0);
+        QCOMPARE(after.flowchart.nodes.at(i).label, QString("New"));
+        // The shape the block declared must survive a label edit. Appending
+        // `[New]` after the id left the block unread, quietly turning the
+        // circle into a rectangle while reporting success.
+        QCOMPARE(after.flowchart.nodes.at(i).shape, NodeShape::Circle);
+        QVERIFY2(!r.source.contains(QLatin1String("[New]")),
+                 qPrintable(QStringLiteral("bracket syntax was appended: %1")
+                                .arg(r.source)));
+    }
+
+    // A block with no `label:` entry has nowhere to put one without changing
+    // what mermaid.js would show, so the gesture refuses instead.
+    void labelEditRefusesWhenTheBlockHasNoLabel()
+    {
+        const QString src = QStringLiteral(
+            "flowchart TD\n  A@{ shape: circle }\n");
+        const Edits::Result r =
+            Edits::setNodeLabel(src, QStringLiteral("A"),
+                                QStringLiteral("New"));
+        QVERIFY2(!r.ok, qPrintable(QStringLiteral("expected a refusal, got: %1")
+                                       .arg(r.source)));
+        QVERIFY(!r.error.isEmpty());
+    }
+
+    void shapeEditRefusesOnExtendedNode()
+    {
+        const QString src = QStringLiteral(
+            "flowchart TD\n  A@{ shape: circle, label: \"Old\" }\n");
+        const Edits::Result r =
+            Edits::setNodeShape(src, QStringLiteral("A"), NodeShape::Hexagon);
+        QVERIFY2(!r.ok, qPrintable(QStringLiteral("expected a refusal, got: %1")
+                                       .arg(r.source)));
+    }
+
+    // A renamed node must keep its pinned position: the arrangement comment is
+    // keyed by node id.
+    void renameCarriesThePinnedPosition()
+    {
+        const QString src = QStringLiteral(
+            "flowchart TD\n  A[One]\n  B[Two]\n"
+            "%% mermaid-flow:pos A=120,40 B=260,180\n");
+        const Edits::Result r = Edits::renameNode(src, QStringLiteral("A"),
+                                    QStringLiteral("A2"));
+        QVERIFY2(r.ok, qPrintable(r.error));
+        const ParseResult after = parse(r.source);
+        bool found = false;
+        for (const PosEntry &pe : after.flowchart.posEntries) {
+            if (pe.id == QLatin1String("A2")) {
+                found = true;
+                QCOMPARE(pe.x, 120.0);
+                QCOMPARE(pe.y, 40.0);
+            }
+            QVERIFY2(pe.id != QLatin1String("A"),
+                     "the pos entry still uses the old id");
+        }
+        QVERIFY2(found, qPrintable(QStringLiteral("no A2 entry in: %1")
+                                       .arg(r.source)));
+    }
+
+    // `A & B --> C` expands to two edges that share one operator in the
+    // source. Styling one must not restyle the other.
+    void stylingOneExpandedEdgeLeavesTheOtherAlone()
+    {
+        const QString src = QStringLiteral("flowchart TD\n  A & B --> C\n");
+        const ParseResult before = parse(src);
+        QCOMPARE(before.flowchart.edges.size(), 2);
+        const Edits::Result r = Edits::setEdgeStroke(src, 0, EdgeStroke::Thick);
+        if (!r.ok)
+            return;   // refusing to split the group is an acceptable outcome
+        const ParseResult after = parse(r.source);
+        QCOMPARE(after.flowchart.edges.size(), 2);
+        QVERIFY2(after.flowchart.edges.at(1).stroke != EdgeStroke::Thick,
+                 qPrintable(QStringLiteral("both edges restyled: %1")
+                                .arg(r.source)));
+    }
+
+    // Hyphens and dots inside an inline edge label are label text, not
+    // topology.
+    void inlineEdgeLabelKeepsHyphensAndDots()
+    {
+        const ParseResult r = parse(QStringLiteral(
+            "flowchart TD\n  A -- well-known v1.2 --> B\n"));
+        QCOMPARE(r.flowchart.edges.size(), 1);
+        QCOMPARE(r.flowchart.edges.at(0).label, QString("well-known v1.2"));
+        QCOMPARE(r.flowchart.nodes.size(), 2);
+    }
+
+    // `mermaid-flow:pos` is an exact directive; `mermaid-flow:position` is an
+    // ordinary comment that arrangement must not claim and overwrite.
+    void posPrefixDoesNotSwallowSimilarComments()
+    {
+        const ParseResult r = parse(QStringLiteral(
+            "flowchart TD\n  A[One]\n"
+            "%% mermaid-flow:position is decided by hand\n"));
+        QVERIFY2(!r.flowchart.hasPosLine,
+                 "an unrelated comment was taken for an arrangement line");
+
+        const Edits::Result w = Edits::writeArrangement(
+            QStringLiteral("flowchart TD\n  A[One]\n"
+                           "%% mermaid-flow:position is decided by hand\n"),
+            { { QStringLiteral("A"), QPointF(10, 20) } });
+        QVERIFY2(w.ok, qPrintable(w.error));
+        QVERIFY2(w.source.contains(
+                     QLatin1String("mermaid-flow:position is decided by hand")),
+                 qPrintable(QStringLiteral("comment destroyed: %1")
+                                .arg(w.source)));
+    }
+
+    // ---- M11 verification: coordinate magnitude and span ----
+
+    void nonFiniteCoordinatesRejected()
+    {
+        const ParseResult r = parse(QStringLiteral(
+            "flowchart TD\n  A[One]\n  B[Two]\n"
+            "%% mermaid-flow:pos A=inf,0 B=nan,nan\n"));
+        for (const PosEntry &pe : r.flowchart.posEntries) {
+            QVERIFY2(qIsFinite(pe.x) && qIsFinite(pe.y),
+                     qPrintable(QStringLiteral("entry %1 = %2,%3")
+                                    .arg(pe.id).arg(pe.x).arg(pe.y)));
+        }
+    }
+
+    void hugeCoordinatesDoNotExplodeSceneBounds()
+    {
+        const ParseResult r = parse(QStringLiteral(
+            "flowchart TD\n  A[One]\n  B[Two]\n"
+            "%% mermaid-flow:pos A=0,0 B=1e12,1e12\n"));
+        const Scene s = layoutFlowchart(r.flowchart, opts());
+        qInfo("scene bounds %f x %f", s.bounds.width(), s.bounds.height());
+        QVERIFY2(s.bounds.width() < 1e6 && s.bounds.height() < 1e6,
+                 qPrintable(QStringLiteral("bounds %1 x %2")
+                                .arg(s.bounds.width()).arg(s.bounds.height())));
+    }
+
     // ---- pos-line parsing ----
 
     void posLineParses()
