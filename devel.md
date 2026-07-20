@@ -241,6 +241,74 @@ The suite is `tests/test_egresspolicy.cpp` (`EgressPolicyTests`), which
 drives a loopback `QTcpServer` rather than the real internet and covers the
 refusals, the redirect re-checks, and the streaming cap.
 
+## One writer per vault
+
+Notes, the JSON sidecar, `collection.json` and the search index are all read
+into memory when a vault opens and written back whole. `QSaveFile` makes each
+of those writes atomic, which prevents a half-written file and nothing else.
+Two Kvit processes on one vault both load the same state, each change
+something different, and whichever saves second silently discards the other's
+work. `tests/test_vaultlock.cpp` demonstrates it with two processes and a tag
+colour; before the lock, one of the two colours was simply gone.
+
+`VaultLock` (src/vaultlock.{h,cpp}) takes an advisory lock on
+`<vault>/.kvit/vault.lock` for the life of the session. `NoteCollection`
+acquires it in `prepareRootPath()`, before any state is read, and releases it
+in `closeRoot()`.
+
+**Why a lock rather than compare-and-swap.** A revision protocol would need a
+merge policy designed and maintained separately for note bodies, the sidecar,
+the collection state blob and the SQLite index, and it would have to stay
+correct on every future write path. A notes app has no multi-writer story
+worth that. Refusing the second session is a smaller guarantee, but it is one
+that cannot rot.
+
+**Why a kernel lock rather than a PID file.** `flock` on POSIX and
+`LockFileEx` on Windows, held on an open descriptor. The kernel drops the lock
+when the process dies by any means, so a stale lock is impossible rather than
+merely detectable, and a hard kill can never leave a vault that will not open.
+It also behaves correctly where a recorded process id would not: a Flatpak
+session and a host session see different pid numbers but the same inode, so
+they contend properly, and a lock file copied to another machine by a file
+sync carries no lock with it. `QLockFile` was the obvious alternative and is
+wrong here for exactly that reason, since its staleness check would decide a
+live owner in another pid namespace was dead and steal the lock.
+
+That namespace claim was checked rather than assumed, using `bwrap` (the
+sandbox Flatpak itself runs on) with `--unshare-pid`: a host session holding
+the vault correctly refuses a sandboxed second session, a sandboxed holder
+correctly refuses a host session, and `SIGKILL` on either lets the next
+process straight in. The manifest's `--filesystem=home` is what makes the
+inode the same on both sides. A full Flatpak build was not exercised here,
+only the namespace behaviour the design depends on.
+
+Things worth knowing before changing this:
+
+- **Failure is open, not closed.** Only "another process holds it" refuses the
+  vault. A filesystem without locking, a read-only directory, or any other
+  kernel error opens the vault unlocked with a warning on the
+  `kvit.vaultlock` logging category. A vault nobody can open is a worse bug
+  than an unguarded one.
+- **Ownership is reference counted per canonical path.** One process
+  legitimately holds several `NoteCollection` objects on a root (the
+  warm-cache tests in test_notecollection.cpp do), and a POSIX `flock` taken
+  on a second descriptor of the same file fails against its own process. The
+  count is what stops Kvit refusing itself.
+- **The lock file's contents are advisory.** They name the holder for the
+  refusal message; correctness never reads them. A truncated or hostile file
+  leaves the lock itself working and only makes the message vaguer.
+- **Single-file mode takes no lock.** `kvit-notes note.md` opens no
+  collection, so nothing is acquired and nothing is refused. Two editors on
+  one *file* remain the file watcher's problem, and it already has a
+  keep-mine/load-theirs banner for that.
+- **The second session refuses and explains** rather than opening read-only or
+  handing off to the running instance. Read-only would mean auditing every
+  mutation path to be sure nothing slips through, and a half-enforced
+  read-only mode is worse than a refusal. Handing off is a better experience
+  and a genuinely separate feature: it needs single-instance IPC
+  (QLocalServer) and a window-raise protocol. `NoteCollection::vaultInUse`
+  carries the holder's description, and main.qml explains it.
+
 ## Settings wiring order in AppContext
 
 `Theme::setSettings()` and `Typography::setSettings()` snapshot the store's

@@ -67,6 +67,7 @@ add_library(kvit-core STATIC
     src/extensionregistry.cpp
     src/block.cpp
     src/perflog.cpp
+    src/persistencepool.cpp
     src/blockattributes.cpp
     src/shortcutcatalog.cpp
     src/accessibilityannouncer.cpp
@@ -151,6 +152,7 @@ add_library(kvit-core STATIC
     src/theme.cpp
     src/typography.cpp
     src/updatechecker.cpp
+    src/vaultlock.cpp
 )
 
 # The version the running app reports (About, update check comparison).

@@ -18,7 +18,9 @@
 
 #include <functional>
 
+#include "cancellationtoken.h"
 #include "notefrontmatter.h"
+#include "vaultlock.h"
 
 class QFileInfo;
 class CollectionSearchIndex;
@@ -280,6 +282,12 @@ public:
     // Lets the I/O-failure tests observe that a failed write is retained
     // for a later retry rather than forgotten.
     bool indexDirtyForTesting() const { return m_indexDirty; }
+    // Test seam: whether the directory-listing future has actually been
+    // picked up by a pool thread. Cancellation only waits on a watcher that
+    // reports itself running, so measuring the cost of a cancel has to know
+    // whether the wait was entered at all.
+    bool listingWatcherIsRunningForTesting() const;
+    bool refreshWatcherIsRunningForTesting() const;
 
 signals:
     void rootChanged();
@@ -295,6 +303,10 @@ signals:
     void wikiLinkRewriteIncomplete(const QStringList &skipped,
                                    const QStringList &failed);
     void operationFailed(const QString &message);
+    // The vault is open in another process, so this session refused it rather
+    // than becoming a second writer whose saves would discard the other's.
+    // `detail` names the holder where the lock file said who it was.
+    void vaultInUse(const QString &path, const QString &detail);
     void scanInProgressChanged();
     void scanStarted();
     void scanFinished();
@@ -322,6 +334,10 @@ private:
         bool indexOk = false;
         bool indexFileExists = false;
         quint64 generation = 0;
+        // Checked between directories. QtConcurrent::run cannot interrupt
+        // this walk, so without it a vault the user has already left goes on
+        // being listed to the end.
+        CancellationTokenPtr cancel;
     };
 
     struct AsyncScanListing {
@@ -331,6 +347,12 @@ private:
         QList<AsyncIndexTask> tasks;
         bool indexDirty = false;
         quint64 generation = 0;
+        // The walk stopped early, so the folder and note lists are a prefix
+        // of the vault rather than all of it. The generation bump that
+        // accompanies every cancel already keeps this from being applied;
+        // the flag says so in the value itself, where a later reader cannot
+        // miss it.
+        bool cancelled = false;
     };
 
     struct AsyncRefreshRequest {
@@ -338,6 +360,9 @@ private:
         QStringList relDirs;
         QHash<QString, NoteEntry> currentNotes;
         quint64 generation = 0;
+        // Checked between notes. This worker reads and parses every changed
+        // body inline, so it is the one whose abandoned run costs the most.
+        CancellationTokenPtr cancel;
     };
 
     struct AsyncRefreshResult {
@@ -349,6 +374,10 @@ private:
         QSet<QString> seenNotes;
         QSet<QString> seenFolders;
         quint64 generation = 0;
+        // As above: a stopped refresh saw only part of the subtree, and
+        // seenNotes/seenFolders drive removals — applying a partial one
+        // would delete entries the walk simply never reached.
+        bool cancelled = false;
     };
 
     struct AsyncSavedNoteTask {
@@ -489,6 +518,9 @@ private:
     // against this, never against m_rootPath's text, so a vault reached
     // through a link still recognizes its own contents.
     QString m_canonicalRoot;
+    // Held for as long as this collection has the vault open, so no second
+    // process can load the same state and save over this session's writes.
+    VaultLock m_vaultLock;
     int m_revision = 0;
 
     QHash<QString, NoteEntry> m_notes;    // by relPath
@@ -553,6 +585,11 @@ private:
     quint64 m_asyncIndexSaveGeneration = 0;
     QElapsedTimer m_asyncScanTimer;
     QElapsedTimer m_asyncRefreshTimer;
+    // The GUI-thread end of the token each running worker holds. Cancelling
+    // signals the token and drops the reference; the next task gets a fresh
+    // one, so a token is never reused across generations.
+    CancellationTokenPtr m_scanCancel;
+    CancellationTokenPtr m_refreshCancel;
     QFutureWatcher<AsyncScanListing> m_asyncListingWatcher;
     QFutureWatcher<AsyncIndexResult> m_asyncWatcher;
     QFutureWatcher<AsyncRefreshResult> m_asyncRefreshWatcher;
