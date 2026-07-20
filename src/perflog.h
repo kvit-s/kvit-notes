@@ -132,6 +132,11 @@ private:
                             bool *human = nullptr);
     static QString levelToString(Level level);
 
+    // In-memory retention window. Samples are a debugging aid read back
+    // through samples()/sampleMaps(); the complete record is the JSONL file.
+    static constexpr int kMaxRetainedSamples = 5000;
+    static constexpr int kRetentionSlack = 1000;
+
     void writeSample(const Sample &sample);
     void openFileIfNeeded();
     void rotateFileIfNeeded(const QString &path);

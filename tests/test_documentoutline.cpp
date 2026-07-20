@@ -26,6 +26,7 @@ private slots:
     void testNestingDepthWithSkips();
     void testHasChildren();
     void testCollisionSuffixesInDocumentOrder();
+    void testCollisionWithLiteralSuffixHeading();
 
     void testResolveSlugToBlock();
     void testUnresolvedSlug();
@@ -170,6 +171,33 @@ void TestDocumentOutline::testCollisionSuffixesInDocumentOrder()
     QCOMPARE(m_outline->slugForBlockIndex(0), QString("overview"));
     QCOMPARE(m_outline->slugForBlockIndex(1), QString("overview-1"));
     QCOMPARE(m_outline->slugForBlockIndex(2), QString("overview-2"));
+}
+
+// A heading whose own text slugifies to something a disambiguating suffix
+// would also produce. "Foo", "Foo", "Foo-1" gives the second Foo the slug
+// foo-1, which the third heading then claims as its base slug. Duplicate
+// slugs mean duplicate HTML ids on export and a heading link that resolves
+// to the wrong section, so every final slug has to be unique.
+void TestDocumentOutline::testCollisionWithLiteralSuffixHeading()
+{
+    addHeading(1, "Foo");
+    addHeading(1, "Foo");
+    addHeading(1, "Foo-1");
+    m_outline->setModel(m_model);
+
+    const QString a = m_outline->slugForBlockIndex(0);
+    const QString b = m_outline->slugForBlockIndex(1);
+    const QString c = m_outline->slugForBlockIndex(2);
+
+    QCOMPARE(a, QString("foo"));
+    QCOMPARE(b, QString("foo-1"));
+    QVERIFY2(c != b, "third heading must not reuse the second heading's slug");
+    QVERIFY(c != a);
+
+    // Each slug still resolves to its own heading.
+    QCOMPARE(m_outline->blockIndexForSlug(a), 0);
+    QCOMPARE(m_outline->blockIndexForSlug(b), 1);
+    QCOMPARE(m_outline->blockIndexForSlug(c), 2);
 }
 
 void TestDocumentOutline::testResolveSlugToBlock()

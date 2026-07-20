@@ -23,6 +23,7 @@ private slots:
     void beginEndMergesContext();
     void environmentLogPathReceivesJsonlOutput();
     void jsonLineParses();
+    void retainedSamplesAreBounded();
 };
 
 void TestPerfLog::init()
@@ -156,6 +157,33 @@ void TestPerfLog::jsonLineParses()
     QCOMPARE(doc.object().value(QStringLiteral("ctx")).toObject()
                  .value(QStringLiteral("blocks")).toInt(),
              7);
+}
+
+// With logging enabled every recorded sample was retained in memory for the
+// life of the process. The JSONL file rotates, so a long session with
+// logging on grows without bound in RAM while the on-disk log stays capped.
+// Retention is a bounded window of the most recent samples.
+void TestPerfLog::retainedSamplesAreBounded()
+{
+    PerfLog &log = PerfLog::instance();
+    log.clear();
+    log.setLevel(PerfLog::Verbose);
+
+    const int count = 20000;
+    for (int i = 0; i < count; ++i)
+        log.record(QStringLiteral("bounded.op"), 1.0, {}, PerfLog::Verbose);
+
+    const QList<PerfLog::Sample> kept = log.samples();
+    QVERIFY2(kept.size() < count,
+             "every sample was retained; memory grows without bound");
+
+    // The window keeps the MOST RECENT samples, which is what a
+    // post-mortem needs.
+    QVERIFY(!kept.isEmpty());
+    QCOMPARE(kept.last().operation, QStringLiteral("bounded.op"));
+
+    log.clear();
+    log.setLevel(PerfLog::Off);
 }
 
 QTEST_MAIN(TestPerfLog)

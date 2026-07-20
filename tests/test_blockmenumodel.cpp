@@ -28,7 +28,10 @@ private slots:
     void testRecentlyUsedLeadsEmptyQuery();
     void testRecentlyUsedReordersAndCaps();
     void testRecentlyUsedAbsentWhileFiltering();
+    void testRecentlyUsedKeepsSpecializedEntry();
     void testRecentTypesRoundTrip();
+    void testRecentEntriesRoundTripSpecializedEntry();
+    void testSetRecentTypesAcceptsLegacyTypeNumbers();
     void testSetRecentTypesSanitizes();
     void testRecentChangedSignalDiscipline();
     void testCodeLanguageAliases();
@@ -63,6 +66,14 @@ private:
         for (const QVariantMap &entry : entries(rows))
             result.append(entry.value("name").toString());
         return result;
+    }
+
+    // Mirrors what BlockMenu.qml's applyRow() records when the user picks a
+    // row, so the recency behaviour under test is the one the UI produces.
+    void noteRowUsed(const QVariantMap &row)
+    {
+        if (row.contains("entryId"))
+            m_menu->noteUsedEntry(row.value("entryId").toString());
     }
 
     BlockMenuModel *m_menu = nullptr;
@@ -285,15 +296,45 @@ void TestBlockMenuModel::testRecentlyUsedAbsentWhileFiltering()
     QCOMPARE(entryNames(divRows).count("Divider"), 1);
 }
 
+// Five catalog entries share Block::CodeBlock — Code Block, Task Board,
+// Table of Contents, Mermaid Diagram and Collection Query — so recording a
+// choice by block type alone cannot say which one the user picked. Picking
+// Mermaid Diagram must put Mermaid Diagram in the recency group, not the
+// first catalog entry that happens to share its type.
+void TestBlockMenuModel::testRecentlyUsedKeepsSpecializedEntry()
+{
+    // The row the menu hands to applyRow() when the user picks Mermaid.
+    QVariantMap mermaid;
+    for (const QVariant &row : m_menu->itemsFor(QStringLiteral("mermaid"))) {
+        const QVariantMap map = row.toMap();
+        if (map.value(QStringLiteral("name")).toString()
+            == QLatin1String("Mermaid Diagram")) {
+            mermaid = map;
+            break;
+        }
+    }
+    QVERIFY2(!mermaid.isEmpty(), "the Mermaid Diagram entry must be findable");
+
+    noteRowUsed(mermaid);
+
+    const QStringList names = entryNames(m_menu->itemsFor(QString()));
+    QVERIFY(!names.isEmpty());
+    QCOMPARE(names.first(), QString("Mermaid Diagram"));
+}
+
 void TestBlockMenuModel::testRecentTypesRoundTrip()
 {
     m_menu->noteUsed(Block::Todo);
     m_menu->noteUsed(Block::Quote);
 
+    // The persisted form is the entry id — the block type and its default
+    // language — so entries sharing a type stay distinguishable.
     const QVariantList recent = m_menu->recentTypes();
     QCOMPARE(recent.size(), 2);
-    QCOMPARE(recent.at(0).toInt(), int(Block::Quote));
-    QCOMPARE(recent.at(1).toInt(), int(Block::Todo));
+    QCOMPARE(recent.at(0).toString(),
+             QString::number(int(Block::Quote)) + QLatin1Char(':'));
+    QCOMPARE(recent.at(1).toString(),
+             QString::number(int(Block::Todo)) + QLatin1Char(':'));
 
     // A fresh model (a restart) fed the persisted list reproduces the
     // recently-used group exactly.
@@ -303,6 +344,43 @@ void TestBlockMenuModel::testRecentTypesRoundTrip()
     QCOMPARE(names.at(0), QString("Quote"));
     QCOMPARE(names.at(1), QString("To-do"));
     QCOMPARE(names.at(2), QString("Text"));  // catalog resumes after
+}
+
+// A specialized entry survives the save/restore round trip as itself, which
+// is the whole point of persisting ids rather than block types.
+void TestBlockMenuModel::testRecentEntriesRoundTripSpecializedEntry()
+{
+    QVariantMap mermaid;
+    for (const QVariant &row : m_menu->itemsFor(QStringLiteral("mermaid"))) {
+        const QVariantMap map = row.toMap();
+        if (map.value(QStringLiteral("name")).toString()
+            == QLatin1String("Mermaid Diagram")) {
+            mermaid = map;
+            break;
+        }
+    }
+    QVERIFY(!mermaid.isEmpty());
+    noteRowUsed(mermaid);
+
+    BlockMenuModel fresh;
+    fresh.setRecentTypes(m_menu->recentTypes());
+    QCOMPARE(entryNames(fresh.itemsFor(QString())).first(),
+             QString("Mermaid Diagram"));
+}
+
+// Settings written before recency became id-based hold plain block-type
+// numbers. They must still load rather than being discarded as unknown.
+void TestBlockMenuModel::testSetRecentTypesAcceptsLegacyTypeNumbers()
+{
+    m_menu->setRecentTypes(QVariantList{ int(Block::Quote), int(Block::Todo) });
+
+    const QStringList names = entryNames(m_menu->itemsFor(QString()));
+    QCOMPARE(names.at(0), QString("Quote"));
+    QCOMPARE(names.at(1), QString("To-do"));
+
+    // and they are rewritten in the current form.
+    QCOMPARE(m_menu->recentTypes().at(0).toString(),
+             QString::number(int(Block::Quote)) + QLatin1Char(':'));
 }
 
 void TestBlockMenuModel::testSetRecentTypesSanitizes()
@@ -316,9 +394,12 @@ void TestBlockMenuModel::testSetRecentTypesSanitizes()
 
     const QVariantList recent = m_menu->recentTypes();
     QCOMPARE(recent.size(), BlockMenuModel::MaxRecent);
-    QCOMPARE(recent.at(0).toInt(), int(Block::Quote));
-    QCOMPARE(recent.at(1).toInt(), int(Block::Todo));
-    QCOMPARE(recent.at(2).toInt(), int(Block::Divider));
+    QCOMPARE(recent.at(0).toString(),
+             QString::number(int(Block::Quote)) + QLatin1Char(':'));
+    QCOMPARE(recent.at(1).toString(),
+             QString::number(int(Block::Todo)) + QLatin1Char(':'));
+    QCOMPARE(recent.at(2).toString(),
+             QString::number(int(Block::Divider)) + QLatin1Char(':'));
 }
 
 void TestBlockMenuModel::testRecentChangedSignalDiscipline()

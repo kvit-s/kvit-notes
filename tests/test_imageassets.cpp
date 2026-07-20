@@ -205,6 +205,47 @@ private slots:
         QVERIFY(stored.endsWith(".png"));
         QVERIFY(QFileInfo(QDir(root).filePath(stored)).exists());
     }
+
+    // The drop handler in main.qml strips the file:// scheme with a string
+    // replace and hands the remainder to ingestLocalFile. QML renders a QUrl
+    // with QUrl::toString(), which leaves a space literal but keeps the
+    // characters that are URL delimiters percent-encoded — '#' becomes %23,
+    // '%' becomes %25. Those survive the hand-strip and name a file that does
+    // not exist, so the drop is silently ignored. Passing the URL through
+    // intact ingests the file the user actually dropped.
+    void ingestLocalFilePercentDecodesUrls()
+    {
+        QTemporaryDir extern_;
+        QTemporaryDir dir;
+        const QString root = dir.path();
+        const QString src = extern_.path() + "/photo #2.png";
+        { QFile f(src); f.open(QIODevice::WriteOnly); f.write("x"); f.close(); }
+        QVERIFY(QFileInfo::exists(src));
+        ImageAssets ia;
+
+        const QUrl url = QUrl::fromLocalFile(src);
+        const QString asQmlSeesIt = url.toString();
+        QVERIFY2(asQmlSeesIt.contains(QLatin1String("%23")),
+                 qPrintable(asQmlSeesIt));
+
+        // A whole file:// URL ingests: ingestLocalFile decodes it via
+        // QUrl::toLocalFile().
+        const QString stored = ia.ingestLocalFile(asQmlSeesIt, "note",
+                                                  root, root);
+        QVERIFY2(!stored.isEmpty(), "a dropped file:// URL must ingest");
+        QVERIFY(QFileInfo(QDir(root).filePath(stored)).exists());
+
+        // The scheme-stripped form the QML builds names no real file, which
+        // is exactly why the QML must not construct it.
+        const QString handStripped =
+            asQmlSeesIt.mid(QStringLiteral("file://").size());
+        QVERIFY(handStripped.contains(QLatin1String("%23")));
+        QVERIFY2(!QFileInfo::exists(handStripped),
+                 "the percent-encoded path must not resolve");
+        QVERIFY2(ia.ingestLocalFile(handStripped, "note", root, root).isEmpty(),
+                 "ingesting the hand-stripped path must fail, which is the "
+                 "silently-dropped file the user sees");
+    }
 };
 
 QTEST_MAIN(TestImageAssets)

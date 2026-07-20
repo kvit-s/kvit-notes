@@ -140,18 +140,31 @@ void DocumentOutline::rebuild()
             node.blockIndex = i;
             node.text = block->displayText();
 
-            const QString base = baseSlug(node.text);
-            const int seen = slugCounts.value(base, 0);
-            slugCounts.insert(base, seen + 1);
-            // First occurrence keeps the bare slug; later ones get -1, -2, …
-            // in document order (the GitHub-anchor rule).
-            node.slug = seen == 0 ? base
-                                  : base + QLatin1Char('-') + QString::number(seen);
+            QString base = baseSlug(node.text);
             // An empty heading (or one whose text is all punctuation) has an
             // empty base; give it a stable positional slug so it is still a
             // valid, unique link target.
-            if (node.slug.isEmpty())
-                node.slug = QStringLiteral("section-") + QString::number(i);
+            if (base.isEmpty())
+                base = QStringLiteral("section-") + QString::number(i);
+
+            // First occurrence keeps the bare slug; later ones get -1, -2, …
+            // in document order (the GitHub-anchor rule). The suffix counter
+            // alone is not enough, because a later heading can spell out a
+            // slug an earlier suffix already produced — "Foo", "Foo", "Foo-1"
+            // would hand foo-1 to two different headings. Duplicate slugs
+            // mean duplicate ids in exported HTML and a heading link that
+            // jumps to the wrong section, so keep probing until the slug is
+            // one no earlier heading in this document took.
+            int seen = slugCounts.value(base, 0);
+            QString candidate = seen == 0
+                ? base
+                : base + QLatin1Char('-') + QString::number(seen);
+            while (newSlugToNode.contains(candidate)) {
+                ++seen;
+                candidate = base + QLatin1Char('-') + QString::number(seen);
+            }
+            slugCounts.insert(base, seen + 1);
+            node.slug = candidate;
 
             // Parent = nearest heading of a shallower level still open.
             while (!ancestorStack.isEmpty()

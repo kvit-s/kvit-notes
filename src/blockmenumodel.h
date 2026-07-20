@@ -37,20 +37,30 @@ public:
 
     // Display rows for the menu, ready to render:
     //   header row: { kind: "header", text: <group name> }
-    //   entry row:  { kind: "entry", name, description, icon, type }
+    //   entry row:  { kind: "entry", entryId, name, description, icon, type }
     // Empty (or whitespace) query: the full catalog grouped under
     // headers, preceded by a "Recently used" group when noteUsed() has
     // recorded any. Non-empty query: a flat ranked entry list, best
     // match first, no headers.
     Q_INVOKABLE QVariantList itemsFor(const QString &query) const;
 
-    // Record a chosen type for the recently-used group.
+    // Record the exact entry the user chose. Several catalog entries share
+    // one block type — five are CodeBlock (Code Block, Task Board, Table of
+    // Contents, Mermaid Diagram, Collection Query) — so the type alone
+    // cannot name the choice, and recording it by type made every one of
+    // them come back as plain Code Block. This is what the menu calls.
+    Q_INVOKABLE void noteUsedEntry(const QString &entryId);
+
+    // Record by block type: the catalog's plain entry for that type, i.e.
+    // the one carrying no default language. Convenience for callers holding
+    // only a type; the menu itself uses noteUsedEntry().
     Q_INVOKABLE void noteUsed(int type);
 
-    // The recency list for the settings store: block-type ints, most
-    // recent first. setRecentTypes() coerces, drops types the catalog
-    // does not hold, dedups, and caps at MaxRecent, so a stale or
-    // hand-edited settings value cannot corrupt the menu.
+    // The recency list for the settings store: entry ids, most recent
+    // first. setRecentTypes() coerces, drops ids the catalog does not hold,
+    // dedups, and caps at MaxRecent, so a stale or hand-edited settings
+    // value cannot corrupt the menu. Plain block-type numbers written by
+    // earlier versions still load, resolving to that type's plain entry.
     Q_INVOKABLE QVariantList recentTypes() const;
     Q_INVOKABLE void setRecentTypes(const QVariantList &types);
 
@@ -82,8 +92,15 @@ private:
     QVariantMap entryRow(const Entry &entry) const;
     QVariantMap headerRow(const QString &text) const;
 
+    // An entry's stable identity: its block type and default language. That
+    // pair is unique across the catalog and is exactly what inserting the
+    // entry uses, so it survives display-name changes and catalog
+    // reordering, both of which a persisted index or name would not.
+    static QString entryId(const Entry &entry);
+    const Entry *entryForId(const QString &id) const;
+
     QList<Entry> m_catalog;
-    QList<int> m_recent;  // block types, most recent first
+    QStringList m_recent;  // entry ids, most recent first
 };
 
 #endif // BLOCKMENUMODEL_H

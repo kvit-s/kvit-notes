@@ -32,6 +32,9 @@ private slots:
     void testInstantiateExpandsAndSplitsFrontMatter();
     void testInstantiateUnknownReturnsEmpty();
 
+    void testDistinctNamesDoNotShareOneFile();
+    void testDeleteDoesNotRemoveAliasedTemplate();
+
 private:
     QTemporaryDir *m_dir = nullptr;
     NoteCollection *m_collection = nullptr;
@@ -150,6 +153,30 @@ void TestNoteTemplates::testInstantiateExpandsAndSplitsFrontMatter()
 void TestNoteTemplates::testInstantiateUnknownReturnsEmpty()
 {
     QVERIFY(m_templates->instantiate("Nope", "T").isEmpty());
+}
+
+// Sanitization strips path separators, so two names the user sees as
+// distinct can map onto the same file. Writing "A/B" must not silently
+// overwrite the template stored as "AB".
+void TestNoteTemplates::testDistinctNamesDoNotShareOneFile()
+{
+    QVERIFY(m_templates->writeTemplate("AB", "first"));
+    QCOMPARE(m_templates->readTemplate("AB"), QString("first"));
+
+    // Either the awkward name is rejected outright or it gets a file of its
+    // own; what must never happen is it landing on top of "AB".
+    m_templates->writeTemplate("A/B", "second");
+    QCOMPARE(m_templates->readTemplate("AB"), QString("first"));
+}
+
+void TestNoteTemplates::testDeleteDoesNotRemoveAliasedTemplate()
+{
+    QVERIFY(m_templates->writeTemplate("Notes", "kept"));
+    QVERIFY(!m_templates->templateNames().isEmpty());
+
+    // "Note:s" sanitizes to "Notes"; deleting it must not delete "Notes".
+    m_templates->deleteTemplate("Note:s");
+    QCOMPARE(m_templates->readTemplate("Notes"), QString("kept"));
 }
 
 QTEST_MAIN(TestNoteTemplates)
