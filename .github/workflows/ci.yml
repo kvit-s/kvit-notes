@@ -166,6 +166,66 @@ jobs:
       - name: qmllint
         run: tools/run-qmllint.sh
 
+  # AddressSanitizer + UndefinedBehaviorSanitizer over the deterministic
+  # suites. Complements the other two gates by kind rather than by coverage:
+  # ShellTests and qmllint check that the application is wired correctly,
+  # while this checks that the C++ underneath it is memory- and
+  # UB-clean while the same tests run.
+  #
+  # It is informational for now. The suites pass under it today, but the
+  # instrumentation is new to this repo and shared runners are slower and
+  # more loaded than a workstation; a first failure should be read and
+  # triaged rather than block an unrelated merge. Flip continue-on-error off
+  # once it has a few weeks of green history.
+  sanitizers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev \
+                                  libxkbcommon-x11-0 libegl1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          modules: qtmultimedia qtshadertools qtimageformats
+          cache: true
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-asan -DKVIT_SANITIZE=ON \
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        run: cmake --build build-asan --parallel
+
+      # Qt's own libraries are not instrumented, so their allocations look
+      # like leaks to LSan; detect_leaks=0 keeps the run about memory errors
+      # and undefined behaviour in this codebase. halt_on_error=1 makes the
+      # first report fail the step rather than scroll past.
+      - name: Unit and shell suites under ASan/UBSan
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        # The instrumentation roughly doubles runtime, which the two hard
+        # timing budgets in the unit label cannot absorb — they measure
+        # wall-clock work, so under ASan they report the slowdown rather than
+        # a defect. Excluded by name so this job reports memory errors and
+        # undefined behaviour only.
+        run: |
+          ctest --test-dir build-asan -L unit --output-on-failure \
+                -E "NoteCollectionTests|SearchIndexDbTests"
+          ctest --test-dir build-asan -L shell --output-on-failure
+
   # Tag-triggered packaging: produces every artifact
   # into a draft release for inspection; publishing the release is a manual
   # step of the release procedure (docs/release-rollback.md). The protected

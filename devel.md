@@ -375,3 +375,66 @@ values at attach time. They are therefore attached inside
 them early silently discards the persisted theme and typography (the app
 starts light regardless of the saved theme). The regression test is
 `persistedAppearanceSettingsApplyAtStartup` in tests/test_shell.cpp.
+
+## One composition root, in production and in tests
+
+`AppContext` constructs and wires every long-lived object the editor runs on,
+and publishes them to QML as context properties. Both Qt Quick test binaries
+(`test_integration`, `test_visual`) compose that same class through
+`tests/testsetup.h`, and `test_shell` composes it and loads the shipped
+`qml/main.qml` on top.
+
+They did not always. `testsetup.h` used to rebuild the graph by hand, and had
+drifted from the real one: `startupController` was never published,
+`CollectionSearchIndex` was never constructed — so every global-search test
+ran against an unindexed collection — and three of the four `FileWatcher`
+connections were missing, which left the own-write guard inactive throughout
+the Qt Quick suites. None of that was visible as a failure; the tests passed
+against a graph the application never runs.
+
+So: **do not hand-build the object graph in a test.** Construct `AppContext`,
+and layer test-specific state on top of it. If a test needs the composition to
+behave differently, that difference belongs in `AppContext::Options`, which is
+deliberately tiny — every field in it is a place where the two compositions
+diverge, and so a place a defect can hide. Today it holds two flags, both for
+things that reach outside the process (the tray asks the desktop session for a
+status-notifier item; PerfLog writes to a path from settings). To substitute a
+service rather than a flag, add a narrow interface and a setter in the shape of
+`EmbedFetcher`/`setEmbedFetcher`.
+
+Three checks keep the wiring honest, and all three block a merge:
+
+- **ShellTests** loads the shipped `resources.qrc` against the real context and
+  fails on any QML warning emitted during load. QML reports an unknown context
+  property or an unresolvable type as a warning and then carries on with an
+  undefined value, so without this the load "succeeds" no matter how much of
+  the shell failed to wire up. It also pins the published context-property
+  names, so a rename has to be made deliberately in both C++ and QML.
+- **QrcSyncGuard** (`tools/check-qrc-sync.py`) compares `resources.qrc`,
+  `tests/integration_tests.qrc` and the files actually in `qml/`. A file added
+  to only one list either breaks the shipped shell or hangs the Qt Quick
+  harness until its CTest timeout.
+- **qmllint** reads every file in `qml/`, including the ones no test
+  instantiates. This matters because the runtime gate only sees what the
+  initial scene actually builds: a bad binding inside an inactive `Loader`
+  never evaluates, and a missing *sub-property* of an object that does exist
+  (`noteCollection.somethingGone`) evaluates to `undefined` silently, with no
+  warning at all. Static analysis is what covers those.
+
+## Making the filesystem fail in a test
+
+`tests/faultinjection.h` holds the RAII guards for forcing I/O failure:
+`DeniedWrites` (a directory that rejects new files), `DeniedFileWrites` (the
+Windows-compatible form, denying one existing file) and `FileSizeLimit`
+(`RLIMIT_FSIZE`, so a write fails partway — the shape a full disk produces).
+
+Use them rather than manipulating permissions inline. Each restores what it
+changed in its destructor, so a failed assertion cannot leak a read-only
+directory into whatever runs next, and each reports `supported()` — a denial
+that root or NTFS ignores must become a `QSKIP`, because the alternative is a
+test that passes without having tested anything.
+
+Several shipped defects were invisible to the suite purely for want of a way to
+make I/O fail: a save that ignored a short write, a capture that dropped the
+user's text when the vault was read-only, an import that counted a truncated
+copy as success.

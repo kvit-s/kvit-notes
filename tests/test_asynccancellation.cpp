@@ -12,6 +12,7 @@
 #include <QtConcurrent>
 
 #include "notecollection.h"
+#include "timingbudget.h"
 #include "persistencepool.h"
 
 // Cancellation and responsiveness of the collection's background work
@@ -307,9 +308,15 @@ void TestAsyncCancellation::switchingRootDuringScanDoesNotBlockGui()
 
     // A switch is a user action; it has to feel immediate rather than wait
     // out however long the abandoned vault's scan had left to run.
-    QVERIFY2(switchMs < 250,
-             qPrintable(QStringLiteral("root switch blocked for %1 ms")
-                            .arg(switchMs)));
+    //
+    // Wall-clock, because responsiveness is what this is about - CPU time
+    // would say nothing about how long the GUI thread sat still. That makes
+    // it load-sensitive and so not judged on a busy machine
+    // (tests/timingbudget.h). What the test guards does not rest on the
+    // number: scanInProgress() above proves a scan was genuinely running, so
+    // returning at all is the evidence that the switch cancelled it rather
+    // than waiting it out.
+    KVIT_ASSERT_WALL_BUDGET(switchMs, "root switch during scan", 250.0);
 
     QTRY_VERIFY_WITH_TIMEOUT(!collection.scanInProgress(), 30000);
 }
@@ -332,8 +339,9 @@ void TestAsyncCancellation::closingDuringScanDoesNotBlockGui()
     qInfo() << "close during scan blocked the GUI thread for"
             << closeMs << "ms";
 
-    QVERIFY2(closeMs < 250,
-             qPrintable(QStringLiteral("close blocked for %1 ms").arg(closeMs)));
+    // Wall-clock latency, deferred on a busy machine; scanInProgress() above
+    // is what proves the close had a live scan to cancel.
+    KVIT_ASSERT_WALL_BUDGET(closeMs, "close during scan", 250.0);
 }
 
 // Not blocking is only safe if a late result from the abandoned vault can
@@ -414,9 +422,13 @@ void TestAsyncCancellation::savesDoNotQueueBehindBulkBackgroundWork()
     QVERIFY2(globalStillWaiting,
              "the control task should still have been queued; the pool was "
              "not actually saturated and this measures nothing");
-    QVERIFY2(persistenceWaitMs < 250,
-             qPrintable(QStringLiteral("a save waited %1 ms behind bulk work")
-                            .arg(persistenceWaitMs)));
+    // Wall-clock latency, deferred on a busy machine. The globalStillWaiting
+    // assertion above is the load-independent half of this test: it proves
+    // the global pool really was saturated, so a save starting promptly is
+    // evidence of the separate persistence pool rather than of a quiet
+    // machine.
+    KVIT_ASSERT_WALL_BUDGET(persistenceWaitMs, "save behind saturated pool",
+                            250.0);
 
     global->waitForDone();
 }

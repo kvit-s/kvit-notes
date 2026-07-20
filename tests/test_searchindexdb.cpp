@@ -544,22 +544,45 @@ void TestSearchIndexDb::testQueryPerformanceGate()
         {"common", QStringLiteral("paragraph")},
         {"short-word", QStringLiteral("to")},
     };
-    qint64 worst = 0;
+    double worstCpu = 0.0;
+    double worstWall = 0.0;
+    double worstContention = 1.0;
     for (const Case &c : cases) {
-        QElapsedTimer timer;
-        timer.start();
+        KvitOpTimer timer;
         const SearchResults r = run(c.query);
-        const qint64 elapsed = timer.elapsed();
-        qInfo("SEARCH %-10s: %lld ms (%d matches, %d notes)", c.label, elapsed,
+        qInfo("SEARCH %-10s: cpu %.2f ms (wall %.2f ms, contention %.1fx, "
+              "%d matches, %d notes)",
+              c.label, timer.cpuMs(), timer.wallMs(), timer.contention(),
               r.matchCount, r.noteCount);
-        worst = qMax(worst, elapsed);
+        if (timer.cpuMs() > worstCpu) {
+            worstCpu = timer.cpuMs();
+            worstWall = timer.wallMs();
+            worstContention = timer.contention();
+        }
     }
-    if (!kvitTimingBudgetsEnforced())
-        QSKIP(KVIT_TIMING_BUDGET_SKIP_REASON);
-    QVERIFY2(worst < 50,
-             qPrintable(QStringLiteral("500-note query must stay under 50 ms "
-                                       "(worst measured %1 ms)")
-                            .arg(worst)));
+
+    // Budgeted in CPU time. The query runs synchronously on this thread with
+    // no hop and no debounce, so its CPU cost is the work the engine does;
+    // the wall-clock number this used to assert on was mostly a report of how
+    // busy the machine was. Measured here: 7.6-7.8 ms of CPU on an idle
+    // machine, and 15-27 ms of CPU at load average 34 - where the wall-clock
+    // reading was 63-106 ms against the 50 ms budget this replaces, which is
+    // why that assertion flapped.
+    //
+    // The tight number sits at 15 ms, just under 2x the idle cost, and the
+    // ceiling at 45 ms, comfortably above the worst loaded sample. Together
+    // they catch a doubling of query cost; they will not catch 30% - but
+    // neither would the 50 ms wall-clock budget, which had seven times the
+    // idle cost as headroom and so only ever caught a sevenfold regression.
+    //
+    // Two consequences beyond not flapping. This no longer skips itself on
+    // CI: a wall-clock budget could not run on a hosted runner at all, so the
+    // assertion has never once executed there, and the performance-labelled
+    // re-run that was meant to cover that gap is a non-blocking job. A CPU
+    // budget holds on a shared runner, so the gate now runs in the place it
+    // was written to protect.
+    KVIT_ASSERT_CPU_BUDGET_VALUES("search 500-note query", worstCpu, worstWall,
+                                  worstContention, 15.0, 45.0);
 }
 
 QTEST_MAIN(TestSearchIndexDb)

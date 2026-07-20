@@ -78,8 +78,43 @@ class AppContext : public QObject
     Q_OBJECT
 
 public:
+    // The parts of the composition that reach outside the process, and so
+    // cannot run the same way in a headless harness. Everything else — every
+    // service, every connection, every context property — is identical in
+    // production and under test, which is the point: a test that composes
+    // this class is testing the graph the application actually runs on.
+    //
+    // Keep this struct small. Each field is a place where the two
+    // compositions differ, and so a place a defect can hide from the suite.
+    struct Options {
+        // SystemTray::show() asks the desktop session for a status-notifier
+        // item. Offscreen there is no session to ask.
+        bool showSystemTray = true;
+        // PerfLog writes to a file path taken from settings. A harness keeps
+        // its own logging configuration.
+        bool configureLoggingFromSettings = true;
+    };
+
     explicit AppContext(QObject *parent = nullptr);
+    explicit AppContext(const Options &options, QObject *parent = nullptr);
     ~AppContext() override;
+
+    // Replace the transport embed cards fetch through, before any fetch is
+    // issued; AppContext takes ownership. The default is the EgressFetcher,
+    // which holds the only QNetworkAccessManager in the tree, so a test that
+    // does not call this would reach the network — which is exactly why the
+    // harness calls it. The egress policy in front of the transport is
+    // unaffected: this swaps the wire, not the consent decision.
+    void setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher);
+
+    // The context-property names installContextProperties() published, in
+    // registration order. Exposed so a test can assert the published set
+    // against the names the shell binds to, rather than discovering a rename
+    // as an unresolved binding at runtime.
+    QStringList installedContextPropertyNames() const
+    {
+        return m_installedProperties;
+    }
 
     // Registers the QML types the shell instantiates (BlockEditorEngine,
     // SettingsStore, DiagramCanvas, and the enum-only types). Static because
@@ -128,6 +163,9 @@ public:
 private:
     void wire();
 
+    const Options m_options;
+    QStringList m_installedProperties;
+
     // Declaration order = construction order; destruction runs in reverse.
     // The registries come first: the block model resolves delegate kinds
     // against one of them, and modules claim kinds before anything renders.
@@ -161,6 +199,10 @@ private:
     // the image provider that hold non-owning pointers to them.
     EgressPolicy m_egressPolicy;
     std::unique_ptr<EgressFetcher> m_egressFetcher;
+    // A test-supplied embed transport, when one has been installed. Declared
+    // beside the fetcher it stands in for and before the cache that borrows
+    // whichever of the two is in use.
+    std::unique_ptr<EmbedFetcher> m_embedFetcherOverride;
     EmbedMetadata m_embedMetadata;
     StartupController m_startupController;
     ImageAssets m_imageAssets;

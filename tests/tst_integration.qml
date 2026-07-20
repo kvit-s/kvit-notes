@@ -6316,14 +6316,14 @@ Item {
             noteListModel.folderPath = "Ideas"
             noteListModel.scope = "folder"
             tryCompare(collectionSearch, "folderScope", "Ideas", 1000)
-            compare(collectionSearch.matchCount, 2)
+            tryCompare(collectionSearch, "matchCount", 2, 1000)
 
             // Tag filter composes.
             noteListModel.scope = "all"
             noteListModel.tagFilter = "animals"
             tryCompare(collectionSearch, "tagFilter", "animals", 1000)
-            compare(collectionSearch.matchCount, 2)
-            compare(collectionSearch.noteCount, 1)
+            tryCompare(collectionSearch, "matchCount", 2, 1000)
+            tryCompare(collectionSearch, "noteCount", 1, 1000)
 
             noteListModel.tagFilter = ""
             collectionSearch.query = ""

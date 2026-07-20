@@ -56,17 +56,30 @@ Linux options.
 - **Single-file mode.** `kvit-notes note.md` opens one file instantly
   with no vault and the whole editor intact.
 
-The full manual is [usage.md](usage.md); the product specification is
-[features.md](features.md).
+## Documentation
+
+Each document answers one question, so that a reader can tell shipped behavior,
+intended behavior, design constraints and unfinished work apart.
+
+| Document | Question it answers |
+|---|---|
+| [usage.md](usage.md) | How do I use it? |
+| [features.md](features.md) | What behavior is it specified to have? |
+| [docs/adr/](docs/adr/) | Why is it built this way, and what may I not change? |
+| [docs/backlog.md](docs/backlog.md) | What is known to be missing or unfinished? |
+| [devel.md](devel.md) | How do I build, debug and test it? |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How do I send a change? |
 
 ## Why Kvit
 
 - **Native C++/Qt.** One process, no Electron, no embedded browser.
   A 561k-word document loads in tens of milliseconds and scrolls at
   ~15 ms frames through delegate virtualization.
-- **Markdown fidelity.** Files round-trip byte-for-byte; front-matter
-  written by other tools survives untouched. A note written in Kvit opens
-  correctly anywhere else, and vice versa.
+- **Markdown fidelity.** Canonical markdown round-trips byte-for-byte, and
+  front-matter written by other tools survives untouched, including keys
+  Kvit does not understand. The exception is the LLM dialect described
+  below, which is normalized once on load with a `.bak` of the original.
+  A note written in Kvit opens correctly anywhere else, and vice versa.
 - **Agent-friendly.** Markdown written by LLM tools is normalized on load
   (with a `.bak` seatbelt), and external edits to open files surface as a
   keep-mine/load-theirs banner instead of silent clobbering.

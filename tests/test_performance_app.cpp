@@ -24,6 +24,8 @@
 
 #include <algorithm>
 
+#include "timingbudget.h"
+
 class TestPerformanceApp : public QObject
 {
     Q_OBJECT
@@ -277,14 +279,13 @@ void TestPerformanceApp::guiCollectionStartupDeferredVault10K()
     collection->setIndexParseObserverForTesting(
         [&parsed](const QString &relPath) { parsed.append(relPath); });
 
-    StartupController *controller = new StartupController(&engine);
-    controller->setCollection(collection);
-    controller->setDocumentManager(manager);
-    controller->setBlockModel(model);
-    controller->setUndoStack(undoStack);
+    // The composed context already owns a StartupController, wired to this
+    // same collection, manager, model and undo stack, and already published
+    // as the startupController context property. Building a second one here
+    // left two of them driving one collection.
+    StartupController *controller = setup.context()->startupController();
+    QVERIFY(controller);
     controller->setRootPath(dir.path());
-    engine.rootContext()->setContextProperty(QStringLiteral("startupController"),
-                                             controller);
 
     QElapsedTimer startup;
     startup.start();
@@ -310,11 +311,7 @@ void TestPerformanceApp::guiCollectionStartupDeferredVault10K()
                          {QStringLiteral("fixture"),
                           QStringLiteral("VAULT-10K")}});
 
-    const QByteArray message =
-        QStringLiteral("GUI first frame before VAULT-10K scan took %1 ms")
-            .arg(firstFrameMs)
-            .toUtf8();
-    QVERIFY2(firstFrameMs <= 1000.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(firstFrameMs, "gui.first_frame before VAULT-10K scan", 1000.0);
 
     QMetaObject::invokeMethod(controller, "start", Qt::QueuedConnection);
     QTRY_VERIFY_WITH_TIMEOUT(controller->finished(), 5000);
@@ -389,14 +386,13 @@ void TestPerformanceApp::guiCollectionStartupDeferredSmallVaultHugeNote()
     collection->setIndexParseObserverForTesting(
         [&parsed](const QString &relPath) { parsed.append(relPath); });
 
-    StartupController *controller = new StartupController(&engine);
-    controller->setCollection(collection);
-    controller->setDocumentManager(manager);
-    controller->setBlockModel(model);
-    controller->setUndoStack(undoStack);
+    // The composed context already owns a StartupController, wired to this
+    // same collection, manager, model and undo stack, and already published
+    // as the startupController context property. Building a second one here
+    // left two of them driving one collection.
+    StartupController *controller = setup.context()->startupController();
+    QVERIFY(controller);
     controller->setRootPath(dir.path());
-    engine.rootContext()->setContextProperty(QStringLiteral("startupController"),
-                                             controller);
 
     QElapsedTimer startup;
     startup.start();
@@ -422,11 +418,7 @@ void TestPerformanceApp::guiCollectionStartupDeferredSmallVaultHugeNote()
                          {QStringLiteral("fixture"),
                           QStringLiteral("SMALL-HUGE")}});
 
-    const QByteArray message =
-        QStringLiteral("GUI first frame before small-vault/huge-note scan took %1 ms")
-            .arg(firstFrameMs)
-            .toUtf8();
-    QVERIFY2(firstFrameMs <= 1000.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(firstFrameMs, "gui.first_frame before small-vault/huge-note scan", 1000.0);
 
     QMetaObject::invokeMethod(controller, "start", Qt::QueuedConnection);
     QTRY_VERIFY_WITH_TIMEOUT(controller->finished(), 5000);
@@ -494,14 +486,13 @@ void TestPerformanceApp::guiCollectionPersistenceLiveSizedNote()
     NoteCollection *collection = qobject_cast<NoteCollection *>(collectionObj);
     QVERIFY(collection);
 
-    StartupController *controller = new StartupController(&engine);
-    controller->setCollection(collection);
-    controller->setDocumentManager(manager);
-    controller->setBlockModel(model);
-    controller->setUndoStack(undoStack);
+    // The composed context already owns a StartupController, wired to this
+    // same collection, manager, model and undo stack, and already published
+    // as the startupController context property. Building a second one here
+    // left two of them driving one collection.
+    StartupController *controller = setup.context()->startupController();
+    QVERIFY(controller);
     controller->setRootPath(dir.path());
-    engine.rootContext()->setContextProperty(QStringLiteral("startupController"),
-                                             controller);
 
     const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
     engine.load(url);

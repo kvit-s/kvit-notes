@@ -19,10 +19,34 @@
 #include "remoteimageprovider.h"
 
 AppContext::AppContext(QObject *parent)
+    : AppContext(Options{}, parent)
+{
+}
+
+AppContext::AppContext(const Options &options, QObject *parent)
     : QObject(parent)
+    , m_options(options)
     , m_egressFetcher(std::make_unique<EgressFetcher>())
 {
     wire();
+}
+
+void AppContext::setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher)
+{
+    if (!fetcher)
+        return;
+    // EmbedMetadata borrows its fetcher, so hand it the new one before the
+    // previous override is destroyed at the end of this scope. The default
+    // it is replacing is the EgressFetcher, which owns the only
+    // QNetworkAccessManager in the tree — so a harness that does not call
+    // this reaches the network for real.
+    //
+    // Only the wire is swapped. EgressPolicy still sits in front of it, and
+    // m_egressFetcher stays wired to the remote image provider, so consent
+    // and address validation behave under test exactly as they ship.
+    std::unique_ptr<EmbedFetcher> previous = std::move(m_embedFetcherOverride);
+    m_embedFetcherOverride = std::move(fetcher);
+    m_embedMetadata.setFetcher(m_embedFetcherOverride.get());
 }
 
 AppContext::~AppContext() = default;
@@ -109,7 +133,8 @@ void AppContext::wire()
     // System integration seams. The tray shows only where a status-notifier
     // host exists; both route their actions through their signals so the
     // in-app path (quick capture, tray menu) works regardless.
-    m_systemTray.show();
+    if (m_options.showSystemTray)
+        m_systemTray.show();
     // No system-wide grab is registered on ANY platform: GlobalHotkey is a
     // seam with no backend behind it (X11 XGrabKey, the GlobalShortcuts
     // portal, RegisterHotKey, and the macOS equivalent are all unwritten), so
@@ -185,10 +210,12 @@ void AppContext::openSettings(const QString &settingsPath)
     m_typography.setSettings(&m_settingsStore);
 
     PerfLog &perfLog = PerfLog::instance();
-    if (!perfLog.hasEnvironmentOverride())
+    if (m_options.configureLoggingFromSettings
+        && !perfLog.hasEnvironmentOverride())
         perfLog.configureFromSetting(
             m_settingsStore.value(QStringLiteral("perf.logging"), QVariant()));
-    if (perfLog.enabled() && !perfLog.hasLogFilePath()) {
+    if (m_options.configureLoggingFromSettings && perfLog.enabled()
+        && !perfLog.hasLogFilePath()) {
         perfLog.setLogFilePath(
             QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation))
                 .filePath(QStringLiteral("perf.log")));
@@ -258,14 +285,16 @@ void AppContext::installContextProperties(QQmlEngine *engine)
         return;
     QQmlContext *context = engine->rootContext();
 
-    // Every core name goes through this, so the list of what the shell
-    // already occupies is maintained by the act of publishing rather than
-    // kept in a second place that can fall behind. ExtensionRegistry refuses
-    // a module namespace that collides with one of them.
-    QStringList coreNames;
-    const auto publish = [&](const char *name, QObject *object) {
-        coreNames.append(QString::fromLatin1(name));
-        context->setContextProperty(QString::fromLatin1(name), object);
+    // Every property goes through one helper so the published set is
+    // recorded as it is built, and two things read that one list. A test
+    // compares it with the names the shell binds to, so neither side drifts
+    // by hand; and ExtensionRegistry refuses a module namespace that collides
+    // with a name already on it. `const auto &value` rather than QObject *
+    // because codeLanguageList publishes a QVariant.
+    m_installedProperties.clear();
+    auto publish = [&](const char *name, const auto &value) {
+        m_installedProperties << QString::fromLatin1(name);
+        context->setContextProperty(name, value);
     };
 
     publish("blockModel", &m_blockModel);
@@ -298,8 +327,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // The canonical code-highlight language ids: the single
     // source of truth for the language picker and the /code aliases, so the
     // UI list can never drift from what the highlighter recognizes.
-    coreNames.append(QStringLiteral("codeLanguageList"));
-    context->setContextProperty(
+    publish(
         "codeLanguageList",
         QVariant::fromValue(CodeLanguages::supportedLanguages()));
     publish("imageAssets", &m_imageAssets);
@@ -341,7 +369,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // `extensions` slot resolves to an empty source.
     publish("blockKinds", &m_blockKinds);
     publish("extensions", &m_extensions);
-    // Modules publish last and under their own namespace, and the names the
-    // core just took are refused to them.
-    m_extensions.installContextProperties(context, coreNames);
+    // Modules publish last and under their own namespace, and every name the
+    // core just took is refused to them.
+    m_extensions.installContextProperties(context, m_installedProperties);
 }

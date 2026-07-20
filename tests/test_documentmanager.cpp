@@ -7,6 +7,8 @@
 #include <QFile>
 
 #include "documentmanager.h"
+
+#include "faultinjection.h"
 #include "documentserializer.h"
 #include "blockmodel.h"
 #include "undostack.h"
@@ -1036,24 +1038,22 @@ void TestDocumentManager::testFailedSaveLeavesExistingFileIntact()
     m_model->updateContent(0, QStringLiteral("Changed"));
 
     // A read-only directory rejects the temporary file QSaveFile needs.
-    // NTFS ignores the read-only attribute on directories for file
-    // creation, so on Windows the obstacle is the target file itself,
-    // which QSaveFile::open() refuses while it is not writable.
+    // NTFS ignores the read-only attribute on directories for file creation,
+    // so on Windows the obstacle is the target file itself, which
+    // QSaveFile::open() refuses while it is not writable.
+    {
 #ifdef Q_OS_WIN
-    QFile obstacle(filePath);
+        FaultInjection::DeniedFileWrites denied(filePath);
 #else
-    QFile obstacle(dirPath);
+        FaultInjection::DeniedWrites denied(dirPath);
 #endif
-    QVERIFY(obstacle.setPermissions(QFileDevice::ReadOwner
-                                    | QFileDevice::ExeOwner));
+        if (!denied.supported())
+            QSKIP(qPrintable(denied.skipReason()));
 
-    QSignalSpy failSpy(m_manager, &DocumentManager::saveFailed);
-    QVERIFY(!m_manager->save());
-    QCOMPARE(failSpy.count(), 1);
-
-    QVERIFY(obstacle.setPermissions(QFileDevice::ReadOwner
-                                    | QFileDevice::WriteOwner
-                                    | QFileDevice::ExeOwner));
+        QSignalSpy failSpy(m_manager, &DocumentManager::saveFailed);
+        QVERIFY(!m_manager->save());
+        QCOMPARE(failSpy.count(), 1);
+    }
     QCOMPARE(readFile(filePath), QStringLiteral("Original content\n"));
 
     // And the same save succeeds once the obstacle is gone.

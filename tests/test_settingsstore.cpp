@@ -9,6 +9,8 @@
 
 #include "settingsstore.h"
 
+#include "faultinjection.h"
+
 // The per-user settings store: one flat JSON object, debounced atomic
 // writes, injectable path, unknown keys preserved, absent/corrupt files
 // recovering to defaults.
@@ -310,18 +312,16 @@ void TestSettingsStore::testFailedWriteKeepsChangesPending()
     SettingsStore store;
     QVERIFY(store.open(filePath));
 
-    QVERIFY(QFile::setPermissions(dirPath,
-                                  QFileDevice::ReadOwner
-                                      | QFileDevice::ExeOwner));
-    store.setValue("theme", "dark");
-    store.flush(); // fails: the directory rejects the temporary file
-    QVERIFY(!QFileInfo::exists(filePath));
+    {
+        FaultInjection::DeniedWrites denied(dirPath);
+        if (!denied.supported())
+            QSKIP(qPrintable(denied.skipReason()));
+        store.setValue("theme", "dark");
+        store.flush(); // fails: the directory rejects the temporary file
+        QVERIFY(!QFileInfo::exists(filePath));
+    }
 
     // Writing becomes possible again; the pending change must still land.
-    QVERIFY(QFile::setPermissions(dirPath,
-                                  QFileDevice::ReadOwner
-                                      | QFileDevice::WriteOwner
-                                      | QFileDevice::ExeOwner));
     store.flush();
     QCOMPARE(readDisk(filePath).value("theme").toString(),
              QStringLiteral("dark"));
@@ -338,16 +338,15 @@ void TestSettingsStore::testFailedWriteIsReported()
     QVERIFY(store.open(filePath));
     QSignalSpy failedSpy(&store, &SettingsStore::writeFailed);
 
-    QVERIFY(QFile::setPermissions(dirPath,
-                                  QFileDevice::ReadOwner
-                                      | QFileDevice::ExeOwner));
-    store.setValue("theme", "dark");
-    store.flush();
-    const int failures = failedSpy.count();
-    QVERIFY(QFile::setPermissions(dirPath,
-                                  QFileDevice::ReadOwner
-                                      | QFileDevice::WriteOwner
-                                      | QFileDevice::ExeOwner));
+    int failures = 0;
+    {
+        FaultInjection::DeniedWrites denied(dirPath);
+        if (!denied.supported())
+            QSKIP(qPrintable(denied.skipReason()));
+        store.setValue("theme", "dark");
+        store.flush();
+        failures = failedSpy.count();
+    }
 
     QCOMPARE(failures, 1);
     QCOMPARE(failedSpy.at(0).at(0).toString(), filePath);
