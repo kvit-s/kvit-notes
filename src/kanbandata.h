@@ -21,10 +21,23 @@
 //   - [x] A finished card
 //
 // `## ` lines open columns; `- [ ] ` / `- [x] ` lines are cards (done when
-// [x]); `#label` tokens on the card line are its labels; 📅 <date> is the due
-// date (the todo convention); indented plain lines under a card are its
+// [x]); `#label` tokens on the card line are its labels, recognized only at the
+// start of the text or after whitespace so that a URL fragment such as
+// https://example.com/#intro is left alone, with `\#` writing a literal hash in
+// that position; 📅 <date> is the due date (the todo convention); indented
+// plain lines under a card are its
 // description. This pure component maps that to a board and back, and applies
 // every mutation as a whole-content rewrite (one undo step).
+//
+// The board model does not describe everything a `kanban` fence may contain: an
+// introductory paragraph, an HTML comment, a blank line, a stray list item. So
+// each parsed Card, Column and Board also carries the source text it came from
+// plus the unmodelled lines ("trivia") that followed it, and serialize() puts
+// all of it back. Two properties follow, and both are pinned by tests:
+// serialize(parse(x)) == x for any content, and a mutation only rewrites the
+// lines it actually changes. Trivia belongs to a position rather than to a
+// card, so a card that moves leaves its trivia behind, and trivia orphaned by a
+// removal re-anchors to the preceding position instead of being dropped.
 namespace KanbanData {
 
 struct Card {
@@ -33,15 +46,31 @@ struct Card {
     QStringList labels;
     QString due;
     QString description;
+
+    // ---- Source fidelity; not part of the logical model ----
+    // The card's exact source line, empty when the card was synthesized by a
+    // mutation and the line has to be rendered from the fields above.
+    QString rawLine;
+    // The exact source lines of the description, same convention.
+    QStringList rawDescription;
+    // Unmodelled lines that followed this card in the source.
+    QStringList trailingTrivia;
 };
 
 struct Column {
     QString name;
     QList<Card> cards;
+    // The exact source of the `## ` header line, empty when synthesized.
+    QString rawHeader;
+    // Unmodelled lines between the header and the first card.
+    QStringList leadingTrivia;
 };
 
 struct Board {
     QList<Column> columns;
+    // Unmodelled lines before the first column header. Content with no header
+    // at all lands here in full.
+    QStringList preamble;
     int columnCount() const { return columns.size(); }
 };
 
