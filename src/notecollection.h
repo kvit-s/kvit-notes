@@ -19,6 +19,7 @@
 #include <functional>
 
 #include "cancellationtoken.h"
+#include "noteentry.h"
 #include "notefrontmatter.h"
 #include "vaultlock.h"
 
@@ -49,33 +50,12 @@ class NoteCollection : public QObject
     Q_PROPERTY(bool scanInProgress READ scanInProgress NOTIFY scanInProgressChanged)
 
 public:
-    struct NoteEntry {
-        QString relPath;  // "Ideas/Reading list.md", '/'-separated
-        QString folder;   // "Ideas"; "" at the root
-        QString title;    // file name without ".md"
-        QDateTime created;
-        QDateTime modified;
-        qint64 fileSize = -1;
-        int wordCount = 0;
-        QString snippet;  // body display text, markers stripped
-        NoteFrontMatter::Metadata meta; // tags/pinned/favorite + foreign keys
-        // Outgoing [[wiki-link]] targets, raw (heading anchors kept, aliases
-        // stripped), in document order with duplicates — backlink counts come
-        // from here. Extracted from the file on every
-        // (re)index and persisted in the sidecar so warm startup keeps the
-        // backlink graph without reading every note.
-        QStringList links;
-        // Note bodies and per-block display text are NOT held resident: global
-        // search reads them from the SQLite index, and features that need one
-        // note's text read that file on demand.
-    };
-
-    struct FolderEntry {
-        QString relPath;  // "Ideas/Projects"
-        QString name;     // "Projects"
-        QString color;    // "" = default
-        bool expanded = true;
-    };
+    // The indexed-note and indexed-folder records, defined in noteentry.h so
+    // the layers above the repository can name them without depending on this
+    // class. Re-exported here because `NoteCollection::NoteEntry` is how the
+    // view models, the query engine and the tests refer to them.
+    using NoteEntry = ::NoteEntry;
+    using FolderEntry = ::FolderEntry;
 
     explicit NoteCollection(QObject *parent = nullptr);
     ~NoteCollection() override;
