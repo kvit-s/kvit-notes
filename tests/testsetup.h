@@ -203,8 +203,7 @@ public slots:
         noteTemplates->setCollection(noteCollection);
         engine->rootContext()->setContextProperty("noteTemplates", noteTemplates);
 
-        // Wiki-link navigation (pre-launch-plan.md §3.3), mirroring
-        // main.cpp's wiring.
+        // Wiki-link navigation, mirroring main.cpp's wiring.
         NavigationHistory *navigationHistory = new NavigationHistory(engine);
         QObject::connect(noteCollection, &NoteCollection::noteMoved,
                          navigationHistory, &NavigationHistory::renamePath);
@@ -336,7 +335,7 @@ public slots:
         MathTools *mathTools = new MathTools(engine);
         engine->rootContext()->setContextProperty("mathRenderer", mathTools);
 
-        // The two extension seams (chat.md §8), mirroring main.cpp. The tests
+        // The two extension seams, mirroring main.cpp. The tests
         // install no module, so these are the same inert registries the open
         // app runs with: the shell's slot Loaders stay empty and the delegate
         // chooser sees only the built-in fence kinds.

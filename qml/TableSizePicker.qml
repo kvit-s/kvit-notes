@@ -4,9 +4,8 @@
 import QtQuick
 import QtQuick.Controls
 
-// Grid-size picker for inserting a table (phase10-plan.md decision 14): a
-// word-processor-style hover grid up to 8×8, Enter accepting the default 3×3.
-// Emits sizePicked(columns, rows).
+// Grid-size picker for inserting a table: a word-processor-style hover grid
+// up to 8×8, Enter accepting the default 3×3. Emits sizePicked(columns, rows).
 Popup {
     id: root
     signal sizePicked(int columns, int rows)

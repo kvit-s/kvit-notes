@@ -15,24 +15,22 @@
 // registry can seed itself without depending on the model; BlockModel keeps
 // its historical constant names as aliases.
 namespace BlockKinds {
-// A `kanban`-tagged fence renders as a board (phase10-plan.md decision 9).
+// A `kanban`-tagged fence renders as a board.
 constexpr int Kanban = 100;
-// A `toc`-tagged fence renders as a read-only linked heading list
-// (phase11-plan.md decision 4).
+// A `toc`-tagged fence renders as a read-only linked heading list.
 constexpr int Toc = 101;
 // An image expression whose URL is a web page or video host renders as a
-// preview card (phase11-plan.md decision 11). Derived from block CONTENT, not
-// from a fence language, so it is not a registry entry — the value is listed
-// here only to keep the numbering in one place.
+// preview card. Derived from block CONTENT, not from a fence language, so it
+// is not a registry entry — the value is listed here only to keep the
+// numbering in one place.
 constexpr int Embed = 102;
-// A `mermaid`-tagged fence renders as a native diagram (diagrams-prd.md §5.1).
+// A `mermaid`-tagged fence renders as a native diagram.
 constexpr int Mermaid = 103;
-// A `query`-tagged fence renders as a live collection query
-// (pre-launch-plan.md §1.4).
+// A `query`-tagged fence renders as a live collection query.
 constexpr int Query = 104;
 }
 
-// The fence-language → delegate-kind registry (chat.md §8, seam 2).
+// The fence-language → delegate-kind registry.
 //
 // Every block carries a "delegate kind": the value the QML DelegateChooser
 // watches to decide which delegate renders the row. For most blocks the kind

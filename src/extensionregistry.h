@@ -14,18 +14,18 @@
 class BlockKindRegistry;
 class QQmlContext;
 
-// The names of the UI slots main.qml offers an extension (chat.md §8, seam 2).
-// Each is an empty QML Loader in the shell: the bottom bar sits between the
-// editor and the status bar, the banner strip joins the conflict and
-// oversized-file banners at the top, and the side panel docks beside the
-// outline and backlinks panels.
+// The names of the UI slots main.qml offers an extension. Each is an empty
+// QML Loader in the shell: the bottom bar sits between the editor and the
+// status bar, the banner strip joins the conflict and oversized-file banners
+// at the top, and the side panel docks beside the outline and backlinks
+// panels.
 namespace KvitSlots {
 inline const char *BottomBar = "bottomBar";
 inline const char *Banner = "banner";
 inline const char *SidePanel = "sidePanel";
 }
 
-// A module linked on top of the core library (chat.md §8, seam 1).
+// A module linked on top of the core library.
 //
 // The open editor has no extensions of its own; the interface exists so the
 // premium build can add its block kinds, its QML objects and its panels

@@ -8,10 +8,10 @@
 #include <QString>
 #include <QStringList>
 
-// Code-block syntax highlighting (phase10-plan.md decision 3). An in-house,
-// data-driven rule-table pass — NOT a third-party framework: KSyntaxHighlighting
-// was rejected because it drags in a framework dependency, bypasses the theme
-// token system, and is not table-testable the way this project tests everything.
+// Code-block syntax highlighting. An in-house, data-driven rule-table pass —
+// NOT a third-party framework: KSyntaxHighlighting was rejected because it
+// drags in a framework dependency, bypasses the theme token system, and is not
+// table-testable the way this project tests everything.
 //
 // The design mirrors the inline span-type registry that made inline formatting
 // data instead of control flow: one rule table per language, interpreted by one

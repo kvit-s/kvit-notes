@@ -7,11 +7,11 @@
 #include <QString>
 #include <QStringList>
 
-// The one fuzzy matcher (features.md §4.3, lifted from BlockMenuModel for
-// pre-launch-plan.md §3.3): case-insensitive subsequence matching with
-// tiered ranking — a whole-string prefix beats a word prefix beats a bare
-// subsequence. The block menu, the quick switcher, and the [[ completion
-// popup all rank through this header so they can never disagree.
+// The one fuzzy matcher (features.md §4.3, lifted from BlockMenuModel):
+// case-insensitive subsequence matching with tiered ranking — a whole-string
+// prefix beats a word prefix beats a bare subsequence. The block menu, the
+// quick switcher, and the [[ completion popup all rank through this header
+// so they can never disagree.
 namespace FuzzyMatch {
 
 // Match quality; smaller is better. NoMatch excludes the candidate.

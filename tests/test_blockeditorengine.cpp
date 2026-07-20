@@ -144,23 +144,23 @@ private slots:
     void testPartialSelectionRevealsTouchedSpan();
     void testModelRebuildUsesMinimalDiff();
 
-    // --- copy/cut markdown mapping (basic-features.md §5) ---
+    // --- copy/cut markdown mapping ---
     void testMarkdownForRangeCopy();
     void testMarkdownForRangeRevealedState();
     void testCutRangeResult();
 
-    // --- phase3-plan.md step 2: new symmetric types (~~ / == / ++ / `) ---
+    // --- New symmetric types (~~ / == / ++ / `) ---
     void testSymmetricTypeLifecycle_data();
     void testSymmetricTypeLifecycle();
     void testCodeSpanContentStaysVerbatim();
 
-    // --- phase3-plan.md step 4: nested spans ---
+    // --- Nested spans ---
     void testNestedMappingRoundTrip();
     void testNestedEditMapping();
     void testNestedCopyAndCut();
     void testNestedRevealWalkthrough();
 
-    // --- phase3-plan.md step 6: links and autolinks ---
+    // --- Links and autolinks ---
     void testLinkStatesAndMapping();
     void testColorSpanStatesAndMapping();
     void testLinkEditCopyCut();
@@ -173,12 +173,12 @@ private slots:
     void testInlineMathReservationUsesRenderedWidth();
     void testInlineMathTallFormulaReservesLineHeight();
 
-    // --- phase4-plan.md step 3: verbatim mode (code blocks) ---
+    // --- Verbatim mode (code blocks) ---
     void testVerbatimDocumentIsMarkdown();
     void testVerbatimNeverReveals();
     void testVerbatimEditsAndMapping();
 
-    // --- search-match highlighting (phase7-plan.md step 2) ---
+    // --- search-match highlighting ---
     void testSearchHighlightRangesPlain();
     void testSearchHighlightRangesHiddenSpans();
     void testSearchHighlightRangesRevealedSpan();
@@ -191,7 +191,7 @@ private slots:
     void testSupSubVerticalAlignment();
     void testFormatFlagsAtDocumentPosition();
 
-    // --- tex-editing.md: math-entry gates ---
+    // --- Math-entry gates ---
     void testMathSpanRangeIn();
     void testMathSpanRangeAtDocument();
     void testShouldAutoPairDollarRules();
@@ -491,8 +491,8 @@ void TestBlockEditorEngine::testSetMarkdownFillsDocumentWithDisplayText()
 
 void TestBlockEditorEngine::testModelRebuildEmitsNoUserEdit()
 {
-    // plan.md risk table: programmatic (model-driven) edits must emit no
-    // model updates — only real user edits may emit markdownEdited.
+    // Programmatic (model-driven) edits must emit no model updates —
+    // only real user edits may emit markdownEdited.
     QTextDocument doc;
     BlockEditorEngine engine;
     engine.attachDocument(&doc);
@@ -994,7 +994,7 @@ void TestBlockEditorEngine::testCodeSpanContentStaysVerbatim()
 {
     // Inline code content is literal: markers of other types inside it
     // never parse, in display or in format ranges (features.md §2.1's
-    // "monospace" region; phase3-plan.md nesting model excludes code).
+    // "monospace" region; the nesting model excludes code).
     const QString md = QStringLiteral("`a **b** c`");
     QCOMPARE(BlockEditorEngine::displayText(md), QString("a **b** c"));
     QCOMPARE(BlockEditorEngine::formatRangesForState(md, -1),
@@ -1493,7 +1493,7 @@ void TestBlockEditorEngine::testInlineMathTallFormulaReservesLineHeight()
 }
 
 // ============================================================================
-// phase4-plan.md step 3: verbatim mode (code blocks)
+// Verbatim mode (code blocks)
 // ============================================================================
 
 void TestBlockEditorEngine::testVerbatimDocumentIsMarkdown()
@@ -1559,7 +1559,7 @@ void TestBlockEditorEngine::testVerbatimEditsAndMapping()
     QCOMPARE(cut.value("cursor").toInt(), 0);
 }
 
-// ---- search-match highlighting (phase7-plan.md step 2) ----
+// ---- search-match highlighting ----
 
 void TestBlockEditorEngine::testSearchHighlightRangesPlain()
 {
@@ -1679,8 +1679,8 @@ void TestBlockEditorEngine::testSearchHighlightFollowsRevealTransition()
     QCOMPARE(layoutFormatAt(doc, 11).background().style(), Qt::NoBrush);
 }
 
-// Sup/sub render through QTextCharFormat vertical alignment
-// (phase9-plan.md decision 5); Qt derives the smaller size itself.
+// Sup/sub render through QTextCharFormat vertical alignment; Qt derives
+// the smaller size itself.
 void TestBlockEditorEngine::testSupSubVerticalAlignment()
 {
     QTextDocument doc;
@@ -1700,8 +1700,8 @@ void TestBlockEditorEngine::testSupSubVerticalAlignment()
              QTextCharFormat::AlignNormal);
 }
 
-// The toolbar's state source (phase9-plan.md decision 6): combined
-// flags of the span chain at a document position, ends inclusive.
+// The toolbar's state source: combined flags of the span chain at a
+// document position, ends inclusive.
 void TestBlockEditorEngine::testFormatFlagsAtDocumentPosition()
 {
     QTextDocument doc;
@@ -1761,8 +1761,7 @@ void TestBlockEditorEngine::testMathSpanRangeIn()
     // The parser's own rules govern what is a span: "$5 and $6" is prose
     // (digit-after rule), an unclosed $ is prose, and — the transitional
     // state the trigger pre-checks around — "$\$" reads its closing
-    // dollar as escaped, so it is not a span either (tex-editing.md
-    // "Trigger", deviation note).
+    // dollar as escaped, so it is not a span either.
     QVERIFY(!BlockEditorEngine::mathSpanRangeIn(
                  QStringLiteral("$5 and $6"), 1).value("found").toBool());
     QVERIFY(!BlockEditorEngine::mathSpanRangeIn(

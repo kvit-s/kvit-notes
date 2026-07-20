@@ -8,8 +8,8 @@
 #include <QString>
 #include <QVariantMap>
 
-// Todo due date and priority metadata (features.md §1.2.3, phase10-plan.md
-// decision 10). Stored inline in the todo's content as trailing Obsidian
+// Todo due date and priority metadata (features.md §1.2.3). Stored
+// inline in the todo's content as trailing Obsidian
 // Tasks tokens — 📅 <date> for the due date; ⏫ / 🔼 / 🔽 for high / medium /
 // low priority — the largest existing ecosystem for todo metadata in
 // markdown. The engine treats the tail as a non-editable chrome segment

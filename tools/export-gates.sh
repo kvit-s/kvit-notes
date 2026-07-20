@@ -131,6 +131,42 @@ gate5() {
     return "$bad"
 }
 
+# ── 6. References to planning documents that ship nowhere ─────────────
+#      Gate 5 proves the documents are absent. This proves nothing points
+#      at them: a comment reading "(phase8-plan.md decision 8)" sends a
+#      public reader to a file they cannot open, and the phase plans do not
+#      even exist privately any more, having been deleted as their
+#      milestones closed. Provenance that only the author can resolve is
+#      not provenance; the comment should carry the reasoning itself.
+#
+#      Matched by shape rather than by a list of what happens to exist
+#      today, so a planning document written next month is covered without
+#      touching this gate. Names that resolve to a file actually shipped in
+#      the tree are fine, which is what keeps features.md and devel.md
+#      citable. Note filenames used as test data (Welcome.md, Cherry.md)
+#      do not match these shapes.
+gate6() {
+    local bad=0 shapes hit
+    # The prefix is optional: bare plan.md and progress.md are cited too.
+    shapes='([A-Za-z0-9_-]+-)?(plan|prd|progress)\.md'
+    shapes="$shapes|(chat|search|gaps|jupyter|to-market|tex-editing)\.md"
+    shapes="$shapes|(llm-normalization|llm-diagram|decisions|CLAUDE)\.md"
+    shapes="$shapes|(basic-features|agentic-app-prd|agentic-spreadsheet)\.md"
+
+    # Drop hits whose name resolves to a file the tree actually ships.
+    hit=$(grep -RInE --exclude-dir=.git "(^|[^A-Za-z0-9_-])($shapes)" "$TREE" \
+        | while IFS= read -r line; do
+            name=$(printf '%s' "$line" | grep -oE "($shapes)" | head -1)
+            (cd "$TREE" && git ls-files | grep -qE "(^|/)${name}$") || echo "$line"
+          done)
+    if [ -n "$hit" ]; then
+        printf '%s\n' "$hit" | head -40
+        printf '%s\n' "$hit" | wc -l | xargs printf '%s reference(s) to documents that ship nowhere\n'
+        bad=1
+    fi
+    return "$bad"
+}
+
 if [ "$SKIP_BUILD" = "--skip-build" ]; then
     echo "══ gate: fresh-clone build+test ══ (SKIPPED - never for a release)"
 else
@@ -140,6 +176,7 @@ gate "broken-link scan" gate2
 gate "secret/PII/path scan" gate3
 gate "license/SBOM scan" gate4
 gate "forbidden-file scan" gate5
+gate "private-document reference scan" gate6
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then

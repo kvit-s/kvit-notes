@@ -15,7 +15,7 @@ namespace {
 
 // One field value with its inferred type, so a pair of values compares
 // as dates when both are dates, as numbers when both are numbers, and as
-// case-insensitive strings otherwise (pre-launch-plan.md §1.2).
+// case-insensitive strings otherwise.
 struct TypedValue {
     QString text;
     QDateTime date;       // valid when the text parses as a date

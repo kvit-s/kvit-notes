@@ -5,7 +5,7 @@
 
 #include "notefrontmatter.h"
 
-// Unit suite for the pure front-matter functions (phase8-plan.md step 1).
+// Unit suite for the pure front-matter functions.
 // The contracts under test:
 //  - split() is byte-preserving and strict: divider-led documents are body
 //  - parse() consumes only fully-understood values; everything else is
@@ -57,7 +57,7 @@ private slots:
     void testGoalParseSerializeRoundTrip();
     void testGoalInvalidValueStaysUnknown();
 
-    // General key map + typed accessors (pre-launch-plan.md §1.1)
+    // General key map + typed accessors
     void testFieldsMapExtraction();
     void testFieldsMapNeverSerialized();
     void testTypedAccessors();
@@ -568,7 +568,7 @@ void TestNoteFrontMatter::testGoalInvalidValueStaysUnknown()
     QVERIFY(b.unknownLines.contains(QStringLiteral("goal: -5")));
 }
 
-// ------------------------------------- general key map (§1.1)
+// ------------------------------------- general key map
 
 void TestNoteFrontMatter::testFieldsMapExtraction()
 {

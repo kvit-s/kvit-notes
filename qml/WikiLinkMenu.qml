@@ -4,13 +4,13 @@
 import QtQuick
 import QtQuick.Controls
 
-// The [[ completion popup (pre-launch-plan.md §3.5): opened when "[[" is
-// typed in prose, listing the collection's notes through the shared fuzzy
-// matcher (QuickSwitcherModel); typing "#" after a target narrows to that
-// note's headings. Like the block menu it is PASSIVE — it never takes
-// focus; keystrokes keep flowing into the host editor, which feeds the
-// query and forwards Up/Down/Enter/Tab/Escape here while it targets that
-// editor. Selection inserts through the host's applyWikiCompletion.
+// The [[ completion popup: opened when "[[" is typed in prose, listing
+// the collection's notes through the shared fuzzy matcher
+// (QuickSwitcherModel); typing "#" after a target narrows to that note's
+// headings. Like the block menu it is PASSIVE — it never takes focus;
+// keystrokes keep flowing into the host editor, which feeds the query and
+// forwards Up/Down/Enter/Tab/Escape here while it targets that editor.
+// Selection inserts through the host's applyWikiCompletion.
 Popup {
     id: menu
     objectName: "wikiLinkMenu"

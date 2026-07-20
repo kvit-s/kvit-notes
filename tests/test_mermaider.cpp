@@ -10,9 +10,9 @@
 using namespace Mermaid;
 using namespace Diagram;
 
-// ER-diagram parser and layout (diagrams-prd.md §9, §15), built grammar-first
-// against the pinned mermaid@11.16.0 erDiagram.jison. Some fixtures follow
-// that repository's demos/er.html (MIT license, (c) Knut Sveidqvist).
+// ER-diagram parser and layout, built grammar-first against the pinned
+// mermaid@11.16.0 erDiagram.jison. Some fixtures follow that repository's
+// demos/er.html (MIT license, (c) Knut Sveidqvist).
 class TestMermaidEr : public QObject
 {
     Q_OBJECT

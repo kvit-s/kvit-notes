@@ -10,7 +10,7 @@
 
 class NoteCollection;
 
-// The collection query block's pure core (pre-launch-plan.md §1.2),
+// The collection query block's pure core,
 // following the TableData/KanbanData pattern: parse/evaluate functions
 // with no GUI dependencies, so the whole feature is headless-testable.
 //

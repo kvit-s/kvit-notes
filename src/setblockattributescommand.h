@@ -7,8 +7,8 @@
 #include "undocommand.h"
 #include <QString>
 
-// One undoable step that sets a block's presentation attributes
-// (phase12-plan.md decision 1). Every styling change — alignment, divider
+// One undoable step that sets a block's presentation attributes.
+// Every styling change — alignment, divider
 // style, callout color, image effect, drop cap, embed size — flows through this
 // one command, so it reverts in a single undo like any other block mutation.
 class SetBlockAttributesCommand : public UndoCommand

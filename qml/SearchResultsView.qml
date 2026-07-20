@@ -5,12 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Global-search results (phase8-plan.md decision 9): grouped per note —
-// a title row, then one row per match with its context snippet, the
-// matched text bolded. Clicking a match opens the note and hands off to
-// the Phase 7 find bar at that occurrence; clicking a title row opens
-// the note plainly. Shown in place of the note list while a query is
-// active.
+// Global-search results: grouped per note — a title row, then one row
+// per match with its context snippet, the matched text bolded. Clicking
+// a match opens the note and hands off to the find bar at that
+// occurrence; clicking a title row opens the note plainly. Shown in
+// place of the note list while a query is active.
 Item {
     id: resultsView
     objectName: "searchResultsView"
@@ -54,7 +53,7 @@ Item {
             Label {
                 objectName: "searchResultSummary"
                 // While the index is still building, results may be incomplete;
-                // the count is never presented as final (search.md §6.1).
+                // the count is never presented as final.
                 text: !collectionSearch.complete
                       ? qsTr("Indexing… %1 match(es) so far — results may be "
                              + "incomplete")
@@ -90,8 +89,8 @@ Item {
                     collectionSearch.datePreset = presets[index]
                 }
 
-                // §8.4's calendar range picker (phase9-plan.md
-                // decision 10), anchored under the combo.
+                // The calendar range picker for the custom date range
+                // (features.md §8.4), anchored under the combo.
                 DateRangePicker {
                     id: dateRangePicker
                     y: parent.height + 4

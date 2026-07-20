@@ -15,16 +15,16 @@
 class NoteCollection;
 class CollectionSearchIndex;
 
-// Global search across the collection (search.md). The disk-backed SQLite FTS5
+// Global search across the collection. The disk-backed SQLite FTS5
 // index is a candidate generator; Qt refinement makes counts, snippets, and
 // click navigation exact. This object is the QML-facing state: it owns query
 // generations and the immutable result snapshot, runs queries off the GUI
 // thread through CollectionSearchIndex, and keeps only the latest generation.
 //
 // One- and two-character queries use whole-word semantics; three or more
-// characters use literal-substring semantics (search.md §4.2/§4.3). Filters —
-// a recursive folder scope, a tag, and a modified-date preset or custom range —
-// compose within the query.
+// characters use literal-substring semantics. Filters — a recursive folder
+// scope, a tag, and a modified-date preset or custom range — compose within
+// the query.
 class CollectionSearch : public QObject
 {
     Q_OBJECT
@@ -44,8 +44,7 @@ class CollectionSearch : public QObject
     Q_PROPERTY(int noteCount READ noteCount NOTIFY revisionChanged)
     Q_PROPERTY(int matchCount READ matchCount NOTIFY revisionChanged)
     // False while the index is still building or the shown snapshot predates the
-    // completed index: the view labels results as possibly incomplete
-    // (search.md §6.1).
+    // completed index: the view labels results as possibly incomplete.
     Q_PROPERTY(bool complete READ complete NOTIFY revisionChanged)
     Q_PROPERTY(bool indexing READ indexing NOTIFY indexingChanged)
 
@@ -80,14 +79,14 @@ public:
     //                  snippet, snippetStart, snippetLength } ] }
     Q_INVOKABLE QVariantList results() const { return m_groups; }
 
-    // Run the current query immediately, bypassing the debounce — the Enter-key
-    // path (search.md §7).
+    // Run the current query immediately, bypassing the debounce — the
+    // Enter-key path.
     Q_INVOKABLE void submitNow();
 
     // Markdown position of a display-text match start inside a note's block —
     // what DocumentSearch's cursor seeding takes. Reads and parses only the
     // requested note file, then maps display to Markdown coordinates through the
-    // engine's static mapping (search.md §9).
+    // engine's static mapping.
     Q_INVOKABLE int markdownPosition(const QString &relPath, int blockIndex,
                                      int displayStart) const;
 

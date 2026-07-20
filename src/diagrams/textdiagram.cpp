@@ -47,7 +47,7 @@ bool isVertical(TextCanvas::Direction d)
     return d == TextCanvas::Up || d == TextCanvas::Down;
 }
 
-// Deliberate marker degradation (pre-launch-plan.md §2.2): UML heads
+// Deliberate marker degradation: UML heads
 // become △ ◇ o x, crow's feet become < > ^ v by travel direction; the
 // plain Arrow keeps the directional ▲▼◄► the repair vocabulary knows.
 QChar markerGlyph(Marker marker, TextCanvas::Direction dir)
@@ -214,7 +214,7 @@ struct Builder {
 
     // Shape-specific dress-up: a decision shows as < label >, state
     // start/end circles as (*) / ((*)) — every shape still draws as a box
-    // rather than failing (pre-launch-plan.md §2.2).
+    // rather than failing.
     void decorateLabel(Node *node)
     {
         const Shape::Kind kind = node->shape->kind;

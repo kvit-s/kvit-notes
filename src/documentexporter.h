@@ -116,8 +116,8 @@ private:
     QString dataUriForImagePath(const QString &storedPath) const;
     QString dataUriForMath(const QString &tex) const;
     // Rasterize a natively-supported Mermaid diagram to a PNG data URI at 2x
-    // for the PDF path (diagrams-prd.md §11); empty when the source is invalid
-    // or an unsupported family, so the caller falls back to escaped source.
+    // for the PDF path; empty when the source is invalid or an unsupported
+    // family, so the caller falls back to escaped source.
     QString dataUriForMermaid(const QString &source) const;
     // Slugs for heading anchors, matching DocumentOutline (collision-suffixed).
     QStringList headingSlugs(const QList<Blk> &blocks) const;

@@ -20,7 +20,7 @@
 // ======================================================================
 
 // The write side: reconcile, per-note replace, and remove, all serialized on
-// one thread with one write connection (search.md §5).
+// one thread with one write connection.
 class SearchIndexWriteWorker : public QObject
 {
     Q_OBJECT
@@ -132,7 +132,7 @@ private:
 };
 
 // The read side: one query at a time on one read connection, cancellable when a
-// newer generation arrives (search.md §7).
+// newer generation arrives.
 class SearchIndexReadWorker : public QObject
 {
     Q_OBJECT
@@ -268,7 +268,7 @@ void CollectionSearchIndex::openForRoot(const QString &rootPath)
 
     // Open the write connection first: it owns schema creation and rebuild, so
     // the read connection never races an empty database into a destructive
-    // rebuild (search.md §6.3).
+    // rebuild.
     bool writeOk = false;
     QMetaObject::invokeMethod(m_writeWorker, "openDb",
                               Qt::BlockingQueuedConnection,
@@ -320,8 +320,8 @@ IndexedNote CollectionSearchIndex::parseNote(const QString &relPath,
     note.tags = NoteFrontMatter::parse(split.block).tags;
 
     // The same block split and display-text rule the editor and the note-list
-    // scan use, so search matches exactly what the editor shows (search.md
-    // §4.5). Divider blocks have empty searchable text.
+    // scan use, so search matches exactly what the editor shows. Divider
+    // blocks have empty searchable text.
     DocumentSerializer serializer;
     const QList<DocumentSerializer::BlockData> blocks =
         serializer.parse(split.body);
@@ -429,7 +429,7 @@ void CollectionSearchIndex::onQueryReady(quint64 generation,
                                          SearchResults results)
 {
     // The coordinator forwards every completed generation; the facade keeps
-    // only the latest (search.md §7).
+    // only the latest.
     emit queryFinished(generation, results);
 }
 

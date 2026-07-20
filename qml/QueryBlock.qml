@@ -6,11 +6,11 @@ import QtQuick.Controls
 import QtQuick.Window
 import Kvit 1.0
 
-// Collection query block (pre-launch-plan.md §1): a `query` code fence
-// whose body is a small spec, rendered as a live read-only table or board
-// over the front-matter of all notes in the collection. Results re-evaluate
-// on every collection revision — in-app saves and external edits alike (the
-// FileWatcher feeds refreshPaths) — and are never written to the file, so
+// Collection query block: a `query` code fence whose body is a small spec,
+// rendered as a live read-only table or board over the front-matter of all
+// notes in the collection. Results re-evaluate on every collection
+// revision — in-app saves and external edits alike (the FileWatcher feeds
+// refreshPaths) — and are never written to the file, so
 // round-trip fidelity is untouched. Editing is plain fence editing of the
 // spec, the DiagramBlock pattern: focus shows the source, blur writes it
 // back as one undo step; a parse error shows in the read view.

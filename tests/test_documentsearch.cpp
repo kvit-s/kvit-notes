@@ -7,8 +7,8 @@
 #include "block.h"
 #include "undostack.h"
 
-// The document-level search object (phase7-plan.md step 1): match
-// computation over display text with the case/word/regex options,
+// The document-level search object: match computation over display
+// text with the case/word/regex options,
 // document-ordered navigation with wrap and cursor seeding, the
 // in-selection domain, the replace computations (cut-contract semantics,
 // capture groups, preserve case), recompute on model changes, and the
@@ -258,9 +258,9 @@ void TestDocumentSearch::testZeroLengthMatchesSkipped()
 
 void TestDocumentSearch::testEmojiContentIsSearchable()
 {
-    // Emoji flow through search as opaque text (llm-normalization.md,
-    // emoji): both a query containing an emoji and plain text next to one
-    // hit, with UTF-16 offsets that map back into the display text.
+    // Emoji flow through search as opaque text: both a query containing an
+    // emoji and plain text next to one hit, with UTF-16 offsets that map
+    // back into the display text.
     m_model->insertBlock(6, Block::Paragraph,
                          QStringLiteral("launch 🚀 checklist"));
 

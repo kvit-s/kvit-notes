@@ -28,7 +28,7 @@ public:
 // bounded timeout, no retries, silent on every failure.
 UpdateFetcher *createNetworkUpdateFetcher(QObject *parent);
 
-// The disclosed, opt-out update check (launch-plan.md D4.5): on startup, at
+// The disclosed, opt-out update check: on startup, at
 // most once per calendar day, GET the GitHub Releases `latest` endpoint and,
 // when it names a version newer than the running one, expose it as a passive
 // status-bar notice. No telemetry, no auto-download; `updates.checkEnabled`

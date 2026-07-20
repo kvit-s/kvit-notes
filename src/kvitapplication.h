@@ -21,9 +21,9 @@ class QApplication;
 // the startup performance instrumentation.
 //
 // Together with AppContext this is everything main() used to do, which leaves
-// the stock main() a nine-line file (chat.md §8: the open repo's executable is
-// a thin launcher linking the core library). A superset build that adds a
-// premium module installs its extensions into ExtensionRegistry before calling
+// the stock main() a nine-line file: the open repo's executable is a thin
+// launcher linking the core library. A superset build that adds a premium
+// module installs its extensions into ExtensionRegistry before calling
 // start(), and otherwise reuses this class unchanged.
 class KvitApplication : public QObject
 {

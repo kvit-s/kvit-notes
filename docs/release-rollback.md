@@ -1,6 +1,6 @@
 # Release and rollback procedure
 
-Written before the first release candidate, per launch-plan.md D4.3. The
+Written before the first release candidate. The
 governing rule: **a bad release is superseded, never mutated**. Artifacts
 users may have installed are never deleted, and a published tag is never
 re-tagged or force-moved.

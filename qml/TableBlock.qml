@@ -5,13 +5,13 @@ import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
 
-// Table block (features.md §1.2.11, phase10-plan.md decision 8). The block's
-// content is the raw pipe-table markdown; TableTools parses it to a grid and
-// applies every mutation as a whole-markdown rewrite (one undo step). Cells
-// render statically through the formatter (markdown → styled rich text); the
-// clicked/tabbed cell becomes live, loading a single hybrid-editing engine at
-// a time — so a large table costs one engine, not one per cell. The delegate
-// keeps the non-text focus API of the other block delegates.
+// Table block (features.md §1.2.11). The block's content is the raw
+// pipe-table markdown; TableTools parses it to a grid and applies every
+// mutation as a whole-markdown rewrite (one undo step). Cells render
+// statically through the formatter (markdown → styled rich text); the
+// clicked/tabbed cell becomes live, loading a single hybrid-editing engine
+// at a time — so a large table costs one engine, not one per cell. The
+// delegate keeps the non-text focus API of the other block delegates.
 Item {
     id: root
 

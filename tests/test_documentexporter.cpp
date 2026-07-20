@@ -78,8 +78,8 @@ void TestDocumentExporter::testInlineBoldItalicLink()
 
 void TestDocumentExporter::testEscapedPunctuationExportsBare()
 {
-    // Fix 5 (llm-normalization.md): the markdown source keeps the
-    // backslash; HTML export emits the escaped character without it.
+    // Escaped punctuation: the markdown source keeps the backslash;
+    // HTML export emits the escaped character without it.
     const QString html = m_exporter.htmlForMarkdown("2 \\* 3 \\* 4");
     QVERIFY(html.contains("2 * 3 * 4"));
     QVERIFY(!html.contains("\\*"));
@@ -123,8 +123,8 @@ void TestDocumentExporter::testCodeBlockHighlighted()
 void TestDocumentExporter::testCharacterDiagramExports()
 {
     // A `diagram` fence exports as an escaped, whitespace-preserving
-    // <pre class="text-diagram"> (diagrams-prd.md §11); markup in the body is
-    // escaped, not interpreted.
+    // <pre class="text-diagram">; markup in the body is escaped, not
+    // interpreted.
     const QString md = "```diagram\n"
                        "┌────┐\n"
                        "│ <a>│\n"
@@ -135,7 +135,7 @@ void TestDocumentExporter::testCharacterDiagramExports()
     QVERIFY(html.contains("&lt;a&gt;"));          // escaped, not a tag
     QVERIFY(!html.contains("<a>"));
 
-    // Plain text emits the verbatim source body (§11, plain text).
+    // Plain text emits the verbatim source body.
     const QString text = m_exporter.plainTextForMarkdown(md);
     QVERIFY(text.contains(QString::fromUtf8("┌────┐")));
     QVERIFY(text.contains(QString::fromUtf8("│ <a>│")));
@@ -170,7 +170,7 @@ void TestDocumentExporter::testMermaidScriptOnlyWithMermaid()
     const QString none = m_exporter.htmlForMarkdown("# Title\n\nJust prose.");
     QVERIFY(!none.contains("mermaid.esm.min.mjs"));
     QVERIFY(!none.contains("<pre class=\"mermaid\">"));
-    // Plain text of a Mermaid block is the verbatim source (§11).
+    // Plain text of a Mermaid block is the verbatim source.
     const QString text = m_exporter.plainTextForMarkdown(
         "```mermaid\nflowchart LR\nA-->B\n```");
     QVERIFY(text.contains("flowchart LR"));

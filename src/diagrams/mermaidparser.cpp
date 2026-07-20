@@ -46,7 +46,7 @@ namespace {
 
 // Strip a leading YAML frontmatter block (`---` ... `---`) before lexing so its
 // `---` fences are never mis-read as edges. Only the allowlisted `title` is
-// used; other keys are ignored (diagrams-prd.md §8.2).
+// used; other keys are ignored.
 QString stripFrontmatter(const QString &src, QString *title, int *bodyOffset)
 {
     *bodyOffset = 0;
@@ -317,7 +317,7 @@ int FlowParser::ensureNode(const QString &id, const Token &at)
 
 // Apply an `@{ key: value, ... }` shape-data block (flow.jison shapeData).
 // `shape` and `label` are honoured; every other key is ignored with a warning
-// (diagrams-prd.md §9 restricted syntax: configuration is allowlisted).
+// (configuration keys are allowlisted).
 void FlowParser::applyShapeData(int nodeIndex, const Token &data)
 {
     if (nodeIndex < 0)

@@ -6,7 +6,7 @@
 #include <QChar>
 #include <QStringList>
 
-// The algorithm (diagrams-prd.md §7.3):
+// The algorithm:
 //
 //   1. Per-line features: box-drawing strokes, arrow tokens, corner-bounded
 //      horizontal runs (box "edges"), vertical boundaries, and label text.
@@ -23,17 +23,17 @@
 //      fixed threshold.
 //
 // Cross-line geometry is a tolerant bonus, never a requirement: real LLM
-// diagrams misalign their box edges (the OPERATOR box in llm-diagram.md closes
-// at a different column than its walls), so exact column alignment is never
-// demanded anywhere.
+// diagrams misalign their box edges (in one model-generated diagram from the
+// test corpus, an OPERATOR box closes at a different column than its walls),
+// so exact column alignment is never demanded anywhere.
 
 namespace {
 
-// The confidence a positive classification must exceed. Documented constant so
-// the corpus (llm-diagram.md and the deliberately-worse second fixture) can be
-// recalibrated against one number. The reject/deciding gates carry the real
-// discriminating power; the score is a secondary evidence filter that keeps a
-// single stray box or arrow from tagging.
+// The confidence a positive classification must exceed. Documented constant
+// so the model-generated corpus (including the deliberately-worse second
+// fixture) can be recalibrated against one number. The reject/deciding gates
+// carry the real discriminating power; the score is a secondary evidence
+// filter that keeps a single stray box or arrow from tagging.
 constexpr double kScoreThreshold = 4.0;
 
 // ---- character classes ----

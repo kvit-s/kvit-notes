@@ -7,12 +7,12 @@ import QtQuick.Dialogs
 import QtQuick.Window
 import Kvit 1.0
 
-// Mermaid diagram block (diagrams-prd.md §5.1). The block is a `mermaid` code
-// fence; its content is the verbatim Mermaid source. Unfocused, it shows the
-// natively rendered diagram (parsed and laid out off the UI thread by
-// DiagramCanvas), fit to the visible window (both dimensions) with pan when
-// zoomed in, with hover controls for fit/zoom, Copy source, Save PNG
-// (Phase 4), and treat-as-code; the current zoom level shows bottom-right.
+// Mermaid diagram block. The block is a `mermaid` code fence; its content is
+// the verbatim Mermaid source. Unfocused, it shows the natively rendered
+// diagram (parsed and laid out off the UI thread by DiagramCanvas), fit to
+// the visible window (both dimensions) with pan when zoomed in, with hover
+// controls for fit/zoom, Copy source, Save PNG, and treat-as-code; the
+// current zoom level shows bottom-right.
 // Focused, it shows the source in a monospace editor above a debounced live
 // preview that keeps the last valid render while the new source is invalid,
 // with line/column diagnostics. Unsupported diagram families fall back to
@@ -673,9 +673,9 @@ Item {
                     root.zoomLevel = Math.min(3.0, readCanvas.renderScale * 1.25)
                     root.fitMode = false } }
                 ChipButton { label: qsTr("Copy"); onClicked: clipboard.text = root.content }
-                // "Copy as ASCII diagram" (pre-launch-plan.md §2.3): the
-                // rendered scene as Unicode box-drawing text — the same
-                // vocabulary the crooked-diagram repair recognizes.
+                // "Copy as ASCII diagram": the rendered scene as Unicode
+                // box-drawing text — the same vocabulary the
+                // crooked-diagram repair recognizes.
                 ChipButton {
                     objectName: "diagramCopyTextChip"
                     label: qsTr("Copy as text")
@@ -1121,7 +1121,7 @@ Item {
         }
     }
 
-    // Save PNG (diagrams-prd.md Phase 4): rasterize the rendered scene at 2x.
+    // Save PNG: rasterize the rendered scene at 2x.
     FileDialog {
         id: savePngDialog
         objectName: "diagramSavePngDialog"

@@ -10,7 +10,7 @@
 
 class QImage;
 
-// Image and local-media block support (phase10-plan.md decisions 4, 5, 13).
+// Image and local-media block support.
 //
 // Storage (a deliberate refinement of decision 4's "block fields"): an image
 // or media block keeps its markdown expression verbatim in the block's

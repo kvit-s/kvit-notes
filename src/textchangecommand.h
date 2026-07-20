@@ -7,12 +7,11 @@
 #include "undocommand.h"
 #include <QString>
 
-// A single-block text edit stored as an offset+diff splice
-// (performance-plan.md Phase 7, finding A6): only the changed span is
-// retained, not two full content copies, so long editing sessions on
-// large blocks keep undo memory proportional to the edits. Undo/redo
-// reconstruct the other side from the block's current content, which the
-// undo stack guarantees matches the command's before/after state.
+// A single-block text edit stored as an offset+diff splice: only the
+// changed span is retained, not two full content copies, so long editing
+// sessions on large blocks keep undo memory proportional to the edits.
+// Undo/redo reconstruct the other side from the block's current content,
+// which the undo stack guarantees matches the command's before/after state.
 class TextChangeCommand : public UndoCommand
 {
 public:

@@ -494,7 +494,7 @@ void TestCommands::testTypingMerge()
 }
 
 // ============================================================================
-// Phase 4: full-state capture and the new commands (phase4-plan.md step 1)
+// Phase 4: full-state capture and the new commands
 // ============================================================================
 
 static Block::State todoState(const QString &content)

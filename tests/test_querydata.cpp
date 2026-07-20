@@ -15,10 +15,10 @@
 
 #include <algorithm>
 
-// Unit suite for the collection query block's pure core
-// (pre-launch-plan.md §1.2): the line-oriented spec grammar with its
-// explicit error surface, and evaluation — filter, type-inferred sort,
-// grouping — against a fixture collection on a temp directory.
+// Unit suite for the collection query block's pure core: the line-oriented
+// spec grammar with its explicit error surface, and evaluation — filter,
+// type-inferred sort, grouping — against a fixture collection on a temp
+// directory.
 class TestQueryData : public QObject
 {
     Q_OBJECT

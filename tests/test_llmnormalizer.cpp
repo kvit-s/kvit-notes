@@ -8,10 +8,10 @@
 #include "block.h"
 #include "tabledata.h"
 
-// The LLM-markdown normalization pass (llm-normalization.md): pure-text
-// rewrites (fixes 1, 3, 4, 7), each fixture asserted twice — once for the
-// rewrite, once for idempotence — plus the canonical-corpus fixed-point
-// test over documents produced by serialize. Fixtures are ported from
+// The LLM-markdown normalization pass: pure-text rewrites (fixes 1, 3, 4,
+// 7), each fixture asserted twice — once for the rewrite, once for
+// idempotence — plus the canonical-corpus fixed-point test over documents
+// produced by serialize. Fixtures are ported from
 // ~/chat/frontend/tests/components/ReplyDisplay.spec.ts so both projects
 // test the same real-world shapes.
 
@@ -429,12 +429,11 @@ void TestLlmNormalizer::testNumericEntities()
 
 void TestLlmNormalizer::testDoubleEscapedAmpStaysLiteral()
 {
-    // Deviation from the plan's original fix-7 acceptance, recorded in
-    // llm-normalization.md: decoding "&amp;lt;" to "&lt;" cannot coexist
-    // with idempotence (the next load would decode "&lt;" to "<", dropping
-    // one escape level per load/save cycle), and idempotence is the
-    // load-bearing property. An entity decoding to '&' therefore stays
-    // literal when a decodable tail follows.
+    // Decoding "&amp;lt;" to "&lt;" cannot coexist with idempotence (the
+    // next load would decode "&lt;" to "<", dropping one escape level per
+    // load/save cycle), and idempotence is the load-bearing property. An
+    // entity decoding to '&' therefore stays literal when a decodable tail
+    // follows.
     QCOMPARE(LlmNormalizer::normalize(QStringLiteral("&amp;lt;\n")),
              QStringLiteral("&amp;lt;\n"));
     QCOMPARE(LlmNormalizer::normalize(QStringLiteral("&amp;amp;\n")),

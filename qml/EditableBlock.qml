@@ -7,12 +7,12 @@ import QtQuick.Layouts
 import QtQuick.Window
 import Kvit 1.0
 
-// The shared editing core every text-carrying block delegate wraps
-// (phase4-plan.md step 3): the TextArea + hybrid editing engine, key
-// handling, clipboard, focus API, hover/handle/focus-indicator chrome,
-// and indentation margin. Per-type delegates (TextBlockDelegate,
-// BulletListDelegate, ...) instantiate this with their leading chrome
-// (bullet glyph, ordinal label, checkbox, quote bar) and styling.
+// The shared editing core every text-carrying block delegate wraps: the
+// TextArea + hybrid editing engine, key handling, clipboard, focus API,
+// hover/handle/focus-indicator chrome, and indentation margin. Per-type
+// delegates (TextBlockDelegate, BulletListDelegate, ...) instantiate this
+// with their leading chrome (bullet glyph, ordinal label, checkbox, quote
+// bar) and styling.
 Item {
     id: delegate
 
@@ -61,7 +61,7 @@ Item {
     // formatting/link commands are disabled (markers would be literal).
     property bool verbatimEditing: false
     // Code blocks: Enter inserts a newline into the block; Enter on a
-    // trailing empty line exits (phase4-plan.md design decision 6).
+    // trailing empty line exits.
     property bool enterInsertsNewline: false
 
     // The types whose structure the keyboard operates on (Enter
@@ -330,7 +330,7 @@ Item {
     // Whether this block is in the document-level block selection
     // (features.md §3.1). The revision read makes the binding re-evaluate
     // on every selection change; membership itself is queried, never
-    // stored here (phase6-plan.md decision 1).
+    // stored here.
     readonly property bool blockSelected: {
         var revision = documentSelection.revision // dependency only
         return documentSelection.isBlockSelected(delegate.index)
@@ -356,9 +356,9 @@ Item {
     }
 
     // Focus the window-level handler that owns keys while a block
-    // selection is active (phase6-plan.md decision 3). The TextArea's
-    // focus loss collapses its reveal and dismisses any open menu —
-    // both intended in selection mode.
+    // selection is active. The TextArea's focus loss collapses its
+    // reveal and dismisses any open menu — both intended in selection
+    // mode.
     function focusSelectionHandler() {
         var win = Window.window
         if (win && win.selectionKeyHandler)
@@ -369,11 +369,11 @@ Item {
         editorRequested = true
     }
 
-    // ---- Cross-block text selection support (features.md §2.5, §21.3;
-    // phase6-plan.md decision 6). The per-block passive PointHandler
-    // feeds the window's drag coordinator through these per-delegate
-    // position helpers; the coordinator holds the range; this block
-    // renders its portion through its own TextArea selection. ----
+    // ---- Cross-block text selection support (features.md §2.5, §21.3).
+    // The per-block passive PointHandler feeds the window's drag
+    // coordinator through these per-delegate position helpers; the
+    // coordinator holds the range; this block renders its portion through
+    // its own TextArea selection. ----
 
     // Markdown position under a scene point (clamped into this block).
     function markdownPositionAt(sceneX, sceneY) {
@@ -419,7 +419,7 @@ Item {
         return textArea.positionToRectangle(doc).x
     }
 
-    // ---- Find bar hooks (features.md §7; phase7-plan.md step 3) ----
+    // ---- Find bar hooks (features.md §7) ----
 
     // Where the cursor is, in markdown coordinates: the find bar seeds
     // "first match at/after the cursor" from this on open.
@@ -428,7 +428,7 @@ Item {
     }
 
     // The in-block selection as the user sees it (display text), for
-    // prefilling the query field (phase7-plan.md decision 6).
+    // prefilling the query field.
     function selectionDisplayText() {
         return textArea.selectedText
     }
@@ -684,10 +684,10 @@ Item {
             delegate.applyTextPortionLater()
     }
 
-    // Toolbar / formatting-bar surface (phase9-plan.md decisions 6-7):
-    // the caret's combined span flags for button states, and the same
-    // registry toggle the keyboard shortcuts drive. Inert in verbatim
-    // mode, exactly like the shortcuts.
+    // Toolbar / formatting-bar surface: the caret's combined span flags
+    // for button states, and the same registry toggle the keyboard
+    // shortcuts drive. Inert in verbatim mode, exactly like the
+    // shortcuts.
     readonly property int cursorFormatFlags: {
         if (!delegate.editorActive)
             return 0
@@ -727,7 +727,7 @@ Item {
         return info.found ? info.color : ""
     }
 
-    // Status-bar caret position (§9.7, phase9-plan.md decision 9):
+    // Status-bar caret position (features.md §9.7):
     // 1-based line/column within this block's display text.
     readonly property var cursorLineColumn: {
         if (!delegate.editorActive)
@@ -758,8 +758,8 @@ Item {
         return { x: tl.x, y: tl.y, width: x1 - x0, height: y1 - y0 }
     }
 
-    // §9.5 context-menu entry points (phase9-plan.md decision 8): thin
-    // wrappers over the same functions the keyboard shortcuts drive.
+    // Context-menu entry points (features.md §9.5): thin wrappers over
+    // the same functions the keyboard shortcuts drive.
     function cutSelection() { textArea.cutSelectionAsMarkdown() }
     function copySelection() { textArea.copySelectionAsMarkdown() }
     function pasteClipboard(plain) { textArea.pasteFromClipboard(plain) }
@@ -1064,12 +1064,12 @@ Item {
         refocusBlock(idx, mdPos)
     }
 
-    // Markdown prefix auto-conversion matchers (phase4-plan.md step 5).
-    // Applied to the edited markdown of a paragraph — plus the todo
-    // upgrade inside bullets, since typing "- [ ] " passes through the
-    // bullet conversion on the way. Returns { type, content, checked?,
-    // language? } or null. Order: todo before bullet (its prefix is a
-    // superset); exact-content matchers (fence, divider) never collide.
+    // Markdown prefix auto-conversion matchers. Applied to the edited
+    // markdown of a paragraph — plus the todo upgrade inside bullets,
+    // since typing "- [ ] " passes through the bullet conversion on the
+    // way. Returns { type, content, checked?, language? } or null. Order:
+    // todo before bullet (its prefix is a superset); exact-content
+    // matchers (fence, divider) never collide.
     function matchBlockPrefix(md) {
         var m
         if (delegate.blockType === Block.BulletList) {
@@ -1144,7 +1144,7 @@ Item {
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
     }
 
-    // ---- Math-entry assistance (tex-editing.md) ----
+    // ---- Math-entry assistance ----
     // Tab slot-chain: armed by a menu insertion; Tab hops between the
     // empty {} / [] pairs inside the current math span.
     property bool mathSlotChain: false
@@ -1174,7 +1174,7 @@ Item {
         textArea.syncMathMenuQuery()
     }
 
-    // ---- Wiki-link completion (pre-launch-plan.md §3.5) ----
+    // ---- Wiki-link completion ----
     // The window's wiki-link menu while it is open FOR THIS EDITOR, else
     // null (the activeMathMenu() pattern).
     function activeWikiMenu() {
@@ -1210,10 +1210,10 @@ Item {
         return close
     }
 
-    // The gutter plus-button (features.md §3.7; phase5-plan.md decision
-    // 6): insert an empty paragraph below this block, focus it, and open
-    // the block menu for it with an empty filter. Escape then simply
-    // leaves the new paragraph — the block the user asked to add.
+    // The gutter plus-button (features.md §3.7): insert an empty
+    // paragraph below this block, focus it, and open the block menu for
+    // it with an empty filter. Escape then simply leaves the new
+    // paragraph — the block the user asked to add.
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
         blockModel.insertBlock(newIndex, 0, "")
@@ -1968,7 +1968,7 @@ Item {
                 }
             }
 
-            // The hybrid editing engine (plan.md Phase 1). When a row is
+            // The hybrid editing engine. When a row is
             // actively edited, the TextArea's QTextDocument is the only text
             // element: the engine fills it from the model and styles it with a
             // QSyntaxHighlighter, so block height derives from what is on
@@ -1990,29 +1990,28 @@ Item {
                 cursorActive: delegate.editorActive && textArea.activeFocus
                 verbatim: delegate.verbatimEditing
                 codeLanguage: delegate.language
-                // The token source for the highlighter (phase9-plan.md
-                // decision 3). Bound through the delegate property:
-                // inside this object a bare `theme` would resolve to
-                // the engine's own property, not the context property.
+                // The token source for the highlighter. Bound through the
+                // delegate property: inside this object a bare `theme`
+                // would resolve to the engine's own property, not the
+                // context property.
                 theme: delegate.appTheme
                 // The internal-link resolver (phase11 decision 3): the
                 // DocumentOutline, so a `[text](#slug)` whose slug matches no
                 // heading renders muted. Context property, no name clash with
                 // the engine's own `linkResolver` property.
                 linkResolver: documentOutline
-                // The wiki-link resolver (pre-launch-plan.md §3.1): with no
-                // collection open every [[wiki-link]] styles as an ordinary
-                // link rather than all rendering "unresolved".
+                // The wiki-link resolver: with no collection open every
+                // [[wiki-link]] styles as an ordinary link rather than all
+                // rendering "unresolved".
                 wikiResolver: noteCollection.isOpen ? noteCollection : null
                 lineHeight: delegate.appTypography.lineHeight
                 monoFontFamily: delegate.appTypography.monoFamily
                 contentFontPixelSize: delegate.contentFontSize
                 contentFontFamily: delegate.contentFontFamily
                 contentFontWeight: delegate.contentFontWeight
-                // Search-match tints (phase7-plan.md decision 3): the
-                // revision read makes the binding re-evaluate on every
-                // search change; with the bar closed this is an empty
-                // list and costs nothing.
+                // Search-match tints: the revision read makes the binding
+                // re-evaluate on every search change; with the bar closed
+                // this is an empty list and costs nothing.
                 searchMatches: delegate.editorActive
                     ? delegate.blockSearchMatches : []
 
@@ -2024,14 +2023,13 @@ Item {
                     // editable portion (metadata tail excluded).
                     var wasEmpty = delegate.editableMarkdown === ""
 
-                    // Markdown prefix auto-conversion (phase4-plan.md
-                    // step 5). The typed text goes into the model first —
-                    // it merges into the current typing command, so one
-                    // Ctrl+Z after a conversion restores the literal
-                    // typed prefix. The conversion itself is a single
-                    // ConvertBlockCommand; the type change may recreate
-                    // the delegate through the DelegateChooser, so focus
-                    // is re-established by index.
+                    // Markdown prefix auto-conversion. The typed text goes
+                    // into the model first — it merges into the current
+                    // typing command, so one Ctrl+Z after a conversion
+                    // restores the literal typed prefix. The conversion
+                    // itself is a single ConvertBlockCommand; the type
+                    // change may recreate the delegate through the
+                    // DelegateChooser, so focus is re-established by index.
                     var conv = delegate.matchBlockPrefix(md)
                     if (conv !== null) {
                         // A structural conversion ends any menu session
@@ -2162,10 +2160,10 @@ Item {
                 // the equivalent markdown position afterwards.
                 function toggleFormatting(applyToggle, collapsedCursorOffset) {
                     if (delegate.verbatimEditing) return
-                    // Formatting across a cross-block selection is inert
-                    // (phase6-plan.md scope): applying to just the anchor
-                    // block's portion would silently format a fraction
-                    // of what the user selected.
+                    // Formatting across a cross-block selection is inert:
+                    // applying to just the anchor block's portion would
+                    // silently format a fraction of what the user
+                    // selected.
                     if (documentSelection.hasTextSelection) return
                     var md = editorEngine.markdown
                     var mdStart = editorEngine.toMarkdownPosition(selectionStart)
@@ -2187,10 +2185,10 @@ Item {
                                               text.length)
                 }
 
-                // One registry-driven toggle for every inline type
-                // (phase3-plan.md step 5). The collapsed-cursor offset is
-                // the canonical marker length, landing the cursor between
-                // the inserted empty marker pair.
+                // One registry-driven toggle for every inline type. The
+                // collapsed-cursor offset is the canonical marker length,
+                // landing the cursor between the inserted empty marker
+                // pair.
                 function toggleSpan(typeName) {
                     toggleFormatting(function(md, s, e) {
                         return markdownFormatter.toggleSpanType(md, s, e, typeName)
@@ -2219,7 +2217,7 @@ Item {
                     }, 0)
                 }
 
-                // Clipboard operations (basic-features.md §5) on the C++
+                // Clipboard operations (features.md §5) on the C++
                 // clipboard helper. Copy puts MARKDOWN on the clipboard
                 // (the engine maps the visual selection, wrapping selected
                 // span content in its markers); paste inserts markdown at
@@ -2348,16 +2346,15 @@ Item {
                 // content (model -> engine -> document; user edits flow
                 // back via editorEngine.markdownEdited).
 
-                // Link opening (features.md §2.4; phase3-plan.md design
-                // decision 2): a plain click opens the link under the
-                // pointer only while the block is not focused (the
-                // reading state of §2.2.2 — "links show as clickable
-                // text"). Once the block is being edited, plain clicks
-                // just place the cursor. Ctrl+Click link opening moved to
-                // the row-level selectionClickArea, which resolves the
-                // §3.1/§2.4 conflict by specificity (phase6-plan.md
-                // decision 4). The handler observes passively, so focus
-                // and cursor placement stay intact.
+                // Link opening (features.md §2.4): a plain click opens the
+                // link under the pointer only while the block is not
+                // focused (the reading state of §2.2.2 — "links show as
+                // clickable text"). Once the block is being edited, plain
+                // clicks just place the cursor. Ctrl+Click link opening
+                // moved to the row-level selectionClickArea, which
+                // resolves the §3.1/§2.4 conflict by specificity. The
+                // handler observes passively, so focus and cursor
+                // placement stay intact.
                 // §9.5 right-click: the link menu wins by specificity
                 // over the text menu (mirroring Ctrl+Click); a click
                 // inside an existing selection keeps it, elsewhere the
@@ -2535,7 +2532,7 @@ Item {
                 // Recompute the math-menu query; when the caret no longer
                 // ends a backslash-word (trigger deleted, caret moved
                 // away, non-letter typed) the menu closes with the text
-                // kept (tex-editing.md keyboard contract).
+                // kept.
                 function syncMathMenuQuery() {
                     var menu = delegate.activeMathMenu()
                     if (!menu)
@@ -2711,9 +2708,8 @@ Item {
                 // Key handlers for Milestone 2, 3, 4, 5, and 7 features
                 Keys.onPressed: function(event) {
                     // While the math command menu targets this editor it
-                    // owns navigation (tex-editing.md keyboard contract);
-                    // Enter is claimed in handleReturn. Everything else
-                    // keeps typing, which feeds the query.
+                    // owns navigation; Enter is claimed in handleReturn.
+                    // Everything else keeps typing, which feeds the query.
                     var mathMenu = delegate.activeMathMenu()
                     if (mathMenu) {
                         if (event.key === Qt.Key_Down) {
@@ -2812,7 +2808,7 @@ Item {
                             return
                     }
 
-                    // ---- Math-entry assistance (tex-editing.md) ----
+                    // ---- Math-entry assistance ----
 
                     // Backslash: the command-menu trigger — inside a math
                     // context only. The gate pre-checks the span (the
@@ -2879,10 +2875,10 @@ Item {
                         return
                     }
 
-                    // Dollar auto-pair (tex-editing.md "Entering inline
-                    // math"): type-over the tracked closer, wrap a
-                    // selection, or insert the pair with the caret between
-                    // — each gated by the engine's suppression rules.
+                    // Dollar auto-pair for entering inline math: type-over
+                    // the tracked closer, wrap a selection, or insert the
+                    // pair with the caret between — each gated by the
+                    // engine's suppression rules.
                     if (event.text === "$" && !delegate.verbatimEditing) {
                         var closePos = delegate.dollarPairClosePos()
                         if (closePos >= 0 && closePos === cursorPosition
@@ -3332,11 +3328,11 @@ Item {
                     }
 
                     // Backspace at the start of a block. Structural
-                    // blocks un-structure first (phase4-plan.md decision
-                    // 8): outdent one level if indented, else become a
-                    // paragraph keeping the content. Paragraphs and
-                    // headings keep the old behavior: delete when empty,
-                    // merge into the previous block otherwise.
+                    // blocks un-structure first: outdent one level if
+                    // indented, else become a paragraph keeping the
+                    // content. Paragraphs and headings keep the old
+                    // behavior: delete when empty, merge into the previous
+                    // block otherwise.
                     if (event.key === Qt.Key_Backspace) {
                         if (cursorPosition === 0 && selectionStart === selectionEnd
                             && delegate.isStructural) {
@@ -3369,17 +3365,17 @@ Item {
                     }
                 }
 
-                // Enter/Return semantics per type (phase4-plan.md step 4):
-                //  - Ctrl+Enter toggles a todo (§1.2.3; decision 9)
+                // Enter/Return semantics per type:
+                //  - Ctrl+Enter toggles a todo (features.md §1.2.3)
                 //  - code blocks: newline into the block; on a trailing
-                //    empty line, exit to a new paragraph (decision 6)
+                //    empty line, exit to a new paragraph
                 //  - empty list items and quotes exit to a paragraph
                 //    (§1.2.4 "exits list mode")
                 //  - otherwise: continue/split (split inherits type and
                 //    indent; continuation type comes from createBlockBelow)
                 function handleReturn(event) {
                     // Enter selects the highlighted entry while the math
-                    // command menu targets this editor (tex-editing.md).
+                    // command menu targets this editor.
                     var mathMenu = delegate.activeMathMenu()
                     if (mathMenu) {
                         mathMenu.applyHighlighted()
@@ -3589,8 +3585,8 @@ Item {
     }
 
     // Row-level press handling for the block-selection gestures
-    // (features.md §3.1; phase6-plan.md decisions 4 and 5). Sits above
-    // the whole row and accepts ONLY the presses it owns:
+    // (features.md §3.1). Sits above the whole row and accepts ONLY the
+    // presses it owns:
     //  - Ctrl+Click over a link opens it (§2.4 wins by specificity);
     //    Ctrl+Click anywhere else toggles this block in the selection.
     //  - Shift+Click while another block is being edited selects the

@@ -9,7 +9,7 @@
 #include <QTimer>
 #include <QVariant>
 
-// Per-user application settings (phase9-plan.md decision 1): one flat
+// Per-user application settings: one flat
 // JSON object in settings.json under the app config location, written
 // atomically through a debounce so slider drags do not grind the disk.
 // The path is injected (open()), which keeps tests hermetic. Unknown

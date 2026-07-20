@@ -1,5 +1,5 @@
 # Maintainer: Kvit Notes project <info@kvit.app>
-# AUR -bin package (launch-plan.md D3.3): repacks the release AppImage's
+# AUR -bin package: repacks the release AppImage's
 # AppDir so Qt and the math resources ship as built by CI. The source
 # `kvit-notes` PKGBUILD is left for a community adopter.
 pkgname=kvit-notes-bin

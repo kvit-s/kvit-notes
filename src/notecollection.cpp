@@ -889,7 +889,7 @@ QByteArray NoteCollection::buildIndexFileBytes(
     const QHash<QString, NoteEntry> &notes)
 {
     QJsonObject root;
-    // Version 2 (search.md §10/§12 Phase 3): the sidecar no longer caches full
+    // Version 2: the sidecar no longer caches full
     // bodies or per-block display text — global search reads those from the
     // SQLite index. Wiki-link targets, previously re-derived from the cached
     // body on every load, are persisted so warm startup keeps the backlink
@@ -1104,7 +1104,7 @@ NoteCollection::loadIndexFile(bool *ok) const
 
     const QJsonObject root = doc.object();
     // Only the current sidecar format is trusted; an older cache is dropped and
-    // rebuilt from Markdown (search.md §12 Phase 3).
+    // rebuilt from Markdown.
     if (root.value(QStringLiteral("version")).toInt() != 2)
         return notes;
 
@@ -1134,7 +1134,7 @@ NoteCollection::loadIndexFile(bool *ok) const
         entry.wordCount = object.value(QStringLiteral("wordCount")).toInt();
         entry.snippet = object.value(QStringLiteral("snippet")).toString();
         // Wiki-link targets are read from the sidecar; without the body cached
-        // they can no longer be re-derived here (search.md §10 step 4).
+        // they can no longer be re-derived here.
         entry.links = stringListFromJson(
             object.value(QStringLiteral("links")).toArray());
         entry.meta = NoteFrontMatter::parse(
@@ -1764,7 +1764,7 @@ NoteCollection::snapshotNoteReferrers(const QString &relPath) const
         snapshot.hash = contentHash(bytes);
         snapshot.modified = QFileInfo(absolutePath(it.key())).lastModified();
         // Scan the file text just read for content hashing, not a resident body
-        // cache (search.md §10 step 7).
+        // cache.
         const QString referrerBody =
             NoteFrontMatter::split(QString::fromUtf8(bytes)).body;
         for (const WikiLinkScanner::Occurrence &occurrence :
@@ -1787,7 +1787,7 @@ NoteCollection::snapshotFolderReferrers(const QString &oldPrefix) const
     const QString lowered = oldPrefix.toLower() + QLatin1Char('/');
     for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
         // Prefilter with the resident wiki-link targets so only notes that may
-        // link under the folder are read from disk (search.md §10 step 7).
+        // link under the folder are read from disk.
         bool candidate = false;
         for (const QString &raw : it->links) {
             QString notePart = raw;
@@ -2077,7 +2077,7 @@ QStringList NoteCollection::headingsFor(const QString &relPath) const
         return {};
     QStringList headings;
     bool inFence = false;
-    // Read only this note (search.md §10 step 5), not a resident body cache.
+    // Read only this note, not a resident body cache.
     const QStringList lines = readNoteBody(relPath).split(QLatin1Char('\n'));
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
@@ -2125,7 +2125,7 @@ QVariantList NoteCollection::backlinksTo(const QString &relPath) const
         // Context lines: the referrer's raw body lines whose links resolve
         // to the target — the surrounding text the panel shows per match. Only
         // the notes that actually refer here are read, and only after the
-        // resident links established count > 0 (search.md §10 step 6).
+        // resident links established count > 0.
         const QString body = readNoteBody(referrer);
         QStringList contexts;
         QSet<int> contextLineStarts;
@@ -2198,7 +2198,7 @@ QVariantMap NoteCollection::noteInfo(const QString &relPath) const
         {QStringLiteral("title"), entry->title},
         {QStringLiteral("snippet"), entry->snippet},
         // Bodies are no longer resident; read this note's saved body on demand
-        // for the callers that need it, e.g. folder export (search.md §10).
+        // for the callers that need it, e.g. folder export.
         {QStringLiteral("body"), readNoteBody(relPath)},
         {QStringLiteral("wordCount"), entry->wordCount},
         {QStringLiteral("pinned"), entry->meta.pinned},
@@ -3516,8 +3516,8 @@ void NoteCollection::noteSaved(const QString &absPath, const QString &fileText)
         perf.addContext(QStringLiteral("chars"), fileText.size());
 
     // Feed the just-saved content to the search index. When the text is in hand
-    // it is passed straight through so the worker skips a redundant disk read
-    // (search.md §6.2); otherwise the worker reads the file. Queued FIFO writes
+    // it is passed straight through so the worker skips a redundant disk read;
+    // otherwise the worker reads the file. Queued FIFO writes
     // mean two rapid saves cannot let an older parse win.
     if (m_searchIndex && m_searchIndexRoot == m_rootPath) {
         if (!fileText.isNull())
@@ -3664,8 +3664,8 @@ void NoteCollection::syncSearchIndex()
     }
     // Open (or reopen) the cache database for the current root, then reconcile
     // it against the on-disk listing: parse new or changed notes, drop missing
-    // ones. hasNoteFresh makes warm startup skip unchanged notes (search.md
-    // §6.2), so this stays cheap after the first cold build.
+    // ones. hasNoteFresh makes warm startup skip unchanged notes,
+    // so this stays cheap after the first cold build.
     if (m_searchIndexRoot != m_rootPath) {
         m_searchIndex->openForRoot(m_rootPath);
         m_searchIndexRoot = m_rootPath;

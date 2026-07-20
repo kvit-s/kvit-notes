@@ -5,12 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The custom date-range picker for global search (features.md §8.4,
-// phase9-plan.md decision 10 — the calendar phase8-plan.md deferred
-// here). One month view with paging; the first day clicked starts the
-// range, the second completes it (swapped if earlier), and each pick
-// applies live through collectionSearch.customFrom/customTo with the
-// "custom" preset.
+// The custom date-range picker for global search (features.md §8.4).
+// One month view with paging; the first day clicked starts the range,
+// the second completes it (swapped if earlier), and each pick applies
+// live through collectionSearch.customFrom/customTo with the "custom"
+// preset.
 Popup {
     id: picker
     objectName: "dateRangePicker"

@@ -9,15 +9,15 @@
 #include <QList>
 #include <QString>
 
-// Typed AST and diagnostics for the Mermaid-compatible parser (diagrams-prd.md
-// §8.2). Kvit renders a documented Mermaid-compatible subset natively; this is
-// not an embedding of Mermaid.js. Version 1 implements the flowchart family
-// (§9); every other family parses only far enough to name itself and emit the
-// "unsupported family" diagnostic, so its source is never discarded.
+// Typed AST and diagnostics for the Mermaid-compatible parser. Kvit renders a
+// documented Mermaid-compatible subset natively; this is not an embedding of
+// Mermaid.js. Version 1 implements the flowchart family; every other family
+// parses only far enough to name itself and emit the "unsupported family"
+// diagnostic, so its source is never discarded.
 namespace Mermaid {
 
 // The families Kvit can name. Only Flowchart is rendered in v1; the rest carry
-// the unsupported-family diagnostic (diagrams-prd.md §9 deferred families).
+// the unsupported-family diagnostic.
 enum class DiagramType {
     Unknown,
     Flowchart,
@@ -31,9 +31,9 @@ enum class DiagramType {
 
 enum class Direction { TB, BT, LR, RL };
 
-// Node outline shapes drawn by the layout/scene (diagrams-prd.md §9 "common
-// node shapes"), aligned with the pinned flow.jison vertex productions. A
-// shape Kvit does not recognize falls back to Rect.
+// Node outline shapes drawn by the layout/scene, aligned with the pinned
+// flow.jison vertex productions. A shape Kvit does not recognize falls back to
+// Rect.
 enum class NodeShape {
     Rect,             // A[text]
     RoundRect,        // A(text)
@@ -105,7 +105,7 @@ struct Subgraph {
     bool hasDirection = false;
 };
 
-// A safe visual style set (diagrams-prd.md §9 "restricted syntax"): only fill /
+// A safe visual style set (the restricted-syntax allowlist): only fill /
 // stroke colors, stroke width/style, and font emphasis are honoured; arbitrary
 // CSS is ignored.
 struct ClassDef {

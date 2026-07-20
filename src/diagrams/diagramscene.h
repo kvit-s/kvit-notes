@@ -11,7 +11,7 @@
 #include <QRectF>
 #include <QString>
 
-// The stable seam between syntax/layout and rendering (diagrams-prd.md §8.3).
+// The stable seam between syntax/layout and rendering.
 // A Scene holds logical-coordinate primitives with semantic color *roles* rather
 // than resolved colors or QQuickItem objects, so the same scene paints to the
 // screen (DiagramCanvas + QPainter) and to a PDF raster, with colors resolved
@@ -115,7 +115,7 @@ struct Scene {
     QList<Path> paths;
     QList<Text> texts;
     QRectF bounds;
-    // Accessibility metadata (diagrams-prd.md §12).
+    // Accessibility metadata.
     QString accTitle;
     QString accDescr;
     QString summary;      // generated, e.g. "Mermaid flowchart, 8 nodes, 9 edges"

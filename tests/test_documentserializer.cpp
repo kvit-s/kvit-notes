@@ -58,7 +58,7 @@ private slots:
     void testLoadIntoModelSimple();
     void testLoadIntoModelClearsExisting();
 
-    // Phase 4: block types wave 1 (phase4-plan.md step 2)
+    // Phase 4: block types wave 1
     void testParseBulletList();
     void testParseNumberedList();
     void testParseTodo();
@@ -93,7 +93,7 @@ private slots:
     void testEdgeSyntaxStaysLiteral();
     void testLoadIntoModelBlockTypes();
 
-    // Phase 6: block-selection clipboard (phase6-plan.md step 3)
+    // Phase 6: block-selection clipboard
     void testSerializeBlocksSubset();
     void testSerializeBlocksTightness();
     void testSerializeBlocksOrdinalsFromDocument();
@@ -107,7 +107,7 @@ private slots:
 
 private:
     // Serialize -> parse -> serialize must reproduce the exact bytes for
-    // anything the editor itself writes (phase4-plan.md exit criteria).
+    // anything the editor itself writes.
     void verifyByteIdentical(const QString &markdown)
     {
         BlockModel model;
@@ -412,10 +412,10 @@ void TestDocumentSerializer::testParseHeading4()
 
 void TestDocumentSerializer::testParseHeading5PlusStaysLiteral()
 {
-    // Five and six hashes map to Heading4 (llm-normalization.md fix 9),
-    // superseding the earlier stays-literal pin: LLMs use deep heading
-    // levels, and visible hashes are worse than a demoted heading. Lossy
-    // (a reload demotes "#####" to "####"), accepted.
+    // Five and six hashes map to Heading4, superseding the earlier
+    // stays-literal pin: LLMs use deep heading levels, and visible hashes
+    // are worse than a demoted heading. Lossy (a reload demotes "#####"
+    // to "####"), accepted.
     auto blocks = m_serializer->parse(QStringLiteral("##### Was Too Deep"));
     QCOMPARE(blocks.size(), 1);
     QCOMPARE(blocks[0].type, Block::Heading4);
@@ -482,8 +482,8 @@ void TestDocumentSerializer::testRoundTripWithFormatting()
 
 void TestDocumentSerializer::testRoundTripNewInlineTypes()
 {
-    // phase3-plan.md step 2: the new inline syntax — and edge syntax that
-    // never parses to a span — survives save/parse verbatim.
+    // The new inline syntax — and edge syntax that never parses to a
+    // span — survives save/parse verbatim.
     const QString formatted =
         QStringLiteral("Mix ~~strike~~ `code` ==mark== ++under++ [a](http://x) http://y.io done.");
     const QString edges =
@@ -543,7 +543,7 @@ void TestDocumentSerializer::testLoadIntoModelClearsExisting()
 }
 
 // ============================================================================
-// Phase 4: block types wave 1 (phase4-plan.md step 2)
+// Phase 4: block types wave 1
 // ============================================================================
 
 void TestDocumentSerializer::testParseBulletList()
@@ -697,11 +697,11 @@ void TestDocumentSerializer::testIngestLeavesOrdinaryCode()
 
 void TestDocumentSerializer::testIngestStraightensDiagramFences()
 {
-    // Ingest straightening (diagrams-prd.md §7.5): a diagram fence with a
-    // ragged edge — the top-right corner two columns short of its walls —
-    // is repaired during parse, whether it arrives pre-tagged or gets
-    // tagged by the classifier. A `plain` fence opts out of the whole
-    // diagram pass family, repair included.
+    // Ingest straightening: a diagram fence with a ragged edge — the
+    // top-right corner two columns short of its walls — is repaired
+    // during parse, whether it arrives pre-tagged or gets tagged by the
+    // classifier. A `plain` fence opts out of the whole diagram pass
+    // family, repair included.
     const QString flawed = QString::fromUtf8(
         "\xE2\x94\x8C\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x90\n"          // ┌─────┐
         "\xE2\x94\x82  A     \xE2\x94\x82\n"                                                              // │  A     │
@@ -1058,11 +1058,11 @@ void TestDocumentSerializer::testRoundTripCodeEdgeCases()
 
 void TestDocumentSerializer::testParseIndentedFence()
 {
-    // Fix 2 (llm-normalization.md): a fence indented under a list item —
-    // the most common shape in LLM answers — is recognized; the opener's
-    // leading whitespace is stripped from the content. The CodeBlock is
-    // top-level: the block model is flat, so the code appears after the
-    // list item rather than visually nested inside it.
+    // A fence indented under a list item — the most common shape in LLM
+    // answers — is recognized; the opener's leading whitespace is
+    // stripped from the content. The CodeBlock is top-level: the block
+    // model is flat, so the code appears after the list item rather than
+    // visually nested inside it.
     const QString md = QStringLiteral(
         "1. Do X:\n"
         "    ```python\n"
@@ -1095,9 +1095,9 @@ void TestDocumentSerializer::testParseIndentedFence()
 
 void TestDocumentSerializer::testParseTildeFence()
 {
-    // Fix 8 (llm-normalization.md): ~~~ fences are valid CommonMark, used
-    // notably for markdown-inside-markdown where the inner block uses
-    // backticks. The closing fence must use the same character.
+    // ~~~ fences are valid CommonMark, used notably for
+    // markdown-inside-markdown where the inner block uses backticks. The
+    // closing fence must use the same character.
     const QString md = QStringLiteral(
         "~~~\n"
         "```\n"
@@ -1135,7 +1135,7 @@ void TestDocumentSerializer::testEmojiRoundTripsInAllBlockTypes()
 {
     // Emoji flow through parse/serialize as opaque text: a UTF-16
     // surrogate half can never equal an ASCII delimiter, so byte-identical
-    // round-trips hold in every block type (llm-normalization.md, emoji).
+    // round-trips hold in every block type.
     const QString md = QStringLiteral(
         "# Title 🎉\n"
         "\n"
@@ -1158,7 +1158,7 @@ void TestDocumentSerializer::testEmojiRoundTripsInAllBlockTypes()
 
 void TestDocumentSerializer::testNormalizations()
 {
-    // The documented set (phase4-plan.md design decisions 2, 3, 5, 6):
+    // The documented set:
     // hand-authored variants normalize to canonical form on save.
 
     // Out-of-sequence ordinals renumber
@@ -1182,12 +1182,12 @@ void TestDocumentSerializer::testNormalizations()
     m_serializer->loadIntoModel(&model, "- a\n\t- b\n");
     QCOMPARE(m_serializer->serialize(&model), QString("- a\n  - b\n"));
 
-    // H5/H6 demote to H4 (llm-normalization.md fix 9)
+    // H5/H6 demote to H4
     m_serializer->loadIntoModel(&model, "##### five\n\n###### six\n");
     QCOMPARE(m_serializer->serialize(&model),
              QString("#### five\n\n#### six\n"));
 
-    // A tilde fence canonicalizes to backticks (fix 8)
+    // A tilde fence canonicalizes to backticks
     m_serializer->loadIntoModel(&model, "~~~js\ncode\n~~~\n");
     QCOMPARE(m_serializer->serialize(&model), QString("```js\ncode\n```\n"));
 }
@@ -1201,7 +1201,7 @@ void TestDocumentSerializer::testEdgeSyntaxStaysLiteral()
         "----",
         "**not a divider**",
         ">no space quote",
-        "####### too deep",  // H5/H6 demote to H4 (fix 9); seven+ stay literal
+        "####### too deep",  // H5/H6 demote to H4; seven+ stay literal
         "####no space",
         "use ``` mid-line",
         "-",
@@ -1368,9 +1368,9 @@ void TestDocumentSerializer::testTocFenceRoundTripAndDerivedKind()
 
 void TestDocumentSerializer::testWikiLinksRoundTripByteIdentical()
 {
-    // Wiki-links (pre-launch-plan.md §3.1) are plain text to the
-    // serializer: nothing normalizes them, in any block type, in any of
-    // the four grammar forms — including the literal-! embed form.
+    // Wiki-links are plain text to the serializer: nothing normalizes
+    // them, in any block type, in any of the four grammar forms —
+    // including the literal-! embed form.
     verifyByteIdentical("See [[My Note]] for details.\n");
     verifyByteIdentical("- [[a/b]] and [[Note#Heading]]\n");
     verifyByteIdentical("> quote [[Target|alias]] text\n");
@@ -1382,10 +1382,10 @@ void TestDocumentSerializer::testWikiLinksRoundTripByteIdentical()
 
 void TestDocumentSerializer::testQueryFenceRoundTripAndDerivedKind()
 {
-    // A `query`-tagged code fence (pre-launch-plan.md §1.4) parses as a
-    // CodeBlock whose language is "query" — no new stored type — and its
-    // derived delegate kind is QueryKind. Only the spec is serialized;
-    // results are never written, so the fence round-trips byte-for-byte.
+    // A `query`-tagged code fence parses as a CodeBlock whose language is
+    // "query" — no new stored type — and its derived delegate kind is
+    // QueryKind. Only the spec is serialized; results are never written,
+    // so the fence round-trips byte-for-byte.
     const QString md = "# Tasks\n\n```query\nfrom: projects/\n"
                        "where: status = active\nview: table\n"
                        "columns: title, due\nsort: due asc\n```\n\nAfter";

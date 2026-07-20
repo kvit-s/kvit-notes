@@ -34,11 +34,11 @@ int DocumentStats::wordCount(const QString &displayText)
 int DocumentStats::charCount(const QString &displayText, bool withSpaces)
 {
     // Code points, not UTF-16 code units: skipping low surrogates makes
-    // every single-code-point emoji count as 1 (llm-normalization.md,
-    // emoji findings). Zero-width joiners and variation selectors are
-    // invisible glue, also skipped (👨‍👩‍👧 counts as 3, not 1 — the ZWJ
-    // family overcount is accepted: a stats readout does not justify
-    // grapheme iteration on every recount). Mirrors Block's counters.
+    // every single-code-point emoji count as 1. Zero-width joiners and
+    // variation selectors are invisible glue, also skipped (👨‍👩‍👧 counts
+    // as 3, not 1 — the ZWJ family overcount is accepted: a stats readout
+    // does not justify grapheme iteration on every recount). Mirrors
+    // Block's counters.
     int count = 0;
     for (const QChar c : displayText) {
         const ushort u = c.unicode();

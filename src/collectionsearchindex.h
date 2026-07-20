@@ -18,7 +18,7 @@ class SearchIndexWriteWorker;
 class SearchIndexReadWorker;
 
 // One note as the reconcile pass sees it on disk: enough to decide whether the
-// index copy is stale without reading the body (search.md §6.2).
+// index copy is stale without reading the body.
 struct ReconcileEntry {
     QString relPath;
     QString absPath;
@@ -26,7 +26,7 @@ struct ReconcileEntry {
     qint64 modifiedMs = 0;
 };
 
-// The GUI-free coordinator for disk-backed global search (search.md §11).
+// The GUI-free coordinator for disk-backed global search.
 //
 // It owns two SQLite connections on two worker threads: a write connection that
 // reconciles, replaces, and removes notes, and a read connection that answers
@@ -44,8 +44,7 @@ public:
     ~CollectionSearchIndex() override;
 
     // Whether packaged SQLite has FTS5 with the trigram tokenizer. Callers fall
-    // back to the legacy scanner in development when this is false (search.md
-    // §6.3).
+    // back to the legacy scanner in development when this is false.
     static bool capabilityAvailable();
 
     bool isUsable() const { return m_usable; }
@@ -58,23 +57,23 @@ public:
     void closeIndex();
 
     // Absolute path of the cache database for a notes root — exposed for tests
-    // and diagnostics (search.md §1).
+    // and diagnostics.
     static QString databasePathForRoot(const QString &rootPath);
 
     // Parse one note's file text into the indexable form: title as the kind-0
     // block, each body block's display text, the code-block verbatim flag, and
-    // the front-matter tags (search.md §5). Static and pure so the differential
-    // oracle can build the same rows without a database.
+    // the front-matter tags. Static and pure so the differential oracle can
+    // build the same rows without a database.
     static IndexedNote parseNote(const QString &relPath, const QString &fileText,
                                  qint64 fileSize, qint64 modifiedMs);
 
     // --- Content feed (thread-safe) -------------------------------------
     // Reconcile the index against the current on-disk listing: parse new or
     // changed notes, drop missing ones, and report progress. This is the cold
-    // build and the warm-startup sync (search.md §6.1/§6.2).
+    // build and the warm-startup sync.
     void reconcile(const QList<ReconcileEntry> &listing);
     // The in-app save path passes the already-available text so the worker does
-    // not re-read the file (search.md §6.2).
+    // not re-read the file.
     void replaceFromText(const QString &relPath, const QString &fileText,
                          qint64 fileSize, qint64 modifiedMs);
     // The worker reads the file itself (rename, move, create, metadata write).
@@ -84,11 +83,11 @@ public:
     // --- Query (thread-safe) --------------------------------------------
     // Submit a query under a monotonically increasing generation. The reply
     // arrives on queryFinished with the same generation; the caller keeps only
-    // the latest (search.md §7).
+    // the latest.
     void submitQuery(quint64 generation, const SearchQuery &request);
 
-    // The current index revision of a note, for click-time staleness checks
-    // (search.md §9). Runs a short synchronous read on a dedicated connection.
+    // The current index revision of a note, for click-time staleness checks.
+    // Runs a short synchronous read on a dedicated connection.
     qint64 revisionOf(const QString &relPath) const;
 
 signals:

@@ -62,9 +62,9 @@ const char kMathJaxScriptTag[] =
     "src=\"https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.min.js\">"
     "</script>\n";
 
-// Pinned Mermaid ESM module for browser-targeted HTML export (diagrams-prd.md
-// §11). Pinned to the exact reviewed version, not the floating @11 tag, so an
-// exported document never changes rendering when the CDN publishes a new minor.
+// Pinned Mermaid ESM module for browser-targeted HTML export. Pinned to the
+// exact reviewed version, not the floating @11 tag, so an exported document
+// never changes rendering when the CDN publishes a new minor.
 // securityLevel:'strict' keeps HTML tags encoded and disables click handlers;
 // htmlLabels:false narrows label output; the limits mirror the native renderer.
 // Update only through an explicit dependency/security review. Emitted once, only
@@ -498,8 +498,7 @@ QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
                 if (browserTarget) {
                     // The browser renders the original source with Mermaid.js.
                     // A collapsed <details> keeps the escaped source available
-                    // after Mermaid replaces the render target or errors
-                    // (diagrams-prd.md §11).
+                    // after Mermaid replaces the render target or errors.
                     body += "<pre class=\"mermaid\">" + esc(b.content) + "</pre>";
                     body += "<details class=\"diagram-source\"><summary>Diagram "
                             "source</summary><pre><code>" + esc(b.content)
@@ -519,8 +518,8 @@ QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
                 || b.language == QLatin1String("text-diagram")
                 || b.language == QLatin1String("ascii-diagram")) {
                 // Character diagram: escaped preformatted text with whitespace
-                // preserved and the configured monospace stack (diagrams-prd.md
-                // §11). Both browser HTML and the PDF path share this branch.
+                // preserved and the configured monospace stack. Both browser
+                // HTML and the PDF path share this branch.
                 body += "<pre class=\"text-diagram\"><code>" + esc(b.content)
                       + "</code></pre>";
             } else if (b.language == QLatin1String("kanban")) {

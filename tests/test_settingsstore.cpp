@@ -9,9 +9,9 @@
 
 #include "settingsstore.h"
 
-// The per-user settings store (phase9-plan.md decision 1): one flat
-// JSON object, debounced atomic writes, injectable path, unknown keys
-// preserved, absent/corrupt files recovering to defaults.
+// The per-user settings store: one flat JSON object, debounced atomic
+// writes, injectable path, unknown keys preserved, absent/corrupt files
+// recovering to defaults.
 class TestSettingsStore : public QObject
 {
     Q_OBJECT

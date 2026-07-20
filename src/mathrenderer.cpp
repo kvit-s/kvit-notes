@@ -72,8 +72,8 @@ QString styledTex(const QString &trimmed, bool displayStyle)
 
 // ChatGPT emits U+202F (narrow no-break), U+00A0, U+2009, U+200A around
 // operators; MicroTeX chokes on them. The LLM normalizer rewrites them at
-// parse time (llm-normalization.md fix 4); this is defense in depth for
-// math typed or edited directly in the editor.
+// parse time; this is defense in depth for math typed or edited directly
+// in the editor.
 QString normalizedTex(const QString &tex)
 {
     QString out = tex;
@@ -187,8 +187,8 @@ namespace MathRenderer {
 
 QString resourceRoot()
 {
-    // Resolution order (launch-plan.md B1.3 — installed packages must not
-    // depend on the build machine's source tree):
+    // Resolution order (installed packages must not depend on the build
+    // machine's source tree):
     //   1. KVIT_MATH_RES env var — explicit override, taken verbatim.
     //   2. A path relative to the executable, per platform layout.
     //   3. The compiled-in source path — the dev/test fallback.

@@ -12,7 +12,7 @@
 
 using namespace Mermaid;
 
-// Class-diagram layout (diagrams-prd.md §8.4): UML compartment boxes placed by
+// Class-diagram layout: UML compartment boxes placed by
 // the shared layered core, relations routed as straight border-to-border lines
 // with UML end markers, cardinalities near the endpoints, namespaces as
 // compound bounds, and notes below the graph connected by dashed lines.

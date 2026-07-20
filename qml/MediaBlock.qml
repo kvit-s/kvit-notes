@@ -6,11 +6,11 @@ import QtQuick.Controls
 import QtMultimedia
 import Kvit 1.0
 
-// Local media block (features.md §1.2.14, phase10-plan.md decision 13). The
-// block shares the image markdown — ![alt|width](path) — but its path has an
-// audio or video extension, so it parses as a Media block and hosts a
-// QtMultimedia player: audio as a compact control bar, video as a sized frame,
-// each with play/pause, a seek bar, elapsed/total time, and a volume control.
+// Local media block (features.md §1.2.14). The block shares the image
+// markdown — ![alt|width](path) — but its path has an audio or video
+// extension, so it parses as a Media block and hosts a QtMultimedia player:
+// audio as a compact control bar, video as a sized frame, each with
+// play/pause, a seek bar, elapsed/total time, and a volume control.
 // A missing file or a codec the backend rejects shows the §1.2.14 fallback
 // card naming the path and the reason, never a blank. It keeps the non-text
 // focus API of the other wave-2 blocks so navigation, selection, and drag stay

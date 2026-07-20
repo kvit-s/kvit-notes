@@ -10,10 +10,9 @@
 using namespace Mermaid;
 using namespace Diagram;
 
-// Class-diagram parser and layout (diagrams-prd.md §9, §15), built
-// grammar-first against the pinned mermaid@11.16.0 classDiagram.jison. Some
-// fixtures are lifted from that repository's demos/classchart.html (MIT
-// license, (c) Knut Sveidqvist).
+// Class-diagram parser and layout, built grammar-first against the pinned
+// mermaid@11.16.0 classDiagram.jison. Some fixtures are lifted from that
+// repository's demos/classchart.html (MIT license, (c) Knut Sveidqvist).
 class TestMermaidClass : public QObject
 {
     Q_OBJECT

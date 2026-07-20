@@ -1090,7 +1090,7 @@ void BlockModel::splitBlockInternal(int index, int position)
     emit dataChanged(modelIndex, modelIndex, {ContentRole, DisplayTextRole});
 
     // Insert new block with text after cursor. It inherits type, indent,
-    // and language; a split todo starts unchecked (phase4-plan.md step 4).
+    // and language; a split todo starts unchecked.
     Block::State state;
     state.type = block->blockType();
     state.content = after;

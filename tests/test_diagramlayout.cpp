@@ -15,7 +15,7 @@ using namespace Diagram;
 
 // Deterministic layered layout: identical source produces identical scene
 // primitives, node boxes do not overlap, edge endpoints sit on node borders,
-// and the renderer cache/round-trip behave (diagrams-prd.md §8.4, §8.5, §15).
+// and the renderer cache/round-trip behave.
 class TestDiagramLayout : public QObject
 {
     Q_OBJECT

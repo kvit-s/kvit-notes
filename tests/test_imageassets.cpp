@@ -12,9 +12,9 @@
 
 using Kind = ImageAssets::Kind;
 
-// Corpus for the image/media markdown parse-build-classify-resolve core
-// (phase10-plan.md decisions 4, 5, 13). Pure functions are tested without a
-// filesystem; resolveSource runs against a real temp directory.
+// Corpus for the image/media markdown parse-build-classify-resolve core.
+// Pure functions are tested without a filesystem; resolveSource runs against
+// a real temp directory.
 class TestImageAssets : public QObject
 {
     Q_OBJECT

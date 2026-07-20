@@ -8,7 +8,7 @@
 
 #include "mermaidast.h"
 
-// Class-diagram parser (diagrams-prd.md §9), built grammar-first against the
+// Class-diagram parser, built grammar-first against the
 // pinned mermaid@11.16.0 classDiagram.jison: classes with labels, backquoted
 // literal names, generics, member/method compartments as text, every relation
 // end (extension, composition, aggregation, dependency, lollipop) on solid or

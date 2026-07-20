@@ -8,7 +8,7 @@
 #include <QString>
 #include <QMap>
 
-// Per-block presentation storage (phase12-plan.md decision 1, Option A).
+// Per-block presentation storage.
 //
 // A block's presentation attributes live in a trailing HTML-comment tag
 // appended to its own markdown, e.g.

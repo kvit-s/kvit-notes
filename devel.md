@@ -88,7 +88,7 @@ win-selftest.bat         deployed --math-selftest probe -> selftest.log
 - The MSVC-vs-GCC portability findings from the first port (narrowing
   in braced init, compound literals, `QVariantList({N})`, NTFS ignoring
   read-only directories, the fontless Windows offscreen platform, the
-  query-budget allowance) are recorded in m2-progress.md.
+  query-budget allowance) are recorded in the commit history.
 
 ## GPU rendering on WSL corrupts text, so the app pins software GL
 
@@ -101,7 +101,7 @@ images render correctly, so the window looks structurally normal but
 discolored. Measured on Mesa 25.2.8 with an Intel UHD 770; the discrete
 NVIDIA adapter rendered correctly in frame grabs, but GPU GL under WSLg is
 not trusted for this app. Mesa's software rasterizer (`llvmpipe`) is
-pixel-correct, and the performance-plan numbers (performance-progress.md)
+pixel-correct, and the performance-plan numbers
 were achieved on it.
 
 **What the app does.** `KvitApplication::applyPlatformWorkarounds()`

@@ -54,7 +54,7 @@ void TestDocumentStats::testCharCountWithAndWithoutSpaces()
     QCOMPARE(DocumentStats::charCount("  a b  ", true), 7);
     QCOMPARE(DocumentStats::charCount("  a b  ", false), 2);
 
-    // Code points, not UTF-16 code units (llm-normalization.md, emoji):
+    // Code points, not UTF-16 code units:
     // 🙂 is one character even though it is two code units.
     QCOMPARE(DocumentStats::charCount(QStringLiteral("🙂"), true), 1);
     QCOMPARE(DocumentStats::charCount(QStringLiteral("a🙂b"), true), 3);

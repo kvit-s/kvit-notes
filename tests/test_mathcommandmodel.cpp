@@ -6,11 +6,11 @@
 #include "mathcommandmodel.h"
 #include "mathrenderer.h"
 
-// The math-command catalog and matcher behind the backslash menu
-// (tex-editing.md step 2). Browse mode reads categories() +
-// itemsForCategory(); completion mode reads itemsFor(query). The
-// catalog-integrity tests render every curated entry through the real
-// MicroTeX engine, so the menu can never offer TeX the app cannot render.
+// The math-command catalog and matcher behind the backslash menu. Browse
+// mode reads categories() + itemsForCategory(); completion mode reads
+// itemsFor(query). The catalog-integrity tests render every curated entry
+// through the real MicroTeX engine, so the menu can never offer TeX the
+// app cannot render.
 class TestMathCommandModel : public QObject
 {
     Q_OBJECT
@@ -87,7 +87,7 @@ void TestMathCommandModel::testCategoriesCanonical()
 {
     const QStringList categories = m_model->categories();
     // No recency yet: the canonical list, Greek first (the LyX-toolbar
-    // order from tex-editing.md), no "Recently used".
+    // order), no "Recently used".
     QVERIFY(!categories.contains(QStringLiteral("Recently used")));
     QCOMPARE(categories.first(), QStringLiteral("Greek"));
     QVERIFY(categories.contains(QStringLiteral("Arrows")));
@@ -131,9 +131,9 @@ void TestMathCommandModel::testCategoryEntriesCarryTemplates()
 
 void TestMathCommandModel::testCatalogPreviewsRender()
 {
-    // The pixel-honesty guarantee (tex-editing.md "The command catalog"):
-    // everything the menu shows renders through the real engine. Collect
-    // all failures so an unsupported command names itself in one run.
+    // The pixel-honesty guarantee: everything the menu shows renders
+    // through the real engine. Collect all failures so an unsupported
+    // command names itself in one run.
     QStringList failures;
     for (const QVariantMap &entry : allCuratedEntries()) {
         const QString preview = entry.value("preview").toString();
@@ -289,7 +289,7 @@ void TestMathCommandModel::testEveryCuratedEntryCompletes()
 void TestMathCommandModel::testEnumeratedCommandsComplete()
 {
     // The NewTX-port macro \vv is nowhere in the curated table; the
-    // engine enumeration must surface it (tex-editing.md layer 2).
+    // engine enumeration must surface it.
     const QStringList result = names(m_model->itemsFor(QStringLiteral("vv")));
     QVERIFY2(result.contains(QStringLiteral("\\vv")),
              qPrintable(result.join(QStringLiteral(", "))));

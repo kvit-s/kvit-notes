@@ -10,7 +10,7 @@
 
 class SettingsStore;
 
-// Typography settings (features.md §10.2, phase9-plan.md decision 4):
+// Typography settings (features.md §10.2):
 // editor font family, base size, line-height multiplier, paragraph
 // spacing, maximum content width, and the monospace family for code.
 // Heading and code sizes derive from the base by the ratios frozen

@@ -10,7 +10,7 @@
 #include "notecollection.h"
 #include "notelistmodel.h"
 
-// Unit suite for the note-list projection (phase8-plan.md decision 8):
+// Unit suite for the note-list projection:
 // scope → tag filter → sort, pinned floating to the top within every
 // sort, manual order per folder, and rebuilds on the collection revision.
 class TestNoteListModel : public QObject

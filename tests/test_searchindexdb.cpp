@@ -11,12 +11,12 @@
 #include <QDate>
 #include <QDateTime>
 
-// Unit and differential-oracle suite for the SQLite FTS5 search engine
-// (search.md §13). The engine is thread-affine, so every test drives one
-// SearchIndexDb on the test thread synchronously. The differential oracle is
-// the primary guard against tokenizer false negatives: it full-scans every
-// indexed block with the section-4 semantics and asserts the FTS candidate plus
-// refinement pipeline reproduces the same groups, offsets, and counts.
+// Unit and differential-oracle suite for the SQLite FTS5 search engine. The
+// engine is thread-affine, so every test drives one SearchIndexDb on the test
+// thread synchronously. The differential oracle is the primary guard against
+// tokenizer false negatives: it full-scans every indexed block with the
+// reference matching semantics and asserts the FTS candidate plus refinement
+// pipeline reproduces the same groups, offsets, and counts.
 class TestSearchIndexDb : public QObject
 {
     Q_OBJECT
@@ -455,7 +455,7 @@ void TestSearchIndexDb::testCorruptDatabaseRebuilds()
 void TestSearchIndexDb::testDifferentialOracle()
 {
     // A corpus spanning ASCII, composed/decomposed Unicode, non-Latin scripts,
-    // emoji, punctuation, code, and nested Markdown spans (search.md §13).
+    // emoji, punctuation, code, and nested Markdown spans.
     loadNote(QStringLiteral("ascii.md"),
              QStringLiteral("The quick brown fox jumps over the lazy dog\n\n"
                             "AI and Go and R and R2 in one line\n"));
@@ -522,7 +522,7 @@ void TestSearchIndexDb::testDifferentialOracle()
 
 void TestSearchIndexDb::testQueryPerformanceGate()
 {
-    // A 500-note proxy for VAULT-10K (search.md §14 gate 3/4). The engine query
+    // A 500-note proxy for the large-vault performance gate. The engine query
     // is measured directly, synchronously, with no thread hop or debounce.
     for (int i = 0; i < 500; ++i) {
         QString body;

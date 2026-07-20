@@ -8,7 +8,7 @@
 using CodeLanguages::Token;
 using CodeLanguages::Span;
 
-// Corpus for the code-block syntax highlighter (phase10-plan.md decision 3).
+// Corpus for the code-block syntax highlighter.
 // The scanners are pure functions, so the whole language pass is table-tested
 // here before the engine ever paints it — the same discipline the inline
 // registry gets in test_markdownformatter. Assertions are substring-anchored

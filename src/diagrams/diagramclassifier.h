@@ -7,11 +7,11 @@
 #include <QString>
 #include <QStringList>
 
-// Conservative character-cell-diagram detector (diagrams-prd.md §7). Given the
-// verbatim body of a fenced block, it decides whether that body is an
-// ASCII/Unicode "character diagram" — a drawing made of box-drawing glyphs,
-// arrows, and boxed labels, the kind LLMs routinely emit — as opposed to
-// ordinary code, a table, a directory listing, a stack trace, or prose.
+// Conservative character-cell-diagram detector. Given the verbatim body of a
+// fenced block, it decides whether that body is an ASCII/Unicode "character
+// diagram" — a drawing made of box-drawing glyphs, arrows, and boxed labels,
+// the kind LLMs routinely emit — as opposed to ordinary code, a table, a
+// directory listing, a stack trace, or prose.
 //
 // It is a pure, unit-tested component with no Qt-GUI or QML dependency. The
 // ingest pass in DocumentSerializer::parse calls it at exactly the boundaries
@@ -27,8 +27,8 @@
 // has.
 namespace DiagramClassifier {
 
-// Only the first this-many UTF-16 code units are inspected (diagrams-prd.md
-// §7.4). A larger fence is preserved verbatim but never tagged.
+// Only the first this-many UTF-16 code units are inspected. A larger fence is
+// preserved verbatim but never tagged.
 constexpr int kInspectionCapChars = 256 * 1024;
 
 struct Result {

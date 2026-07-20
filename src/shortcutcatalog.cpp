@@ -44,7 +44,7 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
         {"Block Conversion", "Todo",             "Ctrl+T",       "engine", false, {}},
         {"Block Conversion", "Quote",            "Ctrl+Shift+T", "engine", false, {}},
 
-        // Math entry (tex-editing.md): wired in the math editors' key
+        // Math entry: wired in the math editors' key
         // handlers -- the MathBlock source editor and the inline $...$ span
         // path in EditableBlock. "\\" opens the command menu (browse, then
         // completion as letters follow); "$" auto-pairs in prose.
@@ -67,7 +67,7 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
         {"General", "New Note",          "Ctrl+N",       "window", false, {}},
         {"General", "Toggle Sidebar",    "Ctrl+\\",      "window", false, {}},
         {"General", "Distraction-free",  "F11",          "window", false, {}},
-        // Wiki-link navigation (pre-launch-plan.md §3.3). Ctrl+P rather
+        // Wiki-link navigation. Ctrl+P rather
         // than Obsidian's Ctrl+O, which §13.4-adjacent behavior already
         // assigns to Open File.
         {"General", "Quick Switcher",    "Ctrl+P",       "window", false, {}},

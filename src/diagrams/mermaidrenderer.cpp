@@ -27,7 +27,7 @@ QString cacheKey(const QString &source, const LayoutOptions &opts)
 }
 
 // A bounded process-wide LRU. Scenes are small; a modest count cap approximates
-// the documented 32 MiB budget (diagrams-prd.md §8.5) without measuring each.
+// the documented 32 MiB budget without measuring each.
 QMutex &cacheMutex()
 {
     static QMutex m;

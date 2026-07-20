@@ -6,7 +6,7 @@
 
 #include "navigationhistory.h"
 
-// Unit suite for the back/forward note history (pre-launch-plan.md §3.3).
+// Unit suite for the back/forward note history.
 // Contracts: browser stack discipline (a new visit clears forward), the
 // re-entrancy rule (goBack's own reopen is a no-op visit), scroll
 // positions stamped on departure, and collection lifecycle (rename

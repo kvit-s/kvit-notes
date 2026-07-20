@@ -8,7 +8,7 @@
 
 #include "diagramscene.h"
 
-// Scene → Unicode box-drawing serializer (pre-launch-plan.md §2.2): the
+// Scene → Unicode box-drawing serializer: the
 // "Copy as text" rendition of a rendered Mermaid diagram. Consumes the
 // same layout Scene the painter consumes, so what you copy matches what
 // you see; emits only the glyph vocabulary DiagramRepair recognizes, so

@@ -6,13 +6,13 @@ import QtQuick.Controls
 import QtQuick.Effects
 import Kvit 1.0
 
-// Image block (features.md §1.2.8, phase10-plan.md decision 4). The block's
-// content is its markdown expression — ![alt|width](path "caption") — parsed
-// by ImageAssets; the delegate renders the image with a caption below and an
-// alt tooltip, resizes by dragging a corner handle (writing width, one undo
-// step), opens a lightbox on click, and shows a broken-path placeholder when
-// the source does not resolve. It keeps the non-text focus API of
-// DividerDelegate so block navigation, selection, and drag stay uniform.
+// Image block (features.md §1.2.8). The block's content is its markdown
+// expression — ![alt|width](path "caption") — parsed by ImageAssets; the
+// delegate renders the image with a caption below and an alt tooltip,
+// resizes by dragging a corner handle (writing width, one undo step), opens
+// a lightbox on click, and shows a broken-path placeholder when the source
+// does not resolve. It keeps the non-text focus API of DividerDelegate so
+// block navigation, selection, and drag stay uniform.
 Item {
     id: delegate
 

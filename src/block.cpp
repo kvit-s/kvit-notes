@@ -45,10 +45,9 @@ int countWords(const QString &text)
 
 // Code points, not UTF-16 code units: a low surrogate is the second half
 // of an astral character (emoji), so it never counts on its own — 🙂 is 1,
-// not 2 (llm-normalization.md, emoji findings). Zero-width joiners and
-// variation selectors are invisible glue, also skipped, so 👨‍👩‍👧 counts as
-// its 3 visible people. Approximate but fast; skin-tone modifiers still
-// count, accepted.
+// not 2. Zero-width joiners and variation selectors are invisible glue,
+// also skipped, so 👨‍👩‍👧 counts as its 3 visible people. Approximate but
+// fast; skin-tone modifiers still count, accepted.
 bool isInvisibleJoiner(QChar ch)
 {
     const ushort u = ch.unicode();

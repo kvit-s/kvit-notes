@@ -9,8 +9,8 @@
 
 namespace {
 
-// Canonical category names (tex-editing.md catalog table). Shared string
-// constants so the ctor and categories() cannot drift apart.
+// Canonical category names. Shared string constants so the ctor and
+// categories() cannot drift apart.
 const QString kGreek = QStringLiteral("Greek");
 const QString kArrows = QStringLiteral("Arrows");
 const QString kBinary = QStringLiteral("Binary operators");

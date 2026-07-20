@@ -11,10 +11,10 @@
 
 class QPainter;
 
-// Paints a Diagram::Scene with QPainter (diagrams-prd.md §8.3). Shared by the
-// on-screen DiagramCanvas and the PDF raster path so both produce the same
-// output. Semantic color roles are resolved from the supplied SceneColors; the
-// caller sets any scale/translation on the painter before calling.
+// Paints a Diagram::Scene with QPainter. Shared by the on-screen
+// DiagramCanvas and the PDF raster path so both produce the same output.
+// Semantic color roles are resolved from the supplied SceneColors; the caller
+// sets any scale/translation on the painter before calling.
 namespace Diagram {
 
 struct SceneColors {

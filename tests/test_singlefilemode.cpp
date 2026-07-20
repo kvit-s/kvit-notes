@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Single-file mode (launch-plan.md E4): `kvit-notes <file.md>` opens a lone
+// Single-file mode: `kvit-notes <file.md>` opens a lone
 // file with NO vault - the collection stays closed, the full block editor
 // works on the file's typed blocks, and the quiet upgrade path (open the
 // containing folder as a vault) keeps the file open. These tests drive the

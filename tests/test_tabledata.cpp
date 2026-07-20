@@ -7,9 +7,9 @@
 
 using TableData::Align;
 
-// Corpus for the pipe-table parse/serialize/mutate core (phase10-plan.md
-// decision 8): escaped pipes, alignment colons, ragged rows, the mutations,
-// and sort — pinned before the delegate paints any of it.
+// Corpus for the pipe-table parse/serialize/mutate core: escaped pipes,
+// alignment colons, ragged rows, the mutations, and sort — pinned before
+// the delegate paints any of it.
 class TestTableData : public QObject
 {
     Q_OBJECT
@@ -128,9 +128,9 @@ private slots:
 
     void brTagsBecomeSpaces()
     {
-        // llm-normalization.md fix 6: LLMs use <br> for multi-line cells;
-        // cells are single-line by design, so a space is the honest
-        // rendering. All three spellings, case-insensitive.
+        // LLMs use <br> for multi-line cells; cells are single-line by
+        // design, so a space is the honest rendering. All three spellings,
+        // case-insensitive.
         const auto t = TableData::parse(
             "| a<br>b | c |\n| --- | --- |\n| d<br/>e | f<BR />g |");
         QVERIFY(t.valid);

@@ -41,7 +41,7 @@ manifest, not this file.
 - **License:** LPPL-1.3c AND LicenseRef-Bitstream-Charter
 - **Origin:** https://ctan.org/pkg/newtx, https://ctan.org/pkg/xcharter; generation tooling tools/generate_newtx_microtex.py
 - **Files:** third_party/microtex/res/fonts/kvit-newtx
-- **License text:** third_party/microtex/res/fonts/kvit-newtx/LICENSES, NOTICE.md (authoritative provenance; naming/attribution checklist executed during the math port - launch-plan.md A2)
+- **License text:** third_party/microtex/res/fonts/kvit-newtx/LICENSES, NOTICE.md (authoritative provenance; the naming and attribution checklist was executed during the math port)
 - **Ships in:** windows, macos, linux, source
 - **Obligations:** LPPL renaming requirement satisfied by the kvit_newtx_* names; keep NOTICE.md and LICENSES with the fonts; Bitstream Charter notice must stay intact.
 
@@ -53,7 +53,7 @@ manifest, not this file.
 - **Files:** third_party/microtex/res/greek
 - **License text:** third_party/microtex/res/greek/LICENSE
 - **Ships in:** windows, macos, linux, source
-- **Obligations:** Ship the GPL-3 text with the fonts (the installed math-res tree carries res/greek/LICENSE, verified in the Linux install and AppImage layouts). Owner ruling 2026-07-19 (decisions.md): shipped as aggregation - plain GPL-3, no font-embedding exception, accepted because the fonts are standalone data files, the app rasterizes math in-process, and no font is ever embedded into exported documents. Serves literal Cyrillic/polytonic-Greek characters inside formulas; TeX math Greek commands come from the math fonts and never touch this pack.
+- **Obligations:** Ship the GPL-3 text with the fonts (the installed math-res tree carries res/greek/LICENSE, verified in the Linux install and AppImage layouts). Owner ruling 2026-07-19: shipped as aggregation - plain GPL-3, no font-embedding exception, accepted because the fonts are standalone data files, the app rasterizes math in-process, and no font is ever embedded into exported documents. Serves literal Cyrillic/polytonic-Greek characters inside formulas; TeX math Greek commands come from the math fonts and never touch this pack.
 
 ## Cyrillic alphabet fonts for MicroTeX
 

@@ -54,8 +54,8 @@ private:
 
 } // namespace
 
-// The extension seam (chat.md §8, seam 1): the one place premium code attaches
-// to the open core. The core installs nothing itself, so the cases below are
+// The extension seam: the one place premium code attaches to the open
+// core. The core installs nothing itself, so the cases below are
 // also the record of what the open build does — namely nothing, with every
 // slot resolving empty and the shell laying out as if the seam were absent.
 class TestExtensionRegistry : public QObject

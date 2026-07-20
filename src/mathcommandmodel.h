@@ -12,9 +12,9 @@
 #include <QSet>
 #include <QList>
 
-// The math-command catalog and its matcher (tex-editing.md): one GUI-free
-// object behind the backslash command menu on both math-editing surfaces,
-// mirroring BlockMenuModel's role for the slash menu. Browse mode renders
+// The math-command catalog and its matcher: one GUI-free object behind
+// the backslash command menu on both math-editing surfaces, mirroring
+// BlockMenuModel's role for the slash menu. Browse mode renders
 // categories() + itemsForCategory() — a curated catalog organized the way
 // LyX's math toolbar is, each entry carrying an insertion template and a
 // preview TeX string the menu renders through image://math. Completion
@@ -22,7 +22,7 @@
 // command MicroTeX can render (MathRenderer::availableCommands), so the
 // NewTX additions complete without the curated table chasing them.
 //
-// Ranking (tex-editing.md "Two modes, one popup"): case-exact matches
+// Ranking (shared by both modes, which use one popup): case-exact matches
 // before case-insensitive ones (TeX is case-sensitive — \omega and \Omega
 // both surface for "ome", exact case first); within equal case quality,
 // name prefix, then substring, then subsequence; curated entries before

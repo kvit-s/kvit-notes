@@ -7,9 +7,9 @@
 #include <QString>
 
 // Rewrites LLM-markdown constructs into the dialect DocumentSerializer::parse
-// reads (llm-normalization.md). Fence-aware: content inside code fences is
-// never touched. Idempotent, and a fixed point on canonical serializer output
-// that contains none of the targeted constructs.
+// reads. Fence-aware: content inside code fences is never touched. Idempotent,
+// and a fixed point on canonical serializer output that contains none of the
+// targeted constructs.
 //
 // The rewrites (plan fixes 1, 3, 4, 7):
 //  - a code fence embedded in a table cell collapses to an inline code span

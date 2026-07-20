@@ -13,11 +13,11 @@
 
 #include "mathrenderer.h"
 
-// Render corpus for the MicroTeX seam (phase10-plan.md decision 12, step 9).
-// These are the first thing built once the library is vendored: they prove the
-// resource root resolves (fonts + formula/symbol XML load) and that TeX turns
-// into a non-empty raster, and they save the three canonical expressions as
-// PNGs so the font-data path can be confirmed by eye (plan step 9(2)).
+// Render corpus for the MicroTeX seam. These are the first thing built once
+// the library is vendored: they prove the resource root resolves (fonts +
+// formula/symbol XML load) and that TeX turns into a non-empty raster, and
+// they save the three canonical expressions as PNGs so the font-data path can
+// be confirmed by eye.
 class TestMathRenderer : public QObject
 {
     Q_OBJECT
@@ -383,9 +383,9 @@ class TestMathRenderer : public QObject
 private slots:
     void availableCommandsEnumerates()
     {
-        // The math-command menu's completion corpus (tex-editing.md step 1):
-        // symbols, builtin macros, and the NewTX additions all enumerate;
-        // internal registry names (matrix@@env and friends) never do.
+        // The math-command menu's completion corpus: symbols, builtin
+        // macros, and the NewTX additions all enumerate; internal registry
+        // names (matrix@@env and friends) never do.
         const QStringList commands = MathRenderer::availableCommands();
         QVERIFY2(commands.size() > 300,
                  qPrintable(QStringLiteral("suspiciously small corpus: %1")
@@ -1219,9 +1219,9 @@ private slots:
 
     void unicodeSpacesNormalizeBeforeRender()
     {
-        // llm-normalization.md fix 4, renderer layer: U+202F, U+00A0,
-        // U+2009, U+200A become ASCII spaces before MicroTeX sees the
-        // input — defense in depth under the parse-time normalizer,
+        // Renderer layer: U+202F, U+00A0, U+2009, U+200A become ASCII
+        // spaces before MicroTeX sees the input — defense in depth under
+        // the parse-time normalizer,
         // covering math typed or edited directly in the editor.
         const QString unicode = QStringLiteral("x + y - z");
         const QString ascii = QStringLiteral("x + y - z");

@@ -6,10 +6,10 @@
 #include "blockmodel.h"
 #include "block.h"
 
-// The document-level selection object (phase6-plan.md step 1): block
-// selection (committed set + anchor/head range), cross-block text
-// selection (anchor extent + raw head with granularity snapping), id
-// stability, pruning, and the revision contract.
+// The document-level selection object: block selection (committed set +
+// anchor/head range), cross-block text selection (anchor extent + raw head
+// with granularity snapping), id stability, pruning, and the revision
+// contract.
 class TestDocumentSelection : public QObject
 {
     Q_OBJECT

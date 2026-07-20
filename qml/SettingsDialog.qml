@@ -5,11 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The settings dialog (phase9-plan.md step 3): Appearance — the §10.1
-// theme picker and the §10.3 accent/highlight color selection — and
-// Typography — the six §10.2 settings. Every control binds live to the
-// theme / typography / appSettings objects, so the document behind the
-// dialog previews each change immediately; there is no Apply step.
+// The settings dialog: Appearance — the features.md §10.1 theme picker
+// and the §10.3 accent/highlight color selection — and Typography — the
+// six §10.2 settings. Every control binds live to the theme / typography
+// / appSettings objects, so the document behind the dialog previews each
+// change immediately; there is no Apply step.
 Dialog {
     id: settingsDialog
     objectName: "settingsDialog"
@@ -381,8 +381,7 @@ Dialog {
                 }
             }
 
-            // ---- General (the disclosed opt-out update check,
-            //      launch-plan.md D4.5) ---------------------------------
+            // ---- General (the disclosed opt-out update check) ------
             ColumnLayout {
                 spacing: 14
 

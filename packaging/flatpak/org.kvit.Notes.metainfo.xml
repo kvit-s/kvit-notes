@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- AppStream metadata (launch-plan.md D3.2). Screenshot URLs point at the
+<!-- AppStream metadata. Screenshot URLs point at the
      repo's curated capture assets; they go live with the public repo
      (l-capture-assets fills screenshots/press/). -->
 <component type="desktop-application">

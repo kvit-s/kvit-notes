@@ -24,7 +24,7 @@
 
 class MarkdownHighlighter;
 
-// The hybrid-editing engine (plan.md, "The central decision"). One instance
+// The hybrid-editing engine. One instance
 // per block delegate, attached to the delegate TextArea's QTextDocument via
 // the `document` property. Owns the relationship between three
 // representations:
@@ -77,44 +77,41 @@ class BlockEditorEngine : public QObject, public QQmlParserStatus
     Q_PROPERTY(int selectionStart READ selectionStart WRITE setSelectionStart NOTIFY selectionChanged)
     Q_PROPERTY(int selectionEnd READ selectionEnd WRITE setSelectionEnd NOTIFY selectionChanged)
     Q_PROPERTY(bool cursorActive READ cursorActive WRITE setCursorActive NOTIFY cursorActiveChanged)
-    // Verbatim mode (code blocks, phase4-plan.md design decision 6): no
-    // inline parsing, no reveal — the document text IS the markdown and
-    // every mapping is the identity.
+    // Verbatim mode (code blocks): no inline parsing, no reveal — the
+    // document text IS the markdown and every mapping is the identity.
     Q_PROPERTY(bool verbatim READ verbatim WRITE setVerbatim NOTIFY verbatimChanged)
-    // Code-block language for syntax highlighting (phase10-plan.md decision 3).
-    // Only consulted in verbatim mode; an empty or unrecognized value paints
-    // no code colors (a plain monospace code block, wave-1 behavior). A change
-    // rehighlights the attached document.
+    // Code-block language for syntax highlighting. Only consulted in verbatim
+    // mode; an empty or unrecognized value paints no code colors (a plain
+    // monospace code block). A change rehighlights the attached document.
     Q_PROPERTY(QString codeLanguage READ codeLanguage WRITE setCodeLanguage NOTIFY codeLanguageChanged)
-    // Search matches to tint (phase7-plan.md decision 3): a list of
-    // {"start", "length", "current"} in display coordinates, bound by the
-    // delegate from documentSearch.matchesForBlock(). Rendering maps them
-    // through the current reveal state per highlight pass, so reveal
-    // transitions move the tint with the text. Verbatim engines paint
-    // them too (code blocks skip span styling only).
+    // Search matches to tint: a list of {"start", "length", "current"} in
+    // display coordinates, bound by the delegate from
+    // documentSearch.matchesForBlock(). Rendering maps them through the
+    // current reveal state per highlight pass, so reveal transitions move the
+    // tint with the text. Verbatim engines paint them too (code blocks skip
+    // span styling only).
     Q_PROPERTY(QVariantList searchMatches READ searchMatches WRITE setSearchMatches NOTIFY searchMatchesChanged)
-    // Theme tokens for the highlighter (phase9-plan.md decision 3).
-    // Optional: with no theme set the engine styles with its built-in
-    // (light) constants, which keeps every pre-Phase-9 test running
-    // unchanged. A theme change rehighlights the attached document.
+    // Theme tokens for the highlighter. Optional: with no theme set the
+    // engine styles with its built-in (light) constants, which keeps every
+    // theme-unaware test running unchanged. A theme change rehighlights the
+    // attached document.
     Q_PROPERTY(Theme *theme READ theme WRITE setTheme NOTIFY themeChanged)
-    // Internal-link resolver (phase11-plan.md decision 3): the DocumentOutline,
-    // set from QML so the highlighter can render a `[text](#slug)` link whose
-    // slug matches no heading in the muted "unresolved" style. Optional — with
-    // none set every internal link renders as an ordinary link. A change to the
-    // outline's slug set rehighlights (coalesced, off the keystroke path).
+    // Internal-link resolver: the DocumentOutline, set from QML so the
+    // highlighter can render a `[text](#slug)` link whose slug matches no
+    // heading in the muted "unresolved" style. Optional — with none set every
+    // internal link renders as an ordinary link. A change to the outline's
+    // slug set rehighlights (coalesced, off the keystroke path).
     Q_PROPERTY(DocumentOutline *linkResolver READ linkResolver WRITE setLinkResolver NOTIFY linkResolverChanged)
-    // Wiki-link resolver (pre-launch-plan.md §3.1): the NoteCollection, set
-    // from QML so the highlighter can render a [[target]] whose target
-    // matches no note in the muted "unresolved" style. Optional — with none
-    // set every wiki-link renders as an ordinary link. A collection revision
-    // bump rehighlights (coalesced, off the keystroke path).
+    // Wiki-link resolver: the NoteCollection, set from QML so the highlighter
+    // can render a [[target]] whose target matches no note in the muted
+    // "unresolved" style. Optional — with none set every wiki-link renders as
+    // an ordinary link. A collection revision bump rehighlights (coalesced,
+    // off the keystroke path).
     Q_PROPERTY(NoteCollection *wikiResolver READ wikiResolver WRITE setWikiResolver NOTIFY wikiResolverChanged)
-    // Typography (features.md §10.2, phase9-plan.md step 3): the
-    // proportional line height applied as block format (TextEdit has no
-    // lineHeight property), and the monospace family inline `code`
-    // spans render with. Both are plain values so the engine stays
-    // decoupled from the Typography settings object.
+    // Typography (features.md §10.2): the proportional line height applied as
+    // block format (TextEdit has no lineHeight property), and the monospace
+    // family inline `code` spans render with. Both are plain values so the
+    // engine stays decoupled from the Typography settings object.
     Q_PROPERTY(qreal lineHeight READ lineHeight WRITE setLineHeight NOTIFY lineHeightChanged)
     Q_PROPERTY(QString monoFontFamily READ monoFontFamily WRITE setMonoFontFamily NOTIFY monoFontFamilyChanged)
     Q_PROPERTY(int contentFontPixelSize READ contentFontPixelSize WRITE setContentFontPixelSize NOTIFY contentFontChanged)
@@ -152,11 +149,11 @@ public:
         quint32 kind = Marker;
         // The color-span value for a Color range (empty otherwise). Per
         // instance, so it travels with the range rather than mapping from a
-        // fixed token (phase10-plan.md decision 2).
+        // fixed token.
         QString color;
         // The link target for a Link range (empty otherwise). Per instance,
         // like color; the highlighter reads it to render a `#slug` internal
-        // link muted when its slug resolves to no heading (phase11 decision 3).
+        // link muted when its slug resolves to no heading.
         QString url;
 
         bool operator==(const FormatRange &other) const
@@ -173,10 +170,9 @@ public:
         int mdEditEnd = 0; // markdown position just after the inserted text
     };
 
-    // One search-match highlight range (phase7-plan.md decision 3): the
-    // input of searchHighlightRanges is DocumentSearch's display
-    // coordinates, its output the document coordinates of the current
-    // reveal state that the highlighter paints.
+    // One search-match highlight range: the input of searchHighlightRanges is
+    // DocumentSearch's display coordinates, its output the document
+    // coordinates of the current reveal state that the highlighter paints.
     struct HighlightRange {
         int start = 0;
         int length = 0;
@@ -269,7 +265,7 @@ public:
 
     Q_INVOKABLE QString linkAtDocumentPosition(int docPos) const;
 
-    // Inline-math boxes to overlay (phase11 decision 10): for each HIDDEN math
+    // Inline-math boxes to overlay: for each HIDDEN math
     // span in the current reveal state, {tex, docStart, docEnd, width, height,
     // baseline, depth, valid, error}. Document ranges are in document
     // coordinates; metrics are MicroTeX logical pixels at the content font
@@ -280,22 +276,20 @@ public:
     Q_INVOKABLE QVariantList inlineMathBoxes() const;
 
     // The inline math span containing a document position, both content
-    // edges inclusive — the backslash command-menu trigger gate
-    // (tex-editing.md "Trigger"). Returns {"found": bool, "mdStart"/
-    // "mdEnd": the span's markdown range including the $ markers,
-    // "contentStart"/"contentEnd": the markdown content range,
+    // edges inclusive — the backslash command-menu trigger gate. Returns
+    // {"found": bool, "mdStart"/"mdEnd": the span's markdown range including
+    // the $ markers, "contentStart"/"contentEnd": the markdown content range,
     // "docContentStart"/"docContentEnd": that content range in document
     // coordinates for the current reveal state, "tex": the content}.
     // {"found": false} in verbatim mode or outside any math span.
     Q_INVOKABLE QVariantMap mathSpanRangeAt(int docPos) const;
 
-    // The $ auto-pair gate (tex-editing.md "Entering inline math"): true
-    // when a $ typed at this document position should insert its closing
-    // $ too. False when the block holds an unmatched unescaped $ left of
-    // the caret, the previous character escapes it (\$), the caret sits
-    // inside an inline code span, or a letter, digit, or $ follows the
-    // caret. Always false in verbatim mode. ignoreFollowing skips the
-    // following-character rule — the selection-wrap path, where the
+    // The $ auto-pair gate: true when a $ typed at this document position
+    // should insert its closing $ too. False when the block holds an
+    // unmatched unescaped $ left of the caret, the previous character escapes
+    // it (\$), the caret sits inside an inline code span, or a letter, digit,
+    // or $ follows the caret. Always false in verbatim mode. ignoreFollowing
+    // skips the following-character rule — the selection-wrap path, where the
     // selection itself is what follows the caret.
     Q_INVOKABLE bool shouldAutoPairDollar(int docPos,
                                           bool ignoreFollowing = false) const;
@@ -354,13 +348,12 @@ public:
     static QString markdownForRange(const QString &markdown, const QList<int> &revealedSpans,
                                     int docStart, int docEnd);
     // Document-coordinate ranges the highlighter paints for the given
-    // display-coordinate search matches in the given reveal state
-    // (phase7-plan.md decision 3). Every matched character maps display →
-    // markdown (no reveals) → document (current reveals); the range runs
-    // from the first matched character to the last, so a revealed span's
-    // markers between matched characters tint with them. Out-of-range
-    // matches (stale against a fresher document) clamp or drop instead of
-    // mispainting. Verbatim mode is the identity.
+    // display-coordinate search matches in the given reveal state. Every
+    // matched character maps display → markdown (no reveals) → document
+    // (current reveals); the range runs from the first matched character to
+    // the last, so a revealed span's markers between matched characters tint
+    // with them. Out-of-range matches (stale against a fresher document)
+    // clamp or drop instead of mispainting. Verbatim mode is the identity.
     static QList<HighlightRange> searchHighlightRanges(const QString &markdown,
                                                        const QList<int> &revealedSpans,
                                                        const QList<HighlightRange> &displayMatches,
@@ -450,7 +443,7 @@ private:
     QVariantList m_searchMatchesVariant;
     QList<HighlightRange> m_searchMatches;
     mutable QHash<QString, QVariantMap> m_mathMetricsCache;
-    // Single guard flag (plan.md risk table): set around every programmatic
+    // Single guard flag: set around every programmatic
     // document edit so the engine can tell its own edits from the user's.
     bool m_internalEdit = false;
     bool m_revealUpdateQueued = false;

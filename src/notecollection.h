@@ -23,7 +23,7 @@
 class QFileInfo;
 class CollectionSearchIndex;
 
-// The notes-collection object (phase8-plan.md decision 1): one GUI-free
+// The notes-collection object: one GUI-free
 // QObject owning everything above the open document — the notes root, the
 // scanned note and folder index, all organization file operations, tags,
 // manual order, and the collection.json/index.json sidecars. View models bind to it
@@ -59,13 +59,13 @@ public:
         NoteFrontMatter::Metadata meta; // tags/pinned/favorite + foreign keys
         // Outgoing [[wiki-link]] targets, raw (heading anchors kept, aliases
         // stripped), in document order with duplicates — backlink counts come
-        // from here (pre-launch-plan.md §3.2). Extracted from the file on every
+        // from here. Extracted from the file on every
         // (re)index and persisted in the sidecar so warm startup keeps the
-        // backlink graph without reading every note (search.md §10 step 4).
+        // backlink graph without reading every note.
         QStringList links;
         // Note bodies and per-block display text are NOT held resident: global
         // search reads them from the SQLite index, and features that need one
-        // note's text read that file on demand (search.md §10).
+        // note's text read that file on demand.
     };
 
     struct FolderEntry {
@@ -78,7 +78,7 @@ public:
     explicit NoteCollection(QObject *parent = nullptr);
     ~NoteCollection() override;
 
-    // The disk-backed global-search index this collection feeds (search.md).
+    // The disk-backed global-search index this collection feeds.
     // Optional: when unset the collection keeps no search index, so tests and
     // tools that only need collection metadata spawn no worker threads or
     // database. When set, the collection opens it per root and streams note
@@ -117,7 +117,7 @@ public:
     // "" if outside the root.
     Q_INVOKABLE QString relativePath(const QString &absPath) const;
 
-    // --- Wiki-links (pre-launch-plan.md §3.2) ------------------------------
+    // --- Wiki-links --------------------------------------------------------
     // Obsidian-compatible resolution: a target matches a note by path
     // suffix — bare "note" matches any **/note.md, "folder/note" requires
     // that suffix; matching is case-insensitive and the ".md" extension is
@@ -430,7 +430,7 @@ private:
     static BodyStats analyzeBody(const QString &markdownBody);
 
     // Read one note file from disk and return its body (front-matter stripped).
-    // Bodies are no longer resident (search.md §10), so features that need one
+    // Bodies are no longer resident, so features that need one
     // note's text — headings, backlink contexts — read it on demand.
     QString readNoteBody(const QString &relPath) const;
 
@@ -452,7 +452,7 @@ private:
 
     void bump();
 
-    // --- Search-index feed (search.md §5.2/§6) ---------------------------
+    // --- Search-index feed -------------------------------------------------
     // Open the index for the current root (if needed) and reconcile it against
     // the on-disk listing: the cold build and warm-startup sync. Called at each
     // scan/refresh settle point.

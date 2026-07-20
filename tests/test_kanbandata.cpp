@@ -7,9 +7,9 @@
 
 using namespace KanbanData;
 
-// Corpus for the kanban board parse/serialize/mutate core (phase10-plan.md
-// decision 9): columns, cards, done state, labels, due dates, descriptions,
-// and the mutations — pinned before the board delegate paints any of it.
+// Corpus for the kanban board parse/serialize/mutate core: columns, cards,
+// done state, labels, due dates, descriptions, and the mutations — pinned
+// before the board delegate paints any of it.
 class TestKanbanData : public QObject
 {
     Q_OBJECT

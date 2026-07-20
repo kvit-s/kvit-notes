@@ -5,12 +5,12 @@ import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
 
-// Kanban board (features.md §1.2.12, phase10-plan.md decision 9). The block is
-// a `kanban`-tagged code fence; its content is human-readable markdown that
-// KanbanTools maps to a board and back. Every mutation — dragging a card
-// within or between columns, reordering columns, add/remove, editing a card,
-// toggling done — rewrites the fence content through the model as one undo
-// step. Column collapse and the label filter are session-scoped chrome.
+// Kanban board (features.md §1.2.12). The block is a `kanban`-tagged code
+// fence; its content is human-readable markdown that KanbanTools maps to a
+// board and back. Every mutation — dragging a card within or between columns,
+// reordering columns, add/remove, editing a card, toggling done — rewrites the
+// fence content through the model as one undo step. Column collapse and the
+// label filter are session-scoped chrome.
 Item {
     id: root
 

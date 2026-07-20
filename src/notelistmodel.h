@@ -10,7 +10,7 @@
 
 class NoteCollection;
 
-// The note list (phase8-plan.md decision 8): a projection of the
+// The note list: a projection of the
 // collection index through scope (all / favorites / one folder) and sort,
 // with pinned notes floating to the top within every sort. Owns no state
 // beyond the projection inputs; rebuilds on the collection's revision.

@@ -8,7 +8,7 @@
 
 #include "mermaidast.h"
 
-// ER-diagram parser (diagrams-prd.md §9), built grammar-first against the
+// ER-diagram parser, built grammar-first against the
 // pinned mermaid@11.16.0 erDiagram.jison: entities (bare, quoted, and
 // `NAME["alias"]`), attribute blocks with types, names, PK/FK/UK key lists and
 // quoted comments, relationships with every cardinality spelling (symbolic

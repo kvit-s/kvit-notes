@@ -4,11 +4,11 @@
 import QtQuick
 import QtQuick.Controls
 
-// The floating formatting bar (features.md §9.3, phase9-plan.md
-// decision 7): appears over a completed in-block text selection —
-// after a mouse selection ends or a Shift+arrow run pauses, both
-// covered by the settle timer — positioned above the selection (below
-// when clipped at the top), and dismissed by collapse, typing (which
+// The floating formatting bar (features.md §9.3): appears over a
+// completed in-block text selection — after a mouse selection ends or
+// a Shift+arrow run pauses, both covered by the settle timer —
+// positioned above the selection (below when clipped at the top), and
+// dismissed by collapse, typing (which
 // collapses), scrolling, or Escape (the block's deselect). Cross-block
 // selections never show it: formatting is deliberately inert there.
 // A plain high-z item, not a Popup: it must never touch focus.

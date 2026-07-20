@@ -10,11 +10,10 @@
 #include <QStringList>
 #include <QVariantMap>
 
-// Kanban board parse/serialize/mutate (phase10-plan.md decision 9). A board is
-// a fenced code block whose language tag is `kanban`, so it needs no stored
-// block type — only a derived delegate kind — and inherits the fence's
-// round-trip safety. Its content is ordinary markdown a human can read and
-// edit anywhere:
+// Kanban board parse/serialize/mutate. A board is a fenced code block whose
+// language tag is `kanban`, so it needs no stored block type — only a derived
+// delegate kind — and inherits the fence's round-trip safety. Its content is
+// ordinary markdown a human can read and edit anywhere:
 //
 //   ## To do
 //   - [ ] Card title #label 📅 2026-07-15

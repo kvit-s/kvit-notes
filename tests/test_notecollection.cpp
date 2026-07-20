@@ -9,8 +9,8 @@
 
 #include "notecollection.h"
 
-// Unit suite for the collection object (phase8-plan.md step 2), over real
-// temporary directories. The contracts under test: the scan reads and
+// Unit suite for the collection object, over real temporary
+// directories. The contracts under test: the scan reads and
 // never writes; every operation is reflected on disk and in the index;
 // destructive operations land in .kvit/trash; metadata rewrites preserve
 // body bytes and the file's modification time; collection.json state
@@ -79,16 +79,16 @@ private slots:
     void testLastOpenNotePersists();
     void testCollectionFileCorruptionTolerated();
 
-    // Backups (phase8-plan.md decision 10)
+    // Backups
     void testBackupRotationFloorAndPrune();
     void testBackupsListingAndBody();
 
-    // Crash recovery (decision 11)
+    // Crash recovery
     void testRecoveryLifecycle();
     void testRecoveryRecreatesDeletedFolder();
     void testRefreshDoesNotIngestLiveJournals();
 
-    // Wiki-links (pre-launch-plan.md §3.2)
+    // Wiki-links
     void testExtractWikiLinks();
     void testResolveWikiTarget();
     void testBacklinks();
@@ -229,7 +229,7 @@ void TestNoteCollection::testIndexFields()
     QCOMPARE(entry->wordCount, 4);
     QVERIFY(entry->modified.isValid());
     QVERIFY(entry->created.isValid());
-    // Bodies are no longer resident (search.md §10); noteInfo reads the saved
+    // Bodies are no longer resident; noteInfo reads the saved
     // body on demand.
     QCOMPARE(m_collection->noteInfo("Ideas/Reading.md").value("body").toString(),
              QStringLiteral("A **bold** reading list\n"));

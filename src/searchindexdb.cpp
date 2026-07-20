@@ -13,8 +13,8 @@
 
 #include <algorithm>
 
-// Current on-disk schema version (search.md §5: every schema change bumps
-// PRAGMA user_version; an unsupported version is rebuilt).
+// Current on-disk schema version: every schema change bumps
+// PRAGMA user_version; an unsupported version is rebuilt.
 static constexpr int kSchemaVersion = 1;
 
 namespace SearchMatching {
@@ -23,7 +23,7 @@ int unicodeScalarCount(const QString &query)
 {
     // Count Unicode scalar values of an NFC-normalized copy so a supplementary-
     // plane character is one character and composed/decomposed spellings route
-    // the same (search.md §4.1). Normalization affects routing only.
+    // the same. Normalization affects routing only.
     const QString nfc = query.normalized(QString::NormalizationForm_C);
     int count = 0;
     for (int i = 0; i < nfc.size(); ++i) {
@@ -77,7 +77,7 @@ QList<int> verifyOccurrences(const QString &displayText, const QString &query,
         bool accept = true;
         if (wholeWord) {
             // A whole-word match is bounded by non-word characters on both
-            // sides (search.md §4.2). The Qt refinement is the final authority.
+            // sides. The Qt refinement is the final authority.
             if (at > 0 && isWordChar(displayText.at(at - 1)))
                 accept = false;
             if (accept && end < displayText.size()
@@ -87,7 +87,7 @@ QList<int> verifyOccurrences(const QString &displayText, const QString &query,
         if (accept)
             offsets.append(at);
         // Non-overlapping: advance past this occurrence even when rejected, so
-        // a single scan is O(n) (search.md §4.6). CaseInsensitive keeps display
+        // a single scan is O(n). CaseInsensitive keeps display
         // offsets exact because folding is never applied to the display text.
         from = at + step;
     }
@@ -98,8 +98,8 @@ QList<int> verifyOccurrences(const QString &displayText, const QString &query,
 
 namespace {
 
-// A readable window around a match inside one block's display text (search.md
-// §8): the match's line, trimmed to 32 leading and 120 total characters with
+// A readable window around a match inside one block's display text: the
+// match's line, trimmed to 32 leading and 120 total characters with
 // ellipses. This is the sole snippet source; it never reopens the Markdown file
 // nor uses FTS5 snippet().
 SearchMatch buildMatch(const QString &text, int blockIndex, int start,
@@ -141,8 +141,8 @@ SearchMatch buildMatch(const QString &text, int blockIndex, int start,
     return match;
 }
 
-// Escape LIKE wildcards so a folder named "a_b" never scopes into "axb"
-// (search.md §7 step 3). Paired with an explicit ESCAPE clause.
+// Escape LIKE wildcards so a folder named "a_b" never scopes into "axb".
+// Paired with an explicit ESCAPE clause.
 QString escapeLike(const QString &value)
 {
     QString out;
@@ -207,7 +207,7 @@ bool SearchIndexDb::open(const QString &dbPath, const QString &connectionName)
         m_open = true;
         if (!applyPragmas())
             return false;
-        // A failed integrity check means a corrupt database (search.md §6.3).
+        // A failed integrity check means a corrupt database.
         if (!integrityOk())
             return false;
         return ensureSchema() && schemaValid();
@@ -219,7 +219,7 @@ bool SearchIndexDb::open(const QString &dbPath, const QString &connectionName)
     }
 
     // A corrupt or obsolete database is closed, removed, and rebuilt. Note
-    // files are never touched (search.md §6.3).
+    // files are never touched.
     close();
     if (m_dbPath != QStringLiteral(":memory:")) {
         QFile::remove(m_dbPath);
@@ -257,7 +257,7 @@ bool SearchIndexDb::applyPragmas()
     QSqlQuery q(db);
     // WAL keeps readers unblocked by the writer; NORMAL trades a sliver of
     // durability the disposable cache does not need for speed; the busy timeout
-    // bounds contention between the read and write connections (search.md §5).
+    // bounds contention between the read and write connections.
     const char *pragmas[] = {
         "PRAGMA foreign_keys=ON",
         "PRAGMA journal_mode=WAL",
@@ -373,8 +373,7 @@ bool SearchIndexDb::removeNote(const QString &relPath)
     const qint64 noteId = find.value(0).toLongLong();
 
     // External-content FTS5 cannot delete by rowid alone: each posting must be
-    // withdrawn with its stored folded_text, or the index corrupts silently
-    // (search.md §5 step 4).
+    // withdrawn with its stored folded_text, or the index corrupts silently.
     QSqlQuery blocks(db);
     blocks.prepare(QStringLiteral(
         "SELECT id, folded_text FROM search_blocks WHERE note_id=?"));
@@ -427,7 +426,7 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
         return false;
 
     // Retain the note id and revision across the replace so published
-    // locations can detect staleness (search.md §5 steps 3-6).
+    // locations can detect staleness.
     qint64 noteId = -1;
     qint64 nextRevision = 1;
     {
@@ -446,7 +445,7 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
     }
 
     // Withdraw old postings with their stored folded_text before deleting the
-    // block rows (search.md §5 step 4).
+    // block rows.
     if (noteId >= 0) {
         QSqlQuery blocks(db);
         blocks.prepare(QStringLiteral(
@@ -664,8 +663,8 @@ SearchResults SearchIndexDb::query(const SearchQuery &request,
     const bool wholeWord = scalarCount <= 2;
     const QString folded = SearchMatching::fold(effective);
 
-    // A punctuation-only short query has no word token and yields nothing in V1
-    // (search.md §4.2).
+    // A punctuation-only short query has no word token and yields nothing
+    // in V1.
     if (wholeWord && !SearchMatching::hasWordChar(folded))
         return results;
 
@@ -673,8 +672,7 @@ SearchResults SearchIndexDb::query(const SearchQuery &request,
                                        : QStringLiteral("search_trigrams");
     const QString phrase = SearchMatching::ftsPhrase(folded);
 
-    // Filters are applied in SQL so irrelevant blocks are never loaded
-    // (search.md §7 step 3).
+    // Filters are applied in SQL so irrelevant blocks are never loaded.
     QStringList predicates;
     predicates << ftsTable + QStringLiteral(" MATCH :phrase");
     if (!request.folderScope.isEmpty()) {
@@ -775,7 +773,7 @@ SearchResults SearchIndexDb::query(const SearchQuery &request,
             if (cancel && (candidateBlocks % cancelInterval) == 0
                 && cancel->load()) {
                 // An obsolete generation stops cooperatively; the caller
-                // discards a partial result (search.md §7).
+                // discards a partial result.
                 return SearchResults();
             }
             ++candidateBlocks;

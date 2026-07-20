@@ -14,14 +14,14 @@
 #include "mermaidedits.h"
 #include "mermaidrenderer.h"
 
-// Native painter for Mermaid diagrams (diagrams-prd.md §8.3, §8.5). It owns a
-// Mermaid source, parses and lays it out OFF the UI thread (QtConcurrent, with a
-// revision guard so a pooled/reused delegate never shows another block's late
-// result), caches the last valid scene, and paints it with QPainter — no
-// browser surface, no work in paint(). When the new source is invalid it keeps
-// painting the last good scene and exposes the error, so a delegate can show
-// "preview is from the last valid source". Colors are resolved from the theme
-// tokens bound as properties, so a theme change repaints without re-laying out.
+// Native painter for Mermaid diagrams. It owns a Mermaid source, parses and
+// lays it out OFF the UI thread (QtConcurrent, with a revision guard so a
+// pooled/reused delegate never shows another block's late result), caches the
+// last valid scene, and paints it with QPainter — no browser surface, no work
+// in paint(). When the new source is invalid it keeps painting the last good
+// scene and exposes the error, so a delegate can show "preview is from the
+// last valid source". Colors are resolved from the theme tokens bound as
+// properties, so a theme change repaints without re-laying out.
 class DiagramCanvas : public QQuickPaintedItem
 {
     Q_OBJECT
@@ -98,9 +98,9 @@ public:
     Q_INVOKABLE bool savePng(const QString &filePath, qreal scale = 2.0) const;
 
     // The current scene as a Unicode box-drawing rendition — the "Copy as
-    // text" action (pre-launch-plan.md §2.3). Reads the retained scene
-    // under the same has-scene guard as savePng (pooled delegates reset
-    // scenes; this never renders on demand). Empty when there is no scene.
+    // text" action. Reads the retained scene under the same has-scene guard as
+    // savePng (pooled delegates reset scenes; this never renders on demand).
+    // Empty when there is no scene.
     Q_INVOKABLE QString textDiagram() const;
 
     // ---- §20.1 hit-testing and selection (item coordinates) ----

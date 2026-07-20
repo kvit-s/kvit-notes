@@ -15,12 +15,11 @@
 
 class QPainter;
 
-// The single seam over the vendored MicroTeX engine (phase10-plan.md decision
-// 12). Everything the app knows about LaTeX rendering passes through here:
-// nothing else includes the MicroTeX headers. A TeX string becomes a laid-out
-// QImage, themed to a foreground color; parse failures are reported as a
-// message instead of throwing, so the delegates can show "source + named
-// error — never nothing".
+// The single seam over the vendored MicroTeX engine. Everything the app knows
+// about LaTeX rendering passes through here: nothing else includes the
+// MicroTeX headers. A TeX string becomes a laid-out QImage, themed to a
+// foreground color; parse failures are reported as a message instead of
+// throwing, so the delegates can show "source + named error — never nothing".
 //
 // MicroTeX keeps global static state and is not thread-safe, so every call
 // into it is serialized by one process-wide mutex, and the resource root
@@ -52,7 +51,7 @@ QImage render(const QString &tex, int textSizePx, const QColor &fg,
 // Paint directly into an existing QPainter, keeping MicroTeX setup and
 // locking centralized. Retained as a diagnostics/embedding seam; the rejected
 // QQuickPaintedItem display prototype that used it showed no visual gain over
-// the image provider (math-render-progress.md, direct-paint pass).
+// the image provider.
 bool paint(QPainter *painter, const QString &tex, int textSizePx,
            const QColor &fg, const QPointF &origin = QPointF(),
            QString *error = nullptr, int verticalPaddingPx = 0,
@@ -79,7 +78,7 @@ QString errorFor(const QString &tex);
 // the NewTX additions) after engine initialization. Internal names
 // (anything containing '@', e.g. the matrix@@env helpers) are filtered
 // out. Names come without the leading backslash, sorted; cached after the
-// first call. The math-command menu's completion corpus (tex-editing.md).
+// first call. The math-command menu's completion corpus.
 QStringList availableCommands();
 
 // Resolved resource root: KVIT_MATH_RES env override, else a per-platform

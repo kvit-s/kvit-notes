@@ -1,4 +1,4 @@
-# Flathub manifest (launch-plan.md D3.2). Submitted to the Flathub review
+# Flathub manifest. Submitted to the Flathub review
 # repo ~2 weeks before target launch; the KDE 6.x runtime carries Qt, so the
 # app bundles no Qt of its own (packaging/qt-lgpl-checklist.md).
 app-id: org.kvit.Notes

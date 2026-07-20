@@ -10,10 +10,9 @@
 using namespace Mermaid;
 using namespace Diagram;
 
-// State-diagram parser and layout (diagrams-prd.md §9, §15), built
-// grammar-first against the pinned mermaid@11.16.0 stateDiagram.jison. Some
-// fixtures follow that repository's demos/state.html (MIT license,
-// (c) Knut Sveidqvist).
+// State-diagram parser and layout, built grammar-first against the pinned
+// mermaid@11.16.0 stateDiagram.jison. Some fixtures follow that repository's
+// demos/state.html (MIT license, (c) Knut Sveidqvist).
 class TestMermaidState : public QObject
 {
     Q_OBJECT

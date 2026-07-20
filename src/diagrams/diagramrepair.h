@@ -6,7 +6,7 @@
 
 #include <QString>
 
-// Ingest straightening for character-cell diagrams (diagrams-prd.md §7.5).
+// Ingest straightening for character-cell diagrams.
 // LLM-emitted diagrams routinely carry small geometric flaws — a box's
 // top-right corner one or two columns short of its side bars, a connector
 // that jogs sideways between rows. This pass repairs those flaws in the

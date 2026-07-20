@@ -5,12 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The toolbar (features.md §9.2, phase9-plan.md decision 6): a block
-// type dropdown, formatting toggles reflecting the caret's span
-// membership, an insert menu over the block-menu catalog, and a view
-// menu. Right-click offers the §9.2 show/hide customization, persisted
-// per group. Every control declines focus so clicking never blurs the
-// block being edited.
+// The toolbar (features.md §9.2): a block type dropdown, formatting
+// toggles reflecting the caret's span membership, an insert menu over
+// the block-menu catalog, and a view menu. Right-click offers the §9.2
+// show/hide customization, persisted per group. Every control declines
+// focus so clicking never blurs the block being edited.
 Rectangle {
     id: toolbar
     objectName: "toolbar"
@@ -60,8 +59,8 @@ Rectangle {
         targetBlock && targetBlock.cursorFormatFlags !== undefined
             ? targetBlock.cursorFormatFlags : 0
     // Formatting applies to a focused, non-verbatim block; over a
-    // cross-block text selection the commands are deliberately inert
-    // (phase6-plan.md), so the buttons disable rather than half-work.
+    // cross-block text selection the commands are deliberately inert, so
+    // the buttons disable rather than half-work.
     readonly property bool canFormat:
         targetBlock !== null
         && targetBlock.toggleSpanType !== undefined
@@ -123,8 +122,8 @@ Rectangle {
         anchors.bottomMargin: 1
         spacing: 2
 
-        // Back/forward over the note history (pre-launch-plan.md §3.3);
-        // collection mode only, like the shortcuts they mirror.
+        // Back/forward over the note history; collection mode only, like
+        // the shortcuts they mirror.
         ToolButton {
             objectName: "toolbarBackButton"
             visible: appWindow ? appWindow.collectionOpen : false
@@ -356,9 +355,9 @@ Rectangle {
                             toolbar.typeValues[index])
                     }
                 }
-                // Wave-2 types that insert rather than convert (§4.2 parity;
-                // phase10-plan.md decisions 9, 12, 13, 14). Each routes to the
-                // same flow the slash menu uses.
+                // Wave-2 types that insert rather than convert (features.md
+                // §4.2 parity). Each routes to the same flow the slash menu
+                // uses.
                 MenuSeparator {}
                 MenuItem {
                     text: qsTr("Table")

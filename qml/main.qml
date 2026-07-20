@@ -34,15 +34,15 @@ ApplicationWindow {
     // assignment moves focus into the delegate root.
     property int lastFocusedBlock: 0
 
-    // ---- The notes collection (plan.md Phase 8) ------------------------
+    // ---- The notes collection -------------------------------------------
     // Collection mode shows the sidebar and note list; single-file mode
     // (file argument, or the test harness's unopened collection) keeps
     // the pre-Phase-8 editor-only geometry.
     readonly property bool collectionOpen: noteCollection && noteCollection.isOpen
     property bool panelsVisible: true
 
-    // §9.1 layout state (phase9-plan.md step 4): per-panel widths set
-    // by the seam handles, and independent collapse; all persisted.
+    // Layout state (features.md §9.1): per-panel widths set by the seam
+    // handles, and independent collapse; all persisted.
     property int sidebarWidth: 200
     property int noteListWidth: 260
     property bool sidebarCollapsed: false
@@ -119,8 +119,7 @@ ApplicationWindow {
     // persisted. Document-level, so it works in single-file mode too.
     property bool outlineVisible: false
     property int outlineWidth: 240
-    // Backlinks pane (pre-launch-plan.md §3.4); sits left of the outline
-    // when both are open.
+    // Backlinks pane; sits left of the outline when both are open.
     property bool backlinksVisible: false
     property int backlinksWidth: 260
     onBacklinksVisibleChanged:
@@ -298,7 +297,7 @@ ApplicationWindow {
         })
     }
 
-    // ---- Persisted session state (phase9-plan.md step 1) ---------------
+    // ---- Persisted session state --------------------------------------
     // The states earlier phases left session-scoped, read back from the
     // settings store once at startup. A separate function (rather than
     // inline onCompleted code) so integration tests can preset values
@@ -335,8 +334,8 @@ ApplicationWindow {
         // a per-session toggle. Typewriter mode does restore.
         typewriterMode = appSettings.value("view.typewriterMode", false)
         appToolbar.applyPersistedCustomization()
-        // Oversized-file guard cap (llm-normalization.md): adjustable
-        // without a rebuild, next to the autosave settings.
+        // Oversized-file guard cap: adjustable without a rebuild, next
+        // to the autosave settings.
         documentManager.maxOpenFileSizeMiB =
             appSettings.value("maxOpenFileSizeMiB", 10)
         // Window geometry: size restores unconditionally (with a sanity
@@ -494,7 +493,7 @@ ApplicationWindow {
         return true
     }
 
-    // ---- Wiki-link navigation (pre-launch-plan.md §3.3) ----------------
+    // ---- Wiki-link navigation -----------------------------------------
 
     // Back/forward over the note history; scroll positions restore after
     // the (synchronous) model load settles.
@@ -777,7 +776,7 @@ ApplicationWindow {
 
     // Qt Quick Controls (buttons, fields, scrollbars, menus) restyle
     // through palette propagation — one binding set instead of
-    // per-control color work (phase9-plan.md decision 2).
+    // per-control color work.
     palette {
         window: theme.panelBackground
         windowText: theme.textPrimary
@@ -834,7 +833,7 @@ ApplicationWindow {
     // table gives Save As no binding). Ctrl+S on an untitled document
     // still opens the save dialog; a menu entry arrives with Phase 9.
 
-    // Find bar (features.md §7.1; phase7-plan.md decisions 5 and 11).
+    // Find bar (features.md §7.1).
     // Application context: these work from a focused block, from the
     // bar's own fields, and from block-selection mode alike.
     Shortcut {
@@ -861,8 +860,8 @@ ApplicationWindow {
         onActivated: findBar.findPreviousShortcut()
     }
 
-    // Wiki-link navigation (pre-launch-plan.md §3.3): history and the
-    // quick switcher, collection mode only.
+    // Wiki-link navigation: history and the quick switcher, collection
+    // mode only.
     Shortcut {
         sequence: "Alt+Left"
         context: Qt.ApplicationShortcut
@@ -908,9 +907,9 @@ ApplicationWindow {
             if (!url || url.length === 0)
                 return
             activated(url)
-            // Wiki-link (pre-launch-plan.md §3.3): kvit-note:target#heading
-            // resolves through the collection and opens in-app — creating
-            // the note when the target dangles — never a browser.
+            // Wiki-link: kvit-note:target#heading resolves through the
+            // collection and opens in-app — creating the note when the
+            // target dangles — never a browser.
             if (url.indexOf("kvit-note:") === 0) {
                 root.followWikiLink(url.substring(10))
                 return
@@ -1095,9 +1094,9 @@ ApplicationWindow {
     // content changes and forwards its keys. Selection converts through
     // the model; focus is re-established by index afterwards because
     // the conversion may recreate the delegate.
-    // The math-command menu (tex-editing.md): opened by a backslash
-    // keystroke in a math-editing context — a MathBlock source editor or a
-    // revealed inline $…$ span. The host editor feeds it the query and
+    // The math-command menu: opened by a backslash keystroke in a
+    // math-editing context — a MathBlock source editor or a revealed
+    // inline $…$ span. The host editor feeds it the query and
     // forwards its keys; selection inserts through the host's
     // applyMathCommand, so this popup owns no text.
     property alias mathCommandMenu: mathCommandMenu
@@ -1105,15 +1104,15 @@ ApplicationWindow {
         id: mathCommandMenu
     }
 
-    // The [[ completion popup (pre-launch-plan.md §3.5), hosted like the
-    // math command menu: passive, driven by the focused block's editor.
+    // The [[ completion popup, hosted like the math command menu:
+    // passive, driven by the focused block's editor.
     property alias wikiLinkMenu: wikiLinkMenu
     WikiLinkMenu {
         id: wikiLinkMenu
     }
 
-    // The quick switcher (pre-launch-plan.md §3.3): Ctrl+P. Creation via
-    // Shift+Enter lands in the current note-list folder scope, like Ctrl+N.
+    // The quick switcher: Ctrl+P. Creation via Shift+Enter lands in the
+    // current note-list folder scope, like Ctrl+N.
     property alias quickSwitcher: quickSwitcher
     QuickSwitcher {
         id: quickSwitcher
@@ -1140,11 +1139,11 @@ ApplicationWindow {
         }
     }
 
-    // Cross-block text selection, mouse path (features.md §2.5, §21.3;
-    // phase6-plan.md decision 6). Each block's TextArea hosts a passive
-    // PointHandler that reports its presses and drag moves here — an
-    // ancestor-level handler never sees a press the TextArea accepts
-    // (pinned by the step 4 feasibility test), but the TextArea's OWN
+    // Cross-block text selection, mouse path (features.md §2.5, §21.3).
+    // Each block's TextArea hosts a passive PointHandler that reports its
+    // presses and drag moves here — an ancestor-level handler never sees
+    // a press the TextArea accepts (pinned by a feasibility test), but
+    // the TextArea's OWN
     // handlers do, and a passive grab keeps reporting moves while the
     // TextArea drags its native in-block selection (which IS the anchor
     // block's portion). The coordinator engages when the pointer
@@ -1217,9 +1216,9 @@ ApplicationWindow {
         }
     }
 
-    // Block drag-and-drop reordering (features.md §3.2, §5.4;
-    // phase6-plan.md decisions 8 and 9). Single-block drags live-move
-    // the row with undo-bypassing preview moves — the real delegate is
+    // Block drag-and-drop reordering (features.md §3.2, §5.4).
+    // Single-block drags live-move the row with undo-bypassing preview
+    // moves — the real delegate is
     // §21.4's space-holder while the floating proxy follows the
     // pointer, and the ListView's move/displaced transitions animate
     // the make-room. The drop commits ONE pre-applied command.
@@ -1428,9 +1427,9 @@ ApplicationWindow {
         }
     }
 
-    // Keys while a block selection is active (features.md §3.1;
-    // phase6-plan.md decision 3). Entering block selection focuses this
-    // item — the blurred TextArea's reveal collapses and any open block
+    // Keys while a block selection is active (features.md §3.1).
+    // Entering block selection focuses this item — the blurred
+    // TextArea's reveal collapses and any open block
     // menu dismisses, both intended. Escape/Enter return to editing;
     // plain Up/Down move the collapsed selection; Ctrl+Shift+Up/Down
     // extend it; printable keys are deliberately inert (typing never
@@ -1590,9 +1589,9 @@ ApplicationWindow {
                     var pasteText = (shift ? clipboard.text
                                            : clipboard.markdown())
                                         .replace(/\r\n/g, "\n")
-                    // Oversized-paste guard (llm-normalization.md): the
-                    // same threshold as file open — a whale payload gets a
-                    // confirm dialog instead of a silent multi-second stall.
+                    // Oversized-paste guard: the same threshold as file
+                    // open — a whale payload gets a confirm dialog instead
+                    // of a silent multi-second stall.
                     var capBytes = documentManager.maxOpenFileSizeMiB > 0
                         ? documentManager.maxOpenFileSizeMiB * 1024 * 1024
                         : 0
@@ -1698,9 +1697,9 @@ ApplicationWindow {
         }
     }
 
-    // Single-file mode → vault upgrade (launch-plan.md E4): confirms, then
-    // opens the current file's folder as the collection root. The open file
-    // stays open and becomes a note of the new vault.
+    // Single-file mode → vault upgrade: confirms, then opens the current
+    // file's folder as the collection root. The open file stays open and
+    // becomes a note of the new vault.
     Dialog {
         id: createVaultDialog
         objectName: "createVaultDialog"
@@ -1757,8 +1756,8 @@ ApplicationWindow {
         onActivated: root.panelsVisible = !root.panelsVisible
     }
 
-    // Settings (phase9-plan.md step 3; the platform convention — the
-    // spec's §13 table assigns no key).
+    // Settings (the platform convention — the shortcut table in
+    // features.md §13 assigns no key).
     Shortcut {
         sequence: "Ctrl+,"
         context: Qt.ApplicationShortcut
@@ -1772,7 +1771,7 @@ ApplicationWindow {
         onActivated: root.outlineVisible = !root.outlineVisible
     }
 
-    // Toggle the backlinks pane (pre-launch-plan.md §3.4).
+    // Toggle the backlinks pane.
     Shortcut {
         sequence: "Ctrl+Shift+B"
         context: Qt.ApplicationShortcut
@@ -1808,9 +1807,9 @@ ApplicationWindow {
         onActivated: shortcutReference.open()
     }
 
-    // Oversized-file guard (llm-normalization.md): a file over the size cap
-    // is refused before any read; the placeholder names the file, its size,
-    // and the cap, and offers the informed-consent "Open anyway".
+    // Oversized-file guard: a file over the size cap is refused before any
+    // read; the placeholder names the file, its size, and the cap, and
+    // offers the informed-consent "Open anyway".
     property string oversizedFilePath: ""
     property real oversizedFileBytes: 0
     property real oversizedFileCap: 0
@@ -1951,9 +1950,9 @@ ApplicationWindow {
         }
     }
 
-    // ---- §9.5 context menus (phase9-plan.md decision 8): shared
-    // window-level Menu instances triggering the same tested operations
-    // the shortcuts drive. A right-click on a selected block routes to
+    // ---- Context menus (features.md §9.5): shared window-level Menu
+    // instances triggering the same tested operations the shortcuts
+    // drive. A right-click on a selected block routes to
     // the selection menu; on a link, the link menu wins by specificity.
     // A visible text/link menu keeps its target's selection alive
     // through the menu's focus grab (the delegate consults this in its
@@ -2305,7 +2304,7 @@ ApplicationWindow {
                 return
             var md = imageAssets.build(path, "", "", 0)
             // An audio/video path lands a Media block; everything else an
-            // Image (phase10-plan.md decision 13). The dialog is shared.
+            // Image. The dialog is shared.
             var type = imageAssets.parse(md).kind === "media"
                      ? Block.Media : Block.Image
             blockModel.convertBlock(targetIndex, type, md)
@@ -2559,8 +2558,8 @@ ApplicationWindow {
         }
     }
 
-    // Global-search filters follow the sidebar's active scope
-    // (phase8-plan.md decision 9: folder-level search composes).
+    // Global-search filters follow the sidebar's active scope, so
+    // folder-level search composes.
     Binding {
         target: collectionSearch
         property: "folderScope"
@@ -2768,8 +2767,8 @@ ApplicationWindow {
         // Cancel - do nothing
     }
 
-    // Oversized-paste confirm (llm-normalization.md guard): pasting a
-    // payload over the open-size cap is allowed, but only deliberately.
+    // Oversized-paste confirm: pasting a payload over the open-size cap
+    // is allowed, but only deliberately.
     Dialog {
         id: largePasteConfirmDialog
         objectName: "largePasteConfirmDialog"
@@ -2978,8 +2977,8 @@ ApplicationWindow {
             errorDialog.open()
         }
 
-        // Oversized-file guard (llm-normalization.md): the file was refused
-        // before any read; show the placeholder with an "Open anyway".
+        // Oversized-file guard: the file was refused before any read;
+        // show the placeholder with an "Open anyway".
         function onOpenRejectedTooLarge(filePath, sizeBytes, capBytes) {
             root.oversizedFilePath = filePath
             root.oversizedFileBytes = sizeBytes
@@ -2997,16 +2996,16 @@ ApplicationWindow {
         }
     }
 
-    // Orderly shutdown saves (§12.2; phase8-plan.md decision 11 relies on
-    // this — the recovery journal only survives real crashes).
+    // Orderly shutdown saves (features.md §12.2). Crash recovery relies
+    // on this — the recovery journal only survives real crashes.
     onClosing: {
         if (documentManager && documentManager.isDirty && documentManager.hasFile)
             documentManager.save()
     }
 
-    // Collection wiring (phase8-plan.md decision 2): saves refresh the
-    // index; renames rebind the open document; deleting the open note
-    // moves on without resurrecting the trashed file.
+    // Collection wiring: saves refresh the index; renames rebind the
+    // open document; deleting the open note moves on without
+    // resurrecting the trashed file.
     Connections {
         target: noteCollection
         enabled: root.collectionOpen
@@ -3118,10 +3117,10 @@ ApplicationWindow {
         }
     }
 
-    // Oversized-file placeholder (llm-normalization.md guard): the file was
-    // refused before any read. Honest, cheap, and safe — no degraded
-    // text-only mode whose saves could rewrite a file the editor never
-    // truly parsed. "Open anyway" is the normal path, unmodified.
+    // Oversized-file placeholder: the file was refused before any read.
+    // Honest, cheap, and safe — no degraded text-only mode whose saves
+    // could rewrite a file the editor never truly parsed. "Open anyway"
+    // is the normal path, unmodified.
     Rectangle {
         id: oversizedFileBanner
         objectName: "oversizedFileBanner"
@@ -3179,7 +3178,7 @@ ApplicationWindow {
         }
     }
 
-    // ── Extension slots (chat.md §8) ──────────────────────────────────────
+    // ── Extension slots ───────────────────────────────────────────────────
     // Three empty Loaders a linked module fills through ExtensionRegistry:
     // a banner strip below the built-in banners, a bar between the editor and
     // the status bar, and a panel beside the outline and backlinks panes.
@@ -3344,10 +3343,10 @@ ApplicationWindow {
             }
         }
 
-        // Shared edge auto-scroller (phase6-plan.md decision 12): while
-        // a selection or block drag holds the pointer inside the
-        // viewport's top/bottom band, scroll with speed scaling with
-        // edge proximity (§21.3 "smooth accelerated scrolling").
+        // Shared edge auto-scroller: while a selection or block drag
+        // holds the pointer inside the viewport's top/bottom band,
+        // scroll with speed scaling with edge proximity (features.md
+        // §21.3 "smooth accelerated scrolling").
         QtObject {
             id: edgeScroller
             property bool active: false
@@ -3375,8 +3374,8 @@ ApplicationWindow {
             }
         }
 
-        // The open note's tags (phase8-plan.md decision 7). Stacked above
-        // the ScrollView (like the find bar): the ScrollView's anchor
+        // The open note's tags. Stacked above the ScrollView (like the
+        // find bar): the ScrollView's anchor
         // re-layout when the strip appears is a polish-frame behind, and
         // chip clicks must never fall into the document during that frame.
         TagStrip {
@@ -3493,8 +3492,8 @@ ApplicationWindow {
 
                 model: blockModel
 
-                // One delegate per block type (phase4-plan.md step 3);
-                // paragraphs and headings share the default text choice.
+                // One delegate per block type; paragraphs and headings
+                // share the default text choice.
                 // The chooser watches delegateKind, not blockType: it
                 // recreates a row's delegate whenever the watched role
                 // changes, and heading conversions must not drop focus.
@@ -3502,8 +3501,8 @@ ApplicationWindow {
                     id: blockDelegateChooser
                     role: "delegateKind"
 
-                    // Kinds a linked module registered (chat.md §8): each
-                    // becomes a DelegateChoice of its own here. This runs
+                    // Kinds a linked module registered: each becomes a
+                    // DelegateChoice of its own here. This runs
                     // before the view creates its first row, and the open
                     // build registers nothing, so the choices below are the
                     // whole story unless a premium module is linked in.
@@ -3580,8 +3579,8 @@ ApplicationWindow {
                     }
                     DelegateChoice {
                         // BlockModel::KanbanKind — a `kanban`-tagged code
-                        // fence (phase10-plan.md decision 9). Literal because
-                        // KanbanKind is a static constexpr, not a Q_ENUM.
+                        // fence. Literal because KanbanKind is a static
+                        // constexpr, not a Q_ENUM.
                         roleValue: 100
                         KanbanBlock { width: blockListView.width }
                     }
@@ -3599,14 +3598,14 @@ ApplicationWindow {
                         EmbedBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::MermaidKind — a `mermaid`-tagged code fence
-                        // (diagrams-prd.md §5.1): a natively rendered diagram.
+                        // BlockModel::MermaidKind — a `mermaid`-tagged code
+                        // fence, rendered natively as a diagram.
                         roleValue: 103
                         DiagramBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::QueryKind — a `query`-tagged code fence
-                        // (pre-launch-plan.md §1): a live front-matter query.
+                        // BlockModel::QueryKind — a `query`-tagged code
+                        // fence holding a live front-matter query.
                         roleValue: 104
                         QueryBlock { width: blockListView.width }
                     }
@@ -3693,9 +3692,9 @@ ApplicationWindow {
             }
         }
 
-        // The floating find/replace bar (features.md §7; phase7-plan.md
-        // decision 5): overlays the editor's top-right corner, so
-        // opening it reflows nothing. Placed after the ScrollView so
+        // The floating find/replace bar (features.md §7): overlays the
+        // editor's top-right corner, so opening it reflows nothing.
+        // Placed after the ScrollView so
         // presses on it never reach the selection-clearing MouseArea.
         FormattingBar {
             id: formattingBar
@@ -3729,8 +3728,8 @@ ApplicationWindow {
         anchors.bottomMargin: root.bottomChromeHeight
     }
 
-    // Backlinks pane (pre-launch-plan.md §3.4): collection mode only,
-    // left of the outline when both are open.
+    // Backlinks pane: collection mode only, left of the outline when
+    // both are open.
     BacklinksPanel {
         id: backlinksPanel
         objectName: "backlinksPanel"
@@ -3809,9 +3808,9 @@ ApplicationWindow {
                 color: theme.accent
             }
 
-            // Passive update notice (launch-plan.md D4.5): appears only when
-            // the opt-out daily check found a newer release; click opens the
-            // release page in the browser. Never a popup.
+            // Passive update notice: appears only when the opt-out daily
+            // check found a newer release; click opens the release page in
+            // the browser. Never a popup.
             Text {
                 objectName: "updateNoticeText"
                 visible: updateChecker.updateAvailable
@@ -3831,8 +3830,8 @@ ApplicationWindow {
                 }
             }
 
-            // Single-file mode's quiet upgrade path (launch-plan.md E4): a
-            // lone .md is open with no vault, and one click away is turning
+            // Single-file mode's quiet upgrade path: a lone .md is open
+            // with no vault, and one click away is turning
             // its folder into one. Deliberately a passive status-bar line,
             // never a popup or a first-run prompt.
             Text {
@@ -3916,8 +3915,8 @@ ApplicationWindow {
                 color: theme.textDisabled
             }
 
-            // §9.7 caret position: block-relative, the honest coordinate
-            // in a block editor (phase9-plan.md decision 9).
+            // Caret position (features.md §9.7): block-relative, the
+            // honest coordinate in a block editor.
             Text {
                 objectName: "cursorPositionText"
                 visible: text !== ""

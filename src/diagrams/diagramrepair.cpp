@@ -21,9 +21,9 @@ constexpr int kTol = 3;
 constexpr int kRunTol = 2;
 
 // ---- character classes ----
-// The vocabulary lives in diagramglyphs.h (pre-launch-plan.md §2.1) so the
-// ASCII exporter emits exactly what repair accepts; these thin wrappers
-// keep every call site below unchanged.
+// The vocabulary lives in diagramglyphs.h so the ASCII exporter emits exactly
+// what repair accepts; these thin wrappers keep every call site below
+// unchanged.
 
 bool isTopLeft(QChar c) { return DiagramGlyphs::isTopLeft(c); }
 bool isTopRight(QChar c) { return DiagramGlyphs::isTopRight(c); }

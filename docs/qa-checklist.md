@@ -1,6 +1,6 @@
 # Manual QA checklist
 
-Run per platform, per release candidate (launch-plan.md B5). Real Windows
+Run per platform, per release candidate. Real Windows
 and macOS hardware runs this for **every** RC, not only the first; Linux
 runs it on one X11 and one Wayland desktop session (non-WSL). Record each
 pass as `docs/qa-runs/<version>-<platform>.md` with a checked copy of this

@@ -9,8 +9,7 @@
 
 // One undo step that rewrites a block's full state — used by block-type
 // conversions (markdown prefix auto-conversion, exit-on-empty, the
-// Backspace ladder) so a single Ctrl+Z restores exactly what the user had
-// (phase4-plan.md design decision 10).
+// Backspace ladder) so a single Ctrl+Z restores exactly what the user had.
 class ConvertBlockCommand : public UndoCommand
 {
 public:

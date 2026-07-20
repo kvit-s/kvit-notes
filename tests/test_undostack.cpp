@@ -483,7 +483,7 @@ void TestUndoStack::testMacroEmpty()
 }
 
 // ============================================================================
-// Phase 4: single-step guarantees through the model API (phase4-plan.md)
+// Phase 4: single-step guarantees through the model API
 // ============================================================================
 
 void TestUndoStack::testConvertBlockIsOneUndoStep()

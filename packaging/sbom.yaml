@@ -1,4 +1,4 @@
-# Dependency manifest (launch-plan.md A2.3): every third-party component that
+# Dependency manifest: every third-party component that
 # ships in an artifact, is linked, or is vendored in the tree, plus first-party
 # assets whose provenance a distributor needs. THIRD-PARTY-NOTICES.md is
 # generated from this file by tools/generate-notices.py - edit here, never
@@ -43,8 +43,8 @@ components:
       generation tooling tools/generate_newtx_microtex.py
     files: third_party/microtex/res/fonts/kvit-newtx
     license_file: third_party/microtex/res/fonts/kvit-newtx/LICENSES,
-      NOTICE.md (authoritative provenance; naming/attribution checklist
-      executed during the math port - launch-plan.md A2)
+      NOTICE.md (authoritative provenance; the naming and attribution
+      checklist was executed during the math port)
     ships_in: [windows, macos, linux, source]
     obligations: LPPL renaming requirement satisfied by the kvit_newtx_*
       names; keep NOTICE.md and LICENSES with the fonts; Bitstream Charter
@@ -60,7 +60,7 @@ components:
     obligations: >-
       Ship the GPL-3 text with the fonts (the installed math-res tree
       carries res/greek/LICENSE, verified in the Linux install and
-      AppImage layouts). Owner ruling 2026-07-19 (decisions.md): shipped
+      AppImage layouts). Owner ruling 2026-07-19: shipped
       as aggregation - plain GPL-3, no font-embedding exception, accepted
       because the fonts are standalone data files, the app rasterizes math
       in-process, and no font is ever embedded into exported documents.

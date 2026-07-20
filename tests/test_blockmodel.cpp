@@ -573,7 +573,7 @@ void TestBlockModel::testMergeBlocks()
 }
 
 // ============================================================================
-// Phase 4: new roles and block-type operations (phase4-plan.md step 1)
+// Phase 4: new roles and block-type operations
 // ============================================================================
 
 void TestBlockModel::testPhase4Roles()
@@ -997,7 +997,7 @@ void TestBlockModel::testDelegateKindRole()
     QCOMPARE(BlockModel::delegateKindFor(Block::Divider),
              static_cast<int>(Block::Divider));
 
-    // Mermaid fences route by language like kanban/toc (diagrams-prd.md §6.1).
+    // Mermaid fences route by language like kanban/toc.
     QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "mermaid"),
              BlockModel::MermaidKind);
     // Character-diagram tags carry no kind of their own: the tag only marks
@@ -1447,8 +1447,7 @@ void TestBlockModel::testMoveBlocksToEdgesAndNoop()
     QCOMPARE(stack->count(), 1);
 }
 
-// The cache-invalidation invariant (performance-plan.md "cache
-// invalidation is the sharp edge"): after every scripted mutation the
+// The cache-invalidation invariant: after every scripted mutation the
 // id->index map must equal a linear scan.
 void TestBlockModel::testIdIndexMatchesLinearScan()
 {

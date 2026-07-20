@@ -225,7 +225,7 @@ The available block types:
   best, class/state/ER are best-effort with UML and crow's-foot markers simplified to
   `△ ◇ o < >`), **PNG** (save the rendered diagram as a 2× PNG image), and **As code**.
 
-  **Flowcharts are directly editable on the rendered diagram** (diagrams-prd.md §20).
+  **Flowcharts are directly editable on the rendered diagram**.
   Click a node or connection to select it (Tab/arrows cycle, Escape clears); the status bar
   shows its source line. Double-click (or F2/Enter) edits the label in place; drag a node to
   arrange it — the arrangement persists inside the fence as one `%% mermaid-flow:pos` comment

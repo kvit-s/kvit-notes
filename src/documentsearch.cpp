@@ -23,7 +23,7 @@ bool isWordChar(QChar c)
 }
 
 // The regex the current options call for; wholeWord wraps the pattern so
-// the two options compose (phase7-plan.md decision 7).
+// the two options compose.
 QRegularExpression compiledPattern(const QString &query, bool caseSensitive,
                                    bool wholeWord)
 {

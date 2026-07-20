@@ -57,7 +57,7 @@ public:
     void setMergeWindow(int ms) { m_mergeWindowMs = ms; }
     int mergeWindow() const { return m_mergeWindowMs; }
 
-    // Bounded history (performance-plan.md Phase 7, finding A6): when a
+    // Bounded history: when a
     // push exceeds the limit the oldest command is dropped and the clean
     // index shifts with it; a clean state older than the drop can never
     // be reached again and becomes -1.

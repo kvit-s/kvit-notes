@@ -10,7 +10,7 @@
 #include "diagramscene.h"
 #include "mermaidast.h"
 
-// Deterministic layered layout for the flowchart family (diagrams-prd.md §8.4).
+// Deterministic layered layout for the flowchart family.
 // It measures node labels, breaks cycles, assigns ranks by longest path, reduces
 // crossings with barycenter sweeps, places nodes on a layered grid, routes
 // edges, and wraps subgraph members in compound bounds. Identical source, font,
@@ -28,8 +28,8 @@ struct LayoutOptions {
 Scene layoutFlowchart(const Mermaid::FlowchartAst &ast, const LayoutOptions &opts);
 
 // Sequence family: lifelines establish columns, messages and fragments
-// establish vertical bands, labels expand columns before final placement
-// (diagrams-prd.md §8.4). Implemented in sequencelayout.cpp.
+// establish vertical bands, labels expand columns before final placement.
+// Implemented in sequencelayout.cpp.
 Scene layoutSequence(const Mermaid::SequenceAst &ast, const LayoutOptions &opts);
 
 // Class family: UML compartment boxes over the shared layered core, relations

@@ -14,12 +14,11 @@
 
 class BlockModel;
 
-// All search state (phase7-plan.md decision 1): the query, the match
-// options, the document-ordered match list, the current match, and the
-// in-selection domain. Exposed as the `documentSearch` context property;
-// the find bar binds to it and delegates RENDER matches by querying it
-// through the revision-counter pattern — nobody else owns search state,
-// mirroring DocumentSelection.
+// All search state: the query, the match options, the document-ordered
+// match list, the current match, and the in-selection domain. Exposed as
+// the `documentSearch` context property; the find bar binds to it and
+// delegates RENDER matches by querying it through the revision-counter
+// pattern — nobody else owns search state, mirroring DocumentSelection.
 //
 // Matches are computed over DISPLAY text (decision 2): what the user sees,
 // markers stripped — BlockEditorEngine::displayText(content), or the

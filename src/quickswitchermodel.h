@@ -10,7 +10,7 @@
 
 class NoteCollection;
 
-// The quick switcher's filter (pre-launch-plan.md §3.3): a GUI-free object
+// The quick switcher's filter: a GUI-free object
 // ranking the collection's notes against a typed query with the shared
 // fuzzy matcher (fuzzymatch.h), so the popup QML owns no matching logic.
 // Rows are QVariantMaps ready to render: {title, relPath, folder}.

@@ -6,8 +6,8 @@
 #include "blockkindregistry.h"
 #include "blockmodel.h"
 
-// The fence-language block-type registry (chat.md §8, seam 2): the seam that
-// lets a linked module add a block kind — a `diff` fence, say — without an
+// The fence-language block-type registry: the seam that lets a linked
+// module add a block kind — a `diff` fence, say — without an
 // edit anywhere in the core. These cases pin the two halves of that promise:
 // the built-in fences keep the kinds they have always had, and a registered
 // language reaches BlockModel::delegateKindForBlock, which is what the QML

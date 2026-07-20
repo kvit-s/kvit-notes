@@ -9,10 +9,10 @@
 
 using DiagramRepair::repair;
 
-// Ingest straightening for character diagrams (diagrams-prd.md §7.5): LLM
-// alignment flaws — ragged box edges, jogged connectors — are repaired in
-// the stored text with zero-shift edits; anything ambiguous is preserved
-// byte-exact. The checked-in llm-diagram.md is the canonical flawed corpus.
+// Ingest straightening for character diagrams: LLM alignment flaws —
+// ragged box edges, jogged connectors — are repaired in the stored text
+// with zero-shift edits; anything ambiguous is preserved byte-exact. The
+// checked-in llm-diagram.md is the canonical flawed corpus.
 class TestDiagramRepair : public QObject
 {
     Q_OBJECT

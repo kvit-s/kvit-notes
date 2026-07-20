@@ -12,11 +12,11 @@
 
 #include "block.h"
 
-// The block-type menu catalog and its fuzzy filter (phase5-plan.md
-// design decision 4): one GUI-free object holding every implemented
-// block type with its name, description, group, icon glyph, and search
-// aliases. The slash menu and the gutter plus-button both render
-// whatever itemsFor() returns; the QML layer owns no matching logic.
+// The block-type menu catalog and its fuzzy filter: one GUI-free
+// object holding every implemented block type with its name,
+// description, group, icon glyph, and search aliases. The slash menu
+// and the gutter plus-button both render whatever itemsFor() returns;
+// the QML layer owns no matching logic.
 //
 // Matching is case-insensitive subsequence over the name and aliases
 // ("h1" matches "Heading 1" via its alias, "cd" matches "Code Block" as
@@ -47,11 +47,10 @@ public:
     // Record a chosen type for the recently-used group.
     Q_INVOKABLE void noteUsed(int type);
 
-    // The recency list for the settings store (phase9-plan.md step 1):
-    // block-type ints, most recent first. setRecentTypes() coerces,
-    // drops types the catalog does not hold, dedups, and caps at
-    // MaxRecent, so a stale or hand-edited settings value cannot
-    // corrupt the menu.
+    // The recency list for the settings store: block-type ints, most
+    // recent first. setRecentTypes() coerces, drops types the catalog
+    // does not hold, dedups, and caps at MaxRecent, so a stale or
+    // hand-edited settings value cannot corrupt the menu.
     Q_INVOKABLE QVariantList recentTypes() const;
     Q_INVOKABLE void setRecentTypes(const QVariantList &types);
 

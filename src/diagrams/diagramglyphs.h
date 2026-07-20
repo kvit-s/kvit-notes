@@ -7,7 +7,7 @@
 #include <QChar>
 #include <QString>
 
-// The shared character-diagram glyph vocabulary (pre-launch-plan.md §2.1):
+// The shared character-diagram glyph vocabulary:
 // the corner/wall/fill/junction/arrow sets DiagramRepair recognizes when
 // straightening pasted diagrams, lifted here so TextCanvas EMITS exactly
 // the vocabulary repair ACCEPTS — the "exporter output is a repair fixed

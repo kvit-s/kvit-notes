@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-# SemVer per launch-plan.md D4.1: the product launches as 1.0.0 (0.x would
+# SemVer: the product launches as 1.0.0 (0.x would
 # undersell a feature-complete editor); prereleases carry -rcN in the tag,
 # not in this version.
 project(kvit-notes VERSION 1.0.0 LANGUAGES CXX)
@@ -20,17 +20,17 @@ set(CMAKE_AUTORCC ON)
 # internally even though the app does not.
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTest Widgets Multimedia Network Concurrent Sql)
 
-# The premium agent module (chat.md §8). OFF is the open editor: nothing under
+# The premium agent module. OFF is the open editor: nothing under
 # src/agent/ or qml/agent/ is compiled, no KVIT_AGENT define is set, and the
 # two guarded fragments in src/main.cpp vanish with the preprocessor. Exporting
 # the public repo is then the deletion of those paths, not an exclusion list.
 option(KVIT_AGENT "Build the premium agent module (src/agent, qml/agent)" OFF)
 
-# Vendored MicroTeX (phase10-plan.md decision 12): the math typesetting engine
+# Vendored MicroTeX: the math typesetting engine
 # behind the MathRenderer seam. Built as a static `microtex` target.
 add_subdirectory(third_party/microtex)
 
-# The core library: the whole editor except its entry point (chat.md §8, F1).
+# The core library: the whole editor except its entry point.
 # The stock executable below is a thin main() linking it, and a superset build
 # that adds a premium module links the same library and supplies its own main().
 # `kvit-core` is the CMake target name; `kvit_core` is the same library under
@@ -177,8 +177,8 @@ if(KVIT_AGENT)
     target_link_libraries(kvit-notes PRIVATE kvit-agent)
 endif()
 
-# ── Platform packaging: icon, bundle metadata, install layout (launch-plan.md
-#    B1). QML ships inside resources.qrc, so the only runtime payload beyond
+# ── Platform packaging: icon, bundle metadata, install layout.
+#    QML ships inside resources.qrc, so the only runtime payload beyond
 #    the executable is the MicroTeX resource tree; MathRenderer::resourceRoot()
 #    resolves it relative to the executable in each installed layout below,
 #    and `kvit-notes --math-selftest` verifies the result headlessly.
@@ -201,7 +201,7 @@ endif()
 include(GNUInstallDirs)
 if(WIN32)
     # Portable layout: the executable at the prefix root, math-res beside it.
-    # windeployqt fills in the Qt runtime next to them (launch-plan.md D1).
+    # windeployqt fills in the Qt runtime next to them.
     install(TARGETS kvit-notes RUNTIME DESTINATION .)
     install(DIRECTORY third_party/microtex/res/ DESTINATION math-res)
 elseif(APPLE)

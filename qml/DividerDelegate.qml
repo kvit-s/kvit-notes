@@ -53,7 +53,7 @@ Item {
     // Block-selection membership and the focus handoff, matching
     // EditableBlock (features.md §3.1 applies to every block type). A
     // divider inside a cross-block text range shows the same tint —
-    // it has no text to highlight (phase6-plan.md decision 6).
+    // it has no text to highlight.
     readonly property bool blockSelected: {
         var revision = documentSelection.revision // dependency only
         return documentSelection.isBlockSelected(delegate.index)

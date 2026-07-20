@@ -9,7 +9,7 @@
 
 #include "mermaidast.h"
 
-// Token stream for the Mermaid flowchart parser (diagrams-prd.md §8.1/§8.2).
+// Token stream for the Mermaid flowchart parser.
 // The lexer normalizes CRLF, drops `%%` comments outside labels, and turns the
 // source into tokens carrying one-based line/column offsets suitable for editor
 // diagnostics. Shape brackets and edge operators are recognized as whole tokens

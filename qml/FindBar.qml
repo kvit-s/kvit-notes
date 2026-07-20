@@ -5,14 +5,14 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The floating find bar (features.md §7.1; phase7-plan.md decisions 4–7,
-// 11). A panel overlaying the editor's top-right corner — never docked,
-// so opening it reflows nothing. All search state lives in the
-// documentSearch context property; this file is rendering, focus, and
-// key routing. The bar's fields take keyboard focus, which correctly
-// blurs any focused block (reveals collapse, menus dismiss). Escape
-// closes and returns focus to the current match; the query text survives
-// a close so F3 can resume the search (decision 11).
+// The floating find bar (features.md §7.1). A panel overlaying the
+// editor's top-right corner — never docked, so opening it reflows
+// nothing. All search state lives in the documentSearch context
+// property; this file is rendering, focus, and key routing. The bar's
+// fields take keyboard focus, which correctly blurs any focused block
+// (reveals collapse, menus dismiss). Escape closes and returns focus to
+// the current match; the query text survives a close so F3 can resume
+// the search.
 Rectangle {
     id: findBar
     objectName: "findBar"
@@ -21,7 +21,7 @@ Rectangle {
     property var appWindow: null
     property var listView: null
 
-    // Ctrl+H mode: the replace row shows (phase7-plan.md step 4).
+    // Ctrl+H mode: the replace row shows.
     property bool replaceMode: false
 
     property alias queryField: queryField
@@ -41,8 +41,8 @@ Rectangle {
     implicitWidth: barColumn.implicitWidth + 16
     implicitHeight: barColumn.implicitHeight + 12
 
-    // Read the persisted option states back from the settings store
-    // (phase9-plan.md step 1); called at startup and from tests.
+    // Read the persisted option states back from the settings store;
+    // called at startup and from tests.
     function applyPersistedOptions() {
         caseButton.checked = appSettings.value("find.caseSensitive", false)
         wordButton.checked = appSettings.value("find.wholeWord", false)
@@ -318,9 +318,9 @@ Rectangle {
             // Option toggles (§7.1). The buttons own the state; the
             // Binding elements below push it into the search object one
             // way, so user toggling never breaks a binding. Persisted
-            // through the settings store (phase9-plan.md step 1) —
-            // inSelectionOnly deliberately not: its domain is armed
-            // from the selection present when the bar opens.
+            // through the settings store — inSelectionOnly deliberately
+            // not: its domain is armed from the selection present when
+            // the bar opens.
             ToolButton {
                 id: caseButton
                 objectName: "findCaseButton"

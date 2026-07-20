@@ -185,8 +185,8 @@ void DocumentManager::setMaxOpenFileSizeMiB(int mib)
     emit maxOpenFileSizeMiBChanged();
 }
 
-// Oversized-file guard (llm-normalization.md): the check runs on
-// QFileInfo::size() BEFORE any read. The measured parse path is not the
+// Oversized-file guard: the check runs on QFileInfo::size() BEFORE any
+// read. The measured parse path is not the
 // hazard — memory (UTF-16 doubles the bytes), the save path (autosave and
 // the crash journal rewrite the whole document every dirty tick), and
 // single-block pathology (one-line whales stall QTextDocument layout) are.
@@ -388,7 +388,7 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
     }
 
     // Atomic write: a crash or error mid-write leaves the previous file
-    // intact (phase8-plan.md decision 10).
+    // intact.
     QSaveFile file(filePath);
     bool opened = false;
     {
@@ -540,8 +540,7 @@ bool DocumentManager::loadFromFile(const QString &filePath)
     // model already holds user edits, so comparing there would back up
     // everything. Layer-agnostic by design — any transformation that makes
     // the bytes we would write differ from the bytes we read (normalizer
-    // rewrites, squared tables, demoted headings) arms the one-time .bak
-    // (llm-normalization.md, persistence semantics).
+    // rewrites, squared tables, demoted headings) arms the one-time .bak.
     m_loadDiverged = currentFileText() != content;
 
     return true;
@@ -902,16 +901,15 @@ void DocumentManager::setAsyncOpenInProgress(bool inProgress)
     emit openInProgressChanged();
 }
 
-// One-time backup before the first diverging overwrite
-// (llm-normalization.md): when a load found that saving would rewrite the
-// file (the parse-time normalizations are not undoable — the normalized
-// state is the document's baseline), the first save to the SAME path copies
-// the on-disk file to <filename>.bak first. The full name is appended
-// (note.md → note.md.bak) so the backup stays out of the folder tree and
-// collection search. Save-as disarms without a backup — the original file
-// is not being overwritten. A seatbelt, not a versioning system: an
-// existing .bak is presumed to hold an earlier (closer-to-original) form
-// and is never overwritten.
+// One-time backup before the first diverging overwrite: when a load found
+// that saving would rewrite the file (the parse-time normalizations are not
+// undoable — the normalized state is the document's baseline), the first save
+// to the SAME path copies the on-disk file to <filename>.bak first. The full
+// name is appended (note.md → note.md.bak) so the backup stays out of the
+// folder tree and collection search. Save-as disarms without a backup — the
+// original file is not being overwritten. A seatbelt, not a versioning
+// system: an existing .bak is presumed to hold an earlier
+// (closer-to-original) form and is never overwritten.
 void DocumentManager::maybeBackupBeforeDivergingWrite(const QString &filePath)
 {
     if (!m_loadDiverged)

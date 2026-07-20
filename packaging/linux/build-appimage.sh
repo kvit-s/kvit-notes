@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the Linux AppImage (launch-plan.md D3.1): install the linux-release
+# Build the Linux AppImage: install the linux-release
 # preset into an AppDir, bundle Qt with linuxdeploy-plugin-qt, and emit
 # dist/Kvit_Editor-<version>-x86_64.AppImage.
 #

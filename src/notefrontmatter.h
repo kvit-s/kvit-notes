@@ -9,8 +9,8 @@
 #include <QDateTime>
 #include <QMap>
 
-// Pure front-matter handling for note files (phase8-plan.md, storage
-// decision). A front-matter block is a "---" fence line at byte 0, mapping
+// Pure front-matter handling for note files.
+// A front-matter block is a "---" fence line at byte 0, mapping
 // lines, and a closing "---" fence line; everything after is the note body.
 //
 // split() is byte-preserving: block + body == the input whenever a block is
@@ -36,9 +36,8 @@ public:
         QStringList unknownLines; // preserved verbatim, in order, no '\n'
         // Every "key: value" line as raw scalar text, known keys included,
         // first level only (a block list stores ""); last occurrence wins.
-        // READ-ONLY DERIVED DATA for the query block (pre-launch-plan.md
-        // §1.1): serialize() never emits from it, so the byte-preserving
-        // contract is untouched.
+        // READ-ONLY DERIVED DATA for the query block: serialize() never
+        // emits from it, so the byte-preserving contract is untouched.
         QMap<QString, QString> fields;
 
         // Typed accessors for query evaluation — pure, no locale

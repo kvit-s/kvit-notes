@@ -11,7 +11,7 @@
 
 using namespace Mermaid;
 
-// Sequence-diagram layout (diagrams-prd.md §8.4): lifelines establish columns,
+// Sequence-diagram layout: lifelines establish columns,
 // messages and fragments establish vertical bands, and labels expand columns
 // before final placement. Deterministic for identical source, font, and
 // options; visually follows the conventions a Mermaid user recognizes

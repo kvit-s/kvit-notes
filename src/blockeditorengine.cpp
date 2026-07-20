@@ -27,10 +27,10 @@ namespace {
 // Inline-style fallbacks (features.md §2.1, §2.2): the light theme's
 // values, used by engines with no theme set (unit tests, and any
 // context that never installs one). With a theme set, the highlighter
-// reads the equivalent tokens from it (phase9-plan.md decision 3).
+// reads the equivalent tokens from it.
 // The search tints are blue, not yellow, so a match inside a
 // ==highlight== span stays distinguishable; the current match is the
-// strong one the eye lands on (phase7-plan.md decision 3).
+// strong one the eye lands on.
 const QColor kMarkerColor("#b8b8b8");          // muted markdown markers
 const QColor kHighlightBackground("#fdf3a9");  // ==highlight== tint
 const QColor kCodeBackground("#f0f0ee");       // `code` background
@@ -39,7 +39,7 @@ const QColor kUnresolvedLinkColor("#9a9a9a");  // muted: #slug with no heading
 const QColor kSearchMatchBackground("#b5dcff");
 const QColor kSearchCurrentBackground("#ffb454");
 // Code-highlight fallbacks (light theme's values) for engines with no
-// theme set — mirrors the inline fallbacks above (phase10-plan.md decision 3).
+// theme set — mirrors the inline fallbacks above.
 const QColor kCodeKeyword("#a626a4");
 const QColor kCodeType("#4078f2");
 const QColor kCodeString("#50a14f");
@@ -59,16 +59,15 @@ QList<int> singleSpanList(int revealedSpan)
     return {revealedSpan};
 }
 
-// The single traversal every state function is built on (phase3-plan.md,
-// "The span-type registry"): ordered segments mapping document ranges to
-// markdown ranges for a given reveal state. Segments with docLen > 0 are
-// 1:1 (their document text equals their markdown slice); HiddenMarker
-// segments are the marker characters of a hidden span — present in the
-// markdown, zero-width in the document. Nested spans recurse: the reveal
-// unit is the top-level span, so a revealed span shows every marker in its
-// subtree and a hidden one hides them all. A trailing Plain segment is
-// always present (possibly zero-length) so end-of-text positions
-// extrapolate from it.
+// The single traversal every state function is built on: ordered segments
+// mapping document ranges to markdown ranges for a given reveal state.
+// Segments with docLen > 0 are 1:1 (their document text equals their
+// markdown slice); HiddenMarker segments are the marker characters of a
+// hidden span — present in the markdown, zero-width in the document.
+// Nested spans recurse: the reveal unit is the top-level span, so a revealed
+// span shows every marker in its subtree and a hidden one hides them all. A
+// trailing Plain segment is always present (possibly zero-length) so
+// end-of-text positions extrapolate from it.
 struct Seg {
     enum Kind {
         Plain,         // text outside any span
@@ -84,8 +83,8 @@ struct Seg {
     int spanIdx = -1;   // top-level span index, -1 for Plain
     quint32 flags = 0;  // char-format flags (ancestor flags combined)
     int ownerIdx = -1;  // owning node in the flat span tree, -1 for Plain
-    QString color;      // nearest enclosing color-span value (decision 2)
-    QString url;        // nearest enclosing link target (phase11 decision 3)
+    QString color;      // nearest enclosing color-span value
+    QString url;        // nearest enclosing link target
 };
 
 // Pre-order flattening of the span tree, for owner chains and coverage.
@@ -235,10 +234,10 @@ protected:
     }
 
 private:
-    // Code-block syntax highlighting (phase10-plan.md decision 3). Runs only
-    // in verbatim mode. Multi-line constructs (block comments, triple-quoted
-    // strings) ride QSyntaxHighlighter's block-state mechanism: the previous
-    // line's carry-state feeds this line's scan, and this line's end-state is
+    // Code-block syntax highlighting. Runs only in verbatim mode. Multi-line
+    // constructs (block comments, triple-quoted strings) ride
+    // QSyntaxHighlighter's block-state mechanism: the previous line's
+    // carry-state feeds this line's scan, and this line's end-state is
     // published so a change re-runs the following block. An empty or
     // unrecognized language paints nothing — a plain monospace code block.
     void applyCodeFormats(const QString &text)
@@ -307,10 +306,10 @@ private:
                                            : kHighlightBackground);
             if (range.kind & BlockEditorEngine::FormatRange::Link) {
                 // An internal link ([text](#slug)) whose slug matches no
-                // heading renders muted — the recoverable "unresolved" state
-                // (decision 3). Needs a resolver; without one, links are
-                // ordinary. Only #-prefixed targets are ever checked, so an
-                // external URL never pays the lookup.
+                // heading renders muted — the recoverable "unresolved" state.
+                // Needs a resolver; without one, links are ordinary. Only
+                // #-prefixed targets are ever checked, so an external URL
+                // never pays the lookup.
                 bool unresolved = false;
                 if (m_engine->m_linkResolver
                     && range.url.startsWith(QLatin1Char('#'))) {
@@ -345,7 +344,7 @@ private:
                     format.setForeground(theme ? theme->link() : kLinkColor);
                 format.setFontUnderline(true);
             }
-            // Text color (decision 2): the explicit color wins over any
+            // Text color: the explicit color wins over any
             // inherited foreground (link accent included). An invalid value
             // is left unpainted rather than defaulting to black.
             if (range.kind & BlockEditorEngine::FormatRange::Color) {
@@ -353,7 +352,7 @@ private:
                 if (c.isValid())
                     format.setForeground(c);
             }
-            // Hidden inline math (decision 10): render the TeX content
+            // Hidden inline math: render the TeX content
             // transparently and stretch/compress it to the renderer-owned
             // logical width. The delegate overlays the rendered equation at
             // that box. A revealed math span has had its Math flag stripped in
@@ -439,11 +438,10 @@ private:
                        QTextCharFormat::FontPropertiesSpecifiedOnly);
     }
 
-    // Search-match overlay (phase7-plan.md decision 3). Backgrounds are
-    // MERGED into the already-set formats character by character —
-    // setFormat over a whole range would replace them and strip the
-    // bold/italic/link styling under the tint. Runs in verbatim mode
-    // too: code blocks skip span styling only.
+    // Search-match overlay. Backgrounds are MERGED into the already-set
+    // formats character by character — setFormat over a whole range would
+    // replace them and strip the bold/italic/link styling under the tint.
+    // Runs in verbatim mode too: code blocks skip span styling only.
     void applySearchOverlay(const QString &text, int blockPos)
     {
         if (m_engine->m_searchMatches.isEmpty())
@@ -1468,14 +1466,13 @@ void BlockEditorEngine::rehighlight()
     }
 }
 
-// Sup/sub raising (phase9-plan.md decision 5). The highlighter's layout
-// formats shrink the font but Qt Quick's glyph pipeline ignores their
-// vertical alignment; FRAGMENT character formats (the rich-text path)
-// do render raised/lowered. So the alignment lands as real character
-// formats under the internal-edit guard — re-applied on every
-// rehighlight, which already runs after rebuilds, reveal transitions,
-// and theme changes. The clearing pass keeps stale alignment from
-// surviving span edits.
+// Sup/sub raising. The highlighter's layout formats shrink the font but Qt
+// Quick's glyph pipeline ignores their vertical alignment; FRAGMENT character
+// formats (the rich-text path) do render raised/lowered. So the alignment
+// lands as real character formats under the internal-edit guard — re-applied
+// on every rehighlight, which already runs after rebuilds, reveal
+// transitions, and theme changes. The clearing pass keeps stale alignment
+// from surviving span edits.
 void BlockEditorEngine::applyVerticalAlignmentFormats()
 {
     if (!m_doc || m_verbatim)

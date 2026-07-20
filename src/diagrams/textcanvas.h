@@ -9,8 +9,8 @@
 #include <QString>
 #include <QStringList>
 
-// Character-grid draw target for the Mermaid → text exporter
-// (pre-launch-plan.md §2.1). DiagramRepair analyzes character diagrams;
+// Character-grid draw target for the Mermaid → text exporter.
+// DiagramRepair analyzes character diagrams;
 // this is the missing constructive half: a dynamically grown grid of
 // QChar cells with box/line primitives whose crossings resolve to the
 // proper junction glyphs (drawing ─ over │ yields ┼; over a box's top

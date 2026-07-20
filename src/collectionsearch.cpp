@@ -151,7 +151,7 @@ void CollectionSearch::setCustomTo(const QDate &date)
 void CollectionSearch::scheduleQuery()
 {
     // An empty query is inert and applies immediately: the ordinary editing
-    // path pays nothing (search.md §4.1).
+    // path pays nothing.
     if (m_query.trimmed().isEmpty()) {
         m_debounce.stop();
         publishEmpty();
@@ -196,7 +196,7 @@ void CollectionSearch::submit()
 void CollectionSearch::onQueryFinished(quint64 generation,
                                        SearchResults results)
 {
-    // Keep only the latest generation (search.md §7).
+    // Keep only the latest generation.
     if (generation < m_accepted)
         return;
     m_accepted = generation;

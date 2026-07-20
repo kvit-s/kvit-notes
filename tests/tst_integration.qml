@@ -67,7 +67,7 @@ Item {
             tryCompare(textArea, "activeFocus", true, 1000)
         }
 
-        // Screenshot helper (mechanism proven 2026-07-06, see plan.md):
+        // Screenshot helper (mechanism proven 2026-07-06):
         // main.qml is an ApplicationWindow — inside a Loader it becomes a
         // SEPARATE window, so grab its contentItem; grabbing the test root
         // yields a blank image. grabImage is synchronous; the asynchronous
@@ -743,9 +743,9 @@ Item {
         }
 
         function test_22c_newInlineTypesRevealAndHide() {
-            // phase3-plan.md step 2: each new symmetric type renders with
-            // markers hidden and reveals its syntax while the cursor is
-            // inside the span (features.md §2.2 applied to ~~ ` == ++).
+            // Each new symmetric type renders with markers hidden and
+            // reveals its syntax while the cursor is inside the span
+            // (features.md §2.2 applied to ~~ ` == ++).
             if (isHeadless) {
                 skip("Focus-dependent test requires display")
             }
@@ -798,9 +798,9 @@ Item {
         }
 
         function test_22d_linkRevealAndAutolink() {
-            // phase3-plan.md step 6: a [text](url) link renders as its
-            // text and reveals the full syntax while the cursor touches
-            // it; a bare URL is a link without any hidden syntax.
+            // A [text](url) link renders as its text and reveals the full
+            // syntax while the cursor touches it; a bare URL is a link
+            // without any hidden syntax.
             if (isHeadless) {
                 skip("Focus-dependent test requires display")
             }
@@ -844,7 +844,7 @@ Item {
         }
 
         function test_23_focusNeverChangesTextOrSize() {
-            // Block-geometry invariant 1 (plan.md): focus alone (cursor in
+            // Block-geometry invariant 1: focus alone (cursor in
             // plain text, outside any span) never changes a block's text
             // or size. Cursor ENTERING a span changes the text by exactly
             // the marker characters — that is invariant 2, covered by
@@ -856,9 +856,8 @@ Item {
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
-            // Every inline type participates (phase3-plan.md exit
-            // criteria: the geometry invariants hold for the full
-            // registry, not just bold/italic).
+            // Every inline type participates: the geometry invariants
+            // hold for the full registry, not just bold/italic.
             blockModel.updateContent(0,
                 "Hi **b** ~~s~~ ==h== ++u++ `c` [l](http://x) https://y.io")
             wait(100)
@@ -964,8 +963,8 @@ Item {
         }
 
         function test_29_noPhantomGap() {
-            // Phantom-gap regression (plan.md "Block geometry across
-            // rendering states"): a one-line formatted block must have the
+            // Phantom-gap regression, block geometry across rendering
+            // states: a one-line formatted block must have the
             // same height as a one-line plain block. Under the old overlay
             // design, height followed a hidden second text and formatted
             // blocks reserved too much space.
@@ -2001,8 +2000,8 @@ Item {
         }
 
         function test_69e_ctrlCCopiesSelectionAsMarkdown() {
-            // basic-features.md §5.2: copy puts markdown on the clipboard —
-            // selecting the rendered bold word copies "**world**".
+            // Copy puts markdown on the clipboard — selecting the
+            // rendered bold word copies "**world**".
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
@@ -2146,8 +2145,8 @@ Item {
 
         // Step 7e: Edge Case Tests
         function test_69j_newFormattingShortcuts() {
-            // phase3-plan.md step 5: Ctrl+Shift+S / Ctrl+U / Ctrl+E toggle
-            // their types through the model (features.md §13 shortcuts).
+            // Ctrl+Shift+S / Ctrl+U / Ctrl+E toggle their types through
+            // the model (features.md §13 shortcuts).
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
@@ -2201,7 +2200,7 @@ Item {
             tryCompare(textArea, "activeFocus", false, 1000)
         }
 
-        // ===== phase3-plan.md step 7: link dialog and click-to-open =====
+        // ===== Link dialog and click-to-open =====
 
         function test_69k_ctrlKInsertsLink() {
             if (isHeadless) {
@@ -2449,7 +2448,7 @@ Item {
         }
 
         function test_75_typingLatencyIn100BlockDocument() {
-            // Phase 1 exit criterion (plan.md): typing latency imperceptible
+            // Exit criterion: typing latency imperceptible
             // in a 100-block document — measured, not estimated. §21.7
             // target: < 16ms per keystroke (60 fps). The measurement wraps
             // the full pipeline: key event -> engine edit mapping -> model
@@ -2498,10 +2497,10 @@ Item {
         }
 
         function test_75b_typingLatencyWithFindBarOpen() {
-            // Phase 7 exit criterion (phase7-plan.md step 5): with the
-            // find bar open on a live query, the search recompute joins
-            // the keystroke path — every content change rescans the
-            // document and repaints the visible engines' match tints.
+            // Phase 7 exit criterion: with the find bar open on a live
+            // query, the search recompute joins the keystroke path —
+            // every content change rescans the document and repaints
+            // the visible engines' match tints.
             // Same §21.7 budget: < 16ms per keystroke.
             if (isHeadless) {
                 skip("Keyboard tests require display")
@@ -2553,11 +2552,10 @@ Item {
             resetFindBar()
         }
 
-        // The wave-2 performance budgets (phase10-plan.md decision 15),
-        // measured on the final build: keystroke latency inside a
-        // syntax-highlighted 200-line code block, a 100-image document's open
-        // cost (layout, not decoding — image loads are async and virtualized),
-        // and table cell navigation per Tab.
+        // The wave-2 performance budgets, measured on the final build:
+        // keystroke latency inside a syntax-highlighted 200-line code block,
+        // a 100-image document's open cost (layout, not decoding — image
+        // loads are async and virtualized), and table cell navigation per Tab.
         function test_75c_wave2PerformanceBudgets() {
             if (isHeadless) {
                 skip("Keyboard tests require display")
@@ -2705,9 +2703,9 @@ Item {
         }
 
         function test_76_roundTripFidelity() {
-            // basic-features.md §10 claim 5: save -> close -> reopen ->
-            // identical content, including markdown that never parsed to
-            // spans (edge syntax preserved verbatim).
+            // Save -> close -> reopen -> identical content, including
+            // markdown that never parsed to spans (edge syntax preserved
+            // verbatim).
             documentManager.newDocument()
             wait(100)
 
@@ -2746,7 +2744,7 @@ Item {
         }
 
         function test_77_delegatePoolingWithEngine() {
-            // plan.md Phase 2: delegate pooling (reuseItems) safe with the
+            // Delegate pooling (reuseItems) safe with the
             // engine attached — pooled delegates detach/reattach cleanly.
             documentManager.newDocument()
             wait(100)
@@ -2775,7 +2773,7 @@ Item {
         }
 
         function test_78_loadTimeMeasurement() {
-            // plan.md Phase 2 performance harness: measured load time for a
+            // Performance harness: measured load time for a
             // generated document, against the §21.7 target (< 1s). The
             // generator mixes every Phase 4 block type, so the measurement
             // covers the line scanner and per-type delegates.
@@ -2811,7 +2809,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 4 step 3: per-type delegates (phase4-plan.md)
+        // Phase 4 step 3: per-type delegates
         // ==================================================================
 
         function test_80_bulletDelegateRendersGlyphByLevel() {
@@ -2969,8 +2967,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            // Focus alone never resizes a block (plan.md geometry
-            // invariants) — now also for the structural types.
+            // Focus alone never resizes a block (a block-geometry
+            // invariant) — now also for the structural types.
             documentManager.newDocument()
             wait(100)
             blockModel.insertBlock(0, 4, "bullet **bold** *italic*")
@@ -3041,7 +3039,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 4 step 4: keyboard behavior (phase4-plan.md)
+        // Phase 4 step 4: keyboard behavior
         // ==================================================================
 
         function test_90_enterContinuesListType() {
@@ -3314,7 +3312,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 4 step 5: markdown prefix auto-conversion (phase4-plan.md)
+        // Phase 4 step 5: markdown prefix auto-conversion
         // ==================================================================
 
         function typeString(s) {
@@ -3484,7 +3482,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 5 step 3: the slash menu (phase5-plan.md; features.md §4)
+        // Phase 5 step 3: the slash menu (features.md §4)
         // "test_a*" sorts after every "test_<digit>*" so these run last.
         // ==================================================================
 
@@ -3525,7 +3523,7 @@ Item {
             compare(blockModel.getContent(0), "/",
                     "The slash lands in the model like any typing")
 
-            // Focus never leaves the block (phase5-plan.md decision 3)
+            // Focus never leaves the block
             verify(textArea.activeFocus, "The TextArea keeps focus")
 
             // Empty query: the grouped catalog with headers (§4.3)
@@ -4421,10 +4419,9 @@ Item {
             }
             docWithBlocks(["alpha beta", "second block", "third words"])
 
-            // Feasibility pins (phase6-plan.md step 4): the passive
-            // PointHandler must see moves while the pressed TextArea
-            // holds the exclusive grab, and unfocused TextAreas must
-            // hold programmatic selections.
+            // Feasibility pins: the passive PointHandler must see moves
+            // while the pressed TextArea holds the exclusive grab, and
+            // unfocused TextAreas must hold programmatic selections.
             dragSelect(0, 6, 2, 5)
             tryCompare(documentSelection, "hasTextSelection", true, 1000)
 
@@ -4917,7 +4914,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 7 step 3: the find bar (features.md §7.1; phase7-plan.md)
+        // Phase 7 step 3: the find bar (features.md §7.1)
         // ==================================================================
 
         // The mixed search fixture: 7 case-insensitive "fox" matches —
@@ -5219,7 +5216,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 7 step 4: replace (features.md §7.2; phase7-plan.md)
+        // Phase 7 step 4: replace (features.md §7.2)
         // ==================================================================
 
         function openReplaceBar() {
@@ -5473,7 +5470,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 3: the three-pane shell (phase8-plan.md)
+        // Phase 8 step 3: the three-pane shell
         // ============================================================
 
         property int collectionSerial: 0
@@ -5754,7 +5751,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 4: tags end to end (phase8-plan.md decision 7)
+        // Phase 8 step 4: tags end to end
         // ============================================================
 
         // Accept a modal dialog and wait out its exit transition: the
@@ -5953,7 +5950,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 5: the note list complete (phase8-plan.md)
+        // Phase 8 step 5: the note list complete
         // ============================================================
 
         function listOrder() {
@@ -6225,7 +6222,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 6: global search (phase8-plan.md decision 9)
+        // Phase 8 step 6: global search
         // ============================================================
 
         function seedSearchContent() {
@@ -6375,8 +6372,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 7: backups and crash recovery (phase8-plan.md
-        // decisions 10, 11)
+        // Phase 8 step 7: backups and crash recovery
         // ============================================================
 
         function test_x1_restoreFromBackupIsOneUndoStep() {
@@ -6614,9 +6610,9 @@ Item {
 
         // ============================================================
         // Phase 9 step 1: the settings store and persisted session
-        // state (phase9-plan.md). Write paths are exercised through
-        // the UI-facing state owners; the read path through
-        // applyPersistedSessionState, the function startup runs.
+        // state. Write paths are exercised through the UI-facing state
+        // owners; the read path through applyPersistedSessionState,
+        // the function startup runs.
         // ============================================================
 
         function test_z1_settingsRoundTripAcrossStores() {
@@ -6841,7 +6837,6 @@ Item {
 
         // ============================================================
         // Phase 9 step 4: resizable panels and independent collapse
-        // (phase9-plan.md decision 11).
         // ============================================================
 
         function test_zc_panelSeamResizesAndPersists() {
@@ -6946,7 +6941,6 @@ Item {
 
         // ============================================================
         // Phase 9 step 5: superscript/subscript and the toolbar
-        // (phase9-plan.md decisions 5-6).
         // ============================================================
 
         function test_ze_supSubTypeAndReveal() {
@@ -7353,8 +7347,8 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 6: the §9.7 status bar and the §9.3 floating
-        // formatting bar (phase9-plan.md decisions 7 and 9).
+        // Phase 9 step 6: the status bar and the floating formatting
+        // bar (features.md §9.7 and §9.3).
         // ============================================================
 
         function test_zj_statusBarCaretPosition() {
@@ -7526,9 +7520,9 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 7: §9.5 context menus and trash emptying
-        // (phase9-plan.md decision 8). Menus trigger operations that
-        // are independently tested; these spot-check routing.
+        // Phase 9 step 7: context menus (features.md §9.5) and trash
+        // emptying. Menus trigger operations that are independently
+        // tested; these spot-check routing.
         // ============================================================
 
         function test_zn_textAndLinkContextMenus() {
@@ -8610,7 +8604,7 @@ Item {
         }
 
         function test_zzp_oversizedPasteConfirmAndPlaceholder() {
-            // llm-normalization.md guard: a clipboard payload over the
+            // Oversized-payload guard: a clipboard payload over the
             // open-size cap gets a confirm dialog before insertMarkdownAt
             // runs, instead of a silent multi-second stall.
             if (isHeadless) {
@@ -8668,7 +8662,7 @@ Item {
             documentManager.maxOpenFileSizeMiB = oldCap
         }
 
-        // ---- tex-editing.md: math command menu + $ auto-pair ----
+        // ---- Math command menu + $ auto-pair ----
 
         // The popup glue, driven directly (no focus needed, runs
         // headless): browse/completion modes, ranking surface, host
@@ -9050,7 +9044,7 @@ Item {
             compare(blockModel.blockAt(0).language, "diagram",
                     "conversion must survive delegate teardown")
             // A `diagram` fence stays on the code delegate: the tag only
-            // marks it for ingest straightening (diagrams-prd.md §7.5).
+            // marks it for ingest straightening.
             var nd = findBlockDelegate(0)
             verify(nd && typeof nd.setCodeLanguage === "function",
                    "diagram fence renders as an ordinary code block")
@@ -9174,8 +9168,8 @@ Item {
         }
 
         // ============================================================
-        // Wiki-links (pre-launch-plan.md §3) — follow/create, backlinks
-        // panel, quick switcher, history, rename safety, completion.
+        // Wiki-links — follow/create, backlinks panel, quick switcher,
+        // history, rename safety, completion.
         // ============================================================
 
         // Write the open note's first block and save, so the collection
@@ -9419,9 +9413,8 @@ Item {
         }
 
         // ============================================================
-        // Collection query block (pre-launch-plan.md §1) — rendering,
-        // click-to-open, and the live file-watcher update the launch
-        // demo claims.
+        // Collection query block — rendering, click-to-open, and the
+        // live file-watcher update the launch demo claims.
         // ============================================================
 
         function test_wiki7_queryBlockRendersAndUpdatesLive() {

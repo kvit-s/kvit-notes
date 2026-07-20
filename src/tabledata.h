@@ -10,7 +10,7 @@
 #include <QStringList>
 #include <QVariantMap>
 
-// Pipe-table parse/serialize/mutate (phase10-plan.md decision 8). A table
+// Pipe-table parse/serialize/mutate. A table
 // block's content is the raw GitHub-flavored pipe-table markdown — content IS
 // the syntax here, unlike the prefix-state block types, because a grid does
 // not decompose into per-block fields. This pure component maps that markdown

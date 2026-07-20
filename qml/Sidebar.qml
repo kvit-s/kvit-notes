@@ -5,10 +5,10 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The navigation sidebar (phase8-plan.md decision 4): scopes, the folder
-// tree, and — from step 4 — the tag list. Functional Fusion styling only;
-// Phase 9 owns the chrome. All state lives in noteCollection /
-// noteListModel; this pane renders and forwards.
+// The navigation sidebar: scopes, the folder tree, and the tag list.
+// Functional Fusion styling only; Phase 9 owns the chrome. All state
+// lives in noteCollection / noteListModel; this pane renders and
+// forwards.
 Rectangle {
     id: sidebar
     objectName: "sidebar"
@@ -53,8 +53,8 @@ Rectangle {
         color: theme.border
     }
 
-    // Recent searches (§8.4), persisted through the settings store
-    // (phase9-plan.md step 1); read back by applyPersistedSessionState.
+    // Recent searches (features.md §8.4), persisted through the settings
+    // store; read back by applyPersistedSessionState.
     property var recentSearches: []
 
     function applyPersistedSearchHistory() {
@@ -99,7 +99,7 @@ Rectangle {
             onTextEdited: collectionSearch.query = text
             onAccepted: {
                 // Enter runs the current query immediately, bypassing the
-                // debounce (search.md §7).
+                // debounce.
                 collectionSearch.query = text
                 collectionSearch.submitNow()
                 sidebar.commitRecentSearch(text)
@@ -703,7 +703,7 @@ Rectangle {
     }
 
     // ---- Tag manage dialog: rename (merge when the target exists) and
-    // color (§8.2 tag management; phase8-plan.md decision 7) -------------
+    // color (features.md §8.2 tag management) --------------------------
     Dialog {
         id: tagDialog
         objectName: "tagDialog"

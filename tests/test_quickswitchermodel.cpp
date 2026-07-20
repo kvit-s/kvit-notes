@@ -9,8 +9,8 @@
 #include "notecollection.h"
 #include "quickswitchermodel.h"
 
-// Unit suite for the quick switcher's filter (pre-launch-plan.md §3.3):
-// ranking through the shared fuzzy matcher over title and relPath, the
+// Unit suite for the quick switcher's filter: ranking through the
+// shared fuzzy matcher over title and relPath, the
 // empty-query recency listing, and the row shape QML renders.
 class TestQuickSwitcherModel : public QObject
 {

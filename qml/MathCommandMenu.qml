@@ -6,11 +6,11 @@ import QtQuick.Controls
 import QtQuick.Window
 import Kvit 1.0
 
-// The math-command menu (tex-editing.md): the popup a backslash keystroke
-// opens on both math-editing surfaces — a MathBlock's source editor and a
-// revealed inline $…$ span in a prose block. Like BlockMenu it is one
-// passive Popup: it NEVER takes focus — keystrokes keep flowing into the
-// host editor (which is what feeds the query), and the host forwards
+// The math-command menu: the popup a backslash keystroke opens on both
+// math-editing surfaces — a MathBlock's source editor and a revealed
+// inline $…$ span in a prose block. Like BlockMenu it is one passive
+// Popup: it NEVER takes focus — keystrokes keep flowing into the host
+// editor (which is what feeds the query), and the host forwards
 // navigation keys here while the menu targets it.
 //
 // Two modes, one popup: an empty query shows the browse panel (category
@@ -108,7 +108,7 @@ Popup {
 
     // Fed by the host on every relevant edit while the menu is open.
     // A query that matches nothing closes the menu (the typed character
-    // stays in the source, tex-editing.md keyboard contract).
+    // stays in the source).
     function updateQuery(text) {
         query = text
         if (completionMode) {

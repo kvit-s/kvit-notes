@@ -14,7 +14,7 @@ QStringList splitCells(const QString &line)
 {
     QString s = line.trimmed();
     // LLMs use <br> for multi-line cells; cells are single-line by design,
-    // so a space is the honest rendering (llm-normalization.md fix 6). The
+    // so a space is the honest rendering. The
     // canonical serialize then writes the space, making the rewrite one-way
     // and idempotent. Outside tables <br> stays literal.
     static const QRegularExpression brRe(

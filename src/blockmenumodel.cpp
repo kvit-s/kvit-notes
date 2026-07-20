@@ -30,10 +30,10 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
 {
     // The full implemented set (features.md §4.2 minus the wave-2 types,
     // which join the catalog with their block types in Phase 10). Names
-    // match the status bar's; groups per phase5-plan.md decision 7;
-    // icons are typographic glyphs until the Phase 9 icon set
-    // (decision 5). Aliases feed the fuzzy filter only — they are never
-    // displayed.
+    // match the status bar's; entries are grouped into Basic, Lists,
+    // Advanced and Media; icons are typographic glyphs until a drawn
+    // icon set lands. Aliases feed the fuzzy filter only — they are
+    // never displayed.
     m_catalog = {
         { Block::Paragraph, QStringLiteral("Text"),
           QStringLiteral("Plain paragraph"),
@@ -94,7 +94,7 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
           { QStringLiteral("divider"), QStringLiteral("hr"),
             QStringLiteral("rule"), QStringLiteral("separator"),
             QStringLiteral("line"), QStringLiteral("---") } },
-        // Callout and Toggle (phase10 step 5): both insert a Callout block,
+        // Callout and Toggle: both insert a Callout block,
         // seeded with a type (info) or the toggle marker via `language`.
         { Block::Callout, QStringLiteral("Callout"),
           QStringLiteral("Highlighted info/warning/tip box"),
@@ -114,8 +114,8 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
           QStringLiteral("Advanced"), QStringLiteral("▦"),
           { QStringLiteral("table"), QStringLiteral("grid"),
             QStringLiteral("spreadsheet") } },
-        // Task Board (phase10-plan.md decision 9): a `kanban`-tagged code
-        // fence. Rides the convertBlock(language) path like Callout/Toggle,
+        // Task Board: a `kanban`-tagged code fence. Rides the
+        // convertBlock(language) path like Callout/Toggle,
         // seeded with starter columns by BlockMenu.
         { Block::CodeBlock, QStringLiteral("Task Board"),
           QStringLiteral("Kanban columns of draggable cards"),
@@ -124,7 +124,7 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
             QStringLiteral("task"), QStringLiteral("tasks"),
             QStringLiteral("todo"), QStringLiteral("trello") },
           QStringLiteral("kanban") },
-        // Table of contents (phase11 decision 4): a `toc`-tagged code fence,
+        // Table of contents: a `toc`-tagged code fence,
         // rides the convertBlock(language) path like Task Board; BlockMenu
         // seeds it with the document's current headings.
         { Block::CodeBlock, QStringLiteral("Table of Contents"),
@@ -134,16 +134,15 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
             QStringLiteral("outline"), QStringLiteral("index"),
             QStringLiteral("headings") },
           QStringLiteral("toc") },
-        // Math block (phase10-plan.md decision 12): a $$ … $$ display-math
-        // fence rendered through MicroTeX.
+        // Math block: a $$ … $$ display-math fence rendered through MicroTeX.
         { Block::MathBlock, QStringLiteral("Math Block"),
           QStringLiteral("LaTeX equation, rendered"),
           QStringLiteral("Advanced"), QStringLiteral("∑"),
           { QStringLiteral("math"), QStringLiteral("equation"),
             QStringLiteral("latex"), QStringLiteral("tex"),
             QStringLiteral("formula"), QStringLiteral("$$") } },
-        // Mermaid diagram (diagrams-prd.md §13): a `mermaid`-tagged code fence
-        // rendered natively. BlockMenu seeds a small flowchart.
+        // Mermaid diagram: a `mermaid`-tagged code fence rendered natively.
+        // BlockMenu seeds a small flowchart.
         { Block::CodeBlock, QStringLiteral("Mermaid Diagram"),
           QStringLiteral("Flowchart and graph diagrams from Mermaid syntax"),
           QStringLiteral("Advanced"), QStringLiteral("◈"),
@@ -151,9 +150,9 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
             QStringLiteral("graph"), QStringLiteral("flow"),
             QStringLiteral("diagram") },
           QStringLiteral("mermaid") },
-        // Collection query (pre-launch-plan.md §1): a `query`-tagged code
-        // fence rendering a live table/board over the collection's
-        // front-matter. BlockMenu seeds a commented starter spec.
+        // Collection query: a `query`-tagged code fence rendering a live
+        // table/board over the collection's front-matter. BlockMenu seeds a
+        // commented starter spec.
         { Block::CodeBlock, QStringLiteral("Collection Query"),
           QStringLiteral("Live table or board over your notes' front-matter"),
           QStringLiteral("Advanced"), QStringLiteral("⌕"),
@@ -173,15 +172,15 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
             QStringLiteral("capital") },
           QStringLiteral("dropcap") },
         // Media group (§4.3). Image inserts (file dialog or URL) rather than
-        // converts (phase10-plan.md decision 14).
+        // converts.
         { Block::Image, QStringLiteral("Image"),
           QStringLiteral("Embed an image from a file or URL"),
           QStringLiteral("Media"), QStringLiteral("▨"),
           { QStringLiteral("image"), QStringLiteral("img"),
             QStringLiteral("picture"), QStringLiteral("photo"),
             QStringLiteral("![") } },
-        // Local audio/video (phase10-plan.md decision 13): inserts like an
-        // image (file dialog); the path's extension lands it as a Media block.
+        // Local audio/video: inserts like an image (file dialog); the path's
+        // extension lands it as a Media block.
         { Block::Media, QStringLiteral("Audio / Video"),
           QStringLiteral("Play a local audio or video file"),
           QStringLiteral("Media"), QStringLiteral("▷"),
@@ -189,7 +188,7 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
             QStringLiteral("media"), QStringLiteral("sound"),
             QStringLiteral("movie"), QStringLiteral("mp4"),
             QStringLiteral("mp3") } },
-        // Web embed (phase11 decision 11): a preview card for a web page or
+        // Web embed: a preview card for a web page or
         // video URL. Stored as an ![](url) image expression (no new type); the
         // `embed` marker in defaultLanguage routes it to the URL prompt.
         { Block::Image, QStringLiteral("Web Embed"),
@@ -212,7 +211,7 @@ BlockMenuModel::MatchTier BlockMenuModel::matchTier(const Entry &entry,
 {
     QStringList candidates = entry.aliases;
     candidates.prepend(entry.name);
-    // The shared matcher (fuzzymatch.h, pre-launch-plan.md §3.3) so the
+    // The shared matcher (fuzzymatch.h) so the
     // block menu, quick switcher, and [[ completion rank identically; the
     // tier enums map one to one.
     return MatchTier(FuzzyMatch::tierFor(loweredQuery, candidates));

@@ -5,9 +5,9 @@
 
 #include "todometa.h"
 
-// Corpus for the todo metadata tail (phase10-plan.md decision 10): the
-// Obsidian Tasks 📅/priority tokens split off the editable text, round-trip,
-// and stay out of displayText (which counts and search run over).
+// Corpus for the todo metadata tail: the Obsidian Tasks 📅/priority tokens
+// split off the editable text, round-trip, and stay out of displayText
+// (which counts and search run over).
 class TestTodoMeta : public QObject
 {
     Q_OBJECT

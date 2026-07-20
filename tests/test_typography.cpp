@@ -13,8 +13,8 @@
 #include "blockeditorengine.h"
 #include "block.h"
 
-// Typography settings (phase9-plan.md decision 4): the frozen ratio
-// type scale, clamped setters, persistence, and the engine's
+// Typography settings: the frozen ratio type scale, clamped
+// setters, persistence, and the engine's
 // line-height / mono-family plumbing.
 class TestTypography : public QObject
 {

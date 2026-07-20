@@ -8,10 +8,10 @@
 #include "blockmodel.h"
 #include <QList>
 
-// One undo step for a multi-block drop (performance-plan.md Phase 6,
-// finding A5): the planned run moves are stored once and replayed on
-// redo; undo replays each move's inverse in reverse order, restoring the
-// exact prior arrangement without deriving O(N) single moves.
+// One undo step for a multi-block drop: the planned run moves are stored
+// once and replayed on redo; undo replays each move's inverse in reverse
+// order, restoring the exact prior arrangement without deriving O(N)
+// single moves.
 class MoveBlocksCommand : public UndoCommand
 {
 public:

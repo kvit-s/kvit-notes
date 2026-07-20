@@ -4,9 +4,9 @@
 import QtQuick
 
 // A draggable seam between panels (features.md §9.1 "resizable panels
-// with drag handles", phase9-plan.md decision 11). Sits to the RIGHT
-// of the panel it resizes; dragging emits resized() with the clamped
-// new width — the window owns and persists the width state.
+// with drag handles"). Sits to the RIGHT of the panel it resizes;
+// dragging emits resized() with the clamped new width — the window owns
+// and persists the width state.
 Item {
     id: seam
 

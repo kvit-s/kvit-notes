@@ -29,8 +29,8 @@ UNITS_PER_EM = 1000
 LOW_SLOT_ALIAS_BASE = 0xE000
 
 # Per-source-outline attribution, keyed by filename stem, embedded into each
-# generated OTF's name table (vendoring checklist item 2 in
-# tex-mathdesign-progress.md). Stems not listed fall back to the newtx-bundle
+# generated OTF's name table, as the vendoring checklist requires. Stems
+# not listed fall back to the newtx-bundle
 # attribution.
 _TXFONTS_GPL_STEMS = {
     "txsys", "txbsys", "txexs", "txbexs", "txexas", "txbexas",

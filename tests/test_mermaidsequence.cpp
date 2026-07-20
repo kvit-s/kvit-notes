@@ -10,10 +10,9 @@
 using namespace Mermaid;
 using namespace Diagram;
 
-// Sequence-diagram parser and layout (diagrams-prd.md §9, §15), built
-// grammar-first against the pinned mermaid@11.16.0 sequenceDiagram.jison.
-// Several fixtures are lifted from that repository's demos/sequence.html
-// (MIT license, (c) Knut Sveidqvist).
+// Sequence-diagram parser and layout, built grammar-first against the pinned
+// mermaid@11.16.0 sequenceDiagram.jison. Several fixtures are lifted from that
+// repository's demos/sequence.html (MIT license, (c) Knut Sveidqvist).
 class TestMermaidSequence : public QObject
 {
     Q_OBJECT

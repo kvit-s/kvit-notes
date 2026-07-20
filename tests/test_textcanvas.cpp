@@ -5,9 +5,9 @@
 
 #include "diagrams/textcanvas.h"
 
-// Unit suite for the character-grid draw target (pre-launch-plan.md
-// §2.1): junction resolution for every crossing pair, box overlap, text
-// clipping behavior, dynamic growth, and the trimmed string form.
+// Unit suite for the character-grid draw target: junction resolution for
+// every crossing pair, box overlap, text clipping behavior, dynamic growth,
+// and the trimmed string form.
 class TestTextCanvas : public QObject
 {
     Q_OBJECT

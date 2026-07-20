@@ -10,11 +10,11 @@
 
 class NoteCollection;
 
-// The sidebar's folder tree (phase8-plan.md decision 6): a flattened
-// QAbstractListModel of the VISIBLE folder rows — children of collapsed
-// folders are simply not rows — rebuilt from NoteCollection on its
-// revision signal. Expand/collapse state lives in the collection (it
-// persists in collection.json); this model only projects it.
+// The sidebar's folder tree: a flattened QAbstractListModel of the
+// VISIBLE folder rows — children of collapsed folders are simply not
+// rows — rebuilt from NoteCollection on its revision signal.
+// Expand/collapse state lives in the collection (it persists in
+// collection.json); this model only projects it.
 class FolderTreeModel : public QAbstractListModel
 {
     Q_OBJECT

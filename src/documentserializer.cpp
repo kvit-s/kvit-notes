@@ -18,19 +18,18 @@
 
 #include <algorithm>
 
-// The file format (basic-features.md §7, phase4-plan.md step 2): blocks
-// separated by blank lines, except that consecutive list-family blocks
-// (bullet / numbered / todo) are separated by single newlines — the
-// natural "tight list" markdown shape. Structural prefixes are block
-// state, not content: heading hashes, list markers, todo checkboxes,
-// quote angles, code fences, and divider dashes are added on serialize
-// and stripped on parse. Code-fence content is taken verbatim, so it may
-// contain blank lines; everything else is line-classified.
+// The file format: blocks separated by blank lines, except that consecutive
+// list-family blocks (bullet / numbered / todo) are separated by single
+// newlines — the natural "tight list" markdown shape. Structural prefixes are
+// block state, not content: heading hashes, list markers, todo checkboxes,
+// quote angles, code fences, and divider dashes are added on serialize and
+// stripped on parse. Code-fence content is taken verbatim, so it may contain
+// blank lines; everything else is line-classified.
 
 namespace {
 
 // Two spaces per indent level before a list marker; tabs also count one
-// level each on parse (phase4-plan.md design decision 7).
+// level each on parse.
 int parseIndent(const QString &line, int *prefixLen)
 {
     int level = 0;
@@ -60,9 +59,8 @@ QString indentPrefix(const Block *block)
     return QString(2 * block->indentLevel(), QLatin1Char(' '));
 }
 
-// A fence line: three or more backticks — or tildes (llm-normalization.md
-// fix 8) — optionally followed by an info string (the language). Returns
-// the fence length, or 0.
+// A fence line: three or more backticks — or tildes — optionally followed
+// by an info string (the language). Returns the fence length, or 0.
 int fenceLength(const QString &rest, QString *language, QChar *fenceChar = nullptr)
 {
     if (rest.isEmpty())
@@ -119,13 +117,12 @@ QString stripFenceIndent(const QString &line, const QString &indent)
 }
 
 // Serialized fences must be longer than any backtick-run line inside the
-// content, or that line would close the fence early (phase4-plan.md
-// design decision 6).
-// The ingest character-diagram tagging pass (diagrams-prd.md §7.1, §7.2). Only
-// the info strings that make no semantic claim about their contents are
-// eligible: untagged, `text`, `plaintext`, and `ascii` — the four wrappers LLMs
-// routinely use for character diagrams. A high-confidence body has its info
-// string rewritten to `diagram`; every other language (including an already
+// content, or that line would close the fence early.
+// The ingest character-diagram tagging pass. Only the info strings that make
+// no semantic claim about their contents are eligible: untagged, `text`,
+// `plaintext`, and `ascii` — the four wrappers LLMs routinely use for
+// character diagrams. A high-confidence body has its info string rewritten to
+// `diagram`; every other language (including an already
 // `diagram`/`mermaid`/`plain` fence) is returned unchanged, so the pass is a
 // no-op on canonical output and reparsing tagged text never re-examines it.
 QString classifyFenceLanguage(const QString &language, const QString &content)
@@ -419,8 +416,8 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
     static const QRegularExpression numberedRe(QStringLiteral("^\\d+\\. (.*)$"));
 
     // Every route LLM text takes into a document — file open and paste —
-    // funnels through parse, so the LLM-markdown repairs live here
-    // (llm-normalization.md). A no-op on canonical serializer output.
+    // funnels through parse, so the LLM-markdown repairs live here.
+    // A no-op on canonical serializer output.
     const QString normalized = LlmNormalizer::normalize(markdown);
 
     const QStringList lines = normalized.split(QLatin1Char('\n'));
@@ -447,9 +444,9 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
     };
     // A quote whose first content line is an Obsidian callout header
     // ([!type], optional fold marker, optional title) becomes a Callout
-    // block (phase10-plan.md decisions 6, 7): the type reuses `language`,
-    // the fold state reuses `checked` ('-' collapsed), the title its own
-    // field, and the remaining lines are the multi-paragraph body.
+    // block: the type reuses `language`, the fold state reuses `checked`
+    // ('-' collapsed), the title its own field, and the remaining lines are
+    // the multi-paragraph body.
     static const QRegularExpression calloutRe(
         QStringLiteral("^\\[!([A-Za-z][A-Za-z0-9_-]*)\\]([+-]?)\\s*(.*)$"));
     auto flushQuote = [&]() {
@@ -530,10 +527,10 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             BlockData data;
             data.type = Block::CodeBlock;
             data.content = codeLines.join(QLatin1Char('\n'));
-            // Ingest character-diagram tagging (diagrams-prd.md §7.1): rewrite an
-            // eligible untagged fence to `diagram`.
+            // Ingest character-diagram tagging: rewrite an eligible untagged
+            // fence to `diagram`.
             data.language = classifyFenceLanguage(language, data.content);
-            // Ingest straightening (§7.5): a diagram fence has its LLM
+            // Ingest straightening: a diagram fence has its LLM
             // alignment flaws conservatively repaired, in the same pass
             // family as the LLM markdown normalizations — idempotent,
             // divergence-armed .bak, undoable on paste.
@@ -548,10 +545,10 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             continue;
         }
 
-        // A $$ … $$ fence becomes a MathBlock (phase10-plan.md decision 12):
-        // verbatim TeX, like a code fence but with $$ delimiters. Both the
-        // multi-line form ($$ on its own line) and a single-line $$x$$ are
-        // recognized; the latter normalizes to multi-line on save.
+        // A $$ … $$ fence becomes a MathBlock: verbatim TeX, like a code
+        // fence but with $$ delimiters. Both the multi-line form ($$ on its
+        // own line) and a single-line $$x$$ are recognized; the latter
+        // normalizes to multi-line on save.
         {
             const QString t = line.trimmed();
             const bool singleLine = t.length() > 4
@@ -583,8 +580,8 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
         }
 
         // A pipe table (a header row + a delimiter row, then contiguous data
-        // rows) becomes a Table block (phase10-plan.md decision 8). Content is
-        // the raw table markdown; serializeBlock canonicalizes it on save.
+        // rows) becomes a Table block. Content is the raw table markdown;
+        // serializeBlock canonicalizes it on save.
         if (i + 1 < lines.size()
             && TableData::looksLikeTableStart(line, lines[i + 1])) {
             flushRuns();
@@ -605,9 +602,9 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
         }
 
         // A lone image/media expression on its own (un-indented) line becomes
-        // an Image or Media block (phase10-plan.md decision 4): the whole line
-        // must be one ![alt|width](path "caption"), so ![…] mid-prose stays
-        // literal. The category is by file extension.
+        // an Image or Media block: the whole line must be one
+        // ![alt|width](path "caption"), so ![…] mid-prose stays literal.
+        // The category is by file extension.
         const ImageAssets::Parsed img = ImageAssets::parseLine(line);
         if (img.valid && img.kind != ImageAssets::Kind::None) {
             flushRuns();
@@ -717,10 +714,9 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             data.attributes = lineAttrs;
             blocks.append(data);
         };
-        // Five and six hashes map to Heading4 (llm-normalization.md fix 9)
-        // — the same squaring-up philosophy as ragged table rows. Lossy (a
-        // reload demotes "#####" to "####"), accepted and recorded there.
-        // Seven or more stay literal.
+        // Five and six hashes map to Heading4 — the same squaring-up
+        // philosophy as ragged table rows. Lossy (a reload demotes "#####"
+        // to "####"), and accepted as such. Seven or more stay literal.
         if (line.startsWith(QStringLiteral("###### "))) {
             appendHeading(Block::Heading4, line.mid(7));
             ++i;

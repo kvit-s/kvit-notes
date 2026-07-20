@@ -112,8 +112,7 @@ void TestShortcutMap::categoriesCoverTheFourSpecSections()
 {
     ShortcutCatalog cat;
     const QStringList cats = cat.categories();
-    // The four features.md §13 sections plus the tex-editing.md math
-    // section.
+    // The four features.md §13 sections plus the math section.
     QCOMPARE(cats, QStringList({"Text Formatting", "Block Operations",
                                 "Block Conversion", "Math Editing",
                                 "General"}));

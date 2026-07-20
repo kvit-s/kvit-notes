@@ -8,7 +8,7 @@
 
 #include "mermaidast.h"
 
-// State-diagram parser (diagrams-prd.md §9), built grammar-first against the
+// State-diagram parser, built grammar-first against the
 // pinned mermaid@11.16.0 stateDiagram.jison: stateDiagram / stateDiagram-v2,
 // states with descriptions (`s1 : text`, `state "long" as s1`), transitions
 // with labels, `[*]` start/end pseudo-states scoped to their composite,

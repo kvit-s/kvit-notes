@@ -8,10 +8,9 @@
 
 using namespace Mermaid;
 
-// Lexer offsets and flowchart-parser ASTs (diagrams-prd.md §8.2, §15). The
-// parser recognizes the v1 flowchart subset (§9) and returns the
-// unsupported-family diagnostic for every other family without discarding
-// source.
+// Lexer offsets and flowchart-parser ASTs. The parser recognizes the v1
+// flowchart subset and returns the unsupported-family diagnostic for every
+// other family without discarding source.
 class TestMermaidParser : public QObject
 {
     Q_OBJECT
@@ -271,7 +270,7 @@ private slots:
         QVERIFY(true);
     }
 
-    // ---- flow.jison@11.16.0 retro-audit (diagrams-prd.md §9.5) ----
+    // ---- flow.jison@11.16.0 retro-audit ----
 
     static bool hasWarning(const ParseResult &r, const char *needle)
     {

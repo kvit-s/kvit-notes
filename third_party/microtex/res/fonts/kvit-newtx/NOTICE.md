@@ -65,6 +65,5 @@ The corresponding generated metric tables live at
 `third_party/microtex/src/res/font/newtx-generated/` (numeric TFM-derived
 metrics compiled into the application).
 
-Recorded decision (2026-07-09, `tex-mathdesign-progress.md` Licensing
-Record): the licensing review confirmed the newtx-derived corpus is
+Recorded decision (2026-07-09): the licensing review confirmed the newtx-derived corpus is
 distributed under LPPL 1.3; the embedded GPL headers are stale.

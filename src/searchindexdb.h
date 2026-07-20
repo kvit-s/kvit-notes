@@ -11,7 +11,7 @@
 
 #include <atomic>
 
-// The synchronous SQLite FTS5 engine behind global search (search.md).
+// The synchronous SQLite FTS5 engine behind global search.
 //
 // This class is deliberately GUI-free and thread-affine: one instance owns one
 // QSqlDatabase connection and must be used only on the thread that opened it.
@@ -21,7 +21,7 @@
 // exposed as static functions — the differential oracle checks them without a
 // database.
 //
-// Design (search.md §5): search_blocks holds one disk-backed copy of the
+// Design: search_blocks holds one disk-backed copy of the
 // display text per block (kind 0 = title at block_index -1, kind 1 = body). Two
 // external-content FTS5 indexes over the folded shadow of that text serve the
 // two query classes: a unicode61 word index for one/two-character whole-word
@@ -31,26 +31,25 @@
 namespace SearchMatching {
 
 // Unicode scalar-value count of an NFC-normalized copy of the query. Routing
-// uses this (search.md §4.1), never QString::length(), so a supplementary-plane
+// uses this, never QString::length(), so a supplementary-plane
 // character is one character and composed/decomposed spellings route the same.
 int unicodeScalarCount(const QString &query);
 
 // Word characters are letters, numbers, and underscore — the editor's
-// whole-word boundary rule (search.md §4.2).
+// whole-word boundary rule.
 bool isWordChar(QChar ch);
 
-// Case-folded shadow used for both indexing and candidate lookup (search.md
-// §4.4). Folding can change length, so folded offsets are never exposed.
+// Case-folded shadow used for both indexing and candidate lookup.
+// Folding can change length, so folded offsets are never exposed.
 QString fold(const QString &text);
 
 // True when a folded query carries at least one word character; a punctuation-
-// only short query (e.g. "::") has none and produces no word candidates
-// (search.md §4.2).
+// only short query (e.g. "::") has none and produces no word candidates.
 bool hasWordChar(const QString &folded);
 
 // Quote a folded value as one literal FTS5 phrase: wrap in double quotes and
 // double any interior double quote. The query is never interpreted as FTS
-// syntax (search.md §4.3/§7).
+// syntax.
 QString ftsPhrase(const QString &folded);
 
 // Non-overlapping start offsets of the query inside one block's original
@@ -64,15 +63,15 @@ QList<int> verifyOccurrences(const QString &displayText, const QString &query,
 
 // One indexable block: its position in the note, the exact display text the
 // editor shows, and whether it is verbatim (a code block — identity mapping for
-// navigation, search.md §9).
+// navigation).
 struct IndexedBlock {
     int blockIndex = 0;
     QString displayText;
     bool verbatim = false;
 };
 
-// A complete parsed note ready to replace its rows atomically (search.md §5,
-// §11). `title` is indexed as the kind-0 block and stored on the note row so a
+// A complete parsed note ready to replace its rows atomically.
+// `title` is indexed as the kind-0 block and stored on the note row so a
 // body-only candidate can still report titleMatched.
 struct IndexedNote {
     QString relPath;
@@ -85,7 +84,7 @@ struct IndexedNote {
 };
 
 // A resolved query and its filters. `nowMs` is injected so date presets are
-// deterministic in tests (search.md §4.6).
+// deterministic in tests.
 struct SearchQuery {
     QString query;
     QString folderScope;
@@ -106,7 +105,7 @@ struct SearchMatch {
     int snippetLength = 0;
 };
 
-// One matching note, in relative-path order (search.md §4.6).
+// One matching note, in relative-path order.
 struct SearchGroup {
     QString relPath;
     QString title;
@@ -132,7 +131,7 @@ public:
     SearchIndexDb(const SearchIndexDb &) = delete;
     SearchIndexDb &operator=(const SearchIndexDb &) = delete;
 
-    // The FTS5 trigram capability probe (search.md §6.3): create a temporary
+    // The FTS5 trigram capability probe: create a temporary
     // trigram FTS table on a throwaway in-memory connection. A packaged build
     // that fails this has a broken SQLite driver.
     static bool probeCapability();
@@ -149,13 +148,13 @@ public:
 
     // --- Content (write connection) -------------------------------------
     // Replace one note's title, block, tag, and FTS rows in a single
-    // transaction and increment its index_revision (search.md §5). Returns the
+    // transaction and increment its index_revision. Returns the
     // new revision through `outRevision` when non-null.
     bool replaceNote(const IndexedNote &note, qint64 *outRevision = nullptr);
     bool removeNote(const QString &relPath);
 
     // True when the note row exists with the same size and modification time —
-    // the warm-startup unchanged test (search.md §6.2).
+    // the warm-startup unchanged test.
     bool hasNoteFresh(const QString &relPath, qint64 fileSize,
                       qint64 modifiedMs) const;
     QStringList allRelPaths() const;
@@ -167,7 +166,7 @@ public:
                         const std::atomic_bool *cancel = nullptr) const;
 
     // --- Diagnostics ----------------------------------------------------
-    // FTS integrity check across both indexes (search.md §13 lifecycle).
+    // FTS integrity check across both indexes.
     bool integrityOk() const;
 
 private:

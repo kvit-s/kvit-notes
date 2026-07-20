@@ -6,7 +6,7 @@
 #include <QRegularExpression>
 #include <algorithm>
 
-// ---- The span-type registry (phase3-plan.md, "The span-type registry") ----
+// ---- The span-type registry ----
 //
 // Every inline type is a data row; the parser is a single left-to-right
 // scan that tries the rows in table order at each position (longest marker
@@ -22,13 +22,13 @@ enum MatcherKind {
     AutolinkMatcher,  // bare http(s) URL — zero-length markers
     ColorMatcher,     // <span style="color:VALUE">…</span> (decision 2)
     MathMatcher,      // $…$ inline math with Pandoc adjacency (decision 10)
-    EscapeMatcher,    // \X literal punctuation (llm-normalization.md fix 5)
-    WikiLinkMatcher,  // [[target#heading|alias]] note references (§3.1)
+    EscapeMatcher,    // \X literal punctuation
+    WikiLinkMatcher,  // [[target#heading|alias]] note references
 };
 
-// A character is escaped when preceded by an odd run of backslashes
-// (fix 5): "\*" escapes the star; in "\\*" the second backslash is itself
-// escaped, so the star is an ordinary marker.
+// A character is escaped when preceded by an odd run of backslashes: "\*"
+// escapes the star; in "\\*" the second backslash is itself escaped, so the
+// star is an ordinary marker.
 bool isEscapedAt(const QString &md, int pos)
 {
     int n = 0;
@@ -60,14 +60,14 @@ const SpanTypeDef kSpanTypes[] = {
     {"bold",       DelimiterPair, "__",  false, true,  SpanFormat::Bold},
     {"italic",     DelimiterPair, "_",   false, true,  SpanFormat::Italic},
     // ~~ per features.md §2.3; == and ++ are the markdown-it/Obsidian
-    // conventions adopted in phase3-plan.md ("Design decisions" 1).
+    // conventions.
     {"strike",     DelimiterPair, "~~",  false, false, SpanFormat::Strike},
     {"highlight",  DelimiterPair, "==",  false, false, SpanFormat::Highlight},
     {"underline",  DelimiterPair, "++",  false, false, SpanFormat::Underline},
-    // ^sup^ / ~sub~ (Pandoc's extension syntax, phase9-plan.md
-    // decision 5). "~" sits after "~~": the scan tries longer markers
-    // of a family first, exactly like "***"/"**"/"*". Space-free
-    // content only, so tildes and carets in prose stay literal.
+    // ^sup^ / ~sub~ (Pandoc's extension syntax). "~" sits after "~~":
+    // the scan tries longer markers of a family first, exactly like
+    // "***"/"**"/"*". Space-free content only, so tildes and carets in
+    // prose stay literal.
     {"superscript", DelimiterPair, "^",  false, false, SpanFormat::Superscript, true},
     {"subscript",   DelimiterPair, "~",  false, false, SpanFormat::Subscript,   true},
     {"code",       DelimiterPair, "`",   true,  false, SpanFormat::Code},
@@ -76,21 +76,21 @@ const SpanTypeDef kSpanTypes[] = {
     // dollars like "$5 and $6" literal. Only "$" starts this type, so its
     // position among the rows does not affect any other marker.
     {"math",       MathMatcher,     "$", true,  false, SpanFormat::Math},
-    // Backslash escapes (llm-normalization.md fix 5): "\X" is a one-char
-    // span whose opening marker is the backslash — concealment hides it
-    // exactly like other markers, so "\*" displays as "*". Verbatim, zero
-    // format flags: the content is plain text that no command targets.
+    // Backslash escapes: "\X" is a one-char span whose opening marker is
+    // the backslash — concealment hides it exactly like other markers, so
+    // "\*" displays as "*". Verbatim, zero format flags: the content is
+    // plain text that no command targets.
     {"escape",     EscapeMatcher,   "\\", true, false, 0},
-    // Text color (features.md §2.1), the one recognized inline-HTML form
-    // (phase10-plan.md decision 2). Parameterized like a link (the value
-    // rides on the opening marker), content nests other spans, closing
-    // marker fixed. Anything failing the exact grammar stays literal text.
+    // Text color (features.md §2.1), the one recognized inline-HTML form.
+    // Parameterized like a link (the value rides on the opening marker),
+    // content nests other spans, closing marker fixed. Anything failing the
+    // exact grammar stays literal text.
     {"color",      ColorMatcher,    "",  false, false, SpanFormat::Color},
-    // [[wiki-links]] (pre-launch-plan.md §3.1). MUST sit before the "link"
-    // row: both start at '[' and rows are tried in table order, so the scan
-    // sees "[[" before LinkMatcher's "[". Verbatim content — the target is a
-    // note name, never inline markup — and the concealed display shows the
-    // alias when one is present.
+    // [[wiki-links]]. MUST sit before the "link" row: both start at '[' and
+    // rows are tried in table order, so the scan sees "[[" before
+    // LinkMatcher's "[". Verbatim content — the target is a note name, never
+    // inline markup — and the concealed display shows the alias when one is
+    // present.
     {"wikilink",   WikiLinkMatcher, "[[", true, false,
      SpanFormat::Link | SpanFormat::WikiLink},
     // Links (features.md §2.4). An autolink's content is its URL —
@@ -391,12 +391,12 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
     }
     case WikiLinkMatcher: {
         // [[target]], [[target|alias]], [[target#heading]],
-        // [[target#heading|alias]] (pre-launch-plan.md §3.1). The target may
-        // contain spaces but not []|# or newlines; [[#heading]] is the
-        // same-note anchor form. The url carries the raw target with a
-        // scheme-like prefix so downstream link handling can tell wiki from
-        // web links. With an alias the opening marker swallows "target|", so
-        // concealment shows only the alias text.
+        // [[target#heading|alias]]. The target may contain spaces but not
+        // []|# or newlines; [[#heading]] is the same-note anchor form. The
+        // url carries the raw target with a scheme-like prefix so downstream
+        // link handling can tell wiki from web links. With an alias the
+        // opening marker swallows "target|", so concealment shows only the
+        // alias text.
         WikiLinkScanner::Occurrence occurrence;
         if (!WikiLinkScanner::matchAt(md, pos, &occurrence))
             return false;
@@ -559,9 +559,9 @@ QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown) cons
 
             span.displayStart = pos - displayOffset;
 
-            // Nested spans (phase3-plan.md step 4): the content parses
-            // recursively — except inside inline code, whose content is
-            // verbatim. Display text strips markers at every level.
+            // Nested spans: the content parses recursively — except inside
+            // inline code, whose content is verbatim. Display text strips
+            // markers at every level.
             if (!def.verbatimContent && span.contentLength() > 0) {
                 const QString content =
                     markdown.mid(pos + span.openLen, span.contentLength());

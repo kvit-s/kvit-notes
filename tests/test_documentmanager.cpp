@@ -60,7 +60,7 @@ private slots:
     // Round-trip test
     void testSaveAndOpenRoundTrip();
 
-    // Front-matter pass-through and atomic saves (plan.md Phase 8 step 1)
+    // Front-matter pass-through and atomic saves
     void testForeignFrontMatterPreservedThroughEdit();
     void testFileWithoutFrontMatterGainsNone();
     void testDividerLedFileIsNotEatenAsFrontMatter();
@@ -68,9 +68,8 @@ private slots:
     void testOpenReplacesFrontMatter();
     void testFailedSaveLeavesExistingFileIntact();
 
-    // Journal and restore (plan.md Phase 8 step 7)
+    // Journal and restore
     // One-time .bak before the first diverging overwrite
-    // (llm-normalization.md, persistence semantics)
     void testDivergingLoadCreatesBackupOnFirstSave();
     void testCanonicalLoadCreatesNoBackup();
     void testParserLossyDivergenceCreatesBackup();
@@ -79,7 +78,7 @@ private slots:
     void testExistingBackupNeverOverwritten();
     void testAsyncOpenArmsBackupToo();
 
-    // Oversized-file guard (llm-normalization.md): placeholder, not parse
+    // Oversized-file guard: placeholder, not parse
     void testOversizedFileRefusedWithoutRead();
     void testOversizedOpenAnywayLoads();
     void testSizeCapConfigurable();
@@ -778,8 +777,7 @@ void TestDocumentManager::testAsyncOpenArmsBackupToo()
 void TestDocumentManager::testForeignFrontMatterPreservedThroughEdit()
 {
     // A note written by another tool: its properties block must survive a
-    // Kvit edit byte-identically while the body changes (phase8-plan.md
-    // decision 2).
+    // Kvit edit byte-identically while the body changes.
     const QString frontMatter = QStringLiteral(
         "---\nlayout: post\naliases:\n  - n\ntags: [imported]\n---\n");
     QString filePath = m_tempDir->filePath("foreign_meta.md");

@@ -253,7 +253,7 @@ NoteFrontMatter::Metadata NoteFrontMatter::parse(const QString &block)
             continue;
         }
 
-        // The general key map (pre-launch-plan.md §1.1): every key line,
+        // The general key map: every key line,
         // known keys included so queries address tags/created uniformly.
         // Raw scalar only; a block list leaves "". Last occurrence wins,
         // matching the structured fields' rule.
@@ -318,7 +318,7 @@ NoteFrontMatter::Metadata NoteFrontMatter::parse(const QString &block)
     return meta;
 }
 
-// ---- Typed field accessors (pre-launch-plan.md §1.1) -------------------
+// ---- Typed field accessors ---------------------------------------------
 
 QString NoteFrontMatter::Metadata::fieldString(const QString &key) const
 {

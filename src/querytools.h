@@ -12,7 +12,7 @@
 
 class NoteCollection;
 
-// QML seam for the collection query block (pre-launch-plan.md §1.3),
+// QML seam for the collection query block,
 // following the TableTools/KanbanTools pattern: pure QueryData stays
 // independently testable; this object is glue only.
 class QueryTools : public QObject

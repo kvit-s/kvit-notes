@@ -4,12 +4,12 @@
 import QtQuick
 import QtQuick.Controls
 
-// The quick switcher (pre-launch-plan.md §3.3): Ctrl+P opens a centered
-// popup listing the collection's notes, fuzzy-filtered through the shared
-// matcher in QuickSwitcherModel. Enter opens the highlighted note,
-// Shift+Enter creates a note with the typed name in the current folder
-// scope, Escape closes. Unlike the block menu this popup owns focus — the
-// query lives in its own field, not in a block.
+// The quick switcher: Ctrl+P opens a centered popup listing the
+// collection's notes, fuzzy-filtered through the shared matcher in
+// QuickSwitcherModel. Enter opens the highlighted note, Shift+Enter
+// creates a note with the typed name in the current folder scope, Escape
+// closes. Unlike the block menu this popup owns focus — the query lives in
+// its own field, not in a block.
 Popup {
     id: switcher
     objectName: "quickSwitcher"

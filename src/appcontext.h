@@ -61,8 +61,8 @@ class QQmlEngine;
 //
 // This used to be the body of main(). It lives in the core library so that a
 // binary other than the stock editor — a build that links the core plus a
-// premium module and supplies its own main() (chat.md §8) — composes the same
-// editor without copying the wiring. The stock launcher is then only
+// premium module and supplies its own main() — composes the same editor
+// without copying the wiring. The stock launcher is then only
 // KvitApplication plus a nine-line main().
 //
 // Member order is load-bearing: members are destroyed in reverse declaration
@@ -87,16 +87,16 @@ public:
     // configure logging. A test or a second binary can pass its own path.
     void openSettings(const QString &settingsPath = QString());
 
-    // Applies the startup mode implied by the command line (phase8-plan.md
-    // decision 4): a FILE argument opens that file with no collection, a
-    // DIRECTORY argument opens it as the notes root, and no argument opens the
-    // default root, created and seeded on first run. `arguments` is the whole
-    // argv-derived list, program name included.
+    // Applies the startup mode implied by the command line: a FILE argument
+    // opens that file with no collection, a DIRECTORY argument opens it as the
+    // notes root, and no argument opens the default root, created and seeded
+    // on first run. `arguments` is the whole argv-derived list, program name
+    // included.
     void applyStartupArguments(const QStringList &arguments);
 
     // Publishes every core object on the QML root context, adds the math image
     // provider to the engine, and then lets each installed extension publish
-    // its own objects (chat.md §8, seam 1).
+    // its own objects through the context-property injection seam.
     void installContextProperties(QQmlEngine *engine);
 
     // Accessors for the launcher's startup instrumentation and for a superset

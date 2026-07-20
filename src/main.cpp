@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The open editor's launcher. Everything it used to do now lives in the core
 // library — AppContext composes the editor, KvitApplication owns the QML
-// engine — so that a superset binary built from the core plus a premium module
-// (chat.md §8) supplies its own main() without copying any of that wiring.
+// engine — so that a superset binary built from the core plus a premium
+// module supplies its own main() without copying any of that wiring.
 //
 // The premium module is compiled only with -DKVIT_AGENT=ON and lives entirely
 // under src/agent/, so splitting the tree into a public repo and a private one
@@ -25,7 +25,7 @@
 int main(int argc, char *argv[])
 {
     // Headless packaging probe: verifies the installed math resources
-    // resolve and render (launch-plan.md B1.3 relocatability acceptance).
+    // resolve and render from wherever the package was installed.
     // Handled before QApplication because it builds its own offscreen one.
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--math-selftest") == 0)

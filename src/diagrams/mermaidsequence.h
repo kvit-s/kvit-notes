@@ -8,9 +8,9 @@
 
 #include "mermaidast.h"
 
-// Sequence-diagram parser (diagrams-prd.md §9), built grammar-first against
-// the pinned mermaid@11.16.0 sequenceDiagram.jison: participants/actors with
-// aliases, every arrow form, +/- activation shorthand, loop/alt/opt/par/
+// Sequence-diagram parser, built grammar-first against the pinned
+// mermaid@11.16.0 sequenceDiagram.jison: participants/actors with aliases,
+// every arrow form, +/- activation shorthand, loop/alt/opt/par/
 // critical/break/rect blocks, boxes, notes, autonumber, titles and
 // accessibility directives. Productions Kvit does not render (links/link/
 // properties/details, participant @{...} config, create/destroy lifecycles,

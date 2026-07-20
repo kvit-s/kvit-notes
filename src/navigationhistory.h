@@ -9,7 +9,7 @@
 #include <QList>
 #include <QVariantMap>
 
-// Back/forward navigation over notes (pre-launch-plan.md §3.3): a GUI-free
+// Back/forward navigation over notes: a GUI-free
 // history of visited notes with their scroll positions, driven by the
 // window's openNoteByPath. The stack discipline is the browser one — a new
 // visit clears the forward stack; goBack/goForward move the current entry

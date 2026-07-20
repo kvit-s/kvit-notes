@@ -13,10 +13,10 @@
 #include "settingsstore.h"
 #include "blockeditorengine.h"
 
-// The theme token object (phase9-plan.md decisions 2 and 3): the three
-// built-in token tables, system resolution, the §10.3 overrides,
-// persistence through the settings store, and the engine's highlighter
-// taking its inline colors from the theme with rehighlight-on-change.
+// The theme token object: the three built-in token tables, system
+// resolution, the accent and highlight overrides, persistence through the
+// settings store, and the engine's highlighter taking its inline colors
+// from the theme with rehighlight-on-change.
 class TestTheme : public QObject
 {
     Q_OBJECT
@@ -217,7 +217,7 @@ void TestTheme::testFocusRingIsVisible()
 
 void TestTheme::testHighContrastMeetsStricterFloor()
 {
-    // The high-contrast theme (§14.3) holds a stricter floor than the others:
+    // The high-contrast theme holds a stricter floor than the others:
     // WCAG AAA (7:1) for body text and ≥4.5:1 for the focus ring, both vs the
     // editor background.
     auto lin = [](double c) {
@@ -414,8 +414,8 @@ void TestTheme::testEngineRehighlightsOnThemeChange()
     QCOMPARE(formatAt(doc, linkPos).foreground().color(),
              Theme::tokensFor(QStringLiteral("dark")).link);
 
-    // An accent override flows through the same path (decision 2:
-    // the engine never knows overrides exist).
+    // An accent override flows through the same path (the engine never
+    // knows overrides exist).
     theme.setAccentOverride(QStringLiteral("#aa3366"));
     QCOMPARE(formatAt(doc, linkPos).foreground().color(), QColor("#aa3366"));
 }

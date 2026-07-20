@@ -9,7 +9,7 @@
 #include "blockmodel.h"
 #include "block.h"
 
-// Size-cap validation corpora (llm-normalization.md, oversized-file guard):
+// Size-cap validation corpora for the oversized-file guard:
 // synthetic 10/25/50 MB documents — prose-shaped and one-line-shaped —
 // measuring load (parse + model build), full serialize, and a journal-style
 // write. The default cap (10 MiB) is validated against felt-latency budgets

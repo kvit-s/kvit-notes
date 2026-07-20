@@ -15,13 +15,13 @@
 class BlockModel;
 class QModelIndex;
 
-// All selection state above the single-block level (phase6-plan.md
-// decision 1): which blocks are block-selected, and the anchor/head of a
-// cross-block text range. Delegates RENDER selection by querying this
-// object — they never own selection state, mirroring how BlockModel owns
-// content. Blocks are tracked by blockId, which is stable across moves
-// and index shifts; index-based queries resolve ids at call time, and the
-// model's structural signals prune ids whose blocks were removed.
+// All selection state above the single-block level: which blocks are
+// block-selected, and the anchor/head of a cross-block text range.
+// Delegates RENDER selection by querying this object — they never own
+// selection state, mirroring how BlockModel owns content. Blocks are
+// tracked by blockId, which is stable across moves and index shifts;
+// index-based queries resolve ids at call time, and the model's
+// structural signals prune ids whose blocks were removed.
 //
 // The two selection kinds are mutually exclusive (decision 2): starting
 // one clears the other.
@@ -119,10 +119,10 @@ private:
         int pos = 0;
     };
 
-    // Raw member snapshot for change detection (performance-plan.md
-    // Phase 6, finding A4). Within one mutation the model order is
-    // fixed, so the derived effective set changes exactly when these
-    // members do — no per-mutation sort/join of thousands of ids.
+    // Raw member snapshot for change detection. Within one mutation the
+    // model order is fixed, so the derived effective set changes exactly
+    // when these members do — no per-mutation sort/join of thousands of
+    // ids.
     struct Snapshot {
         QSet<QString> baseIds;
         QString anchorId;

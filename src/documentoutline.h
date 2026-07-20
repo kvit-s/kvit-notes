@@ -13,14 +13,14 @@
 
 class BlockModel;
 
-// The document outline (phase11-plan.md decision 2): a GUI-free projection
-// over the block model's heading blocks, exposed as the `documentOutline`
-// context property on the revision-counter contract. It walks the heading
-// blocks into a tree (level, text, block id, computed slug), flattens the
-// VISIBLE rows like FolderTreeModel (children of a collapsed heading are not
-// rows), and answers the queries the outline panel, the table-of-contents
-// block, and internal-link resolution all consume. The panel renders and
-// never owns the tree.
+// The document outline: a GUI-free projection over the block model's heading
+// blocks, exposed as the `documentOutline` context property on the
+// revision-counter contract. It walks the heading blocks into a tree (level,
+// text, block id, computed slug), flattens the VISIBLE rows like
+// FolderTreeModel (children of a collapsed heading are not rows), and answers
+// the queries the outline panel, the table-of-contents block, and
+// internal-link resolution all consume. The panel renders and never owns the
+// tree.
 //
 // One shared pure slug function (baseSlug) feeds all three consumers so they
 // agree: lowercase, spaces to hyphens, punctuation stripped, and collisions in
@@ -89,9 +89,8 @@ public:
     Q_INVOKABLE int blockIndexForSlug(const QString &slug) const;
     Q_INVOKABLE bool hasSlug(const QString &slug) const;
     Q_INVOKABLE QString slugForBlockIndex(int blockIndex) const;
-    // QML-reachable baseSlug (pre-launch-plan.md §3.3): a wiki-link's
-    // #heading part is raw heading TEXT; the follow path slugs it here
-    // before blockIndexForSlug.
+    // QML-reachable baseSlug: a wiki-link's #heading part is raw heading
+    // TEXT; the follow path slugs it here before blockIndexForSlug.
     Q_INVOKABLE QString slugForText(const QString &text) const
     { return baseSlug(text); }
 

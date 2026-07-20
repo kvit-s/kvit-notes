@@ -18,16 +18,15 @@ class Block : public QObject
     Q_PROPERTY(int indentLevel READ indentLevel WRITE setIndentLevel NOTIFY indentLevelChanged)
     Q_PROPERTY(bool checked READ checked WRITE setChecked NOTIFY checkedChanged)
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
-    // Callout title (phase10-plan.md decisions 6, 7). A callout reuses
-    // `language` for its type ([!info], [!warning], …) and `checked` for its
-    // fold state; only the title line needs its own field. Empty for every
-    // other block type.
+    // Callout title. A callout reuses `language` for its type ([!info],
+    // [!warning], …) and `checked` for its fold state; only the title line
+    // needs its own field. Empty for every other block type.
     Q_PROPERTY(QString calloutTitle READ calloutTitle WRITE setCalloutTitle NOTIFY calloutTitleChanged)
-    // Per-block presentation attributes (phase12-plan.md decision 1): the
-    // canonical payload of the block's trailing <!--kvit ...--> tag (alignment,
-    // divider style, callout color, image effects, drop cap, embed size). Empty
-    // for an unstyled block, which serializes byte-identically. BlockAttributes
-    // is the pure parser; delegates read typed values off this string.
+    // Per-block presentation attributes: the canonical payload of the block's
+    // trailing <!--kvit ...--> tag (alignment, divider style, callout color,
+    // image effects, drop cap, embed size). Empty for an unstyled block, which
+    // serializes byte-identically. BlockAttributes is the pure parser;
+    // delegates read typed values off this string.
     Q_PROPERTY(QString attributes READ attributes WRITE setAttributes NOTIFY attributesChanged)
 
 public:
@@ -47,25 +46,24 @@ public:
         // sit beside its siblings): the fourth heading level of
         // features.md §1.2.2, required by the §4.2 block menu.
         Heading4,
-        // Phase 10 wave-2 types (phase10-plan.md decision 1), appended so
-        // persisted values never renumber. Image and Media store their
-        // markdown expression (![alt|width](path "caption")) in content,
-        // like the table/kanban container types; Callout carries its type
-        // and title as fields over the quote machinery; MathBlock holds a
-        // $$ fence verbatim.
+        // Phase 10 wave-2 types, appended so persisted values never
+        // renumber. Image and Media store their markdown expression
+        // (![alt|width](path "caption")) in content, like the table/kanban
+        // container types; Callout carries its type and title as fields over
+        // the quote machinery; MathBlock holds a $$ fence verbatim.
         Image,
         Callout,
         MathBlock,
         Media,
-        // Table (phase10-plan.md decision 8): content is the raw pipe-table
-        // markdown; TableData parses/serializes/mutates it.
+        // Table: content is the raw pipe-table markdown; TableData
+        // parses/serializes/mutates it.
         Table
     };
     Q_ENUM(BlockType)
 
     // Everything that defines a block besides its identity. Undo commands
     // capture and restore this as a unit so no field can be missed when
-    // block state grows (phase4-plan.md step 1).
+    // block state grows.
     struct State {
         BlockType type = Paragraph;
         QString content;
@@ -76,8 +74,7 @@ public:
         QString attributes;
     };
 
-    // The list family shares indentation and tight serialization
-    // (phase4-plan.md design decisions 3 and 7).
+    // The list family shares indentation and tight serialization.
     static bool isListFamily(BlockType type)
     {
         return type == BulletList || type == NumberedList || type == Todo;

@@ -4,8 +4,8 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Generate THIRD-PARTY-NOTICES.md from packaging/sbom.yaml.
 
-The manifest is the single source of truth (launch-plan.md A2.3); the
-notices file is committed generated output. Run from anywhere:
+The manifest is the single source of truth; the notices file is
+committed generated output. Run from anywhere:
 
     tools/generate-notices.py            # rewrite THIRD-PARTY-NOTICES.md
     tools/generate-notices.py --check    # exit 1 if the file is stale

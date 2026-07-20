@@ -25,7 +25,7 @@ void SplitBlockCommand::execute()
     m_model->updateContentInternal(m_index, before);
 
     // Insert new block. It inherits type, indent, and language; a split
-    // todo starts unchecked (phase4-plan.md step 4).
+    // todo starts unchecked.
     Block::State state;
     state.type = m_originalState.type;
     state.content = after;

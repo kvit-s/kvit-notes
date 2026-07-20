@@ -10,8 +10,8 @@
 
 using namespace Diagram;
 
-// Unit suite for the Scene → text serializer (pre-launch-plan.md §2.2), in
-// the established repair-test style: assert glyphs and structural facts,
+// Unit suite for the Scene → text serializer, in the established
+// repair-test style: assert glyphs and structural facts,
 // no golden images. One canonical fixture per family, determinism, and
 // the two closure properties that pin exporter and repair to one
 // canonical form: the classifier accepts the output as a character

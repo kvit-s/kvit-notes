@@ -158,7 +158,7 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Block-level equations for complex formulas
 - Real-time preview of rendered equation
 - Equation numbering option
-- Math entry assistance (tex-editing.md): typing `$` in prose auto-pairs
+- Math entry assistance: typing `$` in prose auto-pairs
   the closing `$` with the caret between (forward Delete keeps a literal
   dollar; Backspace on the empty pair removes both; a second `$` types
   over the closer); typing `\` in a math context opens the command menu —
@@ -179,14 +179,14 @@ currently present in the repository; remaining hardening work is recorded in §2
   exact wrap declined 2026-07-18. Drop cap is also not preserved in
   HTML/PDF export — declined 2026-07-18)*
 
-#### 1.2.17 Diagram Blocks (diagrams-prd.md)
+#### 1.2.17 Diagram Blocks
 Two diagram families, both stored as ordinary fenced code so Markdown remains the
 source of truth and round-trips through other editors.
 
 - **Mermaid diagram** — a ` ```mermaid ` fence rendered natively (no browser, JavaScript,
   Node, or network dependency inside the app). Kvit renders a documented Mermaid-compatible
   subset of five families, each parser built grammar-first against the Jison grammars of the
-  pinned export version `mermaid@11.16.0` (diagrams-prd.md §9):
+  pinned export version `mermaid@11.16.0`:
 
   | Family | Native support |
   |---|---|
@@ -210,7 +210,7 @@ source of truth and round-trips through other editors.
   that keeps the last valid render while the new source is invalid, with a line/column
   diagnostic. Resource limits (nodes/edges/depth/label length, 256 KiB source) bound the
   renderer.
-- **On-diagram editing** (diagrams-prd.md §20) — supported flowcharts are edited directly on
+- **On-diagram editing** — supported flowcharts are edited directly on
   the rendered diagram; every gesture becomes a surgical edit of the fence source (one undo
   step), so bytes outside the edited span — comments, formatting, statement order — survive
   exactly, and a gesture that cannot reparse cleanly is refused with a status message.
@@ -227,8 +227,8 @@ source of truth and round-trips through other editors.
   messages move up/down and participants left/right (Ctrl+arrows, context menu, or a
   one-position drag), swapping the underlying statements.
 - **Character-cell (text) diagram** — a `diagram` (or `text-diagram`/`ascii-diagram`) fence.
-  The tag carries no special rendering (the block is an ordinary unhighlighted code block —
-  diagrams-prd.md §5.2 decision of record); it marks the fence for the ingest pass family. A
+  The tag carries no special rendering: the block is an ordinary unhighlighted code block,
+  and the tag marks the fence for the ingest pass family. A
   conservative classifier runs at ingest (file open / paste) and retags a high-confidence
   untagged (or `text`/`plaintext`/`ascii`) fence to `diagram` — an info-string change that
   arms the same one-time `.bak` backup as the other ingest normalizations; directory
@@ -1175,8 +1175,8 @@ Reference benchmarks from Daino Notes testing with "War and Peace" (561,693 word
 ### 21.9 Pre-Launch Implementation Follow-ups
 
 The launch-facing behavior of all three additions is implemented and covered by focused unit
-and integration tests. The 2026-07-12 audit found these remaining differences from
-`pre-launch-plan.md`:
+and integration tests. The 2026-07-12 audit found these remaining differences from the
+specification they were built to:
 
 - Query blocks currently evaluate synchronously on every relevant content or collection
   revision. The planned 150 ms coalescing timer, `(spec, revision)` result cache, and explicit

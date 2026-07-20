@@ -5,13 +5,12 @@ import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
 
-// The block-type menu (features.md §4; phase5-plan.md step 3), serving
-// both the slash command and the gutter plus-button. It is one passive
-// Popup: it NEVER takes focus — keystrokes keep flowing into the target
-// block (which is what filters the menu, decision 1), and the target
-// delegate forwards Up/Down/Enter/Escape here while the menu targets it
-// (decision 3). Rows come ready-made from the C++ BlockMenuModel
-// catalog; this file owns no matching logic.
+// The block-type menu (features.md §4), serving both the slash command
+// and the gutter plus-button. It is one passive Popup: it NEVER takes
+// focus — keystrokes keep flowing into the target block (which is what
+// filters the menu), and the target delegate forwards Up/Down/Enter/Escape
+// here while the menu targets it. Rows come ready-made from the C++
+// BlockMenuModel catalog; this file owns no matching logic.
 Popup {
     id: menu
     objectName: "blockMenu"
@@ -195,10 +194,10 @@ Popup {
         // A "/code <language>" row carries the language to seed (decision 14).
         var lang = row.language !== undefined ? row.language : ""
         // A Task Board (kanban fence) starts with three empty columns so the
-        // board renders something to drop cards into (phase10-plan.md
-        // decision 9), all in the one convertBlock undo step. A Table of
-        // Contents (toc fence) seeds with the document's current headings so
-        // its stored body is correct from insertion (phase11 decision 4).
+        // board renders something to drop cards into, all in the one
+        // convertBlock undo step. A Table of Contents (toc fence) seeds with
+        // the document's current headings so its stored body is correct from
+        // insertion.
         var seed = lang === "kanban" ? "## To do\n## In progress\n## Done"
                  : (lang === "toc" ? documentOutline.tocMarkdown()
                  : (lang === "mermaid"
@@ -206,8 +205,8 @@ Popup {
                       + "  A[Start] --> B{Decision}\n"
                       + "  B -->|yes| C[Done]\n"
                       + "  B -->|no| A"
-                 // Collection query (pre-launch-plan.md §1.4): a commented
-                 // starter spec the user uncomments and adapts.
+                 // Collection query: a commented starter spec the user
+                 // uncomments and adapts.
                  : (lang === "query"
                     ? "# from: projects/\n"
                       + "# where: status = active\n"
@@ -293,8 +292,7 @@ Popup {
                         anchors.rightMargin: 8
                         spacing: 10
 
-                        // Icon badge (glyphs until the Phase 9 icon set,
-                        // phase5-plan.md decision 5)
+                        // Icon badge (glyphs until the Phase 9 icon set)
                         Rectangle {
                             width: 28
                             height: 28

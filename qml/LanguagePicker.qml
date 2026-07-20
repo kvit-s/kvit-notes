@@ -27,17 +27,17 @@ Menu {
         text: (root.currentLanguage === "" ? "✓  " : "     ") + "Plain text"
         onTriggered: root.languageChosen("")
     }
-    // The `plain` opt-out (diagrams-prd.md §5.3): unhighlighted code that the
-    // diagram classifier never re-examines. Distinct from "Plain text" (empty
-    // language), which stays eligible for auto-detection on the next ingest.
+    // The `plain` opt-out: unhighlighted code that the diagram classifier
+    // never re-examines. Distinct from "Plain text" (empty language), which
+    // stays eligible for auto-detection on the next ingest.
     MenuItem {
         text: (root.currentLanguage === "plain" ? "✓  " : "     ") + "Plain code"
         onTriggered: root.languageChosen("plain")
     }
     MenuSeparator {}
-    // Diagram families (diagrams-prd.md §5.3): convert this fence to a text
-    // diagram or a Mermaid diagram. Selecting one reroutes the block to its
-    // diagram delegate as one undo step through the convertBlock(language) path.
+    // Diagram families: convert this fence to a text diagram or a Mermaid
+    // diagram. Selecting one reroutes the block to its diagram delegate as one
+    // undo step through the convertBlock(language) path.
     MenuItem {
         text: (root.currentLanguage === "mermaid" ? "✓  " : "     ") + "Mermaid"
         onTriggered: root.languageChosen("mermaid")

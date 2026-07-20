@@ -228,7 +228,7 @@ bool entityTailAt(const QString &s, int pos)
 // "&lt;" — an entity again — and the next load would decode that too,
 // dropping one escape level per load/save cycle. Idempotence is the
 // normalizer's load-bearing property; this is the only rule that preserves
-// it for multi-escaped input (recorded in llm-normalization.md).
+// it for multi-escaped input.
 QString decodeEntities(const QString &s)
 {
     if (!s.contains(QLatin1Char('&')))

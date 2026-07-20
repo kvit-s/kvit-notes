@@ -25,25 +25,24 @@ enum Flags : quint32 {
     Code       = 0x20, // monospace + background (features.md §2.1)
     Highlight  = 0x40, // background tint
     Link       = 0x80, // accent color + underline; span carries a url
-    // §2.1 raised/lowered smaller text; Pandoc's ^x^ / ~x~ syntax
-    // (phase9-plan.md decision 5).
+    // §2.1 raised/lowered smaller text; Pandoc's ^x^ / ~x~ syntax.
     Superscript = 0x100,
     Subscript   = 0x200,
-    // §2.1 text color, the one recognized inline-HTML form (phase10-plan.md
-    // decision 2): <span style="color:VALUE">…</span>. The color VALUE is
-    // per-instance data (like a link's url), carried on FormattedSpan::color
-    // and painted from there, not from a fixed theme token.
+    // §2.1 text color, the one recognized inline-HTML form:
+    // <span style="color:VALUE">…</span>. The color VALUE is per-instance data
+    // (like a link's url), carried on FormattedSpan::color and painted from
+    // there, not from a fixed theme token.
     Color       = 0x400,
     // §1.2.15 inline math $x^2$ (phase11 decision 10): verbatim TeX content
     // with the Pandoc adjacency rule. Hidden, the content renders invisibly at
     // renderer-measured width and the delegate overlays the equation; revealed,
     // it shows the raw $…$ source like inline code.
     Math        = 0x800,
-    // [[wiki-link]] note references (pre-launch-plan.md §3.1). Always set
-    // together with Link — the span carries a kvit-note: url so click paths
-    // work unchanged — and lets styling/resolution diverge from web links:
-    // an unresolved wiki target renders muted through the engine's
-    // collection-backed resolver rather than the outline's slug set.
+    // [[wiki-link]] note references. Always set together with Link — the span
+    // carries a kvit-note: url so click paths work unchanged — and lets
+    // styling/resolution diverge from web links: an unresolved wiki target
+    // renders muted through the engine's collection-backed resolver rather
+    // than the outline's slug set.
     WikiLink    = 0x1000,
 };
 }
@@ -116,7 +115,7 @@ public:
     // Map display position to markdown position
     Q_INVOKABLE int displayToMarkdownPosition(const QString &markdown, int displayPos) const;
 
-    // Registry-driven formatting commands (phase3-plan.md step 5).
+    // Registry-driven formatting commands.
     // Positions are markdown coordinates. Apply wraps the selection in the
     // type's canonical markers (a collapsed cursor gets an empty marker
     // pair for the format-then-type workflow); remove restructures the
@@ -129,7 +128,7 @@ public:
     Q_INVOKABLE QString toggleSpanType(const QString &text, int selectionStart,
                                        int selectionEnd, const QString &type) const;
 
-    // Text color (features.md §2.1; phase10-plan.md decision 2). Positions
+    // Text color (features.md §2.1). Positions
     // are markdown coordinates. applyColor wraps the selection in a color
     // span, or — when the selection is exactly an existing color span's
     // content — rewrites that span's value in place. removeColor unwraps the

@@ -6,8 +6,8 @@
 #include "blockmodel.h"
 #include "block.h"
 
-// The document outline (phase11-plan.md decision 2): the shared slug function
-// with its corpus, the heading-tree shape and nesting, collision-disambiguated
+// The document outline: the shared slug function with its corpus, the
+// heading-tree shape and nesting, collision-disambiguated
 // slugs, resolution (slug<->block), the current-section query, collapse, the
 // level filter, the TOC body, and the revision/slugs contract.
 class TestDocumentOutline : public QObject

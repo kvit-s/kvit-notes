@@ -12,7 +12,7 @@
 
 using namespace Mermaid;
 
-// State-diagram layout (diagrams-prd.md §8.4). Composite states are laid out
+// State-diagram layout. Composite states are laid out
 // recursively: each composite's members are placed by the shared layered core
 // in local coordinates, the composite then participates in its parent scope as
 // one node sized to its content, and transitions are routed globally between

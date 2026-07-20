@@ -7,9 +7,9 @@
 
 #include "diagrams/diagramclassifier.h"
 
-// Character-diagram classifier corpus (diagrams-prd.md §7.4). The positive set
-// is the checked-in llm-diagram.md fixture (read from disk so the test proves
-// the committed file classifies as a diagram, misalignments included) plus a
+// Character-diagram classifier corpus. The positive set is the checked-in
+// llm-diagram.md fixture (read from disk so the test proves the committed
+// file classifies as a diagram, misalignments included) plus a
 // deliberately-worse second fixture with heavier column shifts and mixed
 // ASCII/Unicode strokes. The negative set holds the lookalikes that must stay
 // code: source, shell transcripts, Markdown tables, ASCII console tables,

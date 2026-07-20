@@ -4,10 +4,10 @@
 import QtQuick
 import QtQuick.Controls
 
-// The open note's tag strip (phase8-plan.md decision 7): existing tags as
-// removable chips, plus an add-field with autocomplete over the registry
-// (§8.2 — autocomplete, create on the fly). Sits at the top of the editor
-// pane in collection mode.
+// The open note's tag strip: existing tags as removable chips, plus an
+// add-field with autocomplete over the registry (features.md §8.2 —
+// autocomplete, create on the fly). Sits at the top of the editor pane in
+// collection mode.
 Item {
     id: tagStrip
     objectName: "tagStrip"

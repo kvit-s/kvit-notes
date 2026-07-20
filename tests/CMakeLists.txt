@@ -32,14 +32,14 @@ qt_add_executable(test_filewatcher test_filewatcher.cpp)
 target_link_libraries(test_filewatcher PRIVATE kvit-core Qt6::Test)
 add_test(NAME FileWatcherTests COMMAND test_filewatcher)
 
-# Update checker tests (launch-plan.md D4.5): version ordering, payload
-# parsing, opt-out + once-per-day gating through a fake fetcher.
+# Update checker tests: version ordering, payload parsing, opt-out +
+# once-per-day gating through a fake fetcher.
 qt_add_executable(test_updatechecker test_updatechecker.cpp)
 target_link_libraries(test_updatechecker PRIVATE kvit-core Qt6::Test)
 add_test(NAME UpdateCheckerTests COMMAND test_updatechecker)
 
-# Single-file mode tests (launch-plan.md E4): a file argument opens with no
-# vault, typed blocks parse in-file, and the vault upgrade keeps the file.
+# Single-file mode tests: a file argument opens with no vault, typed blocks
+# parse in-file, and the vault upgrade keeps the file.
 qt_add_executable(test_singlefilemode test_singlefilemode.cpp)
 target_link_libraries(test_singlefilemode PRIVATE kvit-core Qt6::Test Qt6::Widgets)
 add_test(NAME SingleFileModeTests COMMAND test_singlefilemode)
@@ -50,7 +50,7 @@ qt_add_executable(test_performance_warandpeace test_performance_warandpeace.cpp)
 target_link_libraries(test_performance_warandpeace PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME WarAndPeacePerformanceTests COMMAND test_performance_warandpeace)
 
-# Size-cap validation corpora (llm-normalization.md, oversized-file guard):
+# Size-cap validation corpora (oversized-file guard):
 # 10/25/50 MB prose- and one-line-shaped documents, measuring load, full
 # serialize, and journal write. Prints numbers; asserts loose sanity bounds.
 qt_add_executable(test_performance_bigfiles test_performance_bigfiles.cpp)
@@ -127,32 +127,32 @@ qt_add_executable(test_markdownformatter test_markdownformatter.cpp)
 target_link_libraries(test_markdownformatter PRIVATE kvit-core Qt6::Test)
 add_test(NAME MarkdownFormatterTests COMMAND test_markdownformatter)
 
-# CodeLanguages tests (code syntax-highlight rule tables, plan.md Phase 10)
+# CodeLanguages tests (code syntax-highlight rule tables, Phase 10)
 qt_add_executable(test_codelanguages test_codelanguages.cpp)
 target_link_libraries(test_codelanguages PRIVATE kvit-core Qt6::Test)
 add_test(NAME CodeLanguagesTests COMMAND test_codelanguages)
 
-# ImageAssets tests (image/media parse-build-classify-resolve, plan.md Phase 10)
+# ImageAssets tests (image/media parse-build-classify-resolve, Phase 10)
 qt_add_executable(test_imageassets test_imageassets.cpp)
 target_link_libraries(test_imageassets PRIVATE kvit-core Qt6::Test)
 add_test(NAME ImageAssetsTests COMMAND test_imageassets)
 
-# TableData tests (pipe-table parse/serialize/mutate, plan.md Phase 10)
+# TableData tests (pipe-table parse/serialize/mutate, Phase 10)
 qt_add_executable(test_tabledata test_tabledata.cpp)
 target_link_libraries(test_tabledata PRIVATE kvit-core Qt6::Test)
 add_test(NAME TableDataTests COMMAND test_tabledata)
 
-# TodoMeta tests (due date / priority tail, plan.md Phase 10)
+# TodoMeta tests (due date / priority tail, Phase 10)
 qt_add_executable(test_todometa test_todometa.cpp)
 target_link_libraries(test_todometa PRIVATE kvit-core Qt6::Test)
 add_test(NAME TodoMetaTests COMMAND test_todometa)
 
-# KanbanData tests (board parse/serialize/mutate, plan.md Phase 10)
+# KanbanData tests (board parse/serialize/mutate, Phase 10)
 qt_add_executable(test_kanbandata test_kanbandata.cpp)
 target_link_libraries(test_kanbandata PRIVATE kvit-core Qt6::Test)
 add_test(NAME KanbanDataTests COMMAND test_kanbandata)
 
-# MathRenderer tests (MicroTeX seam render corpus, plan.md Phase 10 step 9).
+# MathRenderer tests (MicroTeX seam render corpus, Phase 10 step 9).
 # Needs a GUI context (font loading) — QTEST_MAIN gives it a QGuiApplication.
 qt_add_executable(test_mathrenderer test_mathrenderer.cpp)
 target_link_libraries(test_mathrenderer PRIVATE kvit-core Qt6::Test Qt6::Gui)
@@ -160,16 +160,16 @@ target_compile_definitions(test_mathrenderer PRIVATE
     KVIT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME MathRendererTests COMMAND test_mathrenderer)
 
-# DiagramClassifier tests (character-diagram detection corpus, diagrams-prd.md
-# §7). Reads the checked-in llm-diagram.md fixture, so it needs the source root.
+# DiagramClassifier tests (character-diagram detection corpus). Reads the
+# checked-in llm-diagram.md fixture, so it needs the source root.
 qt_add_executable(test_diagramclassifier test_diagramclassifier.cpp)
 target_link_libraries(test_diagramclassifier PRIVATE kvit-core Qt6::Test)
 target_compile_definitions(test_diagramclassifier PRIVATE
     KVIT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME DiagramClassifierTests COMMAND test_diagramclassifier)
 
-# DiagramRepair tests (ingest straightening of LLM diagram flaws, diagrams-
-# prd.md §7.5). Reads the checked-in llm-diagram.md flawed corpus.
+# DiagramRepair tests (ingest straightening of LLM diagram flaws). Reads the
+# checked-in llm-diagram.md flawed corpus.
 qt_add_executable(test_diagramrepair test_diagramrepair.cpp)
 target_link_libraries(test_diagramrepair PRIVATE kvit-core Qt6::Test)
 target_compile_definitions(test_diagramrepair PRIVATE
@@ -222,8 +222,8 @@ qt_add_executable(test_documentserializer test_documentserializer.cpp)
 target_link_libraries(test_documentserializer PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentSerializerTests COMMAND test_documentserializer)
 
-# LlmNormalizer tests (LLM-markdown repairs, llm-normalization.md): rewrite
-# and idempotence per fixture, canonical-corpus fixed point, lookahead bound.
+# LlmNormalizer tests (LLM-markdown repairs): rewrite and idempotence per
+# fixture, canonical-corpus fixed point, lookahead bound.
 qt_add_executable(test_llmnormalizer test_llmnormalizer.cpp)
 target_link_libraries(test_llmnormalizer PRIVATE kvit-core Qt6::Test)
 add_test(NAME LlmNormalizerTests COMMAND test_llmnormalizer)
@@ -233,44 +233,44 @@ qt_add_executable(test_documentmanager test_documentmanager.cpp)
 target_link_libraries(test_documentmanager PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentManagerTests COMMAND test_documentmanager)
 
-# BlockMenuModel tests (slash-command catalog, plan.md Phase 5)
+# BlockMenuModel tests (slash-command catalog, Phase 5)
 qt_add_executable(test_blockmenumodel test_blockmenumodel.cpp)
 target_link_libraries(test_blockmenumodel PRIVATE kvit-core Qt6::Test)
 add_test(NAME BlockMenuModelTests COMMAND test_blockmenumodel)
 
-# MathCommandModel tests (backslash-menu catalog + matcher, tex-editing.md).
+# MathCommandModel tests (backslash-menu catalog + matcher).
 # The catalog-integrity slots render through MicroTeX, so a GUI context
 # (font loading) is required — QTEST_MAIN gives it a QGuiApplication.
 qt_add_executable(test_mathcommandmodel test_mathcommandmodel.cpp)
 target_link_libraries(test_mathcommandmodel PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME MathCommandModelTests COMMAND test_mathcommandmodel)
 
-# DocumentSelection tests (selection state object, plan.md Phase 6)
+# DocumentSelection tests (selection state object, Phase 6)
 qt_add_executable(test_documentselection test_documentselection.cpp)
 target_link_libraries(test_documentselection PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentSelectionTests COMMAND test_documentselection)
 
-# DocumentSearch tests (search state object, plan.md Phase 7)
+# DocumentSearch tests (search state object, Phase 7)
 qt_add_executable(test_documentsearch test_documentsearch.cpp)
 target_link_libraries(test_documentsearch PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentSearchTests COMMAND test_documentsearch)
 
-# DocumentOutline tests (heading-tree projection + slugs, plan.md Phase 11)
+# DocumentOutline tests (heading-tree projection + slugs, Phase 11)
 qt_add_executable(test_documentoutline test_documentoutline.cpp)
 target_link_libraries(test_documentoutline PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentOutlineTests COMMAND test_documentoutline)
 
-# DocumentStats tests (word/char/reading counts, plan.md Phase 11)
+# DocumentStats tests (word/char/reading counts, Phase 11)
 qt_add_executable(test_documentstats test_documentstats.cpp)
 target_link_libraries(test_documentstats PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentStatsTests COMMAND test_documentstats)
 
-# NoteTemplates tests (template CRUD + variable expansion, plan.md Phase 11)
+# NoteTemplates tests (template CRUD + variable expansion, Phase 11)
 qt_add_executable(test_notetemplates test_notetemplates.cpp)
 target_link_libraries(test_notetemplates PRIVATE kvit-core Qt6::Test)
 add_test(NAME NoteTemplatesTests COMMAND test_notetemplates)
 
-# DocumentExporter tests (HTML/PDF/text export, plan.md Phase 11). Needs a GUI
+# DocumentExporter tests (HTML/PDF/text export, Phase 11). Needs a GUI
 # context (font loading for math rendering + the PDF print seam), so QTEST_MAIN
 # gets a QGuiApplication via Qt6::Gui.
 qt_add_executable(test_documentexporter test_documentexporter.cpp)
@@ -297,32 +297,32 @@ qt_add_executable(test_htmltomarkdown test_htmltomarkdown.cpp)
 target_link_libraries(test_htmltomarkdown PRIVATE kvit-core Qt6::Test)
 add_test(NAME HtmlToMarkdownTests COMMAND test_htmltomarkdown)
 
-# NoteFrontMatter tests (note metadata block, plan.md Phase 8)
+# NoteFrontMatter tests (note metadata block, Phase 8)
 qt_add_executable(test_notefrontmatter test_notefrontmatter.cpp)
 target_link_libraries(test_notefrontmatter PRIVATE kvit-core Qt6::Test)
 add_test(NAME NoteFrontMatterTests COMMAND test_notefrontmatter)
 
-# NoteCollection tests (collection object, plan.md Phase 8)
+# NoteCollection tests (collection object, Phase 8)
 qt_add_executable(test_notecollection test_notecollection.cpp)
 target_link_libraries(test_notecollection PRIVATE kvit-core Qt6::Test)
 add_test(NAME NoteCollectionTests COMMAND test_notecollection)
 
-# Wiki-link navigation history (pre-launch-plan.md §3.3)
+# Wiki-link navigation history
 qt_add_executable(test_navigationhistory test_navigationhistory.cpp)
 target_link_libraries(test_navigationhistory PRIVATE kvit-core Qt6::Test)
 add_test(NAME NavigationHistoryTests COMMAND test_navigationhistory)
 
-# Quick switcher filter (pre-launch-plan.md §3.3)
+# Quick switcher filter
 qt_add_executable(test_quickswitchermodel test_quickswitchermodel.cpp)
 target_link_libraries(test_quickswitchermodel PRIVATE kvit-core Qt6::Test)
 add_test(NAME QuickSwitcherModelTests COMMAND test_quickswitchermodel)
 
-# Collection query block core (pre-launch-plan.md §1.2)
+# Collection query block core
 qt_add_executable(test_querydata test_querydata.cpp)
 target_link_libraries(test_querydata PRIVATE kvit-core Qt6::Test)
 add_test(NAME QueryDataTests COMMAND test_querydata)
 
-# Mermaid → text export (pre-launch-plan.md §2)
+# Mermaid → text export
 qt_add_executable(test_textcanvas test_textcanvas.cpp)
 target_link_libraries(test_textcanvas PRIVATE kvit-core Qt6::Test)
 add_test(NAME TextCanvasTests COMMAND test_textcanvas)
@@ -342,7 +342,7 @@ qt_add_executable(test_startupcontroller test_startupcontroller.cpp)
 target_link_libraries(test_startupcontroller PRIVATE kvit-core Qt6::Test)
 add_test(NAME StartupControllerTests COMMAND test_startupcontroller)
 
-# NoteListModel tests (note-list projection, plan.md Phase 8)
+# NoteListModel tests (note-list projection, Phase 8)
 qt_add_executable(test_notelistmodel test_notelistmodel.cpp)
 target_link_libraries(test_notelistmodel PRIVATE kvit-core Qt6::Test)
 add_test(NAME NoteListModelTests COMMAND test_notelistmodel)
@@ -352,32 +352,32 @@ qt_add_executable(test_foldertreemodel test_foldertreemodel.cpp)
 target_link_libraries(test_foldertreemodel PRIVATE kvit-core Qt6::Test)
 add_test(NAME FolderTreeModelTests COMMAND test_foldertreemodel)
 
-# CollectionSearch tests (global search, plan.md Phase 8)
+# CollectionSearch tests (global search, Phase 8)
 qt_add_executable(test_collectionsearch test_collectionsearch.cpp)
 target_link_libraries(test_collectionsearch PRIVATE kvit-core Qt6::Test)
 add_test(NAME CollectionSearchTests COMMAND test_collectionsearch)
 
-# SearchIndexDb tests (SQLite FTS5 engine + differential oracle, search.md §13)
+# SearchIndexDb tests (SQLite FTS5 engine + differential oracle)
 qt_add_executable(test_searchindexdb test_searchindexdb.cpp)
 target_link_libraries(test_searchindexdb PRIVATE kvit-core Qt6::Test)
 add_test(NAME SearchIndexDbTests COMMAND test_searchindexdb)
 
-# SettingsStore tests (per-user settings, plan.md Phase 9)
+# SettingsStore tests (per-user settings, Phase 9)
 qt_add_executable(test_settingsstore test_settingsstore.cpp)
 target_link_libraries(test_settingsstore PRIVATE kvit-core Qt6::Test)
 add_test(NAME SettingsStoreTests COMMAND test_settingsstore)
 
-# Theme tests (token tables, overrides, engine coupling, plan.md Phase 9)
+# Theme tests (token tables, overrides, engine coupling, Phase 9)
 qt_add_executable(test_theme test_theme.cpp)
 target_link_libraries(test_theme PRIVATE kvit-core Qt6::Test)
 add_test(NAME ThemeTests COMMAND test_theme)
 
-# Typography tests (type scale, clamps, engine plumbing, plan.md Phase 9)
+# Typography tests (type scale, clamps, engine plumbing, Phase 9)
 qt_add_executable(test_typography test_typography.cpp)
 target_link_libraries(test_typography PRIVATE kvit-core Qt6::Test)
 add_test(NAME TypographyTests COMMAND test_typography)
 
-# BlockEditorEngine tests (hybrid editing engine, plan.md Phase 1)
+# BlockEditorEngine tests (hybrid editing engine, Phase 1)
 qt_add_executable(test_blockeditorengine test_blockeditorengine.cpp)
 target_link_libraries(test_blockeditorengine PRIVATE kvit-core Qt6::Test)
 add_test(NAME BlockEditorEngineTests COMMAND test_blockeditorengine)
@@ -419,7 +419,7 @@ set_tests_properties(IntegrationTestsIsolated PROPERTIES
     ENVIRONMENT "QT_QUICK_BACKEND=software"
     TIMEOUT 1800)
 
-# Visual storyboard tests (Qt Quick Test) — screenshot walkthroughs, see plan.md
+# Visual storyboard tests (Qt Quick Test) — screenshot walkthroughs.
 qt_add_executable(test_visual
     test_visual.cpp
     testsetup.h
@@ -446,9 +446,9 @@ add_test(NAME VisualTests COMMAND test_visual -input ${CMAKE_CURRENT_SOURCE_DIR}
 set_tests_properties(IntegrationTests PROPERTIES TIMEOUT 600)
 set_tests_properties(VisualTests PROPERTIES TIMEOUT 300)
 
-# The two extension seams of the open-core split (chat.md §8): the
-# fence-language block-kind registry and the module registry main() installs
-# into. Both need a GUI context because kvit-core links Quick.
+# The two extension seams of the open-core split: the fence-language
+# block-kind registry and the module registry main() installs into. Both
+# need a GUI context because kvit-core links Quick.
 qt_add_executable(test_blockkindregistry test_blockkindregistry.cpp)
 target_link_libraries(test_blockkindregistry PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME BlockKindRegistryTests COMMAND test_blockkindregistry)
@@ -457,9 +457,9 @@ qt_add_executable(test_extensionregistry test_extensionregistry.cpp)
 target_link_libraries(test_extensionregistry PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME ExtensionRegistryTests COMMAND test_extensionregistry)
 
-# The composed shell (the app/library split, chat.md §8 F1): AppContext plus
-# the shipped qml/main.qml resource — the top-level file itself, not the
-# integration suite's mirror of it.
+# The composed shell (the app/library split): AppContext plus the shipped
+# qml/main.qml resource — the top-level file itself, not the integration
+# suite's mirror of it.
 qt_add_executable(test_shell
     test_shell.cpp
     ${CMAKE_SOURCE_DIR}/resources.qrc
@@ -503,13 +503,13 @@ add_test(NAME SearchIndexTimingBudget
 set_tests_properties(QueryDataTimingBudget SearchIndexTimingBudget
     PROPERTIES ENVIRONMENT "KVIT_ENFORCE_TIMING_BUDGETS=1")
 
-# ── CTest labels (launch-plan.md C3). The suite is heterogeneous, so every
-#    entry gets exactly one label and CI filters with `ctest -L <label>`:
+# ── CTest labels. The suite is heterogeneous, so every entry gets exactly
+#    one label and CI filters with `ctest -L <label>`:
 #      unit        deterministic, headless-safe — the merge gate on all OSes
 #      performance timing-sensitive — Linux CI non-blocking trend job
 #      gui-smoke   GUI suites that run deterministically offscreen
 #      visual      need a real, focused display — local gate; xvfb runs are
-#                  informational only (decisions.md, 2026-07-17)
+#                  informational only
 set(KVIT_PERFORMANCE_TESTS
     WarAndPeacePerformanceTests
     BigFilePerformanceTests

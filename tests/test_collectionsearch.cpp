@@ -11,9 +11,9 @@
 #include "collectionsearch.h"
 #include "collectionsearchindex.h"
 
-// Facade suite for global search (search.md). The query engine and its
-// semantics are covered exhaustively by test_searchindexdb; this suite checks
-// the QML-facing CollectionSearch: it wires the collection and the disk-backed
+// Facade suite for global search. The query engine and its semantics are
+// covered exhaustively by test_searchindexdb; this suite checks the
+// QML-facing CollectionSearch: it wires the collection and the disk-backed
 // index, runs queries off the GUI thread, keeps only the latest generation,
 // exposes the same result shape and filters, updates live on saves, and maps a
 // clicked result back to a Markdown cursor position. Queries are asynchronous,
@@ -145,7 +145,7 @@ void TestCollectionSearch::testResultShapeAndOrder()
     m_search->setQuery(QStringLiteral("fox"));
     QTRY_COMPARE(m_search->noteCount(), 2);
     const QVariantMap group = m_search->results().at(0).toMap();
-    // The QML-facing shape is preserved (search.md §12 Phase 2).
+    // The QML-facing shape is preserved.
     for (const char *key : {"relPath", "title", "titleMatched", "matchCount",
                             "moreMatches", "matches"})
         QVERIFY(group.contains(QLatin1String(key)));
@@ -166,7 +166,7 @@ void TestCollectionSearch::testResultShapeAndOrder()
 void TestCollectionSearch::testWholeWordShortQuery()
 {
     // A two-character query is whole-word: "an" matches standalone words, not
-    // substrings (search.md §4.2).
+    // substrings.
     writeNote("Words.md", "an ant and analysis\n");
     m_collection->refresh();
     m_search->setQuery(QStringLiteral("an"));
@@ -328,7 +328,7 @@ void TestCollectionSearch::testMarkdownPosition()
 {
     // Display position 16 ("fox" after "The quick brown ") maps into the
     // markdown, which carries the hidden "**" before it. markdownPosition
-    // reads and parses the note file directly (search.md §9).
+    // reads and parses the note file directly.
     QCOMPARE(m_search->markdownPosition(QStringLiteral("Fox notes.md"), 0, 16),
              18);
     QCOMPARE(m_search->markdownPosition(QStringLiteral("Fox notes.md"), 1, 9),

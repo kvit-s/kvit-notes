@@ -49,36 +49,35 @@ public:
     // whenever its watched role changes — so the role must be stable
     // across same-delegate type changes. Emitted only when the kind
     // actually changes.
-    // A kanban board is a code fence tagged `kanban` (phase10-plan.md
-    // decision 9): no new stored type, just this derived kind so the chooser
-    // renders the board instead of a plain code block. Chosen well above the
-    // enum range so it never collides with a type value.
+    // A kanban board is a code fence tagged `kanban`: no new stored type, just
+    // this derived kind so the chooser renders the board instead of a plain
+    // code block. Chosen well above the enum range so it never collides with a
+    // type value.
     //
     // The fence-language kinds are numbered in BlockKinds and looked up
     // through BlockKindRegistry, which is what lets a linked module add a
     // fence kind of its own without touching this file; the constants below
     // stay as the names the rest of the code and the tests already use.
     static constexpr int KanbanKind = BlockKinds::Kanban;
-    // A table of contents is a `toc`-tagged code fence (phase11-plan.md
-    // decision 4): no new stored type, just this derived kind so the chooser
-    // renders the read-only linked TOC instead of a plain code block.
+    // A table of contents is a `toc`-tagged code fence: no new stored type,
+    // just this derived kind so the chooser renders the read-only linked TOC
+    // instead of a plain code block.
     static constexpr int TocKind = BlockKinds::Toc;
     // An embed is an image expression ![](url) whose URL is a web page or
-    // video host (phase11-plan.md decision 11): no new stored type, a derived
-    // kind from the CONTENT so the chooser renders a preview card. Because it
-    // depends on content (not just type), the kind is computed by
-    // delegateKindForContent, used wherever the role is derived.
+    // video host: no new stored type, a derived kind from the CONTENT so the
+    // chooser renders a preview card. Because it depends on content (not just
+    // type), the kind is computed by delegateKindForContent, used wherever the
+    // role is derived.
     static constexpr int EmbedKind = BlockKinds::Embed;
-    // A Mermaid diagram is a `mermaid`-tagged code fence (diagrams-prd.md §5.1,
-    // §6.1): no new stored type, a derived kind so the chooser renders the
-    // native diagram instead of a plain code block, exactly like `kanban`/`toc`.
-    // Character diagrams (`diagram` fences) carry no kind of their own: the tag
-    // marks the fence for ingest straightening (§7.5) and the block renders as
-    // an ordinary code block.
+    // A Mermaid diagram is a `mermaid`-tagged code fence: no new stored type, a
+    // derived kind so the chooser renders the native diagram instead of a plain
+    // code block, exactly like `kanban`/`toc`. Character diagrams (`diagram`
+    // fences) carry no kind of their own: the tag marks the fence for ingest
+    // straightening and the block renders as an ordinary code block.
     static constexpr int MermaidKind = BlockKinds::Mermaid;
-    // A collection query is a `query`-tagged code fence (pre-launch-plan.md
-    // §1.4): no new stored type, a derived kind so the chooser renders the
-    // live table/board over the collection's front-matter.
+    // A collection query is a `query`-tagged code fence: no new stored type, a
+    // derived kind so the chooser renders the live table/board over the
+    // collection's front-matter.
     static constexpr int QueryKind = BlockKinds::Query;
     // Content-aware delegate kind: an Image/Media block whose URL is an embed
     // becomes EmbedKind; everything else falls back to the type/language kind.
@@ -118,7 +117,7 @@ public:
         return delegateKindFor(type);
     }
 
-    // Indentation depth limit (features.md §3.3; phase4-plan.md decision 7)
+    // Indentation depth limit (features.md §3.3)
     static constexpr int MaxIndentLevel = 4;
 
     explicit BlockModel(QObject *parent = nullptr);
@@ -160,41 +159,40 @@ public:
     // decision 1). Pushes SetBlockAttributesCommand; a no-op when unchanged.
     Q_INVOKABLE void setBlockAttributes(int index, const QString &attributes);
     // Display number of a numbered-list block (1-based); 0 for any other
-    // type. Computed, never stored (phase4-plan.md decision 2).
+    // type. Computed, never stored.
     Q_INVOKABLE int ordinalAt(int index) const;
 
-    // Equation number of a MathBlock (phase10-plan.md decision 12): its 1-based
-    // position among all MathBlocks in the document, or 0 for any other type.
+    // Equation number of a MathBlock: its 1-based position among all
+    // MathBlocks in the document, or 0 for any other type.
     // Computed by position, never stored; the delegate shows it only when the
     // equation-numbering setting is on.
     Q_INVOKABLE int mathNumber(int index) const;
 
-    // Sub-task progress of a parent todo (phase10-plan.md decision 10):
-    // {done, total} over the deeper-indented todo children that follow it,
-    // derived (never stored). total is 0 when the todo has no children.
+    // Sub-task progress of a parent todo: {done, total} over the
+    // deeper-indented todo children that follow it, derived (never stored).
+    // total is 0 when the todo has no children.
     Q_INVOKABLE QVariantMap todoProgress(int index) const;
 
-    // Phase 6 multi-block operations (phase6-plan.md step 3). Every one
-    // is a single undo step, composed from the existing commands through
-    // the stack's macro. Index lists arrive from
-    // DocumentSelection::selectedIndexes() (possibly non-contiguous).
+    // Phase 6 multi-block operations. Every one is a single undo step,
+    // composed from the existing commands through the stack's macro.
+    // Index lists arrive from DocumentSelection::selectedIndexes()
+    // (possibly non-contiguous).
     Q_INVOKABLE void removeBlocks(const QVariantList &indexes);
     // Inserts full-state clones directly below the last selected block,
     // in document order; returns the clones' indexes (§3.6).
     Q_INVOKABLE QVariantList duplicateBlocks(const QVariantList &indexes);
     // Moves each contiguous run of selected blocks one step (VSCode
-    // line-move semantics, phase6-plan.md decision 10); a run against
-    // the document edge stops the whole operation. delta is +1 or -1.
+    // line-move semantics); a run against the document edge stops the
+    // whole operation. delta is +1 or -1.
     Q_INVOKABLE void moveBlocksBy(const QVariantList &indexes, int delta);
     // Indents/outdents every list-family block in the selection under
     // the existing per-block clamps (§3.3).
     Q_INVOKABLE void changeIndentForBlocks(const QVariantList &indexes, int delta);
-    // Drag-and-drop primitives (phase6-plan.md decisions 8 and 9).
-    // previewMoveBlock is the drag's live make-room feedback: an
-    // undo-bypassing internal move, valid ONLY inside a drag gesture
-    // whose drop pushes commitDragMove — one pre-applied command for
-    // the whole gesture (or nothing, when the drag cancels or ends
-    // where it started).
+    // Drag-and-drop primitives. previewMoveBlock is the drag's live
+    // make-room feedback: an undo-bypassing internal move, valid ONLY
+    // inside a drag gesture whose drop pushes commitDragMove — one
+    // pre-applied command for the whole gesture (or nothing, when the
+    // drag cancels or ends where it started).
     Q_INVOKABLE void previewMoveBlock(int fromIndex, int toIndex);
     Q_INVOKABLE void commitDragMove(int originalFrom, int finalTo);
     // Multi-block drop: moves the given blocks, in document order, to
@@ -202,12 +200,12 @@ public:
     // (0..count, in the pre-drop arrangement). One undo step.
     Q_INVOKABLE void moveBlocksTo(const QVariantList &indexes, int targetGap);
 
-    // Removes a cross-block text range (phase6-plan.md decision 7): the
-    // first block keeps its type and fields with content before+after;
-    // the blocks between and the last are removed. A divider first
-    // block holds no text, so there the remainder keeps the LAST
-    // block's identity. Returns {"index", "cursor"} for refocusing, or
-    // an empty map if the range is invalid.
+    // Removes a cross-block text range: the first block keeps its type
+    // and fields with content before+after; the blocks between and the
+    // last are removed. A divider first block holds no text, so there
+    // the remainder keeps the LAST block's identity. Returns
+    // {"index", "cursor"} for refocusing, or an empty map if the range
+    // is invalid.
     Q_INVOKABLE QVariantMap removeTextRange(int startIndex, int startMd,
                                             int endIndex, int endMd);
 
@@ -228,9 +226,9 @@ public:
     Q_INVOKABLE int wordCountAt(int index) const;
     Q_INVOKABLE int charCountAt(int index, bool withSpaces = true) const;
     Q_INVOKABLE QVariantList tocBlockIndexes() const;
-    // O(1) id lookup backed by a lazily rebuilt id->index hash
-    // (performance-plan.md Phase 6). Structural changes mark the hash
-    // dirty; the next lookup rebuilds it once. Returns -1 for unknown ids.
+    // O(1) id lookup backed by a lazily rebuilt id->index hash. Structural
+    // changes mark the hash dirty; the next lookup rebuilds it once.
+    // Returns -1 for unknown ids.
     Q_INVOKABLE int indexOfBlockId(const QString &blockId) const;
     Q_INVOKABLE void splitBlock(int index, int position);
     Q_INVOKABLE void mergeBlocks(int keepIndex, int removeIndex);
@@ -309,10 +307,9 @@ private:
     // avoiding a full rebuild when the hash is already valid.
     void reindexIdRange(int first, int last);
 
-    // Cached ordinals and equation numbers (performance-plan.md Phase 7,
-    // finding A7): one forward pass fills both after a structural or
-    // type/indent change, so per-delegate reads are O(1) instead of a
-    // backward scan per row on list-heavy documents.
+    // Cached ordinals and equation numbers: one forward pass fills both
+    // after a structural or type/indent change, so per-delegate reads are
+    // O(1) instead of a backward scan per row on list-heavy documents.
     void invalidateDerivedOrder() { m_derivedOrderDirty = true; }
     void rebuildDerivedOrder() const;
 

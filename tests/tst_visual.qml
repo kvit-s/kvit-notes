@@ -6,7 +6,7 @@ import QtQuick.Controls
 import QtQuick.Window
 import QtTest
 
-// Visual storyboard suite (plan.md "Screen verification").
+// Visual storyboard suite for screen verification.
 //
 // Each test replays a canonical scenario from the specification as a
 // scripted walkthrough, saving a numbered frame at every step. A directory
@@ -54,7 +54,7 @@ Item {
             tryCompare(textArea, "activeFocus", true, 1000)
         }
 
-        // Screenshot helper (mechanism proven 2026-07-06, see plan.md):
+        // Screenshot helper (mechanism proven 2026-07-06):
         // main.qml is an ApplicationWindow — inside a Loader it becomes a
         // SEPARATE window, so grab its contentItem; grabbing the test root
         // yields a blank image. grabImage is synchronous; the asynchronous
@@ -179,10 +179,10 @@ Item {
             saveScreenshot("visual_01_reveal_05_cursor_elsewhere.png")
         }
 
-        // phase3-plan.md step 2 storyboard: one line carrying every new
-        // inline type — strikethrough, inline code, highlight, underline —
-        // rendered, then each span revealed in turn by moving the cursor
-        // into its word, then everything rendered again.
+        // Storyboard: one line carrying every new inline type —
+        // strikethrough, inline code, highlight, underline — rendered, then
+        // each span revealed in turn by moving the cursor into its word,
+        // then everything rendered again.
         function test_03_new_inline_types() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -219,10 +219,10 @@ Item {
             saveScreenshot("visual_03_types_06_all_rendered_again.png")
         }
 
-        // phase3-plan.md step 4 storyboard: nested formatting. Rendered,
-        // the inner word combines both styles with no markers; revealed,
-        // the whole top-level span shows every marker level muted
-        // (features.md §2.2.7 "reveals all applicable syntax").
+        // Storyboard: nested formatting. Rendered, the inner word combines
+        // both styles with no markers; revealed, the whole top-level span
+        // shows every marker level muted (features.md §2.2.7 "reveals all
+        // applicable syntax").
         function test_04_nested_spans() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -247,9 +247,8 @@ Item {
             saveScreenshot("visual_04_nested_03_rendered_again.png")
         }
 
-        // phase3-plan.md step 6 storyboard: a [text](url) link rendered as
-        // accent-colored text, revealed with muted brackets/URL, and a
-        // bare autolink URL.
+        // Storyboard: a [text](url) link rendered as accent-colored text,
+        // revealed with muted brackets/URL, and a bare autolink URL.
         function test_05_links() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -275,8 +274,8 @@ Item {
             saveScreenshot("visual_05_links_03_rendered_again.png")
         }
 
-        // phase3-plan.md step 7 storyboard: the Ctrl+K dialog, prefilled
-        // from the link under the cursor, and the text after Remove link.
+        // Storyboard: the Ctrl+K dialog, prefilled from the link under the
+        // cursor, and the text after Remove link.
         function test_06_link_dialog() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -304,11 +303,11 @@ Item {
             saveScreenshot("visual_06_linkdialog_02_after_remove.png")
         }
 
-        // phase4-plan.md step 3 storyboard: one document holding every
-        // wave-1 block type — nested bullets showing the glyph cycle, a
-        // numbered list, todos checked and unchecked, a multi-line quote,
-        // a code block, dividers — then a todo toggled, then a list item's
-        // inline bold revealed.
+        // Storyboard: one document holding every wave-1 block type —
+        // nested bullets showing the glyph cycle, a numbered list, todos
+        // checked and unchecked, a multi-line quote, a code block,
+        // dividers — then a todo toggled, then a list item's inline bold
+        // revealed.
         function test_07_block_types() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -365,10 +364,10 @@ Item {
             saveScreenshot("visual_07_types_04_all_rendered_again.png")
         }
 
-        // phase4-plan.md step 4 storyboard: the list keyboard flow. An
-        // Enter continuation on a bullet, Tab nesting the new item (glyph
-        // changes), typing into it, then Enter twice — the second, on the
-        // now-empty item, exits the list to a paragraph.
+        // Storyboard: the list keyboard flow. An Enter continuation on a
+        // bullet, Tab nesting the new item (glyph changes), typing into
+        // it, then Enter twice — the second, on the now-empty item, exits
+        // the list to a paragraph.
         function test_08_list_keyboard_flow() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -409,9 +408,8 @@ Item {
                 keyClick(text.charAt(i))
         }
 
-        // phase4-plan.md step 5 storyboard: the "- [ ] " typing
-        // progression — paragraph, then a bullet at "- ", then a todo at
-        // "[ ] ", then typed task text.
+        // Storyboard: the "- [ ] " typing progression — paragraph, then a
+        // bullet at "- ", then a todo at "[ ] ", then typed task text.
         function test_09_prefix_conversion_flow() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -443,9 +441,9 @@ Item {
             compare(blockModel.getContent(0), "write the report")
         }
 
-        // phase5-plan.md step 3 storyboard: the slash menu. Typing "/"
-        // opens the grouped catalog with icons; "h1" filters it; arrows
-        // move the highlight; Enter converts and clears the query.
+        // Storyboard: the slash menu. Typing "/" opens the grouped catalog
+        // with icons; "h1" filters it; arrows move the highlight; Enter
+        // converts and clears the query.
         function test_10_slash_menu() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -510,10 +508,10 @@ Item {
             tryCompare(menu, "visible", false, 1000)
         }
 
-        // phase5-plan.md step 4 storyboard: the gutter plus-button. It
-        // appears on hover beside the drag handle; clicking it adds an
-        // empty paragraph below and opens the menu for it; filtering and
-        // Enter make the new block a todo.
+        // Storyboard: the gutter plus-button. It appears on hover beside
+        // the drag handle; clicking it adds an empty paragraph below and
+        // opens the menu for it; filtering and Enter make the new block a
+        // todo.
         function test_12_plus_button() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -549,7 +547,7 @@ Item {
         // height followed a hidden second text and showed a gap. With the
         // engine there is only one text, so height always derives from what
         // is on screen and focus cannot change it (block-geometry
-        // invariants, plan.md).
+        // invariants).
         function test_02_phantom_gap() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -900,11 +898,11 @@ Item {
             wait(100)
         }
 
-        // Phase 8 step 3 storyboard (phase8-plan.md): the three-pane
-        // shell — sidebar with the folder tree, the note list, and the
-        // editor — over a seeded collection; a note drag onto a folder
-        // with the floating proxy and drop highlight; the inline rename
-        // editor; and the collapsed-panels state (Ctrl+\).
+        // Storyboard: the three-pane shell — sidebar with the folder tree,
+        // the note list, and the editor — over a seeded collection; a note
+        // drag onto a folder with the floating proxy and drop highlight;
+        // the inline rename editor; and the collapsed-panels state
+        // (Ctrl+\).
         function test_19_collection_shell() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1197,10 +1195,9 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 2: the four themes over the full shell and a
-        // formatted document (phase9-plan.md). Every token-driven
-        // surface — panels, note list, editor chrome, the engine's
-        // inline styles, search tints — re-renders per theme.
+        // The four themes over the full shell and a formatted document.
+        // Every token-driven surface — panels, note list, editor chrome,
+        // the engine's inline styles, search tints — re-renders per theme.
         // ============================================================
 
         function test_24_themes() {
@@ -1265,8 +1262,8 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 3: the settings dialog and the typography
-        // settings applied to a live document (phase9-plan.md).
+        // The settings dialog and the typography settings applied to a
+        // live document.
         // ============================================================
 
         function test_25_typography_and_settings() {
@@ -1542,8 +1539,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 8: the custom date-range picker over live
-        // global-search results (phase9-plan.md decision 10).
+        // The custom date-range picker over live global-search results.
         // ============================================================
 
         function test_30_date_range_picker() {
@@ -2008,7 +2004,7 @@ Item {
 
             // The move is a reversible undo step. (Exact undo counts are not
             // asserted: successive updateContent edits to one block coalesce
-            // under the text-change merge window — see plan.md — so the count
+            // under the text-change merge window, so the count
             // depends on timing, while undo/redo round-tripping does not.)
             var movedContent = blockModel.getContent(1)
             undoStack.undo()

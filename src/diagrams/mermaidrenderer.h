@@ -11,11 +11,11 @@
 #include "diagramscene.h"
 #include "mermaidast.h"
 
-// The parse+layout stage behind a cache (diagrams-prd.md §8.5). Pure and
-// thread-safe so DiagramCanvas can run it off the UI thread; results are keyed
-// by source hash, font family, font size, and direction (layout is
-// width-independent), and kept in a bounded process-wide LRU so scrolling back
-// to a diagram, or re-rendering after an unrelated edit, is a cache hit.
+// The parse+layout stage behind a cache. Pure and thread-safe so
+// DiagramCanvas can run it off the UI thread; results are keyed by source
+// hash, font family, font size, and direction (layout is width-independent),
+// and kept in a bounded process-wide LRU so scrolling back to a diagram, or
+// re-rendering after an unrelated edit, is a cache hit.
 namespace Diagram {
 
 struct RenderResult {

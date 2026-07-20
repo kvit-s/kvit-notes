@@ -34,17 +34,16 @@ class DocumentManager : public QObject
     Q_PROPERTY(QDateTime lastSavedAt READ lastSavedAt NOTIFY lastSavedAtChanged)
     Q_PROPERTY(bool autoSaveEnabled READ autoSaveEnabled WRITE setAutoSaveEnabled NOTIFY autoSaveEnabledChanged)
     Q_PROPERTY(int autoSaveInterval READ autoSaveInterval WRITE setAutoSaveInterval NOTIFY autoSaveIntervalChanged)
-    // Oversized-file guard (llm-normalization.md): files over this many
-    // MiB are refused before any read — the UI shows a placeholder with an
-    // explicit "Open anyway". 0 or negative disables the cap. Stored in
-    // the settings store as maxOpenFileSizeMiB, adjustable without a
-    // rebuild.
+    // Oversized-file guard: files over this many MiB are refused before
+    // any read — the UI shows a placeholder with an explicit "Open
+    // anyway". 0 or negative disables the cap. Stored in the settings
+    // store as maxOpenFileSizeMiB, adjustable without a rebuild.
     Q_PROPERTY(int maxOpenFileSizeMiB READ maxOpenFileSizeMiB
                    WRITE setMaxOpenFileSizeMiB NOTIFY maxOpenFileSizeMiBChanged)
     Q_PROPERTY(bool openInProgress READ openInProgress NOTIFY openInProgressChanged)
-    // Crash-recovery journal (phase8-plan.md decision 11): while the
-    // document is dirty, a debounced snapshot writes here; a clean save
-    // removes it. "" disables (single-file mode, no collection).
+    // Crash-recovery journal: while the document is dirty, a debounced
+    // snapshot writes here; a clean save removes it. "" disables
+    // (single-file mode, no collection).
     Q_PROPERTY(QString journalPath READ journalPath WRITE setJournalPath
                    NOTIFY journalPathChanged)
 
@@ -74,8 +73,8 @@ public:
     // Front-matter of the open note, exactly as split off the file on
     // load ("" when the file had none). Bodies flow through the block
     // model; this block flows through verbatim on save, so foreign
-    // metadata survives editing (phase8-plan.md decision 2). The
-    // collection replaces it when metadata changes (Phase 8 step 2).
+    // metadata survives editing. The collection replaces it when
+    // metadata changes.
     QString frontMatter() const { return m_frontMatter; }
     Q_INVOKABLE void setFrontMatter(const QString &block);
 
@@ -100,7 +99,7 @@ public:
     Q_INVOKABLE void rebindFilePath(const QString &newPath);
 
     // Replace the whole document body with the given markdown as ONE
-    // undo step (restore from backup, phase8-plan.md decision 10).
+    // undo step (restore from backup).
     Q_INVOKABLE bool restoreBody(const QString &markdown);
 
     QString journalPath() const { return m_journalPath; }
@@ -133,7 +132,7 @@ signals:
     void openAsyncFinished(const QString &filePath, bool ok);
 
     // Emitted just before the file is overwritten — the backup
-    // rotation's hook (phase8-plan.md decision 10).
+    // rotation's hook.
     void aboutToSave(const QString &filePath);
 
     // UI notifications
@@ -230,8 +229,7 @@ private:
     QString m_frontMatter;
     // Set at load when the freshly parsed model would serialize to bytes
     // that differ from what was read — the first save to the same path
-    // copies the on-disk file to <filename>.bak first, then disarms
-    // (llm-normalization.md, persistence semantics).
+    // copies the on-disk file to <filename>.bak first, then disarms.
     bool m_loadDiverged = false;
     bool m_autoSaveEnabled = true;
     int m_autoSaveInterval = 30;  // seconds
@@ -240,7 +238,7 @@ private:
     QTimer m_autoSaveTimer;
 
     QString m_journalPath;
-    QTimer m_journalTimer; // single-shot debounce (decision 11)
+    QTimer m_journalTimer; // single-shot debounce
 
     QFutureWatcher<AsyncOpenResult> m_asyncOpenWatcher;
     QElapsedTimer m_asyncOpenTimer;

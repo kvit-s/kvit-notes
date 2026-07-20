@@ -1,6 +1,6 @@
 # Vendored MicroTeX (NanoMichael/cLaTeXMath, pinned commit 0e3707f6, MIT).
-# phase10-plan.md decision 12 / step 9: the only third-party code in Phase 10,
-# proven to build and link on this toolchain by step-0 spike a. Built as a
+# The only vendored third-party code in the editor, proven to build and
+# link on this toolchain before it was adopted. Built as a
 # static library `microtex` with the QPainter backend and linked into
 # kvit-core behind the MathRenderer seam. Qt has no math typesetting engine;
 # this turns a TeX string into a laid-out render we paint to a QImage.

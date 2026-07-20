@@ -12,11 +12,11 @@
 
 class SettingsStore;
 
-// The theme token object (phase9-plan.md decision 2): one C++ QObject
+// The theme token object: one C++ QObject
 // exposing every color the application draws with, as a Q_PROPERTY per
-// token. QML binds to the tokens ("no hardcoded colors in new QML" —
-// plan.md Phase 9), and the engine's highlighter reads the inline
-// tokens from the same object (decision 3), so both layers restyle
+// token. QML binds to the tokens — no hardcoded colors in new QML —
+// and the engine's highlighter reads the inline
+// tokens from the same object, so both layers restyle
 // from one source. All tokens notify through the single themeChanged
 // signal: a theme switch re-evaluates every binding wholesale, which
 // is the intended (user-rare) whole-window repaint.
@@ -97,9 +97,9 @@ class Theme : public QObject
     Q_PROPERTY(QColor searchMatchBackground READ searchMatchBackground NOTIFY themeChanged)
     Q_PROPERTY(QColor searchCurrentBackground READ searchCurrentBackground NOTIFY themeChanged)
 
-    // Code-block syntax highlighting (phase10-plan.md decision 3): the five
+    // Code-block syntax highlighting: the five
     // token colors the code highlighter paints, read the same way the inline
-    // tokens above are. codeType is decision 3's "function/type" color.
+    // tokens above are. codeType is the "function/type" color.
     Q_PROPERTY(QColor codeKeyword READ codeKeyword NOTIFY themeChanged)
     Q_PROPERTY(QColor codeType READ codeType NOTIFY themeChanged)
     Q_PROPERTY(QColor codeString READ codeString NOTIFY themeChanged)

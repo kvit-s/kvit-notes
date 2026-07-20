@@ -2,7 +2,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-# Build the public kvit-notes tree (launch-plan.md A1): the files named by
+# Build the public kvit-notes tree: the files named by
 # packaging/export-allowlist.txt, taken from HEAD, committed as a fresh
 # single-commit history. The result is the private mirror of the future
 # public repo; tools/export-gates.sh gates it before anything goes public.

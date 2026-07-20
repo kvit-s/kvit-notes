@@ -1,7 +1,7 @@
-# CI (launch-plan.md Phase C): one workflow, three OS jobs. The `unit` CTest
+# CI: one workflow, three OS jobs. The `unit` CTest
 # label is the merge gate everywhere; performance and xvfb GUI runs are
 # informational on Linux; v* tags run the packaging steps into a draft
-# release. Third-party actions are pinned by commit SHA (C6), and the
+# release. Third-party actions are pinned by commit SHA, and the
 # packaging/signing job runs through the protected "release" environment so
 # a compromised PR cannot reach signing credentials.
 #
@@ -118,7 +118,7 @@ jobs:
           pip install pyyaml
           tools/generate-notices.py --check
 
-  # Tag-triggered packaging (launch-plan.md C5 + D): produces every artifact
+  # Tag-triggered packaging: produces every artifact
   # into a draft release for inspection; publishing the release is a manual
   # step of the release procedure (docs/release-rollback.md). The protected
   # environment carries signing secrets and requires manual approval.
@@ -167,6 +167,5 @@ jobs:
             THIRD-PARTY-NOTICES.md
 
       # Windows (windeployqt zip + Inno installer) and macOS (macdeployqt +
-      # notarized DMG) packaging jobs are added by launch items l-pkg-windows
-      # and l-pkg-macos once the B2/B3 ports compile; they run in this same
-      # protected environment.
+      # notarized DMG) packaging jobs are added once those ports are
+      # packaged; they run in this same protected environment.

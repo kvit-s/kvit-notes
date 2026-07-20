@@ -34,42 +34,42 @@ private slots:
     void testGetSpansBasicItalic();
     void testGetSpansMultiple();
 
-    // Registry types added in phase3-plan.md step 2
+    // Registry span types beyond bold/italic
     void testParseSpansNewTypes_data();
     void testParseSpansNewTypes();
     void testParseSpansNewTypeEdges();
     void testParseSpansAdjacentNewTypes();
     void testParseSpansCodeVerbatim();
 
-    // "_" variants with the word-boundary rule (phase3-plan.md step 3)
+    // "_" variants with the word-boundary rule
     void testParseSpansUnderscoreVariants();
     void testUnderscoreWordBoundaryRule();
     void testToggleRemovesUnderscoreVariant();
 
-    // Nested spans (phase3-plan.md step 4)
+    // Nested spans
     void testParseSpansNestedChildren();
 
-    // Generic span-type commands (phase3-plan.md step 5)
+    // Generic span-type commands
     void testToggleSpanTypePerType_data();
     void testToggleSpanTypePerType();
 
-    // Phase 9 sup/sub rules (phase9-plan.md decision 5)
+    // Phase 9 sup/sub rules
     void testSupSubSpaceAndFamilyRules();
     void testToggleSpanTypeNestedDeepestWins();
     void testRemoveSpanTypeComposite();
 
-    // Links and autolinks (phase3-plan.md step 6)
+    // Links and autolinks
     void testParseSpansLink();
     void testParseSpansLinkEdges();
     void testParseSpansAutolink();
     void testRemoveSpanTypeUnlinks();
 
-    // Wiki-links (pre-launch-plan.md §3.1)
+    // Wiki-links
     void testParseSpansWikiLink();
     void testParseSpansWikiLinkAliasAndHeading();
     void testWikiLinkPrecedenceAndEdges();
 
-    // Text color span (phase10-plan.md decision 2)
+    // Text color span
     void testParseSpansColor();
     void testColorNearMissesStayLiteral();
     void testColorSpanNesting();
@@ -84,10 +84,10 @@ private slots:
     void testInlineMathCurrencyCorpus_data();
     void testInlineMathCurrencyCorpus();
 
-    // Emoji as opaque span content (llm-normalization.md, emoji)
+    // Emoji as opaque span content
     void testEmojiInsideAndBetweenSpans();
 
-    // Backslash escapes (llm-normalization.md fix 5)
+    // Backslash escapes
     void testEscapedDelimitersStayLiteral();
     void testEscapeSpansConcealBackslash();
     void testDoubleBackslashConsumesEscape();
@@ -303,7 +303,7 @@ void TestMarkdownFormatter::testGetSpansMultiple()
     QCOMPARE(span2["type"].toString(), QString("italic"));
 }
 
-// Registry types added in phase3-plan.md step 2. Each row exercises the
+// Registry span types beyond bold/italic. Each row exercises the
 // generic delimiter matcher for one new type over "x <m>ab<m> y".
 
 void TestMarkdownFormatter::testParseSpansNewTypes_data()
@@ -315,7 +315,7 @@ void TestMarkdownFormatter::testParseSpansNewTypes_data()
     QTest::newRow("highlight") << "==" << "highlight";
     QTest::newRow("underline") << "++" << "underline";
     QTest::newRow("code") << "`" << "code";
-    // Phase 9 (phase9-plan.md decision 5): Pandoc sup/sub.
+    // Phase 9: Pandoc sup/sub.
     QTest::newRow("superscript") << "^" << "superscript";
     QTest::newRow("subscript") << "~" << "subscript";
 }
@@ -383,8 +383,7 @@ void TestMarkdownFormatter::testParseSpansCodeVerbatim()
     QCOMPARE(spans[0].rawText, QString("`a **b** c`"));
 
     // An earlier-starting span wins over a later code span — the scan is
-    // left-to-right (phase3-plan.md design decision 4). The code span
-    // nests as a child of the bold content.
+    // left-to-right. The code span nests as a child of the bold content.
     spans = formatter.parseSpans("**a `b` c**");
     QCOMPARE(spans.size(), 1);
     QCOMPARE(spans[0].type, QString("bold"));
@@ -392,8 +391,8 @@ void TestMarkdownFormatter::testParseSpansCodeVerbatim()
     QCOMPARE(spans[0].children[0].type, QString("code"));
 }
 
-// Nested spans (phase3-plan.md step 4): children carry absolute markdown
-// and display coordinates; code content never produces children.
+// Nested spans: children carry absolute markdown and display
+// coordinates; code content never produces children.
 void TestMarkdownFormatter::testParseSpansNestedChildren()
 {
     MarkdownFormatter formatter;
@@ -435,8 +434,8 @@ void TestMarkdownFormatter::testParseSpansNestedChildren()
     QCOMPARE(spans[1].displayEnd, 7);
 }
 
-// "_" variants (phase3-plan.md step 3): same type names and flags as the
-// "*" family, matched only at word boundaries.
+// "_" variants: same type names and flags as the "*" family, matched
+// only at word boundaries.
 
 void TestMarkdownFormatter::testParseSpansUnderscoreVariants()
 {
@@ -652,7 +651,7 @@ void TestMarkdownFormatter::testDisplayToMarkdownPositionWithItalic()
     QCOMPARE(formatter.displayToMarkdownPosition("Hello *world* end", 11), 13); // After "world"
 }
 
-// Links and autolinks (phase3-plan.md step 6)
+// Links and autolinks
 
 void TestMarkdownFormatter::testParseSpansLink()
 {
@@ -752,8 +751,8 @@ void TestMarkdownFormatter::testRemoveSpanTypeUnlinks()
     QCOMPARE(formatter.applySpanType("word", 0, 4, "link"), QString("word"));
 }
 
-// Pandoc sup/sub (phase9-plan.md decision 5): space-free content, the
-// "~" family sharing with "~~" strike, intra-word matching.
+// Pandoc sup/sub: space-free content, the "~" family sharing with "~~"
+// strike, intra-word matching.
 void TestMarkdownFormatter::testSupSubSpaceAndFamilyRules()
 {
     MarkdownFormatter formatter;
@@ -804,7 +803,7 @@ void TestMarkdownFormatter::testSupSubSpaceAndFamilyRules()
     QCOMPARE(formatter.parseSpans("^^").size(), 0);
 }
 
-// Generic span-type commands (phase3-plan.md step 5)
+// Generic span-type commands
 
 void TestMarkdownFormatter::testToggleSpanTypePerType_data()
 {
@@ -1155,7 +1154,7 @@ void TestMarkdownFormatter::testEmojiInsideAndBetweenSpans()
     QCOMPARE(spans[1].start, 5);  // after "*a*" (3) + 🙂 (2 code units)
 }
 
-// ---- Backslash escapes (llm-normalization.md fix 5) ----
+// ---- Backslash escapes ----
 
 void TestMarkdownFormatter::testEscapedDelimitersStayLiteral()
 {
@@ -1326,7 +1325,7 @@ void TestMarkdownFormatter::testWikiLinkPrecedenceAndEdges()
     QCOMPARE(spans[0].type, QString("math"));
 
     // "![[note]]" parses as a plain wiki-link preceded by a literal "!"
-    // (embeds are post-launch; pre-launch-plan.md §3 scope).
+    // (embeds are post-launch).
     spans = formatter.parseSpans("![[note]]");
     QCOMPARE(spans.size(), 1);
     QCOMPARE(spans[0].type, QString("wikilink"));

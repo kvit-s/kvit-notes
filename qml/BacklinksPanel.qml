@@ -5,11 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The backlinks pane (pre-launch-plan.md §3.4): referring notes for the
-// open note, with the context lines their links appear on. Rows come from
-// NoteCollection::backlinksTo, re-queried on every collection revision —
-// which the FileWatcher bumps on external edits — and on note switches.
-// Clicking a row (or a context line) opens the referring note.
+// The backlinks pane: referring notes for the open note, with the context
+// lines their links appear on. Rows come from NoteCollection::backlinksTo,
+// re-queried on every collection revision — which the FileWatcher bumps on
+// external edits — and on note switches. Clicking a row (or a context line)
+// opens the referring note.
 Rectangle {
     id: panel
     objectName: "backlinksPanel"

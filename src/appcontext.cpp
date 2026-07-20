@@ -23,7 +23,7 @@
 
 namespace {
 
-// The real embed fetcher (phase11 decision 11): pulls a page's HTML through a
+// The real embed fetcher: pulls a page's HTML through a
 // QNetworkAccessManager with a bounded timeout and safe redirects. Tests wire
 // a fake instead, so the suite never touches the network.
 class NetworkEmbedFetcher : public EmbedFetcher
@@ -77,8 +77,8 @@ void AppContext::registerQmlTypes()
                                       QStringLiteral("Use the theme context property"));
     qmlRegisterUncreatableType<Block>("Kvit", 1, 0, "Block",
                                       QStringLiteral("Block is model data; the enum is what QML needs"));
-    // The native Mermaid diagram painter (diagrams-prd.md §8.3), used by
-    // DiagramBlock.qml. Parses and lays out off the UI thread.
+    // The native Mermaid diagram painter, used by DiagramBlock.qml. Parses
+    // and lays out off the UI thread.
     qmlRegisterType<DiagramCanvas>("Kvit", 1, 0, "DiagramCanvas");
 }
 
@@ -92,18 +92,18 @@ void AppContext::wire()
 
     m_documentSelection.setModel(&m_blockModel);
     m_documentSearch.setModel(&m_blockModel);
-    // The document outline (phase11-plan.md decision 2): a heading-tree
-    // projection feeding the outline panel, the TOC block, and internal links.
+    // The document outline: a heading-tree projection feeding the outline
+    // panel, the TOC block, and internal links.
     m_documentOutline.setModel(&m_blockModel);
-    // Document statistics (features.md §19.1; phase11 decision 7).
+    // Document statistics (features.md §19.1).
     m_documentStats.setModel(&m_blockModel);
-    // Export (features.md §12.5; phase11 decision 8).
+    // Export (features.md §12.5).
     m_documentExporter.setTheme(&m_theme);
 
-    // Disk-backed global search (search.md): one SQLite FTS5 index the
-    // collection feeds and the search facade queries, off the GUI thread.
+    // Disk-backed global search: one SQLite FTS5 index the collection feeds
+    // and the search facade queries, off the GUI thread.
     // A capability probe guards packaging: a release build without FTS5 and the
-    // trigram tokenizer cannot serve global search (search.md §6.3).
+    // trigram tokenizer cannot serve global search.
     if (!CollectionSearchIndex::capabilityAvailable()) {
         qWarning("Global search disabled: the SQLite driver lacks FTS5 with the "
                  "trigram tokenizer. Packaged builds must ship it.");
@@ -114,11 +114,11 @@ void AppContext::wire()
     m_collectionSearch.setSearchIndex(&m_searchIndex);
     m_collectionSearch.setCollection(&m_noteCollection);
 
-    // Note templates (features.md §18; phase11 decision 6).
+    // Note templates (features.md §18).
     m_noteTemplates.setCollection(&m_noteCollection);
-    // Import into the collection (features.md §12.6; phase11 decision 9).
+    // Import into the collection (features.md §12.6).
     m_documentImporter.setCollection(&m_noteCollection);
-    // Embed preview cards (features.md §1.2.14; phase11 decision 11).
+    // Embed preview cards (features.md §1.2.14).
     m_embedMetadata.setFetcher(m_embedFetcher.get());
     m_embedMetadata.setCollection(&m_noteCollection);
 
@@ -127,14 +127,14 @@ void AppContext::wire()
     m_startupController.setBlockModel(&m_blockModel);
     m_startupController.setUndoStack(&m_undoStack);
 
-    // System integration seams (phase12 decision 6). The tray shows only where a
-    // status-notifier host exists; the global hotkey backend is not registered
-    // under WSLg (spike (b)), but both route their actions through their signals
-    // so the in-app path (quick capture, tray menu) works regardless.
+    // System integration seams. The tray shows only where a status-notifier
+    // host exists; the global hotkey backend is not registered under WSLg,
+    // but both route their actions through their signals so the in-app path
+    // (quick capture, tray menu) works regardless.
     m_systemTray.show();
     m_globalHotkey.setSupported(false);   // no X11/portal backend on this platform
 
-    // External file watching (§12.1, phase12 decision 7). Debounced outside
+    // External file watching (features.md §12.1). Debounced outside
     // changes refresh the affected note paths when possible; directory-level
     // changes still fall back to a full collection refresh. The own-write guard
     // (hooked to the save path) keeps the app's own writes from self-triggering.
@@ -155,9 +155,9 @@ void AppContext::wire()
                 m_fileWatcher.watchFile(m_documentManager.currentFilePath());
             });
 
-    // Wiki-link navigation (pre-launch-plan.md §3.3): back/forward history
-    // and the quick switcher's filter. History entries follow collection
-    // renames/deletions and clear with the root.
+    // Wiki-link navigation: back/forward history and the quick switcher's
+    // filter. History entries follow collection renames/deletions and clear
+    // with the root.
     connect(&m_noteCollection, &NoteCollection::noteMoved,
             &m_navigationHistory, &NavigationHistory::renamePath);
     connect(&m_noteCollection, &NoteCollection::noteRemoved,
@@ -166,15 +166,15 @@ void AppContext::wire()
             &m_navigationHistory, &NavigationHistory::clear);
     m_quickSwitcherModel.setCollection(&m_noteCollection);
 
-    // Collection query block (pre-launch-plan.md §1.3): the QML seam over
-    // the pure QueryData parse/evaluate module.
+    // Collection query block: the QML seam over the pure QueryData
+    // parse/evaluate module.
     m_queryTools.setCollection(&m_noteCollection);
 }
 
 void AppContext::openSettings(const QString &settingsPath)
 {
-    // Per-user settings (phase9-plan.md decision 1). The store flushes any
-    // pending debounced write when it is destroyed with this context.
+    // Per-user settings. The store flushes any pending debounced write when
+    // it is destroyed with this context.
     const QString path = settingsPath.isEmpty()
         ? QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation))
               .filePath(QStringLiteral("settings.json"))
@@ -185,7 +185,7 @@ void AppContext::openSettings(const QString &settingsPath)
     // they attach here, after open() — attaching in wire() would read an
     // empty store and discard the persisted theme.id and type.* values.
     m_theme.setSettings(&m_settingsStore);
-    // Typography settings (§10.2, phase9-plan.md decision 4).
+    // Typography settings (features.md §10.2).
     m_typography.setSettings(&m_settingsStore);
 
     PerfLog &perfLog = PerfLog::instance();
@@ -202,8 +202,8 @@ void AppContext::openSettings(const QString &settingsPath)
         m_settingsStore.value(QStringLiteral("hotkey.quickCapture"),
                               QStringLiteral("Ctrl+Alt+N")).toString());
 
-    // The disclosed opt-out update check (launch-plan.md D4.5) reads its
-    // enabled flag and once-per-day stamp from the same store.
+    // The disclosed opt-out update check reads its enabled flag and
+    // once-per-day stamp from the same store.
     m_updateChecker.setSettings(&m_settingsStore);
 
     // Close-to-tray is opt-in (tray.closeToTray, default off): closing the
@@ -269,21 +269,21 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     context->setContextProperty("perfLog", &PerfLog::instance());
     context->setContextProperty("theme", &m_theme);
     context->setContextProperty("typography", &m_typography);
-    // The canonical code-highlight language ids (phase10 step 1): the single
+    // The canonical code-highlight language ids: the single
     // source of truth for the language picker and the /code aliases, so the
     // UI list can never drift from what the highlighter recognizes.
     context->setContextProperty(
         "codeLanguageList",
         QVariant::fromValue(CodeLanguages::supportedLanguages()));
     context->setContextProperty("imageAssets", &m_imageAssets);
-    // The per-block attribute reader/editor (phase12 decision 1): delegates read
-    // typed presentation values off a block's `attributes` payload, and the
+    // The per-block attribute reader/editor: delegates read typed
+    // presentation values off a block's `attributes` payload, and the
     // attribute editors compute a new payload to hand to setBlockAttributes.
     context->setContextProperty("blockAttributes", &m_blockAttributes);
-    // The §13 shortcut catalog (phase12 step 4): the source the shortcut
+    // The shortcut catalog (features.md §13): the source the shortcut
     // reference renders and the test_shortcutmap audit checks.
     context->setContextProperty("shortcutCatalog", &m_shortcutCatalog);
-    // The live-region announcer (phase12 decision 4): dynamic changes speak
+    // The live-region announcer: dynamic changes speak
     // through this seam to assistive technology.
     context->setContextProperty("a11y", &m_a11y);
     context->setContextProperty("systemTray", &m_systemTray);
@@ -296,15 +296,16 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     context->setContextProperty("todoMeta", &m_todoMeta);
     context->setContextProperty("kanbanTools", &m_kanbanTools);
     context->setContextProperty("queryTools", &m_queryTools);
-    // Math (phase10-plan.md decision 12): the MicroTeX seam. The provider owns
-    // rendering under image://math/...; mathRenderer is the parse-check +
-    // encoder the delegates use. The engine takes ownership of the provider.
+    // Math: the MicroTeX seam. The provider owns rendering under
+    // image://math/...; mathRenderer is the parse-check + encoder the
+    // delegates use. The engine takes ownership of the provider.
     engine->addImageProvider(QStringLiteral("math"), new MathImageProvider);
     context->setContextProperty("mathRenderer", &m_mathTools);
 
-    // The two extension seams (chat.md §8). Both are inert in the open build:
-    // no module is installed, so `blockKinds` reports only the built-in fence
-    // kinds and every `extensions` slot resolves to an empty source.
+    // The two extension seams: block-kind registration and QML slot
+    // injection. Both are inert in the open build: no module is installed,
+    // so `blockKinds` reports only the built-in fence kinds and every
+    // `extensions` slot resolves to an empty source.
     context->setContextProperty("blockKinds", &BlockKindRegistry::instance());
     context->setContextProperty("extensions", &ExtensionRegistry::instance());
     ExtensionRegistry::instance().installContextProperties(context);

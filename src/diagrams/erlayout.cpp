@@ -12,7 +12,7 @@
 
 using namespace Mermaid;
 
-// ER-diagram layout (diagrams-prd.md §8.4): entity tables (title band plus
+// ER-diagram layout: entity tables (title band plus
 // type/name/keys/comment columns) placed by the shared layered core;
 // relationships drawn border-to-border with crow's-foot end markers, dashed
 // when non-identifying, labeled at the midpoint.

@@ -6,11 +6,11 @@ import QtQuick.Controls
 import QtQuick.Window
 import Kvit 1.0
 
-// Display-math block (features.md §1.2.15, phase10-plan.md decision 12). The
-// block is a `$$ … $$` fence; its content is the verbatim TeX. Unfocused, it
-// shows only the rendered equation, centered, through the MicroTeX image
-// provider and themed to the text color, with an equation number at the right
-// when that setting is on. Focused, it shows the LaTeX source in monospace
+// Display-math block (features.md §1.2.15). The block is a `$$ … $$` fence;
+// its content is the verbatim TeX. Unfocused, it shows only the rendered
+// equation, centered, through the MicroTeX image provider and themed to the
+// text color, with an equation number at the right when that setting is on.
+// Focused, it shows the LaTeX source in monospace
 // with a debounced live-render preview beneath, and — when the expression does
 // not parse — the source plus a named error rather than nothing. It keeps the
 // non-text focus API of the other wave-2 blocks so navigation, selection, and
@@ -349,13 +349,13 @@ Item {
                 border.color: theme.border; border.width: 1
             }
 
-            // ---- Math command menu wiring (tex-editing.md) ----
+            // ---- Math command menu wiring ----
             // Last resolved position of the trigger backslash. Query sync
             // re-derives it from the caret so model writes cannot stale it.
             property int mathTriggerPos: -1
-            // Tab slot-chain (tex-editing.md "Insertion semantics"):
-            // armed by a template insertion, Tab hops to the next empty
-            // {} / [] pair until none remain or focus leaves.
+            // Tab slot-chain: armed by a template insertion, Tab hops
+            // to the next empty {} / [] pair until none remain or focus
+            // leaves.
             property bool slotChainActive: false
 
             function activeMathMenu() {
@@ -432,7 +432,7 @@ Item {
                 var end = Math.max(cursorPosition, start)
                 mathTriggerPos = -1
                 // A bare command fuses with a following letter (\alphax);
-                // pad with a space (tex-editing.md "Insertion semantics").
+                // pad with a space.
                 if (offset < 0 && end < text.length
                     && /[A-Za-z]/.test(text.charAt(end))
                     && /[A-Za-z]$/.test(insertText))
@@ -503,9 +503,9 @@ Item {
             onCursorPositionChanged: Qt.callLater(syncMathMenuQuery)
 
             Keys.onPressed: function(event) {
-                // While the menu targets this editor it owns navigation
-                // (tex-editing.md keyboard contract); everything else
-                // keeps typing into the source, which feeds the query.
+                // While the menu targets this editor it owns navigation;
+                // everything else keeps typing into the source, which
+                // feeds the query.
                 var menu = activeMathMenu()
                 if (menu) {
                     if (event.key === Qt.Key_Down) {
@@ -555,7 +555,7 @@ Item {
                 }
 
                 // Ctrl+Space: re-trigger completion for the backslash-word
-                // at the caret (tex-editing.md "Trigger").
+                // at the caret.
                 if (event.key === Qt.Key_Space
                     && (event.modifiers & Qt.ControlModifier)) {
                     var s = cursorPosition

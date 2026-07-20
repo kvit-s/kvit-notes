@@ -148,7 +148,7 @@ void DiagramCanvas::applyResult(const Diagram::RenderResult &r,
     }
 
     // Keep the last valid scene while the new source is invalid (last-good
-    // preview, diagrams-prd.md §5.1).
+    // preview).
     if (r.valid) {
         m_scene = r.scene;
         m_hasScene = true;

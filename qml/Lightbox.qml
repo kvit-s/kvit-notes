@@ -3,10 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 
-// Full-window image lightbox (features.md §1.2.8, phase10-plan.md decision 4):
-// a dimmed overlay showing the image at natural size (capped to the window),
-// dismissed by Escape or a click. Instantiated once in main.qml and opened
-// via win.openLightbox(source, alt).
+// Full-window image lightbox (features.md §1.2.8): a dimmed overlay showing
+// the image at natural size (capped to the window), dismissed by Escape or
+// a click. Instantiated once in main.qml and opened via
+// win.openLightbox(source, alt).
 Item {
     id: lightbox
     anchors.fill: parent

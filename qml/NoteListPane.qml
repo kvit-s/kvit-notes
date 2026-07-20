@@ -5,10 +5,10 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The note list (phase8-plan.md decision 8): rows of the noteListModel
-// projection with sort controls, pin/favorite toggles, bulk selection
-// with its action bar, inline rename, drag-to-folder, and manual-order
-// drag when sorting manually inside a folder.
+// The note list: rows of the noteListModel projection with sort controls,
+// pin/favorite toggles, bulk selection with its action bar, inline rename,
+// drag-to-folder, and manual-order drag when sorting manually inside a
+// folder.
 Rectangle {
     id: noteListPane
     objectName: "noteListPane"
@@ -28,7 +28,7 @@ Rectangle {
     property string renamingPath: ""
 
     // While a global-search query is active the results view replaces
-    // the note rows (phase8-plan.md decision 9).
+    // the note rows.
     readonly property bool searching: collectionSearch.query !== ""
 
     // Bulk selection (§8.3): relPaths, gestured like the Phase 6 block
@@ -327,10 +327,10 @@ Rectangle {
             }
         }
 
-        // ---- Crash-recovery banner (phase8-plan.md decision 11): journal
-        // files found when the root opened are unsaved changes from a
-        // crashed session; each offers Restore or Discard, with the
-        // journal's content previewed inline. ----------------------------
+        // ---- Crash-recovery banner: journal files found when the root
+        // opened are unsaved changes from a crashed session; each offers
+        // Restore or Discard, with the journal's content previewed
+        // inline. -------------------------------------------------------
         Rectangle {
             objectName: "recoveryBanner"
             Layout.fillWidth: true

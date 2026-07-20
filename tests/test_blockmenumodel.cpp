@@ -5,7 +5,7 @@
 #include "blockmenumodel.h"
 #include "block.h"
 
-// The slash-command catalog and fuzzy filter (phase5-plan.md step 2).
+// The slash-command catalog and fuzzy filter.
 // itemsFor() returns display rows: header maps { kind: "header", text }
 // and entry maps { kind: "entry", name, description, icon, type }.
 class TestBlockMenuModel : public QObject
@@ -139,8 +139,7 @@ void TestBlockMenuModel::testEmptyQueryGroupedWithHeaders()
 {
     const QVariantList rows = m_menu->itemsFor(QString());
 
-    // Canonical group order (phase5-plan.md decision 7; Media added in
-    // Phase 10, §4.3); no recency yet
+    // Canonical group order, with Media added in Phase 10; no recency yet
     QCOMPARE(headerTexts(rows),
              QStringList({ "Basic", "Lists", "Advanced", "Media" }));
 
