@@ -17,6 +17,7 @@
 #include <QSharedPointer>
 
 #include "block.h"
+#include "cancellationtoken.h"
 
 class BlockModel;
 class UndoStack;
@@ -210,10 +211,16 @@ private:
     // immediately before committing, which is the last moment the write can
     // still be called off; QSaveFile discards its temporary file instead of
     // renaming it over the target, so nothing reaches the note's old path.
-    struct WriteCancellation {
-        QAtomicInt cancelled{0};
-    };
-    using WriteCancellationPtr = QSharedPointer<WriteCancellation>;
+    //
+    // This is the same primitive the collection's background walks use
+    // (CancellationToken), deliberately placed differently. A walk checks
+    // repeatedly because it can stop between any two files and lose nothing
+    // but unfinished work. A write has exactly one safe point: before
+    // commit() everything is confined to a temporary file and abandoning it
+    // costs nothing, while after commit() the bytes are already at the
+    // target and there is nothing left to call off. So the type is shared
+    // and the placement is not.
+    using WriteCancellationPtr = CancellationTokenPtr;
 
     struct PersistenceWriteResult {
         QString operation;
