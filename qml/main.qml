@@ -3677,34 +3677,32 @@ ApplicationWindow {
                         MediaBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::KanbanKind — a `kanban`-tagged code
-                        // fence. Literal because KanbanKind is a static
-                        // constexpr, not a Q_ENUM.
-                        roleValue: 100
+                        // A `kanban`-tagged code fence renders as a board.
+                        roleValue: BlockKinds.Kanban
                         KanbanBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::TocKind — a `toc`-tagged code fence:
-                        // a read-only linked heading list.
-                        roleValue: 101
+                        // A `toc`-tagged code fence: a read-only linked
+                        // heading list.
+                        roleValue: BlockKinds.Toc
                         TocBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::EmbedKind — an ![](url) image expression
-                        // whose URL is a web/video embed: a preview card.
-                        roleValue: 102
+                        // An ![](url) image expression whose URL is a
+                        // web/video embed: a preview card.
+                        roleValue: BlockKinds.Embed
                         EmbedBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::MermaidKind — a `mermaid`-tagged code
-                        // fence, rendered natively as a diagram.
-                        roleValue: 103
+                        // A `mermaid`-tagged code fence, rendered natively
+                        // as a diagram.
+                        roleValue: BlockKinds.Mermaid
                         DiagramBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::QueryKind — a `query`-tagged code
-                        // fence holding a live front-matter query.
-                        roleValue: 104
+                        // A `query`-tagged code fence holding a live
+                        // front-matter query.
+                        roleValue: BlockKinds.Query
                         QueryBlock { width: blockListView.width }
                     }
                     DelegateChoice {

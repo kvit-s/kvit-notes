@@ -5,6 +5,7 @@
 
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QRegularExpression>
 
 #include <memory>
 
@@ -19,22 +20,25 @@ namespace {
 class FakeExtension : public KvitExtension
 {
 public:
-    explicit FakeExtension(const QString &name, const QString &language)
-        : m_name(name), m_language(language)
+    explicit FakeExtension(const QString &name, const QString &language,
+                           const QString &ns = QString())
+        : m_name(name), m_language(language),
+          m_namespace(ns.isEmpty() ? name : ns)
     {
         m_published.setObjectName(QStringLiteral("fake-extension-object"));
     }
 
     QString name() const override { return m_name; }
+    QString qmlNamespace() const override { return m_namespace; }
 
     void registerBlockKinds(BlockKindRegistry &registry) override
     {
         kind = registry.registerFenceLanguage(m_language, QStringLiteral("qrc:/fake.qml"));
     }
 
-    void installContextProperties(QQmlContext *context) override
+    QVariantMap contextObjects() override
     {
-        context->setContextProperty("fakeExtension", &m_published);
+        return {{QStringLiteral("published"), QVariant::fromValue(&m_published)}};
     }
 
     QString qmlSlot(const QString &slot) const override
@@ -49,6 +53,7 @@ public:
 private:
     QString m_name;
     QString m_language;
+    QString m_namespace;
     QObject m_published;
 };
 
@@ -63,21 +68,12 @@ class TestExtensionRegistry : public QObject
     Q_OBJECT
 
 private slots:
-    void init()
-    {
-        ExtensionRegistry::instance().clear();
-        BlockKindRegistry::instance().reset();
-    }
-
-    void cleanupTestCase()
-    {
-        ExtensionRegistry::instance().clear();
-        BlockKindRegistry::instance().reset();
-    }
+    // Each case owns its registries. Nothing is reset between cases because
+    // nothing is shared between them.
 
     void anEmptyRegistryFillsNoSlot()
     {
-        ExtensionRegistry &registry = ExtensionRegistry::instance();
+        ExtensionRegistry registry;
         QCOMPARE(registry.count(), 0);
         QVERIFY(registry.slotSource(KvitSlots::BottomBar).isEmpty());
         QVERIFY(registry.slotSource(KvitSlots::Banner).isEmpty());
@@ -87,7 +83,7 @@ private slots:
 
     void installingAModuleReportsItAndFillsItsSlot()
     {
-        ExtensionRegistry &registry = ExtensionRegistry::instance();
+        ExtensionRegistry registry;
         QSignalSpy changed(&registry, &ExtensionRegistry::extensionsChanged);
 
         registry.install(std::make_unique<FakeExtension>("fake", "fake-fence"));
@@ -104,18 +100,19 @@ private slots:
 
     void installingTheSameModuleTwiceIsIgnored()
     {
-        ExtensionRegistry &registry = ExtensionRegistry::instance();
+        ExtensionRegistry registry;
         registry.install(std::make_unique<FakeExtension>("fake", "fake-fence"));
         registry.install(std::make_unique<FakeExtension>("fake", "other-fence"));
 
         QCOMPARE(registry.count(), 1);
-        registry.registerBlockKinds(BlockKindRegistry::instance());
-        QCOMPARE(BlockKindRegistry::instance().kindForLanguage("other-fence"), 0);
+        BlockKindRegistry kinds;
+        registry.registerBlockKinds(kinds);
+        QCOMPARE(kinds.kindForLanguage("other-fence"), 0);
     }
 
     void theFirstModuleClaimingASlotKeepsIt()
     {
-        ExtensionRegistry &registry = ExtensionRegistry::instance();
+        ExtensionRegistry registry;
         registry.install(std::make_unique<FakeExtension>("first", "fence-a"));
         registry.install(std::make_unique<FakeExtension>("second", "fence-b"));
 
@@ -126,11 +123,11 @@ private slots:
 
     void blockKindRegistrationFansOutToEveryModule()
     {
-        ExtensionRegistry &registry = ExtensionRegistry::instance();
+        ExtensionRegistry registry;
         registry.install(std::make_unique<FakeExtension>("first", "fence-a"));
         registry.install(std::make_unique<FakeExtension>("second", "fence-b"));
 
-        BlockKindRegistry &kinds = BlockKindRegistry::instance();
+        BlockKindRegistry kinds;
         registry.registerBlockKinds(kinds);
 
         QVERIFY(kinds.kindForLanguage("fence-a") >= BlockKindRegistry::FirstRegisteredKind);
@@ -138,23 +135,93 @@ private slots:
         QVERIFY(kinds.kindForLanguage("fence-a") != kinds.kindForLanguage("fence-b"));
     }
 
-    void contextPropertiesReachTheQmlRootContext()
+    // A module's objects arrive under its own namespace, so `fake.published`
+    // resolves and no bare global name is taken.
+    void contextObjectsArriveUnderTheModuleNamespace()
     {
-        ExtensionRegistry &registry = ExtensionRegistry::instance();
+        ExtensionRegistry registry;
         registry.install(std::make_unique<FakeExtension>("fake", "fence-a"));
 
         QQmlEngine engine;
         registry.installContextProperties(engine.rootContext());
+        QCOMPARE(registry.publishedNamespaces(), QStringList{QStringLiteral("fake")});
 
-        QObject *published =
-            engine.rootContext()->contextProperty("fakeExtension").value<QObject *>();
-        QVERIFY(published);
-        QCOMPARE(published->objectName(), QStringLiteral("fake-extension-object"));
+        const QVariantMap published =
+            engine.rootContext()->contextProperty("fake").toMap();
+        QObject *object = published.value(QStringLiteral("published")).value<QObject *>();
+        QVERIFY(object);
+        QCOMPARE(object->objectName(), QStringLiteral("fake-extension-object"));
+
+        // The old contract put this straight on the root context as a global.
+        QVERIFY(!engine.rootContext()->contextProperty("published").isValid());
+    }
+
+    // A namespace the core already uses is refused rather than shadowing it.
+    // The modules are first party, so this is a mistake-catcher, not a
+    // defence — but a silent shadow of `blockModel` would be very hard to see.
+    void aNamespaceCollidingWithTheCoreIsRefused()
+    {
+        ExtensionRegistry registry;
+        registry.install(
+            std::make_unique<FakeExtension>("greedy", "fence-a",
+                                            QStringLiteral("blockModel")));
+
+        QQmlEngine engine;
+        QTest::ignoreMessage(QtWarningMsg,
+                             QRegularExpression(QStringLiteral("already taken")));
+        registry.installContextProperties(engine.rootContext(),
+                                          {QStringLiteral("blockModel")});
+
+        QVERIFY(registry.publishedNamespaces().isEmpty());
+        QVERIFY(!engine.rootContext()->contextProperty("blockModel").isValid());
+    }
+
+    void twoModulesCannotShareANamespace()
+    {
+        ExtensionRegistry registry;
+        registry.install(std::make_unique<FakeExtension>("first", "fence-a",
+                                                         QStringLiteral("shared")));
+        registry.install(std::make_unique<FakeExtension>("second", "fence-b",
+                                                         QStringLiteral("shared")));
+
+        QQmlEngine engine;
+        QTest::ignoreMessage(QtWarningMsg,
+                             QRegularExpression(QStringLiteral("already taken")));
+        registry.installContextProperties(engine.rootContext());
+
+        // The first one keeps it; the second publishes nothing.
+        QCOMPARE(registry.publishedNamespaces(),
+                 QStringList{QStringLiteral("shared")});
+    }
+
+    void aNamespaceThatIsNotAnIdentifierIsRefused()
+    {
+        ExtensionRegistry registry;
+        registry.install(std::make_unique<FakeExtension>("odd", "fence-a",
+                                                         QStringLiteral("not a name")));
+
+        QQmlEngine engine;
+        QTest::ignoreMessage(QtWarningMsg,
+                             QRegularExpression(QStringLiteral("not a valid identifier")));
+        registry.installContextProperties(engine.rootContext());
+        QVERIFY(registry.publishedNamespaces().isEmpty());
+    }
+
+    // Two registries in one process are independent, which is what makes a
+    // case like the collision ones above safe to write at all.
+    void registriesAreIndependent()
+    {
+        ExtensionRegistry first;
+        ExtensionRegistry second;
+        first.install(std::make_unique<FakeExtension>("fake", "fence-a"));
+        QCOMPARE(first.count(), 1);
+        QCOMPARE(second.count(), 0);
+        QVERIFY(second.slotSource(KvitSlots::BottomBar).isEmpty());
     }
 
     void clearRemovesEveryModule()
     {
-        ExtensionRegistry &registry = ExtensionRegistry::instance();
+        ExtensionRegistry registry;
         registry.install(std::make_unique<FakeExtension>("fake", "fence-a"));
         registry.clear();
 

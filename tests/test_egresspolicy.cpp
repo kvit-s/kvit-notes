@@ -35,6 +35,10 @@ public:
                       "</head></html>";
     QByteArray contentType = "text/html";
     QString redirectTo;          // non-empty: answer 302 to this Location
+    // false: send no Content-Length and let the body run to EOF. Only a
+    // streaming cap can stop that, so it is the case that tells the
+    // enforcement mechanisms apart.
+    bool declareLength = true;
 
     bool start()
     {
@@ -60,9 +64,12 @@ private slots:
             if (!redirectTo.isEmpty()) {
                 resp = "HTTP/1.0 302 Found\r\nLocation: " + redirectTo.toUtf8()
                      + "\r\nContent-Length: 0\r\n\r\n";
-            } else {
+            } else if (declareLength) {
                 resp = "HTTP/1.0 200 OK\r\nContent-Type: " + contentType + "\r\n"
                        "Content-Length: " + QByteArray::number(body.size())
+                     + "\r\n\r\n" + body;
+            } else {
+                resp = "HTTP/1.0 200 OK\r\nContent-Type: " + contentType
                      + "\r\n\r\n" + body;
             }
             sock->write(resp);
@@ -104,9 +111,11 @@ private slots:
 
     // ---- What holds on the wire ----
     void nameResolvingToPrivateAddressIsRefused();
+    void aNameAnsweringWithAnyRefusedAddressIsRefused();
     void redirectToPrivateAddressIsRefused();
     void redirectToUnapprovedOriginIsRefused();
     void oversizedResponseIsCutOffWhileReceiving();
+    void oversizedResponseWithNoDeclaredLengthIsCutOff();
     void wrongContentTypeIsRefused();
 
     // ---- Metadata-selected images ----
@@ -311,44 +320,75 @@ void TestEgressPolicy::cachedMetadataNeedsNoNewConsent()
 
 void TestEgressPolicy::nameResolvingToPrivateAddressIsRefused()
 {
-    EgressPolicy policy;
-    policy.allowOrigin("https://intranet.example.com/x");
+    // The forbidden address is a live loopback server rather than an
+    // unroutable one, so the refusal is observable as "nothing reached the
+    // host" instead of as a connection that would have failed anyway. Aimed
+    // at a real private address, a regression here shows up as a connect
+    // timeout, which reads like a flaky test and tempts the next person to
+    // raise the timeout; aimed at a public one it would dial the internet.
+    LocalServer forbidden;
+    QVERIFY(forbidden.start());
+
+    EgressPolicy policy;      // loopback is blocked: no test seam here
+    policy.allowOrigin(QStringLiteral("http://intranet.example.test:%1/x")
+                           .arg(forbidden.port()));
 
     EgressFetcher fetcher;
     fetcher.setPolicy(&policy);
-    // A name the reader approved that answers with an internal address: the
-    // classic SSRF shape. The address check runs on what DNS returned, so the
-    // approval does not get it past the gate.
+    // A name the reader approved that answers with an address the policy
+    // refuses: the classic SSRF shape. The address check runs on what DNS
+    // returned, so the approval does not get it past the gate.
     fetcher.setResolverForTests([](const QString &) {
-        return QList<QHostAddress>{QHostAddress("10.0.0.5")};
+        return QList<QHostAddress>{QHostAddress(QStringLiteral("127.0.0.1"))};
     });
 
     bool called = false, result = true;
-    fetcher.request(QUrl("https://intranet.example.com/x"),
+    fetcher.request(QUrl(QStringLiteral("http://intranet.example.test:%1/x")
+                             .arg(forbidden.port())),
                     EgressFetcher::Purpose::EmbedPreview,
                     [&](bool ok, const QByteArray &, const QString &) {
                         called = true;
                         result = ok;
                     });
     QTRY_VERIFY(called);
-    QVERIFY2(!result, "a name resolving to a private address was fetched");
+    QVERIFY2(!result, "a name resolving to a refused address was fetched");
+    QTest::qWait(200);
+    QVERIFY2(forbidden.requests.isEmpty(),
+             "a request reached the host the address check should have stopped");
+}
 
-    // A name answering with both a public and a private address is refused
-    // too: picking the public one would be luck, not a decision.
-    called = false;
-    result = true;
+// Every address DNS returns must pass, not just the one that would be used.
+// A name answering with an allowed address and a refused one is a rebinding
+// setup, and taking the first would be luck rather than a decision.
+void TestEgressPolicy::aNameAnsweringWithAnyRefusedAddressIsRefused()
+{
+    LocalServer reachable;
+    QVERIFY(reachable.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);   // 127.0.0.1 is allowed for this case
+    policy.allowOrigin(reachable.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    // The allowed address first, so a "check only the address we will use"
+    // regression connects and the server records it.
     fetcher.setResolverForTests([](const QString &) {
-        return QList<QHostAddress>{QHostAddress("93.184.216.34"),
-                                   QHostAddress("169.254.169.254")};
+        return QList<QHostAddress>{QHostAddress(QStringLiteral("127.0.0.1")),
+                                   QHostAddress(QStringLiteral("169.254.169.254"))};
     });
-    fetcher.request(QUrl("https://intranet.example.com/x"),
-                    EgressFetcher::Purpose::EmbedPreview,
+
+    bool called = false, result = true;
+    fetcher.request(QUrl(reachable.url()), EgressFetcher::Purpose::EmbedPreview,
                     [&](bool ok, const QByteArray &, const QString &) {
                         called = true;
                         result = ok;
                     });
     QTRY_VERIFY(called);
-    QVERIFY(!result);
+    QVERIFY2(!result, "a name answering with a refused address was fetched");
+    QTest::qWait(200);
+    QVERIFY2(reachable.requests.isEmpty(),
+             "the fetch used the allowed address and ignored the refused one");
 }
 
 void TestEgressPolicy::redirectToPrivateAddressIsRefused()
@@ -406,7 +446,8 @@ void TestEgressPolicy::redirectToUnapprovedOriginIsRefused()
                         result = ok;
                     });
     QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
-    QVERIFY(!result);
+    QVERIFY2(!result,
+             "a redirect to an origin the reader never approved was followed");
     QTest::qWait(200);
     QVERIFY2(second.requests.isEmpty(),
              "the redirect reached an origin the reader never approved");
@@ -446,6 +487,57 @@ void TestEgressPolicy::oversizedResponseIsCutOffWhileReceiving()
              qPrintable(QStringLiteral("server delivered %1 bytes before the "
                                        "transfer was abandoned")
                             .arg(server.bytesDelivered)));
+}
+
+// The case that separates a streaming cap from a declared-length check. With
+// no Content-Length the server's claim cannot be consulted, so refusing this
+// requires actually stopping the transfer as the body arrives. A mutation
+// audit found that the test above passes with EITHER mechanism removed,
+// because each alone handles a response that declares its size; this one
+// fails unless the body is capped while it is being read.
+void TestEgressPolicy::oversizedResponseWithNoDeclaredLengthIsCutOff()
+{
+    LocalServer server;
+    server.body = QByteArray(32 * 1024 * 1024, 'x');
+    server.declareLength = false;
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+
+    bool called = false, result = true;
+    qint64 received = -1;
+    fetcher.request(QUrl(server.url("/undeclared")),
+                    EgressFetcher::Purpose::EmbedPreview,
+                    [&](bool ok, const QByteArray &body, const QString &) {
+                        called = true;
+                        result = ok;
+                        received = body.size();
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 30000);
+    QVERIFY2(!result, "an undeclared oversized response was accepted");
+    QVERIFY2(received <= EgressFetcher::maxBytesFor(
+                             EgressFetcher::Purpose::EmbedPreview) + 1,
+             qPrintable(QStringLiteral("buffered %1 bytes past the cap")
+                            .arg(received)));
+    // Well under the whole body, rather than near the cap: kernel socket
+    // buffers and Qt's own read-ahead absorb several megabytes before any
+    // handler can act, measured around 8.5 MB here. The property worth
+    // asserting is that the transfer is abandoned rather than completed; the
+    // in-process bound is the assertion above.
+    QVERIFY2(server.bytesDelivered < server.body.size() / 2,
+             qPrintable(QStringLiteral("server delivered %1 of %2 bytes: the "
+                                       "transfer ran to completion instead of "
+                                       "being abandoned")
+                            .arg(server.bytesDelivered)
+                            .arg(server.body.size())));
 }
 
 void TestEgressPolicy::wrongContentTypeIsRefused()

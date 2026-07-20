@@ -502,7 +502,8 @@ void TestBlockAttributes::serializerAttributeRoundTripFenceKinds_data()
     // The registry's fence languages (kanban, toc, mermaid, query) are code
     // blocks with a bespoke delegate, so they inherit the code-fence
     // serialization and need the same guarantee.
-    for (const QString &language : BlockKindRegistry::instance().languages())
+    BlockKindRegistry registry;
+    for (const QString &language : registry.languages())
         QTest::newRow(qPrintable(language)) << language;
 }
 

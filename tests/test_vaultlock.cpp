@@ -193,7 +193,8 @@ void TestVaultLock::lockIsReleasedWhenTheOwnerIsKilled()
 
     {
         NoteCollection blocked;
-        QVERIFY(!blocked.openRoot(dir.path()));
+        QVERIFY2(!blocked.openRoot(dir.path()),
+                 "a second session opened a vault another process holds");
     }
 
     holder->kill();                              // no cleanup runs

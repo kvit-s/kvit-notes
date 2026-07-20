@@ -61,6 +61,12 @@ void AppContext::registerQmlTypes()
                                       QStringLiteral("Use the theme context property"));
     qmlRegisterUncreatableType<Block>("Kvit", 1, 0, "Block",
                                       QStringLiteral("Block is model data; the enum is what QML needs"));
+    // The built-in fence kinds, so main.qml's DelegateChooser names them
+    // (`BlockKinds.Kanban`) instead of repeating their numbers. One
+    // definition, in blockkindregistry.h.
+    qmlRegisterUncreatableMetaObject(
+        BlockKinds::staticMetaObject, "Kvit", 1, 0, "BlockKinds",
+        QStringLiteral("BlockKinds is an enum namespace"));
     // The native Mermaid diagram painter, used by DiagramBlock.qml. Parses
     // and lays out off the UI thread.
     qmlRegisterType<DiagramCanvas>("Kvit", 1, 0, "DiagramCanvas");
@@ -69,6 +75,10 @@ void AppContext::registerQmlTypes()
 void AppContext::wire()
 {
     m_blockModel.setUndoStack(&m_undoStack);
+    // The model resolves fence kinds against this context's registry, so a
+    // module's kinds are visible to it and a second AppContext in one process
+    // keeps its own.
+    m_blockModel.setBlockKindRegistry(&m_blockKinds);
 
     m_documentManager.setBlockModel(&m_blockModel);
     m_documentManager.setUndoStack(&m_undoStack);
@@ -276,8 +286,11 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     QQmlContext *context = engine->rootContext();
 
     // Every property goes through one helper so the published set is
-    // recorded as it is built. A test reads it back and compares it with the
-    // names the shell binds to; nothing has to be kept in sync by hand.
+    // recorded as it is built, and two things read that one list. A test
+    // compares it with the names the shell binds to, so neither side drifts
+    // by hand; and ExtensionRegistry refuses a module namespace that collides
+    // with a name already on it. `const auto &value` rather than QObject *
+    // because codeLanguageList publishes a QVariant.
     m_installedProperties.clear();
     auto publish = [&](const char *name, const auto &value) {
         m_installedProperties << QString::fromLatin1(name);
@@ -354,7 +367,9 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // injection. Both are inert in the open build: no module is installed,
     // so `blockKinds` reports only the built-in fence kinds and every
     // `extensions` slot resolves to an empty source.
-    publish("blockKinds", &BlockKindRegistry::instance());
-    publish("extensions", &ExtensionRegistry::instance());
-    ExtensionRegistry::instance().installContextProperties(context);
+    publish("blockKinds", &m_blockKinds);
+    publish("extensions", &m_extensions);
+    // Modules publish last and under their own namespace, and every name the
+    // core just took is refused to them.
+    m_extensions.installContextProperties(context, m_installedProperties);
 }

@@ -1359,7 +1359,7 @@ void TestDocumentSerializer::testTocFenceRoundTripAndDerivedKind()
     QCOMPARE(m_model->count(), 3);
     QCOMPARE(m_model->blockAt(1)->blockType(), Block::CodeBlock);
     QCOMPARE(m_model->blockAt(1)->language(), QString("toc"));
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock,
+    QCOMPARE(m_model->delegateKindForBlock(Block::CodeBlock,
                                               QStringLiteral("toc")),
              BlockModel::TocKind);
     // Round-trips byte-identically as a code fence.
@@ -1393,7 +1393,7 @@ void TestDocumentSerializer::testQueryFenceRoundTripAndDerivedKind()
     QCOMPARE(m_model->count(), 3);
     QCOMPARE(m_model->blockAt(1)->blockType(), Block::CodeBlock);
     QCOMPARE(m_model->blockAt(1)->language(), QString("query"));
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock,
+    QCOMPARE(m_model->delegateKindForBlock(Block::CodeBlock,
                                               QStringLiteral("query")),
              BlockModel::QueryKind);
     QCOMPARE(m_serializer->serialize(m_model), md + "\n");
