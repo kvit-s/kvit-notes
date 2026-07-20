@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     KvitApplication kvit(app);
 
 #ifdef KVIT_AGENT
-    KvitAgent::install(ExtensionRegistry::instance());
+    KvitAgent::install(*kvit.context().extensions());
 #endif
 
     if (!kvit.start(app.arguments()))

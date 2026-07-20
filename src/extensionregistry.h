@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
 
 #include <memory>
 #include <vector>
@@ -42,13 +43,31 @@ public:
     // Identifies the module in diagnostics; must be unique.
     virtual QString name() const = 0;
 
+    // The QML identifier this module's objects appear under. Every object the
+    // module publishes is reached as `<qmlNamespace>.<key>`, so a module can
+    // never take a bare global name and a collision between two modules, or
+    // with one of the core's own names, is refused at install time and named
+    // in the warning rather than silently shadowing something.
+    //
+    // Must be a valid QML identifier: a lowercase letter or underscore
+    // followed by letters, digits or underscores.
+    virtual QString qmlNamespace() const = 0;
+
     // Claim fence languages and their delegates. Called before any block is
     // rendered, and before the QML engine exists.
     virtual void registerBlockKinds(BlockKindRegistry &registry);
 
-    // Publish QML context properties on the shell's root context, the way
-    // AppContext publishes the core's own objects.
-    virtual void installContextProperties(QQmlContext *context);
+    // The objects to publish under this module's namespace, keyed by the name
+    // QML uses. Ownership stays with the module.
+    //
+    // This replaced a `installContextProperties(QQmlContext *)` callback that
+    // handed each module the shell's root context and let it set any global
+    // name it liked. The modules are first party and compiled into the same
+    // binary, so that was never a security boundary — but it made the set of
+    // names the shell exposes impossible to know by reading the core, and
+    // two modules claiming one name would have resolved to whichever
+    // installed last.
+    virtual QVariantMap contextObjects();
 
     // The QML file that fills a named UI slot (see KvitSlots), or an empty
     // string for slots this module leaves alone.
@@ -66,11 +85,10 @@ class ExtensionRegistry : public QObject
     Q_OBJECT
 
 public:
-    // The process-wide registry, which main() installs modules into and
-    // AppContext reads. Also the `extensions` QML context property, so the
-    // shell's Loaders can resolve their slot sources.
-    static ExtensionRegistry &instance();
-
+    // Instance owned, like BlockKindRegistry: AppContext holds the one the
+    // application runs on, publishes it as the `extensions` QML context
+    // property, and hands it to main() through KvitApplication. A test builds
+    // its own and is isolated by construction.
     explicit ExtensionRegistry(QObject *parent = nullptr);
     ~ExtensionRegistry() override;
 
@@ -88,7 +106,20 @@ public:
 
     // Fan-out of the two setup callbacks, in installation order.
     void registerBlockKinds(BlockKindRegistry &registry);
-    void installContextProperties(QQmlContext *context);
+
+    // Publishes one context property per installed module: the module's
+    // qmlNamespace(), holding its contextObjects(). A namespace that is not a
+    // valid identifier, that collides with another module, or that collides
+    // with a name the core already published is refused with a warning and
+    // the module contributes nothing to QML.
+    //
+    // `reservedNames` is what the core has already put on the context.
+    void installContextProperties(QQmlContext *context,
+                                  const QStringList &reservedNames = {});
+
+    // The namespaces that were actually published, in installation order.
+    // Empty for a module whose namespace was refused.
+    QStringList publishedNamespaces() const { return m_publishedNamespaces; }
 
     // Removes every installed module. Tests use it to isolate cases; the app
     // never calls it.
@@ -101,6 +132,7 @@ signals:
 
 private:
     std::vector<std::unique_ptr<KvitExtension>> m_extensions;
+    QStringList m_publishedNamespaces;
 };
 
 #endif // EXTENSIONREGISTRY_H

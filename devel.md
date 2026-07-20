@@ -241,6 +241,66 @@ The suite is `tests/test_egresspolicy.cpp` (`EgressPolicyTests`), which
 drives a loopback `QTcpServer` rather than the real internet and covers the
 refusals, the redirect re-checks, and the streaming cap.
 
+## Extensions are first-party code, and that is the decision
+
+Kvit Notes is the open core of a two-repository product. The private
+`kvit-notes-pro` repository links this one in as a submodule and adds a
+premium module on top, behind the `KVIT_AGENT` option. `KvitExtension` and
+`ExtensionRegistry` exist so that module can attach without this tree
+carrying any conditional that refers to it.
+
+**Extensions are statically linked and fully trusted.** There is no plugin
+loader, nothing is discovered at runtime, and nothing is loaded from disk. A
+module is C++ compiled into the same binary, so it already has the address
+space: it can call any function the process can call, read any memory the
+process can read, and do so without going near this interface. Building a
+capability system, a permission prompt or a sandbox around the seam would
+constrain nothing an actual attacker faces, while making every first-party
+change more expensive. If a module is ever loaded from disk or written by a
+third party, that decision reopens this one; until then the binary is where
+the trust boundary sits, and the interface carries none of it.
+
+What the interface is for is therefore clarity between first-party
+components. It narrows what a module can do by accident, and it makes what a
+module contributes legible from the core:
+
+- **Contributions are namespaced.** A module declares a `qmlNamespace()` and
+  returns its objects from `contextObjects()`; the registry publishes one
+  context property per module, so QML reaches them as `agent.session` rather
+  than as bare globals. This replaced an `installContextProperties(QQmlContext
+  *)` callback that handed each module the shell's root context to set any
+  name it liked. A namespace that is not a valid identifier, that another
+  module already took, or that collides with a name the core published is
+  refused with a warning on the `kvit.extensions` category, and the module
+  publishes nothing. `AppContext::installContextProperties` builds the
+  reserved list as it publishes, so it cannot fall behind what the core
+  actually occupies.
+- **Registries are instance owned.** `BlockKindRegistry` and
+  `ExtensionRegistry` have no `instance()`. `AppContext` owns both and
+  publishes them; `BlockModel` resolves fence kinds against the one wired into
+  it, falling back to a private registry holding the built-ins so a bare
+  `BlockModel` in a unit test still renders a `kanban` fence as a board. The
+  payoff is test isolation: cases used to depend on `reset()` being called in
+  the right order in `init()`, and a suite that forgot inherited whatever the
+  last one registered. Now each case constructs what it needs. The sharpest
+  evidence for this is in "One composition root, in production and in tests"
+  below: the Qt Quick harness had drifted from the real object graph without a
+  single failing test, and shared mutable setup is how that stays invisible.
+- **Block-kind numbers exist once.** `BlockKinds` is a `Q_NAMESPACE` enum
+  registered to QML, so `main.qml` writes `roleValue: BlockKinds.Kanban`
+  instead of `100` with a comment naming the C++ constant. Two guards in
+  `test_shell.cpp` hold the pairing: every enumerator must be named by the
+  shipped shell, and the shell must not hard-code any kind's number. Adding a
+  kind with no delegate fails the suite naming the missing token, where it
+  previously rendered an empty row in silence.
+
+**`KVIT_AGENT=ON` against this checkout stops at configure time with an
+explanation.** The module's sources are deliberately absent here, so the
+option now checks for them and explains that the premium module lives in
+`kvit-notes-pro` and that this repository builds the open editor with the
+option off. It used to fail deep inside `qt_add_executable` with "Cannot find
+source file" for each missing path, which reads like a broken checkout.
+
 ## One writer per vault
 
 Notes, the JSON sidecar, `collection.json` and the search index are all read

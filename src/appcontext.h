@@ -14,6 +14,7 @@
 #include "blockattributes.h"
 #include "blockeditorengine.h"
 #include "blockmenumodel.h"
+#include "blockkindregistry.h"
 #include "blockmodel.h"
 #include "clipboardhelper.h"
 #include "collectionsearch.h"
@@ -29,6 +30,7 @@
 #include "egressfetcher.h"
 #include "egresspolicy.h"
 #include "embedmetadata.h"
+#include "extensionregistry.h"
 #include "filewatcher.h"
 #include "foldertreemodel.h"
 #include "globalhotkey.h"
@@ -148,6 +150,11 @@ public:
     Theme *theme() { return &m_theme; }
     Typography *typography() { return &m_typography; }
     UpdateChecker *updateChecker() { return &m_updateChecker; }
+    // The two extension seams, owned here rather than process-global. The
+    // launcher installs modules into the registry and asks them to claim
+    // their fence kinds before the shell loads.
+    ExtensionRegistry *extensions() { return &m_extensions; }
+    BlockKindRegistry *blockKinds() { return &m_blockKinds; }
     // The one transport and the one policy. The launcher hands the fetcher
     // to the update checker; nothing else in the tree opens a connection.
     EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }
@@ -160,6 +167,10 @@ private:
     QStringList m_installedProperties;
 
     // Declaration order = construction order; destruction runs in reverse.
+    // The registries come first: the block model resolves delegate kinds
+    // against one of them, and modules claim kinds before anything renders.
+    BlockKindRegistry m_blockKinds;
+    ExtensionRegistry m_extensions;
     UndoStack m_undoStack;
     BlockModel m_blockModel;
     DocumentManager m_documentManager;
