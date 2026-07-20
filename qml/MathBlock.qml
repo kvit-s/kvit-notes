@@ -1,6 +1,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Nested items read the root's own properties from their own scopes.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
@@ -51,7 +54,7 @@ BlockDelegateBase {
     // What the rendered view/preview shows: the live (debounced) source while
     // editing, else the committed content.
     readonly property string renderTex: editing ? previewTex : content
-    readonly property string errorText: MathRenderer.errorFor(renderTex)
+    readonly property string errorText: MathRenderer.errorFor(root.renderTex)
 
     // previewTex starts as a binding to content, but the debounce assigns
     // it imperatively, which destroys that binding for the delegate's whole
@@ -311,7 +314,7 @@ BlockDelegateBase {
                 id: renderedImage
                 objectName: "mathRenderedImage"
                 anchors.centerIn: parent
-                visible: root.errorText === "" && renderTex.trim().length > 0
+                visible: root.errorText === "" && root.renderTex.trim().length > 0
                 source: root.mathSource(root.renderTex)
                 width: implicitWidth
                 height: implicitHeight
@@ -322,7 +325,7 @@ BlockDelegateBase {
             // Empty block placeholder.
             Text {
                 anchors.centerIn: parent
-                visible: renderTex.trim().length === 0
+                visible: root.renderTex.trim().length === 0
                 text: qsTr("Empty equation — click to edit")
                 color: Theme.textFaint
                 font.italic: true
@@ -333,7 +336,7 @@ BlockDelegateBase {
                 id: readError
                 anchors.centerIn: parent
                 spacing: 2
-                visible: root.errorText !== "" && renderTex.trim().length > 0
+                visible: root.errorText !== "" && root.renderTex.trim().length > 0
                 Text {
                     text: root.renderTex
                     font.family: "monospace"; font.pixelSize: 13

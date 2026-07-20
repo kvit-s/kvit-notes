@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The row delegate's Texts and handlers are separate scopes reading the
+// model role and the enclosing menu.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -260,7 +264,7 @@ Popup {
                 required property var modelData
                 required property int index
 
-                readonly property bool isEntry: modelData.kind === "entry"
+                readonly property bool isEntry: rowItem.modelData.kind === "entry"
 
                 width: menuList.width
                 height: isEntry ? 44 : 24
@@ -271,7 +275,7 @@ Popup {
                     anchors.left: parent.left
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    text: rowItem.isEntry ? "" : modelData.text
+                    text: rowItem.isEntry ? "" : rowItem.modelData.text
                     color: Theme.textFaint
                     font.pixelSize: 10
                     font.bold: true
@@ -303,7 +307,7 @@ Popup {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: rowItem.isEntry ? modelData.icon : ""
+                                text: rowItem.isEntry ? rowItem.modelData.icon : ""
                                 color: Theme.textSecondary
                                 font.pixelSize: 12
                                 font.bold: true
@@ -315,12 +319,12 @@ Popup {
                             spacing: 1
 
                             Text {
-                                text: rowItem.isEntry ? modelData.name : ""
+                                text: rowItem.isEntry ? rowItem.modelData.name : ""
                                 color: Theme.textPrimary
                                 font.pixelSize: 13
                             }
                             Text {
-                                text: rowItem.isEntry ? modelData.description : ""
+                                text: rowItem.isEntry ? rowItem.modelData.description : ""
                                 color: Theme.textFaint
                                 font.pixelSize: 11
                             }
