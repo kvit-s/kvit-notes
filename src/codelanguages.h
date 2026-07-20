@@ -7,6 +7,8 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <QObject>
+#include <QtQml/qqmlregistration.h>
 
 // Code-block syntax highlighting. An in-house, data-driven rule-table pass —
 // NOT a third-party framework: KSyntaxHighlighting was rejected because it
@@ -85,5 +87,35 @@ QList<Span> highlightSpans(const QString &language, const QString &text);
 LineResult highlightLine(const QString &language, const QString &line, int startState);
 
 } // namespace CodeLanguages
+
+
+// The canonical language list, as QML reads it.
+//
+// This was the `codeLanguageList` context property, and it is the one
+// published name that was not a QObject — it was a bare QVariant holding the
+// QStringList, so it could not become a singleton the way the services did.
+// Wrapping it gives qmllint something typed to check, which a QVariant never
+// offered.
+//
+// Default-constructed by the QML engine on purpose. The services in
+// qmlsingletons.h all need a factory, because each must resolve to the object
+// its own AppContext owns; this holds no state at all and only forwards to
+// the free function below, so one per engine is correct.
+class CodeLanguagesApi : public QObject
+{
+    Q_OBJECT
+    QML_NAMED_ELEMENT(CodeLanguages)
+    QML_SINGLETON
+
+    // The language ids the highlighter recognises: the single source the
+    // picker and the /code aliases both read, so the UI cannot offer a
+    // language that does not highlight.
+    Q_PROPERTY(QStringList supported READ supported CONSTANT)
+
+public:
+    using QObject::QObject;
+
+    QStringList supported() const { return CodeLanguages::supportedLanguages(); }
+};
 
 #endif // CODELANGUAGES_H

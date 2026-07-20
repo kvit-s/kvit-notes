@@ -18,6 +18,7 @@
 #include "block.h"
 #include "blockmodel.h"
 #include "extensionregistry.h"
+#include "perflog.h"
 
 #include <QQmlContext>
 #include <QRegularExpression>
@@ -135,8 +136,7 @@ private slots:
             "blockModel", "documentManager",
             "documentSelection", "documentSearch",
             "noteCollection", "noteListModel", "appSettings",
-            "perfLog",
-            "theme", "codeLanguageList",
+            "theme",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
 
@@ -211,6 +211,18 @@ private slots:
         other.openSettings(otherDir.filePath(QStringLiteral("settings.json")));
         QQmlEngine otherEngine;
         other.installContextProperties(&otherEngine);
+
+        // PerfLog is the exception the loop below would get wrong. It is a
+        // process-global that every composition shares, so it resolves
+        // through PerfLog::instance() rather than the per-engine table, and
+        // both engines are SUPPOSED to see one object. Asserting that
+        // directly pins the sharing rather than leaving it untested.
+        QObject *minePerfLog = m_engine.singletonInstance<QObject *>(
+            QStringLiteral("Kvit"), QStringLiteral("PerfLog"));
+        QCOMPARE(minePerfLog, static_cast<QObject *>(&PerfLog::instance()));
+        QCOMPARE(otherEngine.singletonInstance<QObject *>(
+                     QStringLiteral("Kvit"), QStringLiteral("PerfLog")),
+                 minePerfLog);
 
         for (const QString &type : singletons) {
 

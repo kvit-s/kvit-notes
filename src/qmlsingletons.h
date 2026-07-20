@@ -30,6 +30,7 @@
 #include "mathrenderer.h"
 #include "navigationhistory.h"
 #include "notetemplates.h"
+#include "perflog.h"
 #include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
@@ -126,5 +127,29 @@ KVIT_QML_SINGLETON_NAMED(ExtensionRegistry, Extensions)
 // fence-kind enum namespace, which main.qml reads as `BlockKinds.Kanban`. The
 // registry object is a different thing and takes its class name.
 KVIT_QML_SINGLETON_NAMED(BlockKindRegistry, BlockKindRegistry)
+
+// The one process-global here. PerfLog is a singleton in its own right and
+// every composition shares it, so it resolves through PerfLog::instance()
+// rather than through the per-engine table.
+//
+// It is also the only service whose constructor is private, which makes it
+// the only one where putting QML_SINGLETON and create() on the class itself
+// would have worked: Qt reaches the factory branch precisely because
+// std::is_default_constructible is false for it. It goes through a wrapper
+// anyway, so the module's registrations are all in one place.
+struct PerfLogForeign
+{
+    Q_GADGET
+    QML_FOREIGN(PerfLog)
+    QML_NAMED_ELEMENT(PerfLog)
+    QML_SINGLETON
+public:
+    static PerfLog *create(QQmlEngine *, QJSEngine *)
+    {
+        PerfLog *instance = &PerfLog::instance();
+        QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+        return instance;
+    }
+};
 
 #endif // QMLSINGLETONS_H

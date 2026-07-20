@@ -330,8 +330,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // recorded as it is built, and two things read that one list. A test
     // compares it with the names the shell binds to, so neither side drifts
     // by hand; and ExtensionRegistry refuses a module namespace that collides
-    // with a name already on it. `const auto &value` rather than QObject *
-    // because codeLanguageList publishes a QVariant.
+    // with a name already on it.
     m_installedProperties.clear();
     auto publish = [&](const char *name, const auto &value) {
         m_installedProperties << QString::fromLatin1(name);
@@ -344,16 +343,8 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     publish("documentSearch", &m_documentSearch);
     publish("noteCollection", &m_noteCollection);
     publish("noteListModel", &m_noteListModel);
-    // Delegates ask this before rendering anything remote; see EgressPolicy.
     publish("appSettings", &m_settingsStore);
-    publish("perfLog", &PerfLog::instance());
     publish("theme", &m_theme);
-    // The canonical code-highlight language ids: the single
-    // source of truth for the language picker and the /code aliases, so the
-    // UI list can never drift from what the highlighter recognizes.
-    publish(
-        "codeLanguageList",
-        QVariant::fromValue(CodeLanguages::supportedLanguages()));
     // The per-block attribute reader/editor: delegates read typed
     // presentation values off a block's `attributes` payload, and the
     // attribute editors compute a new payload to hand to setBlockAttributes.

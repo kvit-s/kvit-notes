@@ -411,11 +411,11 @@ ApplicationWindow {
         if (tocIndexes.length === 0)
             return
 
-        var perfOn = perfLog && perfLog.enabled
+        var perfOn = PerfLog && PerfLog.enabled
         var scanned = 0
         var updated = 0
         if (perfOn)
-            perfLog.begin("toc.sync", {
+            PerfLog.begin("toc.sync", {
                 "blocks": blockModel.count,
                 "tocBlocks": tocIndexes.length
             })
@@ -433,7 +433,7 @@ ApplicationWindow {
             }
         } finally {
             if (perfOn)
-                perfLog.end("toc.sync", {
+                PerfLog.end("toc.sync", {
                     "scanned": scanned,
                     "updated": updated
                 })
@@ -4175,9 +4175,9 @@ ApplicationWindow {
                 property int docWords: 0
 
                 function recompute() {
-                    var perfOn = perfLog && perfLog.enabled
+                    var perfOn = PerfLog && PerfLog.enabled
                     if (perfOn)
-                        perfLog.begin("statusbar.count", {
+                        PerfLog.begin("statusbar.count", {
                             "blocks": blockModel ? blockModel.count : 0
                         })
                     try {
@@ -4248,7 +4248,7 @@ ApplicationWindow {
                     }
                     } finally {
                         if (perfOn)
-                            perfLog.end("statusbar.count", {
+                            PerfLog.end("statusbar.count", {
                                 "words": counts.words,
                                 "chars": counts.chars,
                                 "selection": counts.sel
