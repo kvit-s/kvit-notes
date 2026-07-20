@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/kvit-s/kvit-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/kvit-s/kvit-notes/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/kvit-s/kvit-notes)](https://github.com/kvit-s/kvit-notes/releases/latest)
-[![Flathub](https://img.shields.io/flathub/downloads/org.kvit.Notes)](https://flathub.org/apps/org.kvit.Notes)
 [![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue)](LICENSE)
 
 Kvit Notes is a native markdown block editor and notes app: your notes are
@@ -15,12 +14,21 @@ span revealed only while your cursor is inside it.
 
 | Platform | Install |
 |---|---|
-| Windows | [Installer](https://github.com/kvit-s/kvit-notes/releases/latest) · [portable zip](https://github.com/kvit-s/kvit-notes/releases/latest) |
-| macOS (Apple Silicon) | [DMG](https://github.com/kvit-s/kvit-notes/releases/latest) · `brew install kvit-s/tap/kvit-notes` |
-| Linux | [Flathub](https://flathub.org/apps/org.kvit.Notes) · [AppImage](https://github.com/kvit-s/kvit-notes/releases/latest) · AUR `kvit-notes-bin` |
+| Linux | [AppImage](https://github.com/kvit-s/kvit-notes/releases/latest) · AUR `kvit-notes-bin` |
 
-Windows builds ship unsigned for now: SmartScreen will ask once; choose
-"More info → Run anyway".
+**Windows and macOS builds are not published yet.** Both ports compile and
+pass the full unit suite in CI on every commit, and the Windows port also
+passes it locally against MSVC 2022, but neither has a packaging job: there
+is no installer, portable zip, DMG, signing or notarization step in the
+release workflow, so a tag produces the Linux AppImage and nothing else.
+Building from source works on all three platforms today (see below). This
+section lists only what a release actually publishes, and will grow when
+those jobs exist.
+
+Flathub and the Homebrew tap are likewise not live yet. The Flatpak manifest
+lives at `packaging/flatpak/org.kvit.Notes.yaml` and is submitted by hand;
+until that submission is accepted, the AppImage and the AUR package are the
+Linux options.
 
 ## What it does
 

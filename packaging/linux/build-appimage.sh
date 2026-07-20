@@ -245,6 +245,11 @@ find "$APPDIR" \( -name '*.so*' -o -name 'kvit-notes' \) -type f | sort \
     --appdir "$APPDIR" \
     --output appimage
 
+# The packed artifact is the thing users download, so it is the thing that
+# gets run. The AppDir checks above cannot see anything the squashfs image,
+# AppRun or the relocation step breaks, and this suggestion used to be
+# printed rather than executed.
+tools/check-appimage.sh "$LDAI_OUTPUT"
+
 echo "AppImage: $LDAI_OUTPUT"
 echo "Bundled-library manifest: packaging/manifests/linux-$VERSION.txt"
-echo "Smoke check: $LDAI_OUTPUT --math-selftest"

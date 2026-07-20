@@ -34,7 +34,9 @@ Trigger: a P0/P1 confirmed against the latest published release.
    apply the fix (cherry-pick if it already landed on main), tag
    `vX.Y.(Z+1)`, and let CI produce and publish the artifacts.
 3. **Propagate the supersede** to every channel that mirrors releases:
-   - Flathub: push the new version manifest;
+   - Flathub: run `tools/update-flatpak-commit.sh <version>` so the
+     manifest pins the tag's commit, not just the mutable tag, then
+     push it. `--check` verifies before submitting;
    - winget: submit the updated manifest PR;
    - AUR `-bin`: run `tools/update-aur-digest.sh <version>`, which bumps
      pkgver and pins `sha256sums` to the digest in the release's
