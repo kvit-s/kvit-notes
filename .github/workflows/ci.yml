@@ -1,0 +1,172 @@
+# CI (launch-plan.md Phase C): one workflow, three OS jobs. The `unit` CTest
+# label is the merge gate everywhere; performance and xvfb GUI runs are
+# informational on Linux; v* tags run the packaging steps into a draft
+# release. Third-party actions are pinned by commit SHA (C6), and the
+# packaging/signing job runs through the protected "release" environment so
+# a compromised PR cannot reach signing credentials.
+#
+# The local acceptance gate for the UI suites remains DISPLAY=:0
+# ./build.sh --test on a rested real display (CONTRIBUTING.md): CI protects
+# correctness, the local gate protects the UI suites.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  QT_VERSION: "6.10.1"
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            preset: linux-release
+            test-preset: unit-linux
+            qt-arch: linux_gcc_64
+          # windows-2022, not windows-latest: since the windows-2025-vs2026
+          # image, windows-latest ships Visual Studio 2026, and the
+          # windows-msvc-release preset pins the "Visual Studio 17 2022"
+          # generator to match the Qt msvc2022_64 kit installed below and
+          # the toolchain the port was developed against. Moving to VS 2026
+          # is a deliberate toolchain change, not a runner-label default.
+          - os: windows-2022
+            preset: windows-msvc-release
+            test-preset: unit-windows
+            qt-arch: win64_msvc2022_64
+          - os: macos-14
+            preset: macos-release
+            test-preset: unit-macos
+            qt-arch: clang_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 \
+            libxcb-xinerama0 libfontconfig1 xvfb
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: ${{ matrix.qt-arch }}
+          modules: qtmultimedia qtshadertools qtimageformats
+          cache: true
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }} -j 4
+
+      # The merge gate: deterministic, headless-safe unit suites.
+      - name: Unit tests (gate)
+        env:
+          # Not offscreen on Windows: that QPA plugin ships no fonts, so every
+          # text metric collapses to zero and the text-diagram suites fail
+          # (the same finding that scoped the TextDiagram ctest property to
+          # non-Windows). The windows plugin runs headless on the runner.
+          QT_QPA_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || 'offscreen' }}
+        run: ctest --preset ${{ matrix.test-preset }} --output-on-failure
+
+      # Non-blocking trend data; loaded shared runners make timings advisory.
+      - name: Performance tests (informational)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build-${{ matrix.preset }} -L performance --output-on-failure
+
+      - name: GUI smoke tests (informational)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build-${{ matrix.preset }} -L gui-smoke --output-on-failure
+
+      # Encodes the ruled local-gate policy: xvfb cannot deliver real focus,
+      # so the Qt Quick suites never gate merges from CI.
+      - name: Qt Quick integration under xvfb (informational)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: xvfb-run -a ctest --test-dir build-${{ matrix.preset }} -L visual --output-on-failure
+
+      - name: License header check
+        if: runner.os == 'Linux'
+        run: tools/apply-license-headers.sh --check
+
+      - name: Notices freshness check
+        if: runner.os == 'Linux'
+        run: |
+          pip install pyyaml
+          tools/generate-notices.py --check
+
+  # Tag-triggered packaging (launch-plan.md C5 + D): produces every artifact
+  # into a draft release for inspection; publishing the release is a manual
+  # step of the release procedure (docs/release-rollback.md). The protected
+  # environment carries signing secrets and requires manual approval.
+  package:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev \
+            libxkbcommon-x11-0 libxcb-cursor0 libfontconfig1 \
+            libfuse2t64 file
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          modules: qtmultimedia qtshadertools qtimageformats
+          cache: true
+
+      - name: Build AppImage
+        run: packaging/linux/build-appimage.sh
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Draft release with artifacts
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
+          files: |
+            dist/*
+            THIRD-PARTY-NOTICES.md
+
+      # Windows (windeployqt zip + Inno installer) and macOS (macdeployqt +
+      # notarized DMG) packaging jobs are added by launch items l-pkg-windows
+      # and l-pkg-macos once the B2/B3 ports compile; they run in this same
+      # protected environment.

@@ -1,0 +1,60 @@
+name: Bug report
+description: Something renders wrong, crashes, or misbehaves
+labels: [bug]
+body:
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "Windows 11 23H2 / macOS 15.2 / Ubuntu 24.04 (X11 or Wayland)"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install Kvit?
+      options:
+        - Windows installer
+        - Windows portable zip
+        - macOS DMG
+        - Homebrew
+        - Flathub
+        - AppImage
+        - AUR
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: qt-version
+    attributes:
+      label: Qt version (only if you built from source)
+      placeholder: "6.10.1"
+  - type: input
+    id: app-version
+    attributes:
+      label: Kvit version
+      placeholder: "1.0.0 (Help → About, or the release you downloaded)"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro-markdown
+    attributes:
+      label: Markdown that reproduces the issue
+      description: >-
+        If the bug involves rendering or editing, paste the smallest markdown
+        snippet that shows it. This is usually the fastest path to a fix.
+      render: markdown
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a note with the snippet above
+        2. Place the cursor inside the …
+        3. …

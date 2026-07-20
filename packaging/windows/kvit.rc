@@ -1,0 +1,2 @@
+// Windows resources: the application icon (first icon = taskbar/Explorer icon).
+IDI_ICON1 ICON "../icons/kvit.ico"

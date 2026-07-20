@@ -1,0 +1,157 @@
+# Dependency manifest (launch-plan.md A2.3): every third-party component that
+# ships in an artifact, is linked, or is vendored in the tree, plus first-party
+# assets whose provenance a distributor needs. THIRD-PARTY-NOTICES.md is
+# generated from this file by tools/generate-notices.py - edit here, never
+# there. Per-artifact plugin lists are confirmed against real packages in
+# Phase D (see packaging/qt-lgpl-checklist.md, "deploy-time enumeration").
+version: 1
+components:
+  - name: MicroTeX (cLaTeXMath)
+    version: pinned commit 0e3707f6
+    spdx: MIT
+    origin: https://github.com/NanoMichael/cLaTeXMath
+    files: third_party/microtex/src, third_party/microtex/res (excluding the
+      font sub-licenses listed separately below)
+    license_file: third_party/microtex/LICENSE.clatexmath
+    ships_in: [windows, macos, linux, source]
+    obligations: Preserve the copyright notice and license text.
+
+  - name: tinyxml2
+    version: vendored with cLaTeXMath
+    spdx: Zlib
+    origin: https://github.com/leethomason/tinyxml2
+    files: third_party/microtex/tinyxml2
+    license_file: third_party/microtex/tinyxml2/tinyxml2.h (header notice)
+    ships_in: [windows, macos, linux, source]
+    obligations: Keep the notice; altered sources must be marked.
+
+  - name: TeX math fonts vendored by cLaTeXMath (base, euler, latin, maths)
+    version: vendored with cLaTeXMath
+    spdx: Knuth-CTAN AND OFL-1.1 AND LicenseRef-dsrom
+    origin: CTAN via cLaTeXMath
+    files: third_party/microtex/res/fonts/{base,euler,latin,maths}
+    license_file: third_party/microtex/res/fonts/licences/ (Knuth_License.txt,
+      OFL.txt, License_for_dsrom.txt)
+    ships_in: [windows, macos, linux, source]
+    obligations: Ship the license files beside the fonts (the installed
+      math-res tree carries them); OFL forbids selling the fonts standalone.
+
+  - name: kvit-newtx math fonts (NewTX / XCharter derivatives)
+    version: generated 2026-07 from CTAN newtx + xcharter by Michael Sharpe
+    spdx: LPPL-1.3c AND LicenseRef-Bitstream-Charter
+    origin: https://ctan.org/pkg/newtx, https://ctan.org/pkg/xcharter;
+      generation tooling tools/generate_newtx_microtex.py
+    files: third_party/microtex/res/fonts/kvit-newtx
+    license_file: third_party/microtex/res/fonts/kvit-newtx/LICENSES,
+      NOTICE.md (authoritative provenance; naming/attribution checklist
+      executed during the math port - launch-plan.md A2)
+    ships_in: [windows, macos, linux, source]
+    obligations: LPPL renaming requirement satisfied by the kvit_newtx_*
+      names; keep NOTICE.md and LICENSES with the fonts; Bitstream Charter
+      notice must stay intact.
+
+  - name: Greek alphabet fonts for MicroTeX
+    version: vendored with cLaTeXMath
+    spdx: GPL-3.0-only
+    origin: CTAN (Greek TeX fonts) via cLaTeXMath
+    files: third_party/microtex/res/greek
+    license_file: third_party/microtex/res/greek/LICENSE
+    ships_in: [windows, macos, linux, source]
+    obligations: >-
+      Ship the GPL-3 text with the fonts (the installed math-res tree
+      carries res/greek/LICENSE, verified in the Linux install and
+      AppImage layouts). Owner ruling 2026-07-19 (decisions.md): shipped
+      as aggregation - plain GPL-3, no font-embedding exception, accepted
+      because the fonts are standalone data files, the app rasterizes math
+      in-process, and no font is ever embedded into exported documents.
+      Serves literal Cyrillic/polytonic-Greek characters inside formulas;
+      TeX math Greek commands come from the math fonts and never touch
+      this pack.
+
+  - name: Cyrillic alphabet fonts for MicroTeX
+    version: vendored with cLaTeXMath
+    spdx: GPL-3.0-only
+    origin: CTAN (Washington Cyrillic) via cLaTeXMath
+    files: third_party/microtex/res/cyrillic
+    license_file: third_party/microtex/res/cyrillic/LICENSE
+    ships_in: [windows, macos, linux, source]
+    obligations: >-
+      Ship the GPL-3 text with the fonts (res/cyrillic/LICENSE travels
+      with the installed math-res tree). Same 2026-07-19 owner ruling and
+      aggregation rationale as the Greek pack above.
+
+  - name: Qt
+    version: "6.10.1"
+    spdx: LGPL-3.0-only
+    origin: https://www.qt.io (aqtinstall binaries in CI)
+    files: dynamically linked; runtime libraries and plugins bundled by
+      windeployqt / macdeployqt / linuxdeploy at packaging time
+    license_file: shipped as packaging/licenses/qt (Phase D packaging step
+      copies the LGPL-3 and GPL-exception texts into each artifact)
+    ships_in: [windows, macos, linux]
+    obligations: See packaging/qt-lgpl-checklist.md - dynamic linking only,
+      license texts in every artifact, source-availability statement,
+      relink/replace ability preserved (no static Qt).
+
+  - name: Qt Multimedia FFmpeg backend
+    version: bundled with Qt 6.10.1 binaries
+    spdx: LGPL-2.1-or-later (FFmpeg build shipped by Qt)
+    origin: Qt-provided ffmpeg plugin (qtmultimedia)
+    files: bundled by deploy tools when qtmultimedia ships
+    license_file: covered by the Qt licenses folder in each artifact
+    ships_in: [windows, macos, linux]
+    obligations: Confirm the deployed ffmpeg build's license configuration
+      (LGPL build, no GPL-only components) during Phase D enumeration.
+    flag: Per-artifact enumeration pending first packaged builds (D1-D3).
+
+  - name: Contributor Covenant
+    version: "2.1"
+    spdx: CC-BY-4.0
+    origin: https://www.contributor-covenant.org
+    files: CODE_OF_CONDUCT.md
+    license_file: attribution kept in the document footer
+    ships_in: [source]
+    obligations: Attribution (present in the file).
+
+  - name: Mermaid grammar definitions (reference only)
+    version: mermaid@11.16.0
+    spdx: MIT
+    origin: https://github.com/mermaid-js/mermaid
+    files: none shipped - the native diagram parsers in src/diagrams are
+      first-party C++ reimplementations written against the pinned jison
+      grammar definitions; no Mermaid code or assets are vendored
+    license_file: not applicable (acknowledgment entry)
+    ships_in: []
+    obligations: None; entry documents derivation provenance for reviewers.
+
+  - name: MathJax (external CDN reference)
+    version: pinned URL in HTML export
+    spdx: Apache-2.0
+    origin: https://www.mathjax.org
+    files: none shipped - HTML export writes a script tag loading MathJax
+      from its CDN in the reader's browser; nothing is bundled or executed
+      in-process
+    license_file: not applicable (external service reference)
+    ships_in: []
+    obligations: None for distribution; noted for network-disclosure review.
+
+  - name: Application icon and artwork
+    version: first-party, 2026-07
+    spdx: MPL-2.0
+    origin: drawn for this project (packaging/icons/kvit.svg is the source;
+      PNG/ICO/ICNS are generated by packaging/icons/generate.sh)
+    files: packaging/icons
+    license_file: LICENSE (project license)
+    ships_in: [windows, macos, linux, source]
+    obligations: None beyond MPL-2.0.
+
+  - name: Test media fixtures
+    version: first-party, 2026-07
+    spdx: MPL-2.0
+    origin: synthesized for the media-block test suite (Phase 10); not taken
+      from any external recording or stock source
+    files: tests/fixtures/sample.wav, tests/fixtures/sample.mp4,
+      tests/fixtures/sample.png
+    license_file: LICENSE (project license)
+    ships_in: [source]
+    obligations: None beyond MPL-2.0.

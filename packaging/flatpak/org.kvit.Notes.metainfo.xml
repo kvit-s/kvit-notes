@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata (launch-plan.md D3.2). Screenshot URLs point at the
+     repo's curated capture assets; they go live with the public repo
+     (l-capture-assets fills screenshots/press/). -->
+<component type="desktop-application">
+  <id>org.kvit.Notes</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MPL-2.0</project_license>
+  <name>Kvit Notes</name>
+  <summary>Native markdown block editor with live preview, math, and diagrams</summary>
+  <description>
+    <p>
+      Kvit Notes is a native C++/Qt markdown notes app. Text renders as you
+      write, and markdown syntax reveals itself only where the cursor is. It
+      stores everything as plain markdown files in ordinary folders.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Hybrid live-preview editing: syntax hides when rendered, reveals at the cursor</li>
+      <li>A full block palette: headings, lists, todos, quotes, code, tables, kanban boards, callouts, toggles, images, media, embeds</li>
+      <li>LaTeX math with live rendering</li>
+      <li>Mermaid diagrams rendered natively, editable by dragging on the diagram</li>
+      <li>ASCII-diagram repair for pasted terminal art</li>
+      <li>A notes collection with folders, tags, global full-text search, wiki-links, and backlinks</li>
+      <li>Export to HTML, PDF, and plain text</li>
+      <li>No telemetry, no accounts, no database: files are the truth</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">kvit-notes.desktop</launchable>
+  <provides>
+    <mediatype>text/markdown</mediatype>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <url type="homepage">https://kvit.app</url>
+  <url type="bugtracker">https://github.com/kvit-s/kvit-notes/issues</url>
+  <developer id="app.kvit">
+    <name>Kvit Notes project</name>
+  </developer>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/kvit-s/kvit-notes/main/screenshots/press/hero-shell.png</image>
+      <caption>The three-pane shell with live-preview editing</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/kvit-s/kvit-notes/main/screenshots/press/mermaid-flowchart.png</image>
+      <caption>A natively rendered Mermaid flowchart</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="1.0.0" date="2026-09-30">
+      <description>
+        <p>First public release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

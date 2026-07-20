@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose an addition or a change
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Before filing: CONTRIBUTING.md lists directions we have deliberately
+        declined (mobile, sync, plugin API, vim mode, CSS theming, real-time
+        collaboration, embedded web/PDF viewer). Requests for those will be
+        closed with a pointer to that list. For open-ended ideas, GitHub
+        Discussions (Ideas) is the better venue.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation in your workflow, not only the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

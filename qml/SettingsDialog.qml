@@ -1,0 +1,429 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+// The settings dialog (phase9-plan.md step 3): Appearance — the §10.1
+// theme picker and the §10.3 accent/highlight color selection — and
+// Typography — the six §10.2 settings. Every control binds live to the
+// theme / typography / appSettings objects, so the document behind the
+// dialog previews each change immediately; there is no Apply step.
+Dialog {
+    id: settingsDialog
+    objectName: "settingsDialog"
+
+    modal: true
+    title: qsTr("Settings")
+    standardButtons: Dialog.Close
+    width: 540
+    height: 480
+    anchors.centerIn: parent
+    padding: 0
+
+    background: Rectangle {
+        color: theme.popupBackground
+        border.color: theme.borderStrong
+        border.width: 1
+        radius: 6
+    }
+
+    contentItem: ColumnLayout {
+        spacing: 0
+
+        TabBar {
+            id: pageBar
+            Layout.fillWidth: true
+            TabButton { text: qsTr("Appearance"); objectName: "appearanceTab" }
+            TabButton { text: qsTr("Typography"); objectName: "typographyTab" }
+            TabButton { text: qsTr("General"); objectName: "generalTab" }
+        }
+
+        StackLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.margins: 16
+            currentIndex: pageBar.currentIndex
+
+            // ---- Appearance (§10.1, §10.3) -------------------------
+            ColumnLayout {
+                spacing: 14
+
+                Label {
+                    text: qsTr("Theme")
+                    font.bold: true
+                    color: theme.textSecondary
+                }
+
+                RowLayout {
+                    spacing: 10
+                    Repeater {
+                        model: theme.availableThemes
+                        // A theme card: swatch above the name, the
+                        // active one ringed in accent.
+                        ColumnLayout {
+                            required property string modelData
+                            readonly property var preview:
+                                theme.themePreview(modelData)
+                            spacing: 4
+
+                            Rectangle {
+                                objectName: "themeCard_" + parent.modelData
+                                Layout.preferredWidth: 96
+                                Layout.preferredHeight: 60
+                                radius: 5
+                                color: parent.preview.background
+                                border.width:
+                                    theme.themeId === parent.modelData ? 2 : 1
+                                border.color:
+                                    theme.themeId === parent.modelData
+                                        ? theme.accent : theme.borderStrong
+
+                                Rectangle { // panel stripe
+                                    width: 26
+                                    height: parent.height - 12
+                                    x: 6; y: 6
+                                    radius: 3
+                                    color: parent.parent.preview.panel
+                                }
+                                Label {
+                                    text: "Aa"
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.margins: 8
+                                    font.pixelSize: 16
+                                    color: parent.parent.preview.text
+                                }
+                                Rectangle { // accent dot
+                                    width: 10; height: 10; radius: 5
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    anchors.margins: 8
+                                    color: parent.parent.preview.accent
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: theme.themeId
+                                        = parent.parent.modelData
+                                }
+                            }
+                            Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: {
+                                    var name = parent.modelData
+                                    return name.charAt(0).toUpperCase()
+                                        + name.slice(1)
+                                }
+                                font.pixelSize: 11
+                                color: theme.textMuted
+                            }
+                        }
+                    }
+                }
+
+                // Accent color (§10.3): the theme's own accent, the
+                // shared palette, or any hex value.
+                Label {
+                    text: qsTr("Accent color")
+                    font.bold: true
+                    color: theme.textSecondary
+                    Layout.topMargin: 6
+                }
+                RowLayout {
+                    spacing: 6
+
+                    Rectangle { // "theme default" swatch
+                        objectName: "accentDefaultSwatch"
+                        width: 24; height: 24; radius: 12
+                        color: theme.mutedGlyph
+                        border.width: theme.accentOverride === "" ? 2 : 1
+                        border.color: theme.accentOverride === ""
+                            ? theme.textPrimary : theme.borderStrong
+                        Label {
+                            anchors.centerIn: parent
+                            text: "✕"
+                            font.pixelSize: 10
+                            color: theme.onAccent
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: theme.accentOverride = ""
+                        }
+                        ToolTip.visible: accentDefaultHover.hovered
+                        ToolTip.text: qsTr("Theme default")
+                        HoverHandler { id: accentDefaultHover }
+                    }
+                    Repeater {
+                        model: theme.colorPalette
+                        Rectangle {
+                            required property string modelData
+                            width: 24; height: 24; radius: 12
+                            color: modelData
+                            border.width:
+                                theme.accentOverride === modelData ? 2 : 1
+                            border.color:
+                                theme.accentOverride === modelData
+                                    ? theme.textPrimary : theme.borderStrong
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: theme.accentOverride
+                                    = parent.modelData
+                            }
+                        }
+                    }
+                    TextField {
+                        objectName: "accentHexField"
+                        Layout.preferredWidth: 84
+                        implicitHeight: 26
+                        font.pixelSize: 11
+                        placeholderText: "#rrggbb"
+                        text: theme.accentOverride
+                        onEditingFinished: theme.accentOverride = text
+                    }
+                }
+
+                // Highlight color (§10.3): the ==mark== background.
+                Label {
+                    text: qsTr("Highlight color")
+                    font.bold: true
+                    color: theme.textSecondary
+                    Layout.topMargin: 6
+                }
+                RowLayout {
+                    spacing: 6
+
+                    Rectangle {
+                        objectName: "highlightDefaultSwatch"
+                        width: 24; height: 24; radius: 12
+                        color: theme.mutedGlyph
+                        border.width: theme.highlightOverride === "" ? 2 : 1
+                        border.color: theme.highlightOverride === ""
+                            ? theme.textPrimary : theme.borderStrong
+                        Label {
+                            anchors.centerIn: parent
+                            text: "✕"
+                            font.pixelSize: 10
+                            color: theme.onAccent
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: theme.highlightOverride = ""
+                        }
+                    }
+                    Repeater {
+                        model: theme.highlightPalette
+                        Rectangle {
+                            required property string modelData
+                            width: 24; height: 24; radius: 12
+                            color: modelData
+                            border.width:
+                                theme.highlightOverride === modelData ? 2 : 1
+                            border.color:
+                                theme.highlightOverride === modelData
+                                    ? theme.textPrimary : theme.borderStrong
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: theme.highlightOverride
+                                    = parent.modelData
+                            }
+                        }
+                    }
+                    TextField {
+                        objectName: "highlightHexField"
+                        Layout.preferredWidth: 84
+                        implicitHeight: 26
+                        font.pixelSize: 11
+                        placeholderText: "#rrggbb"
+                        text: theme.highlightOverride
+                        onEditingFinished: theme.highlightOverride = text
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Sample: normal, ==highlighted==, and "
+                               + "[linked](x) text follow these choices.")
+                    font.pixelSize: 11
+                    color: theme.textFaint
+                    wrapMode: Text.Wrap
+                }
+
+                Item { Layout.fillHeight: true }
+            }
+
+            // ---- Typography (§10.2) --------------------------------
+            GridLayout {
+                columns: 2
+                columnSpacing: 12
+                rowSpacing: 10
+
+                Label { text: qsTr("Editor font"); color: theme.textSecondary }
+                ComboBox {
+                    id: familyCombo
+                    objectName: "fontFamilyCombo"
+                    Layout.fillWidth: true
+                    model: [qsTr("System default")].concat(Qt.fontFamilies())
+                    currentIndex: {
+                        if (typography.fontFamily === "")
+                            return 0
+                        var idx = Qt.fontFamilies()
+                            .indexOf(typography.fontFamily)
+                        return idx < 0 ? 0 : idx + 1
+                    }
+                    onActivated: function(index) {
+                        typography.fontFamily =
+                            index === 0 ? "" : model[index]
+                    }
+                }
+
+                Label { text: qsTr("Font size"); color: theme.textSecondary }
+                RowLayout {
+                    SpinBox {
+                        objectName: "fontSizeSpin"
+                        from: 10; to: 28
+                        value: typography.baseSize
+                        onValueModified: typography.baseSize = value
+                    }
+                    Label {
+                        text: qsTr("px — headings scale with it")
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                    }
+                }
+
+                Label { text: qsTr("Line height"); color: theme.textSecondary }
+                RowLayout {
+                    Slider {
+                        id: lineHeightSlider
+                        objectName: "lineHeightSlider"
+                        Layout.preferredWidth: 180
+                        from: 1.0; to: 2.0; stepSize: 0.05
+                        value: typography.lineHeight
+                        onMoved: typography.lineHeight = value
+                    }
+                    Label {
+                        text: "×" + typography.lineHeight.toFixed(2)
+                        font.pixelSize: 11
+                        color: theme.textMuted
+                    }
+                }
+
+                Label {
+                    text: qsTr("Block spacing")
+                    color: theme.textSecondary
+                }
+                RowLayout {
+                    SpinBox {
+                        objectName: "paragraphSpacingSpin"
+                        from: 0; to: 40
+                        value: typography.paragraphSpacing
+                        onValueModified: typography.paragraphSpacing = value
+                    }
+                    Label {
+                        text: qsTr("px between blocks")
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                    }
+                }
+
+                Label {
+                    text: qsTr("Content width")
+                    color: theme.textSecondary
+                }
+                RowLayout {
+                    CheckBox {
+                        id: maxWidthCheck
+                        objectName: "maxWidthCheck"
+                        text: qsTr("Limit to")
+                        checked: typography.maxContentWidth > 0
+                        onToggled: typography.maxContentWidth =
+                            checked ? maxWidthSpin.value : 0
+                    }
+                    SpinBox {
+                        id: maxWidthSpin
+                        objectName: "maxWidthSpin"
+                        from: 300; to: 2000; stepSize: 50
+                        enabled: maxWidthCheck.checked
+                        value: typography.maxContentWidth > 0
+                            ? typography.maxContentWidth : 700
+                        onValueModified:
+                            typography.maxContentWidth = value
+                    }
+                    Label {
+                        text: qsTr("px, centered")
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                    }
+                }
+
+                Label { text: qsTr("Code font"); color: theme.textSecondary }
+                ComboBox {
+                    objectName: "monoFamilyCombo"
+                    Layout.fillWidth: true
+                    model: typography.monospaceFamilies()
+                    currentIndex: {
+                        var idx = model.indexOf(typography.monoFamily)
+                        return idx < 0 ? 0 : idx
+                    }
+                    onActivated: function(index) {
+                        typography.monoFamily = model[index]
+                    }
+                }
+
+                Item { Layout.columnSpan: 2; Layout.fillHeight: true }
+
+                Button {
+                    objectName: "typographyResetButton"
+                    Layout.columnSpan: 2
+                    text: qsTr("Reset typography")
+                    onClicked: typography.resetToDefaults()
+                }
+            }
+
+            // ---- General (the disclosed opt-out update check,
+            //      launch-plan.md D4.5) ---------------------------------
+            ColumnLayout {
+                spacing: 14
+
+                Label {
+                    text: qsTr("Updates")
+                    font.bold: true
+                    color: theme.textSecondary
+                }
+                CheckBox {
+                    objectName: "updateCheckToggle"
+                    text: qsTr("Check for new releases once a day")
+                    checked: updateChecker.enabled
+                    onToggled: updateChecker.enabled = checked
+                }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: theme.textFaint
+                    text: qsTr("One request to the GitHub Releases API at "
+                        + "startup, at most once per day, to show a notice "
+                        + "when a newer version exists. Nothing is sent "
+                        + "beyond the request itself, and nothing downloads "
+                        + "automatically.")
+                }
+
+                Label {
+                    visible: systemTray.available
+                    text: qsTr("System tray")
+                    font.bold: true
+                    color: theme.textSecondary
+                }
+                CheckBox {
+                    objectName: "closeToTrayToggle"
+                    visible: systemTray.available
+                    text: qsTr("Keep running in the tray when the window is closed")
+                    checked: systemTray.closeToTray
+                    onToggled: systemTray.closeToTray = checked
+                }
+                Item { Layout.fillHeight: true }
+            }
+        }
+    }
+}

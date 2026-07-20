@@ -1,0 +1,444 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+import QtQuick
+import QtQuick.Window
+
+// Embed preview card (features.md §1.2.14; phase11 decision 11): an image
+// expression ![](url) whose URL is a web page or video host, rendered as a
+// card (thumbnail, title, description, source) built from OpenGraph metadata
+// fetched off-thread and cached. Clicking opens the URL externally; a video
+// host shows a play affordance; a failed fetch falls back to a card naming the
+// URL. Storage is the image expression, so this round-trips byte-identically.
+// Carries the block focus/selection/drag API like the other non-text blocks.
+Item {
+    id: root
+
+    required property int index
+    required property string blockId
+    required property int blockType
+    required property string content
+    required property int indentLevel
+    required property bool checked
+    required property int ordinal
+    // Per-block presentation attributes (phase12 §1.2.14): configurable embed
+    // card width and height. Absent = the default full-width card.
+    required property string attributes
+
+    property int blockIndex: index
+    property bool isPooled: false
+    property ListView listView: ListView.view
+    property bool isFocused: focusTarget.activeFocus
+    property bool isHovered: hoverArea.containsMouse
+
+    // Configurable embed dimensions (§1.2.14): stored width/height in px.
+    readonly property int embedWidth: blockAttributes.num(attributes, "width", 0)
+    readonly property int embedHeight: blockAttributes.num(attributes, "height", 0)
+    function setEmbedSize(payload) {
+        blockModel.setBlockAttributes(root.index, payload)
+    }
+
+    // The URL inside ![alt](url).
+    readonly property string embedUrl: {
+        var m = content.match(/!\[[^\]]*\]\(([^)]*)\)/)
+        return m ? m[1].split(" ")[0] : ""
+    }
+    property var meta: ({})
+    readonly property bool loaded: meta && meta.url !== undefined
+    readonly property bool failed: loaded && meta.ok === false
+    readonly property bool isVideo: loaded && meta.video === true
+
+    function refreshMeta() {
+        if (embedUrl === "")
+            return
+        var cached = embedMetadata.cachedMetadata(embedUrl)
+        if (cached && cached.url !== undefined)
+            meta = cached
+        embedMetadata.requestMetadata(embedUrl)
+    }
+    Component.onCompleted: refreshMeta()
+    onEmbedUrlChanged: refreshMeta()
+    Connections {
+        target: embedMetadata
+        function onMetadataReady(u) {
+            if (u === root.embedUrl)
+                root.meta = embedMetadata.cachedMetadata(u)
+        }
+    }
+
+    function openEmbed() {
+        var win = Window.window
+        if (win && win.linkOpener)
+            win.linkOpener.activate(embedUrl)
+        else
+            Qt.openUrlExternally(embedUrl)
+    }
+
+    readonly property bool blockSelected: {
+        var revision = documentSelection.revision
+        return documentSelection.isBlockSelected(root.index)
+            || documentSelection.portionForBlock(root.index).selected === true
+    }
+    function markdownPositionAt(sceneX, sceneY) { return 0 }
+    function pointInText(sceneX, sceneY) { return false }
+    function lineStepPosition(mdPos, dir) { return -1 }
+    function entryPositionAtX(x, fromTop) { return 0 }
+    function xAtMarkdown(mdPos) { return 0 }
+
+    readonly property bool isDragSource: {
+        var win = Window.window
+        if (!win || !win.blockDrag || !win.blockDrag.active)
+            return false
+        return win.blockDrag.isMulti ? root.blockSelected
+                                     : win.blockDrag.sourceIndex === root.index
+    }
+    function focusSelectionHandler() {
+        var win = Window.window
+        if (win && win.selectionKeyHandler)
+            win.selectionKeyHandler.forceActiveFocus()
+    }
+    onIsFocusedChanged: {
+        if (isFocused) {
+            var win = Window.window
+            if (win && win.lastFocusedBlock !== undefined)
+                win.lastFocusedBlock = index
+        }
+    }
+
+    implicitHeight: card.implicitHeight + 12
+
+    ListView.onPooled: { isPooled = true; focusTarget.focus = false; opacity = 0 }
+    ListView.onReused: { isPooled = false; opacity = 1 }
+
+    function focusAtStart() { focusTarget.forceActiveFocus() }
+    function focusAtEnd() { focusTarget.forceActiveFocus() }
+    function focusAtPosition(markdownPos) { focusTarget.forceActiveFocus() }
+    function isCursorOnFirstLine() { return true }
+    function isCursorOnLastLine() { return true }
+
+    function deleteCurrentBlock() {
+        var prevIndex = root.index - 1
+        blockModel.removeBlock(root.index)
+        Qt.callLater(function() {
+            if (listView && prevIndex >= 0) {
+                listView.currentIndex = prevIndex
+                var item = listView.itemAtIndex(prevIndex)
+                if (item) item.focusAtEnd()
+            }
+        })
+    }
+    function createBlockBelow() {
+        var newIndex = root.index + 1
+        blockModel.insertBlock(newIndex, 0, "")
+        Qt.callLater(function() {
+            if (listView) {
+                listView.currentIndex = newIndex
+                var item = listView.itemAtIndex(newIndex)
+                if (item) item.focusAtStart()
+            }
+        })
+    }
+    function insertBlockBelowAndOpenMenu() {
+        var newIndex = root.index + 1
+        blockModel.insertBlock(newIndex, 0, "")
+        var lv = listView
+        Qt.callLater(function() {
+            if (!lv) return
+            lv.currentIndex = newIndex
+            var item = lv.itemAtIndex(newIndex)
+            if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
+        })
+    }
+
+    Item {
+        id: focusTarget
+        objectName: "embedFocusItem"
+        anchors.fill: parent
+        activeFocusOnTab: true
+        Keys.onPressed: function(event) {
+            if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
+                && (event.modifiers & Qt.ControlModifier)
+                && (event.modifiers & Qt.ShiftModifier)) {
+                if (root.listView) root.listView.currentIndex = root.index
+                documentSelection.selectBlock(root.index)
+                root.focusSelectionHandler(); event.accepted = true; return
+            }
+            if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+                documentSelection.selectAllBlocks(); root.focusSelectionHandler()
+                event.accepted = true; return
+            }
+            if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
+                var p = root.index - 1; root.listView.currentIndex = p
+                var prev = root.listView.itemAtIndex(p); if (prev) prev.focusAtEnd()
+                event.accepted = true; return
+            }
+            if (event.key === Qt.Key_Down && root.index < blockModel.count - 1 && root.listView) {
+                var n = root.index + 1; root.listView.currentIndex = n
+                var next = root.listView.itemAtIndex(n); if (next) next.focusAtStart()
+                event.accepted = true; return
+            }
+            if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
+                root.deleteCurrentBlock(); event.accepted = true; return
+            }
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                root.createBlockBelow(); event.accepted = true; return
+            }
+        }
+    }
+
+    MouseArea {
+        id: hoverArea
+        anchors.fill: parent
+        hoverEnabled: true
+        onClicked: function(mouse) {
+            if (mouse.modifiers & Qt.ControlModifier) {
+                documentSelection.toggleBlock(root.index)
+                if (documentSelection.hasBlockSelection) root.focusSelectionHandler()
+                else focusTarget.forceActiveFocus()
+                return
+            }
+            if (documentSelection.hasBlockSelection || documentSelection.hasTextSelection)
+                documentSelection.clear()
+            focusTarget.forceActiveFocus()
+        }
+    }
+
+    // The card.
+    // Maximum card width inside the block (past the gutter).
+    readonly property int embedMaxWidth: Math.max(160, root.width - 56)
+
+    Rectangle {
+        id: card
+        objectName: "embedCard"
+        anchors.left: parent.left
+        // A configured width drops the right anchor for an explicit size
+        // (§1.2.14); the default card spans the full content width.
+        anchors.right: root.embedWidth > 0 ? undefined : parent.right
+        anchors.leftMargin: 48
+        anchors.rightMargin: 8
+        anchors.top: parent.top
+        anchors.topMargin: 4
+        width: root.embedWidth > 0
+            ? Math.min(root.embedWidth, root.embedMaxWidth) : undefined
+        radius: 8
+        clip: true
+        color: root.blockSelected ? theme.blockSelectionTint
+             : (root.isFocused ? theme.focusTint : theme.panelBackground)
+        // A visible keyboard-focus ring (§14.1) in addition to the tint.
+        border.color: root.blockSelected ? theme.accent
+                    : root.isFocused ? theme.focusRing : theme.border
+        border.width: root.isFocused ? 2 : 1
+        opacity: root.isDragSource ? 0.35 : 1
+        implicitHeight: root.embedHeight > 0
+            ? root.embedHeight : Math.max(84, cardRow.implicitHeight + 20)
+
+        Row {
+            id: cardRow
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 12
+
+            // Thumbnail (or a placeholder tile).
+            Rectangle {
+                id: thumb
+                width: 120
+                height: 74
+                radius: 4
+                color: theme.hoverTint
+                clip: true
+                Image {
+                    objectName: "embedThumb"
+                    anchors.fill: parent
+                    source: (root.loaded && root.meta.image) ? root.meta.image : ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                }
+                // Play affordance for a video host.
+                Rectangle {
+                    visible: root.isVideo
+                    anchors.centerIn: parent
+                    width: 30; height: 30; radius: 15
+                    color: "#cc000000"
+                    Text { anchors.centerIn: parent; text: "▶"; color: "white"; font.pixelSize: 14 }
+                }
+                Text {
+                    visible: !root.loaded || !root.meta.image
+                    anchors.centerIn: parent
+                    text: root.isVideo ? "▶" : "🔗"
+                    color: theme.textFaint
+                    font.pixelSize: 22
+                }
+            }
+
+            Column {
+                width: parent.width - thumb.width - parent.spacing
+                spacing: 3
+                Text {
+                    objectName: "embedTitle"
+                    width: parent.width
+                    text: root.loaded
+                        ? (root.meta.title && root.meta.title.length > 0
+                            ? root.meta.title : root.embedUrl)
+                        : root.embedUrl
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: theme.textPrimary
+                }
+                Text {
+                    visible: root.loaded && root.meta.description
+                        && root.meta.description.length > 0
+                    width: parent.width
+                    text: root.loaded ? root.meta.description : ""
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 12
+                    color: theme.textMuted
+                }
+                Row {
+                    spacing: 6
+                    Image {
+                        visible: root.loaded && root.meta.favicon
+                        source: (root.loaded && root.meta.favicon) ? root.meta.favicon : ""
+                        width: 14; height: 14
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                    }
+                    Text {
+                        text: {
+                            var u = root.embedUrl
+                            var m = u.match(/^https?:\/\/([^\/]+)/)
+                            return m ? m[1] : u
+                        }
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                    }
+                    Text {
+                        visible: root.failed
+                        text: qsTr("· preview unavailable")
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                    }
+                }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton
+            onClicked: root.openEmbed()
+            // Let modifier-clicks fall through to the selection MouseArea below.
+            propagateComposedEvents: true
+        }
+
+        // Resize handle (bottom-right): drag to set the card's width and height
+        // as one undo step (§1.2.14). Visible on hover/focus.
+        Rectangle {
+            id: embedResize
+            objectName: "embedResizeHandle"
+            width: 14; height: 14; radius: 3
+            color: theme.accent
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 2
+            opacity: (root.isHovered || root.isFocused) ? 0.9 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -4
+                cursorShape: Qt.SizeFDiagCursor
+                preventStealing: true
+                property real startW: 0
+                property real startH: 0
+                property real pressX: 0
+                property real pressY: 0
+                property int liveW: 0
+                property int liveH: 0
+                onPressed: function(mouse) {
+                    startW = card.width
+                    startH = card.height
+                    var p = mapToItem(root, mouse.x, mouse.y)
+                    pressX = p.x; pressY = p.y
+                    liveW = Math.round(startW); liveH = Math.round(startH)
+                }
+                onPositionChanged: function(mouse) {
+                    if (!pressed) return
+                    var p = mapToItem(root, mouse.x, mouse.y)
+                    liveW = Math.max(160, Math.min(Math.round(startW + (p.x - pressX)),
+                                                   root.embedMaxWidth))
+                    liveH = Math.max(64, Math.round(startH + (p.y - pressY)))
+                    card.anchors.right = undefined
+                    card.width = liveW
+                    card.implicitHeight = liveH
+                }
+                onReleased: {
+                    var payload = blockAttributes.withValue(
+                        blockAttributes.withValue(root.attributes, "width", String(liveW)),
+                        "height", String(liveH))
+                    root.setEmbedSize(payload)
+                }
+            }
+        }
+    }
+
+    // Gutter plus + drag handle.
+    Rectangle {
+        objectName: "plusButton"
+        width: 18; height: 18; x: 10; y: 10; radius: 4
+        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        opacity: root.isHovered ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        MouseArea {
+            id: plusArea; anchors.fill: parent; anchors.margins: -2
+            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: root.insertBlockBelowAndOpenMenu()
+        }
+    }
+    Item {
+        objectName: "embedHandle"
+        width: 14; height: 18; x: 30; y: 10
+        opacity: root.isHovered || embedHandleArea.pressed ? 0.6 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Column {
+            anchors.centerIn: parent; spacing: 2
+            Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
+                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } }
+        }
+        MouseArea {
+            id: embedHandleArea
+            objectName: "dragHandle"
+            anchors.fill: parent; anchors.margins: -2
+            hoverEnabled: true; cursorShape: Qt.OpenHandCursor; preventStealing: true
+            property real pressX: 0; property real pressY: 0; property bool dragging: false
+            onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
+            onPositionChanged: function(mouse) {
+                if (!pressed) return
+                var win = Window.window; if (!win || !win.blockDrag) return
+                var sp = embedHandleArea.mapToItem(null, mouse.x, mouse.y)
+                if (!dragging) {
+                    if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
+                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
+                } else win.blockDrag.update(sp.x, sp.y)
+            }
+            onReleased: {
+                var win = Window.window
+                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (root.listView) root.listView.currentIndex = root.index
+                documentSelection.selectBlock(root.index); root.focusSelectionHandler()
+            }
+            onCanceled: {
+                if (dragging) { dragging = false; var win = Window.window
+                    if (win && win.blockDrag) win.blockDrag.cancel() }
+            }
+        }
+    }
+}

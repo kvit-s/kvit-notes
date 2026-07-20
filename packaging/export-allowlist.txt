@@ -1,0 +1,41 @@
+# Public-tree allowlist (launch-plan.md A1.2): the checked-in manifest of
+# what ships in the kvit-notes public repository. Omission by default,
+# inclusion by decision - a path absent here does not export, whatever it
+# is. Lines are git pathspecs consumed by tools/export-public-tree.sh;
+# :(exclude) entries carve private code out of included trees.
+#
+# Deliberately absent (the private planning home keeps them): chat.md,
+# to-market.md, launch-plan.md, pre-launch-plan.md, agentic-app-prd.md,
+# agentic-spreadsheet.md, llm-diagram.md, jupyter.md, gaps.md, search.md,
+# diagrams-prd.md, diagrams-progress.md, foundation-progress.md, the agent
+# module (src/agent, qml/agent, tests/agent, agent_resources.qrc), and the
+# tracked perf log with machine-local paths (tests/perf/live).
+CMakeLists.txt
+CMakePresets.json
+build.sh
+resources.qrc
+.gitignore
+.gitattributes
+LICENSE
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+THIRD-PARTY-NOTICES.md
+usage.md
+features.md
+devel.md
+.github
+docs
+packaging
+qml
+src
+tests
+third_party
+tools
+screenshots/press
+:(exclude)src/agent
+:(exclude)qml/agent
+:(exclude)tests/agent
+:(exclude)tests/perf/live

@@ -1,0 +1,33 @@
+# Flathub manifest (launch-plan.md D3.2). Submitted to the Flathub review
+# repo ~2 weeks before target launch; the KDE 6.x runtime carries Qt, so the
+# app bundles no Qt of its own (packaging/qt-lgpl-checklist.md).
+app-id: org.kvit.Notes
+runtime: org.kde.Platform
+runtime-version: "6.10"
+sdk: org.kde.Sdk
+command: kvit-notes
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Notes live where the user keeps them; a vault is an ordinary folder.
+  - --filesystem=home
+  # The optional update check and embed preview cards.
+  - --share=network
+  # Media blocks (audio/video playback).
+  - --socket=pulseaudio
+modules:
+  - name: kvit-notes
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+    sources:
+      - type: git
+        url: https://github.com/kvit-s/kvit-notes.git
+        # tag + commit pinned by the release submission; placeholder until
+        # the repo is public (l-public-repo-clean-history).
+        tag: v1.0.0
+    post-install:
+      - install -Dm644 packaging/flatpak/org.kvit.Notes.metainfo.xml
+        /app/share/metainfo/org.kvit.Notes.metainfo.xml

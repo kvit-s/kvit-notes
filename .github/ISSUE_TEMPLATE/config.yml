@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/kvit-s/kvit-notes/discussions
+    about: Use Discussions for questions (Q&A) and open-ended ideas (Ideas); the issue tracker is for bugs and concrete feature requests.
+  - name: Security reports
+    url: https://github.com/kvit-s/kvit-notes/blob/main/SECURITY.md
+    about: Do not open public issues for security problems - see SECURITY.md.

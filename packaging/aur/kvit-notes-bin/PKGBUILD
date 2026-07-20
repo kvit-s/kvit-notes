@@ -1,0 +1,39 @@
+# Maintainer: Kvit Notes project <info@kvit.app>
+# AUR -bin package (launch-plan.md D3.3): repacks the release AppImage's
+# AppDir so Qt and the math resources ship as built by CI. The source
+# `kvit-notes` PKGBUILD is left for a community adopter.
+pkgname=kvit-notes-bin
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Native markdown block editor with live preview, math, and native Mermaid diagrams"
+arch=('x86_64')
+url="https://github.com/kvit-s/kvit-notes"
+license=('MPL-2.0')
+provides=('kvit-notes')
+conflicts=('kvit-notes')
+depends=('fontconfig' 'glibc' 'hicolor-icon-theme')
+options=('!strip')
+source=("https://github.com/kvit-s/kvit-notes/releases/download/v${pkgver}/Kvit_Editor-${pkgver}-x86_64.AppImage")
+sha256sums=('SKIP')  # pinned from SHA256SUMS.txt at release time
+
+prepare() {
+    chmod +x "Kvit_Editor-${pkgver}-x86_64.AppImage"
+    ./"Kvit_Editor-${pkgver}-x86_64.AppImage" --appimage-extract > /dev/null
+}
+
+package() {
+    cd squashfs-root
+    install -d "$pkgdir/opt/$pkgname"
+    cp -r usr/* "$pkgdir/opt/$pkgname/"
+    install -d "$pkgdir/usr/bin"
+    ln -s "/opt/$pkgname/bin/kvit-notes" "$pkgdir/usr/bin/kvit-notes"
+    install -Dm644 usr/share/applications/kvit-notes.desktop \
+        "$pkgdir/usr/share/applications/kvit-notes.desktop"
+    for size in 16 24 32 48 64 128 256 512; do
+        icon="usr/share/icons/hicolor/${size}x${size}/apps/kvit-notes.png"
+        [ -f "$icon" ] && install -Dm644 "$icon" \
+            "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/kvit-notes.png"
+    done
+    install -Dm644 usr/share/licenses/THIRD-PARTY-NOTICES.md \
+        "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-NOTICES.md"
+}

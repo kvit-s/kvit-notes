@@ -1,0 +1,29 @@
+# Line endings. Every checkout gets LF in the working tree, on every
+# platform, because several suites assert byte- and column-exact geometry:
+# tests/fixtures/llm-diagram.md is read verbatim by the diagram repair
+# tests, and the Mermaid lexer keeps its source verbatim for on-diagram
+# edit offsets. Git's Windows default (core.autocrlf=true) rewrites those
+# files to CRLF on checkout, which shifts every offset by one byte per
+# line; that is what failed DiagramRepairTests on the windows-2022 runner
+# while the LF local clone passed.
+* text=auto eol=lf
+
+# Windows batch files are the exception: the shell wants CRLF.
+*.bat text eol=crlf
+
+# Vendored code keeps upstream's bytes, including its line endings: two
+# tinyxml2 sources ship with CRLF, and normalizing them would make the
+# tree differ from the release the SBOM names. Nothing under third_party
+# is offset-sensitive to the suites.
+third_party/** -text
+
+# Binary assets: never touched, never diffed as text. text=auto detects
+# most of these, but naming them keeps the fonts and media unambiguous.
+*.png binary
+*.ico binary
+*.icns binary
+*.svg text eol=lf
+*.ttf binary
+*.otf binary
+*.wav binary
+*.mp4 binary

@@ -1,0 +1,546 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+// The floating find bar (features.md §7.1; phase7-plan.md decisions 4–7,
+// 11). A panel overlaying the editor's top-right corner — never docked,
+// so opening it reflows nothing. All search state lives in the
+// documentSearch context property; this file is rendering, focus, and
+// key routing. The bar's fields take keyboard focus, which correctly
+// blurs any focused block (reveals collapse, menus dismiss). Escape
+// closes and returns focus to the current match; the query text survives
+// a close so F3 can resume the search (decision 11).
+Rectangle {
+    id: findBar
+    objectName: "findBar"
+
+    // Injected by main.qml.
+    property var appWindow: null
+    property var listView: null
+
+    // Ctrl+H mode: the replace row shows (phase7-plan.md step 4).
+    property bool replaceMode: false
+
+    property alias queryField: queryField
+    property alias replaceField: replaceField
+
+    // The replace-all snapshot (decision 10): rows computed when the
+    // preview opens; any observable search change dismisses the panel,
+    // so a confirm always applies exactly what was previewed.
+    property var previewRows: []
+
+    visible: false
+    z: 500
+    radius: 6
+    color: theme.popupBackground
+    border.color: theme.borderStrong
+    border.width: 1
+    implicitWidth: barColumn.implicitWidth + 16
+    implicitHeight: barColumn.implicitHeight + 12
+
+    // Read the persisted option states back from the settings store
+    // (phase9-plan.md step 1); called at startup and from tests.
+    function applyPersistedOptions() {
+        caseButton.checked = appSettings.value("find.caseSensitive", false)
+        wordButton.checked = appSettings.value("find.wholeWord", false)
+        regexButton.checked = appSettings.value("find.useRegex", false)
+        preserveCaseButton.checked =
+            appSettings.value("find.preserveCase", false)
+    }
+
+    // Opening seeds the active cursor from the focused block, arms the
+    // in-selection domain from a live document-level selection, or
+    // prefills the query from an in-block selection (decisions 4, 6, 9).
+    function open(withReplace) {
+        replaceMode = withReplace
+
+        var idx = appWindow ? appWindow.lastFocusedBlock : 0
+        var item = listView ? listView.itemAtIndex(idx) : null
+        var mdPos = (item && item.markdownCursor) ? item.markdownCursor() : 0
+        documentSearch.setActiveCursor(idx, mdPos)
+
+        if (documentSelection.hasBlockSelection) {
+            documentSearch.setBlockDomain(documentSelection.selectedIndexes())
+            inSelectionButton.checked = true
+        } else if (documentSelection.hasTextSelection) {
+            var range = documentSelection.orderedTextRange()
+            documentSearch.setTextDomain(range.startIndex, range.startPos,
+                                         range.endIndex, range.endPos)
+            inSelectionButton.checked = true
+        } else {
+            documentSearch.clearDomain()
+            inSelectionButton.checked = false
+            if (item && item.selectionDisplayText) {
+                var selected = item.selectionDisplayText()
+                if (selected.length > 0 && selected.indexOf("\n") < 0)
+                    queryField.text = selected
+            }
+        }
+
+        visible = true
+        queryDebounceTimer.stop()
+        documentSearch.active = true
+        documentSearch.query = queryField.text
+        queryField.forceActiveFocus()
+        queryField.selectAll()
+        scrollToCurrent()
+    }
+
+    // Open seeded from a global-search result (Phase 8, §8.4): the query
+    // is given and the cursor seeds to the clicked occurrence, which the
+    // at-or-after rule makes the current match.
+    function openAt(query, blockIndex, mdPos) {
+        replaceMode = false
+        previewPanel.close()
+        documentSearch.clearDomain()
+        inSelectionButton.checked = false
+        queryField.text = query
+        documentSearch.setActiveCursor(blockIndex, mdPos)
+        visible = true
+        queryDebounceTimer.stop()
+        documentSearch.active = true
+        documentSearch.query = query
+        documentSearch.recomputeNow()
+        scrollToCurrent()
+    }
+
+    // Close and return focus to the document (decision 5): to the
+    // current match's block at the match start when there is one, else
+    // to the last focused block.
+    function close() {
+        if (!visible)
+            return
+        previewPanel.close()
+        var info = documentSearch.currentMatchInfo()
+        visible = false
+        documentSearch.active = false
+        documentSearch.clearDomain()
+        inSelectionButton.checked = false
+
+        var idx = info.found ? info.blockIndex
+                             : (appWindow ? appWindow.lastFocusedBlock : 0)
+        var mdPos = info.found ? info.mdStart : -1
+        if (!listView || idx < 0 || idx >= blockModel.count)
+            return
+        listView.positionViewAtIndex(idx, ListView.Contain)
+        Qt.callLater(function() {
+            var item = listView.itemAtIndex(idx)
+            if (!item)
+                return
+            if (mdPos >= 0 && item.focusAtPosition)
+                item.focusAtPosition(mdPos)
+            else if (item.focusAtEnd)
+                item.focusAtEnd()
+        })
+    }
+
+    function stepNext() {
+        applyPendingQuery()
+        documentSearch.next()
+        scrollToCurrent()
+    }
+
+    function stepPrevious() {
+        applyPendingQuery()
+        documentSearch.previous()
+        scrollToCurrent()
+    }
+
+    // F3 / Shift+F3 (decision 11): navigate while open; closed, they
+    // reopen the bar with the kept query — "resume searching" — and do
+    // nothing only when no query has been typed this session.
+    function findNextShortcut() {
+        if (visible)
+            stepNext()
+        else if (queryField.text.length > 0)
+            open(false)
+    }
+
+    function findPreviousShortcut() {
+        if (visible) {
+            stepPrevious()
+        } else if (queryField.text.length > 0) {
+            open(false)
+            stepPrevious()
+        }
+    }
+
+    // Scroll the view to the current match (§7.1 "scroll to and
+    // highlight"): position at the block, then nudge contentY for
+    // blocks taller than the viewport slice so the match's line shows.
+    function scrollToCurrent() {
+        if (!visible || !listView)
+            return
+        var info = documentSearch.currentMatchInfo()
+        if (!info.found)
+            return
+        listView.positionViewAtIndex(info.blockIndex, ListView.Contain)
+        Qt.callLater(function() {
+            var item = listView.itemAtIndex(info.blockIndex)
+            if (!item || !item.rectForMarkdownPosition)
+                return
+            var rect = item.rectForMarkdownPosition(info.mdStart)
+            var yInContent = item.y + rect.y
+            var top = yInContent - listView.contentY
+            var bottom = top + rect.height
+            if (top < 0) {
+                listView.contentY = Math.max(0, yInContent - 8)
+            } else if (bottom > listView.height) {
+                listView.contentY = Math.min(
+                    Math.max(0, listView.contentHeight - listView.height),
+                    yInContent + rect.height + 8 - listView.height)
+            }
+        })
+    }
+
+    function handleFieldKeys(event) {
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            if (event.modifiers & Qt.ShiftModifier)
+                stepPrevious()
+            else
+                stepNext()
+            event.accepted = true
+        } else if (event.key === Qt.Key_Escape) {
+            close()
+            event.accepted = true
+        }
+    }
+
+    // ---- Replace (features.md §7.2; decisions 8–10) ----
+
+    function replaceOne() {
+        applyPendingQuery()
+        if (documentSearch.replaceCurrent(replaceField.text))
+            scrollToCurrent()
+    }
+
+    // Replace All goes through the preview (decision 10): the panel
+    // lists every pending replacement; Confirm applies them as one undo
+    // step, Cancel leaves the document untouched.
+    function requestReplaceAll() {
+        applyPendingQuery()
+        if (documentSearch.matchCount === 0 || documentSearch.patternError)
+            return
+        previewRows = documentSearch.previewReplacements(replaceField.text)
+        previewPanel.open()
+    }
+
+    function confirmReplaceAll() {
+        applyPendingQuery()
+        previewPanel.close()
+        documentSearch.replaceAll(replaceField.text)
+    }
+
+    function applyPendingQuery() {
+        if (!queryDebounceTimer.running)
+            return
+        queryDebounceTimer.stop()
+        documentSearch.query = queryField.text
+    }
+
+    Timer {
+        id: queryDebounceTimer
+        interval: 30
+        repeat: false
+        onTriggered: {
+            documentSearch.query = queryField.text
+            findBar.scrollToCurrent()
+        }
+    }
+
+    ColumnLayout {
+        id: barColumn
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.margins: 6
+        spacing: 4
+
+        RowLayout {
+            spacing: 3
+
+            TextField {
+                id: queryField
+                objectName: "findQueryField"
+                Layout.preferredWidth: 190
+                Layout.preferredHeight: 28
+                placeholderText: qsTr("Find")
+                selectByMouse: true
+                color: documentSearch.patternError ? theme.danger : theme.textPrimary
+                Keys.onPressed: function(event) { findBar.handleFieldKeys(event) }
+                onTextChanged: {
+                    if (findBar.visible)
+                        queryDebounceTimer.restart()
+                    else
+                        documentSearch.query = text
+                }
+            }
+
+            Label {
+                objectName: "findCountLabel"
+                Layout.minimumWidth: 78
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                // matchCount/currentNumber/patternError all notify via
+                // revisionChanged, so this re-evaluates on every change.
+                text: documentSearch.patternError
+                      ? qsTr("Invalid pattern")
+                      : (documentSearch.matchCount > 0
+                         ? documentSearch.currentNumber + qsTr(" of ")
+                           + documentSearch.matchCount
+                         : (documentSearch.query.length > 0
+                            ? qsTr("No results") : ""))
+                color: documentSearch.patternError ? theme.danger : theme.textMuted
+                font.pixelSize: 12
+            }
+
+            ToolButton {
+                objectName: "findPrevButton"
+                text: "▲"
+                implicitWidth: 28
+                implicitHeight: 28
+                font.pixelSize: 10
+                enabled: documentSearch.matchCount > 0
+                onClicked: findBar.stepPrevious()
+            }
+            ToolButton {
+                objectName: "findNextButton"
+                text: "▼"
+                implicitWidth: 28
+                implicitHeight: 28
+                font.pixelSize: 10
+                enabled: documentSearch.matchCount > 0
+                onClicked: findBar.stepNext()
+            }
+
+            // Option toggles (§7.1). The buttons own the state; the
+            // Binding elements below push it into the search object one
+            // way, so user toggling never breaks a binding. Persisted
+            // through the settings store (phase9-plan.md step 1) —
+            // inSelectionOnly deliberately not: its domain is armed
+            // from the selection present when the bar opens.
+            ToolButton {
+                id: caseButton
+                objectName: "findCaseButton"
+                text: "Aa"
+                checkable: true
+                implicitWidth: 30
+                implicitHeight: 28
+                font.pixelSize: 12
+                onToggled: findBar.scrollToCurrent()
+                onCheckedChanged:
+                    appSettings.setValue("find.caseSensitive", checked)
+            }
+            ToolButton {
+                id: wordButton
+                objectName: "findWordButton"
+                text: "ab"
+                checkable: true
+                implicitWidth: 30
+                implicitHeight: 28
+                font.pixelSize: 12
+                font.underline: true
+                onToggled: findBar.scrollToCurrent()
+                onCheckedChanged:
+                    appSettings.setValue("find.wholeWord", checked)
+            }
+            ToolButton {
+                id: regexButton
+                objectName: "findRegexButton"
+                text: ".*"
+                checkable: true
+                implicitWidth: 30
+                implicitHeight: 28
+                font.pixelSize: 12
+                onToggled: findBar.scrollToCurrent()
+                onCheckedChanged:
+                    appSettings.setValue("find.useRegex", checked)
+            }
+
+            ToolButton {
+                objectName: "findCloseButton"
+                text: "✕"
+                implicitWidth: 28
+                implicitHeight: 28
+                font.pixelSize: 11
+                onClicked: findBar.close()
+            }
+        }
+
+        RowLayout {
+            spacing: 3
+            visible: findBar.replaceMode
+
+            TextField {
+                id: replaceField
+                objectName: "replaceField"
+                Layout.preferredWidth: 190
+                Layout.preferredHeight: 28
+                placeholderText: qsTr("Replace")
+                selectByMouse: true
+                Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        findBar.replaceOne()
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Escape) {
+                        findBar.close()
+                        event.accepted = true
+                    }
+                }
+            }
+
+            Button {
+                objectName: "replaceOneButton"
+                text: qsTr("Replace")
+                implicitHeight: 28
+                font.pixelSize: 12
+                enabled: documentSearch.matchCount > 0
+                onClicked: findBar.replaceOne()
+            }
+            Button {
+                objectName: "replaceAllButton"
+                text: qsTr("All")
+                implicitHeight: 28
+                font.pixelSize: 12
+                enabled: documentSearch.matchCount > 0
+                onClicked: findBar.requestReplaceAll()
+            }
+
+            // Preserve case (§7.2): adapt the replacement's casing to
+            // each match's.
+            ToolButton {
+                id: preserveCaseButton
+                objectName: "preserveCaseButton"
+                text: "AB"
+                checkable: true
+                implicitWidth: 30
+                implicitHeight: 28
+                font.pixelSize: 12
+                onCheckedChanged:
+                    appSettings.setValue("find.preserveCase", checked)
+            }
+
+            // Replace in selection only (§7.2): shows while a domain
+            // was armed from a document-level selection at open time.
+            ToolButton {
+                id: inSelectionButton
+                objectName: "inSelectionButton"
+                text: qsTr("In selection")
+                checkable: true
+                visible: documentSearch.hasDomain
+                implicitHeight: 28
+                font.pixelSize: 11
+            }
+        }
+    }
+
+    Binding { target: documentSearch; property: "caseSensitive"; value: caseButton.checked }
+    Binding { target: documentSearch; property: "wholeWord"; value: wordButton.checked }
+    Binding { target: documentSearch; property: "useRegex"; value: regexButton.checked }
+    Binding { target: documentSearch; property: "preserveCase"; value: preserveCaseButton.checked }
+    Binding { target: documentSearch; property: "inSelectionOnly"; value: inSelectionButton.checked }
+
+    // The replace-all preview (decision 10): every pending replacement
+    // as its match line with the matched text struck through and the
+    // replacement inlined after it; nothing lands until Confirm.
+    Popup {
+        id: previewPanel
+        objectName: "replacePreviewPanel"
+        parent: findBar
+        x: findBar.width - width
+        y: findBar.height + 4
+        width: 480
+        padding: 10
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        // A stale preview must never apply: any observable search
+        // change (an edit recomputing matches, an option flip)
+        // invalidates the snapshot and dismisses the panel.
+        Connections {
+            target: documentSearch
+            enabled: previewPanel.visible
+            function onRevisionChanged() { previewPanel.close() }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 8
+
+            Label {
+                objectName: "previewSummaryLabel"
+                text: {
+                    var blocks = {}
+                    for (var i = 0; i < findBar.previewRows.length; i++)
+                        blocks[findBar.previewRows[i].blockIndex] = true
+                    return qsTr("Replace %1 match(es) in %2 block(s)?")
+                        .arg(findBar.previewRows.length)
+                        .arg(Object.keys(blocks).length)
+                }
+                font.bold: true
+                font.pixelSize: 13
+            }
+
+            ListView {
+                objectName: "previewList"
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(260, contentHeight)
+                clip: true
+                spacing: 2
+                model: findBar.previewRows
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                delegate: Row {
+                    spacing: 0
+                    Label {
+                        text: (modelData.blockIndex + 1) + ":  "
+                        color: theme.textFaint
+                        font.pixelSize: 12
+                    }
+                    Label {
+                        text: modelData.prefix
+                        color: theme.textSecondary
+                        font.pixelSize: 12
+                    }
+                    Label {
+                        text: modelData.matched
+                        color: theme.danger
+                        font.strikeout: true
+                        font.pixelSize: 12
+                    }
+                    Label {
+                        text: modelData.replacement
+                        color: theme.success
+                        font.bold: true
+                        font.pixelSize: 12
+                    }
+                    Label {
+                        text: modelData.suffix
+                        color: theme.textSecondary
+                        font.pixelSize: 12
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: 6
+                Button {
+                    objectName: "previewCancelButton"
+                    text: qsTr("Cancel")
+                    implicitHeight: 28
+                    font.pixelSize: 12
+                    onClicked: previewPanel.close()
+                }
+                Button {
+                    objectName: "previewConfirmButton"
+                    text: qsTr("Replace All")
+                    implicitHeight: 28
+                    font.pixelSize: 12
+                    highlighted: true
+                    onClicked: findBar.confirmReplaceAll()
+                }
+            }
+        }
+    }
+}

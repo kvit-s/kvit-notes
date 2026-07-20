@@ -1,0 +1,55 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file>tst_integration.qml</file>
+        <file>tst_visual.qml</file>
+        <file alias="qml/main.qml">../qml/main.qml</file>
+        <file alias="qml/EditableBlock.qml">../qml/EditableBlock.qml</file>
+        <file alias="qml/TextBlockDelegate.qml">../qml/TextBlockDelegate.qml</file>
+        <file alias="qml/BulletListDelegate.qml">../qml/BulletListDelegate.qml</file>
+        <file alias="qml/NumberedListDelegate.qml">../qml/NumberedListDelegate.qml</file>
+        <file alias="qml/TodoDelegate.qml">../qml/TodoDelegate.qml</file>
+        <file alias="qml/QuoteDelegate.qml">../qml/QuoteDelegate.qml</file>
+        <file alias="qml/CodeBlockDelegate.qml">../qml/CodeBlockDelegate.qml</file>
+        <file alias="qml/LanguagePicker.qml">../qml/LanguagePicker.qml</file>
+        <file alias="qml/ColorPicker.qml">../qml/ColorPicker.qml</file>
+        <file alias="qml/ImageBlock.qml">../qml/ImageBlock.qml</file>
+        <file alias="qml/Lightbox.qml">../qml/Lightbox.qml</file>
+        <file alias="qml/CalloutBlock.qml">../qml/CalloutBlock.qml</file>
+        <file alias="qml/TableBlock.qml">../qml/TableBlock.qml</file>
+        <file alias="qml/TableSizePicker.qml">../qml/TableSizePicker.qml</file>
+        <file alias="qml/KanbanBlock.qml">../qml/KanbanBlock.qml</file>
+        <file alias="qml/MathBlock.qml">../qml/MathBlock.qml</file>
+        <file alias="qml/MediaBlock.qml">../qml/MediaBlock.qml</file>
+        <file alias="qml/DividerDelegate.qml">../qml/DividerDelegate.qml</file>
+        <file alias="qml/DividerStylePicker.qml">../qml/DividerStylePicker.qml</file>
+        <file alias="qml/CalloutColorPicker.qml">../qml/CalloutColorPicker.qml</file>
+        <file alias="qml/ImageEffectsPopover.qml">../qml/ImageEffectsPopover.qml</file>
+        <file alias="qml/ShortcutReference.qml">../qml/ShortcutReference.qml</file>
+        <file alias="qml/QuickCaptureWindow.qml">../qml/QuickCaptureWindow.qml</file>
+        <file alias="qml/BlockMenu.qml">../qml/BlockMenu.qml</file>
+        <file alias="qml/MathCommandMenu.qml">../qml/MathCommandMenu.qml</file>
+        <file alias="qml/QuickSwitcher.qml">../qml/QuickSwitcher.qml</file>
+        <file alias="qml/WikiLinkMenu.qml">../qml/WikiLinkMenu.qml</file>
+        <file alias="qml/BacklinksPanel.qml">../qml/BacklinksPanel.qml</file>
+        <file alias="qml/FindBar.qml">../qml/FindBar.qml</file>
+        <file alias="qml/Sidebar.qml">../qml/Sidebar.qml</file>
+        <file alias="qml/NoteListPane.qml">../qml/NoteListPane.qml</file>
+        <file alias="qml/TagStrip.qml">../qml/TagStrip.qml</file>
+        <file alias="qml/SearchResultsView.qml">../qml/SearchResultsView.qml</file>
+        <file alias="qml/SettingsDialog.qml">../qml/SettingsDialog.qml</file>
+        <file alias="qml/PanelSeam.qml">../qml/PanelSeam.qml</file>
+        <file alias="qml/Toolbar.qml">../qml/Toolbar.qml</file>
+        <file alias="qml/FormattingBar.qml">../qml/FormattingBar.qml</file>
+        <file alias="qml/DateRangePicker.qml">../qml/DateRangePicker.qml</file>
+        <file alias="qml/OutlinePanel.qml">../qml/OutlinePanel.qml</file>
+        <file alias="qml/TocBlock.qml">../qml/TocBlock.qml</file>
+        <file alias="qml/QueryBlock.qml">../qml/QueryBlock.qml</file>
+        <file alias="qml/StatisticsPanel.qml">../qml/StatisticsPanel.qml</file>
+        <file alias="qml/TemplateDialog.qml">../qml/TemplateDialog.qml</file>
+        <file alias="qml/ExportDialog.qml">../qml/ExportDialog.qml</file>
+        <file alias="qml/ImportDialog.qml">../qml/ImportDialog.qml</file>
+        <file alias="qml/EmbedBlock.qml">../qml/EmbedBlock.qml</file>
+        <file alias="qml/DiagramBlock.qml">../qml/DiagramBlock.qml</file>
+    </qresource>
+</RCC>

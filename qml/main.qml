@@ -1,0 +1,4281 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Window
+import QtQuick.Dialogs
+import Qt.labs.qmlmodels
+import Kvit 1.0
+
+ApplicationWindow {
+    id: root
+
+    // First-run default; every later launch restores the persisted
+    // geometry below. 800x600 clipped the toolbar's right end.
+    width: Math.min(1100, Screen.desktopAvailableWidth > 0
+                    ? Screen.desktopAvailableWidth - 40 : 1100)
+    height: Math.min(720, Screen.desktopAvailableHeight > 0
+                     ? Screen.desktopAvailableHeight - 60 : 720)
+    visible: true
+    title: {
+        var name = documentManager ? documentManager.currentFileName : "Kvit Notes"
+        // Collection mode: the note title is the file name without ".md".
+        if (currentNoteRelPath !== "" && name.toLowerCase().endsWith(".md"))
+            name = name.substring(0, name.length - 3)
+        return (documentManager && documentManager.isDirty ? "* " : "")
+            + name + " - Kvit Notes"
+    }
+
+    // The block that most recently held editing focus (§3.1's "current
+    // block"): the Shift+Click block-range anchor. Maintained by the
+    // delegates on focus gain — not listView.currentIndex, whose
+    // assignment moves focus into the delegate root.
+    property int lastFocusedBlock: 0
+
+    // ---- The notes collection (plan.md Phase 8) ------------------------
+    // Collection mode shows the sidebar and note list; single-file mode
+    // (file argument, or the test harness's unopened collection) keeps
+    // the pre-Phase-8 editor-only geometry.
+    readonly property bool collectionOpen: noteCollection && noteCollection.isOpen
+    property bool panelsVisible: true
+
+    // §9.1 layout state (phase9-plan.md step 4): per-panel widths set
+    // by the seam handles, and independent collapse; all persisted.
+    property int sidebarWidth: 200
+    property int noteListWidth: 260
+    property bool sidebarCollapsed: false
+    property bool noteListCollapsed: false
+
+    onSidebarWidthChanged:
+        appSettings.setValue("panels.sidebarWidth", sidebarWidth)
+    onNoteListWidthChanged:
+        appSettings.setValue("panels.noteListWidth", noteListWidth)
+    onSidebarCollapsedChanged:
+        appSettings.setValue("panels.sidebarCollapsed", sidebarCollapsed)
+    onNoteListCollapsedChanged:
+        appSettings.setValue("panels.noteListCollapsed", noteListCollapsed)
+
+    // Window geometry, persisted like the panel layout. Saves debounce
+    // through a timer (move/resize fire per-event) and record only the
+    // normal windowed geometry, so a maximized session restores maximized
+    // over the last windowed size. Nothing saves until the persisted
+    // geometry has been applied, or the defaults would overwrite it.
+    property bool geometryRestored: false
+    Timer {
+        id: geometrySaveTimer
+        interval: 400
+        onTriggered: {
+            if (!root.geometryRestored
+                || root.visibility !== Window.Windowed)
+                return
+            appSettings.setValue("window.width", root.width)
+            appSettings.setValue("window.height", root.height)
+            appSettings.setValue("window.x", root.x)
+            appSettings.setValue("window.y", root.y)
+        }
+    }
+    onWidthChanged: geometrySaveTimer.restart()
+    onHeightChanged: geometrySaveTimer.restart()
+    onXChanged: geometrySaveTimer.restart()
+    onYChanged: geometrySaveTimer.restart()
+    onVisibilityChanged: {
+        if (!geometryRestored)
+            return
+        // Full screen (focus mode) and minimized leave the flag alone.
+        if (visibility === Window.Maximized)
+            appSettings.setValue("window.maximized", true)
+        else if (visibility === Window.Windowed)
+            appSettings.setValue("window.maximized", false)
+    }
+    // A stored position is only reapplied when its rect still lands on a
+    // connected screen; monitors change between sessions.
+    function savedRectOnScreen(sx, sy, sw, sh) {
+        var screens = Qt.application.screens
+        for (var i = 0; i < screens.length; i++) {
+            var s = screens[i]
+            if (sx + sw > s.virtualX + 40
+                && sx < s.virtualX + s.width - 40
+                && sy + 24 > s.virtualY
+                && sy < s.virtualY + s.height - 40)
+                return true
+        }
+        return false
+    }
+
+    // §9.7 status-bar visibility (view menu), persisted.
+    property bool statusBarVisible: true
+    // What every bottom-anchored region has to clear: the status bar plus an
+    // extension bottom bar when a module fills that slot (zero otherwise).
+    readonly property int bottomChromeHeight:
+        (statusBar.visible ? statusBar.height : 0)
+        + (extensionBottomBar.visible ? extensionBottomBar.height : 0)
+    onStatusBarVisibleChanged:
+        appSettings.setValue("view.statusBar", statusBarVisible)
+
+    // §17.1 document outline pane (phase11 step 1): a right-side dock listing
+    // the document's headings, toggled from the view menu (Ctrl+Shift+O),
+    // persisted. Document-level, so it works in single-file mode too.
+    property bool outlineVisible: false
+    property int outlineWidth: 240
+    // Backlinks pane (pre-launch-plan.md §3.4); sits left of the outline
+    // when both are open.
+    property bool backlinksVisible: false
+    property int backlinksWidth: 260
+    onBacklinksVisibleChanged:
+        appSettings.setValue("view.backlinks", backlinksVisible)
+    onOutlineVisibleChanged:
+        appSettings.setValue("view.outline", outlineVisible)
+
+    // §16.1 focus mode (phase11 decision 5): hide all chrome (toolbar, side
+    // panels, outline, status bar), center the editor column, and go
+    // full-screen. A composition of Phase 9's panel toggles plus a window-
+    // state flip — presentation only, no document behavior. Escape or the
+    // shortcut exits. §16.2 typewriter mode is independent and composable:
+    // it keeps the caret line centered and fades non-caret blocks. Both
+    // persist.
+    property bool focusMode: false
+    property bool typewriterMode: false
+    onFocusModeChanged: {
+        appSettings.setValue("view.focusMode", focusMode)
+        root.visibility = focusMode ? Window.FullScreen : Window.Windowed
+        a11y.announceMode(qsTr("Focus mode"), focusMode)   // §14.2
+    }
+    onTypewriterModeChanged: {
+        appSettings.setValue("view.typewriterMode", typewriterMode)
+        a11y.announceMode(qsTr("Typewriter mode"), typewriterMode)   // §14.2
+        if (typewriterMode)
+            Qt.callLater(function() {
+                if (appToolbar.targetBlock)
+                    root.centerCaretLine(appToolbar.targetBlock)
+            })
+    }
+    // The block index holding the caret (-1 when the editor is unfocused);
+    // typewriter mode fades every other block. Off the keystroke path — it
+    // changes only when focus moves between blocks.
+    readonly property int caretBlockIndex:
+        appToolbar.targetBlock ? appToolbar.targetBlock.index : -1
+
+    // When the caret moves to a new block (not just within one), recenter it.
+    // onCursorRectangleChanged in the delegate catches within-block moves, but
+    // a focus change can settle after that signal, so this covers the handoff.
+    onCaretBlockIndexChanged: {
+        if (typewriterMode && caretBlockIndex >= 0)
+            Qt.callLater(function() {
+                if (appToolbar.targetBlock)
+                    root.centerCaretLine(appToolbar.targetBlock)
+            })
+    }
+
+    // Center the caret's line in the editor viewport (typewriter mode).
+    // Generalizes the find bar's scroll-into-view to "put the caret line at
+    // mid-viewport"; the scroll animates only while typewriter mode is on.
+    function centerCaretLine(item) {
+        if (!item || !item.rectForMarkdownPosition || !item.markdownCursor)
+            return
+        var rect = item.rectForMarkdownPosition(item.markdownCursor())
+        var yInContent = item.y + rect.y
+        var target = yInContent - blockListView.height / 2 + rect.height / 2
+        var maxY = Math.max(0, blockListView.contentHeight - blockListView.height)
+        blockListView.contentY = Math.max(0, Math.min(target, maxY))
+    }
+
+    function formatCount(value) {
+        var n = Number(value)
+        if (!isFinite(n))
+            n = 0
+        var sign = n < 0 ? "-" : ""
+        var digits = Math.floor(Math.abs(n)).toString()
+        return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+    }
+
+    function openSettingsDialog() { settingsDialog.open() }
+
+    // ---- Keyboard accessibility: focus and pane navigation (§14.1) ----
+    // Skip-navigation: land on the current (or first) editor block, bypassing
+    // the chrome. Bound to F6's pane cycle and the View menu.
+    function focusEditor() {
+        var idx = Math.max(0, Math.min(root.lastFocusedBlock, blockModel.count - 1))
+        blockListView.currentIndex = idx
+        var item = blockListView.itemAtIndex(idx)
+        if (item && item.focusAtStart)
+            item.focusAtStart()
+    }
+    // Which major pane last took focus (0 sidebar, 1 note list, 2 editor), so
+    // F6 can cycle to the next visible one — the standard desktop region key.
+    property int focusedPane: 2
+    function focusPane(p) {
+        root.focusedPane = p
+        if (p === 0 && !root.sidebarCollapsed && root.collectionOpen)
+            sidebar.focusPane()
+        else if (p === 1 && !root.noteListCollapsed && root.collectionOpen)
+            noteListPane.focusPane()
+        else
+            focusEditor()
+    }
+    function cyclePane() {
+        var order = []
+        if (root.collectionOpen && !root.sidebarCollapsed) order.push(0)
+        if (root.collectionOpen && !root.noteListCollapsed) order.push(1)
+        order.push(2)  // the editor is always present
+        var cur = order.indexOf(root.focusedPane)
+        focusPane(order[(cur + 1) % order.length])
+    }
+    Shortcut {
+        sequence: "F6"
+        onActivated: root.cyclePane()
+    }
+
+    // Live-region announcements for dynamic changes (§14.2). Save state speaks
+    // only the meaningful "Saved" transition (not every keystroke's dirtying);
+    // the search match count speaks while the find bar is active.
+    Connections {
+        target: documentManager
+        function onCurrentFilePathChanged() {
+            Qt.callLater(refreshSessionBaseline)
+        }
+
+        function onIsDirtyChanged() {
+            if (!documentManager.isDirty)
+                a11y.announceSaveState(false)
+        }
+    }
+    Connections {
+        target: documentSearch
+        function onRevisionChanged() {
+            if (documentSearch.query !== "")
+                a11y.announceMatchCount(documentSearch.matchCount)
+        }
+    }
+
+    // §19.2 session word-count tracker (phase11 decision 7): the document's
+    // word count when the note opened; the statistics popover shows the delta.
+    // Ephemeral, reset per note.
+    property int sessionStartWords: 0
+    function refreshSessionBaseline() {
+        sessionStartWords = blockModel ? blockModel.documentWordCount : 0
+    }
+
+    // A transient status-bar note (phase11 decision 3): shown briefly, e.g.
+    // when an internal link resolves or dangles. Cleared by its timer.
+    property string transientStatus: ""
+    Timer {
+        id: transientStatusTimer
+        interval: 3500
+        onTriggered: root.transientStatus = ""
+    }
+    function showTransientStatus(msg) {
+        root.transientStatus = msg
+        transientStatusTimer.restart()
+    }
+
+    // The note-list's bulk selection, for the export dialog's selection scope.
+    function noteListSelectedPaths() {
+        return noteListPane && noteListPane.selectedPaths
+            ? noteListPane.selectedPaths : []
+    }
+    // A file:// URL to a local filesystem path.
+    function urlToLocalPath(fileUrl) {
+        var s = fileUrl.toString()
+        if (s.indexOf("file://") === 0)
+            s = s.substring(7)
+        return decodeURIComponent(s)
+    }
+
+    // Scroll a block to the top of the editor viewport and focus it — the
+    // find-bar's scroll-into-view generalized, reused by internal-link
+    // navigation and the outline/TOC click-to-scroll (decision 3).
+    function scrollToBlock(idx) {
+        if (idx < 0 || !blockModel || idx >= blockModel.count)
+            return
+        blockListView.currentIndex = idx
+        blockListView.positionViewAtIndex(idx, ListView.Beginning)
+        Qt.callLater(function() {
+            var item = blockListView.itemAtIndex(idx)
+            if (item && item.focusAtStart)
+                item.focusAtStart()
+        })
+    }
+
+    // ---- Persisted session state (phase9-plan.md step 1) ---------------
+    // The states earlier phases left session-scoped, read back from the
+    // settings store once at startup. A separate function (rather than
+    // inline onCompleted code) so integration tests can preset values
+    // and exercise the read path. Writes happen where each state
+    // changes: the handlers and Connections below.
+    function applyPersistedSessionState() {
+        panelsVisible = appSettings.value("panels.visible", true)
+        blockMenuModel.setRecentTypes(
+            appSettings.value("blockMenu.recent", []))
+        mathCommandModel.setRecentCommands(
+            appSettings.value("math.recentCommands", []))
+        // Read both sort keys before assigning either: the first
+        // assignment fires projectionChanged, whose save handler below
+        // would overwrite the not-yet-read second key.
+        var sortMode = appSettings.value("noteList.sortMode", "modified")
+        var sortAscending = appSettings.value("noteList.ascending", false)
+        noteListModel.sortMode = sortMode
+        noteListModel.ascending = sortAscending
+        sidebar.applyPersistedSearchHistory()
+        findBar.applyPersistedOptions()
+        sidebarWidth = appSettings.value("panels.sidebarWidth", 200)
+        noteListWidth = appSettings.value("panels.noteListWidth", 260)
+        sidebarCollapsed =
+            appSettings.value("panels.sidebarCollapsed", false)
+        noteListCollapsed =
+            appSettings.value("panels.noteListCollapsed", false)
+        statusBarVisible = appSettings.value("view.statusBar", true)
+        outlineVisible = appSettings.value("view.outline", false)
+        backlinksVisible = appSettings.value("view.backlinks", false)
+        documentOutline.levelMask =
+            appSettings.value("view.outlineLevels", 0xF)
+        // Focus/typewriter modes (view states). Focus mode is NOT restored on
+        // launch (starting full-screen with no chrome would disorient); it is
+        // a per-session toggle. Typewriter mode does restore.
+        typewriterMode = appSettings.value("view.typewriterMode", false)
+        appToolbar.applyPersistedCustomization()
+        // Oversized-file guard cap (llm-normalization.md): adjustable
+        // without a rebuild, next to the autosave settings.
+        documentManager.maxOpenFileSizeMiB =
+            appSettings.value("maxOpenFileSizeMiB", 10)
+        // Window geometry: size restores unconditionally (with a sanity
+        // floor), position only when still on a connected screen.
+        var winW = Number(appSettings.value("window.width", 0))
+        var winH = Number(appSettings.value("window.height", 0))
+        if (winW >= 500 && winH >= 350) {
+            width = winW
+            height = winH
+        }
+        var winX = Number(appSettings.value("window.x", -1e9))
+        var winY = Number(appSettings.value("window.y", -1e9))
+        if (winX > -1e8 && savedRectOnScreen(winX, winY, width, height)) {
+            x = winX
+            y = winY
+        }
+        if (appSettings.value("window.maximized", false))
+            root.visibility = Window.Maximized
+        geometryRestored = true
+    }
+    Component.onCompleted: {
+        applyPersistedSessionState()
+        refreshSessionBaseline()
+    }
+
+    onPanelsVisibleChanged:
+        appSettings.setValue("panels.visible", panelsVisible)
+
+    Connections {
+        target: blockMenuModel
+        function onRecentChanged() {
+            appSettings.setValue("blockMenu.recent",
+                                 blockMenuModel.recentTypes())
+        }
+    }
+
+    Connections {
+        target: mathCommandModel
+        function onRecentChanged() {
+            appSettings.setValue("math.recentCommands",
+                                 mathCommandModel.recentCommands())
+        }
+    }
+
+    // Persist the outline level filter; keep the caret's section lit as the
+    // current block changes (the section highlight is off the keystroke path).
+    Connections {
+        target: documentOutline
+        function onLevelMaskChanged() {
+            appSettings.setValue("view.outlineLevels", documentOutline.levelMask)
+        }
+        // A table-of-contents fence's stored body is derived from the headings
+        // (phase11 decision 4): keep it current so the file reads correctly
+        // elsewhere and export/serialize see the right list. The delegate
+        // renders the live outline directly, so this is persistence only —
+        // and it bypasses the undo stack (updateContentSilently), so it never
+        // spawns undo entries or dirties a freshly-loaded note.
+        function onRevisionChanged() { tocSyncTimer.restart() }
+    }
+    Connections {
+        target: blockModel
+        function onTocBlockIndexesChanged() { tocSyncTimer.restart() }
+    }
+    Timer {
+        id: tocSyncTimer
+        interval: 50
+        onTriggered: root.syncTocBlocks()
+    }
+    function syncTocBlocks() {
+        if (!blockModel || blockModel.tocBlockCount === 0)
+            return
+        var tocIndexes = blockModel.tocBlockIndexes()
+        if (tocIndexes.length === 0)
+            return
+
+        var perfOn = perfLog && perfLog.enabled
+        var scanned = 0
+        var updated = 0
+        if (perfOn)
+            perfLog.begin("toc.sync", {
+                "blocks": blockModel.count,
+                "tocBlocks": tocIndexes.length
+            })
+        try {
+            var toc = documentOutline.tocMarkdown()
+            for (var n = 0; n < tocIndexes.length; n++) {
+                var i = tocIndexes[n]
+                scanned++
+                var b = blockModel.blockAt(i)
+                if (b && b.blockType === 8 && b.language === "toc"
+                    && b.content !== toc) {
+                    blockModel.updateContentSilently(i, toc)
+                    updated++
+                }
+            }
+        } finally {
+            if (perfOn)
+                perfLog.end("toc.sync", {
+                    "scanned": scanned,
+                    "updated": updated
+                })
+        }
+    }
+    Connections {
+        target: blockListView
+        function onCurrentIndexChanged() {
+            documentOutline.setCurrentBlock(blockListView.currentIndex)
+        }
+    }
+
+    // projectionChanged also fires for scope and tag-filter changes;
+    // setValue no-ops when the value is unchanged, so saving both sort
+    // keys on every projection change is idempotent.
+    Connections {
+        target: noteListModel
+        function onProjectionChanged() {
+            appSettings.setValue("noteList.sortMode", noteListModel.sortMode)
+            appSettings.setValue("noteList.ascending", noteListModel.ascending)
+        }
+    }
+
+    // relPath of the open note ("" outside collection mode).
+    readonly property string currentNoteRelPath:
+        collectionOpen && documentManager.hasFile
+            ? noteCollection.relativePath(documentManager.currentFilePath) : ""
+
+    // Switch notes: save-on-blur, load, undo clears (decision 5 — the
+    // existing open() contract), search and selections reset.
+    function openNoteByPath(relPath) {
+        if (!collectionOpen || relPath === "")
+            return false
+        var abs = noteCollection.absolutePath(relPath)
+        if (documentManager.currentFilePath === abs)
+            return true
+        // The departing note's scroll position, captured before the
+        // switch so back/forward return the reader to it (§3.3). A
+        // history-driven reopen is a no-op inside visit().
+        var departingY = blockListView.contentY
+        if (documentManager.isDirty && documentManager.hasFile)
+            documentManager.save()
+        if (findBar.visible)
+            findBar.close()
+        if (documentSelection.hasBlockSelection
+            || documentSelection.hasTextSelection)
+            documentSelection.clear()
+        if (!documentManager.open(documentManager.toLocalFileUrl(abs)))
+            return false
+        navigationHistory.visit(relPath, departingY)
+        noteCollection.setLastOpenNote(relPath)
+        root.lastFocusedBlock = 0
+        blockListView.currentIndex = 0
+        // Reset the session word tracker to the just-loaded document (the model
+        // has finished loading synchronously here).
+        Qt.callLater(refreshSessionBaseline)
+        return true
+    }
+
+    // ---- Wiki-link navigation (pre-launch-plan.md §3.3) ----------------
+
+    // Back/forward over the note history; scroll positions restore after
+    // the (synchronous) model load settles.
+    function navigateBack() {
+        var entry = navigationHistory.goBack(blockListView.contentY)
+        if (entry.ok)
+            openHistoryEntry(entry)
+    }
+    function navigateForward() {
+        var entry = navigationHistory.goForward(blockListView.contentY)
+        if (entry.ok)
+            openHistoryEntry(entry)
+    }
+    function openHistoryEntry(entry) {
+        if (!openNoteByPath(entry.relPath))
+            return
+        Qt.callLater(function() {
+            var maxY = Math.max(0, blockListView.contentHeight
+                                   - blockListView.height)
+            blockListView.contentY = Math.min(entry.position, maxY)
+        })
+    }
+
+    // Follow a [[wiki-link]] spec ("target#heading", either part
+    // optional). Resolved targets open (then scroll to the heading);
+    // unresolved ones are created on click, as Obsidian does — a bare
+    // name in the current note's folder, a path-qualified target at its
+    // own path.
+    function followWikiLink(spec) {
+        var hashIdx = spec.indexOf("#")
+        var target = (hashIdx >= 0 ? spec.substring(0, hashIdx) : spec).trim()
+        var heading = hashIdx >= 0 ? spec.substring(hashIdx + 1).trim() : ""
+        if (target === "") {
+            if (heading !== "")
+                scrollToHeadingText(heading)
+            return
+        }
+        if (!collectionOpen) {
+            showTransientStatus(qsTr("Wiki-links need an open collection"))
+            return
+        }
+        var resolution = noteCollection.wikiTargetResolution(target)
+        if (resolution.status === "ambiguous") {
+            showTransientStatus(qsTr("Ambiguous link “%1”: %2")
+                                .arg(target)
+                                .arg(resolution.candidates.join(", ")))
+            return
+        }
+        var relPath = resolution.relPath
+        if (resolution.status === "missing") {
+            relPath = createWikiTarget(target)
+            if (relPath === "")
+                return
+            showTransientStatus(qsTr("Created “%1”").arg(relPath))
+        }
+        if (!openNoteByPath(relPath))
+            return
+        if (heading !== "") {
+            Qt.callLater(function() {
+                documentOutline.rebuildNow()
+                scrollToHeadingText(heading)
+            })
+        }
+    }
+
+    // Rename-safe wiki links: planning is read-only; this dialog is the only
+    // UI path that authorizes multi-file edits.  The open note is rewritten
+    // through DocumentManager as one undoable body replacement.
+    property var pendingRenamePlan: null
+    property var pendingRenameAfter: null
+
+    function requestNoteRename(relPath, newTitle) {
+        beginRenamePlan(noteCollection.planNoteRename(relPath, newTitle), null)
+    }
+    function requestNoteMove(relPath, targetFolder) {
+        beginRenamePlan(noteCollection.planNoteMove(relPath, targetFolder), null)
+    }
+    function requestFolderRename(relPath, newName, afterApply) {
+        beginRenamePlan(noteCollection.planFolderRename(relPath, newName), afterApply)
+    }
+    function beginRenamePlan(plan, afterApply) {
+        if (!plan || !plan.ok)
+            return
+        pendingRenamePlan = plan
+        pendingRenameAfter = afterApply
+        if (plan.linkCount > 0)
+            renameLinksDialog.open()
+        else
+            finishRenamePlan(false)
+    }
+    function executeRenamePlan(planId, updateLinks) {
+        var openRelPath = root.currentNoteRelPath
+        var openBody = openRelPath !== ""
+            ? documentSerializer.serialize(blockModel) : ""
+        var wasDirty = documentManager.isDirty
+        var result = noteCollection.applyRenamePlan(
+            planId, updateLinks, openRelPath, openBody)
+        if (!result.ok)
+            return result
+        if (result.openRewriteCount > 0
+                && documentManager.restoreBody(result.openBody)
+                && !wasDirty)
+            documentManager.save()
+        return result
+    }
+    function finishRenamePlan(updateLinks) {
+        var plan = pendingRenamePlan
+        var after = pendingRenameAfter
+        if (!plan)
+            return
+        var result = executeRenamePlan(plan.id, updateLinks)
+        pendingRenamePlan = null
+        pendingRenameAfter = null
+        if (result && result.ok && after)
+            after(result)
+        if (result && ((result.skipped && result.skipped.length > 0)
+                       || (result.failed && result.failed.length > 0))) {
+            rewriteResultDialog.planId = plan.id
+            rewriteResultDialog.skipped = result.skipped
+            rewriteResultDialog.failed = result.failed
+            rewriteResultDialog.open()
+        }
+    }
+
+    // A wiki-link's #heading part is raw heading text; slug it through
+    // the shared slug function before outline lookup.
+    function scrollToHeadingText(heading) {
+        var idx = documentOutline.blockIndexForSlug(
+            documentOutline.slugForText(heading))
+        if (idx >= 0)
+            scrollToBlock(idx)
+        else
+            showTransientStatus(qsTr("No heading “%1”").arg(heading))
+    }
+
+    function createWikiTarget(target) {
+        var folder
+        var title
+        var slash = target.lastIndexOf("/")
+        if (slash >= 0) {
+            // Path-qualified target: materialize its folder chain first.
+            var parts = target.substring(0, slash).split("/")
+            var accumulated = ""
+            for (var i = 0; i < parts.length; ++i) {
+                var next = accumulated === ""
+                    ? parts[i] : accumulated + "/" + parts[i]
+                if (noteCollection.folderRelPaths().indexOf(next) < 0)
+                    noteCollection.createFolder(accumulated, parts[i])
+                accumulated = next
+            }
+            folder = accumulated
+            title = target.substring(slash + 1)
+        } else {
+            folder = currentNoteRelPath.indexOf("/") >= 0
+                ? currentNoteRelPath.substring(
+                      0, currentNoteRelPath.lastIndexOf("/"))
+                : ""
+            title = target
+        }
+        if (title.toLowerCase().lastIndexOf(".md")
+                === title.length - 3 && title.length > 3)
+            title = title.substring(0, title.length - 3)
+        return noteCollection.createNote(folder, title)
+    }
+
+    // A clicked global-search result (§8.4 "open note at match
+    // location"): open the note, then hand off to the Phase 7 find bar —
+    // the query seeds DocumentSearch and the clicked occurrence becomes
+    // the current match through the cursor-seeding rule.
+    function openSearchResult(relPath, blockIndex, displayStart) {
+        var mdPos = collectionSearch.markdownPosition(relPath, blockIndex,
+                                                      displayStart)
+        if (!openNoteByPath(relPath))
+            return
+        sidebar.commitRecentSearch(collectionSearch.query)
+        findBar.openAt(collectionSearch.query, blockIndex, mdPos)
+    }
+
+    // Ctrl+N in collection mode: a new note in the current folder scope
+    // (§13.4 New Note), opened immediately.
+    function createNoteInCurrentScope() {
+        if (!collectionOpen)
+            return
+        var folder = noteListModel.scope === "folder"
+            ? noteListModel.folderPath : ""
+        var relPath = noteCollection.createNote(folder, "")
+        if (relPath !== "") {
+            openNoteByPath(relPath)
+            var item = blockListView.itemAtIndex(0)
+            if (item && item.focusAtStart)
+                item.focusAtStart()
+        }
+    }
+
+    // §18 create a note from a template (phase11 decision 6): a new note in
+    // the current scope, titled by the template, with the template's expanded
+    // body loaded and its front-matter (tags, favorite) carried through.
+    function createFromTemplate(templateName) {
+        if (!collectionOpen)
+            return ""
+        var folder = noteListModel.scope === "folder"
+            ? noteListModel.folderPath : ""
+        var relPath = noteCollection.createNote(folder, templateName)
+        if (relPath === "")
+            return ""
+        var title = noteCollection.noteInfo(relPath).title
+        var inst = noteTemplates.instantiate(templateName, title)
+        if (!openNoteByPath(relPath))
+            return relPath
+        // The note is open and empty; load the expanded body, then apply the
+        // template's metadata and save through the normal path.
+        documentSerializer.loadIntoModel(blockModel, inst.body || "")
+        var tags = inst.tags || []
+        for (var i = 0; i < tags.length; i++)
+            noteCollection.addTag(relPath, tags[i])
+        if (inst.favorite === true)
+            noteCollection.setFavorite(relPath, true)
+        documentManager.save()
+        Qt.callLater(function() {
+            var item = blockListView.itemAtIndex(0)
+            if (item && item.focusAtStart)
+                item.focusAtStart()
+        })
+        return relPath
+    }
+
+    // "Save current note as template": copy the open note (front-matter and
+    // body) into .kvit/templates under the given name.
+    function saveCurrentNoteAsTemplate(name) {
+        if (!collectionOpen || currentNoteRelPath === "")
+            return false
+        // The on-disk note text (front-matter + serialized body) is the
+        // template; save first so the file reflects the current buffer.
+        if (documentManager.isDirty)
+            documentManager.save()
+        var fm = noteCollection.frontMatterFor(currentNoteRelPath)
+        var full = (fm ? fm : "") + documentSerializer.serialize(blockModel)
+        return noteTemplates.writeTemplate(name, full)
+    }
+
+    // Map a scene point to {index, mdPos, inText} on the block list.
+    // Pointer positions above, below, or between blocks resolve to the
+    // nearest block edge so a selection drag never loses its target.
+    function blockPositionAt(sceneX, sceneY) {
+        if (!blockModel || blockModel.count === 0)
+            return null
+        var pos = blockListView.contentItem.mapFromItem(null, sceneX, sceneY)
+        if (pos.y < 0)
+            return { index: 0, mdPos: 0, inText: false }
+        if (pos.y >= blockListView.contentHeight) {
+            var last = blockModel.count - 1
+            return { index: last, mdPos: blockModel.getContent(last).length,
+                     inText: false }
+        }
+        var cx = Math.max(1, Math.min(pos.x, blockListView.width - 1))
+        var idx = blockListView.indexAt(cx, pos.y)
+        if (idx < 0) {
+            // In the spacing gap: attach to the block just above
+            idx = blockListView.indexAt(cx, Math.max(0, pos.y - blockListView.spacing))
+            if (idx < 0)
+                return null
+            return { index: idx, mdPos: blockModel.getContent(idx).length,
+                     inText: false }
+        }
+        var item = blockListView.itemAtIndex(idx)
+        if (!item || !item.markdownPositionAt)
+            return { index: idx, mdPos: 0, inText: false }
+        return { index: idx,
+                 mdPos: item.markdownPositionAt(sceneX, sceneY),
+                 inText: item.pointInText ? item.pointInText(sceneX, sceneY) : false }
+    }
+
+    readonly property color backgroundColor: theme.windowBackground
+    readonly property color blockBackgroundColor: theme.windowBackground
+    readonly property color blockBorderColor: theme.border
+    readonly property color focusedBorderColor: theme.accent
+    readonly property color textColor: theme.textPrimary
+
+    color: backgroundColor
+
+    // Qt Quick Controls (buttons, fields, scrollbars, menus) restyle
+    // through palette propagation — one binding set instead of
+    // per-control color work (phase9-plan.md decision 2).
+    palette {
+        window: theme.panelBackground
+        windowText: theme.textPrimary
+        base: theme.windowBackground
+        alternateBase: theme.listBackground
+        text: theme.textPrimary
+        button: theme.footerBackground
+        buttonText: theme.textPrimary
+        highlight: theme.accent
+        highlightedText: theme.onAccent
+        placeholderText: theme.textDisabled
+        mid: theme.borderStrong
+        dark: theme.textSecondary
+        light: theme.hoverTint
+        toolTipBase: theme.popupBackground
+        toolTipText: theme.textPrimary
+    }
+
+    // Global keyboard shortcuts for undo/redo
+    // Note: These are backup shortcuts when no TextArea has focus.
+    // When a TextArea is focused, BlockDelegate handles Ctrl+Z/Y/Shift+Z directly.
+    Shortcut {
+        sequences: [StandardKey.Undo]  // Ctrl+Z (and platform variants)
+        onActivated: {
+            if (undoStack && undoStack.canUndo) {
+                undoStack.undo()
+            }
+        }
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Redo]  // Ctrl+Y or Ctrl+Shift+Z depending on platform
+        onActivated: {
+            if (undoStack && undoStack.canRedo) {
+                undoStack.redo()
+            }
+        }
+    }
+
+    // File shortcuts
+    Shortcut {
+        sequences: [StandardKey.Save]  // Ctrl+S
+        onActivated: {
+            if (documentManager.hasFile) {
+                documentManager.saveAsync()
+            } else {
+                documentManager.saveFileDialog()
+            }
+        }
+    }
+
+    // No Save As shortcut: StandardKey.SaveAs resolves to Ctrl+Shift+S,
+    // which features.md §13 assigns to strikethrough (the spec's shortcut
+    // table gives Save As no binding). Ctrl+S on an untitled document
+    // still opens the save dialog; a menu entry arrives with Phase 9.
+
+    // Find bar (features.md §7.1; phase7-plan.md decisions 5 and 11).
+    // Application context: these work from a focused block, from the
+    // bar's own fields, and from block-selection mode alike.
+    Shortcut {
+        sequences: [StandardKey.Find] // Ctrl+F
+        context: Qt.ApplicationShortcut
+        onActivated: findBar.open(false)
+    }
+    Shortcut {
+        // Explicit, not StandardKey.Replace: the platform theme maps
+        // that to Ctrl+R or nothing on some Linux desktops, and §7.2
+        // names Ctrl+H.
+        sequence: "Ctrl+H"
+        context: Qt.ApplicationShortcut
+        onActivated: findBar.open(true)
+    }
+    Shortcut {
+        sequences: [StandardKey.FindNext] // F3
+        context: Qt.ApplicationShortcut
+        onActivated: findBar.findNextShortcut()
+    }
+    Shortcut {
+        sequences: [StandardKey.FindPrevious] // Shift+F3
+        context: Qt.ApplicationShortcut
+        onActivated: findBar.findPreviousShortcut()
+    }
+
+    // Wiki-link navigation (pre-launch-plan.md §3.3): history and the
+    // quick switcher, collection mode only.
+    Shortcut {
+        sequence: "Alt+Left"
+        context: Qt.ApplicationShortcut
+        enabled: root.collectionOpen
+        onActivated: root.navigateBack()
+    }
+    Shortcut {
+        sequence: "Alt+Right"
+        context: Qt.ApplicationShortcut
+        enabled: root.collectionOpen
+        onActivated: root.navigateForward()
+    }
+    Shortcut {
+        sequence: "Ctrl+P"
+        context: Qt.ApplicationShortcut
+        enabled: root.collectionOpen
+        onActivated: quickSwitcher.toggle()
+    }
+    // Mouse back/forward buttons navigate too. The area accepts ONLY
+    // those buttons, so ordinary clicks pass straight through to the UI
+    // beneath it.
+    MouseArea {
+        anchors.fill: parent
+        z: 10000
+        acceptedButtons: Qt.BackButton | Qt.ForwardButton
+        enabled: root.collectionOpen
+        onClicked: function(mouse) {
+            if (mouse.button === Qt.BackButton)
+                root.navigateBack()
+            else if (mouse.button === Qt.ForwardButton)
+                root.navigateForward()
+        }
+    }
+
+    // Opens link targets (features.md §2.4). Routed through one object so
+    // tests can observe activations without launching a browser.
+    property alias linkOpener: linkOpener
+    QtObject {
+        id: linkOpener
+        property bool openExternally: true
+        signal activated(string url)
+        function activate(url) {
+            if (!url || url.length === 0)
+                return
+            activated(url)
+            // Wiki-link (pre-launch-plan.md §3.3): kvit-note:target#heading
+            // resolves through the collection and opens in-app — creating
+            // the note when the target dangles — never a browser.
+            if (url.indexOf("kvit-note:") === 0) {
+                root.followWikiLink(url.substring(10))
+                return
+            }
+            // Internal document link (phase11 decision 3): #slug resolves
+            // through the shared slug function to a heading and scrolls there,
+            // rather than opening a browser. An unresolved slug is a
+            // recoverable no-op with a status-bar note, never an error.
+            if (url.charAt(0) === "#") {
+                var slug = url.substring(1)
+                var idx = documentOutline.blockIndexForSlug(slug)
+                if (idx >= 0) {
+                    root.scrollToBlock(idx)
+                } else {
+                    root.showTransientStatus(
+                        qsTr("No heading “") + slug + qsTr("”"))
+                }
+                return
+            }
+            if (openExternally)
+                Qt.openUrlExternally(url)
+        }
+    }
+
+    // The Ctrl+K link dialog (features.md §2.4): display-text and URL
+    // fields; prefilled when invoked inside an existing link; "Remove
+    // link" replaces the span with its bare text. All edits go through
+    // the model, like every formatting command.
+    property alias linkDialog: linkDialog
+    Dialog {
+        id: linkDialog
+        objectName: "linkDialog"
+        modal: true
+        title: editing ? qsTr("Edit Link") : qsTr("Insert Link")
+        anchors.centerIn: parent
+        width: 380
+
+        property alias textField: linkTextField
+        property alias urlField: linkUrlField
+        property int blockIndex: -1
+        property int mdStart: -1
+        property int mdEnd: -1
+        property bool editing: false
+        property bool removable: false
+        // The document's headings for the "link to heading" mode (§2.4's
+        // deferred jump-to-heading; phase11 decision 3). Refreshed on open.
+        property var headingTargets: []
+
+        function openForInsert(index, start, end, initialText) {
+            editing = false
+            removable = false
+            blockIndex = index
+            mdStart = start
+            mdEnd = end
+            headingTargets = documentOutline.headings()
+            linkTextField.text = initialText
+            linkUrlField.text = ""
+            open()
+            linkUrlField.forceActiveFocus()
+        }
+
+        function openForEdit(index, start, end, text, url, canRemove) {
+            editing = true
+            removable = canRemove
+            blockIndex = index
+            mdStart = start
+            mdEnd = end
+            headingTargets = documentOutline.headings()
+            linkTextField.text = text
+            linkUrlField.text = url
+            open()
+            linkUrlField.forceActiveFocus()
+        }
+
+        function spliceAndFocus(replacement, cursorMd) {
+            var md = blockModel.getContent(blockIndex)
+            blockModel.updateContent(blockIndex,
+                md.substring(0, mdStart) + replacement + md.substring(mdEnd))
+            var idx = blockIndex
+            Qt.callLater(function() {
+                blockListView.currentIndex = idx
+                var item = blockListView.itemAtIndex(idx)
+                if (item)
+                    item.focusAtPosition(cursorMd)
+            })
+        }
+
+        function removeLink() {
+            var text = linkTextField.text
+            spliceAndFocus(text, mdStart + text.length)
+            close()
+        }
+
+        onAccepted: {
+            // Brackets in the text or spaces/parens in the URL would
+            // produce markdown that no longer parses as one link.
+            var text = linkTextField.text.replace(/[\[\]]/g, "")
+            var url = linkUrlField.text.replace(/ /g, "%20").replace(/[()]/g, "")
+            if (text.length === 0)
+                text = url
+            if (text.length === 0)
+                return
+            var link = "[" + text + "](" + url + ")"
+            spliceAndFocus(link, mdStart + link.length)
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label { text: qsTr("Text") }
+            TextField {
+                id: linkTextField
+                objectName: "linkDialogTextField"
+                Layout.fillWidth: true
+            }
+            Label { text: qsTr("URL") }
+            TextField {
+                id: linkUrlField
+                objectName: "linkDialogUrlField"
+                placeholderText: "https:// or #heading"
+                Layout.fillWidth: true
+                onAccepted: linkDialog.accept()
+            }
+            // Link-to-heading mode (§2.4): choosing a heading fills the URL
+            // with its #slug (and the text, if empty). Present only when the
+            // document has headings.
+            Label {
+                text: qsTr("Or link to a heading")
+                visible: linkDialog.headingTargets.length > 0
+            }
+            ComboBox {
+                id: headingCombo
+                objectName: "linkDialogHeadingCombo"
+                visible: linkDialog.headingTargets.length > 0
+                Layout.fillWidth: true
+                textRole: "label"
+                model: {
+                    var out = [{ label: qsTr("— choose a heading —"),
+                                 slug: "", text: "" }]
+                    var hs = linkDialog.headingTargets
+                    for (var i = 0; i < hs.length; i++) {
+                        var indent = ""
+                        for (var j = 1; j < hs[i].level; j++)
+                            indent += "   "
+                        out.push({ label: indent + hs[i].text,
+                                   slug: hs[i].slug, text: hs[i].text })
+                    }
+                    return out
+                }
+                currentIndex: 0
+                onActivated: function(index) {
+                    if (index <= 0)
+                        return
+                    var item = model[index]
+                    linkUrlField.text = "#" + item.slug
+                    if (linkTextField.text.length === 0)
+                        linkTextField.text = item.text
+                }
+            }
+        }
+
+        footer: DialogButtonBox {
+            Button {
+                objectName: "linkDialogRemoveButton"
+                text: qsTr("Remove link")
+                visible: linkDialog.editing && linkDialog.removable
+                DialogButtonBox.buttonRole: DialogButtonBox.ResetRole
+                onClicked: linkDialog.removeLink()
+            }
+            Button {
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+            }
+            Button {
+                text: qsTr("OK")
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+            }
+        }
+    }
+
+    // The block-type menu (features.md §4): opened by "/" on an empty
+    // block or the gutter plus-button; the target delegate feeds it
+    // content changes and forwards its keys. Selection converts through
+    // the model; focus is re-established by index afterwards because
+    // the conversion may recreate the delegate.
+    // The math-command menu (tex-editing.md): opened by a backslash
+    // keystroke in a math-editing context — a MathBlock source editor or a
+    // revealed inline $…$ span. The host editor feeds it the query and
+    // forwards its keys; selection inserts through the host's
+    // applyMathCommand, so this popup owns no text.
+    property alias mathCommandMenu: mathCommandMenu
+    MathCommandMenu {
+        id: mathCommandMenu
+    }
+
+    // The [[ completion popup (pre-launch-plan.md §3.5), hosted like the
+    // math command menu: passive, driven by the focused block's editor.
+    property alias wikiLinkMenu: wikiLinkMenu
+    WikiLinkMenu {
+        id: wikiLinkMenu
+    }
+
+    // The quick switcher (pre-launch-plan.md §3.3): Ctrl+P. Creation via
+    // Shift+Enter lands in the current note-list folder scope, like Ctrl+N.
+    property alias quickSwitcher: quickSwitcher
+    QuickSwitcher {
+        id: quickSwitcher
+        onNoteChosen: function(relPath) { root.openNoteByPath(relPath) }
+        onCreateRequested: function(title) {
+            var folder = noteListModel.scope === "folder"
+                ? noteListModel.folderPath : ""
+            var relPath = noteCollection.createNote(folder, title)
+            if (relPath !== "")
+                root.openNoteByPath(relPath)
+        }
+    }
+
+    property alias blockMenu: blockMenu
+    BlockMenu {
+        id: blockMenu
+        onApplied: function(blockIndex, type) {
+            Qt.callLater(function() {
+                blockListView.currentIndex = blockIndex
+                var item = blockListView.itemAtIndex(blockIndex)
+                if (item)
+                    item.focusAtStart()
+            })
+        }
+    }
+
+    // Cross-block text selection, mouse path (features.md §2.5, §21.3;
+    // phase6-plan.md decision 6). Each block's TextArea hosts a passive
+    // PointHandler that reports its presses and drag moves here — an
+    // ancestor-level handler never sees a press the TextArea accepts
+    // (pinned by the step 4 feasibility test), but the TextArea's OWN
+    // handlers do, and a passive grab keeps reporting moves while the
+    // TextArea drags its native in-block selection (which IS the anchor
+    // block's portion). The coordinator engages when the pointer
+    // crosses into another block and disengages when it returns; while
+    // engaged it also feeds the edge auto-scroller. Presses in the
+    // gutter never reach a TextArea, so they never seed a text drag.
+    property alias crossBlockDrag: crossBlockDrag
+    QtObject {
+        id: crossBlockDrag
+
+        property int pressIndex: -1
+        property int pressMd: 0
+        property bool engaged: false
+        property int clickCount: 1
+        property double lastPressAt: 0
+        property real lastPressX: 0
+        property real lastPressY: 0
+
+        function beginPress(index, mdPos, sceneX, sceneY) {
+            // Click multiplicity sets the drag granularity (§21.3):
+            // 1 character, 2 word, 3 whole-block
+            var now = Date.now()
+            var near = Math.abs(sceneX - lastPressX) < 8
+                    && Math.abs(sceneY - lastPressY) < 8
+            clickCount = (now - lastPressAt < 400 && near)
+                ? Math.min(clickCount + 1, 3) : 1
+            lastPressAt = now
+            lastPressX = sceneX
+            lastPressY = sceneY
+            pressIndex = index
+            pressMd = mdPos
+            engaged = false
+        }
+
+        function update(sceneX, sceneY) {
+            if (pressIndex < 0)
+                return
+            var hit = root.blockPositionAt(sceneX, sceneY)
+            if (hit) {
+                if (!engaged && hit.index !== pressIndex) {
+                    documentSelection.beginTextSelection(pressIndex, pressMd,
+                        clickCount >= 3 ? 2 : clickCount === 2 ? 1 : 0)
+                    engaged = true
+                }
+                if (engaged) {
+                    if (hit.index === pressIndex) {
+                        // Back inside the anchor block: the native
+                        // in-block selection takes over again
+                        documentSelection.clearTextSelection()
+                        engaged = false
+                    } else {
+                        documentSelection.updateTextSelectionHead(
+                            hit.index, hit.mdPos)
+                    }
+                }
+            }
+            if (engaged) {
+                edgeScroller.pointerY =
+                    blockListView.mapFromItem(null, sceneX, sceneY).y
+                edgeScroller.active = true
+            } else {
+                edgeScroller.active = false
+            }
+        }
+
+        function endPress() {
+            pressIndex = -1
+            engaged = false
+            edgeScroller.active = false
+        }
+    }
+
+    // Block drag-and-drop reordering (features.md §3.2, §5.4;
+    // phase6-plan.md decisions 8 and 9). Single-block drags live-move
+    // the row with undo-bypassing preview moves — the real delegate is
+    // §21.4's space-holder while the floating proxy follows the
+    // pointer, and the ListView's move/displaced transitions animate
+    // the make-room. The drop commits ONE pre-applied command.
+    // Multi-block drags (the handle of a selected block) show a drop
+    // indicator instead and commit one compound move.
+    property alias blockDrag: blockDrag
+    QtObject {
+        id: blockDrag
+
+        property bool active: false
+        property bool isMulti: false
+        property int sourceIndex: -1    // live position of the dragged row
+        property int originalIndex: -1
+        property var dragIndexes: []
+        property int dragCount: 0
+        property int indicatorGap: -1   // multi: gap BEFORE this index
+
+        function begin(index, sceneX, sceneY) {
+            isMulti = documentSelection.hasBlockSelection
+                      && documentSelection.isBlockSelected(index)
+            if (documentSelection.hasBlockSelection && !isMulti)
+                documentSelection.clear()
+            if (documentSelection.hasTextSelection)
+                documentSelection.clearTextSelection()
+            sourceIndex = index
+            originalIndex = index
+            dragIndexes = isMulti ? documentSelection.selectedIndexes()
+                                  : [index]
+            dragCount = dragIndexes.length
+            indicatorGap = -1
+            active = true
+            dragProxy.buildFrom(dragIndexes)
+            update(sceneX, sceneY)
+        }
+
+        function update(sceneX, sceneY) {
+            if (!active)
+                return
+            dragProxy.moveTo(sceneX, sceneY)
+            var pos = blockListView.contentItem.mapFromItem(null, sceneX, sceneY)
+            var cx = Math.max(1, Math.min(pos.x, blockListView.width - 1))
+            if (isMulti) {
+                indicatorGap = gapAt(cx, pos.y)
+            } else {
+                var idx = blockListView.indexAt(cx,
+                    Math.max(0, Math.min(pos.y, blockListView.contentHeight - 1)))
+                if (idx >= 0 && idx !== sourceIndex) {
+                    var item = blockListView.itemAtIndex(idx)
+                    // Move only once the pointer passes the target row's
+                    // midpoint, so unequal row heights cannot oscillate
+                    if (item) {
+                        var centerY = item.y + item.height / 2
+                        if ((idx > sourceIndex && pos.y > centerY)
+                            || (idx < sourceIndex && pos.y < centerY)) {
+                            blockModel.previewMoveBlock(sourceIndex, idx)
+                            sourceIndex = idx
+                        }
+                    }
+                }
+            }
+            edgeScroller.pointerY =
+                blockListView.mapFromItem(null, sceneX, sceneY).y
+            edgeScroller.active = true
+        }
+
+        function gapAt(cx, cy) {
+            if (cy <= 0)
+                return 0
+            if (cy >= blockListView.contentHeight)
+                return blockModel.count
+            var idx = blockListView.indexAt(cx, cy)
+            if (idx < 0) {
+                idx = blockListView.indexAt(cx,
+                    Math.max(0, cy - blockListView.spacing))
+                return idx < 0 ? -1 : idx + 1
+            }
+            var item = blockListView.itemAtIndex(idx)
+            if (!item)
+                return idx
+            return cy > item.y + item.height / 2 ? idx + 1 : idx
+        }
+
+        function drop() {
+            if (!active)
+                return
+            if (isMulti) {
+                if (indicatorGap >= 0)
+                    blockModel.moveBlocksTo(dragIndexes, indicatorGap)
+                // The selection follows the moved blocks by id; keys
+                // stay with the selection handler
+                selectionKeyHandler.forceActiveFocus()
+            } else {
+                blockModel.commitDragMove(originalIndex, sourceIndex)
+                blockListView.currentIndex = sourceIndex
+            }
+            end()
+        }
+
+        // Escape cancels (§5.4): the row returns to where the drag
+        // started and nothing lands on the undo stack
+        function cancel() {
+            if (!active)
+                return
+            if (!isMulti && sourceIndex !== originalIndex)
+                blockModel.previewMoveBlock(sourceIndex, originalIndex)
+            end()
+        }
+
+        function end() {
+            active = false
+            sourceIndex = -1
+            originalIndex = -1
+            indicatorGap = -1
+            dragProxy.clear()
+            edgeScroller.active = false
+        }
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        enabled: blockDrag.active
+        onActivated: blockDrag.cancel()
+    }
+
+    // The floating drag proxy: snapshots of up to three dragged blocks
+    // stacked under the pointer, with a count badge for larger
+    // selections.
+    Item {
+        id: dragProxy
+        objectName: "dragProxy"
+        visible: blockDrag.active
+        z: 1000
+        width: 300
+        height: proxyColumn.height
+        opacity: 0.85
+
+        function grabShot(slot, sourceItem) {
+            sourceItem.grabToImage(function(result) {
+                if (slot < proxyImages.count)
+                    proxyImages.setProperty(slot, "shotUrl", result.url.toString())
+            })
+        }
+
+        function buildFrom(indexes) {
+            proxyImages.clear()
+            var shots = Math.min(3, indexes.length)
+            for (var i = 0; i < shots; i++) {
+                var item = blockListView.itemAtIndex(Number(indexes[i]))
+                if (!item)
+                    continue
+                // A delegate can nominate its content item for the shot
+                // (the math block nominates the rendered formula): grabbing
+                // a full-width row and fitting it into the proxy shrinks
+                // narrow content far below the intended 60%.
+                var src = (item.dragGrabItem && item.dragGrabItem.visible)
+                    ? item.dragGrabItem : item
+                proxyImages.append({ shotUrl: "",
+                                     shotHeight: Math.round(src.height * 0.6) })
+                grabShot(proxyImages.count - 1, src)
+            }
+        }
+
+        function moveTo(sceneX, sceneY) {
+            x = sceneX + 12
+            y = sceneY - 10
+        }
+
+        function clear() {
+            proxyImages.clear()
+        }
+
+        ListModel { id: proxyImages }
+
+        Column {
+            id: proxyColumn
+            spacing: 2
+            Repeater {
+                model: proxyImages
+                Image {
+                    width: dragProxy.width
+                    height: model.shotHeight
+                    fillMode: Image.PreserveAspectFit
+                    horizontalAlignment: Image.AlignLeft
+                    source: model.shotUrl
+                }
+            }
+        }
+
+        Rectangle {
+            visible: blockDrag.dragCount > 1
+            anchors.left: proxyColumn.right
+            anchors.top: proxyColumn.top
+            anchors.leftMargin: -12
+            anchors.topMargin: -8
+            width: 22
+            height: 22
+            radius: 11
+            color: theme.accent
+            Text {
+                anchors.centerIn: parent
+                text: blockDrag.dragCount
+                color: theme.onAccent
+                font.pixelSize: 11
+                font.bold: true
+            }
+        }
+    }
+
+    // Keys while a block selection is active (features.md §3.1;
+    // phase6-plan.md decision 3). Entering block selection focuses this
+    // item — the blurred TextArea's reveal collapses and any open block
+    // menu dismisses, both intended. Escape/Enter return to editing;
+    // plain Up/Down move the collapsed selection; Ctrl+Shift+Up/Down
+    // extend it; printable keys are deliberately inert (typing never
+    // replaces a block selection).
+    property alias findBar: findBar
+
+    property alias selectionKeyHandler: selectionKeyHandler
+    Item {
+        id: selectionKeyHandler
+        objectName: "selectionKeyHandler"
+
+        // Leave selection mode and edit the given block.
+        function exitToBlock(idx) {
+            documentSelection.clear()
+            if (idx < 0 || idx >= blockModel.count)
+                idx = Math.max(0, Math.min(blockListView.currentIndex,
+                                           blockModel.count - 1))
+            blockListView.currentIndex = idx
+            var item = blockListView.itemAtIndex(idx)
+            if (item)
+                item.focusAtEnd()
+        }
+
+        function revealSelectionEdge() {
+            var idx = documentSelection.lastActiveIndex()
+            if (idx >= 0) {
+                blockListView.currentIndex = idx
+                blockListView.positionViewAtIndex(idx, ListView.Contain)
+            }
+        }
+
+        // Focus a block on the next tick (delegates may need a frame
+        // after a structural change).
+        function focusBlockLater(idx, atEnd) {
+            Qt.callLater(function() {
+                if (blockModel.count === 0)
+                    return
+                var i = Math.max(0, Math.min(idx, blockModel.count - 1))
+                blockListView.currentIndex = i
+                var item = blockListView.itemAtIndex(i)
+                if (item) {
+                    if (atEnd)
+                        item.focusAtEnd()
+                    else
+                        item.focusAtStart()
+                }
+            })
+        }
+
+        // The selected blocks as structural markdown, in every clipboard
+        // flavor (§5.1): plain text, rendered HTML for rich-text targets, and
+        // the internal marker so pasting back into Kvit is lossless.
+        function copyBlocksToClipboard() {
+            var md = documentSerializer.serializeBlocks(
+                blockModel, documentSelection.selectedIndexes())
+            clipboard.setMarkdown(md, markdownFormatter.toHtml(md))
+        }
+
+        // Remove the selected blocks and land the cursor on the block
+        // before the removed run (§3.5).
+        function removeSelectedBlocks() {
+            var indexes = documentSelection.selectedIndexes()
+            if (indexes.length === 0)
+                return
+            var first = Number(indexes[0])
+            documentSelection.clear()
+            blockModel.removeBlocks(indexes)
+            focusBlockLater(first > 0 ? first - 1 : 0, first > 0)
+        }
+
+        function selectRange(first, last) {
+            documentSelection.selectBlock(first)
+            if (last > first)
+                documentSelection.extendBlockSelectionTo(last)
+            revealSelectionEdge()
+        }
+
+        Keys.onPressed: function(event) {
+            if (!documentSelection.hasBlockSelection)
+                return
+            var ctrl = event.modifiers & Qt.ControlModifier
+            var shift = event.modifiers & Qt.ShiftModifier
+
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                exitToBlock(documentSelection.lastActiveIndex())
+                event.accepted = true
+                return
+            }
+
+            // Delete/Backspace — and Ctrl+Shift+D, §13.3's delete-block
+            // shortcut — remove the selection as one undo step (§3.5)
+            if (event.key === Qt.Key_Delete || event.key === Qt.Key_Backspace
+                || (event.key === Qt.Key_D && ctrl && shift)) {
+                removeSelectedBlocks()
+                event.accepted = true
+                return
+            }
+
+            // Ctrl+D: duplicate the selection below itself; the
+            // selection moves to the clones (§3.6; decision 11)
+            if (event.key === Qt.Key_D && ctrl) {
+                var clones = blockModel.duplicateBlocks(
+                    documentSelection.selectedIndexes())
+                if (clones.length > 0)
+                    selectRange(Number(clones[0]),
+                                Number(clones[clones.length - 1]))
+                event.accepted = true
+                return
+            }
+
+            // Alt+Up/Down: move the selection as a unit (§3.2); the
+            // selection follows the moved blocks by id
+            if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
+                && (event.modifiers & Qt.AltModifier)) {
+                blockModel.moveBlocksBy(documentSelection.selectedIndexes(),
+                                        event.key === Qt.Key_Down ? 1 : -1)
+                revealSelectionEdge()
+                event.accepted = true
+                return
+            }
+
+            // Tab/Shift+Tab: indent/outdent the selection's list-family
+            // blocks together (§3.3)
+            if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                blockModel.changeIndentForBlocks(
+                    documentSelection.selectedIndexes(),
+                    event.key === Qt.Key_Tab ? 1 : -1)
+                event.accepted = true
+                return
+            }
+
+            // Ctrl+C / Ctrl+X: the selected blocks as structural
+            // markdown (§5.1, §5.2)
+            if (event.key === Qt.Key_C && ctrl) {
+                copyBlocksToClipboard()
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_X && ctrl) {
+                copyBlocksToClipboard()
+                removeSelectedBlocks()
+                event.accepted = true
+                return
+            }
+
+            // Ctrl+V: paste the clipboard as typed blocks after the
+            // selection (§5.3); the new blocks become the selection
+            if (event.key === Qt.Key_V && ctrl) {
+                if (clipboard.hasText) {
+                    var indexes = documentSelection.selectedIndexes()
+                    var insertAt = indexes.length > 0
+                        ? Number(indexes[indexes.length - 1]) + 1
+                        : blockModel.count
+                    // §5.3 format matrix (internal / HTML / plain); paste-plain
+                    // deliberately takes the source's own plain text instead.
+                    var pasteText = (shift ? clipboard.text
+                                           : clipboard.markdown())
+                                        .replace(/\r\n/g, "\n")
+                    // Oversized-paste guard (llm-normalization.md): the
+                    // same threshold as file open — a whale payload gets a
+                    // confirm dialog instead of a silent multi-second stall.
+                    var capBytes = documentManager.maxOpenFileSizeMiB > 0
+                        ? documentManager.maxOpenFileSizeMiB * 1024 * 1024
+                        : 0
+                    if (capBytes > 0 && pasteText.length > capBytes) {
+                        largePasteConfirmDialog.pendingText = pasteText
+                        largePasteConfirmDialog.pendingIndex = insertAt
+                        largePasteConfirmDialog.pendingPlain = shift ? true : false
+                        largePasteConfirmDialog.open()
+                    } else if (shift) {
+                        // Ctrl+Shift+V: strip inline formatting and drop the
+                        // structure too, so the payload lands as plain
+                        // paragraphs (§5.3).
+                        var plain = pasteText.split("\n").map(function(line) {
+                            return editorEngine.stripFormatting(line)
+                        }).join("\n")
+                        var plainCount = documentSerializer.insertPlainTextAt(
+                            blockModel, insertAt, plain)
+                        if (plainCount > 0)
+                            selectRange(insertAt, insertAt + plainCount - 1)
+                    } else {
+                        var count = documentSerializer.insertMarkdownAt(
+                            blockModel, insertAt, pasteText)
+                        if (count > 0)
+                            selectRange(insertAt, insertAt + count - 1)
+                    }
+                }
+                event.accepted = true
+                return
+            }
+
+            if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
+                && ctrl && shift) {
+                documentSelection.extendBlockSelection(
+                    event.key === Qt.Key_Down ? 1 : -1)
+                revealSelectionEdge()
+                event.accepted = true
+                return
+            }
+            if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
+                && !ctrl && !shift && !(event.modifiers & Qt.AltModifier)) {
+                documentSelection.collapseBlockSelection(
+                    event.key === Qt.Key_Down ? 1 : -1)
+                revealSelectionEdge()
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_A && ctrl) {
+                documentSelection.selectAllBlocks()
+                event.accepted = true
+                return
+            }
+        }
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Open]  // Ctrl+O
+        onActivated: {
+            if (documentManager.isDirty) {
+                unsavedChangesBeforeOpenDialog.open()
+            } else if (root.collectionOpen) {
+                // In collection mode, offer to import rather than only open a
+                // standalone file (closing the Phase 8 gap, decision 9).
+                openOrImportChoiceDialog.open()
+            } else {
+                documentManager.openFileDialog()
+            }
+        }
+    }
+
+    // Ctrl+O in collection mode: open a file standalone, or import it into the
+    // collection (§12.6).
+    Dialog {
+        id: openOrImportChoiceDialog
+        objectName: "openOrImportChoiceDialog"
+        modal: true
+        title: qsTr("Open a file")
+        anchors.centerIn: parent
+        width: 320
+        contentItem: Label {
+            text: qsTr("Open the file on its own, or import it into your "
+                + "collection?")
+            wrapMode: Text.WordWrap
+            padding: 10
+        }
+        footer: DialogButtonBox {
+            Button {
+                text: qsTr("Open standalone")
+                DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
+                onClicked: {
+                    openOrImportChoiceDialog.close()
+                    documentManager.openFileDialog()
+                }
+            }
+            Button {
+                objectName: "chooseImportButton"
+                text: qsTr("Import…")
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    openOrImportChoiceDialog.close()
+                    importDialog.openDialog()
+                }
+            }
+        }
+    }
+
+    // Single-file mode → vault upgrade (launch-plan.md E4): confirms, then
+    // opens the current file's folder as the collection root. The open file
+    // stays open and becomes a note of the new vault.
+    Dialog {
+        id: createVaultDialog
+        objectName: "createVaultDialog"
+        modal: true
+        title: qsTr("Create a vault")
+        anchors.centerIn: parent
+        width: 360
+        contentItem: Label {
+            text: qsTr("Use this file's folder as a vault? The sidebar, "
+                + "tags, global search, and wiki links will then work "
+                + "across every markdown file in it. The folder's files "
+                + "are left exactly as they are.")
+            wrapMode: Text.WordWrap
+            padding: 10
+        }
+        footer: DialogButtonBox {
+            Button {
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: createVaultDialog.close()
+            }
+            Button {
+                objectName: "createVaultConfirmButton"
+                text: qsTr("Create vault")
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    createVaultDialog.close()
+                    var dir = root.currentNoteDir()
+                    if (dir !== "")
+                        noteCollection.openRootAsync(dir)
+                }
+            }
+        }
+    }
+
+    Shortcut {
+        sequences: [StandardKey.New]  // Ctrl+N — New Note (§13.4)
+        onActivated: {
+            if (root.collectionOpen) {
+                root.createNoteInCurrentScope()
+            } else if (documentManager.isDirty) {
+                unsavedChangesBeforeNewDialog.open()
+            } else {
+                documentManager.newDocument()
+            }
+        }
+    }
+
+    // Toggle Sidebar (§13.4): hides both panels for focused writing;
+    // per-panel control arrives with Phase 9's layout work.
+    Shortcut {
+        sequence: "Ctrl+\\"
+        context: Qt.ApplicationShortcut
+        onActivated: root.panelsVisible = !root.panelsVisible
+    }
+
+    // Settings (phase9-plan.md step 3; the platform convention — the
+    // spec's §13 table assigns no key).
+    Shortcut {
+        sequence: "Ctrl+,"
+        context: Qt.ApplicationShortcut
+        onActivated: settingsDialog.open()
+    }
+
+    // Toggle the document outline (§17.1; phase11 step 1).
+    Shortcut {
+        sequence: "Ctrl+Shift+O"
+        context: Qt.ApplicationShortcut
+        onActivated: root.outlineVisible = !root.outlineVisible
+    }
+
+    // Toggle the backlinks pane (pre-launch-plan.md §3.4).
+    Shortcut {
+        sequence: "Ctrl+Shift+B"
+        context: Qt.ApplicationShortcut
+        enabled: root.collectionOpen
+        onActivated: root.backlinksVisible = !root.backlinksVisible
+    }
+
+    // Focus mode (§16.1): F11 toggles; Escape exits when active (a single-key
+    // exit, as the plan requires). Typewriter mode has no default shortcut.
+    Shortcut {
+        sequence: "F11"
+        context: Qt.ApplicationShortcut
+        onActivated: root.focusMode = !root.focusMode
+    }
+    Shortcut {
+        sequence: "Esc"
+        context: Qt.ApplicationShortcut
+        enabled: root.focusMode
+        onActivated: root.focusMode = false
+    }
+
+    SettingsDialog {
+        id: settingsDialog
+    }
+
+    // §13 discoverable keyboard-shortcut reference (phase12 step 4).
+    function openShortcutReference() { shortcutReference.open() }
+    ShortcutReference {
+        id: shortcutReference
+    }
+    Shortcut {
+        sequence: "F1"
+        onActivated: shortcutReference.open()
+    }
+
+    // Oversized-file guard (llm-normalization.md): a file over the size cap
+    // is refused before any read; the placeholder names the file, its size,
+    // and the cap, and offers the informed-consent "Open anyway".
+    property string oversizedFilePath: ""
+    property real oversizedFileBytes: 0
+    property real oversizedFileCap: 0
+    function formatMiB(bytes) {
+        return (bytes / (1024 * 1024)).toFixed(1) + " MiB"
+    }
+
+    // §12.1 external-change conflict (phase12 step 9): when the open note is
+    // changed on disk outside the app while it is dirty here, offer keep-mine /
+    // load-theirs rather than silently clobbering either side.
+    property bool externalConflict: false
+    property string conflictPath: ""
+    Connections {
+        target: fileWatcher
+        function onNoteChangedExternally(absPath) {
+            if (absPath !== documentManager.currentFilePath)
+                return   // not the open note — the tree re-scan handles the rest
+            if (documentManager.isDirty) {
+                root.conflictPath = absPath
+                root.externalConflict = true
+                a11y.announce(qsTr("This note changed on disk"))
+            } else {
+                // Not dirty here: loading theirs is lossless, so do it silently.
+                root.loadTheirs(absPath)
+            }
+        }
+    }
+    function keepMine() {
+        // Re-write the editor's content, overwriting the external change.
+        documentManager.save()
+        root.externalConflict = false
+    }
+    function loadTheirs(absPath) {
+        var target = absPath !== undefined ? absPath : root.conflictPath
+        // Force a reload past openNoteByPath's same-path short-circuit.
+        documentManager.open(documentManager.toLocalFileUrl(target))
+        root.lastFocusedBlock = 0
+        blockListView.currentIndex = 0
+        Qt.callLater(refreshSessionBaseline)
+        root.externalConflict = false
+    }
+
+    // §15 system integration: quick capture + tray + global hotkey (step 8).
+    function openQuickCapture() {
+        if (root.collectionOpen)
+            quickCaptureWindow.openCapture()
+    }
+    QuickCaptureWindow {
+        id: quickCaptureWindow
+        onCaptured: function(relPath) {
+            // Surface the captured note in the running window.
+            if (root.collectionOpen)
+                root.openNoteByPath(relPath)
+        }
+    }
+    Connections {
+        target: globalHotkey
+        function onActivated() { root.openQuickCapture() }
+    }
+    // In-app quick-capture chord (works while the window is focused, so capture
+    // is reachable even where the system-wide grab is unavailable, spike (b)).
+    Shortcut {
+        sequence: "Ctrl+Alt+N"
+        onActivated: root.openQuickCapture()
+    }
+    Connections {
+        target: systemTray
+        function onQuickCaptureRequested() { root.openQuickCapture() }
+        function onNewNoteRequested() { root.createNoteInCurrentScope() }
+        function onShowWindowRequested() {
+            root.show(); root.raise(); root.requestActivate()
+        }
+    }
+
+    // §18 template management dialog (phase11 decision 6).
+    property alias templateDialog: templateDialog
+    TemplateDialog {
+        id: templateDialog
+        appWindow: root
+    }
+
+    // §12.5 export dialog (phase11 decision 8).
+    property alias exportDialog: exportDialog
+    ExportDialog {
+        id: exportDialog
+        appWindow: root
+    }
+
+    // §12.6 import dialog (phase11 decision 9).
+    property alias importDialog: importDialog
+    ImportDialog {
+        id: importDialog
+        appWindow: root
+    }
+
+    // §19.1 statistics popover (phase11 decision 7): opened from the status
+    // bar's counts. Parented to the window overlay so it floats above the
+    // status bar.
+    property alias statisticsPanel: statisticsPanel
+    StatisticsPanel {
+        id: statisticsPanel
+        appWindow: root
+        targetBlock: appToolbar.targetBlock
+    }
+
+    // §19.2 writing-goal dialog: set or clear the open note's word target.
+    Dialog {
+        id: goalDialog
+        objectName: "goalDialog"
+        modal: true
+        title: qsTr("Writing goal")
+        anchors.centerIn: parent
+        width: 300
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        property string relPath: ""
+        function openFor(rel) {
+            relPath = rel
+            goalField.value = noteCollection.goalFor(rel)
+            open()
+        }
+        onAccepted: noteCollection.setGoal(relPath, goalField.value)
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label {
+                text: qsTr("Target word count for this note (0 to clear):")
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+            SpinBox {
+                id: goalField
+                objectName: "goalSpinBox"
+                from: 0
+                to: 1000000
+                stepSize: 100
+                editable: true
+                Layout.fillWidth: true
+            }
+        }
+    }
+
+    // ---- §9.5 context menus (phase9-plan.md decision 8): shared
+    // window-level Menu instances triggering the same tested operations
+    // the shortcuts drive. A right-click on a selected block routes to
+    // the selection menu; on a link, the link menu wins by specificity.
+    // A visible text/link menu keeps its target's selection alive
+    // through the menu's focus grab (the delegate consults this in its
+    // focus-loss deselect).
+    function contextMenuHoldsSelection(target) {
+        return (textContextMenu.visible && textContextMenu.target === target)
+            || (linkContextMenu.visible && linkContextMenu.target === target)
+    }
+
+    function openTextContextMenu(target) {
+        if (documentSelection.hasBlockSelection
+            && documentSelection.isBlockSelected(target.index)) {
+            selectionContextMenu.popup()
+            return
+        }
+        textContextMenu.target = target
+        textContextMenu.popup()
+    }
+
+    // The image lightbox (§1.2.8): an image block opens it with a resolved
+    // source. Declared below over the whole window at a high z.
+    function openLightbox(source, alt) {
+        lightbox.open(source, alt)
+    }
+
+    // Insert an image into an (empty) block by file or URL (§4.3, decision 14).
+    function insertImageIntoBlock(idx) {
+        imageInsertDialog.targetIndex = idx
+        imagePathField.text = ""
+        imageInsertDialog.open()
+        imagePathField.forceActiveFocus()
+    }
+
+    // §1.2.14 web embed: prompt for a URL and insert an ![](url) image
+    // expression, which the content classifier renders as a preview card.
+    function insertEmbedIntoBlock(idx) {
+        embedInsertDialog.targetIndex = idx
+        embedUrlField.text = ""
+        embedInsertDialog.open()
+        embedUrlField.forceActiveFocus()
+    }
+    Dialog {
+        id: embedInsertDialog
+        objectName: "embedInsertDialog"
+        title: qsTr("Insert web embed")
+        modal: true
+        anchors.centerIn: parent
+        width: 420
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        property int targetIndex: -1
+        function commit() {
+            var url = embedUrlField.text.trim()
+            if (url === "" || targetIndex < 0)
+                return
+            blockModel.convertBlock(targetIndex, Block.Image, "![](" + url + ")")
+            var idx = targetIndex
+            Qt.callLater(function() {
+                var item = blockListView.itemAtIndex(idx)
+                if (item && item.focusAtStart) item.focusAtStart()
+            })
+        }
+        onAccepted: commit()
+        contentItem: TextField {
+            id: embedUrlField
+            objectName: "embedUrlField"
+            placeholderText: qsTr("Web page or video URL (https://…)")
+            onAccepted: { embedInsertDialog.commit(); embedInsertDialog.close() }
+        }
+    }
+
+    // Insert a table via the grid-size picker (§4.2, decision 14).
+    function insertTableIntoBlock(idx) {
+        tableSizePicker.targetIndex = idx
+        tableSizePicker.open()
+    }
+
+    // ---- External drop ingestion (§5.3, §5.4; phase10 step 4) ----
+    function currentNoteDir() {
+        var p = documentManager.currentFilePath
+        var idx = p.lastIndexOf("/")
+        return idx >= 0 ? p.substring(0, idx) : ""
+    }
+    function currentNoteSlug() {
+        var p = documentManager.currentFilePath
+        var fn = p.substring(p.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "")
+        var slug = fn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+        return slug === "" ? "image" : slug
+    }
+    function assetRoot() {
+        return noteCollection.isOpen ? noteCollection.rootPath : ""
+    }
+    // The block index a drop at content-y lands after (-1 → append).
+    function dropTargetIndex(dropY) {
+        var p = editorDropArea.mapToItem(blockListView.contentItem, 0, dropY)
+        var idx = blockListView.indexAt(10, p.y)
+        return idx  // -1 when below the last block
+    }
+    function insertBlocksAt(afterIndex, typedBlocks) {
+        // typedBlocks: [{type, content}]. Insert after `afterIndex` (append
+        // when -1); focus the last inserted block.
+        var at = afterIndex < 0 ? blockModel.count : afterIndex + 1
+        var last = at
+        for (var i = 0; i < typedBlocks.length; ++i) {
+            blockModel.insertBlock(at, typedBlocks[i].type, typedBlocks[i].content)
+            last = at
+            at++
+        }
+        Qt.callLater(function() {
+            var item = blockListView.itemAtIndex(last)
+            if (item && item.focusAtStart) item.focusAtStart()
+        })
+    }
+    // Turn a stored image/media path into the right block type by extension.
+    function blockForPath(stored) {
+        var kind = imageAssets.kindOf(stored)
+        var type = kind === "media" ? Block.Media
+                 : Block.Image  // default images (and unknown local files show placeholder)
+        return { type: type, content: imageAssets.build(stored, "", "", 0) }
+    }
+    function handleEditorDrop(drop) {
+        var afterIndex = dropTargetIndex(drop.y)
+        var slug = currentNoteSlug()
+        var root2 = assetRoot()
+        var nd = currentNoteDir()
+        var blocks = []
+
+        // 1) Raw image bytes (spike b's bytes arm), if delivered.
+        var fmts = drop.formats || []
+        for (var f = 0; f < fmts.length; ++f) {
+            if (fmts[f] === "application/x-qt-image"
+                || fmts[f].indexOf("image/") === 0) {
+                var buf = drop.getDataAsArrayBuffer(fmts[f])
+                if (buf) {
+                    var storedB = imageAssets.ingestImageBytes(buf, slug, root2, nd)
+                    if (storedB !== "") {
+                        blocks.push({ type: Block.Image,
+                            content: imageAssets.build(storedB, "", "", 0) })
+                        insertBlocksAt(afterIndex, blocks)
+                        return
+                    }
+                }
+            }
+        }
+
+        // 2) URLs: local files ingest/link; http(s) image URLs stay remote.
+        if (drop.hasUrls) {
+            for (var u = 0; u < drop.urls.length; ++u) {
+                var url = "" + drop.urls[u]
+                if (url.indexOf("file://") === 0) {
+                    var local = url.replace(/^file:\/\//, "")
+                    if (imageAssets.kindOf(local) === "none")
+                        continue  // not an image/media file
+                    var stored = imageAssets.ingestLocalFile(local, slug, root2, nd)
+                    if (stored !== "")
+                        blocks.push(blockForPath(stored))
+                } else if (url.indexOf("http") === 0) {
+                    if (imageAssets.kindOf(url) === "media")
+                        blocks.push({ type: Block.Media, content: imageAssets.build(url, "", "", 0) })
+                    else
+                        blocks.push({ type: Block.Image, content: imageAssets.build(url, "", "", 0) })
+                }
+            }
+            if (blocks.length > 0) {
+                insertBlocksAt(afterIndex, blocks)
+                return
+            }
+        }
+
+        // 3) Plain text: a bare image URL becomes a remote image; otherwise
+        //    the text splits into paragraph blocks at the drop point (§5.4).
+        if (drop.hasText) {
+            var txt = ("" + drop.text).trim()
+            if (txt.indexOf("http") === 0 && imageAssets.kindOf(txt) !== "none") {
+                blocks.push(blockForPath(txt))
+            } else {
+                var lines = txt.split("\n")
+                for (var l = 0; l < lines.length; ++l)
+                    blocks.push({ type: Block.Paragraph, content: lines[l] })
+            }
+            if (blocks.length > 0)
+                insertBlocksAt(afterIndex, blocks)
+        }
+    }
+    function openLinkContextMenu(target) {
+        linkContextMenu.target = target
+        linkContextMenu.popup()
+    }
+    function openBlockHandleMenu(target) {
+        if (documentSelection.hasBlockSelection
+            && documentSelection.isBlockSelected(target.index)) {
+            selectionContextMenu.popup()
+            return
+        }
+        blockContextMenu.target = target
+        blockContextMenu.popup()
+    }
+
+    Menu {
+        id: textContextMenu
+        objectName: "textContextMenu"
+        property var target: null
+        readonly property bool hasSel: target
+            && target.selectionEndDoc > target.selectionStartDoc
+
+        MenuItem {
+            objectName: "ctxCut"
+            text: qsTr("Cut")
+            enabled: textContextMenu.hasSel
+            onTriggered: textContextMenu.target.cutSelection()
+        }
+        MenuItem {
+            objectName: "ctxCopy"
+            text: qsTr("Copy")
+            enabled: textContextMenu.hasSel
+            onTriggered: textContextMenu.target.copySelection()
+        }
+        MenuItem {
+            objectName: "ctxPaste"
+            text: qsTr("Paste")
+            enabled: clipboard.hasText
+            onTriggered: textContextMenu.target.pasteClipboard(false)
+        }
+        MenuItem {
+            objectName: "ctxPastePlain"
+            text: qsTr("Paste as plain text")
+            enabled: clipboard.hasText
+            onTriggered: textContextMenu.target.pasteClipboard(true)
+        }
+        MenuSeparator {}
+        Menu {
+            title: qsTr("Formatting")
+            enabled: textContextMenu.target
+                     && !textContextMenu.target.verbatimEditing
+            Repeater {
+                model: [
+                    { name: qsTr("Bold"), type: "bold" },
+                    { name: qsTr("Italic"), type: "italic" },
+                    { name: qsTr("Underline"), type: "underline" },
+                    { name: qsTr("Strikethrough"), type: "strike" },
+                    { name: qsTr("Inline code"), type: "code" },
+                    { name: qsTr("Highlight"), type: "highlight" },
+                    { name: qsTr("Superscript"), type: "superscript" },
+                    { name: qsTr("Subscript"), type: "subscript" },
+                    { name: qsTr("Inline math"), type: "math" }]
+                MenuItem {
+                    required property var modelData
+                    text: modelData.name
+                    onTriggered: textContextMenu.target.toggleSpanType(
+                        modelData.type)
+                }
+            }
+        }
+        Menu {
+            title: qsTr("Text color")
+            enabled: textContextMenu.target
+                     && !textContextMenu.target.verbatimEditing
+            Repeater {
+                model: [
+                    { name: qsTr("Red"), value: "#e05c5c" },
+                    { name: qsTr("Orange"), value: "#e0a04c" },
+                    { name: qsTr("Green"), value: "#58a866" },
+                    { name: qsTr("Blue"), value: "#4a90d9" },
+                    { name: qsTr("Purple"), value: "#9068c8" },
+                    { name: qsTr("Pink"), value: "#d06ca8" }]
+                MenuItem {
+                    required property var modelData
+                    text: modelData.name
+                    // A leading swatch of the color the item applies.
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: parent.right
+                        anchors.rightMargin: 12
+                        width: 14; height: 14; radius: 3
+                        color: modelData.value
+                        border.color: theme.border
+                    }
+                    onTriggered: textContextMenu.target.applyColor(modelData.value)
+                }
+            }
+            MenuSeparator {}
+            MenuItem {
+                text: qsTr("Custom…")
+                onTriggered: {
+                    textColorDialog.target = textContextMenu.target
+                    textColorDialog.open()
+                }
+            }
+            MenuItem {
+                text: qsTr("Remove color")
+                enabled: textContextMenu.target
+                         && textContextMenu.target.currentColor !== ""
+                onTriggered: textContextMenu.target.removeColor()
+            }
+        }
+        MenuItem {
+            text: qsTr("Link…")
+            enabled: textContextMenu.target
+                     && !textContextMenu.target.verbatimEditing
+            onTriggered: textContextMenu.target.openLinkDialog()
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Select all")
+            onTriggered: textContextMenu.target.selectAllText()
+        }
+    }
+
+    // The image lightbox overlay (§1.2.8), over the whole window.
+    Lightbox {
+        id: lightbox
+        objectName: "lightbox"
+    }
+
+    // Table grid-size picker (§4.2). On a size choice it converts the target
+    // block to a Table with an empty grid of that size.
+    TableSizePicker {
+        id: tableSizePicker
+        objectName: "tableSizePicker"
+        anchors.centerIn: parent
+        property int targetIndex: -1
+        onSizePicked: function(cols, rows) {
+            if (targetIndex < 0) return
+            blockModel.convertBlock(targetIndex, Block.Table,
+                                    tableTools.emptyTable(cols, rows))
+            var idx = targetIndex
+            Qt.callLater(function() {
+                var item = blockListView.itemAtIndex(idx)
+                if (item && item.focusAtStart) item.focusAtStart()
+            })
+        }
+    }
+
+    // Insert-image dialog (§4.3): a path/URL field with a file browser. On
+    // accept it converts the target block into an Image block whose content
+    // is the built markdown expression (one undo step).
+    Dialog {
+        id: imageInsertDialog
+        objectName: "imageInsertDialog"
+        title: qsTr("Insert image")
+        modal: true
+        anchors.centerIn: parent
+        width: 420
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        property int targetIndex: -1
+
+        function commit() {
+            var path = imagePathField.text.trim()
+            if (path === "" || targetIndex < 0)
+                return
+            var md = imageAssets.build(path, "", "", 0)
+            // An audio/video path lands a Media block; everything else an
+            // Image (phase10-plan.md decision 13). The dialog is shared.
+            var type = imageAssets.parse(md).kind === "media"
+                     ? Block.Media : Block.Image
+            blockModel.convertBlock(targetIndex, type, md)
+            var idx = targetIndex
+            Qt.callLater(function() {
+                var item = blockListView.itemAtIndex(idx)
+                if (item && item.focusAtStart) item.focusAtStart()
+            })
+        }
+        onAccepted: commit()
+
+        contentItem: Row {
+            spacing: 6
+            TextField {
+                id: imagePathField
+                objectName: "imagePathField"
+                width: 320
+                placeholderText: qsTr("Image file path or URL")
+                onAccepted: { imageInsertDialog.commit(); imageInsertDialog.close() }
+            }
+            Button {
+                text: qsTr("Browse…")
+                onClicked: imageFileDialog.open()
+            }
+        }
+    }
+
+    FileDialog {
+        id: imageFileDialog
+        objectName: "imageFileDialog"
+        title: qsTr("Choose an image")
+        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.gif *.webp *.svg *.bmp)"),
+                      qsTr("All files (*)")]
+        onAccepted: {
+            // Store the chosen file's path; ingestion/copy is step 4.
+            var p = selectedFile.toString().replace(/^file:\/\//, "")
+            imagePathField.text = p
+        }
+    }
+
+    // The custom-color picker for the text context menu (phase10 decision 2).
+    // The target block is captured when the menu opens, since the dialog is
+    // asynchronous.
+    ColorDialog {
+        id: textColorDialog
+        property var target: null
+        onAccepted: {
+            if (!target) return
+            var s = selectedColor.toString()
+            if (s.length === 9)
+                s = "#" + s.substr(3)
+            target.applyColor(s)
+        }
+    }
+
+    Menu {
+        id: linkContextMenu
+        objectName: "linkContextMenu"
+        property var target: null
+
+        MenuItem {
+            objectName: "ctxOpenLink"
+            text: qsTr("Open link")
+            onTriggered: linkContextMenu.target.openLinkUnderCursor()
+        }
+        MenuItem {
+            objectName: "ctxEditLink"
+            text: qsTr("Edit link…")
+            onTriggered: linkContextMenu.target.openLinkDialog()
+        }
+        MenuItem {
+            objectName: "ctxRemoveLink"
+            text: qsTr("Remove link")
+            onTriggered: linkContextMenu.target.removeLinkAtCursor()
+        }
+    }
+
+    Menu {
+        id: blockContextMenu
+        objectName: "blockContextMenu"
+        property var target: null
+
+        Menu {
+            title: qsTr("Turn into")
+            Repeater {
+                model: appToolbar.typeNames
+                MenuItem {
+                    required property int index
+                    required property string modelData
+                    text: modelData
+                    onTriggered: blockContextMenu.target.convertBlockType(
+                        appToolbar.typeValues[index])
+                }
+            }
+        }
+        // Alignment (§9.2): paragraphs, headings, and images.
+        Menu {
+            objectName: "ctxAlignMenu"
+            title: qsTr("Align")
+            enabled: blockContextMenu.target
+                && blockContextMenu.target.setBlockAlignment !== undefined
+                && [0, 1, 2, 3, 10, 11].indexOf(blockContextMenu.target.blockType) >= 0
+            MenuItem {
+                text: qsTr("Left")
+                onTriggered: blockContextMenu.target.setBlockAlignment("left")
+            }
+            MenuItem {
+                text: qsTr("Center")
+                onTriggered: blockContextMenu.target.setBlockAlignment("center")
+            }
+            MenuItem {
+                text: qsTr("Right")
+                onTriggered: blockContextMenu.target.setBlockAlignment("right")
+            }
+        }
+        // Drop cap (§1.2.16): a paragraph-only enlarged initial.
+        Menu {
+            objectName: "ctxDropCapMenu"
+            title: qsTr("Drop cap")
+            enabled: blockContextMenu.target
+                && blockContextMenu.target.setDropCap !== undefined
+                && blockContextMenu.target.blockType === 0   // Paragraph
+            MenuItem {
+                text: qsTr("None")
+                onTriggered: blockContextMenu.target.setDropCap(0)
+            }
+            MenuItem {
+                text: qsTr("2 lines")
+                onTriggered: blockContextMenu.target.setDropCap(2)
+            }
+            MenuItem {
+                text: qsTr("3 lines")
+                onTriggered: blockContextMenu.target.setDropCap(3)
+            }
+            MenuItem {
+                text: qsTr("5 lines")
+                onTriggered: blockContextMenu.target.setDropCap(5)
+            }
+        }
+        MenuSeparator {}
+        MenuItem {
+            objectName: "ctxBlockDuplicate"
+            text: qsTr("Duplicate")
+            onTriggered: blockModel.duplicateBlocks(
+                [blockContextMenu.target.index])
+        }
+        MenuItem {
+            objectName: "ctxBlockDelete"
+            text: qsTr("Delete")
+            onTriggered: blockModel.removeBlocks(
+                [blockContextMenu.target.index])
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Move up")
+            enabled: blockContextMenu.target
+                     && blockContextMenu.target.index > 0
+            onTriggered: blockModel.moveBlocksBy(
+                [blockContextMenu.target.index], -1)
+        }
+        MenuItem {
+            text: qsTr("Move down")
+            enabled: blockContextMenu.target
+                     && blockContextMenu.target.index < blockModel.count - 1
+            onTriggered: blockModel.moveBlocksBy(
+                [blockContextMenu.target.index], 1)
+        }
+        MenuItem {
+            text: qsTr("Indent")
+            onTriggered: blockModel.changeIndentForBlocks(
+                [blockContextMenu.target.index], 1)
+        }
+        MenuItem {
+            text: qsTr("Outdent")
+            onTriggered: blockModel.changeIndentForBlocks(
+                [blockContextMenu.target.index], -1)
+        }
+    }
+
+    Menu {
+        id: selectionContextMenu
+        objectName: "selectionContextMenu"
+
+        MenuItem {
+            objectName: "ctxSelCopy"
+            text: qsTr("Copy")
+            onTriggered: selectionKeyHandler.copyBlocksToClipboard()
+        }
+        MenuItem {
+            text: qsTr("Cut")
+            onTriggered: {
+                selectionKeyHandler.copyBlocksToClipboard()
+                selectionKeyHandler.removeSelectedBlocks()
+            }
+        }
+        MenuItem {
+            objectName: "ctxSelDuplicate"
+            text: qsTr("Duplicate")
+            onTriggered: {
+                var clones = blockModel.duplicateBlocks(
+                    documentSelection.selectedIndexes())
+                if (clones.length > 0)
+                    selectionKeyHandler.selectRange(
+                        Number(clones[0]),
+                        Number(clones[clones.length - 1]))
+            }
+        }
+        MenuItem {
+            objectName: "ctxSelDelete"
+            text: qsTr("Delete")
+            onTriggered: selectionKeyHandler.removeSelectedBlocks()
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Move up")
+            onTriggered: {
+                blockModel.moveBlocksBy(
+                    documentSelection.selectedIndexes(), -1)
+                selectionKeyHandler.revealSelectionEdge()
+            }
+        }
+        MenuItem {
+            text: qsTr("Move down")
+            onTriggered: {
+                blockModel.moveBlocksBy(
+                    documentSelection.selectedIndexes(), 1)
+                selectionKeyHandler.revealSelectionEdge()
+            }
+        }
+        MenuItem {
+            text: qsTr("Indent")
+            onTriggered: blockModel.changeIndentForBlocks(
+                documentSelection.selectedIndexes(), 1)
+        }
+        MenuItem {
+            text: qsTr("Outdent")
+            onTriggered: blockModel.changeIndentForBlocks(
+                documentSelection.selectedIndexes(), -1)
+        }
+    }
+
+    // Global search (§8.4; the Obsidian/VSCode convention — the spec
+    // assigns no key).
+    Shortcut {
+        sequence: "Ctrl+Shift+F"
+        context: Qt.ApplicationShortcut
+        enabled: root.collectionOpen
+        onActivated: {
+            root.panelsVisible = true
+            sidebar.focusSearch()
+        }
+    }
+
+    // Global-search filters follow the sidebar's active scope
+    // (phase8-plan.md decision 9: folder-level search composes).
+    Binding {
+        target: collectionSearch
+        property: "folderScope"
+        value: noteListModel.scope === "folder" ? noteListModel.folderPath : ""
+    }
+    Binding {
+        target: collectionSearch
+        property: "tagFilter"
+        value: noteListModel.tagFilter
+    }
+
+    // The crash-recovery journal follows the open note (decision 11);
+    // "" outside collection mode disables it.
+    Binding {
+        target: documentManager
+        property: "journalPath"
+        value: root.currentNoteRelPath !== ""
+               ? noteCollection.journalPathFor(root.currentNoteRelPath) : ""
+    }
+
+    // Restore a crash-recovered note (the banner's Restore button): the
+    // journal content lands on disk; a currently-open note reloads.
+    function restoreRecoveredNote(relPath) {
+        if (!noteCollection.restoreRecovery(relPath))
+            return
+        if (root.currentNoteRelPath === relPath) {
+            documentManager.open(documentManager.toLocalFileUrl(
+                noteCollection.absolutePath(relPath)))
+        } else {
+            openNoteByPath(relPath)
+        }
+    }
+
+    // ---- Restore from backup (decision 10): per-note, previewed, and
+    // applied through the block model as ONE undo step — a wrong restore
+    // costs one Ctrl+Z, which is why no extra confirmation is needed.
+    property alias backupDialog: backupDialog
+    Dialog {
+        id: backupDialog
+        objectName: "backupDialog"
+        modal: true
+        anchors.centerIn: parent
+        width: 420
+        title: qsTr("Restore from Backup")
+
+        property var backups: []
+        property int selectedRow: 0
+
+        function openForCurrentNote() {
+            if (root.currentNoteRelPath === "")
+                return
+            backups = noteCollection.backupsFor(root.currentNoteRelPath)
+            selectedRow = 0
+            open()
+        }
+
+        onAccepted: {
+            if (selectedRow < 0 || selectedRow >= backups.length)
+                return
+            var body = noteCollection.backupBody(
+                root.currentNoteRelPath, backups[selectedRow].fileName)
+            if (documentManager.restoreBody(body))
+                documentManager.save()
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 4
+            Label {
+                visible: backupDialog.backups.length === 0
+                text: qsTr("No backups yet — they appear as the note is edited over time.")
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+                padding: 8
+            }
+            ListView {
+                objectName: "backupDialogList"
+                visible: backupDialog.backups.length > 0
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(count * 44, 220)
+                clip: true
+                model: backupDialog.backups
+                delegate: Rectangle {
+                    width: parent ? parent.width : 0
+                    height: 44
+                    color: index === backupDialog.selectedRow
+                           ? theme.selectionTint : "transparent"
+                    Column {
+                        anchors.fill: parent
+                        anchors.margins: 6
+                        spacing: 2
+                        Label {
+                            text: Qt.formatDateTime(modelData.timestamp,
+                                                    "MMM d, yyyy hh:mm:ss")
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                        Label {
+                            text: modelData.preview !== ""
+                                  ? modelData.preview : qsTr("(empty)")
+                            font.pixelSize: 11
+                            color: theme.textFaint
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: backupDialog.selectedRow = index
+                    }
+                }
+            }
+        }
+
+        footer: DialogButtonBox {
+            Button {
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+            }
+            Button {
+                objectName: "backupDialogRestoreButton"
+                text: qsTr("Restore")
+                enabled: backupDialog.backups.length > 0
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+            }
+        }
+    }
+
+    // Unsaved changes dialog before opening a new file
+    Dialog {
+        id: unsavedChangesBeforeOpenDialog
+        title: "Unsaved Changes"
+        modal: true
+        anchors.centerIn: parent
+
+        contentItem: Item {
+            implicitWidth: 360
+            implicitHeight: openDialogText.implicitHeight + 40
+
+            Text {
+                id: openDialogText
+                anchors.fill: parent
+                anchors.margins: 20
+                text: "You have unsaved changes. Do you want to save them before opening another file?"
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
+
+        onAccepted: {
+            // Save button clicked
+            if (documentManager.hasFile) {
+                documentManager.save()
+            } else {
+                documentManager.saveFileDialog()
+            }
+            documentManager.openFileDialog()
+        }
+
+        onDiscarded: {
+            // Discard button clicked - open without saving
+            documentManager.openFileDialog()
+        }
+
+        // Cancel - do nothing
+    }
+
+    // Unsaved changes dialog before creating new document
+    Dialog {
+        id: unsavedChangesBeforeNewDialog
+        title: "Unsaved Changes"
+        modal: true
+        anchors.centerIn: parent
+
+        contentItem: Item {
+            implicitWidth: 360
+            implicitHeight: newDialogText.implicitHeight + 40
+
+            Text {
+                id: newDialogText
+                anchors.fill: parent
+                anchors.margins: 20
+                text: "You have unsaved changes. Do you want to save them before creating a new document?"
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
+
+        onAccepted: {
+            // Save button clicked
+            if (documentManager.hasFile) {
+                documentManager.save()
+            } else {
+                documentManager.saveFileDialog()
+            }
+            documentManager.newDocument()
+        }
+
+        onDiscarded: {
+            // Discard button clicked - create new without saving
+            documentManager.newDocument()
+        }
+
+        // Cancel - do nothing
+    }
+
+    // Oversized-paste confirm (llm-normalization.md guard): pasting a
+    // payload over the open-size cap is allowed, but only deliberately.
+    Dialog {
+        id: largePasteConfirmDialog
+        objectName: "largePasteConfirmDialog"
+        title: qsTr("Paste very large text?")
+        modal: true
+        anchors.centerIn: parent
+        property string pendingText: ""
+        property int pendingIndex: 0
+        // Carries the Ctrl+Shift+V intent across the confirm step, so a
+        // confirmed oversized paste-as-plain stays plain (§5.3).
+        property bool pendingPlain: false
+
+        contentItem: Item {
+            implicitWidth: 380
+            implicitHeight: largePasteText.implicitHeight + 40
+            Text {
+                id: largePasteText
+                anchors.fill: parent
+                anchors.margins: 20
+                wrapMode: Text.WordWrap
+                text: qsTr("The clipboard holds %1 of text — over the %2 limit. Pasting it may take a while.")
+                    .arg(root.formatMiB(largePasteConfirmDialog.pendingText.length))
+                    .arg(root.formatMiB(documentManager.maxOpenFileSizeMiB
+                                        * 1024 * 1024))
+            }
+        }
+
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onAccepted: {
+            var count = pendingPlain
+                ? documentSerializer.insertPlainTextAt(
+                    blockModel, pendingIndex, pendingText)
+                : documentSerializer.insertMarkdownAt(
+                    blockModel, pendingIndex, pendingText)
+            if (count > 0)
+                selectRange(pendingIndex, pendingIndex + count - 1)
+            pendingText = ""
+            pendingPlain = false
+        }
+        onRejected: { pendingText = ""; pendingPlain = false }
+    }
+
+    // Error dialog
+    Dialog {
+        id: renameLinksDialog
+        objectName: "renameLinksDialog"
+        title: qsTr("Update wiki-links?")
+        modal: true
+        closePolicy: Popup.NoAutoClose
+        anchors.centerIn: parent
+        width: 440
+
+        contentItem: Label {
+            width: 390
+            padding: 18
+            wrapMode: Text.WordWrap
+            text: root.pendingRenamePlan
+                ? qsTr("Update %1 links in %2 notes?")
+                    .arg(root.pendingRenamePlan.linkCount)
+                    .arg(root.pendingRenamePlan.noteCount)
+                : ""
+        }
+        footer: DialogButtonBox {
+            Button {
+                objectName: "renameUpdateLinksButton"
+                text: qsTr("Update links")
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    renameLinksDialog.close()
+                    root.finishRenamePlan(true)
+                }
+            }
+            Button {
+                objectName: "renameOnlyButton"
+                text: qsTr("Rename only")
+                DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
+                onClicked: {
+                    renameLinksDialog.close()
+                    root.finishRenamePlan(false)
+                }
+            }
+            Button {
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: {
+                    if (root.pendingRenamePlan)
+                        noteCollection.cancelRenamePlan(root.pendingRenamePlan.id)
+                    root.pendingRenamePlan = null
+                    root.pendingRenameAfter = null
+                    renameLinksDialog.close()
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: rewriteResultDialog
+        objectName: "rewriteResultDialog"
+        title: qsTr("Some links were not updated")
+        modal: true
+        anchors.centerIn: parent
+        width: 460
+        property string planId: ""
+        property var skipped: []
+        property var failed: []
+
+        contentItem: Label {
+            width: 420
+            padding: 18
+            wrapMode: Text.WordWrap
+            text: {
+                var lines = []
+                if (rewriteResultDialog.skipped.length > 0)
+                    lines.push(qsTr("Changed externally (skipped):\n%1")
+                               .arg(rewriteResultDialog.skipped.join("\n")))
+                if (rewriteResultDialog.failed.length > 0)
+                    lines.push(qsTr("Could not write:\n%1")
+                               .arg(rewriteResultDialog.failed.join("\n")))
+                return lines.join("\n\n")
+            }
+        }
+        footer: DialogButtonBox {
+            Button {
+                text: qsTr("Retry")
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    var result = root.executeRenamePlan(
+                        rewriteResultDialog.planId, true)
+                    if (result && result.ok
+                            && result.skipped.length === 0
+                            && result.failed.length === 0)
+                        rewriteResultDialog.close()
+                    else if (result) {
+                        rewriteResultDialog.skipped = result.skipped || []
+                        rewriteResultDialog.failed = result.failed || []
+                    }
+                }
+            }
+            Button {
+                text: qsTr("Close")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: rewriteResultDialog.close()
+            }
+        }
+    }
+
+    Dialog {
+        id: errorDialog
+        objectName: "errorDialog"
+        title: "Error"
+        modal: true
+        anchors.centerIn: parent
+        property string errorMessage: ""
+
+        contentItem: Item {
+            implicitWidth: 360
+            implicitHeight: errorDialogText.implicitHeight + 40
+
+            Text {
+                id: errorDialogText
+                anchors.fill: parent
+                anchors.margins: 20
+                text: errorDialog.errorMessage
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        standardButtons: Dialog.Ok
+    }
+
+    // Handle save/open results
+    Connections {
+        target: documentManager
+
+        function onSaveSucceeded(filePath) {
+            // Keep the collection index (mtime, word count, snippet)
+            // current with what just hit the disk.
+            if (root.collectionOpen) {
+                var rel = noteCollection.relativePath(filePath)
+                if (rel !== "" && rel === root.currentNoteRelPath) {
+                    var fm = noteCollection.frontMatterFor(root.currentNoteRelPath)
+                    noteCollection.noteSaved(filePath,
+                                             (fm ? fm : "")
+                                             + documentSerializer.serialize(blockModel))
+                } else {
+                    noteCollection.noteSaved(filePath)
+                }
+            }
+        }
+
+        function onAboutToSave(filePath) {
+            // Backup rotation (decision 10): copy the pre-save file when
+            // the newest backup is older than the floor.
+            if (root.collectionOpen)
+                noteCollection.backupBeforeOverwrite(filePath)
+        }
+
+        function onSaveFailed(error) {
+            errorDialog.errorMessage = "Failed to save: " + error
+            errorDialog.open()
+        }
+
+        function onOpenFailed(error) {
+            errorDialog.errorMessage = "Failed to open: " + error
+            errorDialog.open()
+        }
+
+        // Oversized-file guard (llm-normalization.md): the file was refused
+        // before any read; show the placeholder with an "Open anyway".
+        function onOpenRejectedTooLarge(filePath, sizeBytes, capBytes) {
+            root.oversizedFilePath = filePath
+            root.oversizedFileBytes = sizeBytes
+            root.oversizedFileCap = capBytes
+        }
+        function onOpenSucceeded(filePath) {
+            root.oversizedFilePath = ""
+        }
+    }
+
+    // Auto-save when window loses focus
+    onActiveChanged: {
+        if (!active && documentManager && documentManager.isDirty && documentManager.hasFile) {
+            documentManager.saveAsync()
+        }
+    }
+
+    // Orderly shutdown saves (§12.2; phase8-plan.md decision 11 relies on
+    // this — the recovery journal only survives real crashes).
+    onClosing: {
+        if (documentManager && documentManager.isDirty && documentManager.hasFile)
+            documentManager.save()
+    }
+
+    // Collection wiring (phase8-plan.md decision 2): saves refresh the
+    // index; renames rebind the open document; deleting the open note
+    // moves on without resurrecting the trashed file.
+    Connections {
+        target: noteCollection
+        enabled: root.collectionOpen
+
+        function onNoteMoved(oldRelPath, newRelPath) {
+            if (documentManager.currentFilePath
+                    === noteCollection.absolutePath(oldRelPath))
+                documentManager.rebindFilePath(
+                    noteCollection.absolutePath(newRelPath))
+        }
+        function onNoteRemoved(relPath) {
+            if (documentManager.currentFilePath
+                    === noteCollection.absolutePath(relPath)) {
+                // Drop the dead file binding first: a save (auto-save,
+                // switch) must never rewrite the trashed path. The
+                // fallback note is chosen LATER: this signal precedes the
+                // revision bump, so the list model still contains the
+                // removed note at this instant.
+                documentManager.newDocument()
+                Qt.callLater(function() {
+                    var next = noteListModel.relPathAt(0)
+                    if (next !== "")
+                        root.openNoteByPath(next)
+                })
+            }
+        }
+        function onOperationFailed(message) {
+            errorDialog.errorMessage = message
+            errorDialog.open()
+        }
+        function onWikiLinksRewritten(linkCount, noteCount) {
+            // Rename-safe wiki-links (§3.3): a passive toast, never a dialog.
+            root.showTransientStatus(
+                qsTr("Updated %1 %2 in %3 %4")
+                    .arg(linkCount)
+                    .arg(linkCount === 1 ? qsTr("link") : qsTr("links"))
+                    .arg(noteCount)
+                    .arg(noteCount === 1 ? qsTr("note") : qsTr("notes")))
+        }
+        function onRevisionChanged() {
+            // Metadata is owned by the collection (decision 2): any change
+            // refreshes the open document's held front-matter, so the next
+            // save writes the canonical current block instead of the one
+            // captured at load.
+            if (root.currentNoteRelPath !== "")
+                documentManager.setFrontMatter(
+                    noteCollection.frontMatterFor(root.currentNoteRelPath))
+        }
+    }
+
+    // ---- The three-pane shell (decision 4): sidebar and note list on
+    // the left, the editor filling the rest. Plain fixed widths; Phase 9
+    // brings resizable panels and themes.
+    // The §9.2 toolbar spans the window above all three panes.
+    Toolbar {
+        id: appToolbar
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        appWindow: root
+        listView: blockListView
+        // Focus mode (§16.1) hides the toolbar with the rest of the chrome.
+        visible: !root.focusMode
+    }
+
+    // §12.1 external-change conflict banner (phase12 step 9): the open note was
+    // changed on disk while dirty here. Keep-mine re-saves; load-theirs reloads.
+    Rectangle {
+        id: conflictBanner
+        objectName: "conflictBanner"
+        anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: root.externalConflict ? 40 : 0
+        visible: root.externalConflict
+        z: 50
+        color: theme.bannerBackground
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width; height: 1; color: theme.border
+        }
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 10
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("This note changed on disk. Keep your version or load the disk version?")
+                color: theme.bannerText
+                font.pixelSize: 13
+            }
+        }
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+            Button {
+                objectName: "conflictKeepMine"
+                text: qsTr("Keep mine")
+                onClicked: root.keepMine()
+            }
+            Button {
+                objectName: "conflictLoadTheirs"
+                text: qsTr("Load theirs")
+                onClicked: root.loadTheirs()
+            }
+        }
+    }
+
+    // Oversized-file placeholder (llm-normalization.md guard): the file was
+    // refused before any read. Honest, cheap, and safe — no degraded
+    // text-only mode whose saves could rewrite a file the editor never
+    // truly parsed. "Open anyway" is the normal path, unmodified.
+    Rectangle {
+        id: oversizedFileBanner
+        objectName: "oversizedFileBanner"
+        anchors.top: conflictBanner.visible ? conflictBanner.bottom
+                     : appToolbar.visible ? appToolbar.bottom : parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: root.oversizedFilePath !== "" ? 44 : 0
+        visible: root.oversizedFilePath !== ""
+        z: 50
+        color: theme.bannerBackground
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width; height: 1; color: theme.border
+        }
+        Label {
+            objectName: "oversizedFileLabel"
+            anchors.left: parent.left
+            anchors.leftMargin: 14
+            anchors.right: oversizedActions.left
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            elide: Text.ElideMiddle
+            text: {
+                var name = root.oversizedFilePath.split("/").pop()
+                return qsTr("“%1” is %2 — over the %3 open limit, so it was not loaded.")
+                    .arg(name)
+                    .arg(root.formatMiB(root.oversizedFileBytes))
+                    .arg(root.formatMiB(root.oversizedFileCap))
+            }
+            color: theme.bannerText
+            font.pixelSize: 13
+        }
+        Row {
+            id: oversizedActions
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+            Button {
+                objectName: "oversizedOpenAnyway"
+                text: qsTr("Open anyway")
+                onClicked: {
+                    var path = root.oversizedFilePath
+                    root.oversizedFilePath = ""
+                    documentManager.openAsync(
+                        documentManager.toLocalFileUrl(path), true)
+                }
+            }
+            Button {
+                objectName: "oversizedDismiss"
+                text: qsTr("Dismiss")
+                onClicked: root.oversizedFilePath = ""
+            }
+        }
+    }
+
+    // ── Extension slots (chat.md §8) ──────────────────────────────────────
+    // Three empty Loaders a linked module fills through ExtensionRegistry:
+    // a banner strip below the built-in banners, a bar between the editor and
+    // the status bar, and a panel beside the outline and backlinks panes.
+    // With no module installed every source is empty, so each Loader stays
+    // inactive and zero-sized and the shell lays out exactly as before.
+    Loader {
+        id: extensionBanner
+        objectName: "extensionBanner"
+        source: extensions.slotSource("banner")
+        active: source != ""
+        anchors.top: oversizedFileBanner.visible ? oversizedFileBanner.bottom
+                     : conflictBanner.visible ? conflictBanner.bottom
+                     : appToolbar.visible ? appToolbar.bottom : parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: active && item ? item.implicitHeight : 0
+        z: 50
+    }
+
+    Row {
+        id: sidePanels
+        objectName: "sidePanels"
+        anchors.top: appToolbar.bottom
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.bottomChromeHeight
+        visible: root.collectionOpen && root.panelsVisible && !root.focusMode
+
+        // Explicit sum (not implicitWidth): the editor pane's
+        // leftMargin binds here, and a hidden Row must reserve nothing.
+        readonly property int seamWidth: 6
+        readonly property int stripWidth: 22
+        width: visible
+            ? (root.sidebarCollapsed
+                   ? stripWidth : root.sidebarWidth + seamWidth)
+              + (root.noteListCollapsed
+                     ? stripWidth : root.noteListWidth + seamWidth)
+            : 0
+
+        // Collapsed sidebar: a slim strip holding the expand chevron.
+        Rectangle {
+            objectName: "sidebarStrip"
+            visible: root.sidebarCollapsed
+            width: visible ? sidePanels.stripWidth : 0
+            height: parent.height
+            color: theme.panelBackground
+            Rectangle {
+                anchors.right: parent.right
+                height: parent.height
+                width: 1
+                color: theme.border
+            }
+            ToolButton {
+                objectName: "sidebarExpandButton"
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width
+                text: "»"
+                font.pixelSize: 12
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Expand sidebar")
+                onClicked: root.sidebarCollapsed = false
+            }
+        }
+        Sidebar {
+            id: sidebar
+            visible: !root.sidebarCollapsed
+            width: visible ? root.sidebarWidth : 0
+            height: parent.height
+            appWindow: root
+            // Reinstated panel-collapse animation (§14.3), gated by the reduced-
+            // motion source and suppressed during a seam drag so the two never
+            // fight over width (the Phase 9 conflict).
+            Behavior on width {
+                enabled: theme.motionScale > 0 && !sidebarSeam.dragging
+                NumberAnimation { duration: 160 * theme.motionScale
+                                  easing.type: Easing.OutCubic }
+            }
+        }
+        PanelSeam {
+            id: sidebarSeam
+            objectName: "sidebarSeam"
+            visible: !root.sidebarCollapsed
+            width: visible ? sidePanels.seamWidth : 0
+            height: parent.height
+            minWidth: 140
+            maxWidth: 400
+            panelWidth: root.sidebarWidth
+            onResized: function(newWidth) { root.sidebarWidth = newWidth }
+        }
+
+        Rectangle {
+            objectName: "noteListStrip"
+            visible: root.noteListCollapsed
+            width: visible ? sidePanels.stripWidth : 0
+            height: parent.height
+            color: theme.listBackground
+            Rectangle {
+                anchors.right: parent.right
+                height: parent.height
+                width: 1
+                color: theme.border
+            }
+            ToolButton {
+                objectName: "noteListExpandButton"
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width
+                text: "»"
+                font.pixelSize: 12
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Expand note list")
+                onClicked: root.noteListCollapsed = false
+            }
+        }
+        NoteListPane {
+            id: noteListPane
+            visible: !root.noteListCollapsed
+            width: visible ? root.noteListWidth : 0
+            height: parent.height
+            appWindow: root
+            sidebar: sidebar
+            Behavior on width {
+                enabled: theme.motionScale > 0 && !noteListSeam.dragging
+                NumberAnimation { duration: 160 * theme.motionScale
+                                  easing.type: Easing.OutCubic }
+            }
+        }
+        PanelSeam {
+            id: noteListSeam
+            objectName: "noteListSeam"
+            visible: !root.noteListCollapsed
+            width: visible ? sidePanels.seamWidth : 0
+            height: parent.height
+            minWidth: 180
+            maxWidth: 520
+            panelWidth: root.noteListWidth
+            onResized: function(newWidth) { root.noteListWidth = newWidth }
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        anchors.leftMargin: sidePanels.width
+        anchors.topMargin: appToolbar.visible ? appToolbar.height : 0
+        anchors.bottomMargin: root.bottomChromeHeight
+        anchors.rightMargin: (outlinePanel.visible ? root.outlineWidth : 0)
+            + (backlinksPanel.visible ? root.backlinksWidth : 0)
+            + extensionSidePanel.width
+        color: backgroundColor
+
+        // A press that no block claimed (margins, the gap between
+        // blocks, below the last block) ends any document-level
+        // selection (§3.1 clicking-elsewhere behavior).
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            onPressed: function(mouse) {
+                if (documentSelection.hasBlockSelection
+                    || documentSelection.hasTextSelection)
+                    documentSelection.clear()
+                mouse.accepted = false
+            }
+        }
+
+        // Shared edge auto-scroller (phase6-plan.md decision 12): while
+        // a selection or block drag holds the pointer inside the
+        // viewport's top/bottom band, scroll with speed scaling with
+        // edge proximity (§21.3 "smooth accelerated scrolling").
+        QtObject {
+            id: edgeScroller
+            property bool active: false
+            property real pointerY: 0 // in blockListView viewport coordinates
+            readonly property int band: 48
+        }
+
+        Timer {
+            interval: 16
+            repeat: true
+            running: edgeScroller.active
+            onTriggered: {
+                var lv = blockListView
+                if (lv.contentHeight <= lv.height)
+                    return
+                var speed = 0
+                if (edgeScroller.pointerY < edgeScroller.band)
+                    speed = -(edgeScroller.band - edgeScroller.pointerY) / 4
+                else if (edgeScroller.pointerY > lv.height - edgeScroller.band)
+                    speed = (edgeScroller.pointerY - (lv.height - edgeScroller.band)) / 4
+                if (speed === 0)
+                    return
+                lv.contentY = Math.max(0, Math.min(lv.contentY + speed,
+                                                   lv.contentHeight - lv.height))
+            }
+        }
+
+        // The open note's tags (phase8-plan.md decision 7). Stacked above
+        // the ScrollView (like the find bar): the ScrollView's anchor
+        // re-layout when the strip appears is a polish-frame behind, and
+        // chip clicks must never fall into the document during that frame.
+        TagStrip {
+            id: tagStrip
+            z: 5
+            appWindow: root
+            visible: root.collectionOpen && root.currentNoteRelPath !== ""
+            height: visible ? 30 : 0
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 20
+            anchors.rightMargin: 52 // room for the backup button
+            anchors.topMargin: visible ? 8 : 0
+        }
+
+        ToolButton {
+            objectName: "restoreBackupButton"
+            z: 5
+            visible: tagStrip.visible
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: 10
+            anchors.rightMargin: 16
+            text: "↺"
+            font.pixelSize: 13
+            implicitWidth: 26
+            implicitHeight: 26
+            ToolTip.visible: hovered
+            ToolTip.text: qsTr("Restore from backup…")
+            onClicked: backupDialog.openForCurrentNote()
+        }
+
+        // External-drag ingestion (§5.4; spike b's contract): OS file drops,
+        // image bytes, image URLs, and plain text land as blocks at the drop
+        // point. The interactive XDND gesture is screenshot-verified (it can
+        // not be scripted); the ingestion core is unit-tested.
+        DropArea {
+            id: editorDropArea
+            objectName: "editorDropArea"
+            anchors.fill: scrollView
+            z: 40
+            property real dropY: -1
+            onEntered: function(drag) { drag.accepted = true; dropY = drag.y }
+            onPositionChanged: function(drag) { dropY = drag.y }
+            onExited: dropY = -1
+            onDropped: function(drop) { dropY = -1; root.handleEditorDrop(drop) }
+
+            // The drop-indicator line (§5.4), following the pointer.
+            Rectangle {
+                visible: editorDropArea.containsDrag
+                width: parent.width
+                height: 2
+                radius: 1
+                color: theme.accent
+                y: Math.max(0, editorDropArea.dropY)
+            }
+        }
+
+        ScrollView {
+            id: scrollView
+            objectName: "editorScrollView"
+
+            // §10.2 maximum content width: when capped, the extra space
+            // becomes symmetric margins, centering the block column
+            // (delegates cannot be x-offset: ListView re-asserts item
+            // positions on every relayout).
+            readonly property int centeringMargin: {
+                var max = typography.maxContentWidth
+                // Focus mode (§16.1) centers the column even when the user has
+                // left the max width uncapped: a fullscreen edge-to-edge line
+                // would be the opposite of focused, so it applies a readable
+                // default (honoring an explicit max width if one is set).
+                if (max <= 0 && root.focusMode)
+                    max = 760
+                if (max <= 0)
+                    return 0
+                return Math.max(0, Math.floor((parent.width - 40 - max) / 2))
+            }
+
+            anchors.fill: parent
+            anchors.margins: 20
+            anchors.leftMargin: 20 + centeringMargin
+            anchors.rightMargin: 20 + centeringMargin
+            anchors.topMargin: tagStrip.visible ? tagStrip.height + 16 : 20
+
+            contentWidth: availableWidth
+
+            ListView {
+                id: blockListView
+                objectName: "blockListView"
+
+                width: parent.width
+                // Blank-line rhythm between blocks (§10.2).
+                spacing: typography.paragraphSpacing
+
+                reuseItems: true
+                // Phase 5: keep a small offscreen row window warm for ordinary
+                // wheel/flick movement without making startup instantiate a
+                // large variable-height document through the buffer.
+                cacheBuffer: 240
+
+                // §16.2 typewriter mode: caret-line centering scrolls smoothly.
+                // The animation is enabled only in typewriter mode so ordinary
+                // scrolling, find-bar jumps, and drag auto-scroll are unchanged.
+                // (Honors the reduced-motion setting when Phase 12 adds it.)
+                Behavior on contentY {
+                    // Typewriter scroll honors reduced motion (§14.3): 0
+                    // duration stills it instantly.
+                    enabled: root.typewriterMode && theme.motionScale > 0
+                    NumberAnimation { duration: 130 * theme.motionScale
+                                      easing.type: Easing.OutQuad }
+                }
+
+                model: blockModel
+
+                // One delegate per block type (phase4-plan.md step 3);
+                // paragraphs and headings share the default text choice.
+                // The chooser watches delegateKind, not blockType: it
+                // recreates a row's delegate whenever the watched role
+                // changes, and heading conversions must not drop focus.
+                delegate: DelegateChooser {
+                    id: blockDelegateChooser
+                    role: "delegateKind"
+
+                    // Kinds a linked module registered (chat.md §8): each
+                    // becomes a DelegateChoice of its own here. This runs
+                    // before the view creates its first row, and the open
+                    // build registers nothing, so the choices below are the
+                    // whole story unless a premium module is linked in.
+                    //
+                    // The order matters: DelegateChooser takes the FIRST
+                    // choice whose roleValue matches, and a choice with no
+                    // roleValue matches everything — which is why the text
+                    // delegate at the bottom names its kind explicitly
+                    // instead of acting as a catch-all that would shadow
+                    // every appended choice.
+                    Component.onCompleted: {
+                        var registered = blockKinds.registeredDelegates()
+                        for (var i = 0; i < registered.length; ++i) {
+                            var entry = registered[i]
+                            var component = Qt.createComponent(entry.delegateUrl)
+                            if (component.status !== Component.Ready) {
+                                console.warn("block kind '" + entry.language
+                                             + "' has no usable delegate: "
+                                             + component.errorString())
+                                continue
+                            }
+                            var choice = Qt.createQmlObject(
+                                'import QtQml.Models; DelegateChoice { }',
+                                blockDelegateChooser)
+                            choice.roleValue = entry.kind
+                            choice.delegate = component
+                            blockDelegateChooser.choices.push(choice)
+                        }
+                    }
+
+                    DelegateChoice {
+                        roleValue: Block.BulletList
+                        BulletListDelegate { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.NumberedList
+                        NumberedListDelegate { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.Todo
+                        TodoDelegate { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.Quote
+                        QuoteDelegate { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.CodeBlock
+                        CodeBlockDelegate { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.Divider
+                        DividerDelegate { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.Image
+                        ImageBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.Callout
+                        CalloutBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.Table
+                        TableBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.MathBlock
+                        MathBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        roleValue: Block.Media
+                        MediaBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        // BlockModel::KanbanKind — a `kanban`-tagged code
+                        // fence (phase10-plan.md decision 9). Literal because
+                        // KanbanKind is a static constexpr, not a Q_ENUM.
+                        roleValue: 100
+                        KanbanBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        // BlockModel::TocKind — a `toc`-tagged code fence
+                        // (phase11 decision 4): a read-only linked heading list.
+                        roleValue: 101
+                        TocBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        // BlockModel::EmbedKind — an ![](url) image expression
+                        // whose URL is a web/video embed (phase11 decision 11):
+                        // a preview card.
+                        roleValue: 102
+                        EmbedBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        // BlockModel::MermaidKind — a `mermaid`-tagged code fence
+                        // (diagrams-prd.md §5.1): a natively rendered diagram.
+                        roleValue: 103
+                        DiagramBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        // BlockModel::QueryKind — a `query`-tagged code fence
+                        // (pre-launch-plan.md §1): a live front-matter query.
+                        roleValue: 104
+                        QueryBlock { width: blockListView.width }
+                    }
+                    DelegateChoice {
+                        // Paragraphs and all four heading levels share kind 0
+                        // (BlockModel::delegateKindFor). Named rather than left
+                        // as the catch-all so module choices appended above are
+                        // reachable.
+                        roleValue: 0
+                        TextBlockDelegate { width: blockListView.width }
+                    }
+                }
+
+                // Enable move animations (Step 7a)
+                displaced: Transition {
+                    NumberAnimation {
+                        properties: "y"
+                        duration: 200
+                        easing.type: Easing.OutQuad
+                    }
+                }
+
+                move: Transition {
+                    NumberAnimation {
+                        properties: "y"
+                        duration: 200
+                        easing.type: Easing.OutQuad
+                    }
+                }
+
+                // Add remove animation for visual feedback
+                remove: Transition {
+                    NumberAnimation {
+                        property: "opacity"
+                        to: 0
+                        duration: 150
+                    }
+                }
+
+                // Add insert animation
+                add: Transition {
+                    NumberAnimation {
+                        property: "opacity"
+                        from: 0
+                        to: 1
+                        duration: 150
+                    }
+                }
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+            }
+        }
+
+        // Multi-block drop indicator (decision 9): a line naming the
+        // insertion gap. Parented to the ListView viewport (not its
+        // contentItem), so the y computation subtracts contentY.
+        Rectangle {
+            id: dropIndicator
+            objectName: "dropIndicator"
+            parent: blockListView
+            visible: blockDrag.active && blockDrag.isMulti
+                     && blockDrag.indicatorGap >= 0
+            x: 40
+            width: blockListView.width - 48
+            height: 3
+            radius: 1.5
+            color: theme.accent
+            y: {
+                var gap = blockDrag.indicatorGap
+                if (gap < 0)
+                    return 0
+                var yContent = 0
+                if (gap < blockListView.count) {
+                    var item = blockListView.itemAtIndex(gap)
+                    yContent = item ? item.y - blockListView.spacing / 2 : 0
+                } else {
+                    var last = blockListView.itemAtIndex(blockListView.count - 1)
+                    yContent = last ? last.y + last.height
+                                      + blockListView.spacing / 2 : 0
+                }
+                return yContent - blockListView.contentY - height / 2
+            }
+        }
+
+        // The floating find/replace bar (features.md §7; phase7-plan.md
+        // decision 5): overlays the editor's top-right corner, so
+        // opening it reflows nothing. Placed after the ScrollView so
+        // presses on it never reach the selection-clearing MouseArea.
+        FormattingBar {
+            id: formattingBar
+            target: appToolbar.targetBlock
+            listView: blockListView
+        }
+
+        FindBar {
+            id: findBar
+            appWindow: root
+            listView: blockListView
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: 8
+            anchors.topMargin: tagStrip.visible ? tagStrip.height + 12 : 8
+        }
+    }
+
+    // §17.1 document outline dock (phase11 step 1): a right-side pane over the
+    // editor, toggled from the view menu. Placed after the editor Rectangle so
+    // it sits above it; the editor's right margin reserves its width.
+    OutlinePanel {
+        id: outlinePanel
+        objectName: "outlinePanel"
+        appWindow: root
+        visible: root.outlineVisible && !root.focusMode
+        width: visible ? root.outlineWidth : 0
+        anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.bottomChromeHeight
+    }
+
+    // Backlinks pane (pre-launch-plan.md §3.4): collection mode only,
+    // left of the outline when both are open.
+    BacklinksPanel {
+        id: backlinksPanel
+        objectName: "backlinksPanel"
+        appWindow: root
+        visible: root.backlinksVisible && root.collectionOpen
+                 && !root.focusMode
+        width: visible ? root.backlinksWidth : 0
+        anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
+        anchors.right: outlinePanel.visible ? outlinePanel.left
+                                            : parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.bottomChromeHeight
+    }
+
+    Loader {
+        id: extensionBottomBar
+        objectName: "extensionBottomBar"
+        source: extensions.slotSource("bottomBar")
+        active: source != ""
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: statusBar.visible ? statusBar.top : parent.bottom
+        height: active && item ? item.implicitHeight : 0
+        // Focus mode hides the chrome (§16.1); an extension bar is chrome.
+        visible: !root.focusMode
+    }
+
+    Loader {
+        id: extensionSidePanel
+        objectName: "extensionSidePanel"
+        source: extensions.slotSource("sidePanel")
+        active: source != ""
+        anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
+        anchors.right: backlinksPanel.visible ? backlinksPanel.left
+                     : outlinePanel.visible ? outlinePanel.left
+                     : parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.bottomChromeHeight
+        width: active && item && visible ? item.implicitWidth : 0
+        visible: active && !root.focusMode
+    }
+
+    Rectangle {
+        id: statusBar
+        objectName: "statusBar"
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 28
+        visible: root.statusBarVisible && !root.focusMode
+
+        color: theme.footerBackground
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 1
+            color: theme.border
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 16
+
+            // Transient note (phase11 decision 3): internal-link resolution
+            // feedback etc. Takes no space when empty.
+            Text {
+                objectName: "transientStatusText"
+                visible: root.transientStatus !== ""
+                text: root.transientStatus
+                font.pixelSize: 11
+                color: theme.accent
+            }
+
+            // Passive update notice (launch-plan.md D4.5): appears only when
+            // the opt-out daily check found a newer release; click opens the
+            // release page in the browser. Never a popup.
+            Text {
+                objectName: "updateNoticeText"
+                visible: updateChecker.updateAvailable
+                text: updateChecker.updateAvailable
+                    ? qsTr("Update available: v%1").arg(updateChecker.latestVersion)
+                    : ""
+                font.pixelSize: 11
+                font.underline: updateNoticeMouse.containsMouse
+                color: theme.accent
+
+                MouseArea {
+                    id: updateNoticeMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Qt.openUrlExternally(updateChecker.releaseUrl)
+                }
+            }
+
+            // Single-file mode's quiet upgrade path (launch-plan.md E4): a
+            // lone .md is open with no vault, and one click away is turning
+            // its folder into one. Deliberately a passive status-bar line,
+            // never a popup or a first-run prompt.
+            Text {
+                objectName: "createVaultAffordance"
+                visible: !root.collectionOpen && documentManager.hasFile
+                text: qsTr("Create vault from this folder…")
+                font.pixelSize: 11
+                font.underline: createVaultMouse.containsMouse
+                color: theme.textMuted
+
+                MouseArea {
+                    id: createVaultMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: createVaultDialog.open()
+                }
+            }
+
+            // Save state indicator with dot
+            Row {
+                spacing: 6
+
+                Rectangle {
+                    width: 8
+                    height: 8
+                    radius: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: documentManager && documentManager.isDirty ? theme.warning : theme.success
+                }
+
+                Text {
+                    objectName: "saveStateText"
+                    text: documentManager && documentManager.isDirty ? "Unsaved" : "Saved"
+                    font.pixelSize: 11
+                    color: theme.textMuted
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            // §9.7 last-saved time: relative, absolute on hover.
+            Text {
+                objectName: "savedTimeText"
+                visible: text !== ""
+                font.pixelSize: 11
+                color: theme.textFaint
+
+                // Re-rendered every 30 s so "2 min ago" stays honest.
+                property int clockTick: 0
+                Timer {
+                    interval: 30000
+                    running: true
+                    repeat: true
+                    onTriggered: parent.clockTick++
+                }
+
+                text: {
+                    var tick = clockTick  // periodic re-evaluation
+                    if (!documentManager || documentManager.isDirty)
+                        return ""
+                    var at = documentManager.lastSavedAt
+                    if (!at || isNaN(at.getTime()))
+                        return ""
+                    var secs = (Date.now() - at.getTime()) / 1000
+                    if (secs < 60) return qsTr("just now")
+                    if (secs < 3600)
+                        return Math.floor(secs / 60) + qsTr(" min ago")
+                    return Qt.formatTime(at, "hh:mm")
+                }
+                ToolTip.visible: savedTimeHover.hovered
+                ToolTip.text: documentManager && documentManager.lastSavedAt
+                    ? Qt.formatDateTime(documentManager.lastSavedAt,
+                                        "yyyy-MM-dd hh:mm:ss") : ""
+                HoverHandler { id: savedTimeHover }
+            }
+
+            // Separator
+            Rectangle {
+                width: 1
+                height: 12
+                color: theme.textDisabled
+            }
+
+            // §9.7 caret position: block-relative, the honest coordinate
+            // in a block editor (phase9-plan.md decision 9).
+            Text {
+                objectName: "cursorPositionText"
+                visible: text !== ""
+                font.pixelSize: 11
+                color: theme.textMuted
+                text: {
+                    var target = appToolbar.targetBlock
+                    if (!target || target.cursorLineColumn === undefined)
+                        return ""
+                    var lc = target.cursorLineColumn
+                    return qsTr("Block ") + (target.index + 1)
+                        + " · " + qsTr("Ln ") + lc.line
+                        + ", " + qsTr("Col ") + lc.column
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width: 1
+                height: 12
+                color: theme.textDisabled
+            }
+
+            // Block type indicator (Step 7b)
+            Text {
+                id: blockTypeText
+                objectName: "blockTypeText"
+
+                // Bumped on any model change so the binding below
+                // re-evaluates when blocks shift or change type; the
+                // binding itself must never be assigned imperatively
+                // (that would sever it from currentIndex changes).
+                property int modelRevision: 0
+
+                property int currentBlockType: {
+                    var revision = modelRevision  // dependency only
+                    var currentIndex = blockListView.currentIndex
+                    // Default to first block if no selection
+                    if (currentIndex < 0 && blockModel && blockModel.count > 0) {
+                        currentIndex = 0
+                    }
+                    if (currentIndex < 0 || !blockModel || currentIndex >= blockModel.count) {
+                        return 0
+                    }
+                    var block = blockModel.blockAt(currentIndex)
+                    return block ? block.blockType : 0
+                }
+
+                text: {
+                    switch (currentBlockType) {
+                        case 1: return "Heading 1"
+                        case 2: return "Heading 2"
+                        case 3: return "Heading 3"
+                        case 4: return "Bulleted List"
+                        case 5: return "Numbered List"
+                        case 6: return "To-do"
+                        case 7: return "Quote"
+                        case 8: return "Code Block"
+                        case 9: return "Divider"
+                        case 10: return "Heading 4"
+                        default: return "Paragraph"
+                    }
+                }
+                font.pixelSize: 11
+                color: theme.textMuted
+
+                Connections {
+                    target: blockModel
+                    function onDataChanged(topLeft, bottomRight, roles) {
+                        blockTypeText.modelRevision++
+                    }
+                    function onCountChanged() {
+                        blockTypeText.modelRevision++
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width: 1
+                height: 12
+                color: theme.textDisabled
+            }
+
+            // File path or "New Document"
+            Text {
+                objectName: "filePathText"
+                text: documentManager && documentManager.hasFile ? documentManager.currentFilePath : "New Document"
+                elide: Text.ElideMiddle
+                Layout.fillWidth: true
+                font.pixelSize: 11
+                color: theme.textMuted
+            }
+
+            // Separator
+            Rectangle {
+                width: 1
+                height: 12
+                color: theme.textDisabled
+            }
+
+            // Block count
+            Text {
+                objectName: "blockCountText"
+                text: root.formatCount(blockModel ? blockModel.count : 0)
+                      + " blocks"
+                font.pixelSize: 11
+                color: theme.textMuted
+            }
+
+            // Separator
+            Rectangle {
+                width: 1
+                height: 12
+                color: theme.textDisabled
+            }
+
+            // §9.7 word/character counts over display text, selection-
+            // aware (decision 9): a block selection, cross-block text
+            // selection, or in-block selection counts itself; otherwise
+            // the whole document. The display-text rules come from the
+            // collection (wordCountForMarkdown), so this bar and the
+            // note list never disagree.
+            Item {
+                id: docCounter
+                width: 0; height: 0
+
+                // NOT a live binding: recomputing walks every block
+                // through the display-text parser, so it runs behind a
+                // coalescing timer — one pass 200 ms after the last
+                // model/selection change, off the keystroke and load
+                // paths (the §21.7 gates measure those).
+                property var counts: ({ words: 0, chars: 0, sel: false })
+
+                Timer {
+                    id: countTimer
+                    interval: 200
+                    onTriggered: docCounter.recompute()
+                }
+                Connections {
+                    target: blockModel
+                    function onDataChanged() { countTimer.restart() }
+                    function onCountChanged() { countTimer.restart() }
+                    function onDocumentCountsChanged() { countTimer.restart() }
+                }
+                Connections {
+                    target: documentSelection
+                    function onRevisionChanged() { countTimer.restart() }
+                }
+                readonly property string inBlockSelDep:
+                    appToolbar.targetBlock
+                    && appToolbar.targetBlock.selectedDisplayText
+                           !== undefined
+                        ? appToolbar.targetBlock.selectedDisplayText : ""
+                onInBlockSelDepChanged: countTimer.restart()
+                Component.onCompleted: recompute()
+
+                // The whole-document word count, kept current regardless of
+                // any selection — the writing-goal ring reads it.
+                property int docWords: 0
+
+                function recompute() {
+                    var perfOn = perfLog && perfLog.enabled
+                    if (perfOn)
+                        perfLog.begin("statusbar.count", {
+                            "blocks": blockModel ? blockModel.count : 0
+                        })
+                    try {
+                    docWords = blockModel ? blockModel.documentWordCount : 0
+
+                    var target = appToolbar.targetBlock
+                    var inBlockSel =
+                        (target && target.selectedDisplayText !== undefined)
+                            ? target.selectedDisplayText : ""
+
+                    var words = 0
+                    var chars = 0
+
+                    if (documentSelection.hasBlockSelection) {
+                        var indexes = documentSelection.selectedIndexes()
+                        for (var i = 0; i < indexes.length; i++) {
+                            words += blockModel.wordCountAt(indexes[i])
+                            chars += blockModel.charCountAt(indexes[i], true)
+                        }
+                        counts = { words: words, chars: chars, sel: true }
+                        return
+                    }
+
+                    if (documentSelection.hasTextSelection) {
+                        var range = documentSelection.orderedTextRange()
+                        for (var b = range.startIndex;
+                             b <= range.endIndex; b++) {
+                            var content = blockModel.getContent(b)
+                            var from = b === range.startIndex
+                                ? range.startPos : 0
+                            var to = b === range.endIndex
+                                ? range.endPos : content.length
+                            if (from === 0 && to === content.length) {
+                                words += blockModel.wordCountAt(b)
+                                chars += blockModel.charCountAt(b, true)
+                            } else {
+                                var frag = content.substring(from, to)
+                                var vb = blockModel.blockAt(b).blockType === 8
+                                words += noteCollection.wordCountForMarkdown(
+                                    frag, vb)
+                                chars += noteCollection.charCountForMarkdown(
+                                    frag, vb)
+                            }
+                        }
+                        counts = { words: words, chars: chars, sel: true }
+                        return
+                    }
+
+                    if (inBlockSel.length > 0) {
+                        // Already display text: count verbatim.
+                        counts = {
+                            words: noteCollection.wordCountForMarkdown(
+                                inBlockSel, true),
+                            chars: inBlockSel.length,
+                            sel: true
+                        }
+                        return
+                    }
+
+                    if (!blockModel) {
+                        counts = { words: 0, chars: 0, sel: false }
+                        return
+                    }
+                    counts = {
+                        words: blockModel.documentWordCount,
+                        chars: blockModel.documentCharCount,
+                        sel: false
+                    }
+                    } finally {
+                        if (perfOn)
+                            perfLog.end("statusbar.count", {
+                                "words": counts.words,
+                                "chars": counts.chars,
+                                "selection": counts.sel
+                            })
+                    }
+                }
+            }
+
+            // Word count — clicking opens the §19.1 statistics popover.
+            Text {
+                id: wordCountText
+                objectName: "wordCountText"
+                text: root.formatCount(docCounter.counts.words)
+                      + (docCounter.counts.words === 1 ? qsTr(" word")
+                                                       : qsTr(" words"))
+                      + (docCounter.counts.sel ? qsTr(" selected") : "")
+                font.pixelSize: 11
+                color: docCounter.counts.sel ? theme.accent : theme.textMuted
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -4
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        statisticsPanel.parent = wordCountText
+                        statisticsPanel.open()
+                        Qt.callLater(function() {
+                            // Open upward and align the panel's right edge with
+                            // the trigger, so it stays inside the window.
+                            statisticsPanel.x =
+                                wordCountText.width - statisticsPanel.width
+                            statisticsPanel.y = -statisticsPanel.height - 8
+                        })
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width: 1
+                height: 12
+                color: theme.textDisabled
+            }
+
+            // Character count
+            Text {
+                objectName: "charCountText"
+                text: root.formatCount(docCounter.counts.chars) + " chars"
+                font.pixelSize: 11
+                color: docCounter.counts.sel ? theme.accent : theme.textMuted
+            }
+
+            // §19.2 writing-goal ring: progress toward the per-note word
+            // target. Only in collection mode (the goal is front-matter).
+            // Clicking sets or clears the goal.
+            Item {
+                objectName: "goalRing"
+                visible: root.collectionOpen && root.currentNoteRelPath !== ""
+                width: visible ? 60 : 0
+                height: 18
+                Layout.alignment: Qt.AlignVCenter
+
+                property int goal: {
+                    var r = noteCollection.revision  // dependency only
+                    return root.currentNoteRelPath !== ""
+                        ? noteCollection.goalFor(root.currentNoteRelPath) : 0
+                }
+                property int words: docCounter.docWords
+                property real fraction: goal > 0
+                    ? Math.min(1, words / goal) : 0
+
+                Canvas {
+                    id: ringCanvas
+                    width: 16; height: 16
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    property real frac: parent.fraction
+                    property color trackColor: theme.border
+                    property color fillColor: parent.fraction >= 1
+                        ? theme.success : theme.accent
+                    onFracChanged: requestPaint()
+                    onTrackColorChanged: requestPaint()
+                    onFillColorChanged: requestPaint()
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.reset()
+                        var cx = width / 2, cy = height / 2, r = 6
+                        ctx.lineWidth = 2.5
+                        ctx.strokeStyle = trackColor
+                        ctx.beginPath()
+                        ctx.arc(cx, cy, r, 0, 2 * Math.PI)
+                        ctx.stroke()
+                        if (frac > 0) {
+                            ctx.strokeStyle = fillColor
+                            ctx.beginPath()
+                            ctx.arc(cx, cy, r, -Math.PI / 2,
+                                    -Math.PI / 2 + frac * 2 * Math.PI)
+                            ctx.stroke()
+                        }
+                    }
+                }
+                Text {
+                    anchors.left: ringCanvas.right
+                    anchors.leftMargin: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: parent.goal > 0
+                        ? (Math.round(parent.fraction * 100) + "%")
+                        : qsTr("goal")
+                    font.pixelSize: 11
+                    color: parent.fraction >= 1 && parent.goal > 0
+                        ? theme.success : theme.textMuted
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    ToolTip.visible: containsMouse
+                    ToolTip.text: parent.goal > 0
+                        ? (parent.words + " / " + parent.goal + qsTr(" words"))
+                        : qsTr("Set a writing goal")
+                    hoverEnabled: true
+                    onClicked: goalDialog.openFor(root.currentNoteRelPath)
+                }
+            }
+        }
+    }
+}

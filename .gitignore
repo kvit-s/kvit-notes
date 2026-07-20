@@ -1,0 +1,44 @@
+# Build
+build/
+# Preset build trees (CMakePresets.json binaryDir pattern)
+build-*/
+# CTest scratch left by in-source ctest runs
+Testing/
+tools/__pycache__/
+
+# Qt Creator
+*.pro.user
+*.autosave
+CMakeLists.txt.user
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Compiled
+*.o
+*.a
+*.so
+moc_*
+qrc_*
+*_autogen/
+
+# OS
+.DS_Store
+Thumbs.db
+.clauding
+
+# Visual-storyboard frames: regenerable review artifacts (tst_visual.qml /
+# tools/uidriver.cpp), written for human eyeballing, never read by tests.
+# The canonical output location is build/screenshots; these entries cover
+# runs that wrote into the source tree instead. screenshots/press/ is the
+# exception: curated, committed capture assets referenced by the README
+# and the AppStream metadata.
+/screenshots/*
+!/screenshots/press/
+/tests/screenshots/
+# Packaging outputs
+dist/
+packaging/linux/.tools/

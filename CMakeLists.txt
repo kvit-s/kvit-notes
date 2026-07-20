@@ -1,0 +1,248 @@
+cmake_minimum_required(VERSION 3.16)
+# SemVer per launch-plan.md D4.1: the product launches as 1.0.0 (0.x would
+# undersell a feature-complete editor); prereleases carry -rcN in the tag,
+# not in this version.
+project(kvit-notes VERSION 1.0.0 LANGUAGES CXX)
+
+# C++20 is the build's real requirement, not a choice made here: vendored
+# MicroTeX propagates cxx_std_20 PUBLIC to every target that links it, so the
+# whole tree has always compiled as C++20. Stating it at the root makes the
+# toolchain baseline explicit (MSVC 2022 / AppleClang 15 / GCC 12+).
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+
+# QtSvg is deliberately absent from the build: the SVG math path was removed
+# (html-export.md step 4). The deployed Qt runtime must still ship the QtSvg
+# module — user-inserted .svg image blocks (imageassets.cpp extension list)
+# load through the `qsvg` imageformats plugin, which links libQt6Svg
+# internally even though the app does not.
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTest Widgets Multimedia Network Concurrent Sql)
+
+# The premium agent module (chat.md §8). OFF is the open editor: nothing under
+# src/agent/ or qml/agent/ is compiled, no KVIT_AGENT define is set, and the
+# two guarded fragments in src/main.cpp vanish with the preprocessor. Exporting
+# the public repo is then the deletion of those paths, not an exclusion list.
+option(KVIT_AGENT "Build the premium agent module (src/agent, qml/agent)" OFF)
+
+# Vendored MicroTeX (phase10-plan.md decision 12): the math typesetting engine
+# behind the MathRenderer seam. Built as a static `microtex` target.
+add_subdirectory(third_party/microtex)
+
+# The core library: the whole editor except its entry point (chat.md §8, F1).
+# The stock executable below is a thin main() linking it, and a superset build
+# that adds a premium module links the same library and supplies its own main().
+# `kvit-core` is the CMake target name; `kvit_core` is the same library under
+# the naming the split document uses.
+add_library(kvit-core STATIC
+    src/appcontext.cpp
+    src/kvitapplication.cpp
+    src/blockkindregistry.cpp
+    src/extensionregistry.cpp
+    src/block.cpp
+    src/perflog.cpp
+    src/blockattributes.cpp
+    src/shortcutcatalog.cpp
+    src/accessibilityannouncer.cpp
+    src/globalhotkey.cpp
+    src/systemtray.cpp
+    src/filewatcher.cpp
+    src/blockmodel.cpp
+    src/markdownformatter.cpp
+    src/undocommand.cpp
+    src/undostack.cpp
+    src/compoundcommand.cpp
+    src/textchangecommand.cpp
+    src/insertblockcommand.cpp
+    src/removeblockcommand.cpp
+    src/moveblockcommand.cpp
+    src/moveblockscommand.cpp
+    src/changetypecommand.cpp
+    src/splitblockcommand.cpp
+    src/mergeblockscommand.cpp
+    src/setcheckedcommand.cpp
+    src/setblockattributescommand.cpp
+    src/changeindentcommand.cpp
+    src/convertblockcommand.cpp
+    src/documentserializer.cpp
+    src/llmnormalizer.cpp
+    src/diagrams/diagramclassifier.cpp
+    src/diagrams/diagramrepair.cpp
+    src/diagrams/mermaidlexer.cpp
+    src/diagrams/mermaidparser.cpp
+    src/diagrams/mermaidsequence.cpp
+    src/diagrams/mermaidclass.cpp
+    src/diagrams/mermaidstate.cpp
+    src/diagrams/mermaider.cpp
+    src/diagrams/mermaidedits.cpp
+    src/diagrams/diagramlayout.cpp
+    src/diagrams/sequencelayout.cpp
+    src/diagrams/classlayout.cpp
+    src/diagrams/statelayout.cpp
+    src/diagrams/erlayout.cpp
+    src/diagrams/diagrampainter.cpp
+    src/diagrams/textcanvas.cpp
+    src/diagrams/textdiagram.cpp
+    src/diagrams/mermaidrenderer.cpp
+    src/diagrams/diagramcanvas.cpp
+    src/documentmanager.cpp
+    src/blockmenumodel.cpp
+    src/mathcommandmodel.cpp
+    src/codelanguages.cpp
+    src/imageassets.cpp
+    src/tabledata.cpp
+    src/todometa.cpp
+    src/kanbandata.cpp
+    src/mathrenderer.cpp
+    src/clipboardhelper.cpp
+    src/htmltomarkdown.cpp
+    src/blockeditorengine.cpp
+    src/documentselection.cpp
+    src/documentsearch.cpp
+    src/documentoutline.cpp
+    src/documentstats.cpp
+    src/documentexporter.cpp
+    src/documentimporter.cpp
+    src/embedmetadata.cpp
+    src/notetemplates.cpp
+    src/notefrontmatter.cpp
+    src/wikilinkscanner.cpp
+    src/notecollection.cpp
+    src/navigationhistory.cpp
+    src/quickswitchermodel.cpp
+    src/querydata.cpp
+    src/querytools.cpp
+    src/foldertreemodel.cpp
+    src/notelistmodel.cpp
+    src/searchindexdb.cpp
+    src/collectionsearchindex.cpp
+    src/collectionsearch.cpp
+    src/settingsstore.cpp
+    src/startupcontroller.cpp
+    src/theme.cpp
+    src/typography.cpp
+    src/updatechecker.cpp
+)
+
+# The version the running app reports (About, update check comparison).
+target_compile_definitions(kvit-core PRIVATE
+    KVIT_VERSION="${PROJECT_VERSION}")
+
+# Every module the composed application needs is linked into the library, not
+# into the executable, so any binary linking kvit-core gets a complete editor:
+# QuickControls2 for the shell's style, Network for the embed fetcher, and
+# Multimedia for the media block's QML imports.
+target_link_libraries(kvit-core PUBLIC
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Widgets
+    Qt6::Multimedia
+    Qt6::Network
+    Qt6::Concurrent
+    Qt6::Sql
+    microtex
+)
+
+target_include_directories(kvit-core PUBLIC src)
+
+# The premium module, built as its own library so the open build never
+# compiles a line of it. It links the core and is linked BY the executable —
+# the core knows nothing about it, and it reaches the app only through
+# ExtensionRegistry.
+if(KVIT_AGENT)
+    add_library(kvit-agent STATIC
+        src/agent/agentmodule.cpp
+        agent_resources.qrc
+    )
+    target_link_libraries(kvit-agent PUBLIC kvit-core)
+    target_compile_definitions(kvit-agent PUBLIC KVIT_AGENT)
+endif()
+
+# Main executable: main() plus the shell's QML. The resource file stays with
+# the executable rather than the library so a superset binary picks which
+# shell it ships; it adds the open repo's resources.qrc to its own target.
+qt_add_executable(kvit-notes
+    src/main.cpp
+    resources.qrc
+)
+
+target_link_libraries(kvit-notes PRIVATE
+    kvit-core
+)
+
+if(KVIT_AGENT)
+    target_link_libraries(kvit-notes PRIVATE kvit-agent)
+endif()
+
+# ── Platform packaging: icon, bundle metadata, install layout (launch-plan.md
+#    B1). QML ships inside resources.qrc, so the only runtime payload beyond
+#    the executable is the MicroTeX resource tree; MathRenderer::resourceRoot()
+#    resolves it relative to the executable in each installed layout below,
+#    and `kvit-notes --math-selftest` verifies the result headlessly.
+if(WIN32)
+    target_sources(kvit-notes PRIVATE packaging/windows/kvit.rc)
+    set_target_properties(kvit-notes PROPERTIES WIN32_EXECUTABLE TRUE)
+elseif(APPLE)
+    target_sources(kvit-notes PRIVATE packaging/icons/kvit.icns)
+    set_source_files_properties(packaging/icons/kvit.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources)
+    set_target_properties(kvit-notes PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Kvit Notes"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "org.kvit.Notes"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE "kvit.icns")
+endif()
+
+include(GNUInstallDirs)
+if(WIN32)
+    # Portable layout: the executable at the prefix root, math-res beside it.
+    # windeployqt fills in the Qt runtime next to them (launch-plan.md D1).
+    install(TARGETS kvit-notes RUNTIME DESTINATION .)
+    install(DIRECTORY third_party/microtex/res/ DESTINATION math-res)
+elseif(APPLE)
+    # Self-contained bundle; macdeployqt operates on the installed .app.
+    install(TARGETS kvit-notes BUNDLE DESTINATION .)
+    install(DIRECTORY third_party/microtex/res/
+        DESTINATION "kvit-notes.app/Contents/Resources/math-res")
+else()
+    # Linux FHS layout, consumed directly and by linuxdeploy for the AppImage.
+    install(TARGETS kvit-notes RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(DIRECTORY third_party/microtex/res/
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/kvit-notes/math-res)
+    install(FILES packaging/linux/kvit-notes.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    foreach(size 16 24 32 48 64 128 256 512)
+        install(FILES packaging/icons/hicolor/${size}x${size}/apps/kvit-notes.png
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}x${size}/apps)
+    endforeach()
+    install(FILES packaging/icons/kvit.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+        RENAME kvit-notes.svg)
+endif()
+
+# Scriptable launcher for the real shell (tools/uidriver.cpp): runs the same
+# composition as kvit-notes and saves frames of what it renders, for observing
+# the shipped UI. Off by default; it is a development tool, not a test.
+option(KVIT_UI_DRIVER "Build the scriptable UI driver (tools/uidriver.cpp)" OFF)
+if(KVIT_UI_DRIVER)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    qt_add_executable(kvit-uidriver
+        tools/uidriver.cpp
+        resources.qrc
+    )
+    target_link_libraries(kvit-uidriver PRIVATE kvit-core Qt6::Test)
+endif()
+
+# Enable testing. Only when this project is the top-level build: a consumer that adds
+# this repo as a subdirectory to link kvit-core (the kvit-hub portfolio dashboard) brings
+# its own suite, and the test targets here resolve their paths against CMAKE_SOURCE_DIR,
+# which under a subdirectory build points at the consumer's root rather than this one.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
