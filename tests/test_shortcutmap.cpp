@@ -25,6 +25,8 @@ private slots:
     void noDuplicateActions();
     void everyChordSurvivesPlatformRendering();
     void literalTriggersRenderAsThemselves();
+    void standardKeyEntriesAgreeWithTheSpecChord();
+    void onlyStandardKeyDrivenActionsClaimOne();
 };
 
 void TestShortcutMap::everySpecShortcutPresentWithChord_data()
@@ -169,6 +171,79 @@ void TestShortcutMap::literalTriggersRenderAsThemselves()
     QVERIFY(!ShortcutCatalog::displayChord(QStringLiteral("Ctrl+B"))
                  .contains(QStringLiteral("Ctrl")));
 #endif
+}
+
+void TestShortcutMap::standardKeyEntriesAgreeWithTheSpecChord()
+{
+    // The catalog and the running app are two descriptions of one thing: the
+    // catalog stores the §13 chord, while main.qml binds Qt standard keys and
+    // the editor tests Ctrl directly. They agree today on Windows and Linux —
+    // Qt's primary binding for each of these resolves to exactly the §13
+    // chord, Redo's Ctrl+Y included. Nothing enforced that agreement, so this
+    // does: if a Qt release or a spec edit moves either side, the reference
+    // would start advertising a chord that no longer fires, and this fails
+    // instead.
+    //
+    // macOS is excluded because that is where they are MEANT to differ: the
+    // §13 table is the Windows/Linux column, and Qt resolves the same standard
+    // keys to Command-based chords there. That divergence is the feature.
+#ifdef Q_OS_MACOS
+    QSKIP("the §13 table is the Windows/Linux column; macOS resolves elsewhere");
+#else
+    int checked = 0;
+    for (const ShortcutInfo &e : ShortcutCatalog::entries()) {
+        if (e.standardKey == QKeySequence::UnknownKey)
+            continue;
+        const QList<QKeySequence> bound = QKeySequence::keyBindings(e.standardKey);
+        QVERIFY2(!bound.isEmpty(),
+                 qPrintable(e.action + " claims a standard key Qt does not bind"));
+        // Membership, not position: Qt lists several bindings per standard key
+        // and their order follows the platform theme, so "first" is not a
+        // stable notion. What must hold is that the chord §13 documents is one
+        // of the sequences the standard key actually arms.
+        const QKeySequence documented =
+            QKeySequence::fromString(e.chord, QKeySequence::PortableText);
+        QVERIFY2(bound.contains(documented),
+                 qPrintable(e.action + ": §13 documents " + e.chord
+                            + " but StandardKey binds only "
+                            + [&] {
+                                  QStringList all;
+                                  for (const QKeySequence &b : bound)
+                                      all << b.toString(QKeySequence::PortableText);
+                                  return all.join(QStringLiteral(", "));
+                              }()));
+        // And the reference shows that documented chord, not an arbitrary
+        // sibling binding.
+        QCOMPARE(ShortcutCatalog::displayChord(e.standardKey, e.chord),
+                 documented.toString(QKeySequence::NativeText));
+        ++checked;
+    }
+    QVERIFY2(checked >= 9,
+             qPrintable(QStringLiteral("only %1 entries carry a standard key; "
+                                       "the wiring in main.qml uses more")
+                            .arg(checked)));
+#endif
+}
+
+void TestShortcutMap::onlyStandardKeyDrivenActionsClaimOne()
+{
+    // The reference must never show a chord grander than what is wired. These
+    // four actions are bound to literal sequences on purpose — Find & Replace
+    // because the platform theme maps StandardKey.Replace to Ctrl+R or nothing
+    // on some Linux desktops, and Back, Forward and Distraction-free because
+    // Qt's standard bindings for them include keys an editor cannot spare
+    // (Backspace navigates Back). None may claim a standard key, or the
+    // reference would advertise a macOS chord nothing listens for.
+    const QStringList literalByDesign{
+        QStringLiteral("Find & Replace"), QStringLiteral("Back"),
+        QStringLiteral("Forward"), QStringLiteral("Distraction-free")};
+    for (const ShortcutInfo &e : ShortcutCatalog::entries()) {
+        if (!literalByDesign.contains(e.action))
+            continue;
+        QVERIFY2(e.standardKey == QKeySequence::UnknownKey,
+                 qPrintable(e.action + " is wired literally but claims a "
+                                       "standard key"));
+    }
 }
 
 QTEST_MAIN(TestShortcutMap)

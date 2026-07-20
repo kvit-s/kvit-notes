@@ -11,9 +11,19 @@ target_link_libraries(test_blockattributes PRIVATE kvit-core Qt6::Test)
 add_test(NAME BlockAttributesTests COMMAND test_blockattributes)
 
 # ShortcutMap tests (features.md §13 shortcut catalog audit)
+# Shortcut catalog audit. Qt resolves StandardKey through the platform theme,
+# which only exists once a QGuiApplication does: without Qt6::Gui this binary
+# would assert against Qt's built-in fallback table instead of the bindings the
+# running app gets, and the two genuinely differ (Redo answers to Ctrl+Y in the
+# app and not in the fallback). Qt6::Gui makes QTEST_MAIN build a
+# QGuiApplication, so the audit sees what the app sees.
 qt_add_executable(test_shortcutmap test_shortcutmap.cpp)
-target_link_libraries(test_shortcutmap PRIVATE kvit-core Qt6::Test)
+target_link_libraries(test_shortcutmap PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME ShortcutMapTests COMMAND test_shortcutmap)
+# A GUI application needs a platform plugin; offscreen loads a real platform
+# theme without needing a display.
+set_tests_properties(ShortcutMapTests
+    PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # Accessibility announcer tests (live-region seam). Needs a GUI
 # context for the QAccessible announcement path, so Qt6::Gui gives QGuiApplication.

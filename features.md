@@ -909,10 +909,22 @@ Display when cursor moves into "information":
 
 ## 15. System Integration
 
-### 15.1 Global Hotkey
-- System-wide keyboard shortcut to summon application
-- Configurable shortcut combination
-- Quick note capture from any application
+### 15.1 Quick-capture Hotkey
+- Keyboard shortcut to open the quick-capture window, active while the app has
+  focus. `Ctrl+Alt+N` by default, read from the `hotkey.quickCapture` setting;
+  the tray menu opens the same window.
+- ~~System-wide keyboard shortcut to summon application~~ ~~Quick note capture
+  from any application~~ *(deferred 2026-07-20. No system-wide grab is
+  implemented on any platform. `GlobalHotkey` is a wired seam with nothing
+  behind it: X11 `XGrabKey`, the XDG GlobalShortcuts portal, Win32
+  `RegisterHotKey` and the macOS equivalent are all unwritten, and
+  `AppContext` reports the feature unsupported everywhere. It stays a seam
+  rather than a shipped claim, because a configurable hotkey that silently
+  never fires is worse than an honest absence. Implementing it needs one
+  backend per platform and a way to verify each; this machine (WSLg) grants no
+  system-wide grab at all, so none of it could be tested here.)*
+- The chord is configurable by editing `hotkey.quickCapture` in the settings
+  file; there is no settings-dialog control for it yet.
 
 ### 15.2 System Tray
 - Minimize to system tray
