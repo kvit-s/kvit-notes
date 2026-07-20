@@ -244,7 +244,7 @@ public:
     Q_INVOKABLE int toMarkdownPosition(int documentPosition) const;
     Q_INVOKABLE int toDocumentPosition(int markdownPosition) const;
 
-    // Copy-as-markdown (basic-features.md §5.2): the markdown equivalent
+    // Copy-as-markdown: the markdown equivalent
     // of a document-coordinate selection in the current reveal state.
     Q_INVOKABLE QString markdownForRange(int docStart, int docEnd) const;
     // Cut: the markdown left after removing what markdownForRange captured

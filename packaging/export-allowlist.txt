@@ -37,3 +37,11 @@ screenshots/press
 :(exclude)qml/agent
 :(exclude)tests/agent
 :(exclude)tests/perf/live
+# The machinery that produces and checks the public tree stays in the
+# private tree. It is of no use to a contributor working in the public
+# repository, it names private paths, and its denylist necessarily
+# enumerates the private planning documents it exists to keep out.
+:(exclude)tools/export-public-tree.sh
+:(exclude)tools/export-public-update.sh
+:(exclude)tools/export-gates.sh
+:(exclude)tools/check-md-links.py

@@ -81,7 +81,7 @@ mkdir -p "$BUILD_DIR"
         fi
 
         # Screenshot directory: wiped at the start of each run so a
-        # directory listing reads as this run's storyboard (see plan.md)
+        # directory listing reads as this run's storyboard
         SHOT_DIR="$BUILD_DIR/screenshots"
         rm -rf "$SHOT_DIR"
         mkdir -p "$SHOT_DIR"
