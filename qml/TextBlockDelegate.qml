@@ -20,6 +20,11 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
+
     required property int index
     required property string blockId
     required property int blockType
@@ -130,9 +135,8 @@ BlockDelegateBase {
     readonly property real typewriterDim: {
         if (editable && editable.typewriterDim !== undefined)
             return editable.typewriterDim
-        var win = Window.window
-        if (win && win.typewriterMode !== undefined && win.typewriterMode
-                && win.caretBlockIndex >= 0 && win.caretBlockIndex !== root.index)
+        if (root.shell && root.shell.typewriterMode !== undefined && root.shell.typewriterMode
+                && root.shell.caretBlockIndex >= 0 && root.shell.caretBlockIndex !== root.index)
             return 0.32
         return 1.0
     }
@@ -144,11 +148,10 @@ BlockDelegateBase {
         return DocumentSelection.isBlockSelected(root.index)
     }
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
 
     // Shell geometry while the editor is not latched; editor height after load.
@@ -328,7 +331,7 @@ BlockDelegateBase {
             if (!lv)
                 return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu)
@@ -451,9 +454,8 @@ BlockDelegateBase {
             }
             if (shift && !ctrl) {
                 if (!DocumentSelection.hasBlockSelection) {
-                    var win = Window.window
-                    var anchor = win && win.lastFocusedBlock !== undefined
-                            ? win.lastFocusedBlock : -1
+                    var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
+                            ? root.shell.lastFocusedBlock : -1
                     if (anchor >= 0 && anchor !== root.index)
                         DocumentSelection.selectBlock(anchor)
                 }
@@ -561,8 +563,6 @@ BlockDelegateBase {
                         property bool dragging: false
                         onPressed: function(mouse) {
                             if (mouse.button === Qt.RightButton) {
-                                var win = Window.window
-                                if (win && win.openBlockHandleMenu)
                                     AppActions.requestBlockHandleMenu(root)
                                 return
                             }
@@ -573,8 +573,7 @@ BlockDelegateBase {
                         onPositionChanged: function(mouse) {
                             if (!pressed || (pressedButtons & Qt.RightButton))
                                 return
-                            var win = Window.window
-                            if (!win || !win.blockDrag)
+                            if (!root.shell || !root.shell.blockDrag)
                                 return
                             var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
                             if (!dragging) {
@@ -582,19 +581,18 @@ BlockDelegateBase {
                                     && Math.abs(mouse.y - pressY) < 5)
                                     return
                                 dragging = true
-                                win.blockDrag.begin(root.index, sp.x, sp.y)
+                                root.shell.blockDrag.begin(root.index, sp.x, sp.y)
                             } else {
-                                win.blockDrag.update(sp.x, sp.y)
+                                root.shell.blockDrag.update(sp.x, sp.y)
                             }
                         }
                         onReleased: function(mouse) {
                             if (mouse.button === Qt.RightButton)
                                 return
-                            var win = Window.window
                             if (dragging) {
                                 dragging = false
-                                if (win && win.blockDrag)
-                                    win.blockDrag.drop()
+                                if (root.shell && root.shell.blockDrag)
+                                    root.shell.blockDrag.drop()
                                 return
                             }
                             if (ListView.view)
@@ -605,9 +603,8 @@ BlockDelegateBase {
                         onCanceled: {
                             if (dragging) {
                                 dragging = false
-                                var win = Window.window
-                                if (win && win.blockDrag)
-                                    win.blockDrag.cancel()
+                                if (root.shell && root.shell.blockDrag)
+                                    root.shell.blockDrag.cancel()
                             }
                         }
                     }

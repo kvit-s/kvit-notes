@@ -16,6 +16,11 @@ import Kvit 1.0
 BlockDelegateBase {
     id: delegate
 
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
+
     required property int index
     required property string blockId
     required property int blockType
@@ -265,13 +270,12 @@ BlockDelegateBase {
 
     // §16.2 typewriter mode: fade every block that does not hold the caret to
     // a reduced opacity. Off the keystroke path — it re-evaluates only when
-    // focus moves between blocks (win.caretBlockIndex) or the mode toggles,
+    // focus moves between blocks (window.caretBlockIndex) or the mode toggles,
     // not per character. Applied to the content, not the delegate root, so it
     // never fights the pooling opacity guard.
     readonly property real typewriterDim: {
-        var win = Window.window
-        if (win && win.typewriterMode !== undefined && win.typewriterMode
-            && win.caretBlockIndex >= 0 && win.caretBlockIndex !== delegate.index)
+        if (root.shell && root.shell.typewriterMode !== undefined && root.shell.typewriterMode
+            && root.shell.caretBlockIndex >= 0 && root.shell.caretBlockIndex !== delegate.index)
             return 0.32
         return 1.0
     }
@@ -308,12 +312,11 @@ BlockDelegateBase {
         var c = delegate.appTheme ? delegate.appTheme.textPrimary : Qt.rgba(0, 0, 0, 1)
         var fg = h(c.a) + h(c.r) + h(c.g) + h(c.b)
         var sz = delegate.inlineMathPixelSize
-        var win = Window.window
         var dpr = 1
-        if (win && win.devicePixelRatio !== undefined && win.devicePixelRatio > 0)
-            dpr = win.devicePixelRatio
-        else if (win && win.screen && win.screen.devicePixelRatio > 0)
-            dpr = win.screen.devicePixelRatio
+        if (root.shell && root.shell.devicePixelRatio !== undefined && root.shell.devicePixelRatio > 0)
+            dpr = root.shell.devicePixelRatio
+        else if (root.shell && root.shell.screen && root.shell.screen.devicePixelRatio > 0)
+            dpr = root.shell.screen.devicePixelRatio
         else if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
             dpr = Screen.devicePixelRatio
         dpr = Math.round(dpr * 100) / 100
@@ -341,19 +344,17 @@ BlockDelegateBase {
     // selection): it stays in place as §21.4's space-holder, dimmed,
     // while the floating proxy follows the pointer.
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? delegate.blockSelected
-                                     : win.blockDrag.sourceIndex === delegate.index
+        return root.shell.blockDrag.isMulti ? delegate.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === delegate.index
     }
 
     // The window's cross-block drag coordinator (Window.window only
     // attaches to Items, so the TextArea's PointHandler routes through
     // this delegate-level helper).
     function dragCoordinator() {
-        var win = Window.window
-        return win && win.crossBlockDrag ? win.crossBlockDrag : null
+        return root.shell && root.shell.crossBlockDrag ? root.shell.crossBlockDrag : null
     }
 
     // Focus the window-level handler that owns keys while a block
@@ -520,7 +521,7 @@ BlockDelegateBase {
         if (headIdx < 0 || !listView)
             return
         var content = BlockModel.getContent(headIdx)
-        var headItem = listView.itemAtIndex(headIdx)
+        var headItem = (listView.itemAtIndex(headIdx) as BlockDelegateBase)
         var newIdx = headIdx
         var newMd = headMd
 
@@ -549,12 +550,12 @@ BlockDelegateBase {
                     ? headItem.xAtMarkdown(headMd) : 0
                 if (dir > 0 && headIdx < BlockModel.count - 1) {
                     newIdx = headIdx + 1
-                    var below = listView.itemAtIndex(newIdx)
+                    var below = (listView.itemAtIndex(newIdx) as BlockDelegateBase)
                     newMd = below && below.entryPositionAtX
                         ? below.entryPositionAtX(x, true) : 0
                 } else if (dir < 0 && headIdx > 0) {
                     newIdx = headIdx - 1
-                    var above = listView.itemAtIndex(newIdx)
+                    var above = (listView.itemAtIndex(newIdx) as BlockDelegateBase)
                     newMd = above && above.entryPositionAtX
                         ? above.entryPositionAtX(x, false)
                         : BlockModel.getContent(newIdx).length
@@ -804,7 +805,7 @@ BlockDelegateBase {
             Qt.callLater(function() {
                 if (delegate.listView) {
                     delegate.listView.currentIndex = at
-                    var item = delegate.listView.itemAtIndex(at)
+                    var item = (delegate.listView.itemAtIndex(at) as BlockDelegateBase)
                     if (item && item.focusAtStart) item.focusAtStart()
                 }
             })
@@ -941,7 +942,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (lv) {
                 lv.currentIndex = idx
-                var item = lv.itemAtIndex(idx)
+                var item = (lv.itemAtIndex(idx) as BlockDelegateBase)
                 if (item) item.focusAtPosition(markdownPos)
             }
         })
@@ -963,7 +964,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -978,7 +979,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -992,7 +993,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -1011,7 +1012,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtPosition(cursorPosInMerged)
             }
         })
@@ -1124,8 +1125,7 @@ BlockDelegateBase {
     // null. Gates the key forwarding and the query updates so a menu
     // targeting another block never affects this one.
     function activeBlockMenu() {
-        var win = Window.window
-        var menu = win ? win.blockMenu : null
+        var menu = root.shell ? root.shell.blockMenu : null
         return (menu && menu.visible && menu.targetIndex === delegate.index)
                 ? menu : null
     }
@@ -1153,8 +1153,7 @@ BlockDelegateBase {
     // The window's math command menu while it is open FOR THIS EDITOR,
     // else null (the activeBlockMenu() pattern).
     function activeMathMenu() {
-        var win = Window.window
-        var menu = win ? win.mathCommandMenu : null
+        var menu = root.shell ? root.shell.mathCommandMenu : null
         return (menu && menu.visible && menu.targets(textArea)) ? menu : null
     }
 
@@ -1172,8 +1171,7 @@ BlockDelegateBase {
     // The window's wiki-link menu while it is open FOR THIS EDITOR, else
     // null (the activeMathMenu() pattern).
     function activeWikiMenu() {
-        var win = Window.window
-        var menu = win ? win.wikiLinkMenu : null
+        var menu = root.shell ? root.shell.wikiLinkMenu : null
         return (menu && menu.visible && menu.targets(textArea)) ? menu : null
     }
 
@@ -1214,7 +1212,7 @@ BlockDelegateBase {
             if (!lv)
                 return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu)
@@ -1233,9 +1231,8 @@ BlockDelegateBase {
     // steal it right back from this TextArea.
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined)
+                root.shell.lastFocusedBlock = index
         }
         if (!isFocused) {
             editorRequested = false
@@ -1247,9 +1244,8 @@ BlockDelegateBase {
             // portion; otherwise focus loss clears the highlight. A
             // context menu targeting this block holds the selection: its
             // Cut/Copy/formatting act on it.
-            var win2 = Window.window
-            var menuHolds = win2 && win2.contextMenuHoldsSelection
-                            && win2.contextMenuHoldsSelection(delegate)
+            var menuHolds = root.shell && root.shell.contextMenuHoldsSelection
+                            && root.shell.contextMenuHoldsSelection(delegate)
             if (!DocumentSelection.hasTextSelection && !menuHolds)
                 textArea.deselect()
         }
@@ -1260,7 +1256,6 @@ BlockDelegateBase {
     function openLinkAt(docPos) {
         var url = editorEngine.linkAtDocumentPosition(docPos)
         if (url.length > 0) {
-            var win = Window.window
             AppActions.requestOpenLink(url)
         }
     }
@@ -1271,7 +1266,6 @@ BlockDelegateBase {
     function openLinkDialog() {
         if (delegate.verbatimEditing)
             return
-        var win = Window.window
         var info = editorEngine.linkSpanAtCursor(textArea.cursorPosition)
         if (info.found) {
             AppActions.requestEditLink(delegate.index, info.start, info.end,
@@ -1300,7 +1294,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = toIndex
-                var item = listView.itemAtIndex(toIndex)
+                var item = (listView.itemAtIndex(toIndex) as BlockDelegateBase)
                 if (item) {
                     item.focusAtPosition(cursorPos)
                 }
@@ -1320,7 +1314,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = toIndex
-                var item = listView.itemAtIndex(toIndex)
+                var item = (listView.itemAtIndex(toIndex) as BlockDelegateBase)
                 if (item) {
                     item.focusAtPosition(cursorPos)
                 }
@@ -1486,8 +1480,6 @@ BlockDelegateBase {
 
                         onPressed: function(mouse) {
                             if (mouse.button === Qt.RightButton) {
-                                var win = Window.window
-                                if (win && win.openBlockHandleMenu)
                                     AppActions.requestBlockHandleMenu(delegate)
                                 return
                             }
@@ -1499,8 +1491,7 @@ BlockDelegateBase {
                             if (!pressed
                                 || (pressedButtons & Qt.RightButton))
                                 return
-                            var win = Window.window
-                            if (!win || !win.blockDrag)
+                            if (!root.shell || !root.shell.blockDrag)
                                 return
                             var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
                             if (!dragging) {
@@ -1508,19 +1499,18 @@ BlockDelegateBase {
                                     && Math.abs(mouse.y - pressY) < 5)
                                     return
                                 dragging = true
-                                win.blockDrag.begin(delegate.index, sp.x, sp.y)
+                                root.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
                             } else {
-                                win.blockDrag.update(sp.x, sp.y)
+                                root.shell.blockDrag.update(sp.x, sp.y)
                             }
                         }
                         onReleased: function(mouse) {
                             if (mouse.button === Qt.RightButton)
                                 return
-                            var win = Window.window
                             if (dragging) {
                                 dragging = false
-                                if (win && win.blockDrag)
-                                    win.blockDrag.drop()
+                                if (root.shell && root.shell.blockDrag)
+                                    root.shell.blockDrag.drop()
                                 return
                             }
                             if (delegate.listView)
@@ -1531,9 +1521,8 @@ BlockDelegateBase {
                         onCanceled: {
                             if (dragging) {
                                 dragging = false
-                                var win = Window.window
-                                if (win && win.blockDrag)
-                                    win.blockDrag.cancel()
+                                if (root.shell && root.shell.blockDrag)
+                                    root.shell.blockDrag.cancel()
                             }
                         }
                     }
@@ -2326,7 +2315,7 @@ BlockDelegateBase {
                     Qt.callLater(function() {
                         if (listView) {
                             listView.currentIndex = lastIndex
-                            var item = listView.itemAtIndex(lastIndex)
+                            var item = (listView.itemAtIndex(lastIndex) as BlockDelegateBase)
                             if (item) item.focusAtPosition(cursorMd)
                         }
                     })
@@ -2345,7 +2334,7 @@ BlockDelegateBase {
                 // resolves the §3.1/§2.4 conflict by specificity. The
                 // handler observes passively, so focus and cursor
                 // placement stay intact.
-                // §9.5 right-click: the link menu wins by specificity
+                // §9.5 right-click: the link menu window by specificity
                 // over the text menu (mirroring Ctrl+Click); a click
                 // inside an existing selection keeps it, elsewhere the
                 // caret moves to the click first. A CHILD MouseArea:
@@ -2357,8 +2346,7 @@ BlockDelegateBase {
                     anchors.fill: parent
                     acceptedButtons: Qt.RightButton
                     onPressed: function(mouse) {
-                        var win = Window.window
-                        if (!win || !win.openTextContextMenu)
+                        if (!root.shell || !root.shell.openTextContextMenu)
                             return
                         var pos = textArea.positionAt(mouse.x, mouse.y)
                         if (textArea.selectionEnd <= textArea.selectionStart
@@ -2424,9 +2412,8 @@ BlockDelegateBase {
                         else if (cx - delegate.codeHScroll < 0)
                             delegate.codeHScroll = Math.max(0, cx - 4)
                     }
-                    var win = Window.window
-                    if (win && win.typewriterMode !== undefined
-                        && win.typewriterMode && textArea.activeFocus
+                    if (root.shell && root.shell.typewriterMode !== undefined
+                        && root.shell.typewriterMode && textArea.activeFocus
                         && !delegate.isPooled)
                         AppActions.requestCenterCaretLine(delegate)
                     // A caret move can reveal/hide a math span and shifts
@@ -2984,7 +2971,7 @@ BlockDelegateBase {
                                    && isCursorOnLastLine()
                                    && delegate.index < BlockModel.count - 1) {
                             crossIdx = delegate.index + 1
-                            var below = listView ? listView.itemAtIndex(crossIdx) : null
+                            var below = listView ? (listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
                             crossMd = below && below.entryPositionAtX
                                 ? below.entryPositionAtX(
                                       positionToRectangle(cursorPosition).x, true)
@@ -2992,7 +2979,7 @@ BlockDelegateBase {
                         } else if (event.key === Qt.Key_Up
                                    && isCursorOnFirstLine() && delegate.index > 0) {
                             crossIdx = delegate.index - 1
-                            var above = listView ? listView.itemAtIndex(crossIdx) : null
+                            var above = listView ? (listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
                             crossMd = above && above.entryPositionAtX
                                 ? above.entryPositionAtX(
                                       positionToRectangle(cursorPosition).x, false)
@@ -3256,7 +3243,7 @@ BlockDelegateBase {
                         if (delegate.index > 0 && listView) {
                             var prevIndex = delegate.index - 1
                             listView.currentIndex = prevIndex
-                            var item = listView.itemAtIndex(prevIndex)
+                            var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                             if (item) item.focusAtStart()
                             event.accepted = true
                         }
@@ -3268,7 +3255,7 @@ BlockDelegateBase {
                         if (delegate.index < BlockModel.count - 1 && listView) {
                             var nextIndex = delegate.index + 1
                             listView.currentIndex = nextIndex
-                            var item = listView.itemAtIndex(nextIndex)
+                            var item = (listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                             if (item) item.focusAtStart()
                             event.accepted = true
                         }
@@ -3298,7 +3285,7 @@ BlockDelegateBase {
                         if (isCursorOnFirstLine() && delegate.index > 0 && listView) {
                             var prevIndex = delegate.index - 1
                             listView.currentIndex = prevIndex
-                            var item = listView.itemAtIndex(prevIndex)
+                            var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                             if (item) item.focusAtEnd()
                             event.accepted = true
                         }
@@ -3310,7 +3297,7 @@ BlockDelegateBase {
                         if (isCursorOnLastLine() && delegate.index < BlockModel.count - 1 && listView) {
                             var nextIndex = delegate.index + 1
                             listView.currentIndex = nextIndex
-                            var item = listView.itemAtIndex(nextIndex)
+                            var item = (listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                             if (item) item.focusAtStart()
                             event.accepted = true
                         }
@@ -3577,7 +3564,7 @@ BlockDelegateBase {
     // Row-level press handling for the block-selection gestures
     // (features.md §3.1). Sits above the whole row and accepts ONLY the
     // presses it owns:
-    //  - Ctrl+Click over a link opens it (§2.4 wins by specificity);
+    //  - Ctrl+Click over a link opens it (§2.4 window by specificity);
     //    Ctrl+Click anywhere else toggles this block in the selection.
     //  - Shift+Click while another block is being edited selects the
     //    block range from the current block to this one; Shift+Click
@@ -3599,7 +3586,6 @@ BlockDelegateBase {
                     var url = editorEngine.linkAtDocumentPosition(
                                   textArea.positionAt(p.x, p.y))
                     if (url.length > 0) {
-                        var win = Window.window
                         AppActions.requestOpenLink(url)
                         mouse.accepted = true
                         return
@@ -3617,9 +3603,8 @@ BlockDelegateBase {
             }
             if (shift && !ctrl && !textArea.activeFocus) {
                 if (!DocumentSelection.hasBlockSelection) {
-                    var win = Window.window
-                    var anchor = win && win.lastFocusedBlock !== undefined
-                            ? win.lastFocusedBlock : -1
+                    var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
+                            ? root.shell.lastFocusedBlock : -1
                     if (anchor >= 0 && anchor !== delegate.index)
                         DocumentSelection.selectBlock(anchor)
                 }

@@ -17,6 +17,11 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
+
     required property int index
     required property string blockId
     required property int blockType
@@ -80,19 +85,17 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active) return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
         AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined)
+                root.shell.lastFocusedBlock = index
         }
     }
 
@@ -119,7 +122,7 @@ BlockDelegateBase {
         if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
-        var target = root.listView.itemAtIndex(targetIndex)
+        var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
         if (!target) return false
         if (direction < 0) target.focusAtEnd(); else target.focusAtStart()
         return true
@@ -130,7 +133,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -141,7 +144,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -153,7 +156,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu)
@@ -163,13 +166,11 @@ BlockDelegateBase {
     }
 
     function openRow(relPath) {
-        var win = Window.window
-        if (win && win.openNoteByPath)
             AppActions.requestOpenNoteByPath(relPath)
     }
 
     // Selection/focus catcher (declared before the card so per-row click
-    // handlers win over it).
+    // handlers window over it).
     MouseArea {
         id: hoverArea
         anchors.fill: parent
@@ -182,9 +183,8 @@ BlockDelegateBase {
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var win = Window.window
-                var anchor = win && win.lastFocusedBlock !== undefined
-                        ? win.lastFocusedBlock : -1
+                var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
+                        ? root.shell.lastFocusedBlock : -1
                 if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== root.index)
                     DocumentSelection.selectBlock(anchor)
@@ -616,23 +616,21 @@ BlockDelegateBase {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = queryHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5)
                         return
                     dragging = true
-                    win.blockDrag.begin(root.index, sp.x, sp.y)
+                    root.shell.blockDrag.begin(root.index, sp.x, sp.y)
                 } else {
-                    win.blockDrag.update(sp.x, sp.y)
+                    root.shell.blockDrag.update(sp.x, sp.y)
                 }
             }
             onReleased: {
-                var win = Window.window
                 if (dragging) {
                     dragging = false
-                    if (win && win.blockDrag) win.blockDrag.drop()
+                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop()
                     return
                 }
                 if (root.listView)
@@ -643,8 +641,7 @@ BlockDelegateBase {
             onCanceled: {
                 if (dragging) {
                     dragging = false
-                    var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel()
+                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel()
                 }
             }
         }

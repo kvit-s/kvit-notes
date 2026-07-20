@@ -52,4 +52,10 @@ Item {
     // The inverse of entryPositionAtX: the x a caret at `mdPos` sits at, so
     // vertical movement can keep its column across blocks.
     function xAtMarkdown(mdPos) { return 0 }
+
+    // The slash / block menu, anchored at this block's caret. Only the text
+    // delegates raise it — a divider or a media card has no caret to anchor
+    // to — so callers guard on it and the default here does nothing, which
+    // is what those callers already expected to happen.
+    function openBlockMenu(mode) {}
 }

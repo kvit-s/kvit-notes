@@ -16,6 +16,11 @@ import Kvit 1.0
 BlockDelegateBase {
     id: delegate
 
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
+
     required property int index
     required property string blockId
     required property int blockType
@@ -125,11 +130,10 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? delegate.blockSelected
-                                     : win.blockDrag.sourceIndex === delegate.index
+        return root.shell.blockDrag.isMulti ? delegate.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === delegate.index
     }
 
     function focusSelectionHandler() {
@@ -138,9 +142,8 @@ BlockDelegateBase {
 
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined)
+                root.shell.lastFocusedBlock = index
         }
     }
 
@@ -179,7 +182,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -190,7 +193,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -202,7 +205,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu) item.openBlockMenu("insert")
@@ -246,7 +249,7 @@ BlockDelegateBase {
                 Qt.callLater(function() {
                     if (!lv) return
                     lv.currentIndex = cloneIndex
-                    var item = lv.itemAtIndex(cloneIndex)
+                    var item = (lv.itemAtIndex(cloneIndex) as BlockDelegateBase)
                     if (item) item.focusAtStart()
                 })
                 event.accepted = true
@@ -255,7 +258,7 @@ BlockDelegateBase {
             if (event.key === Qt.Key_Up && delegate.index > 0 && delegate.listView) {
                 var prevIndex = delegate.index - 1
                 delegate.listView.currentIndex = prevIndex
-                var prev = delegate.listView.itemAtIndex(prevIndex)
+                var prev = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd()
                 event.accepted = true
                 return
@@ -264,7 +267,7 @@ BlockDelegateBase {
                 && delegate.listView) {
                 var nextIndex = delegate.index + 1
                 delegate.listView.currentIndex = nextIndex
-                var next = delegate.listView.itemAtIndex(nextIndex)
+                var next = (delegate.listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                 if (next) next.focusAtStart()
                 event.accepted = true
                 return
@@ -481,11 +484,9 @@ BlockDelegateBase {
                 enabled: delegate.displaySource !== "" && image.status === Image.Ready
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: {
-                    var win = Window.window
                     // The lightbox gets the gated source, not the raw URL:
                     // handing it the URL would reopen the direct-load path
                     // this delegate just closed.
-                    if (win && win.openLightbox)
                         AppActions.requestLightbox(delegate.displaySource, delegate.img.alt)
                 }
             }
@@ -635,9 +636,8 @@ BlockDelegateBase {
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var win = Window.window
-                var anchor = win && win.lastFocusedBlock !== undefined
-                        ? win.lastFocusedBlock : -1
+                var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
+                        ? root.shell.lastFocusedBlock : -1
                 if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
                     DocumentSelection.selectBlock(anchor)
@@ -714,24 +714,22 @@ BlockDelegateBase {
             }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = imageHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5
                         && Math.abs(mouse.y - pressY) < 5)
                         return
                     dragging = true
-                    win.blockDrag.begin(delegate.index, sp.x, sp.y)
+                    root.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
                 } else {
-                    win.blockDrag.update(sp.x, sp.y)
+                    root.shell.blockDrag.update(sp.x, sp.y)
                 }
             }
             onReleased: {
-                var win = Window.window
                 if (dragging) {
                     dragging = false
-                    if (win && win.blockDrag) win.blockDrag.drop()
+                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop()
                     return
                 }
                 if (delegate.listView)
@@ -742,8 +740,7 @@ BlockDelegateBase {
             onCanceled: {
                 if (dragging) {
                     dragging = false
-                    var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel()
+                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel()
                 }
             }
         }

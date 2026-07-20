@@ -18,6 +18,11 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
+
     required property int index
     required property string blockId
     required property int blockType
@@ -77,11 +82,10 @@ BlockDelegateBase {
         return h(c.a) + h(c.r) + h(c.g) + h(c.b)
     }
     function currentDpr() {
-        var win = Window.window
-        if (win && win.devicePixelRatio !== undefined && win.devicePixelRatio > 0)
-            return Math.round(win.devicePixelRatio * 100) / 100
-        if (win && win.screen && win.screen.devicePixelRatio > 0)
-            return Math.round(win.screen.devicePixelRatio * 100) / 100
+        if (root.shell && root.shell.devicePixelRatio !== undefined && root.shell.devicePixelRatio > 0)
+            return Math.round(root.shell.devicePixelRatio * 100) / 100
+        if (root.shell && root.shell.screen && root.shell.screen.devicePixelRatio > 0)
+            return Math.round(root.shell.screen.devicePixelRatio * 100) / 100
         if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
             return Math.round(Screen.devicePixelRatio * 100) / 100
         return 1
@@ -109,18 +113,16 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active) return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
         AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined) win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined) root.shell.lastFocusedBlock = index
             previewTex = content
         }
     }
@@ -161,7 +163,7 @@ BlockDelegateBase {
             || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
-        var target = root.listView.itemAtIndex(targetIndex)
+        var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
         if (!target)
             return false
         if (direction < 0)
@@ -177,7 +179,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -188,7 +190,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -213,7 +215,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
     }
@@ -379,14 +381,12 @@ BlockDelegateBase {
             property bool slotChainActive: false
 
             function activeMathMenu() {
-                var win = Window.window
-                var menu = win ? win.mathCommandMenu : null
+                var menu = root.shell ? root.shell.mathCommandMenu : null
                 return (menu && menu.visible && menu.targets(sourceArea))
                         ? menu : null
             }
 
             function openMathMenu(triggerPos) {
-                var win = Window.window
                 mathTriggerPos = triggerPos
                 var rect = positionToRectangle(cursorPosition)
                 var topLeft = sourceArea.mapToItem(null, rect.x, rect.y)
@@ -676,8 +676,6 @@ BlockDelegateBase {
         acceptedButtons: Qt.RightButton
         enabled: !root.editing
         onClicked: {
-            var win = Window.window
-            if (win && win.openBlockHandleMenu)
                 AppActions.requestBlockHandleMenu(root)
         }
     }
@@ -714,8 +712,6 @@ BlockDelegateBase {
             property real pressX: 0; property real pressY: 0; property bool dragging: false
             onPressed: function(mouse) {
                 if (mouse.button === Qt.RightButton) {
-                    var win = Window.window
-                    if (win && win.openBlockHandleMenu)
                         AppActions.requestBlockHandleMenu(root)
                     return
                 }
@@ -723,23 +719,20 @@ BlockDelegateBase {
             }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = mathHandle.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
-                } else { win.blockDrag.update(sp.x, sp.y) }
+                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
+                } else { root.shell.blockDrag.update(sp.x, sp.y) }
             }
             onReleased: {
-                var win = Window.window
-                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
                 DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
-            onCanceled: { if (dragging) { dragging = false; var win = Window.window
-                if (win && win.blockDrag) win.blockDrag.cancel() } }
+            onCanceled: { if (dragging) { dragging = false;                if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() } }
         }
     }
 }

@@ -15,6 +15,11 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
+
     required property int index
     required property string blockId
     required property int blockType
@@ -115,9 +120,8 @@ BlockDelegateBase {
         // opener at all. AppActions cannot express "is anyone listening", so
         // converting this would silently drop the fallback. Group A's shell
         // cast types this line without changing what it does.
-        var win = Window.window
-        if (win && win.linkOpener)
-            win.linkOpener.activate(embedUrl)
+        if (root.shell && root.shell.linkOpener)
+            root.shell.linkOpener.activate(embedUrl)
         else
             Qt.openUrlExternally(embedUrl)
     }
@@ -134,20 +138,18 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
         AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined)
+                root.shell.lastFocusedBlock = index
         }
     }
 
@@ -176,7 +178,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -187,7 +189,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -199,7 +201,7 @@ BlockDelegateBase {
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
     }
@@ -223,12 +225,12 @@ BlockDelegateBase {
             }
             if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
                 var p = root.index - 1; root.listView.currentIndex = p
-                var prev = root.listView.itemAtIndex(p); if (prev) prev.focusAtEnd()
+                var prev = (root.listView.itemAtIndex(p) as BlockDelegateBase); if (prev) prev.focusAtEnd()
                 event.accepted = true; return
             }
             if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1 && root.listView) {
                 var n = root.index + 1; root.listView.currentIndex = n
-                var next = root.listView.itemAtIndex(n); if (next) next.focusAtStart()
+                var next = (root.listView.itemAtIndex(n) as BlockDelegateBase); if (next) next.focusAtStart()
                 event.accepted = true; return
             }
             if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
@@ -532,22 +534,20 @@ BlockDelegateBase {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window; if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = embedHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
-                } else win.blockDrag.update(sp.x, sp.y)
+                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
+                } else root.shell.blockDrag.update(sp.x, sp.y)
             }
             onReleased: {
-                var win = Window.window
-                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
                 DocumentSelection.selectBlock(root.index); root.focusSelectionHandler()
             }
             onCanceled: {
-                if (dragging) { dragging = false; var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel() }
+                if (dragging) { dragging = false;                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() }
             }
         }
     }

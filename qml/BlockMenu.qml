@@ -13,6 +13,7 @@ import Kvit 1.0
 // BlockMenuModel catalog; this file owns no matching logic.
 Popup {
     id: menu
+
     objectName: "blockMenu"
 
     // The block the menu is operating on, or -1 while closed.
@@ -160,23 +161,17 @@ Popup {
         // A Web Embed prompts for a URL and inserts an
         // ![](url) image expression that classifies to the embed card.
         if (type === Block.Image && row.language === "embed") {
-            var winE = Window.window
-            if (winE && winE.insertEmbedIntoBlock)
-                AppActions.requestInsertEmbed(idx)
+            AppActions.requestInsertEmbed(idx)
             applied(idx, type)
             return
         }
         if (type === Block.Image || type === Block.Media) {
-            var win = Window.window
-            if (win && win.insertImageIntoBlock)
-                AppActions.requestInsertImage(idx)
+            AppActions.requestInsertImage(idx)
             applied(idx, type)
             return
         }
         if (type === Block.Table) {
-            var win2 = Window.window
-            if (win2 && win2.insertTableIntoBlock)
-                AppActions.requestInsertTable(idx)
+            AppActions.requestInsertTable(idx)
             applied(idx, type)
             return
         }
