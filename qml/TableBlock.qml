@@ -44,9 +44,9 @@ Item {
     readonly property int colWidth: columns > 0 ? Math.floor(tableWidth / columns) : 80
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -88,7 +88,7 @@ Item {
     function isCursorOnLastLine() { return true }
 
     // ---- Mutations, each one model content update (one undo step) ----
-    function writeTable(md) { blockModel.updateContent(root.index, md) }
+    function writeTable(md) { BlockModel.updateContent(root.index, md) }
     function editCell(r, c) {
         activeRow = r
         activeCol = c
@@ -132,7 +132,7 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -143,7 +143,7 @@ Item {
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -154,7 +154,7 @@ Item {
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -178,11 +178,11 @@ Item {
                 && (event.modifiers & Qt.ControlModifier)
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
@@ -191,7 +191,7 @@ Item {
                 var prev = root.listView.itemAtIndex(pi)
                 if (prev) prev.focusAtEnd(); event.accepted = true; return
             }
-            if (event.key === Qt.Key_Down && root.index < blockModel.count - 1
+            if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1
                 && root.listView) {
                 var ni = root.index + 1
                 root.listView.currentIndex = ni
@@ -450,7 +450,7 @@ Item {
                 var win = Window.window
                 if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onCanceled: {

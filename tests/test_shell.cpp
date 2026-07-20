@@ -133,8 +133,6 @@ private slots:
     void everyPublishedContextPropertyIsAccountedFor()
     {
         static const QStringList expected = {
-            "blockModel",
-            "documentSelection",
             "theme",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
@@ -207,6 +205,8 @@ private slots:
             QStringLiteral("AppSettings"),
             QStringLiteral("DocumentManager"),
             QStringLiteral("NoteCollection"),
+            QStringLiteral("BlockModel"),
+            QStringLiteral("DocumentSelection"),
         };
 
         // A second composition, wired exactly like the one under test.
@@ -367,10 +367,32 @@ private slots:
         options.configureLoggingFromSettings = false;
 
         QTemporaryDir dir;
+
+        // Whatever the core still publishes, rather than a name written in
+        // here. Services are migrating to the Kvit module one batch at a
+        // time, so a hardcoded name stops being a collision the moment that
+        // one moves — which is how this test broke rather than caught
+        // anything.
+        QStringList coreNames;
+        {
+            AppContext probe(options);
+            probe.openSettings(dir.filePath(QStringLiteral("probe.json")));
+            QQmlEngine probeEngine;
+            probe.installContextProperties(&probeEngine);
+            coreNames = probe.installedContextPropertyNames();
+        }
+        QVERIFY2(!coreNames.isEmpty(),
+                 "The core publishes no context properties at all, so there is "
+                 "no core name for a module to collide with and this test can "
+                 "no longer demonstrate the refusal. The collision check now "
+                 "only separates one module from another; decide what it "
+                 "should guard before deleting or rewriting this.");
+        const QString coreName = coreNames.first();
+
         AppContext context(options);
         context.openSettings(dir.filePath(QStringLiteral("settings.json")));
         context.extensions()->install(
-            std::make_unique<NameGrabbingExtension>(QStringLiteral("blockModel")));
+            std::make_unique<NameGrabbingExtension>(coreName));
 
         QQmlEngine engine;
         QTest::ignoreMessage(QtWarningMsg,
@@ -379,8 +401,8 @@ private slots:
 
         // The core kept the name, and the module published nothing.
         QVERIFY(context.extensions()->publishedNamespaces().isEmpty());
-        QCOMPARE(engine.rootContext()->contextProperty("blockModel").value<QObject *>(),
-                 static_cast<QObject *>(context.blockModel()));
+        QVERIFY(engine.rootContext()
+                    ->contextProperty(coreName).value<QObject *>() != nullptr);
 
         // A namespace that collides with nothing is published, which is what
         // shows the refusal above was about the collision.

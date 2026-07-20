@@ -329,6 +329,8 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_settingsStore);
     m_services.add(&m_documentManager);
     m_services.add(&m_noteCollection);
+    m_services.add(&m_blockModel);
+    m_services.add(&m_documentSelection);
     KvitQml::attachServices(engine, &m_services);
 
     // Every property goes through one helper so the published set is
@@ -342,8 +344,6 @@ void AppContext::installContextProperties(QQmlEngine *engine)
         context->setContextProperty(name, value);
     };
 
-    publish("blockModel", &m_blockModel);
-    publish("documentSelection", &m_documentSelection);
     publish("theme", &m_theme);
     // The per-block attribute reader/editor: delegates read typed
     // presentation values off a block's `attributes` payload, and the

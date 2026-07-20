@@ -8,6 +8,7 @@
 
 #include "accessibilityannouncer.h"
 #include "blockattributes.h"
+#include "blockmodel.h"
 #include "blockkindregistry.h"
 #include "blockmenumodel.h"
 #include "clipboardhelper.h"
@@ -16,6 +17,7 @@
 #include "documentimporter.h"
 #include "documentmanager.h"
 #include "documentoutline.h"
+#include "documentselection.h"
 #include "documentsearch.h"
 #include "documentserializer.h"
 #include "documentstats.h"
@@ -133,6 +135,8 @@ KVIT_QML_SINGLETON_NAMED(ExtensionRegistry, Extensions)
 // registry object is a different thing and takes its class name.
 KVIT_QML_SINGLETON_NAMED(BlockKindRegistry, BlockKindRegistry)
 
+KVIT_QML_SINGLETON(BlockModel)
+KVIT_QML_SINGLETON(DocumentSelection)
 KVIT_QML_SINGLETON(DocumentSearch)
 KVIT_QML_SINGLETON(DocumentManager)
 KVIT_QML_SINGLETON(NoteCollection)

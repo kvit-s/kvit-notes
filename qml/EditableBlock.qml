@@ -100,7 +100,7 @@ Item {
         enableLightweightReadOnly
         && !delegate.editorRequested
         && !textArea.activeFocus
-        && !documentSelection.hasTextSelection
+        && !DocumentSelection.hasTextSelection
         && !delegate.hasSearchMatches
         && !delegate.hasDropCap
         && delegate.displayText === delegate.editableMarkdown
@@ -151,7 +151,7 @@ Item {
     // convertBlock to the same type/content keeps the delegate (delegateKind
     // is unchanged) while routing through the undo stack.
     function setCodeLanguage(lang) {
-        blockModel.convertBlock(delegate.index, Block.CodeBlock,
+        BlockModel.convertBlock(delegate.index, Block.CodeBlock,
                                 delegate.content, false, lang)
     }
 
@@ -203,7 +203,7 @@ Item {
         var next = (value === "left" || value === "")
             ? BlockAttributes.without(delegate.attributes, "align")
             : BlockAttributes.withValue(delegate.attributes, "align", value)
-        blockModel.setBlockAttributes(delegate.index, next)
+        BlockModel.setBlockAttributes(delegate.index, next)
     }
 
     // ---- Drop cap (features.md §1.2.16) ----
@@ -233,24 +233,24 @@ Item {
         var next = (lines >= 2)
             ? BlockAttributes.withValue(delegate.attributes, "dropcap", String(lines))
             : BlockAttributes.without(delegate.attributes, "dropcap")
-        blockModel.setBlockAttributes(delegate.index, next)
+        BlockModel.setBlockAttributes(delegate.index, next)
     }
 
     // Flip the fold state as one undo step: fold reuses checked.
     function toggleCalloutFold() {
-        blockModel.setChecked(delegate.index, !delegate.checked)
+        BlockModel.setChecked(delegate.index, !delegate.checked)
     }
     function setCalloutTitleText(t) {
-        blockModel.setCalloutTitle(delegate.index, t)
+        BlockModel.setCalloutTitle(delegate.index, t)
     }
     // A callout's custom color (features.md §1.2.10) as one undo step;
     // reset removes the attribute so it falls back to the typed accent.
     function setCalloutColor(v) {
-        blockModel.setBlockAttributes(delegate.index,
+        BlockModel.setBlockAttributes(delegate.index,
             BlockAttributes.withValue(delegate.attributes, "color", v))
     }
     function resetCalloutColor() {
-        blockModel.setBlockAttributes(delegate.index,
+        BlockModel.setBlockAttributes(delegate.index,
             BlockAttributes.without(delegate.attributes, "color"))
     }
 
@@ -333,8 +333,8 @@ Item {
     // on every selection change; membership itself is queried, never
     // stored here.
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(delegate.index)
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(delegate.index)
     }
 
     // Whether this row is being dragged (or is part of the dragged
@@ -462,7 +462,7 @@ Item {
     function applyTextPortion() {
         if (isPooled || textArea.activeFocus)
             return
-        var p = documentSelection.portionForBlock(delegate.index)
+        var p = DocumentSelection.portionForBlock(delegate.index)
         if (p.selected === true && p.end > p.start) {
             var docStart = editorEngine.toDocumentPosition(p.start)
             var docEnd = editorEngine.toDocumentPosition(p.end)
@@ -478,7 +478,7 @@ Item {
     }
 
     Connections {
-        target: documentSelection
+        target: DocumentSelection
         function onRevisionChanged() {
             // Apply now, and once more on a clean stack: the engine's
             // deferred reveal transitions (the blurred anchor block
@@ -487,13 +487,13 @@ Item {
             // selection needs no delayed pass — the synchronous call
             // already deselected, and nothing re-selects afterwards.
             delegate.applyTextPortion()
-            if (documentSelection.hasTextSelection)
+            if (DocumentSelection.hasTextSelection)
                 delegate.applyTextPortionLater()
         }
     }
 
     Component.onCompleted: {
-        if (documentSelection.hasTextSelection)
+        if (DocumentSelection.hasTextSelection)
             delegate.applyTextPortionLater()
     }
 
@@ -506,10 +506,10 @@ Item {
     }
 
     function crossBlockDeleteRange() {
-        var range = documentSelection.orderedTextRange()
-        documentSelection.clearTextSelection()
+        var range = DocumentSelection.orderedTextRange()
+        DocumentSelection.clearTextSelection()
         textArea.deselect()
-        return blockModel.removeTextRange(range.startIndex, range.startPos,
+        return BlockModel.removeTextRange(range.startIndex, range.startPos,
                                           range.endIndex, range.endPos)
     }
 
@@ -517,11 +517,11 @@ Item {
     // extension). Vertical steps stay within the head block's visual
     // lines until they must cross into the neighbor at the same x.
     function moveCrossBlockHead(key) {
-        var headIdx = documentSelection.textHeadIndex()
-        var headMd = documentSelection.textHeadPosition()
+        var headIdx = DocumentSelection.textHeadIndex()
+        var headMd = DocumentSelection.textHeadPosition()
         if (headIdx < 0 || !listView)
             return
-        var content = blockModel.getContent(headIdx)
+        var content = BlockModel.getContent(headIdx)
         var headItem = listView.itemAtIndex(headIdx)
         var newIdx = headIdx
         var newMd = headMd
@@ -529,7 +529,7 @@ Item {
         if (key === Qt.Key_Right) {
             if (headMd < content.length) {
                 newMd = headMd + 1
-            } else if (headIdx < blockModel.count - 1) {
+            } else if (headIdx < BlockModel.count - 1) {
                 newIdx = headIdx + 1
                 newMd = 0
             }
@@ -538,7 +538,7 @@ Item {
                 newMd = headMd - 1
             } else if (headIdx > 0) {
                 newIdx = headIdx - 1
-                newMd = blockModel.getContent(newIdx).length
+                newMd = BlockModel.getContent(newIdx).length
             }
         } else if (key === Qt.Key_Down || key === Qt.Key_Up) {
             var dir = key === Qt.Key_Down ? 1 : -1
@@ -549,7 +549,7 @@ Item {
             } else {
                 var x = headItem && headItem.xAtMarkdown
                     ? headItem.xAtMarkdown(headMd) : 0
-                if (dir > 0 && headIdx < blockModel.count - 1) {
+                if (dir > 0 && headIdx < BlockModel.count - 1) {
                     newIdx = headIdx + 1
                     var below = listView.itemAtIndex(newIdx)
                     newMd = below && below.entryPositionAtX
@@ -559,22 +559,22 @@ Item {
                     var above = listView.itemAtIndex(newIdx)
                     newMd = above && above.entryPositionAtX
                         ? above.entryPositionAtX(x, false)
-                        : blockModel.getContent(newIdx).length
+                        : BlockModel.getContent(newIdx).length
                 }
             }
         }
 
-        if (newIdx === documentSelection.textAnchorIndex()
+        if (newIdx === DocumentSelection.textAnchorIndex()
             && newIdx === delegate.index) {
             // The head returned into the anchor block: collapse back to
             // a native in-block selection
-            var anchorMd = documentSelection.textAnchorPosition()
-            documentSelection.clearTextSelection()
+            var anchorMd = DocumentSelection.textAnchorPosition()
+            DocumentSelection.clearTextSelection()
             textArea.select(editorEngine.toDocumentPosition(anchorMd),
                             editorEngine.toDocumentPosition(newMd))
             return
         }
-        documentSelection.updateTextSelectionHead(newIdx, newMd)
+        DocumentSelection.updateTextSelectionHead(newIdx, newMd)
     }
 
     // Keys while this block anchors an active cross-block selection.
@@ -586,7 +586,7 @@ Item {
                    || event.key === Qt.Key_Up || event.key === Qt.Key_Down
 
         if (event.key === Qt.Key_Escape) {
-            documentSelection.clearTextSelection()
+            DocumentSelection.clearTextSelection()
             textArea.deselect()
             event.accepted = true
             return true
@@ -598,8 +598,8 @@ Item {
         }
         if (!ctrl && !shift && isArrow) {
             // Plain arrows collapse the selection to its edge
-            var range = documentSelection.orderedTextRange()
-            documentSelection.clearTextSelection()
+            var range = DocumentSelection.orderedTextRange()
+            DocumentSelection.clearTextSelection()
             textArea.deselect()
             var goStart = event.key === Qt.Key_Left || event.key === Qt.Key_Up
             refocusBlock(goStart ? range.startIndex : range.endIndex,
@@ -608,12 +608,12 @@ Item {
             return true
         }
         if (event.key === Qt.Key_C && ctrl) {
-            copyMarkdownToClipboard(documentSelection.rangeMarkdown())
+            copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
             event.accepted = true
             return true
         }
         if (event.key === Qt.Key_X && ctrl) {
-            copyMarkdownToClipboard(documentSelection.rangeMarkdown())
+            copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
             var cutResult = crossBlockDeleteRange()
             if (cutResult.index !== undefined)
                 refocusBlock(cutResult.index, cutResult.cursor)
@@ -648,8 +648,8 @@ Item {
         if (!ctrl && event.text.length > 0 && event.text.charCodeAt(0) >= 32) {
             var repResult = crossBlockDeleteRange()
             if (repResult.index !== undefined) {
-                var md = blockModel.getContent(repResult.index)
-                blockModel.updateContent(repResult.index,
+                var md = BlockModel.getContent(repResult.index)
+                BlockModel.updateContent(repResult.index,
                     md.substring(0, repResult.cursor) + event.text
                     + md.substring(repResult.cursor))
                 refocusBlock(repResult.index, repResult.cursor + event.text.length)
@@ -681,7 +681,7 @@ Item {
         opacity = 1
         // A block scrolled back into view may sit inside an active
         // cross-block range; re-render its portion.
-        if (documentSelection.hasTextSelection)
+        if (DocumentSelection.hasTextSelection)
             delegate.applyTextPortionLater()
     }
 
@@ -798,11 +798,11 @@ Item {
     function insertImageBlock(storedPath) {
         var md = ImageAssets.build(storedPath, "", "", 0)
         if (delegate.content === "" && !delegate.verbatimEditing) {
-            blockModel.convertBlock(delegate.index, Block.Image, md)
+            BlockModel.convertBlock(delegate.index, Block.Image, md)
             delegate.refocusBlock(delegate.index, 0)
         } else {
             var at = delegate.index + 1
-            blockModel.insertBlock(at, Block.Image, md)
+            BlockModel.insertBlock(at, Block.Image, md)
             Qt.callLater(function() {
                 if (delegate.listView) {
                     delegate.listView.currentIndex = at
@@ -826,7 +826,7 @@ Item {
         if (!info.found || !info.removable)
             return
         var md = editorEngine.markdown
-        blockModel.updateContent(delegate.index,
+        BlockModel.updateContent(delegate.index,
                                  md.substring(0, info.start) + info.text
                                      + md.substring(info.end))
         focusAtPosition(info.start + info.text.length)
@@ -881,22 +881,22 @@ Item {
     // its own paragraph. When the caret sat in an empty block, that emptied
     // block is dropped so the paste does not leave a blank line behind.
     function pasteStructuredMarkdown(idx, before, pasted, after) {
-        blockModel.updateContent(idx, before)
-        var inserted = DocumentSerializer.insertMarkdownAt(blockModel, idx + 1,
+        BlockModel.updateContent(idx, before)
+        var inserted = DocumentSerializer.insertMarkdownAt(BlockModel, idx + 1,
                                                            pasted)
         if (inserted === 0) {
-            blockModel.updateContent(idx, before + after)
+            BlockModel.updateContent(idx, before + after)
             refocusBlock(idx, before.length)
             return
         }
         var lastIdx = idx + inserted
         if (after.length > 0) {
-            blockModel.insertBlock(lastIdx + 1, 0, after)
+            BlockModel.insertBlock(lastIdx + 1, 0, after)
         }
         var caretIdx = lastIdx
-        var caretPos = blockModel.getContent(lastIdx).length
+        var caretPos = BlockModel.getContent(lastIdx).length
         if (before.length === 0) {
-            blockModel.removeBlock(idx)
+            BlockModel.removeBlock(idx)
             caretIdx -= 1
         }
         refocusBlock(caretIdx, caretPos)
@@ -918,23 +918,23 @@ Item {
             refocusBlock(idx, mdPos)
             return
         }
-        var md = blockModel.getContent(idx)
+        var md = BlockModel.getContent(idx)
         var before = md.substring(0, mdPos)
         var after = md.substring(mdPos)
         var lines = pasted.split("\n")
         if (lines.length === 1) {
-            blockModel.updateContent(idx, before + pasted + after)
+            BlockModel.updateContent(idx, before + pasted + after)
             refocusBlock(idx, mdPos + pasted.length)
             return
         }
-        blockModel.updateContent(idx, before + lines[0])
+        BlockModel.updateContent(idx, before + lines[0])
         var insertAt = idx + 1
         for (var i = 1; i < lines.length - 1; i++) {
-            blockModel.insertBlock(insertAt, 0, lines[i])
+            BlockModel.insertBlock(insertAt, 0, lines[i])
             insertAt++
         }
         var lastLine = lines[lines.length - 1]
-        blockModel.insertBlock(insertAt, 0, lastLine + after)
+        BlockModel.insertBlock(insertAt, 0, lastLine + after)
         refocusBlock(insertAt, lastLine.length)
     }
 
@@ -956,10 +956,10 @@ Item {
     function createBlockBelow() {
         var newIndex = delegate.index + 1
         if (delegate.isStructural) {
-            blockModel.insertBlock(newIndex, delegate.blockType, "",
+            BlockModel.insertBlock(newIndex, delegate.blockType, "",
                                    delegate.indentLevel)
         } else {
-            blockModel.insertBlock(newIndex, 0, "") // 0 = Paragraph
+            BlockModel.insertBlock(newIndex, 0, "") // 0 = Paragraph
         }
 
         Qt.callLater(function() {
@@ -975,7 +975,7 @@ Item {
         var pos = editorEngine.toMarkdownPosition(textArea.cursorPosition)
         var newIndex = delegate.index + 1
 
-        blockModel.splitBlock(delegate.index, pos)
+        BlockModel.splitBlock(delegate.index, pos)
 
         Qt.callLater(function() {
             if (listView) {
@@ -989,7 +989,7 @@ Item {
     function deleteCurrentBlock() {
         var prevIndex = delegate.index - 1
 
-        blockModel.removeBlock(delegate.index)
+        BlockModel.removeBlock(delegate.index)
 
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
@@ -1002,13 +1002,13 @@ Item {
 
     function mergeWithPreviousBlock() {
         var prevIndex = delegate.index - 1
-        var prevBlock = blockModel.blockAt(prevIndex)
+        var prevBlock = BlockModel.blockAt(prevIndex)
 
         if (!prevBlock) return
 
         var cursorPosInMerged = prevBlock.content.length
 
-        blockModel.mergeBlocks(prevIndex, delegate.index)
+        BlockModel.mergeBlocks(prevIndex, delegate.index)
 
         Qt.callLater(function() {
             if (listView) {
@@ -1022,11 +1022,11 @@ Item {
     function mergeWithNextBlock() {
         var nextIndex = delegate.index + 1
 
-        if (nextIndex >= blockModel.count) return
+        if (nextIndex >= BlockModel.count) return
 
         var mdPos = editorEngine.toMarkdownPosition(textArea.cursorPosition)
 
-        blockModel.mergeBlocks(delegate.index, nextIndex)
+        BlockModel.mergeBlocks(delegate.index, nextIndex)
 
         // Cursor stays at the same markdown position
         textArea.cursorPosition = editorEngine.toDocumentPosition(mdPos)
@@ -1052,7 +1052,7 @@ Item {
             "Table"]
         if (typeof A11y !== "undefined" && names[newType])
             A11y.announceConversion(names[newType])
-        blockModel.convertBlock(idx, newType, editorEngine.markdown, false, lang)
+        BlockModel.convertBlock(idx, newType, editorEngine.markdown, false, lang)
         refocusBlock(idx, mdPos)
     }
 
@@ -1061,7 +1061,7 @@ Item {
     function unstructureToParagraph() {
         var idx = delegate.index
         var mdPos = editorEngine.toMarkdownPosition(textArea.cursorPosition)
-        blockModel.convertBlock(idx, 0, editorEngine.markdown)
+        BlockModel.convertBlock(idx, 0, editorEngine.markdown)
         refocusBlock(idx, mdPos)
     }
 
@@ -1217,7 +1217,7 @@ Item {
     // paragraph — the block the user asked to add.
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv)
@@ -1259,7 +1259,7 @@ Item {
             var win2 = Window.window
             var menuHolds = win2 && win2.contextMenuHoldsSelection
                             && win2.contextMenuHoldsSelection(delegate)
-            if (!documentSelection.hasTextSelection && !menuHolds)
+            if (!DocumentSelection.hasTextSelection && !menuHolds)
                 textArea.deselect()
         }
     }
@@ -1306,7 +1306,7 @@ Item {
         var toIndex = fromIndex - 1
         var cursorPos = editorEngine.toMarkdownPosition(textArea.cursorPosition)
 
-        blockModel.moveBlock(fromIndex, toIndex)
+        BlockModel.moveBlock(fromIndex, toIndex)
 
         // Maintain focus on the moved block
         Qt.callLater(function() {
@@ -1326,7 +1326,7 @@ Item {
         var toIndex = fromIndex + 1
         var cursorPos = editorEngine.toMarkdownPosition(textArea.cursorPosition)
 
-        blockModel.moveBlock(fromIndex, toIndex)
+        BlockModel.moveBlock(fromIndex, toIndex)
 
         // Maintain focus on the moved block
         Qt.callLater(function() {
@@ -1537,7 +1537,7 @@ Item {
                             }
                             if (delegate.listView)
                                 delegate.listView.currentIndex = delegate.index
-                            documentSelection.selectBlock(delegate.index)
+                            DocumentSelection.selectBlock(delegate.index)
                             delegate.focusSelectionHandler()
                         }
                         onCanceled: {
@@ -2043,8 +2043,8 @@ Item {
                         var mdCursor = Math.max(0,
                             editorEngine.toMarkdownPosition(textArea.cursorPosition)
                             - prefixLength)
-                        blockModel.updateContent(idx, md)
-                        blockModel.convertBlock(idx, conv.type, conv.content,
+                        BlockModel.updateContent(idx, md)
+                        BlockModel.convertBlock(idx, conv.type, conv.content,
                                                 conv.checked === true,
                                                 conv.language || "",
                                                 conv.calloutTitle || "")
@@ -2056,7 +2056,7 @@ Item {
                     // Re-append the metadata tail so the chrome survives an
                     // edit of the body (decisions 10-11).
                     if (md !== delegate.editableMarkdown) {
-                        blockModel.updateContent(delegate.index,
+                        BlockModel.updateContent(delegate.index,
                                                  md + delegate.metaTail)
                     }
 
@@ -2166,7 +2166,7 @@ Item {
                     // applying to just the anchor block's portion would
                     // silently format a fraction of what the user
                     // selected.
-                    if (documentSelection.hasTextSelection) return
+                    if (DocumentSelection.hasTextSelection) return
                     var md = editorEngine.markdown
                     var mdStart = editorEngine.toMarkdownPosition(selectionStart)
                     var mdEnd = editorEngine.toMarkdownPosition(selectionEnd)
@@ -2182,7 +2182,7 @@ Item {
                     }
                     mdCursor = Math.max(0, Math.min(mdCursor, newText.length))
 
-                    blockModel.updateContent(delegate.index, newText)
+                    BlockModel.updateContent(delegate.index, newText)
                     cursorPosition = Math.min(editorEngine.toDocumentPosition(mdCursor),
                                               text.length)
                 }
@@ -2244,7 +2244,7 @@ Item {
                 function cutSelectionAsMarkdown() {
                     if (!copySelectionAsMarkdown()) return false
                     var result = editorEngine.cutRange(selectionStart, selectionEnd)
-                    blockModel.updateContent(delegate.index, result.markdown)
+                    BlockModel.updateContent(delegate.index, result.markdown)
                     cursorPosition = Math.min(editorEngine.toDocumentPosition(result.cursor),
                                               text.length)
                     return true
@@ -2324,14 +2324,14 @@ Item {
                         return
                     }
 
-                    blockModel.updateContent(delegate.index, before + lines[0])
+                    BlockModel.updateContent(delegate.index, before + lines[0])
                     var insertAt = delegate.index + 1
                     for (var i = 1; i < lines.length - 1; i++) {
-                        blockModel.insertBlock(insertAt, 0, lines[i])
+                        BlockModel.insertBlock(insertAt, 0, lines[i])
                         insertAt++
                     }
                     var lastLine = lines[lines.length - 1]
-                    blockModel.insertBlock(insertAt, 0, lastLine + after)
+                    BlockModel.insertBlock(insertAt, 0, lastLine + after)
 
                     var lastIndex = insertAt
                     var cursorMd = lastLine.length
@@ -2460,7 +2460,7 @@ Item {
                 // feedback: applyTextPortion is a fixed point when the
                 // selection already matches.
                 onTextChanged: {
-                    if (documentSelection.hasTextSelection && !activeFocus)
+                    if (DocumentSelection.hasTextSelection && !activeFocus)
                         delegate.applyTextPortionLater()
                     if (delegate.activeMathMenu()
                         || delegate.dollarPairOpenPos >= 0)
@@ -2804,8 +2804,8 @@ Item {
                     // text selection (features.md §2.5, §21.3): Escape,
                     // arrows, Shift+arrows, Ctrl+C/X, Delete/Backspace,
                     // and typing-replaces all resolve against the range.
-                    if (documentSelection.hasTextSelection
-                        && documentSelection.textAnchorIndex() === delegate.index) {
+                    if (DocumentSelection.hasTextSelection
+                        && DocumentSelection.textAnchorIndex() === delegate.index) {
                         if (delegate.handleCrossBlockKey(event))
                             return
                     }
@@ -2980,21 +2980,21 @@ Item {
                     if ((event.modifiers & Qt.ShiftModifier)
                         && !(event.modifiers & Qt.ControlModifier)
                         && !(event.modifiers & Qt.AltModifier)
-                        && !documentSelection.hasTextSelection) {
+                        && !DocumentSelection.hasTextSelection) {
                         var crossIdx = -1
                         var crossMd = 0
                         if (event.key === Qt.Key_Right
                             && cursorPosition >= text.length
-                            && delegate.index < blockModel.count - 1) {
+                            && delegate.index < BlockModel.count - 1) {
                             crossIdx = delegate.index + 1
                             crossMd = 0
                         } else if (event.key === Qt.Key_Left
                                    && cursorPosition === 0 && delegate.index > 0) {
                             crossIdx = delegate.index - 1
-                            crossMd = blockModel.getContent(crossIdx).length
+                            crossMd = BlockModel.getContent(crossIdx).length
                         } else if (event.key === Qt.Key_Down
                                    && isCursorOnLastLine()
-                                   && delegate.index < blockModel.count - 1) {
+                                   && delegate.index < BlockModel.count - 1) {
                             crossIdx = delegate.index + 1
                             var below = listView ? listView.itemAtIndex(crossIdx) : null
                             crossMd = below && below.entryPositionAtX
@@ -3008,7 +3008,7 @@ Item {
                             crossMd = above && above.entryPositionAtX
                                 ? above.entryPositionAtX(
                                       positionToRectangle(cursorPosition).x, false)
-                                : blockModel.getContent(crossIdx).length
+                                : BlockModel.getContent(crossIdx).length
                         }
                         if (crossIdx >= 0) {
                             // The anchor is the far end of any native
@@ -3017,9 +3017,9 @@ Item {
                                 ? (cursorPosition === selectionEnd
                                        ? selectionStart : selectionEnd)
                                 : cursorPosition
-                            documentSelection.beginTextSelection(delegate.index,
+                            DocumentSelection.beginTextSelection(delegate.index,
                                 editorEngine.toMarkdownPosition(anchorDoc), 0)
-                            documentSelection.updateTextSelectionHead(crossIdx, crossMd)
+                            DocumentSelection.updateTextSelectionHead(crossIdx, crossMd)
                             event.accepted = true
                             return
                         }
@@ -3035,7 +3035,7 @@ Item {
                         && (event.modifiers & Qt.ShiftModifier)) {
                         if (delegate.listView)
                             delegate.listView.currentIndex = delegate.index
-                        documentSelection.selectBlock(delegate.index)
+                        DocumentSelection.selectBlock(delegate.index)
                         delegate.focusSelectionHandler()
                         event.accepted = true
                         return
@@ -3048,7 +3048,7 @@ Item {
                         var wholeBlockSelected = text.length === 0
                             || (selectionStart === 0 && selectionEnd === text.length)
                         if (wholeBlockSelected) {
-                            documentSelection.selectAllBlocks()
+                            DocumentSelection.selectAllBlocks()
                             delegate.focusSelectionHandler()
                         } else {
                             selectAll()
@@ -3151,9 +3151,9 @@ Item {
                         (event.modifiers & Qt.ControlModifier) &&
                         (event.modifiers & Qt.ShiftModifier)) {
                         var delIdx = delegate.index
-                        blockModel.removeBlocks([delIdx])
+                        BlockModel.removeBlocks([delIdx])
                         delegate.refocusBlock(
-                            Math.min(delIdx, blockModel.count - 1), 0)
+                            Math.min(delIdx, BlockModel.count - 1), 0)
                         event.accepted = true
                         return
                     }
@@ -3162,7 +3162,7 @@ Item {
                     // the clone at the same position (§3.6, §13.3)
                     if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
                         var dupPos = editorEngine.toMarkdownPosition(cursorPosition)
-                        blockModel.duplicateBlocks([delegate.index])
+                        BlockModel.duplicateBlocks([delegate.index])
                         delegate.refocusBlock(delegate.index + 1, dupPos)
                         event.accepted = true
                         return
@@ -3216,14 +3216,14 @@ Item {
                     if (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ControlModifier)
                         && (delegate.isListFamily
                             || delegate.blockType === Block.Quote)) {
-                        blockModel.changeIndent(delegate.index, 1)
+                        BlockModel.changeIndent(delegate.index, 1)
                         event.accepted = true
                         return
                     }
                     if (event.key === Qt.Key_Backtab
                         && (delegate.isListFamily
                             || delegate.blockType === Block.Quote)) {
-                        blockModel.changeIndent(delegate.index, -1)
+                        BlockModel.changeIndent(delegate.index, -1)
                         event.accepted = true
                         return
                     }
@@ -3277,7 +3277,7 @@ Item {
 
                     // Ctrl+Down: Jump to next block
                     if (event.key === Qt.Key_Down && (event.modifiers & Qt.ControlModifier)) {
-                        if (delegate.index < blockModel.count - 1 && listView) {
+                        if (delegate.index < BlockModel.count - 1 && listView) {
                             var nextIndex = delegate.index + 1
                             listView.currentIndex = nextIndex
                             var item = listView.itemAtIndex(nextIndex)
@@ -3298,7 +3298,7 @@ Item {
 
                     // Alt+Down: Move block down
                     if (event.key === Qt.Key_Down && (event.modifiers & Qt.AltModifier)) {
-                        if (delegate.index < blockModel.count - 1) {
+                        if (delegate.index < BlockModel.count - 1) {
                             moveBlockDown()
                         }
                         event.accepted = true
@@ -3319,7 +3319,7 @@ Item {
 
                     // Down arrow: Move to next block if on last line
                     if (event.key === Qt.Key_Down && !(event.modifiers & Qt.ControlModifier)) {
-                        if (isCursorOnLastLine() && delegate.index < blockModel.count - 1 && listView) {
+                        if (isCursorOnLastLine() && delegate.index < BlockModel.count - 1 && listView) {
                             var nextIndex = delegate.index + 1
                             listView.currentIndex = nextIndex
                             var item = listView.itemAtIndex(nextIndex)
@@ -3339,7 +3339,7 @@ Item {
                         if (cursorPosition === 0 && selectionStart === selectionEnd
                             && delegate.isStructural) {
                             if (delegate.indentLevel > 0) {
-                                blockModel.changeIndent(delegate.index, -1)
+                                BlockModel.changeIndent(delegate.index, -1)
                             } else {
                                 delegate.unstructureToParagraph()
                             }
@@ -3359,7 +3359,7 @@ Item {
 
                     // Delete: Merge with next block at end of text
                     if (event.key === Qt.Key_Delete) {
-                        if (cursorPosition >= text.length && delegate.index < blockModel.count - 1) {
+                        if (cursorPosition >= text.length && delegate.index < BlockModel.count - 1) {
                             mergeWithNextBlock()
                             event.accepted = true
                             return
@@ -3412,12 +3412,12 @@ Item {
                     // Enter replaces a cross-block selection: the range
                     // collapses (one undo step), then the block splits
                     // at the landing cursor
-                    if (documentSelection.hasTextSelection
-                        && documentSelection.textAnchorIndex() === delegate.index) {
+                    if (DocumentSelection.hasTextSelection
+                        && DocumentSelection.textAnchorIndex() === delegate.index) {
                         var repl = delegate.crossBlockDeleteRange()
                         if (repl.index !== undefined) {
                             var splitIdx = repl.index
-                            blockModel.splitBlock(splitIdx, repl.cursor)
+                            BlockModel.splitBlock(splitIdx, repl.cursor)
                             delegate.refocusBlock(splitIdx + 1, 0)
                         }
                         event.accepted = true
@@ -3426,7 +3426,7 @@ Item {
 
                     if ((event.modifiers & Qt.ControlModifier)
                         && delegate.blockType === Block.Todo) {
-                        blockModel.setChecked(delegate.index, !delegate.checked)
+                        BlockModel.setChecked(delegate.index, !delegate.checked)
                         event.accepted = true
                         return
                     }
@@ -3618,8 +3618,8 @@ Item {
                         return
                     }
                 }
-                documentSelection.toggleBlock(delegate.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(delegate.index)
+                if (DocumentSelection.hasBlockSelection)
                     delegate.focusSelectionHandler()
                 else {
                     delegate.activateEditor()
@@ -3629,14 +3629,14 @@ Item {
                 return
             }
             if (shift && !ctrl && !textArea.activeFocus) {
-                if (!documentSelection.hasBlockSelection) {
+                if (!DocumentSelection.hasBlockSelection) {
                     var win = Window.window
                     var anchor = win && win.lastFocusedBlock !== undefined
                             ? win.lastFocusedBlock : -1
                     if (anchor >= 0 && anchor !== delegate.index)
-                        documentSelection.selectBlock(anchor)
+                        DocumentSelection.selectBlock(anchor)
                 }
-                documentSelection.extendBlockSelectionTo(delegate.index)
+                DocumentSelection.extendBlockSelectionTo(delegate.index)
                 delegate.focusSelectionHandler()
                 mouse.accepted = true
                 return
@@ -3646,10 +3646,10 @@ Item {
             // the gutter of a SELECTED block keeps the selection — its
             // handle press must be able to drag the whole selection.
             var inGutter = mouse.x < 44 + delegate.indentLevel * 24
-            if ((documentSelection.hasBlockSelection
-                 || documentSelection.hasTextSelection)
-                && !(inGutter && documentSelection.isBlockSelected(delegate.index)))
-                documentSelection.clear()
+            if ((DocumentSelection.hasBlockSelection
+                 || DocumentSelection.hasTextSelection)
+                && !(inGutter && DocumentSelection.isBlockSelected(delegate.index)))
+                DocumentSelection.clear()
             mouse.accepted = false
         }
     }

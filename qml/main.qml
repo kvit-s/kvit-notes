@@ -195,7 +195,7 @@ ApplicationWindow {
     // Skip-navigation: land on the current (or first) editor block, bypassing
     // the chrome. Bound to F6's pane cycle and the View menu.
     function focusEditor() {
-        var idx = Math.max(0, Math.min(root.lastFocusedBlock, blockModel.count - 1))
+        var idx = Math.max(0, Math.min(root.lastFocusedBlock, BlockModel.count - 1))
         blockListView.currentIndex = idx
         var item = blockListView.itemAtIndex(idx)
         if (item && item.focusAtStart)
@@ -253,7 +253,7 @@ ApplicationWindow {
     // Ephemeral, reset per note.
     property int sessionStartWords: 0
     function refreshSessionBaseline() {
-        sessionStartWords = blockModel ? blockModel.documentWordCount : 0
+        sessionStartWords = BlockModel ? BlockModel.documentWordCount : 0
     }
 
     // A transient status-bar note: shown briefly, e.g.
@@ -286,7 +286,7 @@ ApplicationWindow {
     // find-bar's scroll-into-view generalized, reused by internal-link
     // navigation and the outline/TOC click-to-scroll.
     function scrollToBlock(idx) {
-        if (idx < 0 || !blockModel || idx >= blockModel.count)
+        if (idx < 0 || !BlockModel || idx >= BlockModel.count)
             return
         blockListView.currentIndex = idx
         blockListView.positionViewAtIndex(idx, ListView.Beginning)
@@ -396,7 +396,7 @@ ApplicationWindow {
         function onRevisionChanged() { tocSyncTimer.restart() }
     }
     Connections {
-        target: blockModel
+        target: BlockModel
         function onTocBlockIndexesChanged() { tocSyncTimer.restart() }
     }
     Timer {
@@ -405,9 +405,9 @@ ApplicationWindow {
         onTriggered: root.syncTocBlocks()
     }
     function syncTocBlocks() {
-        if (!blockModel || blockModel.tocBlockCount === 0)
+        if (!BlockModel || BlockModel.tocBlockCount === 0)
             return
-        var tocIndexes = blockModel.tocBlockIndexes()
+        var tocIndexes = BlockModel.tocBlockIndexes()
         if (tocIndexes.length === 0)
             return
 
@@ -416,7 +416,7 @@ ApplicationWindow {
         var updated = 0
         if (perfOn)
             PerfLog.begin("toc.sync", {
-                "blocks": blockModel.count,
+                "blocks": BlockModel.count,
                 "tocBlocks": tocIndexes.length
             })
         try {
@@ -424,10 +424,10 @@ ApplicationWindow {
             for (var n = 0; n < tocIndexes.length; n++) {
                 var i = tocIndexes[n]
                 scanned++
-                var b = blockModel.blockAt(i)
+                var b = BlockModel.blockAt(i)
                 if (b && b.blockType === 8 && b.language === "toc"
                     && b.content !== toc) {
-                    blockModel.updateContentSilently(i, toc)
+                    BlockModel.updateContentSilently(i, toc)
                     updated++
                 }
             }
@@ -484,9 +484,9 @@ ApplicationWindow {
         }
         if (findBar.visible)
             findBar.close()
-        if (documentSelection.hasBlockSelection
-            || documentSelection.hasTextSelection)
-            documentSelection.clear()
+        if (DocumentSelection.hasBlockSelection
+            || DocumentSelection.hasTextSelection)
+            DocumentSelection.clear()
         if (!DocumentManager.open(DocumentManager.toLocalFileUrl(abs)))
             return false
         NavigationHistory.visit(relPath, departingY)
@@ -593,7 +593,7 @@ ApplicationWindow {
     function executeRenamePlan(planId, updateLinks) {
         var openRelPath = root.currentNoteRelPath
         var openBody = openRelPath !== ""
-            ? DocumentSerializer.serialize(blockModel) : ""
+            ? DocumentSerializer.serialize(BlockModel) : ""
         var wasDirty = DocumentManager.isDirty
         var result = NoteCollection.applyRenamePlan(
             planId, updateLinks, openRelPath, openBody)
@@ -711,7 +711,7 @@ ApplicationWindow {
             return relPath
         // The note is open and empty; load the expanded body, then apply the
         // template's metadata and save through the normal path.
-        DocumentSerializer.loadIntoModel(blockModel, inst.body || "")
+        DocumentSerializer.loadIntoModel(BlockModel, inst.body || "")
         var tags = inst.tags || []
         for (var i = 0; i < tags.length; i++)
             NoteCollection.addTag(relPath, tags[i])
@@ -736,7 +736,7 @@ ApplicationWindow {
         if (DocumentManager.isDirty)
             DocumentManager.save()
         var fm = NoteCollection.frontMatterFor(currentNoteRelPath)
-        var full = (fm ? fm : "") + DocumentSerializer.serialize(blockModel)
+        var full = (fm ? fm : "") + DocumentSerializer.serialize(BlockModel)
         return NoteTemplates.writeTemplate(name, full)
     }
 
@@ -744,14 +744,14 @@ ApplicationWindow {
     // Pointer positions above, below, or between blocks resolve to the
     // nearest block edge so a selection drag never loses its target.
     function blockPositionAt(sceneX, sceneY) {
-        if (!blockModel || blockModel.count === 0)
+        if (!BlockModel || BlockModel.count === 0)
             return null
         var pos = blockListView.contentItem.mapFromItem(null, sceneX, sceneY)
         if (pos.y < 0)
             return { index: 0, mdPos: 0, inText: false }
         if (pos.y >= blockListView.contentHeight) {
-            var last = blockModel.count - 1
-            return { index: last, mdPos: blockModel.getContent(last).length,
+            var last = BlockModel.count - 1
+            return { index: last, mdPos: BlockModel.getContent(last).length,
                      inText: false }
         }
         var cx = Math.max(1, Math.min(pos.x, blockListView.width - 1))
@@ -761,7 +761,7 @@ ApplicationWindow {
             idx = blockListView.indexAt(cx, Math.max(0, pos.y - blockListView.spacing))
             if (idx < 0)
                 return null
-            return { index: idx, mdPos: blockModel.getContent(idx).length,
+            return { index: idx, mdPos: BlockModel.getContent(idx).length,
                      inText: false }
         }
         var item = blockListView.itemAtIndex(idx)
@@ -991,8 +991,8 @@ ApplicationWindow {
         }
 
         function spliceAndFocus(replacement, cursorMd) {
-            var md = blockModel.getContent(blockIndex)
-            blockModel.updateContent(blockIndex,
+            var md = BlockModel.getContent(blockIndex)
+            BlockModel.updateContent(blockIndex,
                 md.substring(0, mdStart) + replacement + md.substring(mdEnd))
             var idx = blockIndex
             Qt.callLater(function() {
@@ -1190,7 +1190,7 @@ ApplicationWindow {
             var hit = root.blockPositionAt(sceneX, sceneY)
             if (hit) {
                 if (!engaged && hit.index !== pressIndex) {
-                    documentSelection.beginTextSelection(pressIndex, pressMd,
+                    DocumentSelection.beginTextSelection(pressIndex, pressMd,
                         clickCount >= 3 ? 2 : clickCount === 2 ? 1 : 0)
                     engaged = true
                 }
@@ -1198,10 +1198,10 @@ ApplicationWindow {
                     if (hit.index === pressIndex) {
                         // Back inside the anchor block: the native
                         // in-block selection takes over again
-                        documentSelection.clearTextSelection()
+                        DocumentSelection.clearTextSelection()
                         engaged = false
                     } else {
-                        documentSelection.updateTextSelectionHead(
+                        DocumentSelection.updateTextSelectionHead(
                             hit.index, hit.mdPos)
                     }
                 }
@@ -1243,15 +1243,15 @@ ApplicationWindow {
         property int indicatorGap: -1   // multi: gap BEFORE this index
 
         function begin(index, sceneX, sceneY) {
-            isMulti = documentSelection.hasBlockSelection
-                      && documentSelection.isBlockSelected(index)
-            if (documentSelection.hasBlockSelection && !isMulti)
-                documentSelection.clear()
-            if (documentSelection.hasTextSelection)
-                documentSelection.clearTextSelection()
+            isMulti = DocumentSelection.hasBlockSelection
+                      && DocumentSelection.isBlockSelected(index)
+            if (DocumentSelection.hasBlockSelection && !isMulti)
+                DocumentSelection.clear()
+            if (DocumentSelection.hasTextSelection)
+                DocumentSelection.clearTextSelection()
             sourceIndex = index
             originalIndex = index
-            dragIndexes = isMulti ? documentSelection.selectedIndexes()
+            dragIndexes = isMulti ? DocumentSelection.selectedIndexes()
                                   : [index]
             dragCount = dragIndexes.length
             indicatorGap = -1
@@ -1279,7 +1279,7 @@ ApplicationWindow {
                         var centerY = item.y + item.height / 2
                         if ((idx > sourceIndex && pos.y > centerY)
                             || (idx < sourceIndex && pos.y < centerY)) {
-                            blockModel.previewMoveBlock(sourceIndex, idx)
+                            BlockModel.previewMoveBlock(sourceIndex, idx)
                             sourceIndex = idx
                         }
                     }
@@ -1294,7 +1294,7 @@ ApplicationWindow {
             if (cy <= 0)
                 return 0
             if (cy >= blockListView.contentHeight)
-                return blockModel.count
+                return BlockModel.count
             var idx = blockListView.indexAt(cx, cy)
             if (idx < 0) {
                 idx = blockListView.indexAt(cx,
@@ -1312,12 +1312,12 @@ ApplicationWindow {
                 return
             if (isMulti) {
                 if (indicatorGap >= 0)
-                    blockModel.moveBlocksTo(dragIndexes, indicatorGap)
+                    BlockModel.moveBlocksTo(dragIndexes, indicatorGap)
                 // The selection follows the moved blocks by id; keys
                 // stay with the selection handler
                 selectionKeyHandler.forceActiveFocus()
             } else {
-                blockModel.commitDragMove(originalIndex, sourceIndex)
+                BlockModel.commitDragMove(originalIndex, sourceIndex)
                 blockListView.currentIndex = sourceIndex
             }
             end()
@@ -1329,7 +1329,7 @@ ApplicationWindow {
             if (!active)
                 return
             if (!isMulti && sourceIndex !== originalIndex)
-                blockModel.previewMoveBlock(sourceIndex, originalIndex)
+                BlockModel.previewMoveBlock(sourceIndex, originalIndex)
             end()
         }
 
@@ -1449,10 +1449,10 @@ ApplicationWindow {
 
         // Leave selection mode and edit the given block.
         function exitToBlock(idx) {
-            documentSelection.clear()
-            if (idx < 0 || idx >= blockModel.count)
+            DocumentSelection.clear()
+            if (idx < 0 || idx >= BlockModel.count)
                 idx = Math.max(0, Math.min(blockListView.currentIndex,
-                                           blockModel.count - 1))
+                                           BlockModel.count - 1))
             blockListView.currentIndex = idx
             var item = blockListView.itemAtIndex(idx)
             if (item)
@@ -1460,7 +1460,7 @@ ApplicationWindow {
         }
 
         function revealSelectionEdge() {
-            var idx = documentSelection.lastActiveIndex()
+            var idx = DocumentSelection.lastActiveIndex()
             if (idx >= 0) {
                 blockListView.currentIndex = idx
                 blockListView.positionViewAtIndex(idx, ListView.Contain)
@@ -1471,9 +1471,9 @@ ApplicationWindow {
         // after a structural change).
         function focusBlockLater(idx, atEnd) {
             Qt.callLater(function() {
-                if (blockModel.count === 0)
+                if (BlockModel.count === 0)
                     return
-                var i = Math.max(0, Math.min(idx, blockModel.count - 1))
+                var i = Math.max(0, Math.min(idx, BlockModel.count - 1))
                 blockListView.currentIndex = i
                 var item = blockListView.itemAtIndex(i)
                 if (item) {
@@ -1490,38 +1490,38 @@ ApplicationWindow {
         // the internal marker so pasting back into Kvit is lossless.
         function copyBlocksToClipboard() {
             var md = DocumentSerializer.serializeBlocks(
-                blockModel, documentSelection.selectedIndexes())
+                BlockModel, DocumentSelection.selectedIndexes())
             Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
         }
 
         // Remove the selected blocks and land the cursor on the block
         // before the removed run (§3.5).
         function removeSelectedBlocks() {
-            var indexes = documentSelection.selectedIndexes()
+            var indexes = DocumentSelection.selectedIndexes()
             if (indexes.length === 0)
                 return
             var first = Number(indexes[0])
-            documentSelection.clear()
-            blockModel.removeBlocks(indexes)
+            DocumentSelection.clear()
+            BlockModel.removeBlocks(indexes)
             focusBlockLater(first > 0 ? first - 1 : 0, first > 0)
         }
 
         function selectRange(first, last) {
-            documentSelection.selectBlock(first)
+            DocumentSelection.selectBlock(first)
             if (last > first)
-                documentSelection.extendBlockSelectionTo(last)
+                DocumentSelection.extendBlockSelectionTo(last)
             revealSelectionEdge()
         }
 
         Keys.onPressed: function(event) {
-            if (!documentSelection.hasBlockSelection)
+            if (!DocumentSelection.hasBlockSelection)
                 return
             var ctrl = event.modifiers & Qt.ControlModifier
             var shift = event.modifiers & Qt.ShiftModifier
 
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return
                 || event.key === Qt.Key_Enter) {
-                exitToBlock(documentSelection.lastActiveIndex())
+                exitToBlock(DocumentSelection.lastActiveIndex())
                 event.accepted = true
                 return
             }
@@ -1538,8 +1538,8 @@ ApplicationWindow {
             // Ctrl+D: duplicate the selection below itself; the
             // selection moves to the clones (features.md §3.6)
             if (event.key === Qt.Key_D && ctrl) {
-                var clones = blockModel.duplicateBlocks(
-                    documentSelection.selectedIndexes())
+                var clones = BlockModel.duplicateBlocks(
+                    DocumentSelection.selectedIndexes())
                 if (clones.length > 0)
                     selectRange(Number(clones[0]),
                                 Number(clones[clones.length - 1]))
@@ -1551,7 +1551,7 @@ ApplicationWindow {
             // selection follows the moved blocks by id
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.AltModifier)) {
-                blockModel.moveBlocksBy(documentSelection.selectedIndexes(),
+                BlockModel.moveBlocksBy(DocumentSelection.selectedIndexes(),
                                         event.key === Qt.Key_Down ? 1 : -1)
                 revealSelectionEdge()
                 event.accepted = true
@@ -1561,8 +1561,8 @@ ApplicationWindow {
             // Tab/Shift+Tab: indent/outdent the selection's list-family
             // blocks together (§3.3)
             if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-                blockModel.changeIndentForBlocks(
-                    documentSelection.selectedIndexes(),
+                BlockModel.changeIndentForBlocks(
+                    DocumentSelection.selectedIndexes(),
                     event.key === Qt.Key_Tab ? 1 : -1)
                 event.accepted = true
                 return
@@ -1586,10 +1586,10 @@ ApplicationWindow {
             // selection (§5.3); the new blocks become the selection
             if (event.key === Qt.Key_V && ctrl) {
                 if (Clipboard.hasText) {
-                    var indexes = documentSelection.selectedIndexes()
+                    var indexes = DocumentSelection.selectedIndexes()
                     var insertAt = indexes.length > 0
                         ? Number(indexes[indexes.length - 1]) + 1
-                        : blockModel.count
+                        : BlockModel.count
                     // §5.3 format matrix (internal / HTML / plain); paste-plain
                     // deliberately takes the source's own plain text instead.
                     var pasteText = (shift ? Clipboard.text
@@ -1614,12 +1614,12 @@ ApplicationWindow {
                             return editorEngine.stripFormatting(line)
                         }).join("\n")
                         var plainCount = DocumentSerializer.insertPlainTextAt(
-                            blockModel, insertAt, plain)
+                            BlockModel, insertAt, plain)
                         if (plainCount > 0)
                             selectRange(insertAt, insertAt + plainCount - 1)
                     } else {
                         var count = DocumentSerializer.insertMarkdownAt(
-                            blockModel, insertAt, pasteText)
+                            BlockModel, insertAt, pasteText)
                         if (count > 0)
                             selectRange(insertAt, insertAt + count - 1)
                     }
@@ -1630,7 +1630,7 @@ ApplicationWindow {
 
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && ctrl && shift) {
-                documentSelection.extendBlockSelection(
+                DocumentSelection.extendBlockSelection(
                     event.key === Qt.Key_Down ? 1 : -1)
                 revealSelectionEdge()
                 event.accepted = true
@@ -1638,14 +1638,14 @@ ApplicationWindow {
             }
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && !ctrl && !shift && !(event.modifiers & Qt.AltModifier)) {
-                documentSelection.collapseBlockSelection(
+                DocumentSelection.collapseBlockSelection(
                     event.key === Qt.Key_Down ? 1 : -1)
                 revealSelectionEdge()
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_A && ctrl) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 event.accepted = true
                 return
             }
@@ -1975,8 +1975,8 @@ ApplicationWindow {
     }
 
     function openTextContextMenu(target) {
-        if (documentSelection.hasBlockSelection
-            && documentSelection.isBlockSelected(target.index)) {
+        if (DocumentSelection.hasBlockSelection
+            && DocumentSelection.isBlockSelected(target.index)) {
             selectionContextMenu.popup()
             return
         }
@@ -2019,7 +2019,7 @@ ApplicationWindow {
             var url = embedUrlField.text.trim()
             if (url === "" || targetIndex < 0)
                 return
-            blockModel.convertBlock(targetIndex, Block.Image, "![](" + url + ")")
+            BlockModel.convertBlock(targetIndex, Block.Image, "![](" + url + ")")
             var idx = targetIndex
             Qt.callLater(function() {
                 var item = blockListView.itemAtIndex(idx)
@@ -2065,10 +2065,10 @@ ApplicationWindow {
     function insertBlocksAt(afterIndex, typedBlocks) {
         // typedBlocks: [{type, content}]. Insert after `afterIndex` (append
         // when -1); focus the last inserted block.
-        var at = afterIndex < 0 ? blockModel.count : afterIndex + 1
+        var at = afterIndex < 0 ? BlockModel.count : afterIndex + 1
         var last = at
         for (var i = 0; i < typedBlocks.length; ++i) {
-            blockModel.insertBlock(at, typedBlocks[i].type, typedBlocks[i].content)
+            BlockModel.insertBlock(at, typedBlocks[i].type, typedBlocks[i].content)
             last = at
             at++
         }
@@ -2157,8 +2157,8 @@ ApplicationWindow {
         linkContextMenu.popup()
     }
     function openBlockHandleMenu(target) {
-        if (documentSelection.hasBlockSelection
-            && documentSelection.isBlockSelected(target.index)) {
+        if (DocumentSelection.hasBlockSelection
+            && DocumentSelection.isBlockSelected(target.index)) {
             selectionContextMenu.popup()
             return
         }
@@ -2291,7 +2291,7 @@ ApplicationWindow {
         property int targetIndex: -1
         onSizePicked: function(cols, rows) {
             if (targetIndex < 0) return
-            blockModel.convertBlock(targetIndex, Block.Table,
+            BlockModel.convertBlock(targetIndex, Block.Table,
                                     TableTools.emptyTable(cols, rows))
             var idx = targetIndex
             Qt.callLater(function() {
@@ -2323,7 +2323,7 @@ ApplicationWindow {
             // Image. The dialog is shared.
             var type = ImageAssets.parse(md).kind === "media"
                      ? Block.Media : Block.Image
-            blockModel.convertBlock(targetIndex, type, md)
+            BlockModel.convertBlock(targetIndex, type, md)
             var idx = targetIndex
             Qt.callLater(function() {
                 var item = blockListView.itemAtIndex(idx)
@@ -2464,13 +2464,13 @@ ApplicationWindow {
         MenuItem {
             objectName: "ctxBlockDuplicate"
             text: qsTr("Duplicate")
-            onTriggered: blockModel.duplicateBlocks(
+            onTriggered: BlockModel.duplicateBlocks(
                 [blockContextMenu.target.index])
         }
         MenuItem {
             objectName: "ctxBlockDelete"
             text: qsTr("Delete")
-            onTriggered: blockModel.removeBlocks(
+            onTriggered: BlockModel.removeBlocks(
                 [blockContextMenu.target.index])
         }
         MenuSeparator {}
@@ -2478,24 +2478,24 @@ ApplicationWindow {
             text: qsTr("Move up")
             enabled: blockContextMenu.target
                      && blockContextMenu.target.index > 0
-            onTriggered: blockModel.moveBlocksBy(
+            onTriggered: BlockModel.moveBlocksBy(
                 [blockContextMenu.target.index], -1)
         }
         MenuItem {
             text: qsTr("Move down")
             enabled: blockContextMenu.target
-                     && blockContextMenu.target.index < blockModel.count - 1
-            onTriggered: blockModel.moveBlocksBy(
+                     && blockContextMenu.target.index < BlockModel.count - 1
+            onTriggered: BlockModel.moveBlocksBy(
                 [blockContextMenu.target.index], 1)
         }
         MenuItem {
             text: qsTr("Indent")
-            onTriggered: blockModel.changeIndentForBlocks(
+            onTriggered: BlockModel.changeIndentForBlocks(
                 [blockContextMenu.target.index], 1)
         }
         MenuItem {
             text: qsTr("Outdent")
-            onTriggered: blockModel.changeIndentForBlocks(
+            onTriggered: BlockModel.changeIndentForBlocks(
                 [blockContextMenu.target.index], -1)
         }
     }
@@ -2520,8 +2520,8 @@ ApplicationWindow {
             objectName: "ctxSelDuplicate"
             text: qsTr("Duplicate")
             onTriggered: {
-                var clones = blockModel.duplicateBlocks(
-                    documentSelection.selectedIndexes())
+                var clones = BlockModel.duplicateBlocks(
+                    DocumentSelection.selectedIndexes())
                 if (clones.length > 0)
                     selectionKeyHandler.selectRange(
                         Number(clones[0]),
@@ -2537,28 +2537,28 @@ ApplicationWindow {
         MenuItem {
             text: qsTr("Move up")
             onTriggered: {
-                blockModel.moveBlocksBy(
-                    documentSelection.selectedIndexes(), -1)
+                BlockModel.moveBlocksBy(
+                    DocumentSelection.selectedIndexes(), -1)
                 selectionKeyHandler.revealSelectionEdge()
             }
         }
         MenuItem {
             text: qsTr("Move down")
             onTriggered: {
-                blockModel.moveBlocksBy(
-                    documentSelection.selectedIndexes(), 1)
+                BlockModel.moveBlocksBy(
+                    DocumentSelection.selectedIndexes(), 1)
                 selectionKeyHandler.revealSelectionEdge()
             }
         }
         MenuItem {
             text: qsTr("Indent")
-            onTriggered: blockModel.changeIndentForBlocks(
-                documentSelection.selectedIndexes(), 1)
+            onTriggered: BlockModel.changeIndentForBlocks(
+                DocumentSelection.selectedIndexes(), 1)
         }
         MenuItem {
             text: qsTr("Outdent")
-            onTriggered: blockModel.changeIndentForBlocks(
-                documentSelection.selectedIndexes(), -1)
+            onTriggered: BlockModel.changeIndentForBlocks(
+                DocumentSelection.selectedIndexes(), -1)
         }
     }
 
@@ -2862,9 +2862,9 @@ ApplicationWindow {
         onAccepted: {
             var count = pendingPlain
                 ? DocumentSerializer.insertPlainTextAt(
-                    blockModel, pendingIndex, pendingText)
+                    BlockModel, pendingIndex, pendingText)
                 : DocumentSerializer.insertMarkdownAt(
-                    blockModel, pendingIndex, pendingText)
+                    BlockModel, pendingIndex, pendingText)
             if (count > 0)
                 selectRange(pendingIndex, pendingIndex + count - 1)
             pendingText = ""
@@ -3014,7 +3014,7 @@ ApplicationWindow {
                     var fm = NoteCollection.frontMatterFor(root.currentNoteRelPath)
                     NoteCollection.noteSaved(filePath,
                                              (fm ? fm : "")
-                                             + DocumentSerializer.serialize(blockModel))
+                                             + DocumentSerializer.serialize(BlockModel))
                 } else {
                     NoteCollection.noteSaved(filePath)
                 }
@@ -3436,9 +3436,9 @@ ApplicationWindow {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton
             onPressed: function(mouse) {
-                if (documentSelection.hasBlockSelection
-                    || documentSelection.hasTextSelection)
-                    documentSelection.clear()
+                if (DocumentSelection.hasBlockSelection
+                    || DocumentSelection.hasTextSelection)
+                    DocumentSelection.clear()
                 mouse.accepted = false
             }
         }
@@ -3589,7 +3589,7 @@ ApplicationWindow {
                                       easing.type: Easing.OutQuad }
                 }
 
-                model: blockModel
+                model: BlockModel
 
                 // One delegate per block type; paragraphs and headings
                 // share the default text choice.
@@ -4051,13 +4051,13 @@ ApplicationWindow {
                     var revision = modelRevision  // dependency only
                     var currentIndex = blockListView.currentIndex
                     // Default to first block if no selection
-                    if (currentIndex < 0 && blockModel && blockModel.count > 0) {
+                    if (currentIndex < 0 && BlockModel && BlockModel.count > 0) {
                         currentIndex = 0
                     }
-                    if (currentIndex < 0 || !blockModel || currentIndex >= blockModel.count) {
+                    if (currentIndex < 0 || !BlockModel || currentIndex >= BlockModel.count) {
                         return 0
                     }
-                    var block = blockModel.blockAt(currentIndex)
+                    var block = BlockModel.blockAt(currentIndex)
                     return block ? block.blockType : 0
                 }
 
@@ -4080,7 +4080,7 @@ ApplicationWindow {
                 color: theme.textMuted
 
                 Connections {
-                    target: blockModel
+                    target: BlockModel
                     function onDataChanged(topLeft, bottomRight, roles) {
                         blockTypeText.modelRevision++
                     }
@@ -4117,7 +4117,7 @@ ApplicationWindow {
             // Block count
             Text {
                 objectName: "blockCountText"
-                text: root.formatCount(blockModel ? blockModel.count : 0)
+                text: root.formatCount(BlockModel ? BlockModel.count : 0)
                       + " blocks"
                 font.pixelSize: 11
                 color: theme.textMuted
@@ -4153,13 +4153,13 @@ ApplicationWindow {
                     onTriggered: docCounter.recompute()
                 }
                 Connections {
-                    target: blockModel
+                    target: BlockModel
                     function onDataChanged() { countTimer.restart() }
                     function onCountChanged() { countTimer.restart() }
                     function onDocumentCountsChanged() { countTimer.restart() }
                 }
                 Connections {
-                    target: documentSelection
+                    target: DocumentSelection
                     function onRevisionChanged() { countTimer.restart() }
                 }
                 readonly property string inBlockSelDep:
@@ -4178,10 +4178,10 @@ ApplicationWindow {
                     var perfOn = PerfLog && PerfLog.enabled
                     if (perfOn)
                         PerfLog.begin("statusbar.count", {
-                            "blocks": blockModel ? blockModel.count : 0
+                            "blocks": BlockModel ? BlockModel.count : 0
                         })
                     try {
-                    docWords = blockModel ? blockModel.documentWordCount : 0
+                    docWords = BlockModel ? BlockModel.documentWordCount : 0
 
                     var target = appToolbar.targetBlock
                     var inBlockSel =
@@ -4191,31 +4191,31 @@ ApplicationWindow {
                     var words = 0
                     var chars = 0
 
-                    if (documentSelection.hasBlockSelection) {
-                        var indexes = documentSelection.selectedIndexes()
+                    if (DocumentSelection.hasBlockSelection) {
+                        var indexes = DocumentSelection.selectedIndexes()
                         for (var i = 0; i < indexes.length; i++) {
-                            words += blockModel.wordCountAt(indexes[i])
-                            chars += blockModel.charCountAt(indexes[i], true)
+                            words += BlockModel.wordCountAt(indexes[i])
+                            chars += BlockModel.charCountAt(indexes[i], true)
                         }
                         counts = { words: words, chars: chars, sel: true }
                         return
                     }
 
-                    if (documentSelection.hasTextSelection) {
-                        var range = documentSelection.orderedTextRange()
+                    if (DocumentSelection.hasTextSelection) {
+                        var range = DocumentSelection.orderedTextRange()
                         for (var b = range.startIndex;
                              b <= range.endIndex; b++) {
-                            var content = blockModel.getContent(b)
+                            var content = BlockModel.getContent(b)
                             var from = b === range.startIndex
                                 ? range.startPos : 0
                             var to = b === range.endIndex
                                 ? range.endPos : content.length
                             if (from === 0 && to === content.length) {
-                                words += blockModel.wordCountAt(b)
-                                chars += blockModel.charCountAt(b, true)
+                                words += BlockModel.wordCountAt(b)
+                                chars += BlockModel.charCountAt(b, true)
                             } else {
                                 var frag = content.substring(from, to)
-                                var vb = blockModel.blockAt(b).blockType === 8
+                                var vb = BlockModel.blockAt(b).blockType === 8
                                 words += NoteCollection.wordCountForMarkdown(
                                     frag, vb)
                                 chars += NoteCollection.charCountForMarkdown(
@@ -4237,13 +4237,13 @@ ApplicationWindow {
                         return
                     }
 
-                    if (!blockModel) {
+                    if (!BlockModel) {
                         counts = { words: 0, chars: 0, sel: false }
                         return
                     }
                     counts = {
-                        words: blockModel.documentWordCount,
-                        chars: blockModel.documentCharCount,
+                        words: BlockModel.documentWordCount,
+                        chars: BlockModel.documentCharCount,
                         sel: false
                     }
                     } finally {

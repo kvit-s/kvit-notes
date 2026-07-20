@@ -42,9 +42,9 @@ Item {
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(delegate.index)
-            || documentSelection.portionForBlock(delegate.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(delegate.index)
+            || DocumentSelection.portionForBlock(delegate.index).selected === true
     }
 
     // Cross-block position helpers (a TOC has no text: a single position 0).
@@ -96,7 +96,7 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = delegate.index - 1
-        blockModel.removeBlock(delegate.index)
+        BlockModel.removeBlock(delegate.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -108,7 +108,7 @@ Item {
 
     function createBlockBelow() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -120,7 +120,7 @@ Item {
 
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv)
@@ -147,13 +147,13 @@ Item {
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
@@ -172,7 +172,7 @@ Item {
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Down && delegate.index < blockModel.count - 1
+            if (event.key === Qt.Key_Down && delegate.index < BlockModel.count - 1
                 && delegate.listView) {
                 var nextIndex = delegate.index + 1
                 delegate.listView.currentIndex = nextIndex
@@ -202,8 +202,8 @@ Item {
         hoverEnabled: true
         onClicked: function(mouse) {
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(delegate.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(delegate.index)
+                if (DocumentSelection.hasBlockSelection)
                     delegate.focusSelectionHandler()
                 else
                     focusTarget.forceActiveFocus()
@@ -213,16 +213,16 @@ Item {
                 var win = Window.window
                 var anchor = win && win.lastFocusedBlock !== undefined
                         ? win.lastFocusedBlock : -1
-                if (!documentSelection.hasBlockSelection
+                if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
-                    documentSelection.selectBlock(anchor)
-                documentSelection.extendBlockSelectionTo(delegate.index)
+                    DocumentSelection.selectBlock(anchor)
+                DocumentSelection.extendBlockSelectionTo(delegate.index)
                 delegate.focusSelectionHandler()
                 return
             }
-            if (documentSelection.hasBlockSelection
-                || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection
+                || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             focusTarget.forceActiveFocus()
         }
     }
@@ -390,7 +390,7 @@ Item {
                 }
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
             }
             onCanceled: {

@@ -63,11 +63,11 @@ Rectangle {
         var mdPos = (item && item.markdownCursor) ? item.markdownCursor() : 0
         DocumentSearch.setActiveCursor(idx, mdPos)
 
-        if (documentSelection.hasBlockSelection) {
-            DocumentSearch.setBlockDomain(documentSelection.selectedIndexes())
+        if (DocumentSelection.hasBlockSelection) {
+            DocumentSearch.setBlockDomain(DocumentSelection.selectedIndexes())
             inSelectionButton.checked = true
-        } else if (documentSelection.hasTextSelection) {
-            var range = documentSelection.orderedTextRange()
+        } else if (DocumentSelection.hasTextSelection) {
+            var range = DocumentSelection.orderedTextRange()
             DocumentSearch.setTextDomain(range.startIndex, range.startPos,
                                          range.endIndex, range.endPos)
             inSelectionButton.checked = true
@@ -124,7 +124,7 @@ Rectangle {
         var idx = info.found ? info.blockIndex
                              : (appWindow ? appWindow.lastFocusedBlock : 0)
         var mdPos = info.found ? info.mdStart : -1
-        if (!listView || idx < 0 || idx >= blockModel.count)
+        if (!listView || idx < 0 || idx >= BlockModel.count)
             return
         listView.positionViewAtIndex(idx, ListView.Contain)
         Qt.callLater(function() {

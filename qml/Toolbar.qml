@@ -66,7 +66,7 @@ Rectangle {
         targetBlock !== null
         && targetBlock.toggleSpanType !== undefined
         && !targetBlock.verbatimEditing
-        && !documentSelection.hasTextSelection
+        && !DocumentSelection.hasTextSelection
     readonly property bool canConvert:
         targetBlock !== null && targetBlock.convertBlockType !== undefined
 
@@ -594,9 +594,9 @@ Rectangle {
     // block — the plus-button contract without the menu step.
     function insertBlockOfType(type) {
         var idx = appWindow ? appWindow.lastFocusedBlock : -1
-        if (idx < 0 || idx >= blockModel.count)
-            idx = blockModel.count - 1
-        blockModel.insertBlock(idx + 1, type, "")
+        if (idx < 0 || idx >= BlockModel.count)
+            idx = BlockModel.count - 1
+        BlockModel.insertBlock(idx + 1, type, "")
         if (listView) {
             var item = listView.itemAtIndex(idx + 1)
             if (item && item.focusAtStart)
@@ -610,16 +610,16 @@ Rectangle {
     // block and handed to that flow.
     function insertSpecialBelow(kind) {
         var idx = appWindow ? appWindow.lastFocusedBlock : -1
-        if (idx < 0 || idx >= blockModel.count)
-            idx = blockModel.count - 1
+        if (idx < 0 || idx >= BlockModel.count)
+            idx = BlockModel.count - 1
         var newIdx = idx + 1
-        blockModel.insertBlock(newIdx, 0, "")
+        BlockModel.insertBlock(newIdx, 0, "")
         if ((kind === "image" || kind === "media") && appWindow.insertImageIntoBlock)
             appWindow.insertImageIntoBlock(newIdx)
         else if (kind === "table" && appWindow.insertTableIntoBlock)
             appWindow.insertTableIntoBlock(newIdx)
         else if (kind === "kanban")
-            blockModel.convertBlock(newIdx, 8,   // Block.CodeBlock, kanban fence
+            BlockModel.convertBlock(newIdx, 8,   // Block.CodeBlock, kanban fence
                 "## To do\n## In progress\n## Done", false, "kanban")
     }
 

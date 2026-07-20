@@ -43,26 +43,26 @@ Popup {
     // The selected text as DISPLAY text (markers stripped), or null when
     // nothing is selected — the same representation DocumentStats counts.
     function selectionText() {
-        if (documentSelection.hasBlockSelection) {
-            var idx = documentSelection.selectedIndexes()
+        if (DocumentSelection.hasBlockSelection) {
+            var idx = DocumentSelection.selectedIndexes()
             var parts = []
             for (var i = 0; i < idx.length; i++)
-                parts.push(blockModel.displayTextAt(idx[i]))
+                parts.push(BlockModel.displayTextAt(idx[i]))
             return parts.join("\n")
         }
-        if (documentSelection.hasTextSelection) {
+        if (DocumentSelection.hasTextSelection) {
             // A cross-block text range: partial edge blocks contribute their
             // covered slice; counting the raw slice is close enough for a
             // selection readout (whole-block portions strip markers).
-            var range = documentSelection.orderedTextRange()
+            var range = DocumentSelection.orderedTextRange()
             var out = []
             for (var b = range.startIndex; b <= range.endIndex; b++) {
-                var content = blockModel.getContent(b)
+                var content = BlockModel.getContent(b)
                 var from = b === range.startIndex ? range.startPos : 0
                 var to = b === range.endIndex ? range.endPos : content.length
                 var slice = content.substring(from, to)
                 out.push((from === 0 && to === content.length)
-                    ? blockModel.displayTextAt(b) : slice)
+                    ? BlockModel.displayTextAt(b) : slice)
             }
             return out.join("\n")
         }
@@ -88,13 +88,13 @@ Popup {
         onTriggered: statsPopup.recompute()
     }
     Connections {
-        target: blockModel
+        target: BlockModel
         function onDataChanged() { statsPopup.scheduleRecompute() }
         function onCountChanged() { statsPopup.scheduleRecompute() }
         function onDocumentCountsChanged() { statsPopup.scheduleRecompute() }
     }
     Connections {
-        target: documentSelection
+        target: DocumentSelection
         function onRevisionChanged() { statsPopup.scheduleRecompute() }
     }
 

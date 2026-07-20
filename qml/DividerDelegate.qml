@@ -42,7 +42,7 @@ Item {
     }
     // Write new divider attributes as one undo step (used by the style picker).
     function setDividerAttributes(payload) {
-        blockModel.setBlockAttributes(delegate.index, payload)
+        BlockModel.setBlockAttributes(delegate.index, payload)
     }
 
     property int blockIndex: index
@@ -56,9 +56,9 @@ Item {
     // divider inside a cross-block text range shows the same tint —
     // it has no text to highlight.
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(delegate.index)
-            || documentSelection.portionForBlock(delegate.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(delegate.index)
+            || DocumentSelection.portionForBlock(delegate.index).selected === true
     }
 
     // Cross-block position helpers, matching EditableBlock's API: a
@@ -121,7 +121,7 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = delegate.index - 1
-        blockModel.removeBlock(delegate.index)
+        BlockModel.removeBlock(delegate.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -133,7 +133,7 @@ Item {
 
     function createBlockBelow() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "") // 0 = Paragraph
+        BlockModel.insertBlock(newIndex, 0, "") // 0 = Paragraph
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -148,7 +148,7 @@ Item {
     // The new block is a text delegate, which owns openBlockMenu.
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv)
@@ -177,13 +177,13 @@ Item {
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
@@ -197,7 +197,7 @@ Item {
                 return
             }
             if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
-                blockModel.duplicateBlocks([delegate.index])
+                BlockModel.duplicateBlocks([delegate.index])
                 var lv = delegate.listView
                 var cloneIndex = delegate.index + 1
                 Qt.callLater(function() {
@@ -220,7 +220,7 @@ Item {
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Down && delegate.index < blockModel.count - 1
+            if (event.key === Qt.Key_Down && delegate.index < BlockModel.count - 1
                 && delegate.listView) {
                 var nextIndex = delegate.index + 1
                 delegate.listView.currentIndex = nextIndex
@@ -368,8 +368,8 @@ Item {
             // The §3.1 modifier gestures work on dividers too; a divider
             // has no text, so there is no link carve-out here.
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(delegate.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(delegate.index)
+                if (DocumentSelection.hasBlockSelection)
                     delegate.focusSelectionHandler()
                 else
                     focusTarget.forceActiveFocus()
@@ -379,16 +379,16 @@ Item {
                 var win = Window.window
                 var anchor = win && win.lastFocusedBlock !== undefined
                         ? win.lastFocusedBlock : -1
-                if (!documentSelection.hasBlockSelection
+                if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
-                    documentSelection.selectBlock(anchor)
-                documentSelection.extendBlockSelectionTo(delegate.index)
+                    DocumentSelection.selectBlock(anchor)
+                DocumentSelection.extendBlockSelectionTo(delegate.index)
                 delegate.focusSelectionHandler()
                 return
             }
-            if (documentSelection.hasBlockSelection
-                || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection
+                || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             focusTarget.forceActiveFocus()
         }
     }
@@ -513,7 +513,7 @@ Item {
                 }
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
             }
             onCanceled: {

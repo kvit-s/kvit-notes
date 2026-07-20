@@ -65,7 +65,7 @@ Dialog {
         // editor's current markdown for that one note. Exporting snapshots
         // rather than saving: it must not write to the user's notes.
         if (appWindow && appWindow.currentNoteRelPath !== "")
-            DocumentExporter.setLiveNote(appWindow.currentNoteRelPath, blockModel)
+            DocumentExporter.setLiveNote(appWindow.currentNoteRelPath, BlockModel)
         else
             DocumentExporter.clearLiveNote()
         DocumentExporter.setImageContext(noteDir, root)
@@ -148,7 +148,7 @@ Dialog {
         onAccepted: {
             var path = exportDialog.appWindow.urlToLocalPath(selectedFile)
             var ok = DocumentExporter.writeModel(
-                blockModel, exportDialog.currentTitle(),
+                BlockModel, exportDialog.currentTitle(),
                 exportDialog.format, path)
             exportDialog.appWindow.showTransientStatus(
                 ok ? qsTr("Exported to ") + path

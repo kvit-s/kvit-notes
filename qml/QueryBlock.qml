@@ -67,9 +67,9 @@ Item {
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     // ---- non-text focus API (matches the other wave-2 blocks) ----
@@ -118,7 +118,7 @@ Item {
     }
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
-        if (!root.listView || targetIndex < 0 || targetIndex >= blockModel.count)
+        if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
         var target = root.listView.itemAtIndex(targetIndex)
@@ -128,7 +128,7 @@ Item {
     }
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -139,7 +139,7 @@ Item {
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -150,7 +150,7 @@ Item {
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -178,8 +178,8 @@ Item {
         hoverEnabled: true
         onClicked: function(mouse) {
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(root.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(root.index)
+                if (DocumentSelection.hasBlockSelection)
                     root.focusSelectionHandler()
                 return
             }
@@ -187,16 +187,16 @@ Item {
                 var win = Window.window
                 var anchor = win && win.lastFocusedBlock !== undefined
                         ? win.lastFocusedBlock : -1
-                if (!documentSelection.hasBlockSelection
+                if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== root.index)
-                    documentSelection.selectBlock(anchor)
-                documentSelection.extendBlockSelectionTo(root.index)
+                    DocumentSelection.selectBlock(anchor)
+                DocumentSelection.extendBlockSelectionTo(root.index)
                 root.focusSelectionHandler()
                 return
             }
-            if (documentSelection.hasBlockSelection
-                || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection
+                || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             sourceArea.forceActiveFocus()
         }
     }
@@ -483,7 +483,7 @@ Item {
                 // this delegate may have been rebound to a different row.
                 function commitPendingSource() {
                     if (text !== root.content)
-                        blockModel.updateContentById(root.blockId, text)
+                        BlockModel.updateContentById(root.blockId, text)
                 }
                 onActiveFocusChanged: {
                     if (!activeFocus) {
@@ -639,7 +639,7 @@ Item {
                 }
                 if (root.listView)
                     root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onCanceled: {

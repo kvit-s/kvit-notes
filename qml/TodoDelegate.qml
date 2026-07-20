@@ -23,8 +23,8 @@ EditableBlock {
     // Sub-task progress; re-evaluates on structural change (count) and on the
     // model's data updates that bump it.
     readonly property var progress: {
-        var dep = blockModel.count       // structural dependency
-        return blockModel.todoProgress(root.index)
+        var dep = BlockModel.count       // structural dependency
+        return BlockModel.todoProgress(root.index)
     }
     readonly property bool overdue: {
         if (meta.due === "") return false
@@ -33,13 +33,13 @@ EditableBlock {
     }
 
     function setDue(iso) {
-        blockModel.updateContent(root.index,
+        BlockModel.updateContent(root.index,
             TodoMeta.build(meta.text, iso, meta.priority))
     }
     function cyclePriority() {
         var p = meta.priority
         var next = p === 0 ? -1 : (p === -1 ? 1 : (p === 1 ? 2 : 0))
-        blockModel.updateContent(root.index,
+        BlockModel.updateContent(root.index,
             TodoMeta.build(meta.text, meta.due, next))
     }
 
@@ -63,7 +63,7 @@ EditableBlock {
                 MouseArea {
                     anchors.fill: parent; anchors.margins: -4
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: blockModel.setChecked(root.index, !root.checked)
+                    onClicked: BlockModel.setChecked(root.index, !root.checked)
                 }
             }
         }

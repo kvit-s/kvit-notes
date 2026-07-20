@@ -46,9 +46,9 @@ Item {
     readonly property int labelFontSize: Typography.sizeForBlockType(Block.Paragraph)
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     // ---- non-text focus API (matches MathBlock) ----
@@ -129,7 +129,7 @@ Item {
     // refusal through the status affordance and announcer.
     function applyGesture(src, doneMessage) {
         if (src !== "" && src !== root.content) {
-            blockModel.updateContent(root.index, src)
+            BlockModel.updateContent(root.index, src)
             var win = Window.window
             if (doneMessage !== undefined && doneMessage !== "") {
                 if (win && win.showTransientStatus)
@@ -162,7 +162,7 @@ Item {
     }
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
-        if (!root.listView || targetIndex < 0 || targetIndex >= blockModel.count)
+        if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
         var target = root.listView.itemAtIndex(targetIndex)
@@ -172,7 +172,7 @@ Item {
     }
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -183,7 +183,7 @@ Item {
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -194,7 +194,7 @@ Item {
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -214,7 +214,7 @@ Item {
         debounce.stop()
         root.previewSource = sourceArea.text
         if (sourceArea.text !== root.content)
-            blockModel.updateContentById(root.blockId, sourceArea.text)
+            BlockModel.updateContentById(root.blockId, sourceArea.text)
     }
 
     Timer {
@@ -391,7 +391,7 @@ Item {
                                     dragging = false
                                     var newSrc = readCanvas.finishNodeDragSource()
                                     if (newSrc !== "" && newSrc !== root.content) {
-                                        blockModel.updateContent(root.index, newSrc)
+                                        BlockModel.updateContent(root.index, newSrc)
                                         var win = Window.window
                                         if (win && win.showTransientStatus)
                                             win.showTransientStatus(
@@ -715,14 +715,14 @@ Item {
                     onClicked: {
                         var s = readCanvas.resetArrangementSource()
                         if (s !== "" && s !== root.content)
-                            blockModel.updateContent(root.index, s)
+                            BlockModel.updateContent(root.index, s)
                     }
                 }
                 ChipButton { label: qsTr("PNG"); visible: readCanvas.hasScene
                     onClicked: savePngDialog.open() }
                 ChipButton { label: qsTr("Edit"); onClicked: root.focusAtEnd() }
                 ChipButton { label: qsTr("As code")
-                    onClicked: blockModel.convertBlock(root.index, Block.CodeBlock,
+                    onClicked: BlockModel.convertBlock(root.index, Block.CodeBlock,
                                                        root.content, false, "plain") }
             }
 
@@ -777,7 +777,7 @@ Item {
                     if (!activeFocus) {
                         debounce.stop()
                         if (text !== root.content)
-                            blockModel.updateContent(root.index, text)
+                            BlockModel.updateContent(root.index, text)
                         text = Qt.binding(function() { return root.content })
                     }
                 }
@@ -810,7 +810,7 @@ Item {
                         debounce.stop()
                         root.previewSource = text
                         if (text !== root.content)
-                            blockModel.updateContent(root.index, text)
+                            BlockModel.updateContent(root.index, text)
                         event.accepted = true
                         return
                     }
@@ -1081,7 +1081,7 @@ Item {
             onTriggered: {
                 var s = readCanvas.resetArrangementSource()
                 if (s !== "" && s !== root.content)
-                    blockModel.updateContent(root.index, s)
+                    BlockModel.updateContent(root.index, s)
             }
         }
         MenuItem {
@@ -1206,7 +1206,7 @@ Item {
                 var win = Window.window
                 if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onCanceled: { if (dragging) { dragging = false; var win = Window.window

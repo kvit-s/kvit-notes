@@ -188,9 +188,9 @@ Popup {
         // text the user goes on to type. Three lines is the menu default; the
         // block context menu offers the other spans.
         if (type === Block.Paragraph && row.language === "dropcap") {
-            blockModel.convertBlock(idx, Block.Paragraph, "", false, "")
-            blockModel.setBlockAttributes(
-                idx, BlockAttributes.withValue(blockModel.getAttributes(idx),
+            BlockModel.convertBlock(idx, Block.Paragraph, "", false, "")
+            BlockModel.setBlockAttributes(
+                idx, BlockAttributes.withValue(BlockModel.getAttributes(idx),
                                                "dropcap", "3"))
             applied(idx, type)
             return
@@ -218,7 +218,7 @@ Popup {
                       + "columns: title, tags, modified\n"
                       + "sort: modified desc"
                     : "")))
-        blockModel.convertBlock(idx, type, seed, false, lang)
+        BlockModel.convertBlock(idx, type, seed, false, lang)
         applied(idx, type)
     }
 

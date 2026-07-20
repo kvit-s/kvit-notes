@@ -69,7 +69,7 @@ Item {
         var r = AppSettings.revision // re-evaluate when a setting changes
         return AppSettings.value("view.equationNumbers", false) === true
     }
-    readonly property int equationNumber: blockModel.mathNumber(root.index)
+    readonly property int equationNumber: BlockModel.mathNumber(root.index)
 
     // aarrggbb hex of a color, for the image://math/ query.
     function argbHex(c) {
@@ -97,9 +97,9 @@ Item {
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -159,7 +159,7 @@ Item {
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
         if (!root.listView || targetIndex < 0
-            || targetIndex >= blockModel.count)
+            || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
         var target = root.listView.itemAtIndex(targetIndex)
@@ -174,7 +174,7 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -185,7 +185,7 @@ Item {
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -204,12 +204,12 @@ Item {
         if (typeof A11y !== "undefined" && names[newType])
             A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
-        blockModel.convertBlock(root.index, newType, root.content, false, lang)
+        BlockModel.convertBlock(root.index, newType, root.content, false, lang)
     }
 
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -229,7 +229,7 @@ Item {
             if (sourceArea.text !== root.content) {
                 var caret = sourceArea.cursorPosition
                 var keepMenu = sourceArea.activeMathMenu() !== null
-                blockModel.updateContentById(root.blockId, sourceArea.text)
+                BlockModel.updateContentById(root.blockId, sourceArea.text)
                 // Re-applying the model-backed source can move the TextArea
                 // caret before the command trigger. Restore it before query
                 // synchronization so a slow typist does not lose the popup.
@@ -510,7 +510,7 @@ Item {
                         menu.dismiss()
                     mathTriggerPos = -1
                     if (text !== root.content)
-                        blockModel.updateContent(root.index, text)
+                        BlockModel.updateContent(root.index, text)
                     text = Qt.binding(function() { return root.content })
                 }
             }
@@ -738,7 +738,7 @@ Item {
                 var win = Window.window
                 if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onCanceled: { if (dragging) { dragging = false; var win = Window.window

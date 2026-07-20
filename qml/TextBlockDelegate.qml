@@ -87,10 +87,10 @@ Item {
         && BlockAttributes.num(root.attributes, "dropcap", 0) >= 2
     // Only rows inside the active text range need the editor for portion paint.
     readonly property bool inTextSelectionRange: {
-        if (!documentSelection.hasTextSelection)
+        if (!DocumentSelection.hasTextSelection)
             return false
-        var revision = documentSelection.revision
-        var portion = documentSelection.portionForBlock(root.index)
+        var revision = DocumentSelection.revision
+        var portion = DocumentSelection.portionForBlock(root.index)
         return !!(portion && portion.selected)
     }
     readonly property bool useReadOnlyShell:
@@ -138,10 +138,10 @@ Item {
     }
 
     readonly property bool blockSelected: {
-        if (!documentSelection.hasBlockSelection)
+        if (!DocumentSelection.hasBlockSelection)
             return false
-        var revision = documentSelection.revision
-        return documentSelection.isBlockSelected(root.index)
+        var revision = DocumentSelection.revision
+        return DocumentSelection.isBlockSelected(root.index)
     }
     readonly property bool isDragSource: {
         var win = Window.window
@@ -300,7 +300,7 @@ Item {
             var next = (value === "left" || value === "")
                 ? BlockAttributes.without(root.attributes, "align")
                 : BlockAttributes.withValue(root.attributes, "align", value)
-            blockModel.setBlockAttributes(root.index, next)
+            BlockModel.setBlockAttributes(root.index, next)
         }
     }
     function setDropCap(lines) { forward("setDropCap", [lines]) }
@@ -320,11 +320,11 @@ Item {
         if (typeof A11y !== "undefined" && names[newType])
             A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
-        blockModel.convertBlock(root.index, newType, root.content, false, lang)
+        BlockModel.convertBlock(root.index, newType, root.content, false, lang)
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = ListView.view
         Qt.callLater(function() {
             if (!lv)
@@ -443,8 +443,8 @@ Item {
             var ctrl = mouse.modifiers & Qt.ControlModifier
             var shift = mouse.modifiers & Qt.ShiftModifier
             if (ctrl && !shift) {
-                documentSelection.toggleBlock(root.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(root.index)
+                if (DocumentSelection.hasBlockSelection)
                     root.focusSelectionHandler()
                 else
                     root.focusAtPosition(0)
@@ -452,31 +452,31 @@ Item {
                 return
             }
             if (shift && !ctrl) {
-                if (!documentSelection.hasBlockSelection) {
+                if (!DocumentSelection.hasBlockSelection) {
                     var win = Window.window
                     var anchor = win && win.lastFocusedBlock !== undefined
                             ? win.lastFocusedBlock : -1
                     if (anchor >= 0 && anchor !== root.index)
-                        documentSelection.selectBlock(anchor)
+                        DocumentSelection.selectBlock(anchor)
                 }
-                documentSelection.extendBlockSelectionTo(root.index)
+                DocumentSelection.extendBlockSelectionTo(root.index)
                 root.focusSelectionHandler()
                 mouse.accepted = true
                 return
             }
             var gutterWidth = 44 + root.indentLevel * 24
             if (mouse.x < gutterWidth) {
-                if ((documentSelection.hasBlockSelection
-                     || documentSelection.hasTextSelection)
-                    && !documentSelection.isBlockSelected(root.index))
-                    documentSelection.clear()
+                if ((DocumentSelection.hasBlockSelection
+                     || DocumentSelection.hasTextSelection)
+                    && !DocumentSelection.isBlockSelected(root.index))
+                    DocumentSelection.clear()
                 mouse.accepted = false
                 return
             }
-            if ((documentSelection.hasBlockSelection
-                 || documentSelection.hasTextSelection)
-                && !documentSelection.isBlockSelected(root.index))
-                documentSelection.clear()
+            if ((DocumentSelection.hasBlockSelection
+                 || DocumentSelection.hasTextSelection)
+                && !DocumentSelection.isBlockSelected(root.index))
+                DocumentSelection.clear()
 
             var localX = mouse.x - readOnlyText.x
             var localY = mouse.y - readOnlyText.y
@@ -601,7 +601,7 @@ Item {
                             }
                             if (ListView.view)
                                 ListView.view.currentIndex = root.index
-                            documentSelection.selectBlock(root.index)
+                            DocumentSelection.selectBlock(root.index)
                             root.focusSelectionHandler()
                         }
                         onCanceled: {

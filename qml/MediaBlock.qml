@@ -95,9 +95,9 @@ Item {
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -136,7 +136,7 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -147,7 +147,7 @@ Item {
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -158,7 +158,7 @@ Item {
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -185,7 +185,7 @@ Item {
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier) && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Space) {
@@ -196,7 +196,7 @@ Item {
                 var prev = root.listView.itemAtIndex(pi); if (prev) prev.focusAtEnd()
                 event.accepted = true; return
             }
-            if (event.key === Qt.Key_Down && root.index < blockModel.count - 1 && root.listView) {
+            if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1 && root.listView) {
                 var ni = root.index + 1; root.listView.currentIndex = ni
                 var next = root.listView.itemAtIndex(ni); if (next) next.focusAtStart()
                 event.accepted = true; return
@@ -461,7 +461,7 @@ Item {
                 var win = Window.window
                 if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onCanceled: { if (dragging) { dragging = false; var win = Window.window

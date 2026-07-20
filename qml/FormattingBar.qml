@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The floating formatting bar (features.md §9.3): appears over a
 // completed in-block text selection — after a mouse selection ends or
@@ -33,7 +34,7 @@ Rectangle {
         && target.selectedDisplayText !== undefined
         && target.selectionEndDoc > target.selectionStartDoc
         && !target.verbatimEditing
-        && !documentSelection.hasTextSelection
+        && !DocumentSelection.hasTextSelection
 
     // One number that changes with any selection movement; every change
     // disarms and restarts the settle timer, so the bar only appears
