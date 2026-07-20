@@ -140,6 +140,12 @@ STRICT_CLEAN=(
     qml/Lightbox.qml
     qml/PanelSeam.qml
     qml/QuickCaptureWindow.qml
+    qml/BulletListDelegate.qml
+    qml/MathCommandMenu.qml
+    qml/NumberedListDelegate.qml
+    qml/QuoteDelegate.qml
+    qml/TableSizePicker.qml
+    qml/TodoDelegate.qml
     qml/TemplateDialog.qml
 )
 
