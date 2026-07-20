@@ -28,6 +28,7 @@ private slots:
     void captureNoteWritesBodyTitledFromFirstLine();
     void captureNoteFallsBackToUntitled();
     void captureNoteLeavesNothingBehindWhenTheWriteFails();
+    void captureNoteLeavesNoEmptyNoteWhenOnlyTheBodyFails();
     void quickCaptureChordFollowsTheSetting();
 };
 
@@ -140,6 +141,60 @@ void TestSystemIntegration::captureNoteFallsBackToUntitled()
     QFile f(col.absolutePath(rel));
     QVERIFY(f.open(QIODevice::ReadOnly));
     QVERIFY(QString::fromUtf8(f.readAll()).contains("some body"));
+}
+
+
+// The half-written window specifically, and a bug found by looking for it.
+//
+// The case below denies writes to the whole vault, so the note is never
+// created; a mutation audit showed that the two-step "create empty, then
+// fill" implementation the H12 fix replaced passes that test unchanged.
+// Capping the file size instead lets a small write succeed and a large one
+// fail, which is the shape that tells the two apart.
+//
+// Doing that surfaced a real defect that is not about capture at all:
+// writeTextFileAtomic (notecollection.cpp) streams through QTextStream and
+// returns QSaveFile::commit() without ever checking stream.status(), so a
+// write that stops short reports success. writeFileBytesAtomic beside it does
+// check. With a 4 KB cap and a 64 KB note the capture returns a relative path
+// and leaves a file holding 4096 of 65545 bytes: the user is told the note
+// was captured, and most of it is gone.
+//
+// The QEXPECT_FAIL below records that. When the writer is fixed, this test
+// reports an unexpected pass and fails, which is the signal to remove it.
+void TestSystemIntegration::captureNoteLeavesNoEmptyNoteWhenOnlyTheBodyFails()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    NoteCollection col;
+    QVERIFY(col.openRoot(dir.path()));
+
+    // Large enough that the body cannot land, small enough that creating an
+    // empty file can.
+    const QString body =
+        QStringLiteral("Buy milk\n") + QString(64 * 1024, QLatin1Char('x'));
+    const qint64 intended = body.toUtf8().size();
+
+    FaultInjection::FileSizeLimit limit(4096);
+    if (!limit.supported())
+        QSKIP(qPrintable(limit.skipReason()));
+
+    const QString rel = col.captureNote(body);
+
+    QEXPECT_FAIL("", "writeTextFileAtomic ignores QTextStream::status(), so a "
+                     "short write reports success and the note is silently "
+                     "truncated", Abort);
+    QVERIFY2(rel.isEmpty(),
+             "capture reported success for a note whose body did not fit");
+
+    // Unreached until the writer is fixed; kept so the intent is explicit.
+    QCOMPARE(col.noteCount(), 0);
+    const QStringList left =
+        QDir(dir.path()).entryList(QDir::Files | QDir::NoDotAndDotDot);
+    QVERIFY2(left.isEmpty(),
+             qPrintable(QStringLiteral("capture left %1 behind holding none of "
+                                       "the captured text").arg(left.join(", "))));
+    Q_UNUSED(intended);
 }
 
 void TestSystemIntegration::captureNoteLeavesNothingBehindWhenTheWriteFails()
