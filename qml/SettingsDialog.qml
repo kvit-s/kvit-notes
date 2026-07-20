@@ -24,8 +24,8 @@ Dialog {
     padding: 0
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -54,19 +54,19 @@ Dialog {
                 Label {
                     text: qsTr("Theme")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
 
                 RowLayout {
                     spacing: 10
                     Repeater {
-                        model: theme.availableThemes
+                        model: Theme.availableThemes
                         // A theme card: swatch above the name, the
                         // active one ringed in accent.
                         ColumnLayout {
                             required property string modelData
                             readonly property var preview:
-                                theme.themePreview(modelData)
+                                Theme.themePreview(modelData)
                             spacing: 4
 
                             Rectangle {
@@ -76,10 +76,10 @@ Dialog {
                                 radius: 5
                                 color: parent.preview.background
                                 border.width:
-                                    theme.themeId === parent.modelData ? 2 : 1
+                                    Theme.themeId === parent.modelData ? 2 : 1
                                 border.color:
-                                    theme.themeId === parent.modelData
-                                        ? theme.accent : theme.borderStrong
+                                    Theme.themeId === parent.modelData
+                                        ? Theme.accent : Theme.borderStrong
 
                                 Rectangle { // panel stripe
                                     width: 26
@@ -105,7 +105,7 @@ Dialog {
                                 }
                                 MouseArea {
                                     anchors.fill: parent
-                                    onClicked: theme.themeId
+                                    onClicked: Theme.themeId
                                         = parent.parent.modelData
                                 }
                             }
@@ -117,7 +117,7 @@ Dialog {
                                         + name.slice(1)
                                 }
                                 font.pixelSize: 11
-                                color: theme.textMuted
+                                color: Theme.textMuted
                             }
                         }
                     }
@@ -128,7 +128,7 @@ Dialog {
                 Label {
                     text: qsTr("Accent color")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                     Layout.topMargin: 6
                 }
                 RowLayout {
@@ -137,38 +137,38 @@ Dialog {
                     Rectangle { // "theme default" swatch
                         objectName: "accentDefaultSwatch"
                         width: 24; height: 24; radius: 12
-                        color: theme.mutedGlyph
-                        border.width: theme.accentOverride === "" ? 2 : 1
-                        border.color: theme.accentOverride === ""
-                            ? theme.textPrimary : theme.borderStrong
+                        color: Theme.mutedGlyph
+                        border.width: Theme.accentOverride === "" ? 2 : 1
+                        border.color: Theme.accentOverride === ""
+                            ? Theme.textPrimary : Theme.borderStrong
                         Label {
                             anchors.centerIn: parent
                             text: "✕"
                             font.pixelSize: 10
-                            color: theme.onAccent
+                            color: Theme.onAccent
                         }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: theme.accentOverride = ""
+                            onClicked: Theme.accentOverride = ""
                         }
                         ToolTip.visible: accentDefaultHover.hovered
                         ToolTip.text: qsTr("Theme default")
                         HoverHandler { id: accentDefaultHover }
                     }
                     Repeater {
-                        model: theme.colorPalette
+                        model: Theme.colorPalette
                         Rectangle {
                             required property string modelData
                             width: 24; height: 24; radius: 12
                             color: modelData
                             border.width:
-                                theme.accentOverride === modelData ? 2 : 1
+                                Theme.accentOverride === modelData ? 2 : 1
                             border.color:
-                                theme.accentOverride === modelData
-                                    ? theme.textPrimary : theme.borderStrong
+                                Theme.accentOverride === modelData
+                                    ? Theme.textPrimary : Theme.borderStrong
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: theme.accentOverride
+                                onClicked: Theme.accentOverride
                                     = parent.modelData
                             }
                         }
@@ -179,8 +179,8 @@ Dialog {
                         implicitHeight: 26
                         font.pixelSize: 11
                         placeholderText: "#rrggbb"
-                        text: theme.accentOverride
-                        onEditingFinished: theme.accentOverride = text
+                        text: Theme.accentOverride
+                        onEditingFinished: Theme.accentOverride = text
                     }
                 }
 
@@ -188,7 +188,7 @@ Dialog {
                 Label {
                     text: qsTr("Highlight color")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                     Layout.topMargin: 6
                 }
                 RowLayout {
@@ -197,35 +197,35 @@ Dialog {
                     Rectangle {
                         objectName: "highlightDefaultSwatch"
                         width: 24; height: 24; radius: 12
-                        color: theme.mutedGlyph
-                        border.width: theme.highlightOverride === "" ? 2 : 1
-                        border.color: theme.highlightOverride === ""
-                            ? theme.textPrimary : theme.borderStrong
+                        color: Theme.mutedGlyph
+                        border.width: Theme.highlightOverride === "" ? 2 : 1
+                        border.color: Theme.highlightOverride === ""
+                            ? Theme.textPrimary : Theme.borderStrong
                         Label {
                             anchors.centerIn: parent
                             text: "✕"
                             font.pixelSize: 10
-                            color: theme.onAccent
+                            color: Theme.onAccent
                         }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: theme.highlightOverride = ""
+                            onClicked: Theme.highlightOverride = ""
                         }
                     }
                     Repeater {
-                        model: theme.highlightPalette
+                        model: Theme.highlightPalette
                         Rectangle {
                             required property string modelData
                             width: 24; height: 24; radius: 12
                             color: modelData
                             border.width:
-                                theme.highlightOverride === modelData ? 2 : 1
+                                Theme.highlightOverride === modelData ? 2 : 1
                             border.color:
-                                theme.highlightOverride === modelData
-                                    ? theme.textPrimary : theme.borderStrong
+                                Theme.highlightOverride === modelData
+                                    ? Theme.textPrimary : Theme.borderStrong
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: theme.highlightOverride
+                                onClicked: Theme.highlightOverride
                                     = parent.modelData
                             }
                         }
@@ -236,8 +236,8 @@ Dialog {
                         implicitHeight: 26
                         font.pixelSize: 11
                         placeholderText: "#rrggbb"
-                        text: theme.highlightOverride
-                        onEditingFinished: theme.highlightOverride = text
+                        text: Theme.highlightOverride
+                        onEditingFinished: Theme.highlightOverride = text
                     }
                 }
 
@@ -246,7 +246,7 @@ Dialog {
                     text: qsTr("Sample: normal, ==highlighted==, and "
                                + "[linked](x) text follow these choices.")
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     wrapMode: Text.Wrap
                 }
 
@@ -259,7 +259,7 @@ Dialog {
                 columnSpacing: 12
                 rowSpacing: 10
 
-                Label { text: qsTr("Editor font"); color: theme.textSecondary }
+                Label { text: qsTr("Editor font"); color: Theme.textSecondary }
                 ComboBox {
                     id: familyCombo
                     objectName: "fontFamilyCombo"
@@ -278,7 +278,7 @@ Dialog {
                     }
                 }
 
-                Label { text: qsTr("Font size"); color: theme.textSecondary }
+                Label { text: qsTr("Font size"); color: Theme.textSecondary }
                 RowLayout {
                     SpinBox {
                         objectName: "fontSizeSpin"
@@ -289,11 +289,11 @@ Dialog {
                     Label {
                         text: qsTr("px — headings scale with it")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
-                Label { text: qsTr("Line height"); color: theme.textSecondary }
+                Label { text: qsTr("Line height"); color: Theme.textSecondary }
                 RowLayout {
                     Slider {
                         id: lineHeightSlider
@@ -306,13 +306,13 @@ Dialog {
                     Label {
                         text: "×" + Typography.lineHeight.toFixed(2)
                         font.pixelSize: 11
-                        color: theme.textMuted
+                        color: Theme.textMuted
                     }
                 }
 
                 Label {
                     text: qsTr("Block spacing")
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 RowLayout {
                     SpinBox {
@@ -324,13 +324,13 @@ Dialog {
                     Label {
                         text: qsTr("px between blocks")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
                 Label {
                     text: qsTr("Content width")
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 RowLayout {
                     CheckBox {
@@ -354,11 +354,11 @@ Dialog {
                     Label {
                         text: qsTr("px, centered")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
-                Label { text: qsTr("Code font"); color: theme.textSecondary }
+                Label { text: qsTr("Code font"); color: Theme.textSecondary }
                 ComboBox {
                     objectName: "monoFamilyCombo"
                     Layout.fillWidth: true
@@ -389,7 +389,7 @@ Dialog {
                 Label {
                     text: qsTr("Remote content")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 CheckBox {
                     objectName: "autoLoadRemoteToggle"
@@ -401,7 +401,7 @@ Dialog {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     text: qsTr("Off by default. A note can name any address, "
                         + "so loading one on sight would tell that site you "
                         + "opened the note, and from where. With this off, "
@@ -420,7 +420,7 @@ Dialog {
                     Label {
                         Layout.fillWidth: true
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                         text: parent.approvedCount === 0
                             ? qsTr("No sites approved.")
                             : qsTr("%n site(s) approved.", "", parent.approvedCount)
@@ -436,7 +436,7 @@ Dialog {
                 Label {
                     text: qsTr("Updates")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 CheckBox {
                     objectName: "updateCheckToggle"
@@ -448,7 +448,7 @@ Dialog {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     text: qsTr("One request to the GitHub Releases API at "
                         + "startup, at most once per day, to show a notice "
                         + "when a newer version exists. Nothing is sent "
@@ -460,7 +460,7 @@ Dialog {
                     visible: SystemTray.available
                     text: qsTr("System tray")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 CheckBox {
                     objectName: "closeToTrayToggle"

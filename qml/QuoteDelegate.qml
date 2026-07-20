@@ -11,7 +11,7 @@ import Kvit 1.0
 EditableBlock {
     id: root
 
-    contentColor: theme.textSecondary
+    contentColor: Theme.textSecondary
 
     // The attribution tail: the final "— …" line, with its leading newline,
     // when there is a body before it.
@@ -41,7 +41,7 @@ EditableBlock {
                         objectName: "quoteBar"
                         width: 3
                         radius: 1.5
-                        color: theme.quoteBar
+                        color: Theme.quoteBar
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 8
@@ -63,7 +63,7 @@ EditableBlock {
                 anchors.rightMargin: 4
                 anchors.top: parent.top
                 text: "— " + root.attributionText
-                color: theme.textMuted
+                color: Theme.textMuted
                 font.pixelSize: Math.max(11, Typography.baseSize - 2)
                 font.italic: false
             }

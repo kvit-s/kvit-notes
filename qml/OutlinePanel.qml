@@ -17,7 +17,7 @@ Rectangle {
 
     property var appWindow
 
-    color: theme.panelBackground
+    color: Theme.panelBackground
 
     // Left divider.
     Rectangle {
@@ -25,7 +25,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 1
-        color: theme.border
+        color: Theme.border
     }
 
     // Keep the current section visible as the caret moves between headings.
@@ -47,10 +47,10 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
-            color: theme.panelBackground
+            color: Theme.panelBackground
             Rectangle {
                 anchors.bottom: parent.bottom
-                width: parent.width; height: 1; color: theme.border
+                width: parent.width; height: 1; color: Theme.border
             }
             RowLayout {
                 anchors.fill: parent
@@ -60,7 +60,7 @@ Rectangle {
                     text: qsTr("Outline")
                     font.pixelSize: 12
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                     Layout.fillWidth: true
                 }
                 ToolButton {
@@ -118,7 +118,7 @@ Rectangle {
             text: qsTr("No headings yet. Add a heading to build the outline.")
             wrapMode: Text.WordWrap
             font.pixelSize: 11
-            color: theme.textFaint
+            color: Theme.textFaint
         }
 
         ListView {
@@ -137,8 +137,8 @@ Rectangle {
                 id: row
                 width: outlineList.width
                 height: 26
-                color: isCurrent ? theme.selectionTint
-                                 : (hover.hovered ? theme.hoverTint
+                color: isCurrent ? Theme.selectionTint
+                                 : (hover.hovered ? Theme.hoverTint
                                                   : "transparent")
 
                 // Current-section accent bar.
@@ -146,7 +146,7 @@ Rectangle {
                     visible: isCurrent
                     anchors.left: parent.left
                     width: 2; height: parent.height
-                    color: theme.accent
+                    color: Theme.accent
                 }
 
                 RowLayout {
@@ -179,7 +179,7 @@ Rectangle {
                         elide: Text.ElideRight
                         font.pixelSize: level === 1 ? 12 : 11
                         font.bold: level === 1
-                        color: isCurrent ? theme.textPrimary : theme.textSecondary
+                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
                     }
                 }
 

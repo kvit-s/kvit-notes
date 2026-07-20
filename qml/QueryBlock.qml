@@ -219,9 +219,9 @@ Item {
             visible: !root.editing
             height: root.editing ? 0 : readColumn.implicitHeight + 16
             radius: 6
-            color: root.blockSelected ? theme.blockSelectionTint
-                 : theme.panelBackground
-            border.color: root.blockSelected ? theme.accent : theme.border
+            color: root.blockSelected ? Theme.blockSelectionTint
+                 : Theme.panelBackground
+            border.color: root.blockSelected ? Theme.accent : Theme.border
             border.width: 1
             opacity: root.isDragSource ? 0.35 : 1
             clip: true
@@ -240,14 +240,14 @@ Item {
                         text: qsTr("Query")
                         font.pixelSize: 11
                         font.bold: true
-                        color: theme.textMuted
+                        color: Theme.textMuted
                     }
                     Text {
                         objectName: "queryCountText"
                         visible: root.queryResult.ok
                         text: qsTr("%1 notes").arg(root.queryResult.rows.length)
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -259,7 +259,7 @@ Item {
                     text: root.queryResult.error
                     wrapMode: Text.Wrap
                     font.pixelSize: 12
-                    color: theme.danger
+                    color: Theme.danger
                 }
 
                 // ---- Table view ----
@@ -283,7 +283,7 @@ Item {
                             text: modelData
                             font.pixelSize: 11
                             font.bold: true
-                            color: theme.textMuted
+                            color: Theme.textMuted
                             elide: Text.ElideRight
                             width: Math.max(40, (tableGrid.width
                                 - tableGrid.columnSpacing
@@ -319,14 +319,14 @@ Item {
                                 / tableGrid.columns)
                             height: cellText.implicitHeight + 8
                             color: cellHover.hovered
-                                   ? theme.hoverTint : "transparent"
+                                   ? Theme.hoverTint : "transparent"
                             Text {
                                 id: cellText
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width
                                 text: modelData.text
                                 font.pixelSize: 12
-                                color: theme.textPrimary
+                                color: Theme.textPrimary
                                 elide: Text.ElideRight
                             }
                             HoverHandler { id: cellHover }
@@ -343,7 +343,7 @@ Item {
                              && root.queryResult.rows.length === 0
                     text: qsTr("No matching notes")
                     font.pixelSize: 12
-                    color: theme.textFaint
+                    color: Theme.textFaint
                 }
 
                 // ---- Board view ----
@@ -370,8 +370,8 @@ Item {
                                 width: 190
                                 height: groupColumn.implicitHeight + 12
                                 radius: 6
-                                color: theme.listBackground
-                                border.color: theme.border
+                                color: Theme.listBackground
+                                border.color: Theme.border
                                 border.width: 1
 
                                 Column {
@@ -388,12 +388,12 @@ Item {
                                             text: modelData.name
                                             font.pixelSize: 12
                                             font.bold: true
-                                            color: theme.textSecondary
+                                            color: Theme.textSecondary
                                         }
                                         Text {
                                             text: modelData.cards.length
                                             font.pixelSize: 11
-                                            color: theme.textFaint
+                                            color: Theme.textFaint
                                         }
                                     }
 
@@ -405,9 +405,9 @@ Item {
                                             width: groupColumn.width
                                             height: cardCol.implicitHeight + 10
                                             radius: 4
-                                            color: theme.panelBackground
+                                            color: Theme.panelBackground
                                             border.color: cardHover.hovered
-                                                ? theme.accent : theme.border
+                                                ? Theme.accent : Theme.border
                                             border.width: 1
                                             Column {
                                                 id: cardCol
@@ -427,8 +427,8 @@ Item {
                                                         font.pixelSize: index === 0 ? 12 : 10
                                                         font.bold: index === 0
                                                         color: index === 0
-                                                            ? theme.textPrimary
-                                                            : theme.textMuted
+                                                            ? Theme.textPrimary
+                                                            : Theme.textMuted
                                                         elide: Text.ElideRight
                                                     }
                                                 }
@@ -467,13 +467,13 @@ Item {
                 text: root.content
                 font.family: Typography.monoFamily
                 font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
-                color: theme.textPrimary
+                color: Theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
                 background: Rectangle {
-                    color: theme.codePanelBackground
+                    color: Theme.codePanelBackground
                     radius: 4
-                    border.color: theme.border; border.width: 1
+                    border.color: Theme.border; border.width: 1
                 }
                 // Committing only on focus loss means a click straight from
                 // this editor onto another note replaces the model before the
@@ -532,15 +532,15 @@ Item {
         width: editChipText.implicitWidth + 12
         height: 18
         radius: 4
-        color: editChipArea.containsMouse ? theme.hoverTint : theme.chipBackground
-        border.color: theme.border
+        color: editChipArea.containsMouse ? Theme.hoverTint : Theme.chipBackground
+        border.color: Theme.border
         border.width: 1
         Text {
             id: editChipText
             anchors.centerIn: parent
             text: qsTr("Edit query")
             font.pixelSize: 10
-            color: theme.textMuted
+            color: Theme.textMuted
         }
         MouseArea {
             id: editChipArea
@@ -559,14 +559,14 @@ Item {
         x: 10
         y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
             text: "+"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 14
             font.bold: true
         }
@@ -599,7 +599,7 @@ Item {
                     spacing: 2
                     Repeater {
                         model: 2
-                        Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint }
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint }
                     }
                 }
             }

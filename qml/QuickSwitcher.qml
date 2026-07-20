@@ -77,8 +77,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 8
     }
@@ -92,12 +92,12 @@ Popup {
             width: parent.width
             placeholderText: qsTr("Find or create a note…")
             font.pixelSize: 14
-            color: theme.textPrimary
-            placeholderTextColor: theme.textFaint
+            color: Theme.textPrimary
+            placeholderTextColor: Theme.textFaint
             background: Rectangle {
-                color: theme.listBackground
+                color: Theme.listBackground
                 border.color: queryField.activeFocus
-                              ? theme.accent : theme.borderStrong
+                              ? Theme.accent : Theme.borderStrong
                 border.width: 1
                 radius: 6
             }
@@ -138,7 +138,7 @@ Popup {
                     height: 44
                     radius: 6
                     color: index === switcher.highlightIndex
-                           ? theme.hoverTint : "transparent"
+                           ? Theme.hoverTint : "transparent"
 
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
@@ -151,7 +151,7 @@ Popup {
                         Text {
                             width: parent.width
                             text: modelData.title
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                             font.pixelSize: 14
                             elide: Text.ElideRight
                         }
@@ -159,7 +159,7 @@ Popup {
                             width: parent.width
                             visible: modelData.folder !== ""
                             text: modelData.folder
-                            color: theme.textFaint
+                            color: Theme.textFaint
                             font.pixelSize: 11
                             elide: Text.ElideRight
                         }
@@ -182,7 +182,7 @@ Popup {
                   ? qsTr("No notes")
                   : qsTr("No matches — Shift+Enter creates “%1”")
                         .arg(queryField.text.trim())
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 12
             horizontalAlignment: Text.AlignHCenter
             padding: 10

@@ -58,9 +58,9 @@ Item {
     function colorOf(name) {
         for (var i = 0; i < registry.length; i++) {
             if (registry[i].name === name)
-                return registry[i].color !== "" ? registry[i].color : theme.mutedGlyph
+                return registry[i].color !== "" ? registry[i].color : Theme.mutedGlyph
         }
-        return theme.mutedGlyph
+        return Theme.mutedGlyph
     }
 
     function applyTag(name) {
@@ -100,14 +100,14 @@ Item {
                     Text {
                         text: modelData
                         font.pixelSize: 11
-                        color: theme.textPrimary
+                        color: Theme.textPrimary
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
                         objectName: "tagChipRemove"
                         text: "×"
                         font.pixelSize: 12
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         anchors.verticalCenter: parent.verticalCenter
                         MouseArea {
                             anchors.fill: parent
@@ -130,7 +130,7 @@ Item {
             placeholderText: qsTr("+ Tag")
             background: Rectangle {
                 color: "transparent"
-                border.color: addField.activeFocus ? theme.accent : theme.border
+                border.color: addField.activeFocus ? Theme.accent : Theme.border
                 radius: 11
             }
             leftPadding: 10
@@ -190,8 +190,8 @@ Item {
                         width: suggestionList.width
                         height: 22
                         color: index === addField.highlighted
-                               ? theme.selectionTint
-                               : (suggestionHover.hovered ? theme.hoverTint
+                               ? Theme.selectionTint
+                               : (suggestionHover.hovered ? Theme.hoverTint
                                                           : "transparent")
                         HoverHandler { id: suggestionHover }
                         Row {

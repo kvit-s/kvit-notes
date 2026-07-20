@@ -772,11 +772,11 @@ ApplicationWindow {
                  inText: item.pointInText ? item.pointInText(sceneX, sceneY) : false }
     }
 
-    readonly property color backgroundColor: theme.windowBackground
-    readonly property color blockBackgroundColor: theme.windowBackground
-    readonly property color blockBorderColor: theme.border
-    readonly property color focusedBorderColor: theme.accent
-    readonly property color textColor: theme.textPrimary
+    readonly property color backgroundColor: Theme.windowBackground
+    readonly property color blockBackgroundColor: Theme.windowBackground
+    readonly property color blockBorderColor: Theme.border
+    readonly property color focusedBorderColor: Theme.accent
+    readonly property color textColor: Theme.textPrimary
 
     color: backgroundColor
 
@@ -784,21 +784,21 @@ ApplicationWindow {
     // through palette propagation — one binding set instead of
     // per-control color work.
     palette {
-        window: theme.panelBackground
-        windowText: theme.textPrimary
-        base: theme.windowBackground
-        alternateBase: theme.listBackground
-        text: theme.textPrimary
-        button: theme.footerBackground
-        buttonText: theme.textPrimary
-        highlight: theme.accent
-        highlightedText: theme.onAccent
-        placeholderText: theme.textDisabled
-        mid: theme.borderStrong
-        dark: theme.textSecondary
-        light: theme.hoverTint
-        toolTipBase: theme.popupBackground
-        toolTipText: theme.textPrimary
+        window: Theme.panelBackground
+        windowText: Theme.textPrimary
+        base: Theme.windowBackground
+        alternateBase: Theme.listBackground
+        text: Theme.textPrimary
+        button: Theme.footerBackground
+        buttonText: Theme.textPrimary
+        highlight: Theme.accent
+        highlightedText: Theme.onAccent
+        placeholderText: Theme.textDisabled
+        mid: Theme.borderStrong
+        dark: Theme.textSecondary
+        light: Theme.hoverTint
+        toolTipBase: Theme.popupBackground
+        toolTipText: Theme.textPrimary
     }
 
     // Global keyboard shortcuts for undo/redo
@@ -1422,11 +1422,11 @@ ApplicationWindow {
             width: 22
             height: 22
             radius: 11
-            color: theme.accent
+            color: Theme.accent
             Text {
                 anchors.centerIn: parent
                 text: blockDrag.dragCount
-                color: theme.onAccent
+                color: Theme.onAccent
                 font.pixelSize: 11
                 font.bold: true
             }
@@ -2243,7 +2243,7 @@ ApplicationWindow {
                         anchors.rightMargin: 12
                         width: 14; height: 14; radius: 3
                         color: modelData.value
-                        border.color: theme.border
+                        border.color: Theme.border
                     }
                     onTriggered: textContextMenu.target.applyColor(modelData.value)
                 }
@@ -2661,7 +2661,7 @@ ApplicationWindow {
                     width: parent ? parent.width : 0
                     height: 44
                     color: index === backupDialog.selectedRow
-                           ? theme.selectionTint : "transparent"
+                           ? Theme.selectionTint : "transparent"
                     Column {
                         anchors.fill: parent
                         anchors.margins: 6
@@ -2676,7 +2676,7 @@ ApplicationWindow {
                             text: modelData.preview !== ""
                                   ? modelData.preview : qsTr("(empty)")
                             font.pixelSize: 11
-                            color: theme.textFaint
+                            color: Theme.textFaint
                             elide: Text.ElideRight
                             width: parent.width
                         }
@@ -3182,10 +3182,10 @@ ApplicationWindow {
         height: root.externalConflict ? 40 : 0
         visible: root.externalConflict
         z: 50
-        color: theme.bannerBackground
+        color: Theme.bannerBackground
         Rectangle {
             anchors.bottom: parent.bottom
-            width: parent.width; height: 1; color: theme.border
+            width: parent.width; height: 1; color: Theme.border
         }
         Row {
             anchors.left: parent.left
@@ -3195,7 +3195,7 @@ ApplicationWindow {
             Label {
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("This note changed on disk. Keep your version or load the disk version?")
-                color: theme.bannerText
+                color: Theme.bannerText
                 font.pixelSize: 13
             }
         }
@@ -3231,10 +3231,10 @@ ApplicationWindow {
         height: root.oversizedFilePath !== "" ? 44 : 0
         visible: root.oversizedFilePath !== ""
         z: 50
-        color: theme.bannerBackground
+        color: Theme.bannerBackground
         Rectangle {
             anchors.bottom: parent.bottom
-            width: parent.width; height: 1; color: theme.border
+            width: parent.width; height: 1; color: Theme.border
         }
         Label {
             objectName: "oversizedFileLabel"
@@ -3251,7 +3251,7 @@ ApplicationWindow {
                     .arg(root.formatMiB(root.oversizedFileBytes))
                     .arg(root.formatMiB(root.oversizedFileCap))
             }
-            color: theme.bannerText
+            color: Theme.bannerText
             font.pixelSize: 13
         }
         Row {
@@ -3323,12 +3323,12 @@ ApplicationWindow {
             visible: root.sidebarCollapsed
             width: visible ? sidePanels.stripWidth : 0
             height: parent.height
-            color: theme.panelBackground
+            color: Theme.panelBackground
             Rectangle {
                 anchors.right: parent.right
                 height: parent.height
                 width: 1
-                color: theme.border
+                color: Theme.border
             }
             ToolButton {
                 objectName: "sidebarExpandButton"
@@ -3352,8 +3352,8 @@ ApplicationWindow {
             // motion source and suppressed during a seam drag so the two never
             // fight over width.
             Behavior on width {
-                enabled: theme.motionScale > 0 && !sidebarSeam.dragging
-                NumberAnimation { duration: 160 * theme.motionScale
+                enabled: Theme.motionScale > 0 && !sidebarSeam.dragging
+                NumberAnimation { duration: 160 * Theme.motionScale
                                   easing.type: Easing.OutCubic }
             }
         }
@@ -3374,12 +3374,12 @@ ApplicationWindow {
             visible: root.noteListCollapsed
             width: visible ? sidePanels.stripWidth : 0
             height: parent.height
-            color: theme.listBackground
+            color: Theme.listBackground
             Rectangle {
                 anchors.right: parent.right
                 height: parent.height
                 width: 1
-                color: theme.border
+                color: Theme.border
             }
             ToolButton {
                 objectName: "noteListExpandButton"
@@ -3401,8 +3401,8 @@ ApplicationWindow {
             appWindow: root
             sidebar: sidebar
             Behavior on width {
-                enabled: theme.motionScale > 0 && !noteListSeam.dragging
-                NumberAnimation { duration: 160 * theme.motionScale
+                enabled: Theme.motionScale > 0 && !noteListSeam.dragging
+                NumberAnimation { duration: 160 * Theme.motionScale
                                   easing.type: Easing.OutCubic }
             }
         }
@@ -3530,7 +3530,7 @@ ApplicationWindow {
                 width: parent.width
                 height: 2
                 radius: 1
-                color: theme.accent
+                color: Theme.accent
                 y: Math.max(0, editorDropArea.dropY)
             }
         }
@@ -3584,8 +3584,8 @@ ApplicationWindow {
                 Behavior on contentY {
                     // Typewriter scroll honors reduced motion (§14.3): 0
                     // duration stills it instantly.
-                    enabled: root.typewriterMode && theme.motionScale > 0
-                    NumberAnimation { duration: 130 * theme.motionScale
+                    enabled: root.typewriterMode && Theme.motionScale > 0
+                    NumberAnimation { duration: 130 * Theme.motionScale
                                       easing.type: Easing.OutQuad }
                 }
 
@@ -3770,7 +3770,7 @@ ApplicationWindow {
             width: blockListView.width - 48
             height: 3
             radius: 1.5
-            color: theme.accent
+            color: Theme.accent
             y: {
                 var gap = blockDrag.indicatorGap
                 if (gap < 0)
@@ -3878,14 +3878,14 @@ ApplicationWindow {
         height: 28
         visible: root.statusBarVisible && !root.focusMode
 
-        color: theme.footerBackground
+        color: Theme.footerBackground
 
         Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             height: 1
-            color: theme.border
+            color: Theme.border
         }
 
         RowLayout {
@@ -3901,7 +3901,7 @@ ApplicationWindow {
                 visible: root.transientStatus !== ""
                 text: root.transientStatus
                 font.pixelSize: 11
-                color: theme.accent
+                color: Theme.accent
             }
 
             // Passive update notice: appears only when the opt-out daily
@@ -3915,7 +3915,7 @@ ApplicationWindow {
                     : ""
                 font.pixelSize: 11
                 font.underline: updateNoticeMouse.containsMouse
-                color: theme.accent
+                color: Theme.accent
 
                 MouseArea {
                     id: updateNoticeMouse
@@ -3936,7 +3936,7 @@ ApplicationWindow {
                 text: qsTr("Create vault from this folder…")
                 font.pixelSize: 11
                 font.underline: createVaultMouse.containsMouse
-                color: theme.textMuted
+                color: Theme.textMuted
 
                 MouseArea {
                     id: createVaultMouse
@@ -3956,14 +3956,14 @@ ApplicationWindow {
                     height: 8
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: DocumentManager && DocumentManager.isDirty ? theme.warning : theme.success
+                    color: DocumentManager && DocumentManager.isDirty ? Theme.warning : Theme.success
                 }
 
                 Text {
                     objectName: "saveStateText"
                     text: DocumentManager && DocumentManager.isDirty ? "Unsaved" : "Saved"
                     font.pixelSize: 11
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -3973,7 +3973,7 @@ ApplicationWindow {
                 objectName: "savedTimeText"
                 visible: text !== ""
                 font.pixelSize: 11
-                color: theme.textFaint
+                color: Theme.textFaint
 
                 // Re-rendered every 30 s so "2 min ago" stays honest.
                 property int clockTick: 0
@@ -4008,7 +4008,7 @@ ApplicationWindow {
             Rectangle {
                 width: 1
                 height: 12
-                color: theme.textDisabled
+                color: Theme.textDisabled
             }
 
             // Caret position (features.md §9.7): block-relative, the
@@ -4017,7 +4017,7 @@ ApplicationWindow {
                 objectName: "cursorPositionText"
                 visible: text !== ""
                 font.pixelSize: 11
-                color: theme.textMuted
+                color: Theme.textMuted
                 text: {
                     var target = appToolbar.targetBlock
                     if (!target || target.cursorLineColumn === undefined)
@@ -4033,7 +4033,7 @@ ApplicationWindow {
             Rectangle {
                 width: 1
                 height: 12
-                color: theme.textDisabled
+                color: Theme.textDisabled
             }
 
             // Block type indicator
@@ -4077,7 +4077,7 @@ ApplicationWindow {
                     }
                 }
                 font.pixelSize: 11
-                color: theme.textMuted
+                color: Theme.textMuted
 
                 Connections {
                     target: BlockModel
@@ -4094,7 +4094,7 @@ ApplicationWindow {
             Rectangle {
                 width: 1
                 height: 12
-                color: theme.textDisabled
+                color: Theme.textDisabled
             }
 
             // File path or "New Document"
@@ -4104,14 +4104,14 @@ ApplicationWindow {
                 elide: Text.ElideMiddle
                 Layout.fillWidth: true
                 font.pixelSize: 11
-                color: theme.textMuted
+                color: Theme.textMuted
             }
 
             // Separator
             Rectangle {
                 width: 1
                 height: 12
-                color: theme.textDisabled
+                color: Theme.textDisabled
             }
 
             // Block count
@@ -4120,14 +4120,14 @@ ApplicationWindow {
                 text: root.formatCount(BlockModel ? BlockModel.count : 0)
                       + " blocks"
                 font.pixelSize: 11
-                color: theme.textMuted
+                color: Theme.textMuted
             }
 
             // Separator
             Rectangle {
                 width: 1
                 height: 12
-                color: theme.textDisabled
+                color: Theme.textDisabled
             }
 
             // features.md §9.7 word/character counts over display text,
@@ -4266,7 +4266,7 @@ ApplicationWindow {
                                                        : qsTr(" words"))
                       + (docCounter.counts.sel ? qsTr(" selected") : "")
                 font.pixelSize: 11
-                color: docCounter.counts.sel ? theme.accent : theme.textMuted
+                color: docCounter.counts.sel ? Theme.accent : Theme.textMuted
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -4
@@ -4289,7 +4289,7 @@ ApplicationWindow {
             Rectangle {
                 width: 1
                 height: 12
-                color: theme.textDisabled
+                color: Theme.textDisabled
             }
 
             // Character count
@@ -4297,7 +4297,7 @@ ApplicationWindow {
                 objectName: "charCountText"
                 text: root.formatCount(docCounter.counts.chars) + " chars"
                 font.pixelSize: 11
-                color: docCounter.counts.sel ? theme.accent : theme.textMuted
+                color: docCounter.counts.sel ? Theme.accent : Theme.textMuted
             }
 
             // §19.2 writing-goal ring: progress toward the per-note word
@@ -4325,9 +4325,9 @@ ApplicationWindow {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
                     property real frac: parent.fraction
-                    property color trackColor: theme.border
+                    property color trackColor: Theme.border
                     property color fillColor: parent.fraction >= 1
-                        ? theme.success : theme.accent
+                        ? Theme.success : Theme.accent
                     onFracChanged: requestPaint()
                     onTrackColorChanged: requestPaint()
                     onFillColorChanged: requestPaint()
@@ -4358,7 +4358,7 @@ ApplicationWindow {
                         : qsTr("goal")
                     font.pixelSize: 11
                     color: parent.fraction >= 1 && parent.goal > 0
-                        ? theme.success : theme.textMuted
+                        ? Theme.success : Theme.textMuted
                 }
                 MouseArea {
                     anchors.fill: parent

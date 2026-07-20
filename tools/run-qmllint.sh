@@ -111,54 +111,80 @@ fi
 
 echo "qmllint: ${#FILES[@]} files clean"
 
-# ── Second pass: the files that no longer read a context property
+# ── Second pass: the files that pass at full strength
 #
-# `unqualified` and `missing-property` are off above because a context
-# property is invisible to static analysis, so every read of one is reported.
-# That is a property of the FILE, not of the tree: once a file reaches all its
-# C++ state through the `Kvit` module, both categories can be switched on for
-# it, and then a misspelled name or a property that does not exist on a
-# singleton is a static error rather than a runtime undefined.
+# `unqualified` and `missing-property` are off in the first pass because the
+# tree does not survive them yet. The remaining findings are not context
+# properties any more — every service is a Kvit module singleton now — but
+# parent-scope access from inside delegates and component scopes, which needs
+# `pragma ComponentBehavior: Bound` and a `required property` for each model
+# role the delegate reads.
 #
-# The list is derived, not maintained. Any file mentioning none of the names
-# AppContext still publishes qualifies, so a file graduates into this pass on
-# the commit that converts its last context property, and cannot be forgotten.
-# The count below is expected to rise as services move to the module; it
-# reaching every file is what retires the first pass entirely.
-# Read whole-file rather than line-by-line: at least one publish() call wraps
-# its name onto the following line, and a line-oriented match silently missed
-# it — which graduated a file that still read that property.
-mapfile -t CONTEXT_NAMES < <(
-    perl -0777 -ne 'print "$1\n" while /publish\(\s*"([A-Za-z0-9_]+)"/g' \
-        src/appcontext.cpp | sort -u)
+# That work is being done file by file, and each file that is finished is
+# listed here and linted at full strength from then on. The list only grows.
+# When it covers every file in qml/, the first pass and this list both go away
+# and the categories are simply enabled for the whole tree, which is the point
+# of the exercise.
+#
+# It is a hand-maintained list, which is weaker than the derived one it
+# replaced — that one asked which files still read a context property, and the
+# answer is now none. Two things compensate: a listed file that regresses
+# fails this script, and a finished file that nobody added is reported below
+# rather than quietly left out.
+STRICT_CLEAN=(
+    qml/CalloutBlock.qml
+    qml/CodeBlockDelegate.qml
+    qml/ExportDialog.qml
+    qml/ImportDialog.qml
+    qml/LanguagePicker.qml
+    qml/Lightbox.qml
+    qml/PanelSeam.qml
+    qml/QuickCaptureWindow.qml
+    qml/TemplateDialog.qml
+)
 
-if [ ${#CONTEXT_NAMES[@]} -eq 0 ]; then
-    echo "No context properties found in src/appcontext.cpp — has publish() been renamed?" >&2
-    exit 2
-fi
+strict_lint() {
+    "$QMLLINT" \
+        -I qml \
+        -I "$MODULE_DIR" \
+        -W 0 \
+        --equality-type-coercion info \
+        --Quick.layout-positioning info \
+        --Quick.anchor-combinations info \
+        "$@"
+}
 
-# One alternation of whole-word matches, so a file is excluded on any hit.
-CONTEXT_PATTERN="\\b($(IFS='|'; echo "${CONTEXT_NAMES[*]}"))\\b"
-
+# Only lint the listed files that were actually asked for, so passing
+# individual files on the command line still works.
 STRICT=()
 for file in "${FILES[@]}"; do
-    if ! grep -qE "$CONTEXT_PATTERN" "$file"; then
-        STRICT+=("$file")
+    for clean in "${STRICT_CLEAN[@]}"; do
+        [ "$file" = "$clean" ] && STRICT+=("$file") && break
+    done
+done
+
+if [ ${#STRICT[@]} -gt 0 ]; then
+    strict_lint "${STRICT[@]}"
+    echo "qmllint (strict, unqualified + missing-property enabled): ${#STRICT[@]}/${#FILES[@]} files clean"
+fi
+
+# Files that would pass at full strength but are not listed. Not a failure —
+# it is the prompt to add them, so the list cannot lag behind the work.
+READY=()
+for file in "${FILES[@]}"; do
+    listed=""
+    for clean in "${STRICT_CLEAN[@]}"; do
+        [ "$file" = "$clean" ] && listed=1 && break
+    done
+    [ -n "$listed" ] && continue
+    if strict_lint "$file" > /dev/null 2>&1; then
+        READY+=("$file")
     fi
 done
 
-if [ ${#STRICT[@]} -eq 0 ]; then
-    echo "qmllint (strict): no files are free of context properties yet"
-    exit 0
+if [ ${#READY[@]} -gt 0 ]; then
+    echo
+    echo "These files now pass at full strength and should be added to"
+    echo "STRICT_CLEAN in $0:"
+    printf '    %s\n' "${READY[@]}"
 fi
-
-"$QMLLINT" \
-    -I qml \
-    -I "$MODULE_DIR" \
-    -W 0 \
-    --equality-type-coercion info \
-    --Quick.layout-positioning info \
-    --Quick.anchor-combinations info \
-    "${STRICT[@]}"
-
-echo "qmllint (strict, unqualified + missing-property enabled): ${#STRICT[@]}/${#FILES[@]} files clean"

@@ -18,8 +18,8 @@ Popup {
     width: 252
     padding: 10
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -110,7 +110,7 @@ Popup {
                 required property var model
                 text: model.shortName
                 font.pixelSize: 10
-                color: theme.textFaint
+                color: Theme.textFaint
                 horizontalAlignment: Text.AlignHCenter
             }
         }
@@ -135,17 +135,17 @@ Popup {
                 implicitWidth: 30
                 implicitHeight: 24
                 radius: 4
-                color: isEndpoint ? theme.accent
-                     : inRange ? theme.selectionTint
-                     : dayHover.hovered ? theme.hoverTint : "transparent"
+                color: isEndpoint ? Theme.accent
+                     : inRange ? Theme.selectionTint
+                     : dayHover.hovered ? Theme.hoverTint : "transparent"
                 opacity: model.month === grid.month ? 1 : 0.35
 
                 Label {
                     anchors.centerIn: parent
                     text: model.day
                     font.pixelSize: 11
-                    color: parent.isEndpoint ? theme.onAccent
-                                             : theme.textPrimary
+                    color: parent.isEndpoint ? Theme.onAccent
+                                             : Theme.textPrimary
                 }
                 HoverHandler { id: dayHover }
                 TapHandler {
@@ -162,7 +162,7 @@ Popup {
                 objectName: "pickerRangeLabel"
                 Layout.fillWidth: true
                 font.pixelSize: 10
-                color: theme.textMuted
+                color: Theme.textMuted
                 elide: Text.ElideRight
                 text: {
                     var from = CollectionSearch.customFrom

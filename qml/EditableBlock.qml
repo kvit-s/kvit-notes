@@ -49,13 +49,13 @@ Item {
     property Component trailingChrome: null
     // The theme/Typography context properties, re-exposed so the engine
     // bindings below can reach them past the engine's own property names.
-    readonly property var appTheme: theme
+    readonly property var appTheme: Theme
     readonly property var appTypography: Typography
     property int contentFontSize: Typography.baseSize
     property int contentFontWeight: Font.Normal
     property string contentFontFamily: Typography.fontFamily !== ""
         ? Typography.fontFamily : Qt.application.font.family
-    property color contentColor: theme.textPrimary
+    property color contentColor: Theme.textPrimary
     property bool contentStrikeout: false
     // Code blocks: the engine maps 1:1 and nothing parses or reveals;
     // formatting/link commands are disabled (markers would be literal).
@@ -166,18 +166,18 @@ Item {
     // unrecognized type degrades to note styling with its literal label
     // (the tolerance rule). "toggle" is Kvit's minimal-chrome foldable type.
     readonly property var calloutSpec: ({
-        "info":    { icon: "i", accent: theme.accent,    label: qsTr("Info") },
-        "warning": { icon: "!", accent: theme.warning,   label: qsTr("Warning") },
-        "success": { icon: "✓", accent: theme.success,   label: qsTr("Success") },
-        "error":   { icon: "✕", accent: theme.danger,    label: qsTr("Error") },
-        "tip":     { icon: "★", accent: theme.calloutTip, label: qsTr("Tip") },
-        "note":    { icon: "✎", accent: theme.textMuted, label: qsTr("Note") },
-        "toggle":  { icon: "",  accent: theme.textMuted, label: "" }
+        "info":    { icon: "i", accent: Theme.accent,    label: qsTr("Info") },
+        "warning": { icon: "!", accent: Theme.warning,   label: qsTr("Warning") },
+        "success": { icon: "✓", accent: Theme.success,   label: qsTr("Success") },
+        "error":   { icon: "✕", accent: Theme.danger,    label: qsTr("Error") },
+        "tip":     { icon: "★", accent: Theme.calloutTip, label: qsTr("Tip") },
+        "note":    { icon: "✎", accent: Theme.textMuted, label: qsTr("Note") },
+        "toggle":  { icon: "",  accent: Theme.textMuted, label: "" }
     })
     readonly property var calloutInfo: {
         var t = (delegate.calloutType || "note").toLowerCase()
         return calloutSpec[t] !== undefined ? calloutSpec[t]
-            : { icon: "?", accent: theme.textMuted, label: delegate.calloutType }
+            : { icon: "?", accent: Theme.textMuted, label: delegate.calloutType }
     }
     readonly property int calloutHeaderHeight: calloutMode ? 28 : 0
     // A callout's custom color (features.md §1.2.10) overrides the typed
@@ -1364,7 +1364,7 @@ Item {
             anchors.fill: parent
             anchors.leftMargin: 44  // Leave space for the gutter
             color: delegate.isHovered && !delegate.isFocused
-                   && !delegate.blockSelected ? theme.blockHoverTint : "transparent"
+                   && !delegate.blockSelected ? Theme.blockHoverTint : "transparent"
             radius: 4
 
             Behavior on color {
@@ -1381,8 +1381,8 @@ Item {
             anchors.leftMargin: 44
             radius: 4
             visible: delegate.blockSelected
-            color: theme.blockSelectionTint
-            border.color: theme.accent
+            color: Theme.blockSelectionTint
+            border.color: Theme.accent
             border.width: 1
         }
 
@@ -1424,12 +1424,12 @@ Item {
                     height: 18
                     anchors.verticalCenter: parent.verticalCenter
                     radius: 4
-                    color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+                    color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
 
                     Text {
                         anchors.centerIn: parent
                         text: "+"
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         font.pixelSize: 14
                         font.bold: true
                     }
@@ -1470,7 +1470,7 @@ Item {
                                         width: 3
                                         height: 3
                                         radius: 1.5
-                                        color: theme.textFaint
+                                        color: Theme.textFaint
                                     }
                                 }
                             }
@@ -1565,11 +1565,11 @@ Item {
             // 3px accent bar it replaces.
             width: delegate.isFocused ? 4 : 3
 
-            color: delegate.isFocused ? theme.focusRing : "transparent"
+            color: delegate.isFocused ? Theme.focusRing : "transparent"
 
             Behavior on color {
-                enabled: theme.motionScale > 0
-                ColorAnimation { duration: 150 * theme.motionScale }
+                enabled: Theme.motionScale > 0
+                ColorAnimation { duration: 150 * Theme.motionScale }
             }
         }
 
@@ -1614,8 +1614,8 @@ Item {
             // so it composes with the pooling opacity on the delegate root.
             opacity: delegate.typewriterDim
             Behavior on opacity {
-                enabled: theme.motionScale > 0
-                NumberAnimation { duration: 120 * theme.motionScale }
+                enabled: Theme.motionScale > 0
+                NumberAnimation { duration: 120 * Theme.motionScale }
             }
 
             // Code blocks scroll horizontally rather than wrap; the clip
@@ -1645,7 +1645,7 @@ Item {
                         y: textArea.y + textArea.topPadding
                         width: dropCapMetrics.advanceWidth + 3
                         height: dropCapMetrics.height
-                        color: theme.windowBackground
+                        color: Theme.windowBackground
                         z: 4
                     }
                     Text {
@@ -1800,10 +1800,10 @@ Item {
                         id: codePanel
                         objectName: "codePanel"
                         anchors.fill: parent
-                        color: theme.codePanelBackground
+                        color: Theme.codePanelBackground
                         radius: 4
                         border.width: 1
-                        border.color: theme.border
+                        border.color: Theme.border
                     }
 
                     Column {
@@ -1831,7 +1831,7 @@ Item {
                                 horizontalAlignment: Text.AlignRight
                                 verticalAlignment: Text.AlignVCenter
                                 text: index + 1
-                                color: theme.textFaint
+                                color: Theme.textFaint
                                 font.family: delegate.contentFontFamily
                                 font.pixelSize: delegate.contentFontSize
                             }
@@ -1843,7 +1843,7 @@ Item {
                         y: 0
                         width: delegate.codeGutterWidth
                         height: parent.height
-                        color: theme.codePanelBackground
+                        color: Theme.codePanelBackground
                         z: 1
                     }
 
@@ -1865,7 +1865,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             width: langLabel.implicitWidth + 20
                             radius: 3
-                            color: langHover.hovered ? theme.hoverTint : "transparent"
+                            color: langHover.hovered ? Theme.hoverTint : "transparent"
                             Text {
                                 id: langLabel
                                 anchors.left: parent.left
@@ -1873,7 +1873,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: (delegate.language && delegate.language.length > 0)
                                       ? delegate.language : "plain text"
-                                color: theme.textMuted
+                                color: Theme.textMuted
                                 font.pixelSize: Math.max(10, delegate.contentFontSize - 3)
                             }
                             Text {
@@ -1881,7 +1881,7 @@ Item {
                                 anchors.rightMargin: 5
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "▾"
-                                color: theme.textFaint
+                                color: Theme.textFaint
                                 font.pixelSize: 9
                             }
                             HoverHandler { id: langHover }
@@ -1897,12 +1897,12 @@ Item {
                             anchors.rightMargin: 6
                             anchors.verticalCenter: parent.verticalCenter
                             radius: 3
-                            color: copyHover.hovered ? theme.hoverTint : "transparent"
+                            color: copyHover.hovered ? Theme.hoverTint : "transparent"
                             Text {
                                 id: copyLabel
                                 anchors.centerIn: parent
                                 text: copyButton.copied ? "Copied" : "Copy"
-                                color: theme.textMuted
+                                color: Theme.textMuted
                                 font.pixelSize: Math.max(10, delegate.contentFontSize - 3)
                             }
                             property bool copied: false
@@ -2416,7 +2416,7 @@ Item {
                     // panel does not scroll with a long line; other panelled
                     // blocks keep their own background.
                     visible: delegate.showPanel && !delegate.codeChrome
-                    color: theme.codePanelBackground
+                    color: Theme.codePanelBackground
                     radius: 4
                 }
 
@@ -2705,7 +2705,7 @@ Item {
                 activeFocusOnPress: true
 
                 placeholderText: delegate.placeholder
-                placeholderTextColor: theme.textDisabled
+                placeholderTextColor: Theme.textDisabled
 
                 // Key handlers for Milestone 2, 3, 4, 5, and 7 features
                 Keys.onPressed: function(event) {

@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
+import Kvit 1.0
 
 // Callout custom-color picker (features.md §1.2.10). A small
 // popup of accent swatches plus a custom-color dialog and a "Reset to type
@@ -32,8 +33,8 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -54,14 +55,14 @@ Popup {
                     color: modelData
                     border.width: root.currentColor === modelData ? 2 : 1
                     border.color: root.currentColor === modelData
-                        ? theme.accent : theme.border
+                        ? Theme.accent : Theme.border
                     HoverHandler { id: swHover }
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: -2
                         radius: 6
                         color: "transparent"
-                        border.color: theme.accent
+                        border.color: Theme.accent
                         border.width: swHover.hovered ? 1 : 0
                     }
                     TapHandler {

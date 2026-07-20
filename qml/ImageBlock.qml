@@ -52,7 +52,7 @@ Item {
     readonly property bool imgBorder: BlockAttributes.has(attributes, "border")
     readonly property color imgBorderColor: {
         var c = BlockAttributes.str(attributes, "border", "")
-        return c !== "" ? c : theme.border
+        return c !== "" ? c : Theme.border
     }
     readonly property bool imgStretch:
         BlockAttributes.str(attributes, "aspect", "") === "stretch"
@@ -291,12 +291,12 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: delegate.isDragSource ? 0.35 : 1
-        color: delegate.blockSelected ? theme.blockSelectionTint
-             : delegate.isFocused ? theme.focusTint
-             : (delegate.isHovered ? theme.blockHoverTint : "transparent")
+        color: delegate.blockSelected ? Theme.blockSelectionTint
+             : delegate.isFocused ? Theme.focusTint
+             : (delegate.isHovered ? Theme.blockHoverTint : "transparent")
         // A visible keyboard-focus ring (§14.1) in addition to the tint.
-        border.color: delegate.blockSelected ? theme.accent
-                    : delegate.isFocused ? theme.focusRing : "transparent"
+        border.color: delegate.blockSelected ? Theme.accent
+                    : delegate.isFocused ? Theme.focusRing : "transparent"
         border.width: (delegate.blockSelected || delegate.isFocused) ? 2 : 0
     }
 
@@ -401,8 +401,8 @@ Item {
                 objectName: "imageConsentPlaceholder"
                 anchors.fill: parent
                 visible: delegate.awaitingConsent
-                color: theme.codePanelBackground
-                border.color: theme.border
+                color: Theme.codePanelBackground
+                border.color: Theme.border
                 radius: 6
                 Column {
                     anchors.centerIn: parent
@@ -411,12 +411,12 @@ Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "🔗"
                         font.pixelSize: 24
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: qsTr("Remote image not loaded")
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         font.pixelSize: 12
                     }
                     Rectangle {
@@ -426,15 +426,15 @@ Item {
                         height: imgLoadLabel.implicitHeight + 8
                         radius: 4
                         visible: EgressPolicy.canRequestConsent(delegate.resolvedSource)
-                        color: theme.hoverTint
-                        border.color: imgLoadArea.containsMouse ? theme.accent : theme.border
+                        color: Theme.hoverTint
+                        border.color: imgLoadArea.containsMouse ? Theme.accent : Theme.border
                         Text {
                             id: imgLoadLabel
                             anchors.centerIn: parent
                             text: qsTr("Load image")
                             font.pixelSize: 11
-                            color: imgLoadArea.containsMouse ? theme.textPrimary
-                                                             : theme.textMuted
+                            color: imgLoadArea.containsMouse ? Theme.textPrimary
+                                                             : Theme.textMuted
                         }
                         MouseArea {
                             id: imgLoadArea
@@ -452,8 +452,8 @@ Item {
                 anchors.fill: parent
                 visible: !delegate.awaitingConsent
                     && (delegate.resolvedSource === "" || image.status === Image.Error)
-                color: theme.codePanelBackground
-                border.color: theme.border
+                color: Theme.codePanelBackground
+                border.color: Theme.border
                 radius: 6
                 Column {
                     anchors.centerIn: parent
@@ -462,13 +462,13 @@ Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "▨"
                         font.pixelSize: 28
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: delegate.img.path === "" ? qsTr("No image")
                               : qsTr("Image not found: ") + delegate.img.path
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         font.pixelSize: 12
                         elide: Text.ElideMiddle
                         width: Math.min(implicitWidth, imageFrame.width - 16)
@@ -498,7 +498,7 @@ Item {
                 id: resizeHandle
                 objectName: "imageResizeHandle"
                 width: 14; height: 14; radius: 3
-                color: theme.accent
+                color: Theme.accent
                 opacity: (delegate.isHovered || delegate.isFocused)
                          && delegate.resolvedSource !== "" ? 0.9 : 0
                 visible: opacity > 0
@@ -550,7 +550,7 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 6
-                color: effectsArea.containsMouse ? theme.hoverTint
+                color: effectsArea.containsMouse ? Theme.hoverTint
                      : Qt.rgba(0, 0, 0, 0.35)
                 opacity: (delegate.isHovered || delegate.isFocused
                           || imageEffectsPopover.visible)
@@ -590,7 +590,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             font.pixelSize: 12
             font.italic: true
-            color: theme.textMuted
+            color: Theme.textMuted
             background: null
             // Same hazard as the other deferred editors: editingFinished may
             // never arrive if the model is replaced first, so the caption is
@@ -660,13 +660,13 @@ Item {
         width: 18; height: 18; x: 10
         y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
-            text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true
+            text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true
         }
         MouseArea {
             id: plusArea
@@ -695,7 +695,7 @@ Item {
                     spacing: 2
                     Repeater {
                         model: 2
-                        Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint }
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint }
                     }
                 }
             }

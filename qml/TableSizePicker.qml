@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // Grid-size picker for inserting a table: a word-processor-style hover grid
 // up to 8×8, Enter accepting the default 3×3. Emits sizePicked(columns, rows).
@@ -22,8 +23,8 @@ Popup {
     onOpened: contentRoot.forceActiveFocus()
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -51,9 +52,9 @@ Popup {
                     readonly property int r: Math.floor(index / root.maxCols)
                     width: 18; height: 18; radius: 2
                     color: (c < root.hoverCols && r < root.hoverRows)
-                        ? theme.accent : theme.chipBackground
+                        ? Theme.accent : Theme.chipBackground
                     border.width: 1
-                    border.color: theme.border
+                    border.color: Theme.border
                     HoverHandler {
                         onHoveredChanged: if (hovered) {
                             root.hoverCols = parent.c + 1
@@ -72,7 +73,7 @@ Popup {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.hoverCols + " × " + root.hoverRows
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 12
         }
     }

@@ -221,9 +221,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -234,8 +234,8 @@ Item {
         width: root.isVideo && !root.hasError ? root.videoWidth : Math.min(420, root.maxWidth)
         height: contentCol.implicitHeight + 16
         radius: 6
-        color: theme.panelBackground
-        border.color: theme.border; border.width: 1
+        color: Theme.panelBackground
+        border.color: Theme.border; border.width: 1
         opacity: root.isDragSource ? 0.35 : 1
 
         Column {
@@ -252,19 +252,19 @@ Item {
                 visible: root.hasError
                 Text {
                     text: (root.isAudio ? "♪  " : "▷  ") + qsTr("Media unavailable")
-                    color: theme.textPrimary; font.bold: true; font.pixelSize: 13
+                    color: Theme.textPrimary; font.bold: true; font.pixelSize: 13
                 }
                 Text {
                     width: parent.width
                     text: root.media.path
-                    color: theme.textMuted; font.pixelSize: 11; elide: Text.ElideMiddle
+                    color: Theme.textMuted; font.pixelSize: 11; elide: Text.ElideMiddle
                 }
                 Text {
                     visible: !root.awaitingConsent
                     text: root.resolvedSource === ""
                           ? qsTr("File not found")
                           : qsTr("Cannot play this file: ") + player.errorString
-                    color: theme.danger; font.pixelSize: 11
+                    color: Theme.danger; font.pixelSize: 11
                     width: parent.width; wrapMode: Text.Wrap
                 }
                 Row {
@@ -276,16 +276,16 @@ Item {
                         height: mediaLoadLabel.implicitHeight + 8
                         radius: 4
                         visible: EgressPolicy.canRequestConsent(root.resolvedSource)
-                        color: theme.hoverTint
-                        border.color: mediaLoadArea.containsMouse ? theme.accent
-                                                                  : theme.border
+                        color: Theme.hoverTint
+                        border.color: mediaLoadArea.containsMouse ? Theme.accent
+                                                                  : Theme.border
                         Text {
                             id: mediaLoadLabel
                             anchors.centerIn: parent
                             text: qsTr("Load media")
                             font.pixelSize: 11
-                            color: mediaLoadArea.containsMouse ? theme.textPrimary
-                                                               : theme.textMuted
+                            color: mediaLoadArea.containsMouse ? Theme.textPrimary
+                                                               : Theme.textMuted
                         }
                         MouseArea {
                             id: mediaLoadArea
@@ -298,7 +298,7 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: qsTr("Remote media not loaded")
-                        color: theme.textMuted; font.pixelSize: 11
+                        color: Theme.textMuted; font.pixelSize: 11
                     }
                 }
             }
@@ -318,14 +318,14 @@ Item {
                 spacing: 8
                 visible: root.isAudio && !root.hasError
                 Text {
-                    text: "♪"; font.pixelSize: 18; color: theme.textMuted
+                    text: "♪"; font.pixelSize: 18; color: Theme.textMuted
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - 30
                     text: root.media.alt !== "" ? root.media.alt : root.media.path
-                    color: theme.textPrimary; font.pixelSize: 12; elide: Text.ElideMiddle
+                    color: Theme.textPrimary; font.pixelSize: 12; elide: Text.ElideMiddle
                 }
             }
 
@@ -340,14 +340,14 @@ Item {
                     objectName: "mediaPlayButton"
                     width: 30; height: 30; radius: 15
                     anchors.verticalCenter: parent.verticalCenter
-                    color: playHover.containsMouse ? theme.accent : theme.chipBackground
+                    color: playHover.containsMouse ? Theme.accent : Theme.chipBackground
                     // Play triangle (▶ renders reliably); pause is drawn as two
                     // bars, since the ⏸ glyph is missing from the base font.
                     Text {
                         anchors.centerIn: parent
                         visible: !root.isPlaying
                         text: "▶"
-                        color: playHover.containsMouse ? theme.onAccent : theme.textPrimary
+                        color: playHover.containsMouse ? Theme.onAccent : Theme.textPrimary
                         font.pixelSize: 13
                     }
                     Row {
@@ -356,7 +356,7 @@ Item {
                         spacing: 3
                         Repeater { model: 2
                             Rectangle { width: 3; height: 12; radius: 1
-                                color: playHover.containsMouse ? theme.onAccent : theme.textPrimary } }
+                                color: playHover.containsMouse ? Theme.onAccent : Theme.textPrimary } }
                     }
                     MouseArea {
                         id: playHover; anchors.fill: parent; hoverEnabled: true
@@ -368,7 +368,7 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.fmtTime(player.position)
-                    color: theme.textMuted; font.pixelSize: 11
+                    color: Theme.textMuted; font.pixelSize: 11
                     width: 34; horizontalAlignment: Text.AlignRight
                 }
 
@@ -386,7 +386,7 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.fmtTime(player.duration)
-                    color: theme.textMuted; font.pixelSize: 11
+                    color: Theme.textMuted; font.pixelSize: 11
                     width: 34
                 }
 
@@ -396,7 +396,7 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: audioOut.volume <= 0 ? "◀" : "◀))"
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     font.pixelSize: 12
                 }
                 Slider {
@@ -421,11 +421,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
@@ -439,7 +439,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Column { anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } } }
         MouseArea {
             id: mediaHandle
             objectName: "dragHandle"

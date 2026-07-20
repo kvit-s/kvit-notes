@@ -22,8 +22,8 @@ Dialog {
     standardButtons: Dialog.Close
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 8
     }
@@ -31,7 +31,7 @@ Dialog {
         text: root.title
         font.pixelSize: 16
         font.bold: true
-        color: theme.textPrimary
+        color: Theme.textPrimary
         padding: 16
     }
 
@@ -64,7 +64,7 @@ Dialog {
                         text: parent.modelData
                         font.pixelSize: 13
                         font.bold: true
-                        color: theme.accent
+                        color: Theme.accent
                         bottomPadding: 4
                     }
 
@@ -78,7 +78,7 @@ Dialog {
 
                             Label {
                                 text: modelData.action
-                                color: theme.textPrimary
+                                color: Theme.textPrimary
                                 font.pixelSize: 13
                                 Layout.preferredWidth: 180
                             }
@@ -86,8 +86,8 @@ Dialog {
                             Rectangle {
                                 visible: modelData.chord !== ""
                                 radius: 4
-                                color: theme.chipBackground
-                                border.color: theme.border
+                                color: Theme.chipBackground
+                                border.color: Theme.border
                                 border.width: 1
                                 implicitWidth: chordLabel.implicitWidth + 14
                                 implicitHeight: chordLabel.implicitHeight + 6
@@ -97,19 +97,19 @@ Dialog {
                                     text: modelData.displayChord
                                     font.pixelSize: 12
                                     font.family: "monospace"
-                                    color: theme.textPrimary
+                                    color: Theme.textPrimary
                                 }
                             }
                             Label {
                                 visible: modelData.chord === ""
                                 text: "—"
-                                color: theme.textMuted
+                                color: Theme.textMuted
                                 font.pixelSize: 13
                             }
                             Label {
                                 visible: modelData.note !== ""
                                 text: modelData.note
-                                color: theme.textMuted
+                                color: Theme.textMuted
                                 font.pixelSize: 11
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true

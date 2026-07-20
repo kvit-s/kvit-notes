@@ -25,8 +25,8 @@ Rectangle {
     width: buttonRow.implicitWidth + 8
     height: 34
     radius: 6
-    color: theme.popupBackground
-    border.color: theme.borderStrong
+    color: Theme.popupBackground
+    border.color: Theme.borderStrong
     border.width: 1
 
     readonly property bool selectionActive:
@@ -96,8 +96,8 @@ Rectangle {
                  && (bar.target.cursorFormatFlags & flagBit) !== 0
         background: Rectangle {
             radius: 4
-            color: parent.checked ? theme.selectionTint
-                 : parent.hovered ? theme.hoverTint : "transparent"
+            color: parent.checked ? Theme.selectionTint
+                 : parent.hovered ? Theme.hoverTint : "transparent"
         }
     }
 
@@ -137,8 +137,8 @@ Rectangle {
             text: "H"; flagBit: 0x40
             background: Rectangle {
                 radius: 4
-                color: parent.checked ? theme.highlightBackground
-                     : parent.hovered ? theme.hoverTint : "transparent"
+                color: parent.checked ? Theme.highlightBackground
+                     : parent.hovered ? Theme.hoverTint : "transparent"
             }
             onClicked: bar.target.toggleSpanType("highlight")
         }
@@ -168,7 +168,7 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: 14; height: 3; radius: 1
                 color: (bar.target && bar.target.currentColor)
-                    ? bar.target.currentColor : theme.textPrimary
+                    ? bar.target.currentColor : Theme.textPrimary
             }
             ColorPicker {
                 id: fbColorPicker

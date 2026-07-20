@@ -32,8 +32,8 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -58,7 +58,7 @@ Popup {
         // ---- Style row ----
         Column {
             spacing: 4
-            Text { text: qsTr("Style"); color: theme.textMuted; font.pixelSize: 11 }
+            Text { text: qsTr("Style"); color: Theme.textMuted; font.pixelSize: 11 }
             Row {
                 spacing: 4
                 Repeater {
@@ -67,16 +67,16 @@ Popup {
                         required property string modelData
                         width: 62; height: 26; radius: 4
                         color: root.currentStyle === modelData
-                            ? theme.selectionTint
-                            : (styleHover.hovered ? theme.hoverTint : "transparent")
+                            ? Theme.selectionTint
+                            : (styleHover.hovered ? Theme.hoverTint : "transparent")
                         border.width: 1
                         border.color: root.currentStyle === modelData
-                            ? theme.accent : theme.border
+                            ? Theme.accent : Theme.border
                         Text {
                             anchors.centerIn: parent
                             text: modelData
                             font.pixelSize: 10
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                         }
                         HoverHandler { id: styleHover }
                         TapHandler {
@@ -92,7 +92,7 @@ Popup {
             spacing: 8
             Text {
                 text: qsTr("Thickness")
-                color: theme.textMuted; font.pixelSize: 11
+                color: Theme.textMuted; font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
             }
             Slider {
@@ -106,7 +106,7 @@ Popup {
             }
             Text {
                 text: root.currentThickness + "px"
-                color: theme.textPrimary; font.pixelSize: 11
+                color: Theme.textPrimary; font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -114,7 +114,7 @@ Popup {
         // ---- Width ----
         Column {
             spacing: 4
-            Text { text: qsTr("Width"); color: theme.textMuted; font.pixelSize: 11 }
+            Text { text: qsTr("Width"); color: Theme.textMuted; font.pixelSize: 11 }
             Row {
                 spacing: 4
                 Repeater {
@@ -123,16 +123,16 @@ Popup {
                         required property string modelData
                         width: 48; height: 24; radius: 4
                         color: root.currentWidth === modelData
-                            ? theme.selectionTint
-                            : (widthHover.hovered ? theme.hoverTint : "transparent")
+                            ? Theme.selectionTint
+                            : (widthHover.hovered ? Theme.hoverTint : "transparent")
                         border.width: 1
                         border.color: root.currentWidth === modelData
-                            ? theme.accent : theme.border
+                            ? Theme.accent : Theme.border
                         Text {
                             anchors.centerIn: parent
                             text: modelData === "full" ? qsTr("Full") : modelData
                             font.pixelSize: 10
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                         }
                         HoverHandler { id: widthHover }
                         TapHandler {
@@ -146,7 +146,7 @@ Popup {
         // ---- Color ----
         Column {
             spacing: 4
-            Text { text: qsTr("Color"); color: theme.textMuted; font.pixelSize: 11 }
+            Text { text: qsTr("Color"); color: Theme.textMuted; font.pixelSize: 11 }
             Row {
                 spacing: 6
                 Repeater {
@@ -158,11 +158,11 @@ Popup {
                         color: modelData === "" ? "transparent" : modelData
                         border.width: root.currentColor === modelData ? 2 : 1
                         border.color: root.currentColor === modelData
-                            ? theme.accent : theme.border
+                            ? Theme.accent : Theme.border
                         Text {
                             anchors.centerIn: parent
                             visible: modelData === ""
-                            text: "∅"; font.pixelSize: 12; color: theme.textMuted
+                            text: "∅"; font.pixelSize: 12; color: Theme.textMuted
                         }
                         TapHandler {
                             onTapped: { root.currentColor = modelData; root.emitPayload() }

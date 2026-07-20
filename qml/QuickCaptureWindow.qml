@@ -23,7 +23,7 @@ Window {
     minimumHeight: 160
     flags: Qt.Dialog
     title: qsTr("Quick capture")
-    color: theme.windowBackground
+    color: Theme.windowBackground
 
     // Open centered and focused on the text field. Text that failed to save
     // survives a re-open — the hotkey firing again must not be the thing that
@@ -65,7 +65,7 @@ Window {
 
     Rectangle {
         anchors.fill: parent
-        color: theme.windowBackground
+        color: Theme.windowBackground
 
         Column {
             anchors.fill: parent
@@ -76,7 +76,7 @@ Window {
                 text: qsTr("Quick capture")
                 font.pixelSize: 15
                 font.bold: true
-                color: theme.textPrimary
+                color: Theme.textPrimary
             }
 
             ScrollView {
@@ -88,11 +88,11 @@ Window {
                     objectName: "quickCaptureText"
                     wrapMode: TextArea.Wrap
                     placeholderText: qsTr("Jot a note… (Ctrl+Enter to save, Esc to cancel)")
-                    color: theme.textPrimary
+                    color: Theme.textPrimary
                     background: Rectangle {
-                        color: theme.panelBackground
-                        border.color: captureArea.activeFocus ? theme.focusRing
-                                                              : theme.border
+                        color: Theme.panelBackground
+                        border.color: captureArea.activeFocus ? Theme.focusRing
+                                                              : Theme.border
                         border.width: captureArea.activeFocus ? 2 : 1
                         radius: 4
                     }
@@ -117,7 +117,7 @@ Window {
                 text: qsTr("Could not save the note — the notes folder may be "
                            + "read-only or the disk full. Your text is still "
                            + "here; try again.")
-                color: theme.danger
+                color: Theme.danger
             }
 
             Row {

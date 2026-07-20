@@ -43,7 +43,7 @@ Item {
     property real lastShellHeight: 0
     property bool shellHovered: false
 
-    readonly property var appTheme: theme
+    readonly property var appTheme: Theme
     readonly property var appTypography: Typography
     readonly property int contentFontSize: {
         // sizeForBlockType() is invokable C++; explicitly read baseSize so the
@@ -63,7 +63,7 @@ Item {
     }
     readonly property string contentFontFamily: Typography.fontFamily !== ""
         ? Typography.fontFamily : Qt.application.font.family
-    readonly property color contentColor: theme.textPrimary
+    readonly property color contentColor: Theme.textPrimary
     readonly property string blockAlign: {
         if (!root.attributes || root.attributes.length === 0)
             return "left"
@@ -393,8 +393,8 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 44 + root.indentLevel * 24
         radius: 4
-        color: theme.blockSelectionTint
-        border.color: theme.accent
+        color: Theme.blockSelectionTint
+        border.color: Theme.accent
         border.width: 1
         z: -1
     }
@@ -404,7 +404,7 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 44 + root.indentLevel * 24
         radius: 4
-        color: theme.blockHoverTint
+        color: Theme.blockHoverTint
         z: -1
     }
 
@@ -416,7 +416,7 @@ Item {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 3
-        color: root.isFocused ? theme.focusRing : "transparent"
+        color: root.isFocused ? Theme.focusRing : "transparent"
     }
 
     HoverHandler {
@@ -507,11 +507,11 @@ Item {
                     height: 18
                     anchors.verticalCenter: parent.verticalCenter
                     radius: 4
-                    color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+                    color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
                     Text {
                         anchors.centerIn: parent
                         text: "+"
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         font.pixelSize: 14
                         font.bold: true
                     }
@@ -543,7 +543,7 @@ Item {
                                         width: 3
                                         height: 3
                                         radius: 1.5
-                                        color: theme.textFaint
+                                        color: Theme.textFaint
                                     }
                                 }
                             }

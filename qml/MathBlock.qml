@@ -90,7 +90,7 @@ Item {
         if (tex.trim().length === 0)
             return ""
         return "image://math/" + MathRenderer.encode(tex)
-             + "?fg=" + argbHex(theme.textPrimary)
+             + "?fg=" + argbHex(Theme.textPrimary)
              + "&size=" + root.mathPixelSize
              + "&dpr=" + root.currentDpr().toFixed(2)
              + "&vpad=" + root.pngMathVerticalPadding
@@ -277,9 +277,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -317,7 +317,7 @@ Item {
                 anchors.centerIn: parent
                 visible: renderTex.trim().length === 0
                 text: qsTr("Empty equation — click to edit")
-                color: theme.textFaint
+                color: Theme.textFaint
                 font.italic: true
                 font.pixelSize: 13
             }
@@ -330,12 +330,12 @@ Item {
                 Text {
                     text: root.renderTex
                     font.family: "monospace"; font.pixelSize: 13
-                    color: theme.textPrimary; horizontalAlignment: Text.AlignHCenter
+                    color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
                     text: "⚠ " + root.errorText
-                    font.pixelSize: 11; color: theme.danger
+                    font.pixelSize: 11; color: Theme.danger
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
@@ -345,7 +345,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.numbered && root.equationNumber > 0
                 text: "(" + root.equationNumber + ")"
-                color: theme.textMuted; font.pixelSize: 14
+                color: Theme.textMuted; font.pixelSize: 14
             }
             TapHandler { onTapped: root.focusAtEnd() }
         }
@@ -361,13 +361,13 @@ Item {
             text: root.content
             font.family: "monospace"
             font.pixelSize: 14
-            color: theme.textPrimary
+            color: Theme.textPrimary
             wrapMode: TextEdit.WrapAnywhere
             selectByMouse: true
             background: Rectangle {
-                color: theme.codePanelBackground
+                color: Theme.codePanelBackground
                 radius: 4
-                border.color: theme.border; border.width: 1
+                border.color: Theme.border; border.width: 1
             }
 
             // ---- Math command menu wiring ----
@@ -632,8 +632,8 @@ Item {
                 : 0
             visible: root.editing
             radius: 4
-            color: theme.panelBackground
-            border.color: theme.border; border.width: 1
+            color: Theme.panelBackground
+            border.color: Theme.border; border.width: 1
             Image {
                 id: previewImage
                 objectName: "mathPreviewImage"
@@ -649,14 +649,14 @@ Item {
             Text {
                 anchors.centerIn: parent
                 visible: root.previewTex.trim().length === 0
-                text: qsTr("Preview"); color: theme.textFaint; font.pixelSize: 12
+                text: qsTr("Preview"); color: Theme.textFaint; font.pixelSize: 12
             }
             Text {
                 id: previewError
                 anchors.centerIn: parent
                 visible: root.errorText !== "" && root.previewTex.trim().length > 0
                 text: "⚠ " + root.errorText
-                color: theme.danger; font.pixelSize: 12
+                color: Theme.danger; font.pixelSize: 12
                 wrapMode: Text.Wrap; width: parent.width - 24
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -689,11 +689,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
@@ -707,7 +707,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Column { anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } } }
         MouseArea {
             id: mathHandle
             objectName: "dragHandle"

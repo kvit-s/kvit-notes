@@ -135,8 +135,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -152,7 +152,7 @@ Popup {
             visible: menu.rows.length === 0
             anchors.centerIn: parent
             text: qsTr("No matches — Enter keeps the typed link")
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 12
         }
 
@@ -171,7 +171,7 @@ Popup {
                 height: 40
                 radius: 4
                 color: index === menu.highlightIndex
-                       ? theme.hoverTint : "transparent"
+                       ? Theme.hoverTint : "transparent"
 
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
@@ -185,7 +185,7 @@ Popup {
                         width: parent.width
                         text: modelData.kind === "heading"
                               ? "# " + modelData.heading : modelData.title
-                        color: theme.textPrimary
+                        color: Theme.textPrimary
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
@@ -195,7 +195,7 @@ Popup {
                                  && modelData.folder !== ""
                         text: modelData.kind === "note"
                               ? modelData.folder : ""
-                        color: theme.textFaint
+                        color: Theme.textFaint
                         font.pixelSize: 10
                         elide: Text.ElideRight
                     }

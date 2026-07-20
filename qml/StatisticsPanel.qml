@@ -99,8 +99,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -119,10 +119,10 @@ Popup {
                 text: statsPopup.selStats ? qsTr("Selection") : qsTr("Document")
                 font.pixelSize: 12
                 font.bold: true
-                color: theme.textSecondary
+                color: Theme.textSecondary
             }
         }
-        Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border }
 
         // The active stat set: selection when present, else document.
         Repeater {
@@ -154,20 +154,20 @@ Popup {
                 Text {
                     text: modelData.k
                     font.pixelSize: 12
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Text {
                     text: modelData.v
                     font.pixelSize: 12
                     font.bold: true
-                    color: theme.textPrimary
+                    color: Theme.textPrimary
                 }
             }
         }
 
         Rectangle {
-            Layout.fillWidth: true; height: 1; color: theme.border
+            Layout.fillWidth: true; height: 1; color: Theme.border
             visible: appWindow && appWindow.collectionOpen
         }
         // Session tracker (ephemeral): words added since the note opened.
@@ -181,7 +181,7 @@ Popup {
             Text {
                 text: qsTr("This session")
                 font.pixelSize: 12
-                color: theme.textMuted
+                color: Theme.textMuted
                 Layout.fillWidth: true
             }
             Text {
@@ -191,7 +191,7 @@ Popup {
                 text: (delta >= 0 ? "+" : "") + delta
                 font.pixelSize: 12
                 font.bold: true
-                color: delta >= 0 ? theme.success : theme.textMuted
+                color: delta >= 0 ? Theme.success : Theme.textMuted
             }
         }
     }

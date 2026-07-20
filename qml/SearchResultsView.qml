@@ -65,7 +65,7 @@ Item {
                               .arg(CollectionSearch.matchCount)
                               .arg(CollectionSearch.noteCount)
                 font.pixelSize: 11
-                color: theme.textMuted
+                color: Theme.textMuted
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
@@ -122,7 +122,7 @@ Item {
                     objectName: "searchTitleRow"
                     width: groupColumn.width
                     height: 26
-                    color: titleHover.hovered ? theme.hoverTint : "transparent"
+                    color: titleHover.hovered ? Theme.hoverTint : "transparent"
                     HoverHandler { id: titleHover }
 
                     RowLayout {
@@ -141,7 +141,7 @@ Item {
                             text: groupColumn.group.matchCount > 0
                                   ? groupColumn.group.matchCount : ""
                             font.pixelSize: 11
-                            color: theme.textFaint
+                            color: Theme.textFaint
                         }
                     }
                     MouseArea {
@@ -160,7 +160,7 @@ Item {
 
                         width: groupColumn.width
                         height: 24
-                        color: matchHover.hovered ? theme.focusTint : "transparent"
+                        color: matchHover.hovered ? Theme.focusTint : "transparent"
                         HoverHandler { id: matchHover }
 
                         Label {
@@ -171,7 +171,7 @@ Item {
                             textFormat: Text.StyledText
                             text: resultsView.styledSnippet(modelData)
                             font.pixelSize: 11
-                            color: theme.textSecondary
+                            color: Theme.textSecondary
                             elide: Text.ElideRight
                         }
                         MouseArea {
@@ -191,7 +191,7 @@ Item {
                                + "them all").arg(groupColumn.group.moreMatches)
                     font.pixelSize: 10
                     font.italic: true
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     leftPadding: 26
                     height: visible ? 18 : 0
                 }

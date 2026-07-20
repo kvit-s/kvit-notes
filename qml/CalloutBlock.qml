@@ -16,5 +16,5 @@ EditableBlock {
     calloutMode: true
     enterInsertsNewline: true
     placeholder: qsTr("Callout text…")
-    contentColor: theme.textPrimary
+    contentColor: Theme.textPrimary
 }

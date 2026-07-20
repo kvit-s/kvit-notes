@@ -31,7 +31,7 @@ Item {
     readonly property string divColorAttr:
         BlockAttributes.str(attributes, "color", "")
     readonly property color divColor: divColorAttr !== ""
-        ? divColorAttr : (isFocused ? theme.accent : theme.border)
+        ? divColorAttr : (isFocused ? Theme.accent : Theme.border)
     readonly property string divWidthAttr:
         BlockAttributes.str(attributes, "width", "full")
     readonly property real divWidthFraction: {
@@ -249,12 +249,12 @@ Item {
         anchors.leftMargin: 24
         radius: 4
         opacity: delegate.isDragSource ? 0.35 : 1
-        color: delegate.blockSelected ? theme.blockSelectionTint
-             : delegate.isFocused ? theme.focusTint
-             : (delegate.isHovered ? theme.blockHoverTint : "transparent")
+        color: delegate.blockSelected ? Theme.blockSelectionTint
+             : delegate.isFocused ? Theme.focusTint
+             : (delegate.isHovered ? Theme.blockHoverTint : "transparent")
         // A visible keyboard-focus ring (§14.1) in addition to the tint.
-        border.color: delegate.blockSelected ? theme.accent
-                    : delegate.isFocused ? theme.focusRing : "transparent"
+        border.color: delegate.blockSelected ? Theme.accent
+                    : delegate.isFocused ? Theme.focusRing : "transparent"
         border.width: (delegate.blockSelected || delegate.isFocused) ? 2 : 0
     }
 
@@ -329,14 +329,14 @@ Item {
         anchors.rightMargin: 10
         anchors.verticalCenter: parent.verticalCenter
         radius: 4
-        color: dividerStyleArea.containsMouse ? theme.hoverTint : "transparent"
+        color: dividerStyleArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered || dividerStylePicker.visible ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
             text: "╌"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 13
         }
         MouseArea {
@@ -401,7 +401,7 @@ Item {
         x: 10
         anchors.verticalCenter: parent.verticalCenter
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered ? 1 : 0
         visible: opacity > 0
 
@@ -412,7 +412,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: "+"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 14
             font.bold: true
         }
@@ -461,7 +461,7 @@ Item {
                             width: 3
                             height: 3
                             radius: 1.5
-                            color: theme.textFaint
+                            color: Theme.textFaint
                         }
                     }
                 }

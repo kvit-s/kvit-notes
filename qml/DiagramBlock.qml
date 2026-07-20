@@ -241,19 +241,19 @@ Item {
     component ThemedCanvas: DiagramCanvas {
         fontFamily: Typography.fontFamily
         fontPixelSize: root.labelFontSize
-        nodeFillColor: theme.chipBackground
-        nodeStrokeColor: theme.accent
-        edgeColor: theme.textSecondary
-        labelColor: theme.textPrimary
-        edgeLabelColor: theme.textMuted
-        edgeLabelBackground: theme.panelBackground
-        subgraphFillColor: theme.blockHoverTint
-        subgraphStrokeColor: theme.border
-        noteFillColor: theme.highlightBackground
-        noteStrokeColor: theme.warning
-        activationFillColor: theme.hoverTint
-        pageBackgroundColor: theme.windowBackground
-        selectionRingColor: theme.focusRing
+        nodeFillColor: Theme.chipBackground
+        nodeStrokeColor: Theme.accent
+        edgeColor: Theme.textSecondary
+        labelColor: Theme.textPrimary
+        edgeLabelColor: Theme.textMuted
+        edgeLabelBackground: Theme.panelBackground
+        subgraphFillColor: Theme.blockHoverTint
+        subgraphStrokeColor: Theme.border
+        noteFillColor: Theme.highlightBackground
+        noteStrokeColor: Theme.warning
+        activationFillColor: Theme.hoverTint
+        pageBackgroundColor: Theme.windowBackground
+        selectionRingColor: Theme.focusRing
     }
 
     Rectangle {
@@ -262,9 +262,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -282,8 +282,8 @@ Item {
             visible: !root.editing
             height: root.editing ? 0 : readBody.height + 10
             radius: 6
-            color: theme.panelBackground
-            border.color: theme.border
+            color: Theme.panelBackground
+            border.color: Theme.border
             border.width: 1
 
             Column {
@@ -558,8 +558,8 @@ Item {
                                 required property int index
                                 readonly property rect box: nodeAffordances.selRect
                                 width: 12; height: 12; radius: 6
-                                color: theme.accent
-                                border.color: theme.panelBackground
+                                color: Theme.accent
+                                border.color: Theme.panelBackground
                                 border.width: 2
                                 x: (index === 0 ? box.x + box.width / 2
                                   : index === 1 ? box.x + box.width
@@ -617,7 +617,7 @@ Item {
                     Text {
                         visible: root.content.trim().length === 0
                         text: qsTr("Empty Mermaid diagram — click to edit")
-                        color: theme.textFaint; font.italic: true; font.pixelSize: 13
+                        color: Theme.textFaint; font.italic: true; font.pixelSize: 13
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
@@ -626,7 +626,7 @@ Item {
                         wrapMode: Text.Wrap
                         text: qsTr("Unsupported Mermaid diagram type in this Kvit version. "
                                    + "The source is preserved — click to edit, or treat it as code.")
-                        color: theme.textMuted; font.pixelSize: 12
+                        color: Theme.textMuted; font.pixelSize: 12
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
@@ -637,14 +637,14 @@ Item {
                         text: "⚠ " + readCanvas.errorText
                               + (readCanvas.errorLine > 0
                                  ? " (line " + readCanvas.errorLine + ")" : "")
-                        color: theme.danger; font.pixelSize: 12
+                        color: Theme.danger; font.pixelSize: 12
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
                         visible: root.content.trim().length > 0 && !readCanvas.hasError
                                  && !readCanvas.hasScene
                         text: qsTr("Rendering…")
-                        color: theme.textFaint; font.pixelSize: 12
+                        color: Theme.textFaint; font.pixelSize: 12
                     }
                 }
 
@@ -652,7 +652,7 @@ Item {
                 Text {
                     visible: readCanvas.hasScene && readCanvas.hasError
                     text: qsTr("⚠ Preview is from the last valid source")
-                    color: theme.warning; font.pixelSize: 11
+                    color: Theme.warning; font.pixelSize: 11
                 }
             }
 
@@ -671,17 +671,17 @@ Item {
                     property bool active: false
                     signal clicked()
                     width: chipText.implicitWidth + 12; height: 18; radius: 4
-                    color: chipArea.containsMouse ? theme.hoverTint
-                         : (active ? theme.selectionTint : theme.chipBackground)
-                    border.color: theme.border; border.width: 1
+                    color: chipArea.containsMouse ? Theme.hoverTint
+                         : (active ? Theme.selectionTint : Theme.chipBackground)
+                    border.color: Theme.border; border.width: 1
                     Text { id: chipText; anchors.centerIn: parent; text: chip.label
-                        color: theme.textSecondary; font.pixelSize: 10 }
+                        color: Theme.textSecondary; font.pixelSize: 10 }
                     MouseArea { id: chipArea; anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor; onClicked: chip.clicked() }
                 }
 
                 Text { anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Mermaid"); color: theme.textFaint; font.pixelSize: 10 }
+                    text: qsTr("Mermaid"); color: Theme.textFaint; font.pixelSize: 10 }
                 ChipButton { label: qsTr("Fit"); active: root.fitMode
                     onClicked: root.fitMode = true }
                 ChipButton { label: "100%"; active: !root.fitMode && root.zoomLevel === 1.0
@@ -733,15 +733,15 @@ Item {
                 anchors.right: parent.right; anchors.bottom: parent.bottom
                 anchors.margins: 6
                 width: zoomText.implicitWidth + 10; height: 16; radius: 4
-                color: theme.chipBackground
-                border.color: theme.border; border.width: 1
+                color: Theme.chipBackground
+                border.color: Theme.border; border.width: 1
                 visible: readCanvas.hasScene
                 Text {
                     id: zoomText
                     objectName: "diagramZoomText"
                     anchors.centerIn: parent
                     text: Math.round(readCanvas.renderScale * 100) + "%"
-                    color: theme.textFaint; font.pixelSize: 9
+                    color: Theme.textFaint; font.pixelSize: 9
                 }
             }
         }
@@ -765,13 +765,13 @@ Item {
                 text: root.content
                 font.family: Typography.monoFamily
                 font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
-                color: theme.textPrimary
+                color: Theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
                 background: Rectangle {
-                    color: theme.codePanelBackground
+                    color: Theme.codePanelBackground
                     radius: 4
-                    border.color: theme.border; border.width: 1
+                    border.color: Theme.border; border.width: 1
                 }
                 onActiveFocusChanged: {
                     if (!activeFocus) {
@@ -842,15 +842,15 @@ Item {
                   + diagStrip.height + 14
                 : 0
             radius: 4
-            color: theme.panelBackground
-            border.color: theme.border; border.width: 1
+            color: Theme.panelBackground
+            border.color: Theme.border; border.width: 1
             clip: true
 
             Text {
                 anchors.centerIn: parent
                 visible: !previewCanvas.hasScene && !previewCanvas.hasError
                 text: previewCanvas.rendering ? qsTr("Rendering…") : qsTr("Preview")
-                color: theme.textFaint; font.pixelSize: 12
+                color: Theme.textFaint; font.pixelSize: 12
             }
             Flickable {
                 id: previewFlick
@@ -915,12 +915,12 @@ Item {
                     text: (previewCanvas.errorLine > 0
                            ? "line " + previewCanvas.errorLine + ":" + previewCanvas.errorColumn + "  " : "")
                           + "⚠ " + previewCanvas.errorText
-                    color: theme.danger; font.pixelSize: 11
+                    color: Theme.danger; font.pixelSize: 11
                 }
                 Text {
                     visible: previewCanvas.hasError && previewCanvas.hasScene
                     text: qsTr("Preview is from the last valid source")
-                    color: theme.warning; font.pixelSize: 10
+                    color: Theme.warning; font.pixelSize: 10
                 }
             }
         }
@@ -1098,8 +1098,8 @@ Item {
         property bool renameMode: false
         padding: 4
         background: Rectangle {
-            color: theme.popupBackground
-            border.color: theme.accent
+            color: Theme.popupBackground
+            border.color: Theme.accent
             border.width: 1
             radius: 4
         }
@@ -1122,7 +1122,7 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: labelEditor.renameMode ? qsTr("Id:") : qsTr("Label:")
-                color: theme.textMuted
+                color: Theme.textMuted
                 font.pixelSize: 11
             }
             TextField {
@@ -1166,11 +1166,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
@@ -1184,7 +1184,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Column { anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } } }
         MouseArea {
             id: mermaidHandle
             objectName: "dragHandle"

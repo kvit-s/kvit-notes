@@ -36,8 +36,8 @@ Rectangle {
     visible: false
     z: 500
     radius: 6
-    color: theme.popupBackground
-    border.color: theme.borderStrong
+    color: Theme.popupBackground
+    border.color: Theme.borderStrong
     border.width: 1
     implicitWidth: barColumn.implicitWidth + 16
     implicitHeight: barColumn.implicitHeight + 12
@@ -269,7 +269,7 @@ Rectangle {
                 Layout.preferredHeight: 28
                 placeholderText: qsTr("Find")
                 selectByMouse: true
-                color: DocumentSearch.patternError ? theme.danger : theme.textPrimary
+                color: DocumentSearch.patternError ? Theme.danger : Theme.textPrimary
                 Keys.onPressed: function(event) { findBar.handleFieldKeys(event) }
                 onTextChanged: {
                     if (findBar.visible)
@@ -293,7 +293,7 @@ Rectangle {
                            + DocumentSearch.matchCount
                          : (DocumentSearch.query.length > 0
                             ? qsTr("No results") : ""))
-                color: DocumentSearch.patternError ? theme.danger : theme.textMuted
+                color: DocumentSearch.patternError ? Theme.danger : Theme.textMuted
                 font.pixelSize: 12
             }
 
@@ -495,29 +495,29 @@ Rectangle {
                     spacing: 0
                     Label {
                         text: (modelData.blockIndex + 1) + ":  "
-                        color: theme.textFaint
+                        color: Theme.textFaint
                         font.pixelSize: 12
                     }
                     Label {
                         text: modelData.prefix
-                        color: theme.textSecondary
+                        color: Theme.textSecondary
                         font.pixelSize: 12
                     }
                     Label {
                         text: modelData.matched
-                        color: theme.danger
+                        color: Theme.danger
                         font.strikeout: true
                         font.pixelSize: 12
                     }
                     Label {
                         text: modelData.replacement
-                        color: theme.success
+                        color: Theme.success
                         font.bold: true
                         font.pixelSize: 12
                     }
                     Label {
                         text: modelData.suffix
-                        color: theme.textSecondary
+                        color: Theme.textSecondary
                         font.pixelSize: 12
                     }
                 }

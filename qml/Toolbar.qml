@@ -19,13 +19,13 @@ Rectangle {
     property var listView
 
     height: visible ? 36 : 0
-    color: theme.footerBackground
+    color: Theme.footerBackground
 
     Rectangle { // bottom edge
         anchors.bottom: parent.bottom
         width: parent.width
         height: 1
-        color: theme.border
+        color: Theme.border
     }
 
     // ---- §9.2 customization: group visibility, persisted ----------
@@ -110,8 +110,8 @@ Rectangle {
         Accessible.checked: checked
         background: Rectangle {
             radius: 4
-            color: parent.checked ? theme.selectionTint
-                 : parent.hovered && parent.enabled ? theme.hoverTint
+            color: parent.checked ? Theme.selectionTint
+                 : parent.hovered && parent.enabled ? Theme.hoverTint
                  : "transparent"
         }
     }
@@ -226,8 +226,8 @@ Rectangle {
                 text: "H"; flagBit: 0x40
                 background: Rectangle {
                     radius: 4
-                    color: parent.checked ? theme.highlightBackground
-                         : parent.hovered && parent.enabled ? theme.hoverTint
+                    color: parent.checked ? Theme.highlightBackground
+                         : parent.hovered && parent.enabled ? Theme.hoverTint
                          : "transparent"
                 }
                 ToolTip.visible: hovered; ToolTip.text: qsTr("Highlight")
@@ -269,7 +269,7 @@ Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: 16; height: 3; radius: 1
                     color: (toolbar.targetBlock && toolbar.targetBlock.currentColor)
-                        ? toolbar.targetBlock.currentColor : theme.textPrimary
+                        ? toolbar.targetBlock.currentColor : Theme.textPrimary
                 }
                 ColorPicker {
                     id: toolbarColorPicker
@@ -306,8 +306,8 @@ Rectangle {
                                toolbar.targetBlock.setBlockAlignment(alignValue)
                 background: Rectangle {
                     radius: 4
-                    color: parent.checked ? theme.selectionTint
-                         : parent.hovered && parent.enabled ? theme.hoverTint
+                    color: parent.checked ? Theme.selectionTint
+                         : parent.hovered && parent.enabled ? Theme.hoverTint
                          : "transparent"
                 }
             }
@@ -534,13 +534,13 @@ Rectangle {
                     objectName: "viewMenuTheme"
                     title: qsTr("Theme")
                     Repeater {
-                        model: theme.availableThemes
+                        model: Theme.availableThemes
                         MenuItem {
                             required property string modelData
-                            text: theme.displayName(modelData)
+                            text: Theme.displayName(modelData)
                             checkable: true
-                            checked: theme.themeId === modelData
-                            onTriggered: theme.themeId = modelData
+                            checked: Theme.themeId === modelData
+                            onTriggered: Theme.themeId = modelData
                         }
                     }
                 }
@@ -576,8 +576,8 @@ Rectangle {
                     objectName: "viewMenuReducedMotion"
                     text: qsTr("Reduced motion")
                     checkable: true
-                    checked: theme.reducedMotion
-                    onTriggered: theme.reducedMotion = checked
+                    checked: Theme.reducedMotion
+                    onTriggered: Theme.reducedMotion = checked
                 }
                 MenuSeparator {}
                 MenuItem {

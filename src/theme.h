@@ -31,8 +31,6 @@ class QJSEngine;
 class Theme : public QObject
 {
     Q_OBJECT
-    QML_ELEMENT
-    QML_UNCREATABLE("Use the theme context property")
 
     // "light" | "dark" | "sepia" | "system" (persisted).
     Q_PROPERTY(QString themeId READ themeId WRITE setThemeId NOTIFY themeChanged)

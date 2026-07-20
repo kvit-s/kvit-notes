@@ -48,7 +48,7 @@ Item {
         return seen
     }
     function labelColor(label) {
-        var pal = theme.colorPalette
+        var pal = Theme.colorPalette
         var h = 0
         for (var i = 0; i < label.length; ++i) h = (h * 31 + label.charCodeAt(i)) % pal.length
         return pal[h]
@@ -169,9 +169,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -194,14 +194,14 @@ Item {
                     height: 20; radius: 10
                     width: fLabel.implicitWidth + 16
                     color: root.labelFilter === modelData
-                        ? root.labelColor(modelData) : theme.chipBackground
+                        ? root.labelColor(modelData) : Theme.chipBackground
                     border.width: 1; border.color: root.labelColor(modelData)
                     Text {
                         id: fLabel
                         anchors.centerIn: parent
                         text: "#" + modelData
                         font.pixelSize: 11
-                        color: root.labelFilter === modelData ? theme.onAccent : theme.textMuted
+                        color: root.labelFilter === modelData ? Theme.onAccent : Theme.textMuted
                     }
                     TapHandler {
                         onTapped: root.labelFilter = (root.labelFilter === modelData ? "" : modelData)
@@ -231,8 +231,8 @@ Item {
                         implicitHeight: colHeader.height + (isCollapsed ? 8 : colCards.implicitHeight + 16)
                         height: implicitHeight
                         radius: 6
-                        color: theme.panelBackground
-                        border.width: 1; border.color: theme.border
+                        color: Theme.panelBackground
+                        border.width: 1; border.color: Theme.border
 
                         // Column header.
                         Item {
@@ -243,7 +243,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: (columnItem.isCollapsed ? "▸ " : "▾ ") + columnItem.colData.name
                                       + "  " + columnItem.colData.cards.length
-                                font.bold: true; font.pixelSize: 12; color: theme.textPrimary
+                                font.bold: true; font.pixelSize: 12; color: Theme.textPrimary
                                 TapHandler {
                                     onTapped: {
                                         var c = Object.assign({}, root.collapsed)
@@ -262,7 +262,7 @@ Item {
                                 Text {
                                     objectName: "kanbanColLeft"
                                     text: "‹"; font.pixelSize: 15
-                                    color: columnItem.colIndex > 0 ? theme.textMuted : theme.textFaint
+                                    color: columnItem.colIndex > 0 ? Theme.textMuted : Theme.textFaint
                                     TapHandler {
                                         enabled: columnItem.colIndex > 0
                                         onTapped: root.writeBoard(KanbanTools.moveColumn(
@@ -273,7 +273,7 @@ Item {
                                     objectName: "kanbanColRight"
                                     text: "›"; font.pixelSize: 15
                                     color: columnItem.colIndex < root.columns.length - 1
-                                           ? theme.textMuted : theme.textFaint
+                                           ? Theme.textMuted : Theme.textFaint
                                     TapHandler {
                                         enabled: columnItem.colIndex < root.columns.length - 1
                                         onTapped: root.writeBoard(KanbanTools.moveColumn(
@@ -282,7 +282,7 @@ Item {
                                 }
                                 Text {
                                     objectName: "kanbanAddCard"
-                                    text: "+"; font.pixelSize: 16; color: theme.textMuted
+                                    text: "+"; font.pixelSize: 16; color: Theme.textMuted
                                     TapHandler {
                                         onTapped: root.writeBoard(
                                             KanbanTools.addCard(root.content, columnItem.colIndex, "New card"))
@@ -326,8 +326,8 @@ Item {
                                     implicitHeight: cardCol.implicitHeight + 12
                                     height: implicitHeight
                                     radius: 5
-                                    color: theme.windowBackground
-                                    border.width: 1; border.color: theme.border
+                                    color: Theme.windowBackground
+                                    border.width: 1; border.color: Theme.border
                                     // Dim cards not matching the active label filter.
                                     opacity: (root.labelFilter === ""
                                               || cardData.labels.indexOf(root.labelFilter) !== -1)
@@ -388,11 +388,11 @@ Item {
                                             Rectangle {
                                                 width: 14; height: 14; radius: 3
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                color: cardItem.cardData.done ? theme.accent : "transparent"
-                                                border.color: cardItem.cardData.done ? theme.accent : theme.borderStrong
+                                                color: cardItem.cardData.done ? Theme.accent : "transparent"
+                                                border.color: cardItem.cardData.done ? Theme.accent : Theme.borderStrong
                                                 border.width: 1.5
                                                 Text { anchors.centerIn: parent; visible: cardItem.cardData.done
-                                                    text: "✓"; color: theme.onAccent; font.pixelSize: 9 }
+                                                    text: "✓"; color: Theme.onAccent; font.pixelSize: 9 }
                                                 TapHandler {
                                                     onTapped: root.writeBoard(KanbanTools.toggleCardDone(
                                                         root.content, cardItem.cardColIndex, cardItem.cardIndex))
@@ -404,7 +404,7 @@ Item {
                                                 wrapMode: Text.Wrap
                                                 font.pixelSize: 12
                                                 font.strikeout: cardItem.cardData.done
-                                                color: cardItem.cardData.done ? theme.textFaint : theme.textPrimary
+                                                color: cardItem.cardData.done ? Theme.textFaint : Theme.textPrimary
                                             }
                                         }
                                         // Labels + due date row.
@@ -428,7 +428,7 @@ Item {
                                             Text {
                                                 visible: cardItem.cardData.due !== ""
                                                 text: "◷ " + cardItem.cardData.due
-                                                font.pixelSize: 9; color: theme.textMuted
+                                                font.pixelSize: 9; color: Theme.textMuted
                                             }
                                         }
                                     }
@@ -446,8 +446,8 @@ Item {
                 // Add-column affordance.
                 Rectangle {
                     width: 120; height: 40; radius: 6
-                    color: "transparent"; border.width: 1; border.color: theme.border
-                    Text { anchors.centerIn: parent; text: "+ Column"; color: theme.textMuted; font.pixelSize: 12 }
+                    color: "transparent"; border.width: 1; border.color: Theme.border
+                    Text { anchors.centerIn: parent; text: "+ Column"; color: Theme.textMuted; font.pixelSize: 12 }
                     TapHandler {
                         onTapped: root.writeBoard(KanbanTools.addColumn(root.content, "New column"))
                     }
@@ -467,7 +467,7 @@ Item {
         padding: 12
         property int col: -1
         property int idx: -1
-        background: Rectangle { color: theme.popupBackground; border.color: theme.borderStrong; border.width: 1; radius: 8 }
+        background: Rectangle { color: Theme.popupBackground; border.color: Theme.borderStrong; border.width: 1; radius: 8 }
         function openFor(c, i) {
             col = c; idx = i
             var card = root.columns[c].cards[i]
@@ -495,14 +495,14 @@ Item {
         }
         contentItem: Column {
             spacing: 6
-            Text { text: qsTr("Edit card"); font.bold: true; color: theme.textPrimary }
+            Text { text: qsTr("Edit card"); font.bold: true; color: Theme.textPrimary }
             TextField { id: titleField; width: parent.width; placeholderText: qsTr("Title") }
             CheckBox { id: doneBox; text: qsTr("Done") }
             TextField { id: labelsField; width: parent.width; placeholderText: qsTr("Labels (comma separated)") }
             TextField { id: dueField; width: parent.width; placeholderText: qsTr("Due date (YYYY-MM-DD)") }
             TextArea { id: descField; width: parent.width; placeholderText: qsTr("Description")
-                background: Rectangle { border.color: theme.border; border.width: 1; radius: 3 } }
-            Text { text: qsTr("Move to column"); font.pixelSize: 11; color: theme.textMuted }
+                background: Rectangle { border.color: Theme.border; border.width: 1; radius: 3 } }
+            Text { text: qsTr("Move to column"); font.pixelSize: 11; color: Theme.textMuted }
             Flow {
                 width: parent.width
                 spacing: 4
@@ -539,11 +539,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
@@ -556,7 +556,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Column { anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } } }
         MouseArea {
             id: kbHandle
             objectName: "dragHandle"

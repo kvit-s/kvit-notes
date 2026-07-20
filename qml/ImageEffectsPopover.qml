@@ -22,8 +22,8 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -46,9 +46,9 @@ Popup {
             width: 16; height: 16; radius: 3
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: parent.on ? theme.accent : "transparent"
+            color: parent.on ? Theme.accent : "transparent"
             border.width: 1
-            border.color: parent.on ? theme.accent : theme.border
+            border.color: parent.on ? Theme.accent : Theme.border
             Text {
                 anchors.centerIn: parent
                 visible: box.parent.on
@@ -60,7 +60,7 @@ Popup {
             anchors.leftMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             text: parent.label
-            color: theme.textPrimary
+            color: Theme.textPrimary
             font.pixelSize: 12
         }
         TapHandler { onTapped: parent.toggled() }

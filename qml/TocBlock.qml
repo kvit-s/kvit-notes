@@ -238,9 +238,9 @@ Item {
         anchors.top: parent.top
         anchors.topMargin: 4
         radius: 6
-        color: delegate.blockSelected ? theme.blockSelectionTint
-             : (delegate.isFocused ? theme.focusTint : theme.panelBackground)
-        border.color: delegate.blockSelected ? theme.accent : theme.border
+        color: delegate.blockSelected ? Theme.blockSelectionTint
+             : (delegate.isFocused ? Theme.focusTint : Theme.panelBackground)
+        border.color: delegate.blockSelected ? Theme.accent : Theme.border
         border.width: 1
         opacity: delegate.isDragSource ? 0.35 : 1
         implicitHeight: cardColumn.implicitHeight + 16
@@ -257,7 +257,7 @@ Item {
                 text: qsTr("Contents")
                 font.pixelSize: 11
                 font.bold: true
-                color: theme.textMuted
+                color: Theme.textMuted
                 bottomPadding: 2
             }
 
@@ -265,7 +265,7 @@ Item {
                 visible: delegate.headings.length === 0
                 text: qsTr("No headings yet.")
                 font.pixelSize: 12
-                color: theme.textFaint
+                color: Theme.textFaint
             }
 
             Repeater {
@@ -282,8 +282,8 @@ Item {
                         text: modelData.text === "" ? qsTr("(untitled)")
                                                     : modelData.text
                         font.pixelSize: 13
-                        color: linkArea.containsMouse ? theme.accent
-                                                      : theme.link
+                        color: linkArea.containsMouse ? Theme.accent
+                                                      : Theme.link
                         font.underline: linkArea.containsMouse
                     }
                     MouseArea {
@@ -310,14 +310,14 @@ Item {
         x: 10
         y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
             text: "+"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 14
             font.bold: true
         }
@@ -350,7 +350,7 @@ Item {
                     spacing: 2
                     Repeater {
                         model: 2
-                        Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint }
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint }
                     }
                 }
             }

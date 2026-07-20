@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import Kvit 1.0
 
 // Bulleted list item (features.md §1.2.4). The bullet glyph cycles with
 // the nesting depth: disc, circle, square.
@@ -17,7 +18,7 @@ EditableBlock {
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: 2
                 font.pixelSize: 15
-                color: theme.textSecondary
+                color: Theme.textSecondary
                 text: {
                     switch (root.indentLevel % 3) {
                         case 1: return "◦"   // ◦ circle

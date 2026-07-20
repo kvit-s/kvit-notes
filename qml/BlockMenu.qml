@@ -228,8 +228,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -246,7 +246,7 @@ Popup {
             visible: menu.rows.length === 0
             anchors.centerIn: parent
             text: qsTr("No matches")
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 13
         }
 
@@ -277,7 +277,7 @@ Popup {
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
                     text: rowItem.isEntry ? "" : modelData.text
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     font.pixelSize: 10
                     font.bold: true
                     font.capitalization: Font.AllUppercase
@@ -288,7 +288,7 @@ Popup {
                     anchors.fill: parent
                     radius: 4
                     color: rowItem.isEntry && rowItem.index === menu.highlightIndex
-                           ? theme.focusTint : "transparent"
+                           ? Theme.focusTint : "transparent"
 
                     Row {
                         anchors.fill: parent
@@ -302,14 +302,14 @@ Popup {
                             height: 28
                             anchors.verticalCenter: parent.verticalCenter
                             radius: 5
-                            color: theme.chipBackground
-                            border.color: theme.border
+                            color: Theme.chipBackground
+                            border.color: Theme.border
                             border.width: 1
 
                             Text {
                                 anchors.centerIn: parent
                                 text: rowItem.isEntry ? modelData.icon : ""
-                                color: theme.textSecondary
+                                color: Theme.textSecondary
                                 font.pixelSize: 12
                                 font.bold: true
                             }
@@ -321,12 +321,12 @@ Popup {
 
                             Text {
                                 text: rowItem.isEntry ? modelData.name : ""
-                                color: theme.textPrimary
+                                color: Theme.textPrimary
                                 font.pixelSize: 13
                             }
                             Text {
                                 text: rowItem.isEntry ? modelData.description : ""
-                                color: theme.textFaint
+                                color: Theme.textFaint
                                 font.pixelSize: 11
                             }
                         }

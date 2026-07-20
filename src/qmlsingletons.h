@@ -44,6 +44,7 @@
 #include "shortcutcatalog.h"
 #include "systemtray.h"
 #include "tabledata.h"
+#include "theme.h"
 #include "todometa.h"
 #include "typography.h"
 #include "undostack.h"
@@ -127,7 +128,8 @@
     X(DocumentManager, DocumentManager)       \
     X(NoteCollection, NoteCollection)         \
     X(NoteListModel, NoteListModel)           \
-    X(SettingsStore, AppSettings)
+    X(SettingsStore, AppSettings)                                    \
+    X(Theme, Theme)
 
 #define KVIT_QML_SINGLETON_NAMED(Type, Name)                                  \
     struct Name##Foreign                                                      \

@@ -272,11 +272,11 @@ Item {
             ? Math.min(root.effectiveWidth, root.embedMaxWidth) : undefined
         radius: 8
         clip: true
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isFocused ? theme.focusTint : theme.panelBackground)
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isFocused ? Theme.focusTint : Theme.panelBackground)
         // A visible keyboard-focus ring (§14.1) in addition to the tint.
-        border.color: root.blockSelected ? theme.accent
-                    : root.isFocused ? theme.focusRing : theme.border
+        border.color: root.blockSelected ? Theme.accent
+                    : root.isFocused ? Theme.focusRing : Theme.border
         border.width: root.isFocused ? 2 : 1
         opacity: root.isDragSource ? 0.35 : 1
         implicitHeight: root.effectiveHeight > 0
@@ -299,7 +299,7 @@ Item {
                 width: 120
                 height: 74
                 radius: 4
-                color: theme.hoverTint
+                color: Theme.hoverTint
                 clip: true
                 Image {
                     objectName: "embedThumb"
@@ -325,7 +325,7 @@ Item {
                     visible: !root.loaded || !root.meta.image
                     anchors.centerIn: parent
                     text: root.isVideo ? "▶" : "🔗"
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     font.pixelSize: 22
                 }
             }
@@ -345,7 +345,7 @@ Item {
                     wrapMode: Text.WordWrap
                     font.pixelSize: 14
                     font.bold: true
-                    color: theme.textPrimary
+                    color: Theme.textPrimary
                 }
                 Text {
                     visible: root.loaded && root.meta.description
@@ -356,7 +356,7 @@ Item {
                     maximumLineCount: 2
                     wrapMode: Text.WordWrap
                     font.pixelSize: 12
-                    color: theme.textMuted
+                    color: Theme.textMuted
                 }
                 // The inert card's affordance. Until this is clicked the block
                 // is a piece of text naming a URL, and nothing has been
@@ -370,15 +370,15 @@ Item {
                         height: loadLabel.implicitHeight + 8
                         radius: 4
                         visible: root.canOfferLoad
-                        color: theme.hoverTint
-                        border.color: loadArea.containsMouse ? theme.accent : theme.border
+                        color: Theme.hoverTint
+                        border.color: loadArea.containsMouse ? Theme.accent : Theme.border
                         Text {
                             id: loadLabel
                             anchors.centerIn: parent
                             text: qsTr("Load preview")
                             font.pixelSize: 11
-                            color: loadArea.containsMouse ? theme.textPrimary
-                                                          : theme.textMuted
+                            color: loadArea.containsMouse ? Theme.textPrimary
+                                                          : Theme.textMuted
                         }
                         MouseArea {
                             id: loadArea
@@ -394,7 +394,7 @@ Item {
                             ? qsTr("· not loaded")
                             : qsTr("· %1").arg(EgressPolicy.refusalReason(root.embedUrl))
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -414,13 +414,13 @@ Item {
                             return m ? m[1] : u
                         }
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                     Text {
                         visible: root.failed
                         text: qsTr("· preview unavailable")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
             }
@@ -442,7 +442,7 @@ Item {
             id: embedResize
             objectName: "embedResizeHandle"
             width: 14; height: 14; radius: 3
-            color: theme.accent
+            color: Theme.accent
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: 2
@@ -497,11 +497,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 10; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea {
             id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -517,7 +517,7 @@ Item {
         Column {
             anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } }
         }
         MouseArea {
             id: embedHandleArea

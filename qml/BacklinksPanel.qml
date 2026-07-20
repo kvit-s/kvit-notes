@@ -20,7 +20,7 @@ Rectangle {
     // [{relPath, title, count, contexts}] for the open note.
     property var rows: []
 
-    color: theme.panelBackground
+    color: Theme.panelBackground
 
     function refresh() {
         var current = appWindow ? appWindow.currentNoteRelPath : ""
@@ -45,7 +45,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 1
-        color: theme.border
+        color: Theme.border
     }
 
     ColumnLayout {
@@ -56,10 +56,10 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
-            color: theme.panelBackground
+            color: Theme.panelBackground
             Rectangle {
                 anchors.bottom: parent.bottom
-                width: parent.width; height: 1; color: theme.border
+                width: parent.width; height: 1; color: Theme.border
             }
             RowLayout {
                 anchors.fill: parent
@@ -69,7 +69,7 @@ Rectangle {
                     text: qsTr("Backlinks")
                     font.pixelSize: 12
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                     Layout.fillWidth: true
                 }
                 Text {
@@ -81,7 +81,7 @@ Rectangle {
                         return total > 0 ? String(total) : ""
                     }
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                 }
             }
         }
@@ -107,7 +107,7 @@ Rectangle {
                 Rectangle {
                     width: parent.width
                     height: titleRow.implicitHeight + 12
-                    color: rowHover.hovered ? theme.hoverTint : "transparent"
+                    color: rowHover.hovered ? Theme.hoverTint : "transparent"
 
                     RowLayout {
                         id: titleRow
@@ -120,14 +120,14 @@ Rectangle {
                             text: modelData.title
                             font.pixelSize: 13
                             font.bold: true
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
                         Text {
                             text: modelData.count
                             font.pixelSize: 11
-                            color: theme.textFaint
+                            color: Theme.textFaint
                         }
                     }
                     HoverHandler { id: rowHover }
@@ -143,7 +143,7 @@ Rectangle {
                         required property var modelData
                         width: backlinksList.width
                         height: contextText.implicitHeight + 8
-                        color: ctxHover.hovered ? theme.hoverTint
+                        color: ctxHover.hovered ? Theme.hoverTint
                                                 : "transparent"
                         Text {
                             id: contextText
@@ -154,7 +154,7 @@ Rectangle {
                             anchors.rightMargin: 10
                             text: modelData
                             font.pixelSize: 11
-                            color: theme.textMuted
+                            color: Theme.textMuted
                             elide: Text.ElideRight
                             maximumLineCount: 1
                         }
@@ -173,7 +173,7 @@ Rectangle {
                 visible: panel.rows.length === 0
                 text: qsTr("No backlinks")
                 font.pixelSize: 12
-                color: theme.textFaint
+                color: Theme.textFaint
             }
         }
     }

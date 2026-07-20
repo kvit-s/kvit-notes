@@ -214,9 +214,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -246,12 +246,12 @@ Item {
                         width: root.colWidth
                         implicitHeight: Math.max(30, cellContent.implicitHeight + 12)
                         height: implicitHeight
-                        color: rowItem.rowIndex === -1 ? theme.chipBackground
+                        color: rowItem.rowIndex === -1 ? Theme.chipBackground
                              : (root.activeRow === rowItem.rowIndex
-                                && root.activeCol === colIndex ? theme.focusTint
-                                : theme.windowBackground)
+                                && root.activeCol === colIndex ? Theme.focusTint
+                                : Theme.windowBackground)
                         border.width: 1
-                        border.color: theme.border
+                        border.color: Theme.border
 
                         readonly property bool isActive:
                             root.activeRow === rowItem.rowIndex
@@ -273,7 +273,7 @@ Item {
                             textFormat: Text.RichText
                             wrapMode: Text.Wrap
                             font.bold: rowItem.rowIndex === -1
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                             horizontalAlignment: cell.align
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -316,7 +316,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root._lastSortAsc ? "▲" : "▼"
                             font.pixelSize: 8
-                            color: theme.textFaint
+                            color: Theme.textFaint
                         }
                     }
                 }
@@ -371,7 +371,7 @@ Item {
                 background: null
                 wrapMode: TextEdit.Wrap
                 font.pixelSize: Typography.baseSize - 1
-                color: theme.textPrimary
+                color: Theme.textPrimary
                 Component.onCompleted: { forceActiveFocus(); cursorPosition = length }
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Tab) {
@@ -392,7 +392,7 @@ Item {
     }
     // theme reference for the cell engine (a bare `theme` inside the engine
     // resolves to the engine's own property).
-    readonly property var appThemeRef: theme
+    readonly property var appThemeRef: Theme
 
     MouseArea {
         id: hoverArea
@@ -406,11 +406,11 @@ Item {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea {
             id: plusArea
             anchors.fill: parent; anchors.margins: -2
@@ -427,7 +427,7 @@ Item {
         Column {
             anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } }
         }
         MouseArea {
             id: tableHandleArea

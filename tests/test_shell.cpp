@@ -120,21 +120,19 @@ private slots:
         }
     }
 
-    // The names the shell binds to are a contract between C++ and QML that
-    // neither compiler checks. Pinning the published set means a rename has
-    // to be made deliberately, in both places, rather than discovered later
-    // as an undefined value at runtime.
+    // The core publishes no context properties at all any more: every service
+    // reaches QML as a `Kvit` module singleton, where qmllint checks its uses
+    // statically instead of a list here pinning them by hand.
     //
-    // This list shrinks as services move to the `Kvit` QML module, where
-    // qmllint checks their uses statically and nothing has to be pinned by
-    // hand. It still covers everything that has not moved, and it is still
-    // what ExtensionRegistry refuses a colliding module namespace against.
-    // The singletons have their own guard in
-    // everySingletonResolvesWithinItsOwnComposition below.
+    // The empty expectation is the assertion, not a leftover. A context
+    // property added back would be invisible to the lint gate — that is the
+    // whole reason they were removed — so the one thing worth checking is
+    // that none reappears. Anything genuinely needing to reach QML should be
+    // registered in qmlsingletons.h, which the extension registry also
+    // reserves names against.
     void everyPublishedContextPropertyIsAccountedFor()
     {
         static const QStringList expected = {
-            "theme",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
 
@@ -145,8 +143,9 @@ private slots:
         QVERIFY2(added.isEmpty() && removed.isEmpty(),
                  qPrintable(QStringLiteral(
                      "Published context properties changed. Added: [%1]. "
-                     "Removed: [%2]. Update the shell's bindings and this "
-                     "list together.")
+                     "Removed: [%2]. The core is meant to publish none — a "
+                     "new one is invisible to qmllint; register it in "
+                     "qmlsingletons.h instead.")
                         .arg(QStringList(added.begin(), added.end()).join(", "),
                              QStringList(removed.begin(), removed.end())
                                  .join(", "))));
@@ -207,6 +206,7 @@ private slots:
             QStringLiteral("DocumentManager"),
             QStringLiteral("NoteCollection"),
             QStringLiteral("BlockModel"),
+            QStringLiteral("Theme"),
             QStringLiteral("DocumentSelection"),
         };
 

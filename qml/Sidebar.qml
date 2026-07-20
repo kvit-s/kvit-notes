@@ -13,7 +13,7 @@ Rectangle {
     id: sidebar
     objectName: "sidebar"
 
-    color: theme.panelBackground
+    color: Theme.panelBackground
 
     // Wired by main.qml (the collapse control writes layout state).
     property var appWindow
@@ -50,7 +50,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 1
-        color: theme.border
+        color: Theme.border
     }
 
     // Recent searches (features.md §8.4), persisted through the settings
@@ -126,7 +126,7 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     height: 20
-                    color: recentHover.hovered ? theme.hoverTint : "transparent"
+                    color: recentHover.hovered ? Theme.hoverTint : "transparent"
                     HoverHandler { id: recentHover }
                     Label {
                         anchors.fill: parent
@@ -134,7 +134,7 @@ Rectangle {
                         verticalAlignment: Text.AlignVCenter
                         text: "↺ " + modelData
                         font.pixelSize: 11
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         elide: Text.ElideRight
                     }
                     MouseArea {
@@ -158,7 +158,7 @@ Rectangle {
                 text: qsTr("Notes")
                 font.pixelSize: 13
                 font.bold: true
-                color: theme.textSecondary
+                color: Theme.textSecondary
                 Layout.fillWidth: true
             }
             ToolButton {
@@ -189,7 +189,7 @@ Rectangle {
             objectName: "allNotesRow"
             Layout.fillWidth: true
             height: 28
-            color: NoteListModel.scope === "all" ? theme.selectionTint : "transparent"
+            color: NoteListModel.scope === "all" ? Theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
@@ -204,7 +204,7 @@ Rectangle {
                     text: NoteCollection.revision >= 0
                           ? NoteCollection.noteCountInFolder("", true) : 0
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                 }
             }
             MouseArea {
@@ -218,7 +218,7 @@ Rectangle {
             objectName: "favoritesRow"
             Layout.fillWidth: true
             height: 28
-            color: NoteListModel.scope === "favorites" ? theme.selectionTint : "transparent"
+            color: NoteListModel.scope === "favorites" ? Theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
@@ -241,7 +241,7 @@ Rectangle {
             text: qsTr("Folders")
             font.pixelSize: 10
             font.bold: true
-            color: theme.textFaint
+            color: Theme.textFaint
             Layout.leftMargin: 12
             Layout.topMargin: 10
             Layout.bottomMargin: 2
@@ -262,11 +262,11 @@ Rectangle {
                 color: {
                     if (sidebar.dropTargetActive
                         && sidebar.dropTargetFolder === model.relPath)
-                        return theme.selectionActiveTint
+                        return Theme.selectionActiveTint
                     if (NoteListModel.scope === "folder"
                         && NoteListModel.folderPath === model.relPath)
-                        return theme.selectionTint
-                    return rowHover.hovered ? theme.hoverTint : "transparent"
+                        return Theme.selectionTint
+                    return rowHover.hovered ? Theme.hoverTint : "transparent"
                 }
 
                 HoverHandler { id: rowHover }
@@ -287,7 +287,7 @@ Rectangle {
                     Text {
                         text: model.expanded ? "▾" : "▸"
                         font.pixelSize: 10
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         visible: model.hasChildren
                         width: 10
                         TapHandler {
@@ -302,7 +302,7 @@ Rectangle {
                         height: 8
                         radius: 2
                         color: model.folderColor !== ""
-                               ? model.folderColor : theme.mutedGlyph
+                               ? model.folderColor : Theme.mutedGlyph
                     }
 
                     Label {
@@ -349,7 +349,7 @@ Rectangle {
                         visible: !rowHover.hovered
                         text: model.noteCount
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -369,7 +369,7 @@ Rectangle {
             text: qsTr("Tags")
             font.pixelSize: 10
             font.bold: true
-            color: theme.textFaint
+            color: Theme.textFaint
             Layout.leftMargin: 12
             Layout.topMargin: 6
             Layout.bottomMargin: 2
@@ -396,8 +396,8 @@ Rectangle {
                 width: tagListView.width
                 height: 24
                 color: NoteListModel.tagFilter === modelData.name
-                       ? theme.selectionTint
-                       : (tagHover.hovered ? theme.hoverTint : "transparent")
+                       ? Theme.selectionTint
+                       : (tagHover.hovered ? Theme.hoverTint : "transparent")
 
                 HoverHandler { id: tagHover }
             // §9.5 tag context menu.
@@ -418,7 +418,7 @@ Rectangle {
                         height: 8
                         radius: 4
                         color: modelData.color !== "" ? modelData.color
-                                                      : theme.mutedGlyph
+                                                      : Theme.mutedGlyph
                     }
                     Label {
                         text: modelData.name
@@ -450,7 +450,7 @@ Rectangle {
                         visible: !tagHover.hovered
                         text: modelData.count
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -471,7 +471,7 @@ Rectangle {
             objectName: "trashRow"
             Layout.fillWidth: true
             height: 26
-            color: trashHover.hovered ? theme.hoverTint : "transparent"
+            color: trashHover.hovered ? Theme.hoverTint : "transparent"
 
             readonly property int trashCount: {
                 var revision = NoteCollection.revision
@@ -487,14 +487,14 @@ Rectangle {
                 Label {
                     text: qsTr("Trash")
                     font.pixelSize: 11
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Label {
                     objectName: "trashCountLabel"
                     text: parent.parent.trashCount
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                 }
             }
             TapHandler {
@@ -634,7 +634,7 @@ Rectangle {
 
         // "" first = default gray; the rest is a small fixed palette
         // (features.md §8.1 folder colors).
-        readonly property var palette: [""].concat(theme.colorPalette)
+        readonly property var palette: [""].concat(Theme.colorPalette)
 
         function openForCreate(parentPath) {
             mode = "create"
@@ -688,9 +688,9 @@ Rectangle {
                         width: 20
                         height: 20
                         radius: 10
-                        color: modelData === "" ? theme.mutedGlyph : modelData
+                        color: modelData === "" ? Theme.mutedGlyph : modelData
                         border.width: folderDialog.selectedColor === modelData ? 2 : 0
-                        border.color: theme.textPrimary
+                        border.color: Theme.textPrimary
                         TapHandler {
                             onTapped: folderDialog.selectedColor = modelData
                         }
@@ -716,7 +716,7 @@ Rectangle {
         property string originalName: ""
         property string selectedColor: ""
 
-        readonly property var palette: theme.colorPalette
+        readonly property var palette: Theme.colorPalette
 
         function openFor(name, color) {
             originalName = name
@@ -763,7 +763,7 @@ Rectangle {
                         radius: 10
                         color: modelData
                         border.width: tagDialog.selectedColor === modelData ? 2 : 0
-                        border.color: theme.textPrimary
+                        border.color: Theme.textPrimary
                         TapHandler {
                             onTapped: tagDialog.selectedColor = modelData
                         }

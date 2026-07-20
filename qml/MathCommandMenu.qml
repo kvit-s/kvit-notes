@@ -83,7 +83,7 @@ Popup {
         if (!tex || tex.length === 0)
             return ""
         return "image://math/" + MathRenderer.encode(tex)
-             + "?fg=" + argbHex(theme.textPrimary)
+             + "?fg=" + argbHex(Theme.textPrimary)
              + "&size=" + menu.glyphPixelSize
              + "&dpr=" + (Screen.devicePixelRatio > 0
                           ? Math.round(Screen.devicePixelRatio * 100) / 100 : 1)
@@ -226,8 +226,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -245,7 +245,7 @@ Popup {
             visible: menu.completionMode && menu.rows.length === 0
             anchors.centerIn: parent
             text: qsTr("No matches")
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 13
         }
 
@@ -268,7 +268,7 @@ Popup {
                 width: completionList.width
                 height: 36
                 radius: 4
-                color: index === menu.highlightIndex ? theme.focusTint
+                color: index === menu.highlightIndex ? Theme.focusTint
                                                      : "transparent"
 
                 Row {
@@ -296,14 +296,14 @@ Popup {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: completionRow.modelData.name
-                        color: theme.textPrimary
+                        color: Theme.textPrimary
                         font.family: "monospace"
                         font.pixelSize: 13
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: completionRow.modelData.category
-                        color: theme.textFaint
+                        color: Theme.textFaint
                         font.pixelSize: 11
                     }
                 }
@@ -345,8 +345,8 @@ Popup {
                     height: 26
                     radius: 4
                     color: index === menu.categoryIndex
-                           ? (menu.inCategoryPane ? theme.focusTint
-                                                  : theme.hoverTint)
+                           ? (menu.inCategoryPane ? Theme.focusTint
+                                                  : Theme.hoverTint)
                            : "transparent"
 
                     Text {
@@ -355,7 +355,7 @@ Popup {
                         anchors.verticalCenter: parent.verticalCenter
                         text: categoryRow.modelData
                         color: categoryRow.index === menu.categoryIndex
-                               ? theme.textPrimary : theme.textSecondary
+                               ? Theme.textPrimary : Theme.textSecondary
                         font.pixelSize: 12
                     }
                     MouseArea {
@@ -370,7 +370,7 @@ Popup {
                 }
             }
 
-            Rectangle { width: 1; height: browsePanel.height; color: theme.border }
+            Rectangle { width: 1; height: browsePanel.height; color: Theme.border }
 
             Column {
                 width: browsePanel.width - categoryList.width - 13
@@ -398,9 +398,9 @@ Popup {
                         height: glyphGrid.cellHeight - 2
                         radius: 4
                         color: index === menu.gridIndex && !menu.inCategoryPane
-                               ? theme.focusTint : "transparent"
+                               ? Theme.focusTint : "transparent"
                         border.color: index === menu.gridIndex
-                                      ? theme.accent : "transparent"
+                                      ? Theme.accent : "transparent"
                         border.width: index === menu.gridIndex ? 1 : 0
 
                         // Rendered glyph; entries with no preview (\\, &)
@@ -420,7 +420,7 @@ Popup {
                             anchors.centerIn: parent
                             visible: gridCell.modelData.preview === ""
                             text: gridCell.modelData.name
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                             font.family: "monospace"
                             font.pixelSize: 12
                         }
@@ -450,7 +450,7 @@ Popup {
                         return row.description !== ""
                             ? row.name + "  —  " + row.description : row.name
                     }
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     font.pixelSize: 12
                 }
             }

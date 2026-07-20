@@ -14,7 +14,7 @@ Rectangle {
     id: noteListPane
     objectName: "noteListPane"
 
-    color: theme.listBackground
+    color: Theme.listBackground
 
     // Wired by main.qml.
     property var appWindow
@@ -103,7 +103,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 1
-        color: theme.border
+        color: Theme.border
     }
 
     // ---- Note drag: onto a sidebar folder (move — the whole selection
@@ -201,8 +201,8 @@ Rectangle {
         width: 180
         height: 28
         radius: 4
-        color: theme.popupBackground
-        border.color: theme.accent
+        color: Theme.popupBackground
+        border.color: Theme.accent
         opacity: 0.9
         Label {
             anchors.fill: parent
@@ -221,11 +221,11 @@ Rectangle {
             width: 20
             height: 20
             radius: 10
-            color: theme.accent
+            color: Theme.accent
             Text {
                 anchors.centerIn: parent
                 text: noteDrag.dragPaths.length
-                color: theme.onAccent
+                color: Theme.onAccent
                 font.pixelSize: 10
                 font.bold: true
             }
@@ -260,7 +260,7 @@ Rectangle {
                 }
                 font.pixelSize: 13
                 font.bold: true
-                color: theme.textSecondary
+                color: Theme.textSecondary
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
@@ -337,7 +337,7 @@ Rectangle {
             Layout.fillWidth: true
             visible: recoveryColumn.entries.length > 0
             implicitHeight: visible ? recoveryColumn.implicitHeight + 12 : 0
-            color: theme.bannerBackground
+            color: Theme.bannerBackground
 
             ColumnLayout {
                 id: recoveryColumn
@@ -355,7 +355,7 @@ Rectangle {
                     text: qsTr("Recovered unsaved changes")
                     font.pixelSize: 11
                     font.bold: true
-                    color: theme.bannerText
+                    color: Theme.bannerText
                 }
 
                 Repeater {
@@ -393,7 +393,7 @@ Rectangle {
                         Label {
                             text: modelData.preview
                             font.pixelSize: 10
-                            color: theme.bannerText
+                            color: Theme.bannerText
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
@@ -409,7 +409,7 @@ Rectangle {
             visible: noteListPane.selectedPaths.length > 1
                      && !noteListPane.searching
             height: visible ? 30 : 0
-            color: theme.focusTint
+            color: Theme.focusTint
 
             RowLayout {
                 anchors.fill: parent
@@ -515,11 +515,11 @@ Rectangle {
                 color: {
                     if (noteListPane.isSelected(model.relPath)
                         && noteListPane.selectedPaths.length > 1)
-                        return theme.selectionActiveTint
+                        return Theme.selectionActiveTint
                     if (appWindow
                         && appWindow.currentNoteRelPath === model.relPath)
-                        return theme.selectionTint
-                    return noteRowHover.hovered ? theme.hoverTint : "transparent"
+                        return Theme.selectionTint
+                    return noteRowHover.hovered ? Theme.hoverTint : "transparent"
                 }
 
                 HoverHandler { id: noteRowHover }
@@ -540,13 +540,13 @@ Rectangle {
                             visible: model.pinned
                             text: "⚑"
                             font.pixelSize: 11
-                            color: theme.accent
+                            color: Theme.accent
                         }
                         Label {
                             visible: model.favorite
                             text: "★"
                             font.pixelSize: 11
-                            color: theme.pinColor
+                            color: Theme.pinColor
                         }
                         Label {
                             visible: noteListPane.renamingPath !== model.relPath
@@ -595,7 +595,7 @@ Rectangle {
                         text: model.snippet !== "" ? model.snippet
                                                    : qsTr("Empty note")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -610,7 +610,7 @@ Rectangle {
                               + " · " + model.wordCount + " "
                               + qsTr("words")
                         font.pixelSize: 10
-                        color: theme.textDisabled
+                        color: Theme.textDisabled
                     }
                 }
 
@@ -661,7 +661,7 @@ Rectangle {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     height: 1
-                    color: theme.hoverTint
+                    color: Theme.hoverTint
                 }
 
                 MouseArea {
@@ -731,7 +731,7 @@ Rectangle {
                 width: noteListView.width - 12
                 height: 3
                 radius: 1.5
-                color: theme.accent
+                color: Theme.accent
                 y: {
                     var gap = noteDrag.reorderGap
                     if (gap < 0)
