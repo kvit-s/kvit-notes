@@ -21,7 +21,7 @@ manifest, not this file.
 - **License:** Zlib
 - **Origin:** https://github.com/leethomason/tinyxml2
 - **Files:** third_party/microtex/tinyxml2
-- **License text:** third_party/microtex/tinyxml2/tinyxml2.h (header notice)
+- **License text:** third_party/microtex/tinyxml2/LICENSE.txt; installed into every binary artifact as LICENSE.tinyxml2
 - **Ships in:** windows, macos, linux, source
 - **Obligations:** Keep the notice; altered sources must be marked.
 
@@ -71,7 +71,7 @@ manifest, not this file.
 - **License:** LGPL-3.0-only
 - **Origin:** https://www.qt.io (aqtinstall binaries in CI)
 - **Files:** dynamically linked; runtime libraries and plugins bundled by windeployqt / macdeployqt / linuxdeploy at packaging time
-- **License text:** shipped as packaging/licenses/qt (Phase D packaging step copies the LGPL-3 and GPL-exception texts into each artifact)
+- **License text:** packaging/licenses/qt holds the canonical LGPL-3 and GPL-3 texts; packaging copies them into each artifact under share/licenses/kvit-notes/qt, alongside the Qt kit's own licensing document when the kit provides one
 - **Ships in:** windows, macos, linux
 - **Obligations:** See packaging/qt-lgpl-checklist.md - dynamic linking only, license texts in every artifact, source-availability statement, relink/replace ability preserved (no static Qt).
 

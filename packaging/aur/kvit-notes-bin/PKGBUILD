@@ -14,7 +14,14 @@ conflicts=('kvit-notes')
 depends=('fontconfig' 'glibc' 'hicolor-icon-theme')
 options=('!strip')
 source=("https://github.com/kvit-s/kvit-notes/releases/download/v${pkgver}/Kvit_Editor-${pkgver}-x86_64.AppImage")
-sha256sums=('SKIP')  # pinned from SHA256SUMS.txt at release time
+# Pinned to the exact release artifact. Set by tools/update-aur-digest.sh,
+# which reads the digest from the release's SHA256SUMS.txt; never edit by
+# hand and never set back to SKIP. SKIP would make makepkg accept whatever
+# the download URL returns at install time, and a GitHub release asset can be
+# replaced after publication. The placeholder below is not a valid digest, so
+# an unpinned PKGBUILD fails the build rather than installing unverified
+# bytes; `tools/update-aur-digest.sh --check <version>` catches it earlier.
+sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
 
 prepare() {
     chmod +x "Kvit_Editor-${pkgver}-x86_64.AppImage"
@@ -34,6 +41,12 @@ package() {
         [ -f "$icon" ] && install -Dm644 "$icon" \
             "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/kvit-notes.png"
     done
-    install -Dm644 usr/share/licenses/THIRD-PARTY-NOTICES.md \
-        "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-NOTICES.md"
+    # The complete license payload, not just the notices summary: the MPL-2.0
+    # text for the project's own code, MIT for MicroTeX, Zlib for tinyxml2 and
+    # the LGPL-3/GPL-3 texts for the bundled Qt all have to reach the user.
+    # The AppImage carries them under usr/share/licenses/kvit-notes, so the
+    # directory is copied whole.
+    install -d "$pkgdir/usr/share/licenses/$pkgname"
+    cp -r usr/share/licenses/kvit-notes/. \
+        "$pkgdir/usr/share/licenses/$pkgname/"
 }

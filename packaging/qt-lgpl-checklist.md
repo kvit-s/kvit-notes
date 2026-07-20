@@ -13,9 +13,19 @@ packaging pipeline produces a real artifact, then re-verified per release.
       to replace the Qt libraries with their own build (relink/replace
       ability is what dynamic linking preserves).
 - [ ] The artifact carries the LGPL-3 text and the Qt license notices in a
-      `licenses/qt/` folder (the packaging scripts copy them from the Qt kit
-      used for the build).
-- [ ] The artifact carries `THIRD-PARTY-NOTICES.md`.
+      `licenses/qt/` folder. The canonical LGPL-3 and GPL-3 texts are
+      vendored at `packaging/licenses/qt/` and copied in by the packaging
+      script; the Qt kit's own licensing document is added alongside when the
+      kit provides one. Do not rely on the kit alone: a Qt 6.10.1 kit ships
+      `Licenses/{LICENSE,LICENSE.FDL,COPYING.txt,Copyright.txt}` and no file
+      matching `LICENSE.LGPL*`, so the previous glob copied nothing and left
+      an empty directory behind.
+- [ ] The artifact carries `THIRD-PARTY-NOTICES.md`, the project's own
+      MPL-2.0 `LICENSE`, and the MicroTeX and tinyxml2 texts. On Linux this
+      is enforced: `tools/check-license-payload.sh` runs inside
+      `packaging/linux/build-appimage.sh` and fails the build when any
+      required notice is missing or empty. Wire the same call into the
+      Windows and macOS packaging scripts when they are written.
 - [ ] The download page / README states where the exact Qt sources for the
       shipped version can be obtained (https://download.qt.io/official_releases/qt/
       plus the version), satisfying the source-availability obligation.

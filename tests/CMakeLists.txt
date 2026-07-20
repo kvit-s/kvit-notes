@@ -516,9 +516,19 @@ endif()
 #    one label and CI filters with `ctest -L <label>`:
 #      unit        deterministic, headless-safe — the merge gate on all OSes
 #      performance timing-sensitive — Linux CI non-blocking trend job
-#      gui-smoke   GUI suites that run deterministically offscreen
+#      shell       loads the production shell; deterministic offscreen, and a
+#                  blocking merge gate on all OSes alongside `unit`
 #      visual      need a real, focused display — local gate; xvfb runs are
 #                  informational only
+#
+# `shell` is separate from `unit` only because it constructs a QQuickWindow
+# and so needs a QPA platform, not because it is any less deterministic: the
+# suites below take about 0.6s and pass repeatedly under QT_QPA_PLATFORM=
+# offscreen. They were previously labelled `gui-smoke` and run in CI under
+# continue-on-error, which meant the one test that loads the shipped
+# resources.qrc could not fail a merge — a QML syntax error, a resource
+# missing from the qrc, an import that does not resolve, or a context
+# property renamed out from under main.qml all merged green. They gate now.
 set(KVIT_PERFORMANCE_TESTS
     WarAndPeacePerformanceTests
     BigFilePerformanceTests
@@ -526,7 +536,7 @@ set(KVIT_PERFORMANCE_TESTS
     PerformanceAppTests
     QueryDataTimingBudget
     SearchIndexTimingBudget)
-set(KVIT_GUI_SMOKE_TESTS
+set(KVIT_SHELL_TESTS
     ShellTests
     AgentShellTests)
 set(KVIT_VISUAL_TESTS
@@ -537,8 +547,8 @@ get_property(_kvit_tests DIRECTORY PROPERTY TESTS)
 foreach(_t IN LISTS _kvit_tests)
     if(_t IN_LIST KVIT_PERFORMANCE_TESTS)
         set_property(TEST ${_t} APPEND PROPERTY LABELS performance)
-    elseif(_t IN_LIST KVIT_GUI_SMOKE_TESTS)
-        set_property(TEST ${_t} APPEND PROPERTY LABELS gui-smoke)
+    elseif(_t IN_LIST KVIT_SHELL_TESTS)
+        set_property(TEST ${_t} APPEND PROPERTY LABELS shell)
     elseif(_t IN_LIST KVIT_VISUAL_TESTS)
         set_property(TEST ${_t} APPEND PROPERTY LABELS visual)
     else()

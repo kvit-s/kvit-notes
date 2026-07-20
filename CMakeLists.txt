@@ -1,8 +1,33 @@
 cmake_minimum_required(VERSION 3.16)
 # SemVer: the product launches as 1.0.0 (0.x would
-# undersell a feature-complete editor); prereleases carry -rcN in the tag,
-# not in this version.
+# undersell a feature-complete editor). PROJECT_VERSION carries the three
+# numeric components only, because CMake rejects a prerelease suffix here.
 project(kvit-notes VERSION 1.0.0 LANGUAGES CXX)
+
+# The full SemVer string the binary reports, prerelease suffix included.
+#
+# A tag build passes the version derived from the tag, so v1.0.0-rc1 produces
+# a binary that calls itself 1.0.0-rc1. Without this an RC reported plain
+# 1.0.0 and UpdateChecker::compareVersions — which does implement SemVer
+# prerelease ordering — saw the installed RC as equal to the stable release
+# and never offered the upgrade off it.
+#
+# The value must start with PROJECT_VERSION; anything after that must be a
+# SemVer prerelease or build-metadata suffix. packaging/linux/build-appimage.sh
+# derives it from the tag and CI passes the same string to every packaging
+# job, so the reported version, the artifact filename and the tag cannot
+# disagree. Left unset it is exactly PROJECT_VERSION, which is what a
+# developer build and a final release both want.
+set(KVIT_VERSION_FULL "${PROJECT_VERSION}" CACHE STRING
+    "Full SemVer version the binary reports (e.g. 1.0.0-rc1)")
+
+if(NOT KVIT_VERSION_FULL MATCHES "^${PROJECT_VERSION}([-+].+)?$")
+    message(FATAL_ERROR
+        "KVIT_VERSION_FULL ('${KVIT_VERSION_FULL}') must be PROJECT_VERSION "
+        "('${PROJECT_VERSION}') optionally followed by a '-prerelease' or "
+        "'+build' suffix. Bump project(VERSION) to release a different "
+        "base version.")
+endif()
 
 # C++20 is the build's real requirement, not a choice made here: vendored
 # MicroTeX propagates cxx_std_20 PUBLIC to every target that links it, so the
@@ -127,7 +152,7 @@ add_library(kvit-core STATIC
 
 # The version the running app reports (About, update check comparison).
 target_compile_definitions(kvit-core PRIVATE
-    KVIT_VERSION="${PROJECT_VERSION}")
+    KVIT_VERSION="${KVIT_VERSION_FULL}")
 
 # Every module the composed application needs is linked into the library, not
 # into the executable, so any binary linking kvit-core gets a complete editor:
@@ -199,16 +224,71 @@ elseif(APPLE)
 endif()
 
 include(GNUInstallDirs)
+
+# ── The license payload every binary artifact must carry.
+#
+# These four files are a distribution obligation, not documentation: MPL-2.0
+# §3.1 for the project's own code, MIT for MicroTeX, and Zlib for tinyxml2 all
+# require the license text to travel with the binary. They used to be absent
+# from every install layout — only the AppImage script copied the notices
+# summary, and that summary refers to source-tree paths which no binary
+# artifact contains — so an install or a package satisfied none of them.
+#
+# The font licenses are not listed here because the whole of
+# third_party/microtex/res/ is installed as math-res below, which already
+# carries res/greek/LICENSE, res/cyrillic/LICENSE, res/fonts/licences/ and
+# res/fonts/kvit-newtx/{LICENSES,NOTICE.md} in place beside the fonts they
+# cover. Qt's LGPL texts come from the Qt kit at deploy time and are added by
+# the platform packaging script.
+#
+# tools/check-license-payload.sh verifies the result against an installed
+# tree or an AppDir, and packaging fails when a file is missing.
+set(KVIT_LICENSE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+    "${CMAKE_CURRENT_SOURCE_DIR}/THIRD-PARTY-NOTICES.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/microtex/LICENSE.clatexmath"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/microtex/tinyxml2/LICENSE.txt")
+
+# A missing source file here is a configure-time error rather than a package
+# that quietly ships without its notices.
+foreach(_lic IN LISTS KVIT_LICENSE_FILES)
+    if(NOT EXISTS "${_lic}")
+        message(FATAL_ERROR
+            "Required license file is missing: ${_lic}. Every binary artifact "
+            "must ship it; see KVIT_LICENSE_FILES in CMakeLists.txt.")
+    endif()
+endforeach()
+
+# tinyxml2's text is LICENSE.txt in the vendored tree; renamed on install so
+# four files from four projects do not collide in one directory.
+set(KVIT_LICENSE_RENAMES
+    LICENSE
+    THIRD-PARTY-NOTICES.md
+    LICENSE.microtex
+    LICENSE.tinyxml2)
+
+function(kvit_install_licenses destination)
+    list(LENGTH KVIT_LICENSE_FILES _count)
+    math(EXPR _last "${_count} - 1")
+    foreach(_i RANGE ${_last})
+        list(GET KVIT_LICENSE_FILES ${_i} _lic)
+        list(GET KVIT_LICENSE_RENAMES ${_i} _name)
+        install(FILES "${_lic}" DESTINATION "${destination}" RENAME "${_name}")
+    endforeach()
+endfunction()
+
 if(WIN32)
     # Portable layout: the executable at the prefix root, math-res beside it.
     # windeployqt fills in the Qt runtime next to them.
     install(TARGETS kvit-notes RUNTIME DESTINATION .)
     install(DIRECTORY third_party/microtex/res/ DESTINATION math-res)
+    kvit_install_licenses(licenses)
 elseif(APPLE)
     # Self-contained bundle; macdeployqt operates on the installed .app.
     install(TARGETS kvit-notes BUNDLE DESTINATION .)
     install(DIRECTORY third_party/microtex/res/
         DESTINATION "kvit-notes.app/Contents/Resources/math-res")
+    kvit_install_licenses("kvit-notes.app/Contents/Resources/licenses")
 else()
     # Linux FHS layout, consumed directly and by linuxdeploy for the AppImage.
     install(TARGETS kvit-notes RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -223,6 +303,7 @@ else()
     install(FILES packaging/icons/kvit.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
         RENAME kvit-notes.svg)
+    kvit_install_licenses(${CMAKE_INSTALL_DATADIR}/licenses/kvit-notes)
 endif()
 
 # Scriptable launcher for the real shell (tools/uidriver.cpp): runs the same
