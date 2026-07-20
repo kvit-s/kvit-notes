@@ -18,10 +18,18 @@ const QRegularExpression &tagRe()
     return re;
 }
 
+// The tag's fixed opener. A line without it cannot match tagRe(), so testing
+// for the literal first turns the overwhelmingly common tag-free line into a
+// plain scan instead of a regex match — worth it because the parser calls
+// stripTag on every line of every document it opens.
+const QLatin1String kTagOpener("<!--kvit ");
+
 } // namespace
 
 QString BlockAttributes::stripTag(const QString &line, QString *payload)
 {
+    if (!line.contains(kTagOpener))
+        return line;  // no kvit tag — byte-identical
     const QRegularExpressionMatch m = tagRe().match(line);
     if (!m.hasMatch())
         return line;  // no kvit tag — byte-identical

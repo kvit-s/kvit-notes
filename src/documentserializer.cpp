@@ -137,6 +137,28 @@ QString classifyFenceLanguage(const QString &language, const QString &content)
     return language;
 }
 
+// A block whose markdown spans several lines cannot carry its attribute tag
+// on the last one: for a fenced block that line is the closer, and both fence
+// scanners demand a bare closer, so a tagged closer never terminates the block
+// and the rest of the document is read as its content. These types therefore
+// put the tag on their opening/header line, which the parser already strips
+// before it classifies anything.
+bool tagRidesOpeningLine(Block::BlockType type)
+{
+    return type == Block::CodeBlock || type == Block::MathBlock
+        || type == Block::Table || type == Block::Callout;
+}
+
+// Attach a tag to the first line of a multi-line serialization.
+QString attachTagToFirstLine(const QString &markdown, const QString &payload)
+{
+    const int nl = markdown.indexOf(QLatin1Char('\n'));
+    if (nl < 0)
+        return BlockAttributes::attachTag(markdown, payload);
+    return BlockAttributes::attachTag(markdown.left(nl), payload)
+         + markdown.mid(nl);
+}
+
 QString fenceFor(const QString &content)
 {
     int longest = 2;
@@ -308,9 +330,10 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
 
     const QString content = block->content();
 
-    // The block's base markdown, then the trailing <!--kvit ...--> tag
-    // re-attached (a no-op when the block has no attributes, so an unstyled
-    // block is byte-identical).
+    // The block's base markdown, with the <!--kvit ...--> tag re-attached —
+    // on the opening line for the multi-line types, trailing otherwise. A
+    // no-op when the block has no attributes, so an unstyled block is
+    // byte-identical.
     const QString base = [&]() -> QString {
     switch (block->blockType()) {
     case Block::Heading1:
@@ -345,8 +368,13 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
         return quoted.join(QLatin1Char('\n'));
     }
     case Block::CodeBlock: {
+        // The tag rides the opening fence: appended after the closer it would
+        // stop the closer from closing (see tagRidesOpeningLine). The info
+        // string is read from the tag-stripped line, so the language survives.
         const QString fence = fenceFor(content);
-        QString result = fence + block->language() + QLatin1Char('\n');
+        QString result = BlockAttributes::attachTag(fence + block->language(),
+                                                    block->attributes())
+                       + QLatin1Char('\n');
         if (!content.isEmpty())
             result += content + QLatin1Char('\n');
         result += fence;
@@ -354,8 +382,11 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
     }
     case Block::MathBlock: {
         // A $$ … $$ display-math fence. Canonical form is multi-line; a
-        // hand-authored single-line $$x$$ normalizes to it.
-        QString result = QStringLiteral("$$\n");
+        // hand-authored single-line $$x$$ normalizes to it. The tag rides the
+        // opening $$ for the same reason as a code fence.
+        QString result =
+            BlockAttributes::attachTag(QStringLiteral("$$"), block->attributes())
+            + QLatin1Char('\n');
         if (!content.isEmpty())
             result += content + QLatin1Char('\n');
         result += QStringLiteral("$$");
@@ -365,8 +396,11 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
         return QStringLiteral("---");
     case Block::Table:
         // Canonicalize on save: a hand-authored ragged/padded table squares up,
-        // while a Kvit-written table round-trips identically.
-        return TableData::serialize(TableData::parse(content));
+        // while a Kvit-written table round-trips identically. The tag rides the
+        // header row, where it stays out of the cell data.
+        return attachTagToFirstLine(
+            TableData::serialize(TableData::parse(content)),
+            block->attributes());
     case Block::Callout: {
         // > [!type][-] Title  header, then "> " body lines. Folded writes
         // the '-' marker; expanded writes none (a hand-authored '+' thus
@@ -381,7 +415,7 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
         // A callout is multi-line, so its attribute tag rides the header line
         // rather than trailing the last body line; the outer re-attach
         // below skips callouts for this reason.
-        out << BlockAttributes::attachTag(header, block->attributes());
+        out << attachTagToFirstLine(header, block->attributes());
         if (!content.isEmpty()) {
             for (const QString &line : content.split(QLatin1Char('\n')))
                 out << (line.isEmpty() ? QStringLiteral(">")
@@ -395,9 +429,9 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
     }
     }();
 
-    // A callout embeds its tag on the header line above; every other block
-    // type carries it as a trailing tag on its single/last line.
-    if (block->blockType() == Block::Callout)
+    // The multi-line types embed their tag on their opening line above; every
+    // other block type carries it as a trailing tag on its single/last line.
+    if (tagRidesOpeningLine(block->blockType()))
         return base;
     return BlockAttributes::attachTag(base, block->attributes());
 }
@@ -512,10 +546,28 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
         if (openLen > 0) {
             flushRuns();
             QStringList codeLines;
+            QString fenceAttrs = lineAttrs;   // the opener's tag
             ++i;
             bool closed = false;
             while (i < lines.size()) {
                 if (isClosingFence(lines.at(i), openLen, fenceChar)) {
+                    closed = true;
+                    ++i;
+                    break;
+                }
+                // Kvit before this shape existed wrote the tag AFTER the
+                // closing fence, which stopped the closer from closing and
+                // swallowed the rest of the note. Accept that legacy line so
+                // those files still open, and only when stripping the tag
+                // leaves a bare closer — a kvit-shaped comment on any other
+                // code line stays verbatim content.
+                QString legacyAttrs;
+                const QString bare =
+                    BlockAttributes::stripTag(lines.at(i), &legacyAttrs);
+                if (!legacyAttrs.isEmpty()
+                    && isClosingFence(bare, openLen, fenceChar)) {
+                    if (fenceAttrs.isEmpty())
+                        fenceAttrs = legacyAttrs;
                     closed = true;
                     ++i;
                     break;
@@ -527,6 +579,7 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             BlockData data;
             data.type = Block::CodeBlock;
             data.content = codeLines.join(QLatin1Char('\n'));
+            data.attributes = fenceAttrs;
             // Ingest character-diagram tagging: rewrite an eligible untagged
             // fence to `diagram`.
             data.language = classifyFenceLanguage(language, data.content);
@@ -558,6 +611,7 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
                 flushRuns();
                 BlockData data;
                 data.type = Block::MathBlock;
+                data.attributes = lineAttrs;   // the opening $$ carries the tag
                 if (singleLine) {
                     data.content = t.mid(2, t.length() - 4).trimmed();
                     ++i;
@@ -566,6 +620,17 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
                     ++i;
                     while (i < lines.size()) {
                         if (lines.at(i).trimmed() == QLatin1String("$$")) {
+                            ++i;
+                            break;
+                        }
+                        // The legacy tagged closer, as in the code-fence loop.
+                        QString legacyAttrs;
+                        const QString bare =
+                            BlockAttributes::stripTag(lines.at(i), &legacyAttrs);
+                        if (!legacyAttrs.isEmpty()
+                            && bare.trimmed() == QLatin1String("$$")) {
+                            if (data.attributes.isEmpty())
+                                data.attributes = legacyAttrs;
                             ++i;
                             break;
                         }
@@ -587,15 +652,27 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             flushRuns();
             QStringList tableLines;
             tableLines << line << lines[i + 1];
+            QString tableAttrs = lineAttrs;   // the header row carries the tag
             int j = i + 2;
             while (j < lines.size() && !lines[j].trimmed().isEmpty()
                    && lines[j].contains('|')) {
-                tableLines << lines[j];
+                // Kvit once appended the tag to the last data row, where it
+                // reparsed as text in the final cell. Split it back off.
+                QString rowAttrs;
+                const QString row = BlockAttributes::stripTag(lines[j], &rowAttrs);
+                if (rowAttrs.isEmpty()) {
+                    tableLines << lines[j];
+                } else {
+                    tableLines << row;
+                    if (tableAttrs.isEmpty())
+                        tableAttrs = rowAttrs;
+                }
                 ++j;
             }
             BlockData data;
             data.type = Block::Table;
             data.content = tableLines.join(QLatin1Char('\n'));
+            data.attributes = tableAttrs;
             blocks.append(data);
             i = j;
             continue;
