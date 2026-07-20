@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Delegates and Loaders throughout this file are separate component
+// scopes. Binding them lets each address the ids and model roles it
+// uses instead of relying on injection.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -92,7 +97,13 @@ ApplicationWindow {
     // A stored position is only reapplied when its rect still lands on a
     // connected screen; monitors change between sessions.
     function savedRectOnScreen(sx, sy, sw, sh) {
+        // Qt.application.screens is documented QML API, but the type
+        // description Qt ships for QQmlApplication does not list it, so the
+        // linter cannot see it. The suppression below is scoped to this one
+        // line rather than disabling the category or excluding this file.
+        // qmllint disable missing-property
         var screens = Qt.application.screens
+        // qmllint enable missing-property
         for (var i = 0; i < screens.length; i++) {
             var s = screens[i]
             if (sx + sw > s.virtualX + 40
@@ -197,7 +208,7 @@ ApplicationWindow {
     function focusEditor() {
         var idx = Math.max(0, Math.min(root.lastFocusedBlock, BlockModel.count - 1))
         blockListView.currentIndex = idx
-        var item = blockListView.itemAtIndex(idx)
+        var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
         if (item && item.focusAtStart)
             item.focusAtStart()
     }
@@ -232,7 +243,7 @@ ApplicationWindow {
     Connections {
         target: DocumentManager
         function onCurrentFilePathChanged() {
-            Qt.callLater(refreshSessionBaseline)
+            Qt.callLater(root.refreshSessionBaseline)
         }
 
         function onIsDirtyChanged() {
@@ -291,7 +302,7 @@ ApplicationWindow {
         blockListView.currentIndex = idx
         blockListView.positionViewAtIndex(idx, ListView.Beginning)
         Qt.callLater(function() {
-            var item = blockListView.itemAtIndex(idx)
+            var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
             if (item && item.focusAtStart)
                 item.focusAtStart()
         })
@@ -495,7 +506,7 @@ ApplicationWindow {
         blockListView.currentIndex = 0
         // Reset the session word tracker to the just-loaded document (the model
         // has finished loading synchronously here).
-        Qt.callLater(refreshSessionBaseline)
+        Qt.callLater(root.refreshSessionBaseline)
         return true
     }
 
@@ -688,7 +699,7 @@ ApplicationWindow {
         var relPath = NoteCollection.createNote(folder, "")
         if (relPath !== "") {
             openNoteByPath(relPath)
-            var item = blockListView.itemAtIndex(0)
+            var item = (blockListView.itemAtIndex(0) as BlockDelegateBase)
             if (item && item.focusAtStart)
                 item.focusAtStart()
         }
@@ -719,7 +730,7 @@ ApplicationWindow {
             NoteCollection.setFavorite(relPath, true)
         DocumentManager.save()
         Qt.callLater(function() {
-            var item = blockListView.itemAtIndex(0)
+            var item = (blockListView.itemAtIndex(0) as BlockDelegateBase)
             if (item && item.focusAtStart)
                 item.focusAtStart()
         })
@@ -764,7 +775,7 @@ ApplicationWindow {
             return { index: idx, mdPos: BlockModel.getContent(idx).length,
                      inText: false }
         }
-        var item = blockListView.itemAtIndex(idx)
+        var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
         if (!item || !item.markdownPositionAt)
             return { index: idx, mdPos: 0, inText: false }
         return { index: idx,
@@ -778,7 +789,7 @@ ApplicationWindow {
     readonly property color focusedBorderColor: Theme.accent
     readonly property color textColor: Theme.textPrimary
 
-    color: backgroundColor
+    color: root.backgroundColor
 
     // Qt Quick Controls (buttons, fields, scrollbars, menus) restyle
     // through palette propagation — one binding set instead of
@@ -997,7 +1008,7 @@ ApplicationWindow {
             var idx = blockIndex
             Qt.callLater(function() {
                 blockListView.currentIndex = idx
-                var item = blockListView.itemAtIndex(idx)
+                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
                 if (item)
                     item.focusAtPosition(cursorMd)
             })
@@ -1138,7 +1149,7 @@ ApplicationWindow {
         onApplied: function(blockIndex, type) {
             Qt.callLater(function() {
                 blockListView.currentIndex = blockIndex
-                var item = blockListView.itemAtIndex(blockIndex)
+                var item = (blockListView.itemAtIndex(blockIndex) as BlockDelegateBase)
                 if (item)
                     item.focusAtStart()
             })
@@ -1272,7 +1283,7 @@ ApplicationWindow {
                 var idx = blockListView.indexAt(cx,
                     Math.max(0, Math.min(pos.y, blockListView.contentHeight - 1)))
                 if (idx >= 0 && idx !== sourceIndex) {
-                    var item = blockListView.itemAtIndex(idx)
+                    var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
                     // Move only once the pointer passes the target row's
                     // midpoint, so unequal row heights cannot oscillate
                     if (item) {
@@ -1301,7 +1312,7 @@ ApplicationWindow {
                     Math.max(0, cy - blockListView.spacing))
                 return idx < 0 ? -1 : idx + 1
             }
-            var item = blockListView.itemAtIndex(idx)
+            var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
             if (!item)
                 return idx
             return cy > item.y + item.height / 2 ? idx + 1 : idx
@@ -1372,7 +1383,7 @@ ApplicationWindow {
             proxyImages.clear()
             var shots = Math.min(3, indexes.length)
             for (var i = 0; i < shots; i++) {
-                var item = blockListView.itemAtIndex(Number(indexes[i]))
+                var item = (blockListView.itemAtIndex(Number(indexes[i]) as BlockDelegateBase))
                 if (!item)
                     continue
                 // A delegate can nominate its content item for the shot
@@ -1404,11 +1415,14 @@ ApplicationWindow {
             Repeater {
                 model: proxyImages
                 Image {
+                    id: proxyShot
+                    required property real shotHeight
+                    required property url shotUrl
                     width: dragProxy.width
-                    height: model.shotHeight
+                    height: proxyShot.shotHeight
                     fillMode: Image.PreserveAspectFit
                     horizontalAlignment: Image.AlignLeft
-                    source: model.shotUrl
+                    source: proxyShot.shotUrl
                 }
             }
         }
@@ -1454,7 +1468,7 @@ ApplicationWindow {
                 idx = Math.max(0, Math.min(blockListView.currentIndex,
                                            BlockModel.count - 1))
             blockListView.currentIndex = idx
-            var item = blockListView.itemAtIndex(idx)
+            var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
             if (item)
                 item.focusAtEnd()
         }
@@ -1475,7 +1489,7 @@ ApplicationWindow {
                     return
                 var i = Math.max(0, Math.min(idx, BlockModel.count - 1))
                 blockListView.currentIndex = i
-                var item = blockListView.itemAtIndex(i)
+                var item = (blockListView.itemAtIndex(i) as BlockDelegateBase)
                 if (item) {
                     if (atEnd)
                         item.focusAtEnd()
@@ -1610,8 +1624,15 @@ ApplicationWindow {
                         // Ctrl+Shift+V: strip inline formatting and drop the
                         // structure too, so the payload lands as plain
                         // paragraphs (§5.3).
+                        // `editorEngine` is an id inside EditableBlock.qml
+                        // and has never existed in this scope, so this threw
+                        // ReferenceError and the paste silently did nothing.
+                        // DocumentStats.displayTextFor is the same operation
+                        // as BlockEditorEngine::stripFormatting — both return
+                        // displayText(markdown) for non-verbatim content —
+                        // and there is no block here, so verbatim is false.
                         var plain = pasteText.split("\n").map(function(line) {
-                            return editorEngine.stripFormatting(line)
+                            return DocumentStats.displayTextFor(line, false)
                         }).join("\n")
                         var plainCount = DocumentSerializer.insertPlainTextAt(
                             BlockModel, insertAt, plain)
@@ -1854,7 +1875,7 @@ ApplicationWindow {
         DocumentManager.open(DocumentManager.toLocalFileUrl(target))
         root.lastFocusedBlock = 0
         blockListView.currentIndex = 0
-        Qt.callLater(refreshSessionBaseline)
+        Qt.callLater(root.refreshSessionBaseline)
         root.externalConflict = false
     }
 
@@ -2022,7 +2043,7 @@ ApplicationWindow {
             BlockModel.convertBlock(targetIndex, Block.Image, "![](" + url + ")")
             var idx = targetIndex
             Qt.callLater(function() {
-                var item = blockListView.itemAtIndex(idx)
+                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
                 if (item && item.focusAtStart) item.focusAtStart()
             })
         }
@@ -2073,7 +2094,7 @@ ApplicationWindow {
             at++
         }
         Qt.callLater(function() {
-            var item = blockListView.itemAtIndex(last)
+            var item = (blockListView.itemAtIndex(last) as BlockDelegateBase)
             if (item && item.focusAtStart) item.focusAtStart()
         })
     }
@@ -2214,10 +2235,11 @@ ApplicationWindow {
                     { name: qsTr("Subscript"), type: "subscript" },
                     { name: qsTr("Inline math"), type: "math" }]
                 MenuItem {
+                    id: spanTypeItem
                     required property var modelData
-                    text: modelData.name
+                    text: spanTypeItem.modelData.name
                     onTriggered: textContextMenu.target.toggleSpanType(
-                        modelData.type)
+                        spanTypeItem.modelData.type)
                 }
             }
         }
@@ -2234,18 +2256,19 @@ ApplicationWindow {
                     { name: qsTr("Purple"), value: "#9068c8" },
                     { name: qsTr("Pink"), value: "#d06ca8" }]
                 MenuItem {
+                    id: colorItem
                     required property var modelData
-                    text: modelData.name
+                    text: colorItem.modelData.name
                     // A leading swatch of the color the item applies.
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.right: parent.right
                         anchors.rightMargin: 12
                         width: 14; height: 14; radius: 3
-                        color: modelData.value
+                        color: colorItem.modelData.value
                         border.color: Theme.border
                     }
-                    onTriggered: textContextMenu.target.applyColor(modelData.value)
+                    onTriggered: textContextMenu.target.applyColor(colorItem.modelData.value)
                 }
             }
             MenuSeparator {}
@@ -2295,7 +2318,7 @@ ApplicationWindow {
                                     TableTools.emptyTable(cols, rows))
             var idx = targetIndex
             Qt.callLater(function() {
-                var item = blockListView.itemAtIndex(idx)
+                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
                 if (item && item.focusAtStart) item.focusAtStart()
             })
         }
@@ -2326,7 +2349,7 @@ ApplicationWindow {
             BlockModel.convertBlock(targetIndex, type, md)
             var idx = targetIndex
             Qt.callLater(function() {
-                var item = blockListView.itemAtIndex(idx)
+                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
                 if (item && item.focusAtStart) item.focusAtStart()
             })
         }
@@ -2658,23 +2681,27 @@ ApplicationWindow {
                 clip: true
                 model: backupDialog.backups
                 delegate: Rectangle {
+                    id: backupRow
+                    required property int index
+                    required property var modelData
                     width: parent ? parent.width : 0
                     height: 44
-                    color: index === backupDialog.selectedRow
+                    color: backupRow.index === backupDialog.selectedRow
                            ? Theme.selectionTint : "transparent"
                     Column {
                         anchors.fill: parent
                         anchors.margins: 6
                         spacing: 2
                         Label {
-                            text: Qt.formatDateTime(modelData.timestamp,
+                            text: Qt.formatDateTime(backupRow.modelData.timestamp,
                                                     "MMM d, yyyy hh:mm:ss")
                             font.pixelSize: 12
                             font.bold: true
                         }
                         Label {
-                            text: modelData.preview !== ""
-                                  ? modelData.preview : qsTr("(empty)")
+                            text: backupRow.modelData.preview !== ""
+                                  ? backupRow.modelData.preview
+                                  : qsTr("(empty)")
                             font.pixelSize: 11
                             color: Theme.textFaint
                             elide: Text.ElideRight
@@ -2683,7 +2710,7 @@ ApplicationWindow {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: backupDialog.selectedRow = index
+                        onClicked: backupDialog.selectedRow = backupRow.index
                     }
                 }
             }
@@ -2866,7 +2893,7 @@ ApplicationWindow {
                 : DocumentSerializer.insertMarkdownAt(
                     BlockModel, pendingIndex, pendingText)
             if (count > 0)
-                selectRange(pendingIndex, pendingIndex + count - 1)
+                selectionKeyHandler.selectRange(pendingIndex, pendingIndex + count - 1)
             pendingText = ""
             pendingPlain = false
         }
@@ -3294,7 +3321,7 @@ ApplicationWindow {
                      : appToolbar.visible ? appToolbar.bottom : parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: active && item ? item.implicitHeight : 0
+        height: active && item ? (item as Item).implicitHeight : 0
         z: 50
     }
 
@@ -3427,7 +3454,7 @@ ApplicationWindow {
         anchors.rightMargin: (outlinePanel.visible ? root.outlineWidth : 0)
             + (backlinksPanel.visible ? root.backlinksWidth : 0)
             + extensionSidePanel.width
-        color: backgroundColor
+        color: root.backgroundColor
 
         // A press that no block claimed (margins, the gap between
         // blocks, below the last block) ends any document-level
@@ -3777,10 +3804,10 @@ ApplicationWindow {
                     return 0
                 var yContent = 0
                 if (gap < blockListView.count) {
-                    var item = blockListView.itemAtIndex(gap)
+                    var item = (blockListView.itemAtIndex(gap) as BlockDelegateBase)
                     yContent = item ? item.y - blockListView.spacing / 2 : 0
                 } else {
-                    var last = blockListView.itemAtIndex(blockListView.count - 1)
+                    var last = (blockListView.itemAtIndex(blockListView.count - 1) as BlockDelegateBase)
                     yContent = last ? last.y + last.height
                                       + blockListView.spacing / 2 : 0
                 }
@@ -3848,7 +3875,7 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: statusBar.visible ? statusBar.top : parent.bottom
-        height: active && item ? item.implicitHeight : 0
+        height: active && item ? (item as Item).implicitHeight : 0
         // Focus mode hides the chrome (§16.1); an extension bar is chrome.
         visible: !root.focusMode
     }
@@ -3864,7 +3891,7 @@ ApplicationWindow {
                      : parent.right
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.bottomChromeHeight
-        width: active && item && visible ? item.implicitWidth : 0
+        width: active && item && visible ? (item as Item).implicitWidth : 0
         visible: active && !root.focusMode
     }
 

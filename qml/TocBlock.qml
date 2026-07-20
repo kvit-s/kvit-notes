@@ -11,7 +11,7 @@ import Kvit 1.0
 // it regenerates as headings change — and clicking an entry scrolls to that
 // heading. Editing is regeneration, not free text, so this delegate carries
 // the block focus/selection/drag API (like DividerDelegate) but no editor.
-Item {
+BlockDelegateBase {
     id: delegate
 
     required property int index

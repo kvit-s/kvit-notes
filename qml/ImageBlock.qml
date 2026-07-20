@@ -13,7 +13,7 @@ import Kvit 1.0
 // a lightbox on click, and shows a broken-path placeholder when the source
 // does not resolve. It keeps the non-text focus API of DividerDelegate so
 // block navigation, selection, and drag stay uniform.
-Item {
+BlockDelegateBase {
     id: delegate
 
     required property int index

@@ -13,7 +13,7 @@ import Kvit 1.0
 // delegates (TextBlockDelegate, BulletListDelegate, ...) instantiate this
 // with their leading chrome (bullet glyph, ordinal label, checkbox, quote
 // bar) and styling.
-Item {
+BlockDelegateBase {
     id: delegate
 
     required property int index

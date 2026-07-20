@@ -9,6 +9,7 @@
         <file alias="qml/BulletListDelegate.qml">../qml/BulletListDelegate.qml</file>
         <file alias="qml/NumberedListDelegate.qml">../qml/NumberedListDelegate.qml</file>
         <file alias="qml/TodoDelegate.qml">../qml/TodoDelegate.qml</file>
+        <file alias="qml/BlockDelegateBase.qml">../qml/BlockDelegateBase.qml</file>
         <file alias="qml/QuoteDelegate.qml">../qml/QuoteDelegate.qml</file>
         <file alias="qml/CodeBlockDelegate.qml">../qml/CodeBlockDelegate.qml</file>
         <file alias="qml/LanguagePicker.qml">../qml/LanguagePicker.qml</file>

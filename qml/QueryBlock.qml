@@ -14,7 +14,7 @@ import Kvit 1.0
 // round-trip fidelity is untouched. Editing is plain fence editing of the
 // spec, the DiagramBlock pattern: focus shows the source, blur writes it
 // back as one undo step; a parse error shows in the read view.
-Item {
+BlockDelegateBase {
     id: root
 
     required property int index

@@ -151,6 +151,7 @@ STRICT_CLEAN=(
     qml/StatisticsPanel.qml
     qml/ImportDialog.qml
     qml/LanguagePicker.qml
+    qml/main.qml
     qml/NoteListPane.qml
     qml/OutlinePanel.qml
     qml/Lightbox.qml

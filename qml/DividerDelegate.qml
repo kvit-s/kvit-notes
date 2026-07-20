@@ -8,7 +8,7 @@ import Kvit 1.0
 // content. It keeps the focus API of the editable delegates so block
 // navigation is uniform: arrowing through it works, clicking selects it,
 // and Backspace/Delete remove it and Enter adds a paragraph below.
-Item {
+BlockDelegateBase {
     id: delegate
 
     required property int index

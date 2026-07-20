@@ -11,7 +11,7 @@ import Kvit 1.0
 // reordering columns, add/remove, editing a card, toggling done — rewrites the
 // fence content through the model as one undo step. Column collapse and the
 // label filter are session-scoped chrome.
-Item {
+BlockDelegateBase {
     id: root
 
     required property int index

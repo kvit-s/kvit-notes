@@ -15,7 +15,7 @@ import Kvit 1.0
 // not parse — the source plus a named error rather than nothing. It keeps the
 // non-text focus API of the other wave-2 blocks so navigation, selection, and
 // drag stay uniform.
-Item {
+BlockDelegateBase {
     id: root
 
     required property int index

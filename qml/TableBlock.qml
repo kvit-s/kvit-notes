@@ -12,7 +12,7 @@ import Kvit 1.0
 // clicked/tabbed cell becomes live, loading a single hybrid-editing engine
 // at a time — so a large table costs one engine, not one per cell. The
 // delegate keeps the non-text focus API of the other block delegates.
-Item {
+BlockDelegateBase {
     id: root
 
     required property int index

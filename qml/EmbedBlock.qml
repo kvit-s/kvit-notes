@@ -12,7 +12,7 @@ import Kvit 1.0
 // host shows a play affordance; a failed fetch falls back to a card naming the
 // URL. Storage is the image expression, so this round-trips byte-identically.
 // Carries the block focus/selection/drag API like the other non-text blocks.
-Item {
+BlockDelegateBase {
     id: root
 
     required property int index

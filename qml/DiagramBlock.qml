@@ -18,7 +18,7 @@ import Kvit 1.0
 // with line/column diagnostics. Unsupported diagram families fall back to
 // editable source with a clear diagnostic; the Markdown is never discarded.
 // Keeps the non-text focus API of the other wave-2 blocks.
-Item {
+BlockDelegateBase {
     id: root
 
     required property int index

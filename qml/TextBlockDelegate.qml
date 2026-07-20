@@ -17,7 +17,7 @@ import Kvit 1.0
 // for plain rows. Editor Loader activation is latched through callLater so
 // that transient mismatch does not instantiate EditableBlock on every scroll
 // reuse (that path was multi-frame-budget expensive).
-Item {
+BlockDelegateBase {
     id: root
 
     required property int index
