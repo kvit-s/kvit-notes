@@ -13,6 +13,8 @@
 #include <QUrl>
 #include <QTimer>
 #include <QVariantMap>
+#include <QAtomicInt>
+#include <QSharedPointer>
 
 #include "block.h"
 
@@ -76,6 +78,11 @@ public:
     // metadata survives editing. The collection replaces it when
     // metadata changes.
     QString frontMatter() const { return m_frontMatter; }
+    // Replacing the metadata block is an edit to the open document like any
+    // other: it makes the document differ from what is on disk, so it marks it
+    // dirty and advances the revision. Anything less let a metadata change be
+    // overwritten by an older body snapshot that was already in flight, or be
+    // dropped entirely because the document still called itself clean.
     Q_INVOKABLE void setFrontMatter(const QString &block);
 
     // File operations
@@ -98,6 +105,27 @@ public:
     // history, and dirty state all continue.
     Q_INVOKABLE void rebindFilePath(const QString &newPath);
 
+    // Abandon any write still in flight and wait for its worker to stop.
+    //
+    // An async save owns the path it was handed. Once the note has been
+    // renamed, moved, or deleted underneath it, letting that worker finish
+    // recreates the file at the old location — outside the trash after a
+    // delete, or as a duplicate after a rename. Every operation that changes
+    // where the open note lives must call this first, so there is exactly one
+    // writer and it is the one that knows the current path.
+    Q_INVOKABLE void cancelPendingWrites();
+
+    // Ask every editor holding uncommitted text to write it into the model now.
+    //
+    // Several block editors keep their text outside BlockModel until a debounce
+    // timer fires or focus is lost: query source, diagram source, math source,
+    // image captions, callout titles. Until that happens the model does not
+    // have the edit and isDirty() does not know about it, so a save, an export,
+    // a note switch or a shutdown could all act on a document that was missing
+    // the user's most recent typing. Anything that reads or persists the
+    // document must call this first.
+    Q_INVOKABLE void flushPendingEdits();
+
     // Replace the whole document body with the given markdown as ONE
     // undo step (restore from backup).
     Q_INVOKABLE bool restoreBody(const QString &markdown);
@@ -110,7 +138,10 @@ public:
 
     // C++ file dialogs (more reliable than QML FileDialog)
     Q_INVOKABLE void openFileDialog();
-    Q_INVOKABLE void saveFileDialog();
+    // True only when the document reached disk. A cancelled dialog and a
+    // failed write both return false, because both mean the in-memory
+    // document is still the only copy.
+    Q_INVOKABLE bool saveFileDialog();
 
     // For QML file dialogs (backup)
     Q_INVOKABLE QString getDefaultSavePath() const;
@@ -142,6 +173,10 @@ signals:
     void openFailed(const QString &error);
     void documentModified();
 
+    // Editors holding uncommitted text must commit it synchronously in
+    // response to this. Connected on the QML side by the block delegates.
+    void pendingEditsRequested();
+
 private slots:
     void onAutoSaveTimer();
     void onUndoStackCleanChanged();
@@ -171,6 +206,15 @@ private:
         bool loadDiverged = false;
     };
 
+    // Shared between the GUI thread and one write worker. The worker reads it
+    // immediately before committing, which is the last moment the write can
+    // still be called off; QSaveFile discards its temporary file instead of
+    // renaming it over the target, so nothing reaches the note's old path.
+    struct WriteCancellation {
+        QAtomicInt cancelled{0};
+    };
+    using WriteCancellationPtr = QSharedPointer<WriteCancellation>;
+
     struct PersistenceWriteResult {
         QString operation;
         QString path;
@@ -188,6 +232,10 @@ private:
         double commitMs = 0.0;
         bool opened = false;
         bool committed = false;
+        // The write was called off before it could rename over the target,
+        // because the note moved. Distinct from a failure: nothing went wrong
+        // and there is nothing to report to the user.
+        bool cancelled = false;
     };
 
     static AsyncOpenResult loadFileForOpen(const QString &filePath,
@@ -201,7 +249,8 @@ private:
         quint64 contentHash,
         quint64 documentRevision,
         int undoIndex,
-        int delayMs);
+        int delayMs,
+        WriteCancellationPtr cancel);
 
     void setLastSavedAt(const QDateTime &when);
     QDateTime m_lastSavedAt;
@@ -231,6 +280,10 @@ private:
     // that differ from what was read — the first save to the same path
     // copies the on-disk file to <filename>.bak first, then disarms.
     bool m_loadDiverged = false;
+    // Front matter is not part of the block model, so the undo stack cannot
+    // speak for it. Without this the document reported itself clean while
+    // holding metadata that had never been written.
+    bool m_frontMatterDirty = false;
     bool m_autoSaveEnabled = true;
     int m_autoSaveInterval = 30;  // seconds
     int m_maxOpenFileSizeMiB = 10;  // three War-and-Peaces (provisional,
@@ -254,6 +307,10 @@ private:
     quint64 m_pendingJournalHash = 0;
     int m_pendingJournalChars = -1;
     quint64 m_documentRevision = 0;
+    // Held for as long as a note write is in flight, so a path change can call
+    // it off. Journal writes are deliberately excluded: the journal lives at a
+    // fixed control path that note renames do not move.
+    WriteCancellationPtr m_activeWriteCancel;
     bool m_autosaveRequestedWhileRunning = false;
     bool m_journalRequestedWhileRunning = false;
     int m_asyncPersistenceDelayMs = 0;

@@ -475,10 +475,19 @@ Item {
                     radius: 4
                     border.color: theme.border; border.width: 1
                 }
+                // Committing only on focus loss means a click straight from
+                // this editor onto another note replaces the model before the
+                // callback runs, and the edit is gone. commitPendingSource is
+                // therefore also driven by the document-level flush, and it
+                // addresses the block by stable id because by the time it runs
+                // this delegate may have been rebound to a different row.
+                function commitPendingSource() {
+                    if (text !== root.content)
+                        blockModel.updateContentById(root.blockId, text)
+                }
                 onActiveFocusChanged: {
                     if (!activeFocus) {
-                        if (text !== root.content)
-                            blockModel.updateContent(root.index, text)
+                        commitPendingSource()
                         text = Qt.binding(function() { return root.content })
                     }
                 }
@@ -500,6 +509,13 @@ Item {
                     if (event.key === Qt.Key_Escape) {
                         root.focusSelectionHandler()
                         event.accepted = true
+                    }
+                }
+
+                Connections {
+                    target: documentManager
+                    function onPendingEditsRequested() {
+                        sourceArea.commitPendingSource()
                     }
                 }
             }

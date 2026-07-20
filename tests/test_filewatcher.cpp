@@ -5,6 +5,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QSaveFile>
 #include "filewatcher.h"
 
 // The external-file watcher. The debounce, the own-write guard,
@@ -23,6 +24,9 @@ private slots:
     void burstOfChangesRearmsTreeWatchesOnce();
     void directoryChangeRescansWithoutNoteConflict();
     void realWatcherSeesAnAddedFile();
+    void watchSurvivesAtomicReplacement();
+    void watchingASecondFileDropsTheFirst();
+    void failedRegistrationIsReported();
 };
 
 void TestFileWatcher::externalFileChangeIsAnnouncedAndRescans()
@@ -137,6 +141,94 @@ void TestFileWatcher::realWatcherSeesAnAddedFile()
     // The real QFileSystemWatcher delivers a directoryChanged; debounced rescan.
     QVERIFY2(rescan.wait(3000),
              "the real watcher should see the added file");
+}
+
+// H11. A save replaces the open note atomically (QSaveFile writes a temp file
+// and renames it over the target), so the watched path becomes a new inode and
+// the kernel watch dies with the old one. The own-write guard then swallows the
+// event that would have prompted a re-registration. Every later external edit
+// is therefore invisible, and the keep-mine/load-theirs conflict banner the
+// product promises never appears. The watch has to be re-established after the
+// app's own write, precisely because that write is what destroyed it.
+void TestFileWatcher::watchSurvivesAtomicReplacement()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString note = dir.filePath("open.md");
+    {
+        QFile f(note);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("original body");
+    }
+
+    FileWatcher w;
+    w.setDebounceMs(30);
+    w.watchRoot(dir.path());
+    w.watchFile(note);
+
+    // The app saves: QSaveFile semantics, guarded as its own write.
+    w.noteOwnWrite(note);
+    {
+        QSaveFile s(note);
+        QVERIFY(s.open(QIODevice::WriteOnly));
+        s.write("saved by the app");
+        QVERIFY(s.commit());
+    }
+    QTest::qWait(300);   // let the guarded event drain
+
+    // Now somebody else edits the same note.
+    QSignalSpy external(&w, &FileWatcher::noteChangedExternally);
+    {
+        QFile f(note);
+        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        f.write("edited by another program");
+    }
+
+    QVERIFY2(external.wait(3000),
+             "an external edit after the app's own atomic save must still be "
+             "seen: the save replaced the inode, so the watch has to be "
+             "re-established rather than silently lost");
+}
+
+// M15. Opening a second note previously added another file watch and left the
+// first in place, so a long session accumulated watches until the per-process
+// inotify limit was reached and registration began failing silently. Exactly
+// one note is open, so exactly one note watch should exist.
+void TestFileWatcher::watchingASecondFileDropsTheFirst()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString first = dir.filePath("first.md");
+    const QString second = dir.filePath("second.md");
+    for (const QString &p : {first, second}) {
+        QFile f(p);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("body");
+    }
+
+    FileWatcher w;
+    w.watchRoot(dir.path());
+    w.watchFile(first);
+    w.watchFile(second);
+
+    QCOMPARE(w.watchedFilesForTests(), QStringList{second});
+}
+
+// M15. A registration that the kernel refuses (watch limit reached, path gone)
+// used to be discarded, so the app went on claiming it was watching. The
+// failure has to be observable, because the honest answer to "are external
+// edits detected here?" is then no.
+void TestFileWatcher::failedRegistrationIsReported()
+{
+    FileWatcher w;
+    QSignalSpy degraded(&w, &FileWatcher::watchDegradedChanged);
+
+    QVERIFY(!w.watchDegraded());
+    w.watchFile(QStringLiteral("/nonexistent/directory/note.md"));
+
+    QVERIFY2(w.watchDegraded(),
+             "a refused registration must surface as degraded coverage");
+    QCOMPARE(degraded.count(), 1);
 }
 
 QTEST_MAIN(TestFileWatcher)

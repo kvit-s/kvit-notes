@@ -45,12 +45,34 @@ void FileWatcher::watchRoot(const QString &root)
     emit watchingChanged();
 }
 
+bool FileWatcher::addPathChecked(const QString &path)
+{
+    if (path.isEmpty())
+        return false;
+    // Already registered: QFileSystemWatcher returns false for a duplicate,
+    // which is success as far as coverage is concerned.
+    if (m_watcher.files().contains(path) || m_watcher.directories().contains(path))
+        return true;
+    if (m_watcher.addPath(path))
+        return true;
+    setWatchDegraded(true);
+    return false;
+}
+
+void FileWatcher::setWatchDegraded(bool degraded)
+{
+    if (m_watchDegraded == degraded)
+        return;
+    m_watchDegraded = degraded;
+    emit watchDegradedChanged();
+}
+
 void FileWatcher::addTreeWatches(const QString &root)
 {
     if (!QFileInfo::exists(root))
         return;
     ++m_treeWatchRefreshCount;
-    m_watcher.addPath(root);
+    addPathChecked(root);
     // Watch every folder so an add/rename/delete anywhere in the tree fires a
     // directoryChanged. The .kvit control directory is skipped — the app owns it.
     QDirIterator it(root, QDir::Dirs | QDir::NoDotAndDotDot,
@@ -59,20 +81,59 @@ void FileWatcher::addTreeWatches(const QString &root)
         const QString dir = it.next();
         if (dir.contains(QStringLiteral("/.kvit")))
             continue;
-        m_watcher.addPath(dir);
+        addPathChecked(dir);
     }
+    // The open note lives inside the tree and is watched as a file in its own
+    // right; a tree refresh is a good moment to confirm that registration is
+    // still alive.
+    if (!m_currentFile.isEmpty())
+        addPathChecked(m_currentFile);
 }
 
 void FileWatcher::watchFile(const QString &absPath)
 {
-    if (!absPath.isEmpty() && QFileInfo::exists(absPath))
-        m_watcher.addPath(absPath);
+    if (m_currentFile == absPath) {
+        // Same note: renew rather than return, since the caller reaches here
+        // after a save that may have replaced the file underneath the watch.
+        if (!absPath.isEmpty())
+            addPathChecked(absPath);
+        return;
+    }
+
+    // Exactly one note is open, so the previous note's watch is dead weight.
+    if (!m_currentFile.isEmpty())
+        m_watcher.removePath(m_currentFile);
+
+    m_currentFile = absPath;
+    if (absPath.isEmpty())
+        return;
+    if (!QFileInfo::exists(absPath)) {
+        setWatchDegraded(true);
+        return;
+    }
+    addPathChecked(absPath);
+}
+
+void FileWatcher::rewatchCurrentFile()
+{
+    if (m_currentFile.isEmpty())
+        return;
+    if (!QFileInfo::exists(m_currentFile))
+        return;
+    // An atomic replacement leaves the watcher holding a registration against
+    // the old inode. Dropping it first forces a genuinely new one; addPath
+    // alone would see the path already listed and do nothing.
+    m_watcher.removePath(m_currentFile);
+    addPathChecked(m_currentFile);
 }
 
 void FileWatcher::unwatchFile(const QString &absPath)
 {
-    if (!absPath.isEmpty())
-        m_watcher.removePath(absPath);
+    if (absPath.isEmpty())
+        return;
+    m_watcher.removePath(absPath);
+    if (m_currentFile == absPath)
+        m_currentFile.clear();
 }
 
 void FileWatcher::stop()
@@ -86,6 +147,8 @@ void FileWatcher::stop()
     m_debounce.stop();
     m_pendingExternalPaths.clear();
     m_root.clear();
+    m_currentFile.clear();
+    setWatchDegraded(false);
 }
 
 void FileWatcher::noteOwnWrite(const QString &absPath)
@@ -106,8 +169,16 @@ bool FileWatcher::isOwnWrite(const QString &path)
 
 void FileWatcher::feedChange(const QString &path, bool isFile)
 {
-    if (isOwnWrite(path))
-        return;   // the app's own write — not an external change
+    if (isOwnWrite(path)) {
+        // The app's own write is not an external change, but it is exactly what
+        // destroys the watch: saves go through QSaveFile, which renames a temp
+        // file over the target, so the registration now refers to a replaced
+        // inode. Renew it here — this is the only notification the app gets
+        // that the file it cares about was swapped.
+        if (path == m_currentFile)
+            rewatchCurrentFile();
+        return;
+    }
 
     if (!m_pendingExternalPaths.contains(path))
         m_pendingExternalPaths.append(path);

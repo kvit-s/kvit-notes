@@ -108,6 +108,10 @@ QString DocumentManager::currentFileName() const
 
 bool DocumentManager::isDirty() const
 {
+    // Metadata changes do not pass through the block model, so the undo stack
+    // is not the whole answer.
+    if (m_frontMatterDirty)
+        return true;
     if (m_undoStack) {
         return !m_undoStack->isClean();
     }
@@ -141,6 +145,7 @@ void DocumentManager::setAutoSaveInterval(int seconds)
 
 bool DocumentManager::save()
 {
+    flushPendingEdits();
     if (m_currentFilePath.isEmpty()) {
         // No file path - need to use saveAs
         return false;
@@ -151,6 +156,7 @@ bool DocumentManager::save()
 
 bool DocumentManager::saveAsync()
 {
+    flushPendingEdits();
     if (m_currentFilePath.isEmpty()) {
         // No file path - need to use saveAs
         return false;
@@ -161,6 +167,7 @@ bool DocumentManager::saveAsync()
 
 bool DocumentManager::saveAs(const QUrl &fileUrl)
 {
+    flushPendingEdits();
     QString filePath = fileUrl.toLocalFile();
 
     // Ensure .md extension
@@ -229,6 +236,7 @@ bool DocumentManager::open(const QUrl &fileUrl, bool ignoreSizeCap)
             m_undoStack->clear();
             m_undoStack->setClean();
         }
+        m_frontMatterDirty = false;
 
         emit openSucceeded(filePath);
         return true;
@@ -272,6 +280,11 @@ bool DocumentManager::openAsync(const QUrl &fileUrl, bool ignoreSizeCap)
 void DocumentManager::newDocument()
 {
     invalidateAsyncOpen();
+    // Bumping the generation stops a late result from being applied, but the
+    // worker's write happens regardless of whether anyone reads the result.
+    // Abandoning the document is not a reason to let the file it came from be
+    // rewritten, so stop the write itself.
+    cancelPendingWrites();
     ++m_asyncSaveGeneration;
     ++m_asyncJournalGeneration;
     if (!m_model) return;
@@ -281,6 +294,7 @@ void DocumentManager::newDocument()
 
     m_currentFilePath.clear();
     m_frontMatter.clear();
+    m_frontMatterDirty = false;
     m_loadDiverged = false;
     emit currentFilePathChanged();
     setLastSavedAt(QDateTime());
@@ -289,6 +303,7 @@ void DocumentManager::newDocument()
         m_undoStack->clear();
         m_undoStack->setClean();
     }
+    m_frontMatterDirty = false;
 }
 
 QString DocumentManager::getDefaultSavePath() const
@@ -329,7 +344,11 @@ void DocumentManager::openFileDialog()
     }
 }
 
-void DocumentManager::saveFileDialog()
+// Returns whether the document actually reached disk. Callers use this to
+// decide whether it is safe to destroy the in-memory document, so cancelling
+// the dialog and failing to write must both come back as false: they are
+// different intentions but the same answer to "may I discard this now?".
+bool DocumentManager::saveFileDialog()
 {
     QFileDialog dialog(nullptr, tr("Save Document"));
     dialog.setNameFilter(tr("Markdown files (*.md);;All files (*)"));
@@ -354,12 +373,13 @@ void DocumentManager::saveFileDialog()
         dialog.move(x, y);
     }
 
-    if (dialog.exec() == QDialog::Accepted) {
-        QStringList files = dialog.selectedFiles();
-        if (!files.isEmpty()) {
-            saveAs(QUrl::fromLocalFile(files.first()));
-        }
-    }
+    if (dialog.exec() != QDialog::Accepted)
+        return false;   // the user cancelled
+
+    const QStringList files = dialog.selectedFiles();
+    if (files.isEmpty())
+        return false;
+    return saveAs(QUrl::fromLocalFile(files.first()));
 }
 
 bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
@@ -444,6 +464,7 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
     if (m_undoStack) {
         m_undoStack->setClean();
     }
+    m_frontMatterDirty = false;
 
     emit saveSucceeded(filePath);
     emit isDirtyChanged();
@@ -489,6 +510,7 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
     const int undoIndex = m_undoStack ? m_undoStack->index() : -1;
     const quint64 generation = ++m_asyncSaveGeneration;
     m_autosaveRequestedWhileRunning = false;
+    m_activeWriteCancel = WriteCancellationPtr::create();
     m_asyncSaveWatcher.setFuture(QtConcurrent::run(
         &DocumentManager::writeSnapshotToFile,
         operation,
@@ -499,8 +521,28 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
         0,
         m_documentRevision,
         undoIndex,
-        m_asyncPersistenceDelayMs));
+        m_asyncPersistenceDelayMs,
+        m_activeWriteCancel));
     return true;
+}
+
+void DocumentManager::flushPendingEdits()
+{
+    // Synchronous by contract: the connected delegates commit into the model
+    // before this returns, so the caller can rely on the document being whole.
+    emit pendingEditsRequested();
+}
+
+void DocumentManager::cancelPendingWrites()
+{
+    if (m_activeWriteCancel)
+        m_activeWriteCancel->cancelled.storeRelease(1);
+    // The flag alone is a race: the worker may already be past its check. Wait
+    // for it to finish so the caller can change the path knowing no write is
+    // still running against the old one.
+    waitForPendingPersistence();
+    m_activeWriteCancel.reset();
+    m_autosaveRequestedWhileRunning = false;
 }
 
 void DocumentManager::setLastSavedAt(const QDateTime &when)
@@ -534,6 +576,7 @@ bool DocumentManager::loadFromFile(const QString &filePath)
     // and re-emitted byte-identically by saveToFile.
     NoteFrontMatter::Split split = NoteFrontMatter::split(content);
     m_frontMatter = split.block;
+    m_frontMatterDirty = false;
     m_serializer->loadIntoModel(m_model, split.body);
 
     // The divergence test runs at load, not save: by the first save the
@@ -624,7 +667,8 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
                                      quint64 contentHash,
                                      quint64 documentRevision,
                                      int undoIndex,
-                                     int delayMs)
+                                     int delayMs,
+                                     WriteCancellationPtr cancel)
 {
     PersistenceWriteResult result;
     result.operation = operation;
@@ -660,6 +704,18 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
     timer.restart();
     stream.flush();
     result.flushMs = double(timer.nsecsElapsed()) / 1000000.0;
+
+    // Last chance to call the write off. Everything up to here touched only
+    // QSaveFile's temporary file; commit() is the rename that would put these
+    // bytes at filePath. If the note has moved since this worker started, that
+    // rename would resurrect it at the old location, so drop the temporary
+    // file and report a cancellation rather than a failure.
+    if (cancel && cancel->cancelled.loadAcquire() != 0) {
+        file.cancelWriting();
+        result.cancelled = true;
+        result.committed = false;
+        return result;
+    }
 
     timer.restart();
     result.committed = file.commit();
@@ -701,6 +757,7 @@ void DocumentManager::onAsyncOpenFinished()
                     {QStringLiteral("ok"), true}});
 
     m_frontMatter = result.frontMatter;
+    m_frontMatterDirty = false;
     m_loadDiverged = result.loadDiverged;
     std::optional<QElapsedTimer> applyTimer;
     if (PerfLog::isEnabled()) {
@@ -725,6 +782,7 @@ void DocumentManager::onAsyncOpenFinished()
         m_undoStack->clear();
         m_undoStack->setClean();
     }
+    m_frontMatterDirty = false;
 
     PerfLog::instance().record(
         QStringLiteral("note.open"),
@@ -739,13 +797,31 @@ void DocumentManager::onAsyncOpenFinished()
 
 void DocumentManager::setFrontMatter(const QString &block)
 {
+    if (m_frontMatter == block)
+        return;
     m_frontMatter = block;
+
+    // Advance the revision so a body snapshot that started before this change
+    // is recognised as stale when it lands. Without it the older snapshot
+    // committed afterwards, silently restoring the previous metadata and
+    // marking the document clean.
+    ++m_documentRevision;
+    m_frontMatterDirty = true;
+    emit isDirtyChanged();
+    emit documentModified();
+
+    // The journal covers unsaved state, and the metadata is now part of it.
+    onDocumentChangedForJournal();
 }
 
 void DocumentManager::rebindFilePath(const QString &newPath)
 {
     if (m_currentFilePath == newPath || newPath.isEmpty())
         return;
+    // The note has already moved on disk. A save still running was handed the
+    // old path and would recreate the file there, leaving a duplicate beside
+    // the renamed note. Stop it before adopting the new path.
+    cancelPendingWrites();
     m_currentFilePath = newPath;
     emit currentFilePathChanged();
 }
@@ -870,7 +946,10 @@ void DocumentManager::writeJournal()
         hash,
         m_documentRevision,
         undoIndex,
-        m_asyncPersistenceDelayMs));
+        m_asyncPersistenceDelayMs,
+        // The journal has a fixed control path that note renames never move,
+        // so a path change is no reason to abandon it.
+        WriteCancellationPtr()));
 }
 
 void DocumentManager::removeJournal()
@@ -957,6 +1036,13 @@ void DocumentManager::onAsyncSaveFinished()
 
     recordPersistenceWriteSplits(result);
 
+    if (result.cancelled) {
+        // Deliberately abandoned because the note moved: nothing failed and
+        // there is nothing to tell the user. The document stays dirty, so the
+        // next save writes it to wherever it lives now.
+        return;
+    }
+
     if (!result.committed) {
         emit saveFailed(result.error);
         return;
@@ -970,6 +1056,7 @@ void DocumentManager::onAsyncSaveFinished()
         removeJournal();
         if (m_undoStack)
             m_undoStack->setClean();
+        m_frontMatterDirty = false;
         emit saveSucceeded(result.path);
         emit isDirtyChanged();
         setLastSavedAt(QDateTime::currentDateTime());

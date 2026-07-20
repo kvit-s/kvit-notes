@@ -474,8 +474,14 @@ ApplicationWindow {
         // switch so back/forward return the reader to it (§3.3). A
         // history-driven reopen is a no-op inside visit().
         var departingY = blockListView.contentY
-        if (documentManager.isDirty && documentManager.hasFile)
-            documentManager.save()
+        // Opening the next note replaces the model, which is the only copy of
+        // the current one's unsaved content and undo history. If the save did
+        // not succeed - unwritable file, full disk - going ahead destroys work
+        // the user never agreed to lose, so stay put and let the error stand.
+        if (documentManager.isDirty && documentManager.hasFile) {
+            if (!documentManager.save())
+                return false
+        }
         if (findBar.visible)
             findBar.close()
         if (documentSelection.hasBlockSelection
@@ -2687,6 +2693,45 @@ ApplicationWindow {
         }
     }
 
+    // Quitting with a document that has never been saved. Closing used to
+    // discard it silently: there is no file to fall back on and the recovery
+    // journal only covers crashes, so this was an unrecoverable loss on an
+    // ordinary quit.
+    Dialog {
+        id: closeConfirmDialog
+        title: "Unsaved Changes"
+        modal: true
+        anchors.centerIn: parent
+
+        contentItem: Item {
+            implicitWidth: 360
+            implicitHeight: closeDialogText.implicitHeight + 40
+
+            Text {
+                id: closeDialogText
+                anchors.fill: parent
+                anchors.margins: 20
+                text: "This document has never been saved. Save it before closing?"
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
+
+        onAccepted: {
+            // Only close once the document is actually on disk. If the Save-As
+            // dialog is cancelled or the write fails, stay open.
+            if (documentManager.saveFileDialog())
+                root.close()
+        }
+        // Discard is the user deciding to lose it, which is their call to make.
+        onDiscarded: {
+            documentManager.newDocument()
+            root.close()
+        }
+        // Cancel: nothing happens, the window stays open.
+    }
+
     // Unsaved changes dialog before opening a new file
     Dialog {
         id: unsavedChangesBeforeOpenDialog
@@ -2710,12 +2755,16 @@ ApplicationWindow {
         standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
 
         onAccepted: {
-            // Save button clicked
-            if (documentManager.hasFile) {
-                documentManager.save()
-            } else {
-                documentManager.saveFileDialog()
-            }
+            // Save button clicked. Opening another document replaces the model,
+            // so it may only proceed once this one is genuinely on disk. A
+            // cancelled Save-As and a failed write both mean it is not, and in
+            // both cases the right thing is to leave the document alone rather
+            // than continue into an action that discards it.
+            var saved = documentManager.hasFile
+                        ? documentManager.save()
+                        : documentManager.saveFileDialog()
+            if (!saved)
+                return
             documentManager.openFileDialog()
         }
 
@@ -2750,12 +2799,14 @@ ApplicationWindow {
         standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
 
         onAccepted: {
-            // Save button clicked
-            if (documentManager.hasFile) {
-                documentManager.save()
-            } else {
-                documentManager.saveFileDialog()
-            }
+            // Save button clicked. Same rule as the Open confirmation: starting
+            // a new document throws this one away, so it has to be safely
+            // stored first.
+            var saved = documentManager.hasFile
+                        ? documentManager.save()
+                        : documentManager.saveFileDialog()
+            if (!saved)
+                return
             documentManager.newDocument()
         }
 
@@ -2998,9 +3049,24 @@ ApplicationWindow {
 
     // Orderly shutdown saves (features.md §12.2). Crash recovery relies
     // on this — the recovery journal only survives real crashes.
-    onClosing: {
-        if (documentManager && documentManager.isDirty && documentManager.hasFile)
-            documentManager.save()
+    onClosing: function(close) {
+        if (!documentManager || !documentManager.isDirty)
+            return
+
+        if (documentManager.hasFile) {
+            // A save that fails on the way out is the worst case for data loss:
+            // there is no next attempt, and the recovery journal is not meant
+            // to cover an orderly quit. Keep the window open so the error is
+            // visible and the user can act on it.
+            if (!documentManager.save())
+                close.accepted = false
+            return
+        }
+
+        // A dirty document that has never been saved had no handling at all:
+        // closing simply discarded it. Ask, and treat cancel as "do not close".
+        close.accepted = false
+        closeConfirmDialog.open()
     }
 
     // Collection wiring: saves refresh the index; renames rebind the

@@ -39,6 +39,10 @@ private slots:
     void testSaveFailsOnInvalidPath();
     void testSaveTimingSplitsRecorded();
     void testManualSaveAsyncTimingSplitsRecorded();
+    void testInFlightSaveDoesNotResurrectARenamedNote();
+    void testInFlightSaveDoesNotResurrectADeletedNote();
+    void testFrontMatterChangeMarksDocumentDirty();
+    void testOlderBodySnapshotDoesNotRestoreStaleFrontMatter();
     void testAutoSaveTimingSplitsRecorded();
     void testAutoSaveEditDuringAsyncWriteStaysDirtyAndNextCyclePersists();
 
@@ -312,6 +316,132 @@ void TestDocumentManager::testSaveTimingSplitsRecorded()
     QVERIFY(log.samples(QStringLiteral("note.save.commit")).first()
                 .context.value(QStringLiteral("ok")).toBool());
     QCOMPARE(log.samples(QStringLiteral("note.autosave")).size(), 0);
+}
+
+// H5. Front matter is part of the document but not part of the block model, so
+// the undo stack cannot speak for it. A metadata change used to leave the
+// document calling itself clean, which meant every save/close/autosave decision
+// that consults isDirty() was entitled to throw the change away.
+void TestDocumentManager::testFrontMatterChangeMarksDocumentDirty()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Body");
+    const QString path = m_tempDir->filePath("metadata_dirty.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+    QVERIFY(!m_manager->isDirty());
+
+    QSignalSpy dirtySpy(m_manager, &DocumentManager::isDirtyChanged);
+    m_manager->setFrontMatter(QStringLiteral("---\ntags: [added]\n---\n"));
+
+    QVERIFY2(m_manager->isDirty(),
+             "a metadata change leaves the document differing from disk");
+    QVERIFY(dirtySpy.count() >= 1);
+
+    // And saving it actually persists the metadata.
+    QVERIFY(m_manager->save());
+    QVERIFY(!m_manager->isDirty());
+    QVERIFY(readFile(path).contains(QStringLiteral("tags: [added]")));
+}
+
+// H5. A body snapshot taken before a metadata change carries the old front
+// matter, so it must not be accepted afterwards as a successful save of the
+// current document.
+//
+// Worth recording what running this established, because the review predicted
+// worse: the stale snapshot does reach disk, but it never marked the document
+// clean even before setFrontMatter advanced the revision - the undo-index arm
+// of the same check already rejected it. The revision bump is defence in depth
+// here rather than the sole guard. The defect that did bite is the one in
+// testFrontMatterChangeMarksDocumentDirty, where the document called itself
+// clean while holding metadata that had never been written.
+void TestDocumentManager::testOlderBodySnapshotDoesNotRestoreStaleFrontMatter()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Body");
+    const QString path = m_tempDir->filePath("snapshot_vs_metadata.md");
+    m_manager->setFrontMatter(QStringLiteral("---\ntags: [before]\n---\n"));
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+
+    // A body save starts, carrying the current (old) front matter.
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Edited body"));
+    QVERIFY(m_manager->saveAsync());
+
+    // The metadata changes while that snapshot is still in flight.
+    m_manager->setFrontMatter(QStringLiteral("---\ntags: [after]\n---\n"));
+
+    // The snapshot in flight carries the OLD front matter, so accepting it as
+    // a successful save of the current document is the defect: it would mark
+    // the document clean while the newer metadata exists only in memory.
+    QSignalSpy okSpy(m_manager, &DocumentManager::saveSucceeded);
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QTest::qWait(800);
+
+    QCOMPARE(okSpy.count(), 0);
+    QVERIFY2(m_manager->isDirty(),
+             "the in-flight snapshot predates the metadata change, so the "
+             "document still holds unsaved state and must not be called clean");
+
+    // The stale snapshot did reach disk - it was already committed - so the
+    // guarantee that matters is that the document knows it is behind and the
+    // next save corrects the file.
+    QVERIFY(m_manager->save());
+    const QString written = readFile(path);
+    QVERIFY2(written.contains(QStringLiteral("tags: [after]")),
+             "the newer metadata must survive the older body snapshot");
+    QVERIFY(!written.contains(QStringLiteral("tags: [before]")));
+}
+
+// H4. Autosave hands a worker the path the note had when the save started.
+// Renaming the note in the collection while that worker is still running used
+// to leave two files: the renamed note, and the old name recreated by a write
+// that had no idea the note had moved. The rebind has to call the write off.
+void TestDocumentManager::testInFlightSaveDoesNotResurrectARenamedNote()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Initial");
+    const QString oldPath = m_tempDir->filePath("before_rename.md");
+    const QString newPath = m_tempDir->filePath("after_rename.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(oldPath)));
+
+    // A save is in flight against the old path.
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Edited before the rename"));
+    QVERIFY(m_manager->saveAsync());
+
+    // The collection renames the note underneath it, then rebinds.
+    QVERIFY(QFile::rename(oldPath, newPath));
+    m_manager->rebindFilePath(newPath);
+
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QTest::qWait(800);   // outlive the worker either way
+
+    QVERIFY2(!QFile::exists(oldPath),
+             "the abandoned save recreated the note at the name it no longer "
+             "has, leaving a duplicate beside the renamed file");
+    QVERIFY(QFile::exists(newPath));
+    QCOMPARE(m_manager->currentFilePath(), newPath);
+}
+
+// H4, the destructive variant. Deleting the open note moves it to the trash;
+// a save still running against the old path puts it straight back outside the
+// trash, so the note the user deleted reappears.
+void TestDocumentManager::testInFlightSaveDoesNotResurrectADeletedNote()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Initial");
+    const QString path = m_tempDir->filePath("deleted_while_saving.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Edited before the delete"));
+    QVERIFY(m_manager->saveAsync());
+
+    // The collection removes the note, and the shell closes the document.
+    QVERIFY(QFile::remove(path));
+    m_manager->newDocument();
+
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QTest::qWait(800);
+
+    QVERIFY2(!QFile::exists(path),
+             "the abandoned save recreated a note the user deleted");
 }
 
 void TestDocumentManager::testManualSaveAsyncTimingSplitsRecorded()

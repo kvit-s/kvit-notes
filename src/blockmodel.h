@@ -135,6 +135,18 @@ public:
                                  int indentLevel = 0);
     Q_INVOKABLE void removeBlock(int index);
     Q_INVOKABLE void updateContent(int index, const QString &content);
+
+    // Commit content to the block named by its stable id rather than by row.
+    //
+    // A delegate's index is mutable: it changes when rows are inserted or
+    // removed, and a pooled delegate is rebound to a different row entirely.
+    // Anything that writes back after a delay - a debounce timer, an
+    // editingFinished handler - is holding an index that may no longer mean
+    // what it did when the edit started, so writing by index can land the text
+    // in the wrong block or in a different document. Returns false when the
+    // block is gone, which is the signal to drop the edit rather than guess.
+    Q_INVOKABLE bool updateContentById(const QString &blockId,
+                                       const QString &content);
     // Update content WITHOUT pushing an undo step: the table-of-contents
     // fence keeps its stored body in sync with the live outline as headings
     // change, and that regeneration is derived state, not a user edit — so it
