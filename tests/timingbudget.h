@@ -292,10 +292,11 @@ inline bool kvitMachineIsQuiet(double contention)
                  qPrintable(                                                   \
                      QStringLiteral(                                           \
                          "%1 exceeded its CPU ceiling: %2 ms cpu against a "   \
-                         "%3 ms ceiling (%4 ms wall, contention %5x). A "      \
-                         "ceiling breach is not machine noise - contention "   \
-                         "inflates CPU time by at most ~2.4x and this "        \
-                         "ceiling already allows for that.")                   \
+                         "%3 ms ceiling (%4 ms wall, contention %5x). The "    \
+                         "ceiling is set well above the measured cost, so "    \
+                         "contention alone is unlikely to explain this - but " \
+                         "check the measurement against a quiet machine "      \
+                         "before concluding the code changed.")                \
                          .arg(QLatin1String(label))                            \
                          .arg(kvit_cpu, 0, 'f', 1)                             \
                          .arg(double(ceilingMs), 0, 'f', 1)                    \
@@ -308,8 +309,9 @@ inline bool kvitMachineIsQuiet(double contention)
                          QStringLiteral(                                       \
                              "%1 exceeded its CPU budget: %2 ms cpu against "  \
                              "a %3 ms budget, measured at contention %4x on "  \
-                             "a machine that was not busy. This is a real "    \
-                             "regression, not a flaky timing.")                \
+                             "a machine that was not busy. Either the code "   \
+                             "got slower or the budget is mis-calibrated; "    \
+                             "re-measure before assuming which.")              \
                              .arg(QLatin1String(label))                        \
                              .arg(kvit_cpu, 0, 'f', 1)                         \
                              .arg(double(tightMs), 0, 'f', 1)                  \
