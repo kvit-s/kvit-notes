@@ -13,8 +13,13 @@ import Kvit 1.0
 // a lightbox on click, and shows a broken-path placeholder when the source
 // does not resolve. It keeps the non-text focus API of DividerDelegate so
 // block navigation, selection, and drag stay uniform.
-Item {
+BlockDelegateBase {
     id: delegate
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -32,33 +37,33 @@ Item {
     // centered, so an unstyled image is unchanged; only an explicit
     // align=left|right moves it.
     readonly property string imageAlign:
-        blockAttributes.str(attributes, "align", "center")
+        BlockAttributes.str(attributes, "align", "center")
     function setBlockAlignment(value) {
         var next = (value === "center" || value === "")
-            ? blockAttributes.without(attributes, "align")
-            : blockAttributes.withValue(attributes, "align", value)
-        blockModel.setBlockAttributes(delegate.index, next)
+            ? BlockAttributes.without(attributes, "align")
+            : BlockAttributes.withValue(attributes, "align", value)
+        BlockModel.setBlockAttributes(delegate.index, next)
     }
 
     // ---- Image effects (features.md §1.2.8) ----
     // rounded (radius, default 12), shadow, border (optional custom color), and
     // the maintain-aspect toggle (`aspect=stretch` drops proportion locking).
-    readonly property bool imgRounded: blockAttributes.has(attributes, "rounded")
+    readonly property bool imgRounded: BlockAttributes.has(attributes, "rounded")
     readonly property int imgRadius: {
-        var v = blockAttributes.num(attributes, "rounded", 0)
+        var v = BlockAttributes.num(attributes, "rounded", 0)
         return v > 0 ? v : 12
     }
-    readonly property bool imgShadow: blockAttributes.has(attributes, "shadow")
-    readonly property bool imgBorder: blockAttributes.has(attributes, "border")
+    readonly property bool imgShadow: BlockAttributes.has(attributes, "shadow")
+    readonly property bool imgBorder: BlockAttributes.has(attributes, "border")
     readonly property color imgBorderColor: {
-        var c = blockAttributes.str(attributes, "border", "")
-        return c !== "" ? c : theme.border
+        var c = BlockAttributes.str(attributes, "border", "")
+        return c !== "" ? c : Theme.border
     }
     readonly property bool imgStretch:
-        blockAttributes.str(attributes, "aspect", "") === "stretch"
+        BlockAttributes.str(attributes, "aspect", "") === "stretch"
     // Set new image-effect attributes as one undo step (used by the popover).
     function setImageEffects(payload) {
-        blockModel.setBlockAttributes(delegate.index, payload)
+        BlockModel.setBlockAttributes(delegate.index, payload)
     }
 
     property int blockIndex: index
@@ -68,26 +73,26 @@ Item {
     property bool isHovered: hoverArea.containsMouse
 
     // ---- Parsed image + resolved source ----
-    readonly property var img: imageAssets.parse(content)
+    readonly property var img: ImageAssets.parse(content)
     readonly property string noteDir: {
-        var p = documentManager.currentFilePath
+        var p = DocumentManager.currentFilePath
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
     readonly property string resolvedSource:
-        imageAssets.resolve(img.path,
+        ImageAssets.resolve(img.path,
                             noteDir,
-                            noteCollection.isOpen ? noteCollection.rootPath : "")
+                            NoteCollection.isOpen ? NoteCollection.rootPath : "")
     // What the Image actually loads. A local file passes through; an http(s)
     // image is routed to the image://remote provider once the reader has
     // approved its origin, and is "" until then. A note is untrusted input,
     // so an image URL in one must not become a request just by being opened —
     // that would disclose the reader's address and reading time to whoever
-    // wrote the note. Reading egressPolicy.revision keeps this live across an
+    // wrote the note. Reading EgressPolicy.revision keeps this live across an
     // approval.
     readonly property string displaySource: {
-        var r = egressPolicy.revision
-        return egressPolicy.imageSourceFor(delegate.resolvedSource)
+        var r = EgressPolicy.revision
+        return EgressPolicy.imageSourceFor(delegate.resolvedSource)
     }
     // A remote image the reader has not approved yet: the placeholder offers
     // to load it instead of showing a broken-image tile.
@@ -112,9 +117,9 @@ Item {
         previewWidth > 0 ? previewWidth : displayWidth
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(delegate.index)
-            || documentSelection.portionForBlock(delegate.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(delegate.index)
+            || DocumentSelection.portionForBlock(delegate.index).selected === true
     }
 
     // Cross-block position helpers (single position, like a divider).
@@ -125,24 +130,20 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? delegate.blockSelected
-                                     : win.blockDrag.sourceIndex === delegate.index
+        return delegate.shell.blockDrag.isMulti ? delegate.blockSelected
+                                     : delegate.shell.blockDrag.sourceIndex === delegate.index
     }
 
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
 
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (delegate.shell && delegate.shell.lastFocusedBlock !== undefined)
+                delegate.shell.lastFocusedBlock = index
         }
     }
 
@@ -171,40 +172,40 @@ Item {
 
     // Rewrite the block's markdown through the model as one undo step.
     function writeImage(path, alt, caption, width) {
-        blockModel.updateContent(delegate.index,
-                                 imageAssets.build(path, alt, caption, width))
+        BlockModel.updateContent(delegate.index,
+                                 ImageAssets.build(path, alt, caption, width))
     }
 
     function deleteCurrentBlock() {
         var prevIndex = delegate.index - 1
-        blockModel.removeBlock(delegate.index)
+        BlockModel.removeBlock(delegate.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
     }
     function createBlockBelow() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu) item.openBlockMenu("insert")
@@ -224,13 +225,13 @@ Item {
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
@@ -242,13 +243,13 @@ Item {
                 return
             }
             if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
-                blockModel.duplicateBlocks([delegate.index])
+                BlockModel.duplicateBlocks([delegate.index])
                 var lv = delegate.listView
                 var cloneIndex = delegate.index + 1
                 Qt.callLater(function() {
                     if (!lv) return
                     lv.currentIndex = cloneIndex
-                    var item = lv.itemAtIndex(cloneIndex)
+                    var item = (lv.itemAtIndex(cloneIndex) as BlockDelegateBase)
                     if (item) item.focusAtStart()
                 })
                 event.accepted = true
@@ -257,16 +258,16 @@ Item {
             if (event.key === Qt.Key_Up && delegate.index > 0 && delegate.listView) {
                 var prevIndex = delegate.index - 1
                 delegate.listView.currentIndex = prevIndex
-                var prev = delegate.listView.itemAtIndex(prevIndex)
+                var prev = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd()
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Down && delegate.index < blockModel.count - 1
+            if (event.key === Qt.Key_Down && delegate.index < BlockModel.count - 1
                 && delegate.listView) {
                 var nextIndex = delegate.index + 1
                 delegate.listView.currentIndex = nextIndex
-                var next = delegate.listView.itemAtIndex(nextIndex)
+                var next = (delegate.listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                 if (next) next.focusAtStart()
                 event.accepted = true
                 return
@@ -291,12 +292,12 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: delegate.isDragSource ? 0.35 : 1
-        color: delegate.blockSelected ? theme.blockSelectionTint
-             : delegate.isFocused ? theme.focusTint
-             : (delegate.isHovered ? theme.blockHoverTint : "transparent")
+        color: delegate.blockSelected ? Theme.blockSelectionTint
+             : delegate.isFocused ? Theme.focusTint
+             : (delegate.isHovered ? Theme.blockHoverTint : "transparent")
         // A visible keyboard-focus ring (§14.1) in addition to the tint.
-        border.color: delegate.blockSelected ? theme.accent
-                    : delegate.isFocused ? theme.focusRing : "transparent"
+        border.color: delegate.blockSelected ? Theme.accent
+                    : delegate.isFocused ? Theme.focusRing : "transparent"
         border.width: (delegate.blockSelected || delegate.isFocused) ? 2 : 0
     }
 
@@ -401,8 +402,8 @@ Item {
                 objectName: "imageConsentPlaceholder"
                 anchors.fill: parent
                 visible: delegate.awaitingConsent
-                color: theme.codePanelBackground
-                border.color: theme.border
+                color: Theme.codePanelBackground
+                border.color: Theme.border
                 radius: 6
                 Column {
                     anchors.centerIn: parent
@@ -411,12 +412,12 @@ Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "🔗"
                         font.pixelSize: 24
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: qsTr("Remote image not loaded")
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         font.pixelSize: 12
                     }
                     Rectangle {
@@ -425,23 +426,23 @@ Item {
                         width: imgLoadLabel.implicitWidth + 16
                         height: imgLoadLabel.implicitHeight + 8
                         radius: 4
-                        visible: egressPolicy.canRequestConsent(delegate.resolvedSource)
-                        color: theme.hoverTint
-                        border.color: imgLoadArea.containsMouse ? theme.accent : theme.border
+                        visible: EgressPolicy.canRequestConsent(delegate.resolvedSource)
+                        color: Theme.hoverTint
+                        border.color: imgLoadArea.containsMouse ? Theme.accent : Theme.border
                         Text {
                             id: imgLoadLabel
                             anchors.centerIn: parent
                             text: qsTr("Load image")
                             font.pixelSize: 11
-                            color: imgLoadArea.containsMouse ? theme.textPrimary
-                                                             : theme.textMuted
+                            color: imgLoadArea.containsMouse ? Theme.textPrimary
+                                                             : Theme.textMuted
                         }
                         MouseArea {
                             id: imgLoadArea
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: egressPolicy.allowOrigin(delegate.resolvedSource)
+                            onClicked: EgressPolicy.allowOrigin(delegate.resolvedSource)
                         }
                     }
                 }
@@ -452,8 +453,8 @@ Item {
                 anchors.fill: parent
                 visible: !delegate.awaitingConsent
                     && (delegate.resolvedSource === "" || image.status === Image.Error)
-                color: theme.codePanelBackground
-                border.color: theme.border
+                color: Theme.codePanelBackground
+                border.color: Theme.border
                 radius: 6
                 Column {
                     anchors.centerIn: parent
@@ -462,13 +463,13 @@ Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "▨"
                         font.pixelSize: 28
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: delegate.img.path === "" ? qsTr("No image")
                               : qsTr("Image not found: ") + delegate.img.path
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         font.pixelSize: 12
                         elide: Text.ElideMiddle
                         width: Math.min(implicitWidth, imageFrame.width - 16)
@@ -483,12 +484,10 @@ Item {
                 enabled: delegate.displaySource !== "" && image.status === Image.Ready
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: {
-                    var win = Window.window
                     // The lightbox gets the gated source, not the raw URL:
                     // handing it the URL would reopen the direct-load path
                     // this delegate just closed.
-                    if (win && win.openLightbox)
-                        win.openLightbox(delegate.displaySource, delegate.img.alt)
+                        AppActions.requestLightbox(delegate.displaySource, delegate.img.alt)
                 }
             }
 
@@ -498,7 +497,7 @@ Item {
                 id: resizeHandle
                 objectName: "imageResizeHandle"
                 width: 14; height: 14; radius: 3
-                color: theme.accent
+                color: Theme.accent
                 opacity: (delegate.isHovered || delegate.isFocused)
                          && delegate.resolvedSource !== "" ? 0.9 : 0
                 visible: opacity > 0
@@ -550,7 +549,7 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 6
-                color: effectsArea.containsMouse ? theme.hoverTint
+                color: effectsArea.containsMouse ? Theme.hoverTint
                      : Qt.rgba(0, 0, 0, 0.35)
                 opacity: (delegate.isHovered || delegate.isFocused
                           || imageEffectsPopover.visible)
@@ -590,7 +589,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             font.pixelSize: 12
             font.italic: true
-            color: theme.textMuted
+            color: Theme.textMuted
             background: null
             // Same hazard as the other deferred editors: editingFinished may
             // never arrive if the model is replaced first, so the caption is
@@ -601,7 +600,7 @@ Item {
                                         text, delegate.img.width)
             }
             Connections {
-                target: documentManager
+                target: DocumentManager
                 function onPendingEditsRequested() {
                     captionField.commitPendingCaption()
                 }
@@ -629,27 +628,26 @@ Item {
         }
         onClicked: function(mouse) {
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(delegate.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(delegate.index)
+                if (DocumentSelection.hasBlockSelection)
                     delegate.focusSelectionHandler()
                 else
                     focusTarget.forceActiveFocus()
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var win = Window.window
-                var anchor = win && win.lastFocusedBlock !== undefined
-                        ? win.lastFocusedBlock : -1
-                if (!documentSelection.hasBlockSelection
+                var anchor = delegate.shell && delegate.shell.lastFocusedBlock !== undefined
+                        ? delegate.shell.lastFocusedBlock : -1
+                if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
-                    documentSelection.selectBlock(anchor)
-                documentSelection.extendBlockSelectionTo(delegate.index)
+                    DocumentSelection.selectBlock(anchor)
+                DocumentSelection.extendBlockSelectionTo(delegate.index)
                 delegate.focusSelectionHandler()
                 return
             }
-            if (documentSelection.hasBlockSelection
-                || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection
+                || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             focusTarget.forceActiveFocus()
         }
     }
@@ -660,13 +658,13 @@ Item {
         width: 18; height: 18; x: 10
         y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
-            text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true
+            text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true
         }
         MouseArea {
             id: plusArea
@@ -695,7 +693,7 @@ Item {
                     spacing: 2
                     Repeater {
                         model: 2
-                        Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint }
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint }
                     }
                 }
             }
@@ -716,36 +714,33 @@ Item {
             }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!delegate.shell || !delegate.shell.blockDrag) return
                 var sp = imageHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5
                         && Math.abs(mouse.y - pressY) < 5)
                         return
                     dragging = true
-                    win.blockDrag.begin(delegate.index, sp.x, sp.y)
+                    delegate.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
                 } else {
-                    win.blockDrag.update(sp.x, sp.y)
+                    delegate.shell.blockDrag.update(sp.x, sp.y)
                 }
             }
             onReleased: {
-                var win = Window.window
                 if (dragging) {
                     dragging = false
-                    if (win && win.blockDrag) win.blockDrag.drop()
+                    if (delegate.shell && delegate.shell.blockDrag) delegate.shell.blockDrag.drop()
                     return
                 }
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
             }
             onCanceled: {
                 if (dragging) {
                     dragging = false
-                    var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel()
+                    if (delegate.shell && delegate.shell.blockDrag) delegate.shell.blockDrag.cancel()
                 }
             }
         }

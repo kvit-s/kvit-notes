@@ -2,13 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import Kvit 1.0
 
 // Divider block (features.md §1.2.9): a horizontal rule with no text
 // content. It keeps the focus API of the editable delegates so block
 // navigation is uniform: arrowing through it works, clicking selects it,
 // and Backspace/Delete remove it and Enter adds a paragraph below.
-Item {
+BlockDelegateBase {
     id: delegate
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -24,15 +30,15 @@ Item {
 
     // ---- Divider style (features.md §1.2.9) ----
     readonly property string divStyle:
-        blockAttributes.str(attributes, "style", "solid")
+        BlockAttributes.str(attributes, "style", "solid")
     readonly property int divThickness:
-        Math.max(1, Math.min(12, blockAttributes.num(attributes, "thickness", 2)))
+        Math.max(1, Math.min(12, BlockAttributes.num(attributes, "thickness", 2)))
     readonly property string divColorAttr:
-        blockAttributes.str(attributes, "color", "")
+        BlockAttributes.str(attributes, "color", "")
     readonly property color divColor: divColorAttr !== ""
-        ? divColorAttr : (isFocused ? theme.accent : theme.border)
+        ? divColorAttr : (isFocused ? Theme.accent : Theme.border)
     readonly property string divWidthAttr:
-        blockAttributes.str(attributes, "width", "full")
+        BlockAttributes.str(attributes, "width", "full")
     readonly property real divWidthFraction: {
         if (divWidthAttr === "full" || divWidthAttr === "")
             return 1.0
@@ -41,7 +47,7 @@ Item {
     }
     // Write new divider attributes as one undo step (used by the style picker).
     function setDividerAttributes(payload) {
-        blockModel.setBlockAttributes(delegate.index, payload)
+        BlockModel.setBlockAttributes(delegate.index, payload)
     }
 
     property int blockIndex: index
@@ -55,9 +61,9 @@ Item {
     // divider inside a cross-block text range shows the same tint —
     // it has no text to highlight.
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(delegate.index)
-            || documentSelection.portionForBlock(delegate.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(delegate.index)
+            || DocumentSelection.portionForBlock(delegate.index).selected === true
     }
 
     // Cross-block position helpers, matching EditableBlock's API: a
@@ -70,17 +76,14 @@ Item {
 
     // Dragged-row dim, matching EditableBlock (§21.4 space-holder).
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? delegate.blockSelected
-                                     : win.blockDrag.sourceIndex === delegate.index
+        return delegate.shell.blockDrag.isMulti ? delegate.blockSelected
+                                     : delegate.shell.blockDrag.sourceIndex === delegate.index
     }
 
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
 
     // Gaining focus records this as the current block, like
@@ -88,9 +91,8 @@ Item {
     // which would move focus to the delegate root).
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (delegate.shell && delegate.shell.lastFocusedBlock !== undefined)
+                delegate.shell.lastFocusedBlock = index
         }
     }
 
@@ -120,11 +122,11 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = delegate.index - 1
-        blockModel.removeBlock(delegate.index)
+        BlockModel.removeBlock(delegate.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -132,11 +134,11 @@ Item {
 
     function createBlockBelow() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "") // 0 = Paragraph
+        BlockModel.insertBlock(newIndex, 0, "") // 0 = Paragraph
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -147,13 +149,13 @@ Item {
     // The new block is a text delegate, which owns openBlockMenu.
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv)
                 return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu)
@@ -176,13 +178,13 @@ Item {
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
@@ -196,14 +198,14 @@ Item {
                 return
             }
             if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
-                blockModel.duplicateBlocks([delegate.index])
+                BlockModel.duplicateBlocks([delegate.index])
                 var lv = delegate.listView
                 var cloneIndex = delegate.index + 1
                 Qt.callLater(function() {
                     if (!lv)
                         return
                     lv.currentIndex = cloneIndex
-                    var item = lv.itemAtIndex(cloneIndex)
+                    var item = (lv.itemAtIndex(cloneIndex) as BlockDelegateBase)
                     if (item)
                         item.focusAtStart()
                 })
@@ -214,16 +216,16 @@ Item {
             if (event.key === Qt.Key_Up && delegate.index > 0 && delegate.listView) {
                 var prevIndex = delegate.index - 1
                 delegate.listView.currentIndex = prevIndex
-                var prev = delegate.listView.itemAtIndex(prevIndex)
+                var prev = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd()
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Down && delegate.index < blockModel.count - 1
+            if (event.key === Qt.Key_Down && delegate.index < BlockModel.count - 1
                 && delegate.listView) {
                 var nextIndex = delegate.index + 1
                 delegate.listView.currentIndex = nextIndex
-                var next = delegate.listView.itemAtIndex(nextIndex)
+                var next = (delegate.listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                 if (next) next.focusAtStart()
                 event.accepted = true
                 return
@@ -248,12 +250,12 @@ Item {
         anchors.leftMargin: 24
         radius: 4
         opacity: delegate.isDragSource ? 0.35 : 1
-        color: delegate.blockSelected ? theme.blockSelectionTint
-             : delegate.isFocused ? theme.focusTint
-             : (delegate.isHovered ? theme.blockHoverTint : "transparent")
+        color: delegate.blockSelected ? Theme.blockSelectionTint
+             : delegate.isFocused ? Theme.focusTint
+             : (delegate.isHovered ? Theme.blockHoverTint : "transparent")
         // A visible keyboard-focus ring (§14.1) in addition to the tint.
-        border.color: delegate.blockSelected ? theme.accent
-                    : delegate.isFocused ? theme.focusRing : "transparent"
+        border.color: delegate.blockSelected ? Theme.accent
+                    : delegate.isFocused ? Theme.focusRing : "transparent"
         border.width: (delegate.blockSelected || delegate.isFocused) ? 2 : 0
     }
 
@@ -328,14 +330,14 @@ Item {
         anchors.rightMargin: 10
         anchors.verticalCenter: parent.verticalCenter
         radius: 4
-        color: dividerStyleArea.containsMouse ? theme.hoverTint : "transparent"
+        color: dividerStyleArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered || dividerStylePicker.visible ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
             text: "╌"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 13
         }
         MouseArea {
@@ -367,32 +369,31 @@ Item {
             // The §3.1 modifier gestures work on dividers too; a divider
             // has no text, so there is no link carve-out here.
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(delegate.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(delegate.index)
+                if (DocumentSelection.hasBlockSelection)
                     delegate.focusSelectionHandler()
                 else
                     focusTarget.forceActiveFocus()
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var win = Window.window
-                var anchor = win && win.lastFocusedBlock !== undefined
-                        ? win.lastFocusedBlock : -1
-                if (!documentSelection.hasBlockSelection
+                var anchor = delegate.shell && delegate.shell.lastFocusedBlock !== undefined
+                        ? delegate.shell.lastFocusedBlock : -1
+                if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
-                    documentSelection.selectBlock(anchor)
-                documentSelection.extendBlockSelectionTo(delegate.index)
+                    DocumentSelection.selectBlock(anchor)
+                DocumentSelection.extendBlockSelectionTo(delegate.index)
                 delegate.focusSelectionHandler()
                 return
             }
-            if (documentSelection.hasBlockSelection
-                || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection
+                || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             focusTarget.forceActiveFocus()
         }
     }
 
-    // Gutter plus-button (declared after hoverArea so it wins clicks)
+    // Gutter plus-button (declared after hoverArea so it window clicks)
     Rectangle {
         objectName: "plusButton"
         width: 18
@@ -400,7 +401,7 @@ Item {
         x: 10
         anchors.verticalCenter: parent.verticalCenter
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered ? 1 : 0
         visible: opacity > 0
 
@@ -411,7 +412,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: "+"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 14
             font.bold: true
         }
@@ -460,7 +461,7 @@ Item {
                             width: 3
                             height: 3
                             radius: 1.5
-                            color: theme.textFaint
+                            color: Theme.textFaint
                         }
                     }
                 }
@@ -488,8 +489,7 @@ Item {
             onPositionChanged: function(mouse) {
                 if (!pressed)
                     return
-                var win = Window.window
-                if (!win || !win.blockDrag)
+                if (!delegate.shell || !delegate.shell.blockDrag)
                     return
                 var sp = dividerHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
@@ -497,30 +497,28 @@ Item {
                         && Math.abs(mouse.y - pressY) < 5)
                         return
                     dragging = true
-                    win.blockDrag.begin(delegate.index, sp.x, sp.y)
+                    delegate.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
                 } else {
-                    win.blockDrag.update(sp.x, sp.y)
+                    delegate.shell.blockDrag.update(sp.x, sp.y)
                 }
             }
             onReleased: {
-                var win = Window.window
                 if (dragging) {
                     dragging = false
-                    if (win && win.blockDrag)
-                        win.blockDrag.drop()
+                    if (delegate.shell && delegate.shell.blockDrag)
+                        delegate.shell.blockDrag.drop()
                     return
                 }
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
             }
             onCanceled: {
                 if (dragging) {
                     dragging = false
-                    var win = Window.window
-                    if (win && win.blockDrag)
-                        win.blockDrag.cancel()
+                    if (delegate.shell && delegate.shell.blockDrag)
+                        delegate.shell.blockDrag.cancel()
                 }
             }
         }

@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The table cells nest content and handlers in separate scopes that
+// read the row and cell ids declared around them.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -12,8 +16,13 @@ import Kvit 1.0
 // clicked/tabbed cell becomes live, loading a single hybrid-editing engine
 // at a time — so a large table costs one engine, not one per cell. The
 // delegate keeps the non-text focus API of the other block delegates.
-Item {
+BlockDelegateBase {
     id: root
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -32,7 +41,7 @@ Item {
     property bool isHovered: hoverArea.containsMouse
 
     // Parsed grid (re-evaluates on content change).
-    readonly property var grid: tableTools.parse(content)
+    readonly property var grid: TableTools.parse(content)
     readonly property int columns: grid.valid ? grid.columns : 0
     readonly property int dataRows: grid.valid ? grid.rowCount : 0
 
@@ -44,9 +53,9 @@ Item {
     readonly property int colWidth: columns > 0 ? Math.floor(tableWidth / columns) : 80
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -56,23 +65,19 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
 
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined)
+                root.shell.lastFocusedBlock = index
         }
     }
 
@@ -88,30 +93,30 @@ Item {
     function isCursorOnLastLine() { return true }
 
     // ---- Mutations, each one model content update (one undo step) ----
-    function writeTable(md) { blockModel.updateContent(root.index, md) }
+    function writeTable(md) { BlockModel.updateContent(root.index, md) }
     function editCell(r, c) {
         activeRow = r
         activeCol = c
         focusTarget.forceActiveFocus()  // keep the block "focused" for the shell
     }
     function commitCell(r, c, value) {
-        var md = tableTools.setCell(content, r, c, value)
+        var md = TableTools.setCell(content, r, c, value)
         if (md !== content)
             writeTable(md)
     }
     function cellText(r, c) {
-        return tableTools.cellValue(content, r, c)
+        return TableTools.cellValue(content, r, c)
     }
     function moveCell(forward) {
         var r = activeRow, c = activeCol
         if (forward) {
             if (c + 1 < columns) { editCell(r, c + 1); return }
             if (r === -1) { editCell(dataRows > 0 ? 0 : -1, 0)
-                if (dataRows === 0) { writeTable(tableTools.insertRow(content, -1)); editCell(0, 0) }
+                if (dataRows === 0) { writeTable(TableTools.insertRow(content, -1)); editCell(0, 0) }
                 return }
             if (r + 1 < dataRows) { editCell(r + 1, 0); return }
             // Last cell: append a row and land in it.
-            writeTable(tableTools.insertRow(content, dataRows - 1))
+            writeTable(TableTools.insertRow(content, dataRows - 1))
             editCell(dataRows, 0)  // dataRows is the new row's index after insert
         } else {
             if (c - 1 >= 0) { editCell(r, c - 1); return }
@@ -123,7 +128,7 @@ Item {
     function sortBy(col) {
         // Cycle: ascending, then descending on a repeat.
         var asc = !(root._lastSortCol === col && root._lastSortAsc)
-        writeTable(tableTools.sortByColumn(content, col, asc))
+        writeTable(TableTools.sortByColumn(content, col, asc))
         root._lastSortCol = col
         root._lastSortAsc = asc
     }
@@ -132,34 +137,34 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
     }
@@ -178,24 +183,24 @@ Item {
                 && (event.modifiers & Qt.ControlModifier)
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
                 var pi = root.index - 1
                 root.listView.currentIndex = pi
-                var prev = root.listView.itemAtIndex(pi)
+                var prev = (root.listView.itemAtIndex(pi) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd(); event.accepted = true; return
             }
-            if (event.key === Qt.Key_Down && root.index < blockModel.count - 1
+            if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1
                 && root.listView) {
                 var ni = root.index + 1
                 root.listView.currentIndex = ni
-                var next = root.listView.itemAtIndex(ni)
+                var next = (root.listView.itemAtIndex(ni) as BlockDelegateBase)
                 if (next) next.focusAtStart(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
@@ -214,9 +219,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -246,12 +251,12 @@ Item {
                         width: root.colWidth
                         implicitHeight: Math.max(30, cellContent.implicitHeight + 12)
                         height: implicitHeight
-                        color: rowItem.rowIndex === -1 ? theme.chipBackground
+                        color: rowItem.rowIndex === -1 ? Theme.chipBackground
                              : (root.activeRow === rowItem.rowIndex
-                                && root.activeCol === colIndex ? theme.focusTint
-                                : theme.windowBackground)
+                                && root.activeCol === colIndex ? Theme.focusTint
+                                : Theme.windowBackground)
                         border.width: 1
-                        border.color: theme.border
+                        border.color: Theme.border
 
                         readonly property bool isActive:
                             root.activeRow === rowItem.rowIndex
@@ -268,12 +273,12 @@ Item {
                             visible: !cell.isActive
                             anchors.fill: parent
                             anchors.margins: 6
-                            text: markdownFormatter.toHtml(
+                            text: MarkdownFormatter.toHtml(
                                 root.cellText(rowItem.rowIndex, cell.colIndex))
                             textFormat: Text.RichText
                             wrapMode: Text.Wrap
                             font.bold: rowItem.rowIndex === -1
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                             horizontalAlignment: cell.align
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -293,7 +298,7 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             acceptedButtons: Qt.LeftButton
-                            onClicked: {
+                            onClicked: function(mouse) {
                                 if (rowItem.rowIndex === -1
                                     && (mouse.modifiers & Qt.NoModifier) === 0) {
                                     // plain click on header edits it
@@ -316,7 +321,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root._lastSortAsc ? "▲" : "▼"
                             font.pixelSize: 8
-                            color: theme.textFaint
+                            color: Theme.textFaint
                         }
                     }
                 }
@@ -333,7 +338,7 @@ Item {
                 focusPolicy: Qt.NoFocus
                 font.pixelSize: 11
                 onClicked: root.writeTable(
-                    tableTools.insertRow(root.content, root.dataRows - 1))
+                    TableTools.insertRow(root.content, root.dataRows - 1))
             }
             Button {
                 objectName: "tableAddColumn"
@@ -341,7 +346,7 @@ Item {
                 focusPolicy: Qt.NoFocus
                 font.pixelSize: 11
                 onClicked: root.writeTable(
-                    tableTools.insertColumn(root.content, root.columns - 1))
+                    TableTools.insertColumn(root.content, root.columns - 1))
             }
         }
     }
@@ -370,8 +375,8 @@ Item {
                 anchors.fill: parent
                 background: null
                 wrapMode: TextEdit.Wrap
-                font.pixelSize: typography.baseSize - 1
-                color: theme.textPrimary
+                font.pixelSize: Typography.baseSize - 1
+                color: Theme.textPrimary
                 Component.onCompleted: { forceActiveFocus(); cursorPosition = length }
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Tab) {
@@ -392,7 +397,7 @@ Item {
     }
     // theme reference for the cell engine (a bare `theme` inside the engine
     // resolves to the engine's own property).
-    readonly property var appThemeRef: theme
+    readonly property var appThemeRef: Theme
 
     MouseArea {
         id: hoverArea
@@ -406,11 +411,11 @@ Item {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea {
             id: plusArea
             anchors.fill: parent; anchors.margins: -2
@@ -427,7 +432,7 @@ Item {
         Column {
             anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } }
         }
         MouseArea {
             id: tableHandleArea
@@ -438,24 +443,21 @@ Item {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = tableHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
-                } else { win.blockDrag.update(sp.x, sp.y) }
+                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
+                } else { root.shell.blockDrag.update(sp.x, sp.y) }
             }
             onReleased: {
-                var win = Window.window
-                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onCanceled: {
-                if (dragging) { dragging = false; var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel() }
+                if (dragging) { dragging = false;                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() }
             }
         }
     }

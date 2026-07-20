@@ -51,25 +51,26 @@ void AppContext::setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher)
 
 AppContext::~AppContext() = default;
 
+// Emitted by qmltyperegistrar from the QML_ELEMENT macros on the types
+// themselves; see the generated build/kvit-core_qmltyperegistrations.cpp.
+extern void qml_register_types_Kvit();
+
 void AppContext::registerQmlTypes()
 {
-    qmlRegisterType<BlockEditorEngine>("Kvit", 1, 0, "BlockEditorEngine");
-    // Creatable so tests can open a second store on a path; the app
-    // itself uses the appSettings context property.
-    qmlRegisterType<SettingsStore>("Kvit", 1, 0, "SettingsStore");
-    qmlRegisterUncreatableType<Theme>("Kvit", 1, 0, "Theme",
-                                      QStringLiteral("Use the theme context property"));
-    qmlRegisterUncreatableType<Block>("Kvit", 1, 0, "Block",
-                                      QStringLiteral("Block is model data; the enum is what QML needs"));
-    // The built-in fence kinds, so main.qml's DelegateChooser names them
-    // (`BlockKinds.Kanban`) instead of repeating their numbers. One
-    // definition, in blockkindregistry.h.
-    qmlRegisterUncreatableMetaObject(
-        BlockKinds::staticMetaObject, "Kvit", 1, 0, "BlockKinds",
-        QStringLiteral("BlockKinds is an enum namespace"));
-    // The native Mermaid diagram painter, used by DiagramBlock.qml. Parses
-    // and lays out off the UI thread.
-    qmlRegisterType<DiagramCanvas>("Kvit", 1, 0, "DiagramCanvas");
+    // Calling this by hand is not redundant. The generator also emits a
+    // file-scope QQmlModuleRegistration whose constructor would register the
+    // module on its own — but kvit-core is a STATIC library, so the linker
+    // drops that object file for want of any reference to it, and the types
+    // then do not exist at runtime. The symptom is not a link error: QML
+    // reports "ReferenceError: <Type> is not defined" and the shell renders
+    // wrong. ShellTests catches it, and did so while this was being written.
+    //
+    // Naming the generated function here is the reference that keeps the
+    // translation unit alive. The alternative, letting qt_add_qml_module
+    // build a plugin and importing it with Q_IMPORT_QML_PLUGIN, would add a
+    // plugin target for a library that is linked directly into every binary
+    // that uses it.
+    qml_register_types_Kvit();
 }
 
 void AppContext::wire()
@@ -285,72 +286,71 @@ void AppContext::installContextProperties(QQmlEngine *engine)
         return;
     QQmlContext *context = engine->rootContext();
 
+    // The services this composition offers QML as singletons. Each one's
+    // create() reads its instance back out of here, so an engine gets the
+    // AppContext that installed on it and no other. Registered before the
+    // shell loads, because the first binding that touches a singleton
+    // resolves it.
+    m_services.add(&m_queryTools);
+    m_services.add(&m_globalHotkey);
+    m_services.add(&m_fileWatcher);
+    m_services.add(&m_shortcutCatalog);
+    m_services.add(&m_quickSwitcherModel);
+    m_services.add(&m_folderTreeModel);
+    m_services.add(&m_markdownFormatter);
+    m_services.add(&m_blockMenuModel);
+    m_services.add(&m_mathCommandModel);
+    m_services.add(&m_documentStats);
+    m_services.add(&m_documentExporter);
+    m_services.add(&m_documentSerializer);
+    m_services.add(&m_documentImporter);
+    m_services.add(&m_embedMetadata);
+    m_services.add(&m_systemTray);
+    m_services.add(&m_navigationHistory);
+    m_services.add(&m_updateChecker);
+    m_services.add(&m_tableTools);
+    m_services.add(&m_kanbanTools);
+    m_services.add(&m_todoMeta);
+    m_services.add(&m_mathTools);
+    m_services.add(&m_undoStack);
+    m_services.add(&m_documentOutline);
+    m_services.add(&m_collectionSearch);
+    m_services.add(&m_noteTemplates);
+    m_services.add(&m_egressPolicy);
+    m_services.add(&m_typography);
+    m_services.add(&m_imageAssets);
+    m_services.add(&m_blockAttributes);
+    m_services.add(&m_clipboardHelper);
+    m_services.add(&m_a11y);
+    m_services.add(&m_extensions);
+    m_services.add(&m_blockKinds);
+    m_services.add(&m_documentSearch);
+    m_services.add(&m_noteListModel);
+    m_services.add(&m_settingsStore);
+    m_services.add(&m_documentManager);
+    m_services.add(&m_noteCollection);
+    m_services.add(&m_blockModel);
+    m_services.add(&m_documentSelection);
+    m_services.add(&m_theme);
+    m_services.add(&m_appActions);
+    KvitQml::attachServices(engine, &m_services);
+
     // Every property goes through one helper so the published set is
     // recorded as it is built, and two things read that one list. A test
     // compares it with the names the shell binds to, so neither side drifts
     // by hand; and ExtensionRegistry refuses a module namespace that collides
-    // with a name already on it. `const auto &value` rather than QObject *
-    // because codeLanguageList publishes a QVariant.
+    // with a name already on it.
     m_installedProperties.clear();
     auto publish = [&](const char *name, const auto &value) {
         m_installedProperties << QString::fromLatin1(name);
         context->setContextProperty(name, value);
     };
 
-    publish("blockModel", &m_blockModel);
-    publish("markdownFormatter", &m_markdownFormatter);
-    publish("undoStack", &m_undoStack);
-    publish("documentManager", &m_documentManager);
-    publish("clipboard", &m_clipboardHelper);
-    publish("blockMenuModel", &m_blockMenuModel);
-    publish("mathCommandModel", &m_mathCommandModel);
-    publish("documentSelection", &m_documentSelection);
-    publish("documentSearch", &m_documentSearch);
-    publish("documentOutline", &m_documentOutline);
-    publish("documentStats", &m_documentStats);
-    publish("documentExporter", &m_documentExporter);
-    publish("documentSerializer", &m_documentSerializer);
-    publish("noteCollection", &m_noteCollection);
-    publish("folderTreeModel", &m_folderTreeModel);
-    publish("noteListModel", &m_noteListModel);
-    publish("collectionSearch", &m_collectionSearch);
-    publish("startupController", &m_startupController);
-    publish("noteTemplates", &m_noteTemplates);
-    publish("documentImporter", &m_documentImporter);
-    publish("embedMetadata", &m_embedMetadata);
-    // Delegates ask this before rendering anything remote; see EgressPolicy.
-    publish("egressPolicy", &m_egressPolicy);
-    publish("appSettings", &m_settingsStore);
-    publish("perfLog", &PerfLog::instance());
-    publish("theme", &m_theme);
-    publish("typography", &m_typography);
-    // The canonical code-highlight language ids: the single
-    // source of truth for the language picker and the /code aliases, so the
-    // UI list can never drift from what the highlighter recognizes.
-    publish(
-        "codeLanguageList",
-        QVariant::fromValue(CodeLanguages::supportedLanguages()));
-    publish("imageAssets", &m_imageAssets);
     // The per-block attribute reader/editor: delegates read typed
     // presentation values off a block's `attributes` payload, and the
     // attribute editors compute a new payload to hand to setBlockAttributes.
-    publish("blockAttributes", &m_blockAttributes);
-    // The shortcut catalog (features.md §13): the source the shortcut
-    // reference renders and the test_shortcutmap audit checks.
-    publish("shortcutCatalog", &m_shortcutCatalog);
     // The live-region announcer: dynamic changes speak
     // through this seam to assistive technology.
-    publish("a11y", &m_a11y);
-    publish("systemTray", &m_systemTray);
-    publish("globalHotkey", &m_globalHotkey);
-    publish("fileWatcher", &m_fileWatcher);
-    publish("navigationHistory", &m_navigationHistory);
-    publish("updateChecker", &m_updateChecker);
-    publish("quickSwitcherModel", &m_quickSwitcherModel);
-    publish("tableTools", &m_tableTools);
-    publish("todoMeta", &m_todoMeta);
-    publish("kanbanTools", &m_kanbanTools);
-    publish("queryTools", &m_queryTools);
     // Math: the MicroTeX seam. The provider owns rendering under
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.
@@ -361,15 +361,18 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // to an Image's `source` would bypass every one of them.
     engine->addImageProvider(QStringLiteral("remote"),
                              new RemoteImageProvider(m_egressFetcher.get()));
-    publish("mathRenderer", &m_mathTools);
 
     // The two extension seams: block-kind registration and QML slot
     // injection. Both are inert in the open build: no module is installed,
     // so `blockKinds` reports only the built-in fence kinds and every
     // `extensions` slot resolves to an empty source.
-    publish("blockKinds", &m_blockKinds);
-    publish("extensions", &m_extensions);
     // Modules publish last and under their own namespace, and every name the
     // core just took is refused to them.
-    m_extensions.installContextProperties(context, m_installedProperties);
+    // Modules publish last, under their own namespace, and every name the
+    // core occupies is refused to them — both what it just put on the context
+    // and the QML names of its module singletons. The singleton half is what
+    // stops a module taking `theme` while the core owns `Theme`; see
+    // ExtensionRegistry::installContextProperties.
+    m_extensions.installContextProperties(
+        context, m_installedProperties + KvitQml::singletonNames());
 }

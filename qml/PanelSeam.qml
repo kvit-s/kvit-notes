@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import Kvit 1.0
 
 // A draggable seam between panels (features.md §9.1 "resizable panels
 // with drag handles"). Sits to the RIGHT of the panel it resizes;
@@ -28,7 +29,7 @@ Item {
         height: parent.height
         width: dragArea.pressed ? 2 : 1
         color: dragArea.pressed || dragArea.containsMouse
-            ? theme.accent : theme.border
+            ? Theme.accent : Theme.border
     }
 
     MouseArea {

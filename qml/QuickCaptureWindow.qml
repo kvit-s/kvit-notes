@@ -4,11 +4,12 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
+import Kvit 1.0
 
 // Quick-capture window (features.md §15.1). A small always-on-top window the
 // global hotkey (or the tray menu) opens for jotting a note without switching to
 // the main window. Save writes the text as a new note in the collection through
-// noteCollection.captureNote and reports it; Escape cancels. Reachable regardless
+// NoteCollection.captureNote and reports it; Escape cancels. Reachable regardless
 // of whether the OS delivers a system-wide hotkey.
 Window {
     id: root
@@ -22,7 +23,7 @@ Window {
     minimumHeight: 160
     flags: Qt.Dialog
     title: qsTr("Quick capture")
-    color: theme.windowBackground
+    color: Theme.windowBackground
 
     // Open centered and focused on the text field. Text that failed to save
     // survives a re-open — the hotkey firing again must not be the thing that
@@ -47,24 +48,24 @@ Window {
     function save() {
         var body = captureArea.text.trim()
         if (body === "") { root.close(); return }
-        var rp = noteCollection.captureNote(body)
+        var rp = NoteCollection.captureNote(body)
         if (rp === "") {
             root.saveFailed = true
             captureArea.forceActiveFocus()
-            if (typeof a11y !== "undefined")
-                a11y.announce(qsTr("Could not save the note. The text is still here."))
+            if (typeof A11y !== "undefined")
+                A11y.announce(qsTr("Could not save the note. The text is still here."))
             return
         }
         root.saveFailed = false
         root.captured(rp)
-        if (typeof a11y !== "undefined")
-            a11y.announce(qsTr("Note captured"))
+        if (typeof A11y !== "undefined")
+            A11y.announce(qsTr("Note captured"))
         root.close()
     }
 
     Rectangle {
         anchors.fill: parent
-        color: theme.windowBackground
+        color: Theme.windowBackground
 
         Column {
             anchors.fill: parent
@@ -75,7 +76,7 @@ Window {
                 text: qsTr("Quick capture")
                 font.pixelSize: 15
                 font.bold: true
-                color: theme.textPrimary
+                color: Theme.textPrimary
             }
 
             ScrollView {
@@ -87,11 +88,11 @@ Window {
                     objectName: "quickCaptureText"
                     wrapMode: TextArea.Wrap
                     placeholderText: qsTr("Jot a note… (Ctrl+Enter to save, Esc to cancel)")
-                    color: theme.textPrimary
+                    color: Theme.textPrimary
                     background: Rectangle {
-                        color: theme.panelBackground
-                        border.color: captureArea.activeFocus ? theme.focusRing
-                                                              : theme.border
+                        color: Theme.panelBackground
+                        border.color: captureArea.activeFocus ? Theme.focusRing
+                                                              : Theme.border
                         border.width: captureArea.activeFocus ? 2 : 1
                         radius: 4
                     }
@@ -116,7 +117,7 @@ Window {
                 text: qsTr("Could not save the note — the notes folder may be "
                            + "read-only or the disk full. Your text is still "
                            + "here; try again.")
-                color: theme.danger
+                color: Theme.danger
             }
 
             Row {

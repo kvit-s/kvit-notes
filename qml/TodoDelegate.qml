@@ -1,6 +1,13 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Delegates in this file read ids from the enclosing component scope,
+// which qmllint reports as unqualified access. Binding those ids into
+// the nested scopes resolves it; the delegates here already declare a
+// required property for every model role they read, so nothing relied on
+// the injection this turns off.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -14,17 +21,17 @@ import Kvit 1.0
 EditableBlock {
     id: root
 
-    contentColor: root.checked ? theme.textFaint : theme.textPrimary
+    contentColor: root.checked ? Theme.textFaint : Theme.textPrimary
     contentStrikeout: root.checked
 
     // The metadata tail (📅 date / priority emoji) is chrome, not text.
-    metaTail: todoMeta.tail(content)
-    readonly property var meta: todoMeta.parse(content)
+    metaTail: TodoMeta.tail(content)
+    readonly property var meta: TodoMeta.parse(content)
     // Sub-task progress; re-evaluates on structural change (count) and on the
     // model's data updates that bump it.
     readonly property var progress: {
-        var dep = blockModel.count       // structural dependency
-        return blockModel.todoProgress(root.index)
+        var dep = BlockModel.count       // structural dependency
+        return BlockModel.todoProgress(root.index)
     }
     readonly property bool overdue: {
         if (meta.due === "") return false
@@ -33,14 +40,14 @@ EditableBlock {
     }
 
     function setDue(iso) {
-        blockModel.updateContent(root.index,
-            todoMeta.build(meta.text, iso, meta.priority))
+        BlockModel.updateContent(root.index,
+            TodoMeta.build(meta.text, iso, meta.priority))
     }
     function cyclePriority() {
         var p = meta.priority
         var next = p === 0 ? -1 : (p === -1 ? 1 : (p === 1 ? 2 : 0))
-        blockModel.updateContent(root.index,
-            todoMeta.build(meta.text, meta.due, next))
+        BlockModel.updateContent(root.index,
+            TodoMeta.build(meta.text, meta.due, next))
     }
 
     leadingChrome: Component {
@@ -52,18 +59,18 @@ EditableBlock {
                 width: 16; height: 16; y: 3
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: 3
-                color: root.checked ? theme.accent : "transparent"
-                border.color: root.checked ? theme.accent : theme.borderStrong
+                color: root.checked ? Theme.accent : "transparent"
+                border.color: root.checked ? Theme.accent : Theme.borderStrong
                 border.width: 1.5
                 Text {
                     anchors.centerIn: parent
                     visible: root.checked
-                    text: "✓"; color: theme.onAccent; font.pixelSize: 11; font.bold: true
+                    text: "✓"; color: Theme.onAccent; font.pixelSize: 11; font.bold: true
                 }
                 MouseArea {
                     anchors.fill: parent; anchors.margins: -4
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: blockModel.setChecked(root.index, !root.checked)
+                    onClicked: BlockModel.setChecked(root.index, !root.checked)
                 }
             }
         }
@@ -88,14 +95,14 @@ EditableBlock {
                     height: 18
                     width: progressText.implicitWidth + 12
                     radius: 9
-                    color: theme.chipBackground
+                    color: Theme.chipBackground
                     anchors.verticalCenter: parent.verticalCenter
                     Text {
                         id: progressText
                         anchors.centerIn: parent
                         text: root.progress.done + "/" + root.progress.total
                         color: root.progress.done === root.progress.total
-                               ? theme.success : theme.textMuted
+                               ? Theme.success : Theme.textMuted
                         font.pixelSize: 11
                     }
                 }
@@ -107,10 +114,10 @@ EditableBlock {
                     height: 18; width: 24; radius: 4
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.meta.priority !== 0 ? Qt.alpha(prioColor, 0.18)
-                                                    : theme.chipBackground
-                    property color prioColor: root.meta.priority === 2 ? theme.danger
-                        : root.meta.priority === 1 ? theme.warning
-                        : root.meta.priority === -1 ? theme.accent : theme.textFaint
+                                                    : Theme.chipBackground
+                    property color prioColor: root.meta.priority === 2 ? Theme.danger
+                        : root.meta.priority === 1 ? Theme.warning
+                        : root.meta.priority === -1 ? Theme.accent : Theme.textFaint
                     Text {
                         anchors.centerIn: parent
                         text: root.meta.priority === 2 ? "▲▲"
@@ -129,17 +136,17 @@ EditableBlock {
                     width: dueText.implicitWidth + 16
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: root.overdue ? Qt.alpha(theme.danger, 0.18)
-                         : root.meta.due !== "" ? theme.chipBackground : "transparent"
+                    color: root.overdue ? Qt.alpha(Theme.danger, 0.18)
+                         : root.meta.due !== "" ? Theme.chipBackground : "transparent"
                     border.width: root.meta.due === "" ? 1 : 0
-                    border.color: theme.border
+                    border.color: Theme.border
                     Text {
                         id: dueText
                         anchors.centerIn: parent
                         text: root.meta.due !== ""
                               ? "◷ " + Qt.formatDate(new Date(root.meta.due), "MMM d")
                               : "◷ Set date"
-                        color: root.overdue ? theme.danger : theme.textMuted
+                        color: root.overdue ? Theme.danger : Theme.textMuted
                         font.pixelSize: 11
                     }
                     TapHandler { onTapped: dueDatePopup.open() }
@@ -156,8 +163,8 @@ EditableBlock {
                 focus: true
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
                 background: Rectangle {
-                    color: theme.popupBackground
-                    border.color: theme.borderStrong; border.width: 1; radius: 6
+                    color: Theme.popupBackground
+                    border.color: Theme.borderStrong; border.width: 1; radius: 6
                 }
                 property date shown: root.meta.due !== "" ? new Date(root.meta.due) : new Date()
                 contentItem: Column {
@@ -173,7 +180,7 @@ EditableBlock {
                             horizontalAlignment: Text.AlignHCenter
                             anchors.verticalCenter: parent.verticalCenter
                             text: Qt.formatDate(dueDatePopup.shown, "MMMM yyyy")
-                            color: theme.textPrimary; font.pixelSize: 12
+                            color: Theme.textPrimary; font.pixelSize: 12
                         }
                         Button { text: "›"; flat: true; focusPolicy: Qt.NoFocus
                             onClicked: dueDatePopup.shown = new Date(
@@ -190,7 +197,7 @@ EditableBlock {
                             horizontalAlignment: Text.AlignHCenter
                             text: model.day
                             color: model.month === monthGrid.month
-                                   ? theme.textPrimary : theme.textDisabled
+                                   ? Theme.textPrimary : Theme.textDisabled
                             font.pixelSize: 11
                             opacity: model.month === monthGrid.month ? 1 : 0.5
                         }

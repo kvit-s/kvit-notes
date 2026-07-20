@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The gutter Loader's Component and the drag handler are separate
+// scopes reading the delegate root and the MouseArea by id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Window
 import Kvit 1.0
@@ -17,8 +21,13 @@ import Kvit 1.0
 // for plain rows. Editor Loader activation is latched through callLater so
 // that transient mismatch does not instantiate EditableBlock on every scroll
 // reuse (that path was multi-frame-budget expensive).
-Item {
+BlockDelegateBase {
     id: root
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -43,14 +52,14 @@ Item {
     property real lastShellHeight: 0
     property bool shellHovered: false
 
-    readonly property var appTheme: theme
-    readonly property var appTypography: typography
+    readonly property var appTheme: Theme
+    readonly property var appTypography: Typography
     readonly property int contentFontSize: {
         // sizeForBlockType() is invokable C++; explicitly read baseSize so the
         // QML binding subscribes to typographyChanged and live size changes
         // re-evaluate already-instantiated delegates.
-        var baseSize = typography.baseSize
-        return typography.sizeForBlockType(root.blockType)
+        var baseSize = Typography.baseSize
+        return Typography.sizeForBlockType(root.blockType)
     }
     readonly property int contentFontWeight: {
         switch (root.blockType) {
@@ -61,13 +70,20 @@ Item {
             default: return Font.Normal
         }
     }
-    readonly property string contentFontFamily: typography.fontFamily !== ""
-        ? typography.fontFamily : Qt.application.font.family
-    readonly property color contentColor: theme.textPrimary
+    function defaultFontFamily() {
+        // Qt.application.font is documented API the type description for
+        // QQmlApplication omits, the same gap as Qt.application.screens.
+        // qmllint disable missing-property
+        return Qt.application.font.family
+        // qmllint enable missing-property
+    }
+    readonly property string contentFontFamily: Typography.fontFamily !== ""
+        ? Typography.fontFamily : root.defaultFontFamily()
+    readonly property color contentColor: Theme.textPrimary
     readonly property string blockAlign: {
         if (!root.attributes || root.attributes.length === 0)
             return "left"
-        return blockAttributes.str(root.attributes, "align", "left")
+        return BlockAttributes.str(root.attributes, "align", "left")
     }
     readonly property int alignHAlign:
         root.blockAlign === "center" ? TextEdit.AlignHCenter
@@ -75,22 +91,22 @@ Item {
       : TextEdit.AlignLeft
 
     readonly property bool hasSearchMatches: {
-        if (!documentSearch.active || documentSearch.matchCount === 0)
+        if (!DocumentSearch.active || DocumentSearch.matchCount === 0)
             return false
-        var revision = documentSearch.revision
-        return documentSearch.matchesForBlock(root.index).length > 0
+        var revision = DocumentSearch.revision
+        return DocumentSearch.matchesForBlock(root.index).length > 0
     }
     readonly property bool hasDropCap:
         root.blockType === Block.Paragraph
         && !!root.attributes
         && root.attributes.indexOf("dropcap") >= 0
-        && blockAttributes.num(root.attributes, "dropcap", 0) >= 2
+        && BlockAttributes.num(root.attributes, "dropcap", 0) >= 2
     // Only rows inside the active text range need the editor for portion paint.
     readonly property bool inTextSelectionRange: {
-        if (!documentSelection.hasTextSelection)
+        if (!DocumentSelection.hasTextSelection)
             return false
-        var revision = documentSelection.revision
-        var portion = documentSelection.portionForBlock(root.index)
+        var revision = DocumentSelection.revision
+        var portion = DocumentSelection.portionForBlock(root.index)
         return !!(portion && portion.selected)
     }
     readonly property bool useReadOnlyShell:
@@ -130,25 +146,23 @@ Item {
     readonly property real typewriterDim: {
         if (editable && editable.typewriterDim !== undefined)
             return editable.typewriterDim
-        var win = Window.window
-        if (win && win.typewriterMode !== undefined && win.typewriterMode
-                && win.caretBlockIndex >= 0 && win.caretBlockIndex !== root.index)
+        if (root.shell && root.shell.typewriterMode !== undefined && root.shell.typewriterMode
+                && root.shell.caretBlockIndex >= 0 && root.shell.caretBlockIndex !== root.index)
             return 0.32
         return 1.0
     }
 
     readonly property bool blockSelected: {
-        if (!documentSelection.hasBlockSelection)
+        if (!DocumentSelection.hasBlockSelection)
             return false
-        var revision = documentSelection.revision
-        return documentSelection.isBlockSelected(root.index)
+        var revision = DocumentSelection.revision
+        return DocumentSelection.isBlockSelected(root.index)
     }
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
 
     // Shell geometry while the editor is not latched; editor height after load.
@@ -220,9 +234,7 @@ Item {
     }
 
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
 
     function activateEditor() { promote("", []) }
@@ -234,9 +246,11 @@ Item {
         if (item && item.markdownPositionAt)
             return item.markdownPositionAt(sceneX, sceneY)
         var p = readOnlyText.mapFromItem(null, sceneX, sceneY)
+        // qmllint disable missing-property
         if (typeof readOnlyText.positionAt === "function")
             return Math.max(0, Math.min(root.content.length,
                                         readOnlyText.positionAt(p.x, p.y)))
+        // qmllint enable missing-property
         return p.x < readOnlyText.width / 2 ? 0 : root.content.length
     }
     function pointInText(sceneX, sceneY) {
@@ -298,9 +312,9 @@ Item {
             item.setBlockAlignment(value)
         else {
             var next = (value === "left" || value === "")
-                ? blockAttributes.without(root.attributes, "align")
-                : blockAttributes.withValue(root.attributes, "align", value)
-            blockModel.setBlockAttributes(root.index, next)
+                ? BlockAttributes.without(root.attributes, "align")
+                : BlockAttributes.withValue(root.attributes, "align", value)
+            BlockModel.setBlockAttributes(root.index, next)
         }
     }
     function setDropCap(lines) { forward("setDropCap", [lines]) }
@@ -317,20 +331,20 @@ Item {
             "Bulleted list", "Numbered list", "To-do", "Quote", "Code block",
             "Divider", "Heading 4", "Image", "Callout", "Math block", "Media",
             "Table"]
-        if (typeof a11y !== "undefined" && names[newType])
-            a11y.announceConversion(names[newType])
+        if (typeof A11y !== "undefined" && names[newType])
+            A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
-        blockModel.convertBlock(root.index, newType, root.content, false, lang)
+        BlockModel.convertBlock(root.index, newType, root.content, false, lang)
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = ListView.view
         Qt.callLater(function() {
             if (!lv)
                 return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu)
@@ -393,8 +407,8 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 44 + root.indentLevel * 24
         radius: 4
-        color: theme.blockSelectionTint
-        border.color: theme.accent
+        color: Theme.blockSelectionTint
+        border.color: Theme.accent
         border.width: 1
         z: -1
     }
@@ -404,7 +418,7 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 44 + root.indentLevel * 24
         radius: 4
-        color: theme.blockHoverTint
+        color: Theme.blockHoverTint
         z: -1
     }
 
@@ -416,7 +430,7 @@ Item {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 3
-        color: root.isFocused ? theme.focusRing : "transparent"
+        color: root.isFocused ? Theme.focusRing : "transparent"
     }
 
     HoverHandler {
@@ -443,8 +457,8 @@ Item {
             var ctrl = mouse.modifiers & Qt.ControlModifier
             var shift = mouse.modifiers & Qt.ShiftModifier
             if (ctrl && !shift) {
-                documentSelection.toggleBlock(root.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(root.index)
+                if (DocumentSelection.hasBlockSelection)
                     root.focusSelectionHandler()
                 else
                     root.focusAtPosition(0)
@@ -452,38 +466,39 @@ Item {
                 return
             }
             if (shift && !ctrl) {
-                if (!documentSelection.hasBlockSelection) {
-                    var win = Window.window
-                    var anchor = win && win.lastFocusedBlock !== undefined
-                            ? win.lastFocusedBlock : -1
+                if (!DocumentSelection.hasBlockSelection) {
+                    var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
+                            ? root.shell.lastFocusedBlock : -1
                     if (anchor >= 0 && anchor !== root.index)
-                        documentSelection.selectBlock(anchor)
+                        DocumentSelection.selectBlock(anchor)
                 }
-                documentSelection.extendBlockSelectionTo(root.index)
+                DocumentSelection.extendBlockSelectionTo(root.index)
                 root.focusSelectionHandler()
                 mouse.accepted = true
                 return
             }
             var gutterWidth = 44 + root.indentLevel * 24
             if (mouse.x < gutterWidth) {
-                if ((documentSelection.hasBlockSelection
-                     || documentSelection.hasTextSelection)
-                    && !documentSelection.isBlockSelected(root.index))
-                    documentSelection.clear()
+                if ((DocumentSelection.hasBlockSelection
+                     || DocumentSelection.hasTextSelection)
+                    && !DocumentSelection.isBlockSelected(root.index))
+                    DocumentSelection.clear()
                 mouse.accepted = false
                 return
             }
-            if ((documentSelection.hasBlockSelection
-                 || documentSelection.hasTextSelection)
-                && !documentSelection.isBlockSelected(root.index))
-                documentSelection.clear()
+            if ((DocumentSelection.hasBlockSelection
+                 || DocumentSelection.hasTextSelection)
+                && !DocumentSelection.isBlockSelected(root.index))
+                DocumentSelection.clear()
 
             var localX = mouse.x - readOnlyText.x
             var localY = mouse.y - readOnlyText.y
             var pos = 0
+            // qmllint disable missing-property
             if (typeof readOnlyText.positionAt === "function")
                 pos = Math.max(0, Math.min(root.content.length,
                     readOnlyText.positionAt(localX, localY)))
+            // qmllint enable missing-property
             else
                 pos = localX < readOnlyText.width / 2 ? 0 : root.content.length
             root.focusAtPosition(pos)
@@ -507,11 +522,11 @@ Item {
                     height: 18
                     anchors.verticalCenter: parent.verticalCenter
                     radius: 4
-                    color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+                    color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
                     Text {
                         anchors.centerIn: parent
                         text: "+"
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         font.pixelSize: 14
                         font.bold: true
                     }
@@ -543,7 +558,7 @@ Item {
                                         width: 3
                                         height: 3
                                         radius: 1.5
-                                        color: theme.textFaint
+                                        color: Theme.textFaint
                                     }
                                 }
                             }
@@ -563,9 +578,7 @@ Item {
                         property bool dragging: false
                         onPressed: function(mouse) {
                             if (mouse.button === Qt.RightButton) {
-                                var win = Window.window
-                                if (win && win.openBlockHandleMenu)
-                                    win.openBlockHandleMenu(root)
+                                    AppActions.requestBlockHandleMenu(root)
                                 return
                             }
                             pressX = mouse.x
@@ -573,10 +586,9 @@ Item {
                             dragging = false
                         }
                         onPositionChanged: function(mouse) {
-                            if (!pressed || (pressedButtons & Qt.RightButton))
+                            if (!handleArea.pressed || (handleArea.pressedButtons & Qt.RightButton))
                                 return
-                            var win = Window.window
-                            if (!win || !win.blockDrag)
+                            if (!root.shell || !root.shell.blockDrag)
                                 return
                             var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
                             if (!dragging) {
@@ -584,32 +596,30 @@ Item {
                                     && Math.abs(mouse.y - pressY) < 5)
                                     return
                                 dragging = true
-                                win.blockDrag.begin(root.index, sp.x, sp.y)
+                                root.shell.blockDrag.begin(root.index, sp.x, sp.y)
                             } else {
-                                win.blockDrag.update(sp.x, sp.y)
+                                root.shell.blockDrag.update(sp.x, sp.y)
                             }
                         }
                         onReleased: function(mouse) {
                             if (mouse.button === Qt.RightButton)
                                 return
-                            var win = Window.window
                             if (dragging) {
                                 dragging = false
-                                if (win && win.blockDrag)
-                                    win.blockDrag.drop()
+                                if (root.shell && root.shell.blockDrag)
+                                    root.shell.blockDrag.drop()
                                 return
                             }
                             if (ListView.view)
                                 ListView.view.currentIndex = root.index
-                            documentSelection.selectBlock(root.index)
+                            DocumentSelection.selectBlock(root.index)
                             root.focusSelectionHandler()
                         }
                         onCanceled: {
                             if (dragging) {
                                 dragging = false
-                                var win = Window.window
-                                if (win && win.blockDrag)
-                                    win.blockDrag.cancel()
+                                if (root.shell && root.shell.blockDrag)
+                                    root.shell.blockDrag.cancel()
                             }
                         }
                     }

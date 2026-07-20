@@ -1,8 +1,14 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The BarButton component's background is a separate scope, and its
+// checked state is computed from an id declared outside it. Binding the
+// scope is what lets both resolve.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The floating formatting bar (features.md §9.3): appears over a
 // completed in-block text selection — after a mouse selection ends or
@@ -24,8 +30,8 @@ Rectangle {
     width: buttonRow.implicitWidth + 8
     height: 34
     radius: 6
-    color: theme.popupBackground
-    border.color: theme.borderStrong
+    color: Theme.popupBackground
+    border.color: Theme.borderStrong
     border.width: 1
 
     readonly property bool selectionActive:
@@ -33,7 +39,7 @@ Rectangle {
         && target.selectedDisplayText !== undefined
         && target.selectionEndDoc > target.selectionStartDoc
         && !target.verbatimEditing
-        && !documentSelection.hasTextSelection
+        && !DocumentSelection.hasTextSelection
 
     // One number that changes with any selection movement; every change
     // disarms and restarts the settle timer, so the bar only appears
@@ -85,6 +91,9 @@ Rectangle {
     }
 
     component BarButton: ToolButton {
+        // Named so the background, which is its own scope, can read the
+        // button's state instead of reaching it through an untyped `parent`.
+        id: barButton
         property int flagBit: 0
         focusPolicy: Qt.NoFocus
         implicitWidth: 28
@@ -95,8 +104,8 @@ Rectangle {
                  && (bar.target.cursorFormatFlags & flagBit) !== 0
         background: Rectangle {
             radius: 4
-            color: parent.checked ? theme.selectionTint
-                 : parent.hovered ? theme.hoverTint : "transparent"
+            color: barButton.checked ? Theme.selectionTint
+                 : barButton.hovered ? Theme.hoverTint : "transparent"
         }
     }
 
@@ -132,12 +141,16 @@ Rectangle {
             onClicked: bar.target.toggleSpanType("code")
         }
         BarButton {
+            id: highlightButton
             objectName: "fbHighlightButton"
             text: "H"; flagBit: 0x40
+            // This one overrides the shared background to tint with the
+            // highlight colour, so it repeats the pattern and needs its own
+            // id for the same reason.
             background: Rectangle {
                 radius: 4
-                color: parent.checked ? theme.highlightBackground
-                     : parent.hovered ? theme.hoverTint : "transparent"
+                color: highlightButton.checked ? Theme.highlightBackground
+                     : highlightButton.hovered ? Theme.hoverTint : "transparent"
             }
             onClicked: bar.target.toggleSpanType("highlight")
         }
@@ -167,7 +180,7 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: 14; height: 3; radius: 1
                 color: (bar.target && bar.target.currentColor)
-                    ? bar.target.currentColor : theme.textPrimary
+                    ? bar.target.currentColor : Theme.textPrimary
             }
             ColorPicker {
                 id: fbColorPicker

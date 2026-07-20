@@ -15,6 +15,7 @@
 #include <QSet>
 #include <QTimer>
 #include <QVariantMap>
+#include <QtQml/qqmlregistration.h>
 
 #include <functional>
 

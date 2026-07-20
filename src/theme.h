@@ -6,11 +6,14 @@
 
 #include <QColor>
 #include <QObject>
+#include <QtQml/qqmlregistration.h>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
 
 class SettingsStore;
+class QQmlEngine;
+class QJSEngine;
 
 // The theme token object: one C++ QObject
 // exposing every color the application draws with, as a Q_PROPERTY per

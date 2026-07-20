@@ -10,6 +10,7 @@
 #include <QSet>
 #include <QString>
 #include <QVariantList>
+#include <QtQml/qqmlregistration.h>
 
 class BlockModel;
 

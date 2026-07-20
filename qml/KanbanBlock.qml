@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Columns, cards and label chips are nested delegates whose content and
+// handlers are separate scopes reading the ids around them.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -11,8 +15,13 @@ import Kvit 1.0
 // reordering columns, add/remove, editing a card, toggling done — rewrites the
 // fence content through the model as one undo step. Column collapse and the
 // label filter are session-scoped chrome.
-Item {
+BlockDelegateBase {
     id: root
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -30,7 +39,7 @@ Item {
     property bool isFocused: focusTarget.activeFocus
     property bool isHovered: hoverArea.containsMouse
 
-    readonly property var board: kanbanTools.parse(content)
+    readonly property var board: KanbanTools.parse(content)
     readonly property var columns: board.columns
     // Session-scoped collapse state and label filter.
     property var collapsed: ({})
@@ -48,16 +57,16 @@ Item {
         return seen
     }
     function labelColor(label) {
-        var pal = theme.colorPalette
+        var pal = Theme.colorPalette
         var h = 0
         for (var i = 0; i < label.length; ++i) h = (h * 31 + label.charCodeAt(i)) % pal.length
         return pal[h]
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -67,19 +76,16 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active) return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler) win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined) win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined) root.shell.lastFocusedBlock = index
         }
     }
 
@@ -94,38 +100,38 @@ Item {
     function isCursorOnFirstLine() { return true }
     function isCursorOnLastLine() { return true }
 
-    function writeBoard(md) { blockModel.updateContent(root.index, md) }
+    function writeBoard(md) { BlockModel.updateContent(root.index, md) }
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
     }
@@ -139,19 +145,19 @@ Item {
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier) && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
                 var pi = root.index - 1
                 root.listView.currentIndex = pi
-                var prev = root.listView.itemAtIndex(pi)
+                var prev = (root.listView.itemAtIndex(pi) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd(); event.accepted = true; return
             }
-            if (event.key === Qt.Key_Down && root.index < blockModel.count - 1 && root.listView) {
+            if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1 && root.listView) {
                 var ni = root.index + 1
                 root.listView.currentIndex = ni
-                var next = root.listView.itemAtIndex(ni)
+                var next = (root.listView.itemAtIndex(ni) as BlockDelegateBase)
                 if (next) next.focusAtStart(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
@@ -169,9 +175,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -190,21 +196,22 @@ Item {
             Repeater {
                 model: root.allLabels
                 delegate: Rectangle {
+                    id: filterChip
                     required property var modelData
                     height: 20; radius: 10
                     width: fLabel.implicitWidth + 16
                     color: root.labelFilter === modelData
-                        ? root.labelColor(modelData) : theme.chipBackground
+                        ? root.labelColor(modelData) : Theme.chipBackground
                     border.width: 1; border.color: root.labelColor(modelData)
                     Text {
                         id: fLabel
                         anchors.centerIn: parent
-                        text: "#" + modelData
+                        text: "#" + filterChip.modelData
                         font.pixelSize: 11
-                        color: root.labelFilter === modelData ? theme.onAccent : theme.textMuted
+                        color: root.labelFilter === filterChip.modelData ? Theme.onAccent : Theme.textMuted
                     }
                     TapHandler {
-                        onTapped: root.labelFilter = (root.labelFilter === modelData ? "" : modelData)
+                        onTapped: root.labelFilter = (root.labelFilter === filterChip.modelData ? "" : filterChip.modelData)
                     }
                 }
             }
@@ -231,8 +238,8 @@ Item {
                         implicitHeight: colHeader.height + (isCollapsed ? 8 : colCards.implicitHeight + 16)
                         height: implicitHeight
                         radius: 6
-                        color: theme.panelBackground
-                        border.width: 1; border.color: theme.border
+                        color: Theme.panelBackground
+                        border.width: 1; border.color: Theme.border
 
                         // Column header.
                         Item {
@@ -243,7 +250,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: (columnItem.isCollapsed ? "▸ " : "▾ ") + columnItem.colData.name
                                       + "  " + columnItem.colData.cards.length
-                                font.bold: true; font.pixelSize: 12; color: theme.textPrimary
+                                font.bold: true; font.pixelSize: 12; color: Theme.textPrimary
                                 TapHandler {
                                     onTapped: {
                                         var c = Object.assign({}, root.collapsed)
@@ -262,10 +269,10 @@ Item {
                                 Text {
                                     objectName: "kanbanColLeft"
                                     text: "‹"; font.pixelSize: 15
-                                    color: columnItem.colIndex > 0 ? theme.textMuted : theme.textFaint
+                                    color: columnItem.colIndex > 0 ? Theme.textMuted : Theme.textFaint
                                     TapHandler {
                                         enabled: columnItem.colIndex > 0
-                                        onTapped: root.writeBoard(kanbanTools.moveColumn(
+                                        onTapped: root.writeBoard(KanbanTools.moveColumn(
                                             root.content, columnItem.colIndex, columnItem.colIndex - 1))
                                     }
                                 }
@@ -273,19 +280,19 @@ Item {
                                     objectName: "kanbanColRight"
                                     text: "›"; font.pixelSize: 15
                                     color: columnItem.colIndex < root.columns.length - 1
-                                           ? theme.textMuted : theme.textFaint
+                                           ? Theme.textMuted : Theme.textFaint
                                     TapHandler {
                                         enabled: columnItem.colIndex < root.columns.length - 1
-                                        onTapped: root.writeBoard(kanbanTools.moveColumn(
+                                        onTapped: root.writeBoard(KanbanTools.moveColumn(
                                             root.content, columnItem.colIndex, columnItem.colIndex + 1))
                                     }
                                 }
                                 Text {
                                     objectName: "kanbanAddCard"
-                                    text: "+"; font.pixelSize: 16; color: theme.textMuted
+                                    text: "+"; font.pixelSize: 16; color: Theme.textMuted
                                     TapHandler {
                                         onTapped: root.writeBoard(
-                                            kanbanTools.addCard(root.content, columnItem.colIndex, "New card"))
+                                            KanbanTools.addCard(root.content, columnItem.colIndex, "New card"))
                                     }
                                 }
                             }
@@ -297,12 +304,18 @@ Item {
                             anchors.left: parent.left; anchors.right: parent.right
                             anchors.bottom: parent.bottom
                             onDropped: function(drop) {
+                                // drop.source is the dragged card delegate,
+                                // typed QQuickItem here; cardColIndex and
+                                // cardIndex are its own properties, which the
+                                // linter cannot see through the payload type.
+                                // qmllint disable missing-property
                                 if (!drop.source || drop.source.cardColIndex === undefined) return
                                 var toIdx = columnItem.colData.cards.length
-                                root.writeBoard(kanbanTools.moveCard(root.content,
+                                root.writeBoard(KanbanTools.moveCard(root.content,
                                     drop.source.cardColIndex, drop.source.cardIndex,
                                     columnItem.colIndex, toIdx))
                                 drop.accept()
+                                // qmllint enable missing-property
                             }
                         }
 
@@ -326,8 +339,8 @@ Item {
                                     implicitHeight: cardCol.implicitHeight + 12
                                     height: implicitHeight
                                     radius: 5
-                                    color: theme.windowBackground
-                                    border.width: 1; border.color: theme.border
+                                    color: Theme.windowBackground
+                                    border.width: 1; border.color: Theme.border
                                     // Dim cards not matching the active label filter.
                                     opacity: (root.labelFilter === ""
                                               || cardData.labels.indexOf(root.labelFilter) !== -1)
@@ -368,11 +381,18 @@ Item {
                                         anchors.fill: parent
                                         enabled: !cardDrag.active
                                         onDropped: function(drop) {
+                                            // See the column onDropped above:
+                                            // drop.source is the dragged card,
+                                            // typed QQuickItem, so its own
+                                            // cardColIndex/cardIndex are opaque
+                                            // to the linter.
+                                            // qmllint disable missing-property
                                             if (!drop.source || drop.source.cardColIndex === undefined) return
-                                            root.writeBoard(kanbanTools.moveCard(root.content,
+                                            root.writeBoard(KanbanTools.moveCard(root.content,
                                                 drop.source.cardColIndex, drop.source.cardIndex,
                                                 cardItem.cardColIndex, cardItem.cardIndex))
                                             drop.accept()
+                                            // qmllint enable missing-property
                                         }
                                     }
 
@@ -388,13 +408,13 @@ Item {
                                             Rectangle {
                                                 width: 14; height: 14; radius: 3
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                color: cardItem.cardData.done ? theme.accent : "transparent"
-                                                border.color: cardItem.cardData.done ? theme.accent : theme.borderStrong
+                                                color: cardItem.cardData.done ? Theme.accent : "transparent"
+                                                border.color: cardItem.cardData.done ? Theme.accent : Theme.borderStrong
                                                 border.width: 1.5
                                                 Text { anchors.centerIn: parent; visible: cardItem.cardData.done
-                                                    text: "✓"; color: theme.onAccent; font.pixelSize: 9 }
+                                                    text: "✓"; color: Theme.onAccent; font.pixelSize: 9 }
                                                 TapHandler {
-                                                    onTapped: root.writeBoard(kanbanTools.toggleCardDone(
+                                                    onTapped: root.writeBoard(KanbanTools.toggleCardDone(
                                                         root.content, cardItem.cardColIndex, cardItem.cardIndex))
                                                 }
                                             }
@@ -404,7 +424,7 @@ Item {
                                                 wrapMode: Text.Wrap
                                                 font.pixelSize: 12
                                                 font.strikeout: cardItem.cardData.done
-                                                color: cardItem.cardData.done ? theme.textFaint : theme.textPrimary
+                                                color: cardItem.cardData.done ? Theme.textFaint : Theme.textPrimary
                                             }
                                         }
                                         // Labels + due date row.
@@ -416,19 +436,20 @@ Item {
                                             Repeater {
                                                 model: cardItem.cardData.labels
                                                 delegate: Rectangle {
+                                                    id: cardLabelChip
                                                     required property var modelData
                                                     height: 16; radius: 8
                                                     width: lblT.implicitWidth + 12
                                                     color: Qt.alpha(root.labelColor(modelData), 0.2)
                                                     Text { id: lblT; anchors.centerIn: parent
-                                                        text: "#" + modelData; font.pixelSize: 9
-                                                        color: root.labelColor(modelData) }
+                                                        text: "#" + cardLabelChip.modelData; font.pixelSize: 9
+                                                        color: root.labelColor(cardLabelChip.modelData) }
                                                 }
                                             }
                                             Text {
                                                 visible: cardItem.cardData.due !== ""
                                                 text: "◷ " + cardItem.cardData.due
-                                                font.pixelSize: 9; color: theme.textMuted
+                                                font.pixelSize: 9; color: Theme.textMuted
                                             }
                                         }
                                     }
@@ -446,10 +467,10 @@ Item {
                 // Add-column affordance.
                 Rectangle {
                     width: 120; height: 40; radius: 6
-                    color: "transparent"; border.width: 1; border.color: theme.border
-                    Text { anchors.centerIn: parent; text: "+ Column"; color: theme.textMuted; font.pixelSize: 12 }
+                    color: "transparent"; border.width: 1; border.color: Theme.border
+                    Text { anchors.centerIn: parent; text: "+ Column"; color: Theme.textMuted; font.pixelSize: 12 }
                     TapHandler {
-                        onTapped: root.writeBoard(kanbanTools.addColumn(root.content, "New column"))
+                        onTapped: root.writeBoard(KanbanTools.addColumn(root.content, "New column"))
                     }
                 }
             }
@@ -467,7 +488,7 @@ Item {
         padding: 12
         property int col: -1
         property int idx: -1
-        background: Rectangle { color: theme.popupBackground; border.color: theme.borderStrong; border.width: 1; radius: 8 }
+        background: Rectangle { color: Theme.popupBackground; border.color: Theme.borderStrong; border.width: 1; radius: 8 }
         function openFor(c, i) {
             col = c; idx = i
             var card = root.columns[c].cards[i]
@@ -480,7 +501,7 @@ Item {
         }
         function save() {
             var labels = labelsField.text.split(",").map(function(s){return s.trim()}).filter(function(s){return s.length})
-            root.writeBoard(kanbanTools.setCard(root.content, col, idx,
+            root.writeBoard(KanbanTools.setCard(root.content, col, idx,
                 titleField.text.trim(), doneBox.checked, labels, dueField.text.trim(), descField.text.trim()))
             close()
         }
@@ -490,29 +511,30 @@ Item {
         // reach), as one undo step.
         function moveToColumn(targetCol) {
             var destCount = root.columns[targetCol].cards.length
-            root.writeBoard(kanbanTools.moveCard(root.content, col, idx, targetCol, destCount))
+            root.writeBoard(KanbanTools.moveCard(root.content, col, idx, targetCol, destCount))
             close()
         }
         contentItem: Column {
             spacing: 6
-            Text { text: qsTr("Edit card"); font.bold: true; color: theme.textPrimary }
+            Text { text: qsTr("Edit card"); font.bold: true; color: Theme.textPrimary }
             TextField { id: titleField; width: parent.width; placeholderText: qsTr("Title") }
             CheckBox { id: doneBox; text: qsTr("Done") }
             TextField { id: labelsField; width: parent.width; placeholderText: qsTr("Labels (comma separated)") }
             TextField { id: dueField; width: parent.width; placeholderText: qsTr("Due date (YYYY-MM-DD)") }
             TextArea { id: descField; width: parent.width; placeholderText: qsTr("Description")
-                background: Rectangle { border.color: theme.border; border.width: 1; radius: 3 } }
-            Text { text: qsTr("Move to column"); font.pixelSize: 11; color: theme.textMuted }
+                background: Rectangle { border.color: Theme.border; border.width: 1; radius: 3 } }
+            Text { text: qsTr("Move to column"); font.pixelSize: 11; color: Theme.textMuted }
             Flow {
                 width: parent.width
                 spacing: 4
                 Repeater {
                     model: root.columns.length
                     delegate: Button {
+                        id: moveToButton
                         required property int index
                         objectName: "kanbanMoveTo"
-                        enabled: index !== cardEditor.col
-                        text: root.columns[index].name
+                        enabled: moveToButton.index !== cardEditor.col
+                        text: root.columns[moveToButton.index].name
                         onClicked: cardEditor.moveToColumn(index)
                     }
                 }
@@ -521,7 +543,7 @@ Item {
                 spacing: 6
                 Button { text: qsTr("Save"); onClicked: cardEditor.save() }
                 Button { text: qsTr("Delete card"); onClicked: {
-                    root.writeBoard(kanbanTools.removeCard(root.content, cardEditor.col, cardEditor.idx))
+                    root.writeBoard(KanbanTools.removeCard(root.content, cardEditor.col, cardEditor.idx))
                     cardEditor.close() } }
                 Button { text: qsTr("Cancel"); onClicked: cardEditor.close() }
             }
@@ -539,11 +561,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
@@ -556,7 +578,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Column { anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } } }
         MouseArea {
             id: kbHandle
             objectName: "dragHandle"
@@ -566,23 +588,20 @@ Item {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = kbHandle.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
-                } else { win.blockDrag.update(sp.x, sp.y) }
+                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
+                } else { root.shell.blockDrag.update(sp.x, sp.y) }
             }
             onReleased: {
-                var win = Window.window
-                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
-            onCanceled: { if (dragging) { dragging = false; var win = Window.window
-                if (win && win.blockDrag) win.blockDrag.cancel() } }
+            onCanceled: { if (dragging) { dragging = false;                if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() } }
         }
     }
 }

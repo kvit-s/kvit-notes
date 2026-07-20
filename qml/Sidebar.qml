@@ -1,18 +1,25 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Delegates and their nested rows are separate scopes throughout this
+// file — the folder tree, the tag list, the recent searches and two
+// colour palettes. Binding them means each delegate declares the model
+// roles it reads and its contents address them through its id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The navigation sidebar: scopes, the folder tree, and the tag list.
-// Functional Fusion styling only. All state lives in noteCollection /
-// noteListModel; this pane renders and forwards.
+// Functional Fusion styling only. All state lives in NoteCollection /
+// NoteListModel; this pane renders and forwards.
 Rectangle {
     id: sidebar
     objectName: "sidebar"
 
-    color: theme.panelBackground
+    color: Theme.panelBackground
 
     // Wired by main.qml (the collapse control writes layout state).
     property var appWindow
@@ -30,7 +37,7 @@ Rectangle {
             return ""
         var idx = folderTreeView.indexAt(
             pos.x, pos.y + folderTreeView.contentY)
-        return idx < 0 ? "" : folderTreeModel.relPathAt(idx)
+        return idx < 0 ? "" : FolderTreeModel.relPathAt(idx)
     }
 
     function setDropHover(sceneX, sceneY) {
@@ -49,7 +56,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 1
-        color: theme.border
+        color: Theme.border
     }
 
     // Recent searches (features.md §8.4), persisted through the settings
@@ -57,7 +64,7 @@ Rectangle {
     property var recentSearches: []
 
     function applyPersistedSearchHistory() {
-        recentSearches = appSettings.value("search.recent", [])
+        recentSearches = AppSettings.value("search.recent", [])
     }
 
     function commitRecentSearch(query) {
@@ -67,7 +74,7 @@ Rectangle {
         var list = recentSearches.filter(function(item) { return item !== q })
         list.unshift(q)
         recentSearches = list.slice(0, 6)
-        appSettings.setValue("search.recent", recentSearches)
+        AppSettings.setValue("search.recent", recentSearches)
     }
 
     function focusSearch() {
@@ -95,17 +102,17 @@ Rectangle {
             implicitHeight: 26
             font.pixelSize: 11
             placeholderText: qsTr("Search all notes")
-            onTextEdited: collectionSearch.query = text
+            onTextEdited: CollectionSearch.query = text
             onAccepted: {
                 // Enter runs the current query immediately, bypassing the
                 // debounce.
-                collectionSearch.query = text
-                collectionSearch.submitNow()
+                CollectionSearch.query = text
+                CollectionSearch.submitNow()
                 sidebar.commitRecentSearch(text)
             }
             Keys.onEscapePressed: {
                 text = ""
-                collectionSearch.query = ""
+                CollectionSearch.query = ""
             }
         }
 
@@ -123,24 +130,26 @@ Rectangle {
             Repeater {
                 model: sidebar.recentSearches
                 Rectangle {
+                    id: recentRow
+                    required property string modelData
                     Layout.fillWidth: true
                     height: 20
-                    color: recentHover.hovered ? theme.hoverTint : "transparent"
+                    color: recentHover.hovered ? Theme.hoverTint : "transparent"
                     HoverHandler { id: recentHover }
                     Label {
                         anchors.fill: parent
                         anchors.leftMargin: 6
                         verticalAlignment: Text.AlignVCenter
-                        text: "↺ " + modelData
+                        text: "↺ " + recentRow.modelData
                         font.pixelSize: 11
-                        color: theme.textMuted
+                        color: Theme.textMuted
                         elide: Text.ElideRight
                     }
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            globalSearchField.text = modelData
-                            collectionSearch.query = modelData
+                            globalSearchField.text = recentRow.modelData
+                            CollectionSearch.query = recentRow.modelData
                         }
                     }
                 }
@@ -157,7 +166,7 @@ Rectangle {
                 text: qsTr("Notes")
                 font.pixelSize: 13
                 font.bold: true
-                color: theme.textSecondary
+                color: Theme.textSecondary
                 Layout.fillWidth: true
             }
             ToolButton {
@@ -188,7 +197,7 @@ Rectangle {
             objectName: "allNotesRow"
             Layout.fillWidth: true
             height: 28
-            color: noteListModel.scope === "all" ? theme.selectionTint : "transparent"
+            color: NoteListModel.scope === "all" ? Theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
@@ -200,15 +209,15 @@ Rectangle {
                     Layout.fillWidth: true
                 }
                 Label {
-                    text: noteCollection.revision >= 0
-                          ? noteCollection.noteCountInFolder("", true) : 0
+                    text: NoteCollection.revision >= 0
+                          ? NoteCollection.noteCountInFolder("", true) : 0
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                 }
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: noteListModel.scope = "all"
+                onClicked: NoteListModel.scope = "all"
             }
         }
 
@@ -217,7 +226,7 @@ Rectangle {
             objectName: "favoritesRow"
             Layout.fillWidth: true
             height: 28
-            color: noteListModel.scope === "favorites" ? theme.selectionTint : "transparent"
+            color: NoteListModel.scope === "favorites" ? Theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
@@ -231,7 +240,7 @@ Rectangle {
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: noteListModel.scope = "favorites"
+                onClicked: NoteListModel.scope = "favorites"
             }
         }
 
@@ -240,7 +249,7 @@ Rectangle {
             text: qsTr("Folders")
             font.pixelSize: 10
             font.bold: true
-            color: theme.textFaint
+            color: Theme.textFaint
             Layout.leftMargin: 12
             Layout.topMargin: 10
             Layout.bottomMargin: 2
@@ -252,20 +261,30 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: folderTreeModel
+            model: FolderTreeModel
 
             delegate: Rectangle {
                 id: folderRow
+                // FolderTreeModel's roles, declared rather than injected, so
+                // the nested Row and its handlers read them through the row.
+                required property string relPath
+                required property string name
+                required property int depth
+                required property bool expanded
+                required property bool hasChildren
+                required property string folderColor
+                required property int noteCount
+                required property int index
                 width: folderTreeView.width
                 height: 28
                 color: {
                     if (sidebar.dropTargetActive
-                        && sidebar.dropTargetFolder === model.relPath)
-                        return theme.selectionActiveTint
-                    if (noteListModel.scope === "folder"
-                        && noteListModel.folderPath === model.relPath)
-                        return theme.selectionTint
-                    return rowHover.hovered ? theme.hoverTint : "transparent"
+                        && sidebar.dropTargetFolder === folderRow.relPath)
+                        return Theme.selectionActiveTint
+                    if (NoteListModel.scope === "folder"
+                        && NoteListModel.folderPath === folderRow.relPath)
+                        return Theme.selectionTint
+                    return rowHover.hovered ? Theme.hoverTint : "transparent"
                 }
 
                 HoverHandler { id: rowHover }
@@ -273,39 +292,39 @@ Rectangle {
             TapHandler {
                 acceptedButtons: Qt.RightButton
                 onTapped: folderContextMenu.openFor(
-                    model.relPath, model.name, model.folderColor)
+                    folderRow.relPath, folderRow.name, folderRow.folderColor)
             }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 8 + model.depth * 14
+                    anchors.leftMargin: 8 + folderRow.depth * 14
                     anchors.rightMargin: 6
                     spacing: 4
 
                     // Chevron: expand/collapse (§8.1)
                     Text {
-                        text: model.expanded ? "▾" : "▸"
+                        text: folderRow.expanded ? "▾" : "▸"
                         font.pixelSize: 10
-                        color: theme.textMuted
-                        visible: model.hasChildren
+                        color: Theme.textMuted
+                        visible: folderRow.hasChildren
                         width: 10
                         TapHandler {
-                            onTapped: folderTreeModel.toggleExpanded(index)
+                            onTapped: FolderTreeModel.toggleExpanded(folderRow.index)
                         }
                     }
-                    Item { width: 10; visible: !model.hasChildren }
+                    Item { width: 10; visible: !folderRow.hasChildren }
 
                     // Folder glyph, tinted by the folder color (§8.1)
                     Rectangle {
                         width: 10
                         height: 8
                         radius: 2
-                        color: model.folderColor !== ""
-                               ? model.folderColor : theme.mutedGlyph
+                        color: folderRow.folderColor !== ""
+                               ? folderRow.folderColor : Theme.mutedGlyph
                     }
 
                     Label {
-                        text: model.name
+                        text: folderRow.name
                         font.pixelSize: 12
                         elide: Text.ElideRight
                         Layout.fillWidth: true
@@ -320,8 +339,8 @@ Rectangle {
                         implicitWidth: 20
                         implicitHeight: 22
                         onClicked: folderDialog.openForRename(
-                                       model.relPath, model.name,
-                                       model.folderColor)
+                                       folderRow.relPath, folderRow.name,
+                                       folderRow.folderColor)
                     }
                     ToolButton {
                         objectName: "folderNewChildButton"
@@ -330,7 +349,7 @@ Rectangle {
                         font.pixelSize: 11
                         implicitWidth: 20
                         implicitHeight: 22
-                        onClicked: folderDialog.openForCreate(model.relPath)
+                        onClicked: folderDialog.openForCreate(folderRow.relPath)
                     }
                     ToolButton {
                         objectName: "folderDeleteButton"
@@ -340,15 +359,15 @@ Rectangle {
                         implicitWidth: 20
                         implicitHeight: 22
                         onClicked: deleteFolderDialog.openFor(
-                                       model.relPath, model.name,
-                                       model.noteCount)
+                                       folderRow.relPath, folderRow.name,
+                                       folderRow.noteCount)
                     }
 
                     Label {
                         visible: !rowHover.hovered
-                        text: model.noteCount
+                        text: folderRow.noteCount
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -356,8 +375,8 @@ Rectangle {
                     anchors.fill: parent
                     z: -1
                     onClicked: {
-                        noteListModel.folderPath = model.relPath
-                        noteListModel.scope = "folder"
+                        NoteListModel.folderPath = folderRow.relPath
+                        NoteListModel.scope = "folder"
                     }
                 }
             }
@@ -368,7 +387,7 @@ Rectangle {
             text: qsTr("Tags")
             font.pixelSize: 10
             font.bold: true
-            color: theme.textFaint
+            color: Theme.textFaint
             Layout.leftMargin: 12
             Layout.topMargin: 6
             Layout.bottomMargin: 2
@@ -387,23 +406,25 @@ Rectangle {
 
             // Array-of-maps model, live under the collection revision.
             model: {
-                var revision = noteCollection.revision
-                return noteCollection.isOpen ? noteCollection.tagListing() : []
+                var revision = NoteCollection.revision
+                return NoteCollection.isOpen ? NoteCollection.tagListing() : []
             }
 
             delegate: Rectangle {
+                id: tagRow
+                required property var modelData
                 width: tagListView.width
                 height: 24
-                color: noteListModel.tagFilter === modelData.name
-                       ? theme.selectionTint
-                       : (tagHover.hovered ? theme.hoverTint : "transparent")
+                color: NoteListModel.tagFilter === tagRow.modelData.name
+                       ? Theme.selectionTint
+                       : (tagHover.hovered ? Theme.hoverTint : "transparent")
 
                 HoverHandler { id: tagHover }
             // §9.5 tag context menu.
             TapHandler {
                 acceptedButtons: Qt.RightButton
                 onTapped: tagContextMenu.openFor(
-                    modelData.name, modelData.color, modelData.count)
+                    tagRow.modelData.name, tagRow.modelData.color, tagRow.modelData.count)
             }
 
                 RowLayout {
@@ -416,11 +437,11 @@ Rectangle {
                         width: 8
                         height: 8
                         radius: 4
-                        color: modelData.color !== "" ? modelData.color
-                                                      : theme.mutedGlyph
+                        color: tagRow.modelData.color !== "" ? tagRow.modelData.color
+                                                      : Theme.mutedGlyph
                     }
                     Label {
-                        text: modelData.name
+                        text: tagRow.modelData.name
                         font.pixelSize: 12
                         elide: Text.ElideRight
                         Layout.fillWidth: true
@@ -432,8 +453,8 @@ Rectangle {
                         font.pixelSize: 10
                         implicitWidth: 20
                         implicitHeight: 20
-                        onClicked: tagDialog.openFor(modelData.name,
-                                                     modelData.color)
+                        onClicked: tagDialog.openFor(tagRow.modelData.name,
+                                                     tagRow.modelData.color)
                     }
                     ToolButton {
                         objectName: "tagDeleteButton"
@@ -442,14 +463,14 @@ Rectangle {
                         font.pixelSize: 10
                         implicitWidth: 20
                         implicitHeight: 20
-                        onClicked: deleteTagDialog.openFor(modelData.name,
-                                                           modelData.count)
+                        onClicked: deleteTagDialog.openFor(tagRow.modelData.name,
+                                                           tagRow.modelData.count)
                     }
                     Label {
                         visible: !tagHover.hovered
-                        text: modelData.count
+                        text: tagRow.modelData.count
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -457,9 +478,9 @@ Rectangle {
                     anchors.fill: parent
                     z: -1
                     // Toggle: clicking the active tag clears the filter.
-                    onClicked: noteListModel.tagFilter =
-                        noteListModel.tagFilter === modelData.name
-                            ? "" : modelData.name
+                    onClicked: NoteListModel.tagFilter =
+                        NoteListModel.tagFilter === tagRow.modelData.name
+                            ? "" : tagRow.modelData.name
                 }
             }
         }
@@ -467,15 +488,16 @@ Rectangle {
         // ---- Trash: item count and the empty action, behind a
         // count-naming confirmation. --------------------------------
         Rectangle {
+            id: trashRow
             objectName: "trashRow"
             Layout.fillWidth: true
             height: 26
-            color: trashHover.hovered ? theme.hoverTint : "transparent"
+            color: trashHover.hovered ? Theme.hoverTint : "transparent"
 
             readonly property int trashCount: {
-                var revision = noteCollection.revision
-                return noteCollection.isOpen
-                    ? noteCollection.trashItemCount() : 0
+                var revision = NoteCollection.revision
+                return NoteCollection.isOpen
+                    ? NoteCollection.trashItemCount() : 0
             }
 
             HoverHandler { id: trashHover }
@@ -486,14 +508,14 @@ Rectangle {
                 Label {
                     text: qsTr("Trash")
                     font.pixelSize: 11
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Label {
                     objectName: "trashCountLabel"
-                    text: parent.parent.trashCount
+                    text: trashRow.trashCount
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                 }
             }
             TapHandler {
@@ -509,10 +531,10 @@ Rectangle {
         MenuItem {
             objectName: "emptyTrashItem"
             text: qsTr("Empty trash…")
-            enabled: noteCollection.isOpen
-                     && noteCollection.trashItemCount() > 0
+            enabled: NoteCollection.isOpen
+                     && NoteCollection.trashItemCount() > 0
             onTriggered: emptyTrashDialog.openFor(
-                noteCollection.trashItemCount())
+                NoteCollection.trashItemCount())
         }
     }
 
@@ -532,7 +554,7 @@ Rectangle {
                 + "This cannot be undone.").arg(count)
             open()
         }
-        onAccepted: noteCollection.emptyTrash()
+        onAccepted: NoteCollection.emptyTrash()
 
         Label {
             id: emptyTrashText
@@ -561,7 +583,7 @@ Rectangle {
             objectName: "ctxFolderNewNote"
             text: qsTr("New note")
             onTriggered: {
-                var created = noteCollection.createNote(
+                var created = NoteCollection.createNote(
                     folderContextMenu.relPath, "")
                 if (created !== "" && sidebar.appWindow)
                     sidebar.appWindow.openNoteByPath(created)
@@ -584,7 +606,7 @@ Rectangle {
             text: qsTr("Delete…")
             onTriggered: deleteFolderDialog.openFor(
                 folderContextMenu.relPath, folderContextMenu.folderName,
-                noteCollection.noteCountInFolder(
+                NoteCollection.noteCountInFolder(
                     folderContextMenu.relPath, true))
         }
     }
@@ -633,7 +655,7 @@ Rectangle {
 
         // "" first = default gray; the rest is a small fixed palette
         // (features.md §8.1 folder colors).
-        readonly property var palette: [""].concat(theme.colorPalette)
+        readonly property var palette: [""].concat(Theme.colorPalette)
 
         function openForCreate(parentPath) {
             mode = "create"
@@ -657,15 +679,15 @@ Rectangle {
         onAccepted: {
             var name = folderNameField.text
             if (mode === "create") {
-                var created = noteCollection.createFolder(targetPath, name)
+                var created = NoteCollection.createFolder(targetPath, name)
                 if (created !== "" && selectedColor !== "")
-                    noteCollection.setFolderColor(created, selectedColor)
+                    NoteCollection.setFolderColor(created, selectedColor)
             } else {
                 var color = selectedColor
                 var oldPath = targetPath
                 sidebar.appWindow.requestFolderRename(
                     oldPath, name, function(result) {
-                        noteCollection.setFolderColor(result.newPath, color)
+                        NoteCollection.setFolderColor(result.newPath, color)
                     })
             }
         }
@@ -684,14 +706,16 @@ Rectangle {
                 Repeater {
                     model: folderDialog.palette
                     Rectangle {
+                        id: folderSwatch
+                        required property string modelData
                         width: 20
                         height: 20
                         radius: 10
-                        color: modelData === "" ? theme.mutedGlyph : modelData
-                        border.width: folderDialog.selectedColor === modelData ? 2 : 0
-                        border.color: theme.textPrimary
+                        color: folderSwatch.modelData === "" ? Theme.mutedGlyph : folderSwatch.modelData
+                        border.width: folderDialog.selectedColor === folderSwatch.modelData ? 2 : 0
+                        border.color: Theme.textPrimary
                         TapHandler {
-                            onTapped: folderDialog.selectedColor = modelData
+                            onTapped: folderDialog.selectedColor = folderSwatch.modelData
                         }
                     }
                 }
@@ -715,7 +739,7 @@ Rectangle {
         property string originalName: ""
         property string selectedColor: ""
 
-        readonly property var palette: theme.colorPalette
+        readonly property var palette: Theme.colorPalette
 
         function openFor(name, color) {
             originalName = name
@@ -731,17 +755,17 @@ Rectangle {
             if (newName === "")
                 return
             if (newName !== originalName
-                && noteCollection.tagCount(newName) > 0) {
+                && NoteCollection.tagCount(newName) > 0) {
                 // Renaming onto an existing tag is a merge — confirm with
                 // the blast radius before touching files.
                 mergeTagDialog.openFor(originalName, newName)
                 return
             }
             if (newName !== originalName)
-                noteCollection.renameTag(originalName, newName)
-            noteCollection.setTagColor(newName, selectedColor)
-            if (noteListModel.tagFilter === originalName)
-                noteListModel.tagFilter = newName
+                NoteCollection.renameTag(originalName, newName)
+            NoteCollection.setTagColor(newName, selectedColor)
+            if (NoteListModel.tagFilter === originalName)
+                NoteListModel.tagFilter = newName
         }
 
         contentItem: ColumnLayout {
@@ -757,14 +781,16 @@ Rectangle {
                 Repeater {
                     model: tagDialog.palette
                     Rectangle {
+                        id: tagSwatch
+                        required property string modelData
                         width: 20
                         height: 20
                         radius: 10
-                        color: modelData
-                        border.width: tagDialog.selectedColor === modelData ? 2 : 0
-                        border.color: theme.textPrimary
+                        color: tagSwatch.modelData
+                        border.width: tagDialog.selectedColor === tagSwatch.modelData ? 2 : 0
+                        border.color: Theme.textPrimary
                         TapHandler {
-                            onTapped: tagDialog.selectedColor = modelData
+                            onTapped: tagDialog.selectedColor = tagSwatch.modelData
                         }
                     }
                 }
@@ -792,14 +818,14 @@ Rectangle {
             mergeText.text = qsTr(
                 "Merge \"%1\" into \"%2\"? %3 note(s) will be retagged.")
                 .arg(from).arg(into)
-                .arg(noteCollection.tagCount(from))
+                .arg(NoteCollection.tagCount(from))
             open()
         }
 
         onAccepted: {
-            noteCollection.renameTag(fromName, intoName)
-            if (noteListModel.tagFilter === fromName)
-                noteListModel.tagFilter = intoName
+            NoteCollection.renameTag(fromName, intoName)
+            if (NoteListModel.tagFilter === fromName)
+                NoteListModel.tagFilter = intoName
         }
 
         contentItem: Label {
@@ -833,9 +859,9 @@ Rectangle {
         }
 
         onAccepted: {
-            noteCollection.deleteTag(targetName)
-            if (noteListModel.tagFilter === targetName)
-                noteListModel.tagFilter = ""
+            NoteCollection.deleteTag(targetName)
+            if (NoteListModel.tagFilter === targetName)
+                NoteListModel.tagFilter = ""
         }
 
         contentItem: Label {
@@ -872,11 +898,11 @@ Rectangle {
         }
 
         onAccepted: {
-            if (noteListModel.scope === "folder"
-                && (noteListModel.folderPath === targetPath
-                    || noteListModel.folderPath.startsWith(targetPath + "/")))
-                noteListModel.scope = "all"
-            noteCollection.deleteFolder(targetPath)
+            if (NoteListModel.scope === "folder"
+                && (NoteListModel.folderPath === targetPath
+                    || NoteListModel.folderPath.startsWith(targetPath + "/")))
+                NoteListModel.scope = "all"
+            NoteCollection.deleteFolder(targetPath)
         }
 
         contentItem: Label {

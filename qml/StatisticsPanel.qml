@@ -1,13 +1,19 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The stats rows are a Repeater delegate whose Texts are separate
+// scopes, and a few visibility bindings read the popup's own
+// appWindow property from nested scopes. Binding resolves both.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // Document statistics popover (features.md §19.1): the six
 // counts and reading time for the document (and the selection when one is
-// active), plus the session word delta. Reads documentStats live behind a
+// active), plus the session word delta. Reads DocumentStats live behind a
 // 200 ms coalescing timer while open — off the keystroke path — mirroring the
 // status bar's counting discipline.
 Popup {
@@ -31,37 +37,37 @@ Popup {
             ? targetBlock.selectedDisplayText : ""
 
     function recompute() {
-        docStats = documentStats.documentStats()
+        docStats = DocumentStats.documentStats()
         // Selection stats: a block selection, cross-block text range, or an
         // in-block selection, assembled as display text like the status bar.
         var selText = statsPopup.selectionText()
         selStats = selText === null ? null
-                                    : documentStats.statsForText(selText)
+                                    : DocumentStats.statsForText(selText)
     }
 
     // The selected text as DISPLAY text (markers stripped), or null when
-    // nothing is selected — the same representation documentStats counts.
+    // nothing is selected — the same representation DocumentStats counts.
     function selectionText() {
-        if (documentSelection.hasBlockSelection) {
-            var idx = documentSelection.selectedIndexes()
+        if (DocumentSelection.hasBlockSelection) {
+            var idx = DocumentSelection.selectedIndexes()
             var parts = []
             for (var i = 0; i < idx.length; i++)
-                parts.push(blockModel.displayTextAt(idx[i]))
+                parts.push(BlockModel.displayTextAt(idx[i]))
             return parts.join("\n")
         }
-        if (documentSelection.hasTextSelection) {
+        if (DocumentSelection.hasTextSelection) {
             // A cross-block text range: partial edge blocks contribute their
             // covered slice; counting the raw slice is close enough for a
             // selection readout (whole-block portions strip markers).
-            var range = documentSelection.orderedTextRange()
+            var range = DocumentSelection.orderedTextRange()
             var out = []
             for (var b = range.startIndex; b <= range.endIndex; b++) {
-                var content = blockModel.getContent(b)
+                var content = BlockModel.getContent(b)
                 var from = b === range.startIndex ? range.startPos : 0
                 var to = b === range.endIndex ? range.endPos : content.length
                 var slice = content.substring(from, to)
                 out.push((from === 0 && to === content.length)
-                    ? blockModel.displayTextAt(b) : slice)
+                    ? BlockModel.displayTextAt(b) : slice)
             }
             return out.join("\n")
         }
@@ -87,19 +93,19 @@ Popup {
         onTriggered: statsPopup.recompute()
     }
     Connections {
-        target: blockModel
+        target: BlockModel
         function onDataChanged() { statsPopup.scheduleRecompute() }
         function onCountChanged() { statsPopup.scheduleRecompute() }
         function onDocumentCountsChanged() { statsPopup.scheduleRecompute() }
     }
     Connections {
-        target: documentSelection
+        target: DocumentSelection
         function onRevisionChanged() { statsPopup.scheduleRecompute() }
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -118,10 +124,10 @@ Popup {
                 text: statsPopup.selStats ? qsTr("Selection") : qsTr("Document")
                 font.pixelSize: 12
                 font.bold: true
-                color: theme.textSecondary
+                color: Theme.textSecondary
             }
         }
-        Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border }
 
         // The active stat set: selection when present, else document.
         Repeater {
@@ -144,6 +150,7 @@ Popup {
                 return rows
             }
             RowLayout {
+                id: statRow
                 required property var modelData
                 Layout.fillWidth: true
                 Layout.leftMargin: 12
@@ -151,27 +158,27 @@ Popup {
                 Layout.topMargin: 5
                 Layout.bottomMargin: 5
                 Text {
-                    text: modelData.k
+                    text: statRow.modelData.k
                     font.pixelSize: 12
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Text {
-                    text: modelData.v
+                    text: statRow.modelData.v
                     font.pixelSize: 12
                     font.bold: true
-                    color: theme.textPrimary
+                    color: Theme.textPrimary
                 }
             }
         }
 
         Rectangle {
-            Layout.fillWidth: true; height: 1; color: theme.border
-            visible: appWindow && appWindow.collectionOpen
+            Layout.fillWidth: true; height: 1; color: Theme.border
+            visible: statsPopup.appWindow && statsPopup.appWindow.collectionOpen
         }
         // Session tracker (ephemeral): words added since the note opened.
         RowLayout {
-            visible: appWindow && appWindow.collectionOpen
+            visible: statsPopup.appWindow && statsPopup.appWindow.collectionOpen
             Layout.fillWidth: true
             Layout.leftMargin: 12
             Layout.rightMargin: 12
@@ -180,17 +187,19 @@ Popup {
             Text {
                 text: qsTr("This session")
                 font.pixelSize: 12
-                color: theme.textMuted
+                color: Theme.textMuted
                 Layout.fillWidth: true
             }
             Text {
-                property int delta: appWindow
-                    ? (statsPopup.docStats.words || 0) - appWindow.sessionStartWords
+                id: sessionDelta
+                property int delta: statsPopup.appWindow
+                    ? (statsPopup.docStats.words || 0)
+                      - statsPopup.appWindow.sessionStartWords
                     : 0
-                text: (delta >= 0 ? "+" : "") + delta
+                text: (sessionDelta.delta >= 0 ? "+" : "") + sessionDelta.delta
                 font.pixelSize: 12
                 font.bold: true
-                color: delta >= 0 ? theme.success : theme.textMuted
+                color: sessionDelta.delta >= 0 ? Theme.success : Theme.textMuted
             }
         }
     }

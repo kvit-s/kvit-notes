@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import Kvit 1.0
 
 // Import dialog (features.md §12.6): bring markdown/text
 // files or a whole folder tree into the collection. A dry-run summary ("N
@@ -28,8 +29,8 @@ Dialog {
     property string pendingDir: ""
 
     function targetFolder() {
-        return noteListModel && noteListModel.scope === "folder"
-            ? noteListModel.folderPath : ""
+        return NoteListModel && NoteListModel.scope === "folder"
+            ? NoteListModel.folderPath : ""
     }
 
     function openDialog() {
@@ -38,8 +39,8 @@ Dialog {
 
     function showSummary() {
         var dry = pendingKind === "files"
-            ? documentImporter.dryRunFiles(pendingPaths, targetFolder())
-            : documentImporter.dryRunFolder(pendingDir, targetFolder())
+            ? DocumentImporter.dryRunFiles(pendingPaths, targetFolder())
+            : DocumentImporter.dryRunFolder(pendingDir, targetFolder())
         var msg = qsTr("Import ") + dry.files + qsTr(" file(s)")
         if (pendingKind === "folder" && dry.folders > 0)
             msg += qsTr(" in ") + dry.folders + qsTr(" folder(s)")
@@ -54,8 +55,8 @@ Dialog {
 
     function performImport() {
         var n = pendingKind === "files"
-            ? documentImporter.importFiles(pendingPaths, targetFolder())
-            : documentImporter.importFolder(pendingDir, targetFolder())
+            ? DocumentImporter.importFiles(pendingPaths, targetFolder())
+            : DocumentImporter.importFolder(pendingDir, targetFolder())
         if (appWindow)
             appWindow.showTransientStatus(
                 n > 0 ? (qsTr("Imported ") + n + qsTr(" note(s)"))

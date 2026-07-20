@@ -1,9 +1,14 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The BarButton component's background is a separate scope, and several
+// bindings read ids declared outside it. Binding resolves both.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The toolbar (features.md §9.2): a block type dropdown, formatting
 // toggles reflecting the caret's span membership, an insert menu over
@@ -18,13 +23,13 @@ Rectangle {
     property var listView
 
     height: visible ? 36 : 0
-    color: theme.footerBackground
+    color: Theme.footerBackground
 
     Rectangle { // bottom edge
         anchors.bottom: parent.bottom
         width: parent.width
         height: 1
-        color: theme.border
+        color: Theme.border
     }
 
     // ---- §9.2 customization: group visibility, persisted ----------
@@ -34,25 +39,25 @@ Rectangle {
     property bool showViewGroup: true
 
     function applyPersistedCustomization() {
-        showBlockGroup = appSettings.value("toolbar.showBlockType", true)
-        showFormatGroup = appSettings.value("toolbar.showFormatting", true)
-        showInsertGroup = appSettings.value("toolbar.showInsert", true)
-        showViewGroup = appSettings.value("toolbar.showView", true)
+        showBlockGroup = AppSettings.value("toolbar.showBlockType", true)
+        showFormatGroup = AppSettings.value("toolbar.showFormatting", true)
+        showInsertGroup = AppSettings.value("toolbar.showInsert", true)
+        showViewGroup = AppSettings.value("toolbar.showView", true)
     }
     Component.onCompleted: applyPersistedCustomization()
 
     function setGroupVisible(key, prop, value) {
         toolbar[prop] = value
-        appSettings.setValue(key, value)
+        AppSettings.setValue(key, value)
     }
 
     // ---- The caret's block and formatting state --------------------
     readonly property var targetBlock: {
-        var focusDep = appWindow ? appWindow.activeFocusItem : null
-        var indexDep = appWindow ? appWindow.lastFocusedBlock : 0
-        if (!appWindow || !listView)
+        var focusDep = toolbar.appWindow ? toolbar.appWindow.activeFocusItem : null
+        var indexDep = toolbar.appWindow ? toolbar.appWindow.lastFocusedBlock : 0
+        if (!toolbar.appWindow || !listView)
             return null
-        var item = listView.itemAtIndex(appWindow.lastFocusedBlock)
+        var item = listView.itemAtIndex(toolbar.appWindow.lastFocusedBlock)
         return (item && item.isFocused) ? item : null
     }
     readonly property int caretFlags:
@@ -65,7 +70,7 @@ Rectangle {
         targetBlock !== null
         && targetBlock.toggleSpanType !== undefined
         && !targetBlock.verbatimEditing
-        && !documentSelection.hasTextSelection
+        && !DocumentSelection.hasTextSelection
     readonly property bool canConvert:
         targetBlock !== null && targetBlock.convertBlockType !== undefined
 
@@ -94,23 +99,27 @@ Rectangle {
     readonly property var typeValues: [0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 12, 9]
 
     component BarButton: ToolButton {
+        // Named so the background, its own scope, reads the button's state
+        // rather than reaching it through an untyped `parent`.
+        id: barButton
         property int flagBit: 0
         focusPolicy: Qt.NoFocus
         implicitWidth: 30
         implicitHeight: 28
         font.pixelSize: 13
         enabled: toolbar.canFormat
-        checked: flagBit !== 0 && (toolbar.caretFlags & flagBit) !== 0
+        checked: barButton.flagBit !== 0
+                 && (toolbar.caretFlags & barButton.flagBit) !== 0
         // Screen-reader name/role (§14.2): glyph buttons carry their tooltip
         // (e.g. "Bold (Ctrl+B)") as their accessible name.
         Accessible.role: Accessible.Button
-        Accessible.name: ToolTip.text !== "" ? ToolTip.text : text
-        Accessible.checkable: flagBit !== 0
-        Accessible.checked: checked
+        Accessible.name: barButton.ToolTip.text !== "" ? barButton.ToolTip.text : barButton.text
+        Accessible.checkable: barButton.flagBit !== 0
+        Accessible.checked: barButton.checked
         background: Rectangle {
             radius: 4
-            color: parent.checked ? theme.selectionTint
-                 : parent.hovered && parent.enabled ? theme.hoverTint
+            color: barButton.checked ? Theme.selectionTint
+                 : barButton.hovered && barButton.enabled ? Theme.hoverTint
                  : "transparent"
         }
     }
@@ -126,31 +135,31 @@ Rectangle {
         // the shortcuts they mirror.
         ToolButton {
             objectName: "toolbarBackButton"
-            visible: appWindow ? appWindow.collectionOpen : false
+            visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
             focusPolicy: Qt.NoFocus
             implicitWidth: 30
             implicitHeight: 28
             font.pixelSize: 14
             flat: true
             text: "←"
-            enabled: navigationHistory.canGoBack
+            enabled: NavigationHistory.canGoBack
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Back (Alt+Left)")
-            onClicked: if (appWindow) appWindow.navigateBack()
+            onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateBack()
         }
         ToolButton {
             objectName: "toolbarForwardButton"
-            visible: appWindow ? appWindow.collectionOpen : false
+            visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
             focusPolicy: Qt.NoFocus
             implicitWidth: 30
             implicitHeight: 28
             font.pixelSize: 14
             flat: true
             text: "→"
-            enabled: navigationHistory.canGoForward
+            enabled: NavigationHistory.canGoForward
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Forward (Alt+Right)")
-            onClicked: if (appWindow) appWindow.navigateForward()
+            onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateForward()
         }
 
         ComboBox {
@@ -221,15 +230,20 @@ Rectangle {
                 onClicked: toolbar.targetBlock.toggleSpanType("code")
             }
             BarButton {
+                id: highlightButton
                 objectName: "toolbarHighlightButton"
                 text: "H"; flagBit: 0x40
+                // Overrides the shared background to tint with the highlight
+                // colour, so it repeats the pattern and needs its own id.
                 background: Rectangle {
                     radius: 4
-                    color: parent.checked ? theme.highlightBackground
-                         : parent.hovered && parent.enabled ? theme.hoverTint
+                    color: highlightButton.checked ? Theme.highlightBackground
+                         : highlightButton.hovered && highlightButton.enabled
+                           ? Theme.hoverTint
                          : "transparent"
                 }
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Highlight")
+                ToolTip.visible: highlightButton.hovered
+                ToolTip.text: qsTr("Highlight")
                 onClicked: toolbar.targetBlock.toggleSpanType("highlight")
             }
             BarButton {
@@ -268,7 +282,7 @@ Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: 16; height: 3; radius: 1
                     color: (toolbar.targetBlock && toolbar.targetBlock.currentColor)
-                        ? toolbar.targetBlock.currentColor : theme.textPrimary
+                        ? toolbar.targetBlock.currentColor : Theme.textPrimary
                 }
                 ColorPicker {
                     id: toolbarColorPicker
@@ -290,6 +304,9 @@ Rectangle {
             // Alignment group (§9.2): left / center / right for paragraphs,
             // headings, and images. Disabled for any other block type.
             component AlignButton: ToolButton {
+                // Named for the same reason BarButton is: its background and
+                // accessibility bindings are separate scopes.
+                id: alignButton
                 property string alignValue: "left"
                 focusPolicy: Qt.NoFocus
                 implicitWidth: 28
@@ -298,15 +315,18 @@ Rectangle {
                 enabled: toolbar.canAlign
                 checked: toolbar.canAlign && toolbar.currentAlign === alignValue
                 Accessible.role: Accessible.Button
-                Accessible.name: ToolTip.text !== "" ? ToolTip.text : text
+                Accessible.name: alignButton.ToolTip.text !== ""
+                                 ? alignButton.ToolTip.text : alignButton.text
                 Accessible.checkable: true
-                Accessible.checked: checked
+                Accessible.checked: alignButton.checked
                 onClicked: if (toolbar.targetBlock)
-                               toolbar.targetBlock.setBlockAlignment(alignValue)
+                               toolbar.targetBlock.setBlockAlignment(
+                                   alignButton.alignValue)
                 background: Rectangle {
                     radius: 4
-                    color: parent.checked ? theme.selectionTint
-                         : parent.hovered && parent.enabled ? theme.hoverTint
+                    color: alignButton.checked ? Theme.selectionTint
+                         : alignButton.hovered && alignButton.enabled
+                           ? Theme.hoverTint
                          : "transparent"
                 }
             }
@@ -394,7 +414,7 @@ Rectangle {
             font.pixelSize: 12
             implicitHeight: 28
             onClicked: {
-                noteTemplates.seedBuiltinsIfEmpty()
+                NoteTemplates.seedBuiltinsIfEmpty()
                 templatesMenu.popup(this, 0, height)
             }
             Menu {
@@ -406,8 +426,8 @@ Rectangle {
                     title: qsTr("New from template")
                     Repeater {
                         model: {
-                            var r = noteTemplates.revision  // dependency
-                            return noteTemplates.templateNames()
+                            var r = NoteTemplates.revision  // dependency
+                            return NoteTemplates.templateNames()
                         }
                         MenuItem {
                             required property string modelData
@@ -508,10 +528,10 @@ Rectangle {
                     // from anywhere; the gutter binding in EditableBlock reads
                     // the same key.
                     checked: {
-                        var r = appSettings.revision  // dependency only
-                        return appSettings.value("view.codeLineNumbers", false) === true
+                        var r = AppSettings.revision  // dependency only
+                        return AppSettings.value("view.codeLineNumbers", false) === true
                     }
-                    onTriggered: appSettings.setValue("view.codeLineNumbers",
+                    onTriggered: AppSettings.setValue("view.codeLineNumbers",
                                                       !checked)
                 }
                 MenuItem {
@@ -521,10 +541,10 @@ Rectangle {
                     // Same reactive pattern as code line numbers; MathBlock
                     // reads the same key.
                     checked: {
-                        var r = appSettings.revision  // dependency only
-                        return appSettings.value("view.equationNumbers", false) === true
+                        var r = AppSettings.revision  // dependency only
+                        return AppSettings.value("view.equationNumbers", false) === true
                     }
-                    onTriggered: appSettings.setValue("view.equationNumbers",
+                    onTriggered: AppSettings.setValue("view.equationNumbers",
                                                       !checked)
                 }
                 MenuSeparator {}
@@ -533,13 +553,13 @@ Rectangle {
                     objectName: "viewMenuTheme"
                     title: qsTr("Theme")
                     Repeater {
-                        model: theme.availableThemes
+                        model: Theme.availableThemes
                         MenuItem {
                             required property string modelData
-                            text: theme.displayName(modelData)
+                            text: Theme.displayName(modelData)
                             checkable: true
-                            checked: theme.themeId === modelData
-                            onTriggered: theme.themeId = modelData
+                            checked: Theme.themeId === modelData
+                            onTriggered: Theme.themeId = modelData
                         }
                     }
                 }
@@ -575,8 +595,8 @@ Rectangle {
                     objectName: "viewMenuReducedMotion"
                     text: qsTr("Reduced motion")
                     checkable: true
-                    checked: theme.reducedMotion
-                    onTriggered: theme.reducedMotion = checked
+                    checked: Theme.reducedMotion
+                    onTriggered: Theme.reducedMotion = checked
                 }
                 MenuSeparator {}
                 MenuItem {
@@ -592,10 +612,10 @@ Rectangle {
     // Insert below the caret's block (or at the end), focusing the new
     // block — the plus-button contract without the menu step.
     function insertBlockOfType(type) {
-        var idx = appWindow ? appWindow.lastFocusedBlock : -1
-        if (idx < 0 || idx >= blockModel.count)
-            idx = blockModel.count - 1
-        blockModel.insertBlock(idx + 1, type, "")
+        var idx = toolbar.appWindow ? toolbar.appWindow.lastFocusedBlock : -1
+        if (idx < 0 || idx >= BlockModel.count)
+            idx = BlockModel.count - 1
+        BlockModel.insertBlock(idx + 1, type, "")
         if (listView) {
             var item = listView.itemAtIndex(idx + 1)
             if (item && item.focusAtStart)
@@ -608,17 +628,17 @@ Rectangle {
     // board seeds its columns. A new empty block is created below the caret's
     // block and handed to that flow.
     function insertSpecialBelow(kind) {
-        var idx = appWindow ? appWindow.lastFocusedBlock : -1
-        if (idx < 0 || idx >= blockModel.count)
-            idx = blockModel.count - 1
+        var idx = toolbar.appWindow ? toolbar.appWindow.lastFocusedBlock : -1
+        if (idx < 0 || idx >= BlockModel.count)
+            idx = BlockModel.count - 1
         var newIdx = idx + 1
-        blockModel.insertBlock(newIdx, 0, "")
-        if ((kind === "image" || kind === "media") && appWindow.insertImageIntoBlock)
-            appWindow.insertImageIntoBlock(newIdx)
-        else if (kind === "table" && appWindow.insertTableIntoBlock)
-            appWindow.insertTableIntoBlock(newIdx)
+        BlockModel.insertBlock(newIdx, 0, "")
+        if ((kind === "image" || kind === "media") && toolbar.appWindow.insertImageIntoBlock)
+            toolbar.appWindow.insertImageIntoBlock(newIdx)
+        else if (kind === "table" && toolbar.appWindow.insertTableIntoBlock)
+            toolbar.appWindow.insertTableIntoBlock(newIdx)
         else if (kind === "kanban")
-            blockModel.convertBlock(newIdx, 8,   // Block.CodeBlock, kanban fence
+            BlockModel.convertBlock(newIdx, 8,   // Block.CodeBlock, kanban fence
                 "## To do\n## In progress\n## Done", false, "kanban")
     }
 

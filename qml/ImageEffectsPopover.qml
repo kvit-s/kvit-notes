@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // Image-effects popover (features.md §1.2.8): toggle rounded
 // corners, drop shadow, a border, and the maintain-aspect option. It reports a
@@ -21,20 +22,21 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
 
     function toggleFlag(key) {
-        root.applied(blockAttributes.withFlag(root.attributes, key,
-                     !blockAttributes.has(root.attributes, key)))
+        root.applied(BlockAttributes.withFlag(root.attributes, key,
+                     !BlockAttributes.has(root.attributes, key)))
     }
 
     // A checkbox-styled row driven by external state (no internal toggle, so the
     // `on` binding never breaks on click — the model is the single truth).
     component ToggleRow: Item {
+        id: row
         property string label: ""
         property bool on: false
         signal toggled()
@@ -45,12 +47,12 @@ Popup {
             width: 16; height: 16; radius: 3
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: parent.on ? theme.accent : "transparent"
+            color: parent.on ? Theme.accent : "transparent"
             border.width: 1
-            border.color: parent.on ? theme.accent : theme.border
+            border.color: parent.on ? Theme.accent : Theme.border
             Text {
                 anchors.centerIn: parent
-                visible: box.parent.on
+                visible: row.on
                 text: "✓"; color: "white"; font.pixelSize: 11
             }
         }
@@ -59,7 +61,7 @@ Popup {
             anchors.leftMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             text: parent.label
-            color: theme.textPrimary
+            color: Theme.textPrimary
             font.pixelSize: 12
         }
         TapHandler { onTapped: parent.toggled() }
@@ -70,29 +72,29 @@ Popup {
         spacing: 4
         ToggleRow {
             label: qsTr("Rounded corners")
-            on: blockAttributes.has(root.attributes, "rounded")
+            on: BlockAttributes.has(root.attributes, "rounded")
             onToggled: root.toggleFlag("rounded")
         }
         ToggleRow {
             label: qsTr("Drop shadow")
-            on: blockAttributes.has(root.attributes, "shadow")
+            on: BlockAttributes.has(root.attributes, "shadow")
             onToggled: root.toggleFlag("shadow")
         }
         ToggleRow {
             label: qsTr("Border")
-            on: blockAttributes.has(root.attributes, "border")
+            on: BlockAttributes.has(root.attributes, "border")
             onToggled: root.toggleFlag("border")
         }
         ToggleRow {
             label: qsTr("Maintain aspect ratio")
             // Maintained by default; unchecking stores aspect=stretch.
-            on: blockAttributes.str(root.attributes, "aspect", "") !== "stretch"
+            on: BlockAttributes.str(root.attributes, "aspect", "") !== "stretch"
             onToggled: {
                 var isMaintain =
-                    blockAttributes.str(root.attributes, "aspect", "") !== "stretch"
+                    BlockAttributes.str(root.attributes, "aspect", "") !== "stretch"
                 root.applied(isMaintain
-                    ? blockAttributes.withValue(root.attributes, "aspect", "stretch")
-                    : blockAttributes.without(root.attributes, "aspect"))
+                    ? BlockAttributes.withValue(root.attributes, "aspect", "stretch")
+                    : BlockAttributes.without(root.attributes, "aspect"))
             }
         }
     }

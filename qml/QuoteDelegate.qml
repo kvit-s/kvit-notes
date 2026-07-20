@@ -1,7 +1,15 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Delegates in this file read ids from the enclosing component scope,
+// which qmllint reports as unqualified access. Binding those ids into
+// the nested scopes resolves it; the delegates here already declare a
+// required property for every model role they read, so nothing relied on
+// the injection this turns off.
+pragma ComponentBehavior: Bound
+
 import QtQuick
+import Kvit 1.0
 
 // Quote block (features.md §1.2.6): stacked accent bars (one per nesting
 // depth), muted text, and an optional attribution line — the last content
@@ -10,7 +18,7 @@ import QtQuick
 EditableBlock {
     id: root
 
-    contentColor: theme.textSecondary
+    contentColor: Theme.textSecondary
 
     // The attribution tail: the final "— …" line, with its leading newline,
     // when there is a body before it.
@@ -40,7 +48,7 @@ EditableBlock {
                         objectName: "quoteBar"
                         width: 3
                         radius: 1.5
-                        color: theme.quoteBar
+                        color: Theme.quoteBar
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 8
@@ -62,8 +70,8 @@ EditableBlock {
                 anchors.rightMargin: 4
                 anchors.top: parent.top
                 text: "— " + root.attributionText
-                color: theme.textMuted
-                font.pixelSize: Math.max(11, typography.baseSize - 2)
+                color: Theme.textMuted
+                font.pixelSize: Math.max(11, Typography.baseSize - 2)
                 font.italic: false
             }
         }

@@ -1,6 +1,13 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Delegates in this file read ids from the enclosing component scope,
+// which qmllint reports as unqualified access. Binding those ids into
+// the nested scopes resolves it; the delegates here already declare a
+// required property for every model role they read, so nothing relied on
+// the injection this turns off.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
@@ -82,8 +89,8 @@ Popup {
     function glyphSource(tex) {
         if (!tex || tex.length === 0)
             return ""
-        return "image://math/" + mathRenderer.encode(tex)
-             + "?fg=" + argbHex(theme.textPrimary)
+        return "image://math/" + MathRenderer.encode(tex)
+             + "?fg=" + argbHex(Theme.textPrimary)
              + "&size=" + menu.glyphPixelSize
              + "&dpr=" + (Screen.devicePixelRatio > 0
                           ? Math.round(Screen.devicePixelRatio * 100) / 100 : 1)
@@ -94,7 +101,7 @@ Popup {
         displayContext = display === true
         anchorRect = rect
         query = ""
-        cats = mathCommandModel.categories()
+        cats = MathCommandModel.categories()
         categoryIndex = 0
         inCategoryPane = false
         reloadGrid()
@@ -121,7 +128,7 @@ Popup {
     }
 
     function refilter() {
-        rows = completionMode ? mathCommandModel.itemsFor(query) : []
+        rows = completionMode ? MathCommandModel.itemsFor(query) : []
         highlightIndex = rows.length > 0 ? 0 : -1
         if (completionList)
             completionList.positionViewAtBeginning()
@@ -129,7 +136,7 @@ Popup {
 
     function reloadGrid() {
         gridRows = cats.length > 0
-            ? mathCommandModel.itemsForCategory(cats[categoryIndex]) : []
+            ? MathCommandModel.itemsForCategory(cats[categoryIndex]) : []
         gridIndex = gridRows.length > 0 ? 0 : -1
     }
 
@@ -214,7 +221,7 @@ Popup {
         if (!row || row.kind !== "entry")
             return
         var h = host
-        mathCommandModel.noteUsed(row.name)
+        MathCommandModel.noteUsed(row.name)
         dismiss()
         if (h && h.applyMathCommand)
             h.applyMathCommand(row)
@@ -226,8 +233,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -245,7 +252,7 @@ Popup {
             visible: menu.completionMode && menu.rows.length === 0
             anchors.centerIn: parent
             text: qsTr("No matches")
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 13
         }
 
@@ -268,7 +275,7 @@ Popup {
                 width: completionList.width
                 height: 36
                 radius: 4
-                color: index === menu.highlightIndex ? theme.focusTint
+                color: index === menu.highlightIndex ? Theme.focusTint
                                                      : "transparent"
 
                 Row {
@@ -296,14 +303,14 @@ Popup {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: completionRow.modelData.name
-                        color: theme.textPrimary
+                        color: Theme.textPrimary
                         font.family: "monospace"
                         font.pixelSize: 13
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: completionRow.modelData.category
-                        color: theme.textFaint
+                        color: Theme.textFaint
                         font.pixelSize: 11
                     }
                 }
@@ -345,8 +352,8 @@ Popup {
                     height: 26
                     radius: 4
                     color: index === menu.categoryIndex
-                           ? (menu.inCategoryPane ? theme.focusTint
-                                                  : theme.hoverTint)
+                           ? (menu.inCategoryPane ? Theme.focusTint
+                                                  : Theme.hoverTint)
                            : "transparent"
 
                     Text {
@@ -355,7 +362,7 @@ Popup {
                         anchors.verticalCenter: parent.verticalCenter
                         text: categoryRow.modelData
                         color: categoryRow.index === menu.categoryIndex
-                               ? theme.textPrimary : theme.textSecondary
+                               ? Theme.textPrimary : Theme.textSecondary
                         font.pixelSize: 12
                     }
                     MouseArea {
@@ -370,7 +377,7 @@ Popup {
                 }
             }
 
-            Rectangle { width: 1; height: browsePanel.height; color: theme.border }
+            Rectangle { width: 1; height: browsePanel.height; color: Theme.border }
 
             Column {
                 width: browsePanel.width - categoryList.width - 13
@@ -398,9 +405,9 @@ Popup {
                         height: glyphGrid.cellHeight - 2
                         radius: 4
                         color: index === menu.gridIndex && !menu.inCategoryPane
-                               ? theme.focusTint : "transparent"
+                               ? Theme.focusTint : "transparent"
                         border.color: index === menu.gridIndex
-                                      ? theme.accent : "transparent"
+                                      ? Theme.accent : "transparent"
                         border.width: index === menu.gridIndex ? 1 : 0
 
                         // Rendered glyph; entries with no preview (\\, &)
@@ -420,7 +427,7 @@ Popup {
                             anchors.centerIn: parent
                             visible: gridCell.modelData.preview === ""
                             text: gridCell.modelData.name
-                            color: theme.textPrimary
+                            color: Theme.textPrimary
                             font.family: "monospace"
                             font.pixelSize: 12
                         }
@@ -450,7 +457,7 @@ Popup {
                         return row.description !== ""
                             ? row.name + "  —  " + row.description : row.name
                     }
-                    color: theme.textMuted
+                    color: Theme.textMuted
                     font.pixelSize: 12
                 }
             }

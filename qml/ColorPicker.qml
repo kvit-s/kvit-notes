@@ -1,9 +1,17 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The Repeater delegate and the handlers inside it are separate
+// component scopes, so their reads of `root` and of the delegate's own
+// role are unqualified access. The delegate already declares that role
+// as a required property, so binding the scopes changes nothing it
+// depended on.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
+import Kvit 1.0
 
 // The text-color control, shared by the toolbar, the
 // formatting bar, and the text context menu. A small popup of theme-palette
@@ -22,7 +30,7 @@ Popup {
 
     // Saturated, text-legible swatches: the theme's content palette (folder/
     // tag colors) plus a dark and a mid-gray for prose.
-    readonly property var swatches: theme.colorPalette.concat(
+    readonly property var swatches: Theme.colorPalette.concat(
         ["#333333", "#888888"])
 
     padding: 8
@@ -31,8 +39,8 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -46,6 +54,9 @@ Popup {
             Repeater {
                 model: root.swatches
                 delegate: Rectangle {
+                    // Named so the TapHandler below, which is its own scope,
+                    // can reach the role rather than relying on injection.
+                    id: swatch
                     required property var modelData
                     width: 22
                     height: 22
@@ -53,18 +64,18 @@ Popup {
                     color: modelData
                     border.width: root.currentColor === modelData ? 2 : 1
                     border.color: root.currentColor === modelData
-                        ? theme.accent : theme.border
+                        ? Theme.accent : Theme.border
                     HoverHandler { id: swHover }
                     Rectangle {   // hover ring
                         anchors.fill: parent
                         anchors.margins: -2
                         radius: 6
                         color: "transparent"
-                        border.color: theme.accent
+                        border.color: Theme.accent
                         border.width: swHover.hovered ? 1 : 0
                     }
                     TapHandler {
-                        onTapped: { root.colorPicked(modelData); root.close() }
+                        onTapped: { root.colorPicked(swatch.modelData); root.close() }
                     }
                 }
             }

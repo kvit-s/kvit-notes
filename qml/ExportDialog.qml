@@ -5,11 +5,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import Kvit 1.0
 
 // Export dialog (features.md §12.5): choose a format
 // (Markdown, HTML, PDF, plain text) and a scope (the open note, the note-list
 // selection, or the whole collection), then a destination. The actual export
-// runs through documentExporter, which builds one self-contained HTML string
+// runs through DocumentExporter, which builds one self-contained HTML string
 // and prints PDF from it.
 Dialog {
     id: exportDialog
@@ -48,14 +49,14 @@ Dialog {
     function currentTitle() {
         if (!appWindow || appWindow.currentNoteRelPath === "")
             return "Document"
-        return noteCollection.noteInfo(appWindow.currentNoteRelPath).title
+        return NoteCollection.noteInfo(appWindow.currentNoteRelPath).title
     }
 
     function prepareContext() {
         var noteDir = ""
-        var root = noteCollection.isOpen ? noteCollection.rootPath : ""
+        var root = NoteCollection.isOpen ? NoteCollection.rootPath : ""
         if (appWindow && appWindow.currentNoteRelPath !== "") {
-            var abs = noteCollection.absolutePath(appWindow.currentNoteRelPath)
+            var abs = NoteCollection.absolutePath(appWindow.currentNoteRelPath)
             noteDir = abs.substring(0, abs.lastIndexOf("/"))
         }
         // The single-note scope renders the live model directly. A collection
@@ -64,10 +65,10 @@ Dialog {
         // editor's current markdown for that one note. Exporting snapshots
         // rather than saving: it must not write to the user's notes.
         if (appWindow && appWindow.currentNoteRelPath !== "")
-            documentExporter.setLiveNote(appWindow.currentNoteRelPath, blockModel)
+            DocumentExporter.setLiveNote(appWindow.currentNoteRelPath, BlockModel)
         else
-            documentExporter.clearLiveNote()
-        documentExporter.setImageContext(noteDir, root)
+            DocumentExporter.clearLiveNote()
+        DocumentExporter.setImageContext(noteDir, root)
     }
 
     // Kick off the correct destination picker for the chosen scope.
@@ -143,11 +144,11 @@ Dialog {
         id: saveFileDialog
         objectName: "exportSaveFileDialog"
         fileMode: FileDialog.SaveFile
-        defaultSuffix: documentExporter.extensionFor(exportDialog.format)
+        defaultSuffix: DocumentExporter.extensionFor(exportDialog.format)
         onAccepted: {
             var path = exportDialog.appWindow.urlToLocalPath(selectedFile)
-            var ok = documentExporter.writeModel(
-                blockModel, exportDialog.currentTitle(),
+            var ok = DocumentExporter.writeModel(
+                BlockModel, exportDialog.currentTitle(),
                 exportDialog.format, path)
             exportDialog.appWindow.showTransientStatus(
                 ok ? qsTr("Exported to ") + path
@@ -164,14 +165,14 @@ Dialog {
             var dir = exportDialog.appWindow.urlToLocalPath(selectedFolder)
             var count = 0
             if (exportDialog.scope === "selection")
-                count = documentExporter.exportNotes(
-                    noteCollection, exportDialog.selectedPaths(), dir,
+                count = DocumentExporter.exportNotes(
+                    NoteCollection, exportDialog.selectedPaths(), dir,
                     exportDialog.format, singleFileCheck.checked)
             else
-                count = documentExporter.exportCollection(
-                    noteCollection, dir, exportDialog.format,
+                count = DocumentExporter.exportCollection(
+                    NoteCollection, dir, exportDialog.format,
                     singleFileCheck.checked)
-            documentExporter.clearLiveNote()
+            DocumentExporter.clearLiveNote()
             exportDialog.appWindow.showTransientStatus(
                 count > 0 ? (qsTr("Exported ") + count + qsTr(" notes to ") + dir)
                           : qsTr("Export failed"))

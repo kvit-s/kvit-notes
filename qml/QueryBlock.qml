@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Deeply nested delegates — table cells, board groups, cards, card
+// rows — each hold Texts and handlers in separate scopes.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
@@ -14,8 +18,13 @@ import Kvit 1.0
 // round-trip fidelity is untouched. Editing is plain fence editing of the
 // spec, the DiagramBlock pattern: focus shows the source, blur writes it
 // back as one undo step; a parse error shows in the read view.
-Item {
+BlockDelegateBase {
     id: root
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -40,7 +49,7 @@ Item {
                                  columns: [], rows: [], groups: [] })
 
     function refresh() {
-        queryResult = queryTools.run(root.content)
+        queryResult = QueryTools.run(root.content)
     }
     function scheduleRefresh() {
         refreshTimer.restart()
@@ -61,15 +70,15 @@ Item {
         refresh()
     }
     Connections {
-        target: noteCollection
+        target: NoteCollection
         function onRevisionChanged() { root.scheduleRefresh() }
         function onRootChanged() { root.scheduleRefresh() }
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     // ---- non-text focus API (matches the other wave-2 blocks) ----
@@ -80,21 +89,17 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active) return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined)
+                root.shell.lastFocusedBlock = index
         }
     }
 
@@ -118,44 +123,44 @@ Item {
     }
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
-        if (!root.listView || targetIndex < 0 || targetIndex >= blockModel.count)
+        if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
-        var target = root.listView.itemAtIndex(targetIndex)
+        var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
         if (!target) return false
         if (direction < 0) target.focusAtEnd(); else target.focusAtStart()
         return true
     }
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu)
@@ -165,38 +170,35 @@ Item {
     }
 
     function openRow(relPath) {
-        var win = Window.window
-        if (win && win.openNoteByPath)
-            win.openNoteByPath(relPath)
+            AppActions.requestOpenNoteByPath(relPath)
     }
 
     // Selection/focus catcher (declared before the card so per-row click
-    // handlers win over it).
+    // handlers window over it).
     MouseArea {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
         onClicked: function(mouse) {
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(root.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(root.index)
+                if (DocumentSelection.hasBlockSelection)
                     root.focusSelectionHandler()
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var win = Window.window
-                var anchor = win && win.lastFocusedBlock !== undefined
-                        ? win.lastFocusedBlock : -1
-                if (!documentSelection.hasBlockSelection
+                var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
+                        ? root.shell.lastFocusedBlock : -1
+                if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== root.index)
-                    documentSelection.selectBlock(anchor)
-                documentSelection.extendBlockSelectionTo(root.index)
+                    DocumentSelection.selectBlock(anchor)
+                DocumentSelection.extendBlockSelectionTo(root.index)
                 root.focusSelectionHandler()
                 return
             }
-            if (documentSelection.hasBlockSelection
-                || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection
+                || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             sourceArea.forceActiveFocus()
         }
     }
@@ -219,9 +221,9 @@ Item {
             visible: !root.editing
             height: root.editing ? 0 : readColumn.implicitHeight + 16
             radius: 6
-            color: root.blockSelected ? theme.blockSelectionTint
-                 : theme.panelBackground
-            border.color: root.blockSelected ? theme.accent : theme.border
+            color: root.blockSelected ? Theme.blockSelectionTint
+                 : Theme.panelBackground
+            border.color: root.blockSelected ? Theme.accent : Theme.border
             border.width: 1
             opacity: root.isDragSource ? 0.35 : 1
             clip: true
@@ -240,14 +242,14 @@ Item {
                         text: qsTr("Query")
                         font.pixelSize: 11
                         font.bold: true
-                        color: theme.textMuted
+                        color: Theme.textMuted
                     }
                     Text {
                         objectName: "queryCountText"
                         visible: root.queryResult.ok
                         text: qsTr("%1 notes").arg(root.queryResult.rows.length)
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -259,7 +261,7 @@ Item {
                     text: root.queryResult.error
                     wrapMode: Text.Wrap
                     font.pixelSize: 12
-                    color: theme.danger
+                    color: Theme.danger
                 }
 
                 // ---- Table view ----
@@ -279,11 +281,12 @@ Item {
                                && root.queryResult.view === "table"
                                ? root.queryResult.columns : []
                         Text {
+                            id: headerCell
                             required property var modelData
                             text: modelData
                             font.pixelSize: 11
                             font.bold: true
-                            color: theme.textMuted
+                            color: Theme.textMuted
                             elide: Text.ElideRight
                             width: Math.max(40, (tableGrid.width
                                 - tableGrid.columnSpacing
@@ -312,6 +315,7 @@ Item {
                             return flat
                         }
                         Rectangle {
+                            id: tableCell
                             required property var modelData
                             width: Math.max(40, (tableGrid.width
                                 - tableGrid.columnSpacing
@@ -319,19 +323,19 @@ Item {
                                 / tableGrid.columns)
                             height: cellText.implicitHeight + 8
                             color: cellHover.hovered
-                                   ? theme.hoverTint : "transparent"
+                                   ? Theme.hoverTint : "transparent"
                             Text {
                                 id: cellText
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width
-                                text: modelData.text
+                                text: tableCell.modelData.text
                                 font.pixelSize: 12
-                                color: theme.textPrimary
+                                color: Theme.textPrimary
                                 elide: Text.ElideRight
                             }
                             HoverHandler { id: cellHover }
                             TapHandler {
-                                onTapped: root.openRow(modelData.relPath)
+                                onTapped: root.openRow(tableCell.modelData.relPath)
                             }
                         }
                     }
@@ -343,7 +347,7 @@ Item {
                              && root.queryResult.rows.length === 0
                     text: qsTr("No matching notes")
                     font.pixelSize: 12
-                    color: theme.textFaint
+                    color: Theme.textFaint
                 }
 
                 // ---- Board view ----
@@ -366,12 +370,13 @@ Item {
                                    && root.queryResult.view === "board"
                                    ? root.queryResult.groups : []
                             Rectangle {
+                                id: boardGroup
                                 required property var modelData
                                 width: 190
                                 height: groupColumn.implicitHeight + 12
                                 radius: 6
-                                color: theme.listBackground
-                                border.color: theme.border
+                                color: Theme.listBackground
+                                border.color: Theme.border
                                 border.width: 1
 
                                 Column {
@@ -385,29 +390,29 @@ Item {
                                     Row {
                                         spacing: 5
                                         Text {
-                                            text: modelData.name
+                                            text: boardGroup.modelData.name
                                             font.pixelSize: 12
                                             font.bold: true
-                                            color: theme.textSecondary
+                                            color: Theme.textSecondary
                                         }
                                         Text {
-                                            text: modelData.cards.length
+                                            text: boardGroup.modelData.cards.length
                                             font.pixelSize: 11
-                                            color: theme.textFaint
+                                            color: Theme.textFaint
                                         }
                                     }
 
                                     Repeater {
-                                        model: modelData.cards
+                                        model: boardGroup.modelData.cards
                                         Rectangle {
                                             id: boardCard
                                             required property var modelData
                                             width: groupColumn.width
                                             height: cardCol.implicitHeight + 10
                                             radius: 4
-                                            color: theme.panelBackground
+                                            color: Theme.panelBackground
                                             border.color: cardHover.hovered
-                                                ? theme.accent : theme.border
+                                                ? Theme.accent : Theme.border
                                             border.width: 1
                                             Column {
                                                 id: cardCol
@@ -417,7 +422,7 @@ Item {
                                                 anchors.margins: 5
                                                 spacing: 1
                                                 Repeater {
-                                                    model: modelData.cells
+                                                    model: boardCard.modelData.cells
                                                     Text {
                                                         required property var modelData
                                                         required property int index
@@ -427,8 +432,8 @@ Item {
                                                         font.pixelSize: index === 0 ? 12 : 10
                                                         font.bold: index === 0
                                                         color: index === 0
-                                                            ? theme.textPrimary
-                                                            : theme.textMuted
+                                                            ? Theme.textPrimary
+                                                            : Theme.textMuted
                                                         elide: Text.ElideRight
                                                     }
                                                 }
@@ -465,15 +470,15 @@ Item {
                 objectName: "querySourceArea"
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content
-                font.family: typography.monoFamily
-                font.pixelSize: typography.sizeForBlockType(Block.CodeBlock)
-                color: theme.textPrimary
+                font.family: Typography.monoFamily
+                font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
+                color: Theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
                 background: Rectangle {
-                    color: theme.codePanelBackground
+                    color: Theme.codePanelBackground
                     radius: 4
-                    border.color: theme.border; border.width: 1
+                    border.color: Theme.border; border.width: 1
                 }
                 // Committing only on focus loss means a click straight from
                 // this editor onto another note replaces the model before the
@@ -483,7 +488,7 @@ Item {
                 // this delegate may have been rebound to a different row.
                 function commitPendingSource() {
                     if (text !== root.content)
-                        blockModel.updateContentById(root.blockId, text)
+                        BlockModel.updateContentById(root.blockId, text)
                 }
                 onActiveFocusChanged: {
                     if (!activeFocus) {
@@ -513,7 +518,7 @@ Item {
                 }
 
                 Connections {
-                    target: documentManager
+                    target: DocumentManager
                     function onPendingEditsRequested() {
                         sourceArea.commitPendingSource()
                     }
@@ -532,15 +537,15 @@ Item {
         width: editChipText.implicitWidth + 12
         height: 18
         radius: 4
-        color: editChipArea.containsMouse ? theme.hoverTint : theme.chipBackground
-        border.color: theme.border
+        color: editChipArea.containsMouse ? Theme.hoverTint : Theme.chipBackground
+        border.color: Theme.border
         border.width: 1
         Text {
             id: editChipText
             anchors.centerIn: parent
             text: qsTr("Edit query")
             font.pixelSize: 10
-            color: theme.textMuted
+            color: Theme.textMuted
         }
         MouseArea {
             id: editChipArea
@@ -559,14 +564,14 @@ Item {
         x: 10
         y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
             text: "+"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 14
             font.bold: true
         }
@@ -599,7 +604,7 @@ Item {
                     spacing: 2
                     Repeater {
                         model: 2
-                        Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint }
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint }
                     }
                 }
             }
@@ -618,35 +623,32 @@ Item {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = queryHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5)
                         return
                     dragging = true
-                    win.blockDrag.begin(root.index, sp.x, sp.y)
+                    root.shell.blockDrag.begin(root.index, sp.x, sp.y)
                 } else {
-                    win.blockDrag.update(sp.x, sp.y)
+                    root.shell.blockDrag.update(sp.x, sp.y)
                 }
             }
             onReleased: {
-                var win = Window.window
                 if (dragging) {
                     dragging = false
-                    if (win && win.blockDrag) win.blockDrag.drop()
+                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop()
                     return
                 }
                 if (root.listView)
                     root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onCanceled: {
                 if (dragging) {
                     dragging = false
-                    var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel()
+                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel()
                 }
             }
         }

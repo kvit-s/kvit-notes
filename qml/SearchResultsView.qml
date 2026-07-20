@@ -1,9 +1,15 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Nested delegates whose contents are separate scopes: the match rows
+// sit inside a group Column, and their Labels and handlers reach both.
+// Binding the scopes lets each address the right one by id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // Global-search results: grouped per note — a title row, then one row
 // per match with its context snippet, the matched text bolded. Clicking
@@ -18,8 +24,8 @@ Item {
 
     // Grouped results, live under the search revision.
     readonly property var groups: {
-        var revision = collectionSearch.revision
-        return collectionSearch.results()
+        var revision = CollectionSearch.revision
+        return CollectionSearch.results()
     }
 
     function escapeHtml(text) {
@@ -54,17 +60,17 @@ Item {
                 objectName: "searchResultSummary"
                 // While the index is still building, results may be incomplete;
                 // the count is never presented as final.
-                text: !collectionSearch.complete
+                text: !CollectionSearch.complete
                       ? qsTr("Indexing… %1 match(es) so far — results may be "
                              + "incomplete")
-                            .arg(collectionSearch.matchCount)
-                      : collectionSearch.noteCount === 0
+                            .arg(CollectionSearch.matchCount)
+                      : CollectionSearch.noteCount === 0
                         ? qsTr("No results")
                         : qsTr("%1 match(es) in %2 note(s)")
-                              .arg(collectionSearch.matchCount)
-                              .arg(collectionSearch.noteCount)
+                              .arg(CollectionSearch.matchCount)
+                              .arg(CollectionSearch.noteCount)
                 font.pixelSize: 11
-                color: theme.textMuted
+                color: Theme.textMuted
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
@@ -80,13 +86,13 @@ Item {
                         qsTr("Last 30 days"), qsTr("Last year"),
                         qsTr("Custom range…")]
                 currentIndex: Math.max(0,
-                    presets.indexOf(collectionSearch.datePreset))
+                    presets.indexOf(CollectionSearch.datePreset))
                 onActivated: function(index) {
                     if (presets[index] === "custom") {
                         dateRangePicker.openFor()
                         return
                     }
-                    collectionSearch.datePreset = presets[index]
+                    CollectionSearch.datePreset = presets[index]
                 }
 
                 // The calendar range picker for the custom date range
@@ -121,7 +127,7 @@ Item {
                     objectName: "searchTitleRow"
                     width: groupColumn.width
                     height: 26
-                    color: titleHover.hovered ? theme.hoverTint : "transparent"
+                    color: titleHover.hovered ? Theme.hoverTint : "transparent"
                     HoverHandler { id: titleHover }
 
                     RowLayout {
@@ -140,7 +146,7 @@ Item {
                             text: groupColumn.group.matchCount > 0
                                   ? groupColumn.group.matchCount : ""
                             font.pixelSize: 11
-                            color: theme.textFaint
+                            color: Theme.textFaint
                         }
                     }
                     MouseArea {
@@ -154,12 +160,13 @@ Item {
                 Repeater {
                     model: groupColumn.group.matches
                     delegate: Rectangle {
+                        id: matchRow
                         objectName: "searchMatchRow"
                         required property var modelData
 
                         width: groupColumn.width
                         height: 24
-                        color: matchHover.hovered ? theme.focusTint : "transparent"
+                        color: matchHover.hovered ? Theme.focusTint : "transparent"
                         HoverHandler { id: matchHover }
 
                         Label {
@@ -168,17 +175,17 @@ Item {
                             anchors.rightMargin: 12
                             verticalAlignment: Text.AlignVCenter
                             textFormat: Text.StyledText
-                            text: resultsView.styledSnippet(modelData)
+                            text: resultsView.styledSnippet(matchRow.modelData)
                             font.pixelSize: 11
-                            color: theme.textSecondary
+                            color: Theme.textSecondary
                             elide: Text.ElideRight
                         }
                         MouseArea {
                             anchors.fill: parent
                             onClicked: resultsView.appWindow.openSearchResult(
                                            groupColumn.group.relPath,
-                                           modelData.blockIndex,
-                                           modelData.start)
+                                           matchRow.modelData.blockIndex,
+                                           matchRow.modelData.start)
                         }
                     }
                 }
@@ -190,7 +197,7 @@ Item {
                                + "them all").arg(groupColumn.group.moreMatches)
                     font.pixelSize: 10
                     font.italic: true
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     leftPadding: 26
                     height: visible ? 18 : 0
                 }

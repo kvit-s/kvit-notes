@@ -1,6 +1,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Nested items read the root's own properties from their own scopes.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
@@ -15,8 +18,13 @@ import Kvit 1.0
 // not parse — the source plus a named error rather than nothing. It keeps the
 // non-text focus API of the other wave-2 blocks so navigation, selection, and
 // drag stay uniform.
-Item {
+BlockDelegateBase {
     id: root
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -46,7 +54,7 @@ Item {
     // What the rendered view/preview shows: the live (debounced) source while
     // editing, else the committed content.
     readonly property string renderTex: editing ? previewTex : content
-    readonly property string errorText: mathRenderer.errorFor(renderTex)
+    readonly property string errorText: MathRenderer.errorFor(root.renderTex)
 
     // previewTex starts as a binding to content, but the debounce assigns
     // it imperatively, which destroys that binding for the delegate's whole
@@ -61,15 +69,15 @@ Item {
     // Display math renders at the paragraph text size, optically matched to
     // the text font's x-height — the displaystyle layout supplies the large
     // operators; the letters themselves stay at prose size like LaTeX.
-    readonly property int mathPixelSize: mathRenderer.opticalMathPixelSize(
-        typography.fontFamily, typography.sizeForBlockType(Block.Paragraph))
+    readonly property int mathPixelSize: MathRenderer.opticalMathPixelSize(
+        Typography.fontFamily, Typography.sizeForBlockType(Block.Paragraph))
     readonly property int pngMathVerticalPadding:
         Math.max(2, Math.ceil(root.mathPixelSize * 0.12))
     readonly property bool numbered: {
-        var r = appSettings.revision // re-evaluate when a setting changes
-        return appSettings.value("view.equationNumbers", false) === true
+        var r = AppSettings.revision // re-evaluate when a setting changes
+        return AppSettings.value("view.equationNumbers", false) === true
     }
-    readonly property int equationNumber: blockModel.mathNumber(root.index)
+    readonly property int equationNumber: BlockModel.mathNumber(root.index)
 
     // aarrggbb hex of a color, for the image://math/ query.
     function argbHex(c) {
@@ -77,11 +85,16 @@ Item {
         return h(c.a) + h(c.r) + h(c.g) + h(c.b)
     }
     function currentDpr() {
-        var win = Window.window
-        if (win && win.devicePixelRatio !== undefined && win.devicePixelRatio > 0)
-            return Math.round(win.devicePixelRatio * 100) / 100
-        if (win && win.screen && win.screen.devicePixelRatio > 0)
-            return Math.round(win.screen.devicePixelRatio * 100) / 100
+        // Qt's type description for ApplicationWindow omits devicePixelRatio,
+        // which is documented QML API, so the linter cannot see it. Same gap
+        // as Qt.application.screens in main.qml, and scoped the same way.
+        // qmllint disable missing-property
+        if (root.shell && root.shell.devicePixelRatio !== undefined && root.shell.devicePixelRatio > 0)
+            return Math.round(root.shell.devicePixelRatio * 100) / 100
+        // qmllint enable missing-property
+        // The window's own screen is this item's screen, so the attached
+        // Screen below answers what root.shell.screen used to — typed, and
+        // still correct when the cast yields null.
         if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
             return Math.round(Screen.devicePixelRatio * 100) / 100
         return 1
@@ -89,17 +102,17 @@ Item {
     function mathSource(tex) {
         if (tex.trim().length === 0)
             return ""
-        return "image://math/" + mathRenderer.encode(tex)
-             + "?fg=" + argbHex(theme.textPrimary)
+        return "image://math/" + MathRenderer.encode(tex)
+             + "?fg=" + argbHex(Theme.textPrimary)
              + "&size=" + root.mathPixelSize
              + "&dpr=" + root.currentDpr().toFixed(2)
              + "&vpad=" + root.pngMathVerticalPadding
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -109,19 +122,16 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active) return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler) win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined) win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined) root.shell.lastFocusedBlock = index
             previewTex = content
         }
     }
@@ -159,10 +169,10 @@ Item {
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
         if (!root.listView || targetIndex < 0
-            || targetIndex >= blockModel.count)
+            || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
-        var target = root.listView.itemAtIndex(targetIndex)
+        var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
         if (!target)
             return false
         if (direction < 0)
@@ -174,22 +184,22 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -201,20 +211,20 @@ Item {
             "Bulleted list", "Numbered list", "To-do", "Quote", "Code block",
             "Divider", "Heading 4", "Image", "Callout", "Math block", "Media",
             "Table"]
-        if (typeof a11y !== "undefined" && names[newType])
-            a11y.announceConversion(names[newType])
+        if (typeof A11y !== "undefined" && names[newType])
+            A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
-        blockModel.convertBlock(root.index, newType, root.content, false, lang)
+        BlockModel.convertBlock(root.index, newType, root.content, false, lang)
     }
 
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
     }
@@ -229,7 +239,7 @@ Item {
             if (sourceArea.text !== root.content) {
                 var caret = sourceArea.cursorPosition
                 var keepMenu = sourceArea.activeMathMenu() !== null
-                blockModel.updateContentById(root.blockId, sourceArea.text)
+                BlockModel.updateContentById(root.blockId, sourceArea.text)
                 // Re-applying the model-backed source can move the TextArea
                 // caret before the command trigger. Restore it before query
                 // synchronization so a slow typist does not lose the popup.
@@ -260,7 +270,7 @@ Item {
     // A save, export, note switch or shutdown must see the text the user has
     // just typed, not the text as of the last time the timer happened to fire.
     Connections {
-        target: documentManager
+        target: DocumentManager
         function onPendingEditsRequested() {
             if (debounce.running)
                 root.commitPendingSource()
@@ -277,9 +287,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -304,7 +314,7 @@ Item {
                 id: renderedImage
                 objectName: "mathRenderedImage"
                 anchors.centerIn: parent
-                visible: root.errorText === "" && renderTex.trim().length > 0
+                visible: root.errorText === "" && root.renderTex.trim().length > 0
                 source: root.mathSource(root.renderTex)
                 width: implicitWidth
                 height: implicitHeight
@@ -315,9 +325,9 @@ Item {
             // Empty block placeholder.
             Text {
                 anchors.centerIn: parent
-                visible: renderTex.trim().length === 0
+                visible: root.renderTex.trim().length === 0
                 text: qsTr("Empty equation — click to edit")
-                color: theme.textFaint
+                color: Theme.textFaint
                 font.italic: true
                 font.pixelSize: 13
             }
@@ -326,16 +336,16 @@ Item {
                 id: readError
                 anchors.centerIn: parent
                 spacing: 2
-                visible: root.errorText !== "" && renderTex.trim().length > 0
+                visible: root.errorText !== "" && root.renderTex.trim().length > 0
                 Text {
                     text: root.renderTex
                     font.family: "monospace"; font.pixelSize: 13
-                    color: theme.textPrimary; horizontalAlignment: Text.AlignHCenter
+                    color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
                     text: "⚠ " + root.errorText
-                    font.pixelSize: 11; color: theme.danger
+                    font.pixelSize: 11; color: Theme.danger
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
@@ -345,7 +355,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.numbered && root.equationNumber > 0
                 text: "(" + root.equationNumber + ")"
-                color: theme.textMuted; font.pixelSize: 14
+                color: Theme.textMuted; font.pixelSize: 14
             }
             TapHandler { onTapped: root.focusAtEnd() }
         }
@@ -361,13 +371,13 @@ Item {
             text: root.content
             font.family: "monospace"
             font.pixelSize: 14
-            color: theme.textPrimary
+            color: Theme.textPrimary
             wrapMode: TextEdit.WrapAnywhere
             selectByMouse: true
             background: Rectangle {
-                color: theme.codePanelBackground
+                color: Theme.codePanelBackground
                 radius: 4
-                border.color: theme.border; border.width: 1
+                border.color: Theme.border; border.width: 1
             }
 
             // ---- Math command menu wiring ----
@@ -380,20 +390,15 @@ Item {
             property bool slotChainActive: false
 
             function activeMathMenu() {
-                var win = Window.window
-                var menu = win ? win.mathCommandMenu : null
-                return (menu && menu.visible && menu.targets(sourceArea))
-                        ? menu : null
+                return root.shell
+                    ? root.shell.activeMathMenu(sourceArea) : null
             }
 
             function openMathMenu(triggerPos) {
-                var win = Window.window
-                if (!win || !win.mathCommandMenu)
-                    return
                 mathTriggerPos = triggerPos
                 var rect = positionToRectangle(cursorPosition)
                 var topLeft = sourceArea.mapToItem(null, rect.x, rect.y)
-                win.mathCommandMenu.openForHost(sourceArea,
+                AppActions.requestMathCommandMenu(sourceArea,
                     Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height),
                     true /* display-math context */)
                 syncMathMenuQuery()
@@ -510,7 +515,7 @@ Item {
                         menu.dismiss()
                     mathTriggerPos = -1
                     if (text !== root.content)
-                        blockModel.updateContent(root.index, text)
+                        BlockModel.updateContent(root.index, text)
                     text = Qt.binding(function() { return root.content })
                 }
             }
@@ -632,8 +637,8 @@ Item {
                 : 0
             visible: root.editing
             radius: 4
-            color: theme.panelBackground
-            border.color: theme.border; border.width: 1
+            color: Theme.panelBackground
+            border.color: Theme.border; border.width: 1
             Image {
                 id: previewImage
                 objectName: "mathPreviewImage"
@@ -649,14 +654,14 @@ Item {
             Text {
                 anchors.centerIn: parent
                 visible: root.previewTex.trim().length === 0
-                text: qsTr("Preview"); color: theme.textFaint; font.pixelSize: 12
+                text: qsTr("Preview"); color: Theme.textFaint; font.pixelSize: 12
             }
             Text {
                 id: previewError
                 anchors.centerIn: parent
                 visible: root.errorText !== "" && root.previewTex.trim().length > 0
                 text: "⚠ " + root.errorText
-                color: theme.danger; font.pixelSize: 12
+                color: Theme.danger; font.pixelSize: 12
                 wrapMode: Text.Wrap; width: parent.width - 24
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -679,9 +684,7 @@ Item {
         acceptedButtons: Qt.RightButton
         enabled: !root.editing
         onClicked: {
-            var win = Window.window
-            if (win && win.openBlockHandleMenu)
-                win.openBlockHandleMenu(root)
+                AppActions.requestBlockHandleMenu(root)
         }
     }
 
@@ -689,11 +692,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
@@ -707,7 +710,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Column { anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } } }
         MouseArea {
             id: mathHandle
             objectName: "dragHandle"
@@ -717,32 +720,27 @@ Item {
             property real pressX: 0; property real pressY: 0; property bool dragging: false
             onPressed: function(mouse) {
                 if (mouse.button === Qt.RightButton) {
-                    var win = Window.window
-                    if (win && win.openBlockHandleMenu)
-                        win.openBlockHandleMenu(root)
+                        AppActions.requestBlockHandleMenu(root)
                     return
                 }
                 pressX = mouse.x; pressY = mouse.y; dragging = false
             }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = mathHandle.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
-                } else { win.blockDrag.update(sp.x, sp.y) }
+                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
+                } else { root.shell.blockDrag.update(sp.x, sp.y) }
             }
             onReleased: {
-                var win = Window.window
-                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
-            onCanceled: { if (dragging) { dragging = false; var win = Window.window
-                if (win && win.blockDrag) win.blockDrag.cancel() } }
+            onCanceled: { if (dragging) { dragging = false;                if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() } }
         }
     }
 }

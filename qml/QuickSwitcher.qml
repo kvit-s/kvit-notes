@@ -1,8 +1,14 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The results delegate nests a Column and a MouseArea, each its own
+// scope. Binding them lets both address the delegate by id; its model
+// roles were already declared as required properties.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The quick switcher: Ctrl+P opens a centered popup listing the
 // collection's notes, fuzzy-filtered through the shared matcher in
@@ -45,7 +51,7 @@ Popup {
     }
 
     function refilter() {
-        rows = quickSwitcherModel.itemsFor(queryField.text)
+        rows = QuickSwitcherModel.itemsFor(queryField.text)
         highlightIndex = rows.length > 0 ? 0 : -1
         if (resultsList)
             resultsList.positionViewAtBeginning()
@@ -76,8 +82,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 8
     }
@@ -91,12 +97,12 @@ Popup {
             width: parent.width
             placeholderText: qsTr("Find or create a note…")
             font.pixelSize: 14
-            color: theme.textPrimary
-            placeholderTextColor: theme.textFaint
+            color: Theme.textPrimary
+            placeholderTextColor: Theme.textFaint
             background: Rectangle {
-                color: theme.listBackground
+                color: Theme.listBackground
                 border.color: queryField.activeFocus
-                              ? theme.accent : theme.borderStrong
+                              ? Theme.accent : Theme.borderStrong
                 border.width: 1
                 radius: 6
             }
@@ -131,13 +137,16 @@ Popup {
                 model: switcher.rows
 
                 delegate: Rectangle {
+                    // Named so the Column and MouseArea inside, each its own
+                    // scope, address the row rather than relying on injection.
+                    id: resultRow
                     required property var modelData
                     required property int index
                     width: resultsList.width
                     height: 44
                     radius: 6
-                    color: index === switcher.highlightIndex
-                           ? theme.hoverTint : "transparent"
+                    color: resultRow.index === switcher.highlightIndex
+                           ? Theme.hoverTint : "transparent"
 
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
@@ -149,16 +158,16 @@ Popup {
 
                         Text {
                             width: parent.width
-                            text: modelData.title
-                            color: theme.textPrimary
+                            text: resultRow.modelData.title
+                            color: Theme.textPrimary
                             font.pixelSize: 14
                             elide: Text.ElideRight
                         }
                         Text {
                             width: parent.width
-                            visible: modelData.folder !== ""
-                            text: modelData.folder
-                            color: theme.textFaint
+                            visible: resultRow.modelData.folder !== ""
+                            text: resultRow.modelData.folder
+                            color: Theme.textFaint
                             font.pixelSize: 11
                             elide: Text.ElideRight
                         }
@@ -167,7 +176,7 @@ Popup {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        onEntered: switcher.highlightIndex = index
+                        onEntered: switcher.highlightIndex = resultRow.index
                         onClicked: switcher.applyHighlighted()
                     }
                 }
@@ -181,7 +190,7 @@ Popup {
                   ? qsTr("No notes")
                   : qsTr("No matches — Shift+Enter creates “%1”")
                         .arg(queryField.text.trim())
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 12
             horizontalAlignment: Text.AlignHCenter
             padding: 10

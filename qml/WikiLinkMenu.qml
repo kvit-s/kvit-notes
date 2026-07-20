@@ -1,8 +1,14 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The row delegate nests a Column and handlers, each its own scope.
+// Binding them lets the contents address the row by id; its roles were
+// already declared as required properties.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The [[ completion popup: opened when "[[" is typed in prose, listing
 // the collection's notes through the shared fuzzy matcher
@@ -72,13 +78,13 @@ Popup {
             var headingQuery = query.substring(hashIdx + 1).toLowerCase()
             var heads = []
             if (target === "") {
-                var own = documentOutline.headings()
+                var own = DocumentOutline.headings()
                 for (var i = 0; i < own.length; ++i)
                     heads.push(own[i].text)
             } else {
-                var relPath = noteCollection.resolveWikiTarget(target)
+                var relPath = NoteCollection.resolveWikiTarget(target)
                 if (relPath !== "")
-                    heads = noteCollection.headingsFor(relPath)
+                    heads = NoteCollection.headingsFor(relPath)
             }
             var headRows = []
             for (var h = 0; h < heads.length; ++h) {
@@ -88,13 +94,13 @@ Popup {
             }
             rows = headRows
         } else {
-            var items = quickSwitcherModel.itemsFor(query, 8)
+            var items = QuickSwitcherModel.itemsFor(query, 8)
             var noteRows = []
             for (var n = 0; n < items.length; ++n) {
                 // The minimal unambiguous target: the bare title when it
                 // resolves to this note, else the full path (".md" implied).
                 var title = items[n].title
-                var target2 = noteCollection.resolveWikiTarget(title)
+                var target2 = NoteCollection.resolveWikiTarget(title)
                         === items[n].relPath
                     ? title
                     : items[n].relPath.replace(/\.md$/i, "")
@@ -134,8 +140,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -151,7 +157,7 @@ Popup {
             visible: menu.rows.length === 0
             anchors.centerIn: parent
             text: qsTr("No matches — Enter keeps the typed link")
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 12
         }
 
@@ -164,13 +170,14 @@ Popup {
             model: menu.rows
 
             delegate: Rectangle {
+                id: menuRow
                 required property var modelData
                 required property int index
                 width: menuList.width
                 height: 40
                 radius: 4
-                color: index === menu.highlightIndex
-                       ? theme.hoverTint : "transparent"
+                color: menuRow.index === menu.highlightIndex
+                       ? Theme.hoverTint : "transparent"
 
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
@@ -182,19 +189,19 @@ Popup {
 
                     Text {
                         width: parent.width
-                        text: modelData.kind === "heading"
-                              ? "# " + modelData.heading : modelData.title
-                        color: theme.textPrimary
+                        text: menuRow.modelData.kind === "heading"
+                              ? "# " + menuRow.modelData.heading : menuRow.modelData.title
+                        color: Theme.textPrimary
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
                     Text {
                         width: parent.width
-                        visible: modelData.kind === "note"
-                                 && modelData.folder !== ""
-                        text: modelData.kind === "note"
-                              ? modelData.folder : ""
-                        color: theme.textFaint
+                        visible: menuRow.modelData.kind === "note"
+                                 && menuRow.modelData.folder !== ""
+                        text: menuRow.modelData.kind === "note"
+                              ? menuRow.modelData.folder : ""
+                        color: Theme.textFaint
                         font.pixelSize: 10
                         elide: Text.ElideRight
                     }
@@ -203,7 +210,7 @@ Popup {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
-                    onEntered: menu.highlightIndex = index
+                    onEntered: menu.highlightIndex = menuRow.index
                     onClicked: menu.applyHighlighted()
                 }
             }

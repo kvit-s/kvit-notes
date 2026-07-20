@@ -1,17 +1,26 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The heading rows nest Texts and handlers, each its own scope.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Window
+import Kvit 1.0
 
 // Table-of-contents block (features.md §17.2): a
 // `toc`-tagged code fence rendered read-only as a clickable list of the
-// document's headings. The list is a live projection of documentOutline —
+// document's headings. The list is a live projection of DocumentOutline —
 // it regenerates as headings change — and clicking an entry scrolls to that
 // heading. Editing is regeneration, not free text, so this delegate carries
 // the block focus/selection/drag API (like DividerDelegate) but no editor.
-Item {
+BlockDelegateBase {
     id: delegate
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -30,8 +39,8 @@ Item {
     // Live heading list; re-read only when the outline's heading projection
     // changes, not when outline panel state changes.
     property var headings: {
-        var r = documentOutline.slugsRevision // dependency only
-        return documentOutline.headings()
+        var r = DocumentOutline.slugsRevision // dependency only
+        return DocumentOutline.headings()
     }
     readonly property int minLevel: {
         var m = 6
@@ -41,9 +50,9 @@ Item {
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision // dependency only
-        return documentSelection.isBlockSelected(delegate.index)
-            || documentSelection.portionForBlock(delegate.index).selected === true
+        var revision = DocumentSelection.revision // dependency only
+        return DocumentSelection.isBlockSelected(delegate.index)
+            || DocumentSelection.portionForBlock(delegate.index).selected === true
     }
 
     // Cross-block position helpers (a TOC has no text: a single position 0).
@@ -54,24 +63,20 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? delegate.blockSelected
-                                     : win.blockDrag.sourceIndex === delegate.index
+        return delegate.shell.blockDrag.isMulti ? delegate.blockSelected
+                                     : delegate.shell.blockDrag.sourceIndex === delegate.index
     }
 
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
 
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (delegate.shell && delegate.shell.lastFocusedBlock !== undefined)
+                delegate.shell.lastFocusedBlock = index
         }
     }
 
@@ -95,11 +100,11 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = delegate.index - 1
-        blockModel.removeBlock(delegate.index)
+        BlockModel.removeBlock(delegate.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -107,11 +112,11 @@ Item {
 
     function createBlockBelow() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -119,13 +124,13 @@ Item {
 
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv)
                 return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) {
                 item.focusAtStart()
                 if (item.openBlockMenu)
@@ -146,13 +151,13 @@ Item {
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks()
+                DocumentSelection.selectAllBlocks()
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
@@ -166,16 +171,16 @@ Item {
             if (event.key === Qt.Key_Up && delegate.index > 0 && delegate.listView) {
                 var prevIndex = delegate.index - 1
                 delegate.listView.currentIndex = prevIndex
-                var prev = delegate.listView.itemAtIndex(prevIndex)
+                var prev = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd()
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Down && delegate.index < blockModel.count - 1
+            if (event.key === Qt.Key_Down && delegate.index < BlockModel.count - 1
                 && delegate.listView) {
                 var nextIndex = delegate.index + 1
                 delegate.listView.currentIndex = nextIndex
-                var next = delegate.listView.itemAtIndex(nextIndex)
+                var next = (delegate.listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                 if (next) next.focusAtStart()
                 event.accepted = true
                 return
@@ -194,34 +199,33 @@ Item {
     }
 
     // Selection/focus catcher for the card's empty areas (declared before the
-    // card so the per-row click handlers win over it).
+    // card so the per-row click handlers window over it).
     MouseArea {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
         onClicked: function(mouse) {
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(delegate.index)
-                if (documentSelection.hasBlockSelection)
+                DocumentSelection.toggleBlock(delegate.index)
+                if (DocumentSelection.hasBlockSelection)
                     delegate.focusSelectionHandler()
                 else
                     focusTarget.forceActiveFocus()
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var win = Window.window
-                var anchor = win && win.lastFocusedBlock !== undefined
-                        ? win.lastFocusedBlock : -1
-                if (!documentSelection.hasBlockSelection
+                var anchor = delegate.shell && delegate.shell.lastFocusedBlock !== undefined
+                        ? delegate.shell.lastFocusedBlock : -1
+                if (!DocumentSelection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
-                    documentSelection.selectBlock(anchor)
-                documentSelection.extendBlockSelectionTo(delegate.index)
+                    DocumentSelection.selectBlock(anchor)
+                DocumentSelection.extendBlockSelectionTo(delegate.index)
                 delegate.focusSelectionHandler()
                 return
             }
-            if (documentSelection.hasBlockSelection
-                || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection
+                || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             focusTarget.forceActiveFocus()
         }
     }
@@ -237,9 +241,9 @@ Item {
         anchors.top: parent.top
         anchors.topMargin: 4
         radius: 6
-        color: delegate.blockSelected ? theme.blockSelectionTint
-             : (delegate.isFocused ? theme.focusTint : theme.panelBackground)
-        border.color: delegate.blockSelected ? theme.accent : theme.border
+        color: delegate.blockSelected ? Theme.blockSelectionTint
+             : (delegate.isFocused ? Theme.focusTint : Theme.panelBackground)
+        border.color: delegate.blockSelected ? Theme.accent : Theme.border
         border.width: 1
         opacity: delegate.isDragSource ? 0.35 : 1
         implicitHeight: cardColumn.implicitHeight + 16
@@ -256,7 +260,7 @@ Item {
                 text: qsTr("Contents")
                 font.pixelSize: 11
                 font.bold: true
-                color: theme.textMuted
+                color: Theme.textMuted
                 bottomPadding: 2
             }
 
@@ -264,12 +268,13 @@ Item {
                 visible: delegate.headings.length === 0
                 text: qsTr("No headings yet.")
                 font.pixelSize: 12
-                color: theme.textFaint
+                color: Theme.textFaint
             }
 
             Repeater {
                 model: delegate.headings
                 Item {
+                    id: headingRow
                     required property var modelData
                     required property int index
                     width: cardColumn.width
@@ -277,12 +282,12 @@ Item {
 
                     Text {
                         id: entry
-                        x: (modelData.level - delegate.minLevel) * 16
-                        text: modelData.text === "" ? qsTr("(untitled)")
-                                                    : modelData.text
+                        x: (headingRow.modelData.level - delegate.minLevel) * 16
+                        text: headingRow.modelData.text === "" ? qsTr("(untitled)")
+                                                    : headingRow.modelData.text
                         font.pixelSize: 13
-                        color: linkArea.containsMouse ? theme.accent
-                                                      : theme.link
+                        color: linkArea.containsMouse ? Theme.accent
+                                                      : Theme.link
                         font.underline: linkArea.containsMouse
                     }
                     MouseArea {
@@ -290,11 +295,11 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var win = Window.window
-                            if (win)
-                                win.scrollToBlock(modelData.blockIndex)
-                        }
+                        // No window lookup any more: the request goes to
+                        // AppActions, and an unconnected signal is a no-op
+                        // exactly as the old `if (window)` guard was.
+                        onClicked: AppActions.requestScrollToBlock(
+                                       headingRow.modelData.blockIndex)
                     }
                 }
             }
@@ -309,14 +314,14 @@ Item {
         x: 10
         y: 8
         radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Text {
             anchors.centerIn: parent
             text: "+"
-            color: theme.textMuted
+            color: Theme.textMuted
             font.pixelSize: 14
             font.bold: true
         }
@@ -349,7 +354,7 @@ Item {
                     spacing: 2
                     Repeater {
                         model: 2
-                        Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint }
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint }
                     }
                 }
             }
@@ -368,35 +373,32 @@ Item {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!delegate.shell || !delegate.shell.blockDrag) return
                 var sp = tocHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5)
                         return
                     dragging = true
-                    win.blockDrag.begin(delegate.index, sp.x, sp.y)
+                    delegate.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
                 } else {
-                    win.blockDrag.update(sp.x, sp.y)
+                    delegate.shell.blockDrag.update(sp.x, sp.y)
                 }
             }
             onReleased: {
-                var win = Window.window
                 if (dragging) {
                     dragging = false
-                    if (win && win.blockDrag) win.blockDrag.drop()
+                    if (delegate.shell && delegate.shell.blockDrag) delegate.shell.blockDrag.drop()
                     return
                 }
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                documentSelection.selectBlock(delegate.index)
+                DocumentSelection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
             }
             onCanceled: {
                 if (dragging) {
                     dragging = false
-                    var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel()
+                    if (delegate.shell && delegate.shell.blockDrag) delegate.shell.blockDrag.cancel()
                 }
             }
         }

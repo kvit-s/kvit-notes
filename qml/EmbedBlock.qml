@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Window
+import Kvit 1.0
 
 // Embed preview card (features.md §1.2.14): an image
 // expression ![](url) whose URL is a web page or video host, rendered as a
@@ -11,8 +12,13 @@ import QtQuick.Window
 // host shows a play affordance; a failed fetch falls back to a card naming the
 // URL. Storage is the image expression, so this round-trips byte-identically.
 // Carries the block focus/selection/drag API like the other non-text blocks.
-Item {
+BlockDelegateBase {
     id: root
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -33,8 +39,8 @@ Item {
     property bool isHovered: hoverArea.containsMouse
 
     // Configurable embed dimensions (§1.2.14): stored width/height in px.
-    readonly property int embedWidth: blockAttributes.num(attributes, "width", 0)
-    readonly property int embedHeight: blockAttributes.num(attributes, "height", 0)
+    readonly property int embedWidth: BlockAttributes.num(attributes, "width", 0)
+    readonly property int embedHeight: BlockAttributes.num(attributes, "height", 0)
     // Live card size while a resize drag is in flight; 0 when none is. The
     // card binds to these rather than being assigned during the drag, because
     // assigning to width, implicitHeight, or anchors.right destroys those
@@ -47,7 +53,7 @@ Item {
     readonly property int effectiveHeight:
         previewHeight > 0 ? previewHeight : embedHeight
     function setEmbedSize(payload) {
-        blockModel.setBlockAttributes(root.index, payload)
+        BlockModel.setBlockAttributes(root.index, payload)
     }
 
     // The URL inside ![alt](url).
@@ -60,17 +66,17 @@ Item {
     readonly property bool failed: loaded && meta.ok === false
     readonly property bool isVideo: loaded && meta.video === true
 
-    // Whether this URL's origin may be contacted. Reading egressPolicy.revision
+    // Whether this URL's origin may be contacted. Reading EgressPolicy.revision
     // is what makes the binding live: isAllowed() is a plain function call, so
     // without the revision dependency the card would never notice the reader
     // approving the origin.
     readonly property bool remoteAllowed: {
-        var r = egressPolicy.revision
-        return egressPolicy.isAllowed(root.embedUrl)
+        var r = EgressPolicy.revision
+        return EgressPolicy.isAllowed(root.embedUrl)
     }
     // Nothing cached and no permission to fetch: the inert state.
     readonly property bool awaitingConsent: !loaded && !remoteAllowed
-    readonly property bool canOfferLoad: egressPolicy.canRequestConsent(embedUrl)
+    readonly property bool canOfferLoad: EgressPolicy.canRequestConsent(embedUrl)
 
     // Cached metadata is displayed; a fetch happens only once the origin is
     // approved. Opening a note must not contact the hosts the note names —
@@ -79,46 +85,48 @@ Item {
     function refreshMeta() {
         if (embedUrl === "")
             return
-        var cached = embedMetadata.cachedMetadata(embedUrl)
+        var cached = EmbedMetadata.cachedMetadata(embedUrl)
         if (cached && cached.url !== undefined) {
             meta = cached
             return
         }
         meta = ({})
         if (remoteAllowed)
-            embedMetadata.requestMetadata(embedUrl)
+            EmbedMetadata.requestMetadata(embedUrl)
     }
     // The reader asked for this card specifically: approve the origin, which
     // covers the page and the thumbnail and favicon it names, then fetch.
     function loadPreview() {
         if (embedUrl === "")
             return
-        egressPolicy.allowOrigin(embedUrl)
-        embedMetadata.requestMetadata(embedUrl)
+        EgressPolicy.allowOrigin(embedUrl)
+        EmbedMetadata.requestMetadata(embedUrl)
     }
     Component.onCompleted: refreshMeta()
     onEmbedUrlChanged: refreshMeta()
     onRemoteAllowedChanged: refreshMeta()
     Connections {
-        target: embedMetadata
+        target: EmbedMetadata
         function onMetadataReady(u) {
             if (u === root.embedUrl)
-                root.meta = embedMetadata.cachedMetadata(u)
+                root.meta = EmbedMetadata.cachedMetadata(u)
         }
     }
 
     function openEmbed() {
-        var win = Window.window
-        if (win && win.linkOpener)
-            win.linkOpener.activate(embedUrl)
-        else
+        // The guard SELECTS behaviour rather than checking for null: with an
+        // editor shell the link routes through its opener; without one — a
+        // preview hosted in some other window — it opens externally.
+        // KvitShell.openLink answers whether it handled the link, so the
+        // fallback survives without the delegate naming the opener object.
+        if (!root.shell || !root.shell.openLink(embedUrl))
             Qt.openUrlExternally(embedUrl)
     }
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
     function markdownPositionAt(sceneX, sceneY) { return 0 }
     function pointInText(sceneX, sceneY) { return false }
@@ -127,22 +135,18 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active)
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
             return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined)
-                win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined)
+                root.shell.lastFocusedBlock = index
         }
     }
 
@@ -167,34 +171,34 @@ Item {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
     }
@@ -209,21 +213,21 @@ Item {
                 && (event.modifiers & Qt.ControlModifier)
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                documentSelection.selectAllBlocks(); root.focusSelectionHandler()
+                DocumentSelection.selectAllBlocks(); root.focusSelectionHandler()
                 event.accepted = true; return
             }
             if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
                 var p = root.index - 1; root.listView.currentIndex = p
-                var prev = root.listView.itemAtIndex(p); if (prev) prev.focusAtEnd()
+                var prev = (root.listView.itemAtIndex(p) as BlockDelegateBase); if (prev) prev.focusAtEnd()
                 event.accepted = true; return
             }
-            if (event.key === Qt.Key_Down && root.index < blockModel.count - 1 && root.listView) {
+            if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1 && root.listView) {
                 var n = root.index + 1; root.listView.currentIndex = n
-                var next = root.listView.itemAtIndex(n); if (next) next.focusAtStart()
+                var next = (root.listView.itemAtIndex(n) as BlockDelegateBase); if (next) next.focusAtStart()
                 event.accepted = true; return
             }
             if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
@@ -241,13 +245,13 @@ Item {
         hoverEnabled: true
         onClicked: function(mouse) {
             if (mouse.modifiers & Qt.ControlModifier) {
-                documentSelection.toggleBlock(root.index)
-                if (documentSelection.hasBlockSelection) root.focusSelectionHandler()
+                DocumentSelection.toggleBlock(root.index)
+                if (DocumentSelection.hasBlockSelection) root.focusSelectionHandler()
                 else focusTarget.forceActiveFocus()
                 return
             }
-            if (documentSelection.hasBlockSelection || documentSelection.hasTextSelection)
-                documentSelection.clear()
+            if (DocumentSelection.hasBlockSelection || DocumentSelection.hasTextSelection)
+                DocumentSelection.clear()
             focusTarget.forceActiveFocus()
         }
     }
@@ -271,11 +275,11 @@ Item {
             ? Math.min(root.effectiveWidth, root.embedMaxWidth) : undefined
         radius: 8
         clip: true
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isFocused ? theme.focusTint : theme.panelBackground)
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isFocused ? Theme.focusTint : Theme.panelBackground)
         // A visible keyboard-focus ring (§14.1) in addition to the tint.
-        border.color: root.blockSelected ? theme.accent
-                    : root.isFocused ? theme.focusRing : theme.border
+        border.color: root.blockSelected ? Theme.accent
+                    : root.isFocused ? Theme.focusRing : Theme.border
         border.width: root.isFocused ? 2 : 1
         opacity: root.isDragSource ? 0.35 : 1
         implicitHeight: root.effectiveHeight > 0
@@ -298,7 +302,7 @@ Item {
                 width: 120
                 height: 74
                 radius: 4
-                color: theme.hoverTint
+                color: Theme.hoverTint
                 clip: true
                 Image {
                     objectName: "embedThumb"
@@ -308,7 +312,7 @@ Item {
                     // fetched page, so it is as untrusted as the page and has
                     // to travel over the checked transport like everything
                     // else. An unapproved origin yields no source at all.
-                    source: egressPolicy.imageSourceFor(root.loaded ? root.meta.image : "")
+                    source: EgressPolicy.imageSourceFor(root.loaded ? root.meta.image : "")
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                 }
@@ -324,7 +328,7 @@ Item {
                     visible: !root.loaded || !root.meta.image
                     anchors.centerIn: parent
                     text: root.isVideo ? "▶" : "🔗"
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     font.pixelSize: 22
                 }
             }
@@ -344,7 +348,7 @@ Item {
                     wrapMode: Text.WordWrap
                     font.pixelSize: 14
                     font.bold: true
-                    color: theme.textPrimary
+                    color: Theme.textPrimary
                 }
                 Text {
                     visible: root.loaded && root.meta.description
@@ -355,7 +359,7 @@ Item {
                     maximumLineCount: 2
                     wrapMode: Text.WordWrap
                     font.pixelSize: 12
-                    color: theme.textMuted
+                    color: Theme.textMuted
                 }
                 // The inert card's affordance. Until this is clicked the block
                 // is a piece of text naming a URL, and nothing has been
@@ -369,15 +373,15 @@ Item {
                         height: loadLabel.implicitHeight + 8
                         radius: 4
                         visible: root.canOfferLoad
-                        color: theme.hoverTint
-                        border.color: loadArea.containsMouse ? theme.accent : theme.border
+                        color: Theme.hoverTint
+                        border.color: loadArea.containsMouse ? Theme.accent : Theme.border
                         Text {
                             id: loadLabel
                             anchors.centerIn: parent
                             text: qsTr("Load preview")
                             font.pixelSize: 11
-                            color: loadArea.containsMouse ? theme.textPrimary
-                                                          : theme.textMuted
+                            color: loadArea.containsMouse ? Theme.textPrimary
+                                                          : Theme.textMuted
                         }
                         MouseArea {
                             id: loadArea
@@ -391,9 +395,9 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.canOfferLoad
                             ? qsTr("· not loaded")
-                            : qsTr("· %1").arg(egressPolicy.refusalReason(root.embedUrl))
+                            : qsTr("· %1").arg(EgressPolicy.refusalReason(root.embedUrl))
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
@@ -401,7 +405,7 @@ Item {
                     spacing: 6
                     Image {
                         visible: source != ""
-                        source: egressPolicy.imageSourceFor(root.loaded ? root.meta.favicon : "")
+                        source: EgressPolicy.imageSourceFor(root.loaded ? root.meta.favicon : "")
                         width: 14; height: 14
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
@@ -413,13 +417,13 @@ Item {
                             return m ? m[1] : u
                         }
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                     Text {
                         visible: root.failed
                         text: qsTr("· preview unavailable")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
             }
@@ -441,7 +445,7 @@ Item {
             id: embedResize
             objectName: "embedResizeHandle"
             width: 14; height: 14; radius: 3
-            color: theme.accent
+            color: Theme.accent
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: 2
@@ -481,8 +485,8 @@ Item {
                     // written attributes feed embedWidth/embedHeight, so the
                     // committed size is already in place when the preview
                     // clears.
-                    var payload = blockAttributes.withValue(
-                        blockAttributes.withValue(root.attributes, "width", String(liveW)),
+                    var payload = BlockAttributes.withValue(
+                        BlockAttributes.withValue(root.attributes, "width", String(liveW)),
                         "height", String(liveH))
                     root.setEmbedSize(payload)
                     root.previewWidth = 0
@@ -496,11 +500,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 10; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea {
             id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -516,7 +520,7 @@ Item {
         Column {
             anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } }
         }
         MouseArea {
             id: embedHandleArea
@@ -527,22 +531,20 @@ Item {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window; if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = embedHandleArea.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
-                } else win.blockDrag.update(sp.x, sp.y)
+                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
+                } else root.shell.blockDrag.update(sp.x, sp.y)
             }
             onReleased: {
-                var win = Window.window
-                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index); root.focusSelectionHandler()
+                DocumentSelection.selectBlock(root.index); root.focusSelectionHandler()
             }
             onCanceled: {
-                if (dragging) { dragging = false; var win = Window.window
-                    if (win && win.blockDrag) win.blockDrag.cancel() }
+                if (dragging) { dragging = false;                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() }
             }
         }
     }

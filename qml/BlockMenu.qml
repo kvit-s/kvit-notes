@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The row delegate's Texts and handlers are separate scopes reading the
+// model role and the enclosing menu.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -13,6 +17,7 @@ import Kvit 1.0
 // BlockMenuModel catalog; this file owns no matching logic.
 Popup {
     id: menu
+
     objectName: "blockMenu"
 
     // The block the menu is operating on, or -1 while closed.
@@ -100,7 +105,7 @@ Popup {
     }
 
     function refilter() {
-        rows = blockMenuModel.itemsFor(query)
+        rows = BlockMenuModel.itemsFor(query)
         highlightIndex = firstEntryIndex()
         if (menuList)  // the content item may not be instantiated yet
             menuList.positionViewAtBeginning()
@@ -150,7 +155,7 @@ Popup {
         // type alone would bring back "Code Block" for every one of them.
         // The "/code <language>" rows carry no entryId and are not recorded.
         if (row.entryId !== undefined)
-            blockMenuModel.noteUsedEntry(row.entryId)
+            BlockMenuModel.noteUsedEntry(row.entryId)
         dismiss()
         // Media types insert rather than convert: an empty Image block has
         // no path, so the menu hands off to the insert flow. Image and Media
@@ -160,23 +165,17 @@ Popup {
         // A Web Embed prompts for a URL and inserts an
         // ![](url) image expression that classifies to the embed card.
         if (type === Block.Image && row.language === "embed") {
-            var winE = Window.window
-            if (winE && winE.insertEmbedIntoBlock)
-                winE.insertEmbedIntoBlock(idx)
+            AppActions.requestInsertEmbed(idx)
             applied(idx, type)
             return
         }
         if (type === Block.Image || type === Block.Media) {
-            var win = Window.window
-            if (win && win.insertImageIntoBlock)
-                win.insertImageIntoBlock(idx)
+            AppActions.requestInsertImage(idx)
             applied(idx, type)
             return
         }
         if (type === Block.Table) {
-            var win2 = Window.window
-            if (win2 && win2.insertTableIntoBlock)
-                win2.insertTableIntoBlock(idx)
+            AppActions.requestInsertTable(idx)
             applied(idx, type)
             return
         }
@@ -188,9 +187,9 @@ Popup {
         // text the user goes on to type. Three lines is the menu default; the
         // block context menu offers the other spans.
         if (type === Block.Paragraph && row.language === "dropcap") {
-            blockModel.convertBlock(idx, Block.Paragraph, "", false, "")
-            blockModel.setBlockAttributes(
-                idx, blockAttributes.withValue(blockModel.getAttributes(idx),
+            BlockModel.convertBlock(idx, Block.Paragraph, "", false, "")
+            BlockModel.setBlockAttributes(
+                idx, BlockAttributes.withValue(BlockModel.getAttributes(idx),
                                                "dropcap", "3"))
             applied(idx, type)
             return
@@ -203,7 +202,7 @@ Popup {
         // the document's current headings so its stored body is correct from
         // insertion.
         var seed = lang === "kanban" ? "## To do\n## In progress\n## Done"
-                 : (lang === "toc" ? documentOutline.tocMarkdown()
+                 : (lang === "toc" ? DocumentOutline.tocMarkdown()
                  : (lang === "mermaid"
                     ? "flowchart LR\n"
                       + "  A[Start] --> B{Decision}\n"
@@ -218,7 +217,7 @@ Popup {
                       + "columns: title, tags, modified\n"
                       + "sort: modified desc"
                     : "")))
-        blockModel.convertBlock(idx, type, seed, false, lang)
+        BlockModel.convertBlock(idx, type, seed, false, lang)
         applied(idx, type)
     }
 
@@ -228,8 +227,8 @@ Popup {
     }
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -246,7 +245,7 @@ Popup {
             visible: menu.rows.length === 0
             anchors.centerIn: parent
             text: qsTr("No matches")
-            color: theme.textFaint
+            color: Theme.textFaint
             font.pixelSize: 13
         }
 
@@ -265,7 +264,7 @@ Popup {
                 required property var modelData
                 required property int index
 
-                readonly property bool isEntry: modelData.kind === "entry"
+                readonly property bool isEntry: rowItem.modelData.kind === "entry"
 
                 width: menuList.width
                 height: isEntry ? 44 : 24
@@ -276,8 +275,8 @@ Popup {
                     anchors.left: parent.left
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    text: rowItem.isEntry ? "" : modelData.text
-                    color: theme.textFaint
+                    text: rowItem.isEntry ? "" : rowItem.modelData.text
+                    color: Theme.textFaint
                     font.pixelSize: 10
                     font.bold: true
                     font.capitalization: Font.AllUppercase
@@ -288,7 +287,7 @@ Popup {
                     anchors.fill: parent
                     radius: 4
                     color: rowItem.isEntry && rowItem.index === menu.highlightIndex
-                           ? theme.focusTint : "transparent"
+                           ? Theme.focusTint : "transparent"
 
                     Row {
                         anchors.fill: parent
@@ -302,14 +301,14 @@ Popup {
                             height: 28
                             anchors.verticalCenter: parent.verticalCenter
                             radius: 5
-                            color: theme.chipBackground
-                            border.color: theme.border
+                            color: Theme.chipBackground
+                            border.color: Theme.border
                             border.width: 1
 
                             Text {
                                 anchors.centerIn: parent
-                                text: rowItem.isEntry ? modelData.icon : ""
-                                color: theme.textSecondary
+                                text: rowItem.isEntry ? rowItem.modelData.icon : ""
+                                color: Theme.textSecondary
                                 font.pixelSize: 12
                                 font.bold: true
                             }
@@ -320,13 +319,13 @@ Popup {
                             spacing: 1
 
                             Text {
-                                text: rowItem.isEntry ? modelData.name : ""
-                                color: theme.textPrimary
+                                text: rowItem.isEntry ? rowItem.modelData.name : ""
+                                color: Theme.textPrimary
                                 font.pixelSize: 13
                             }
                             Text {
-                                text: rowItem.isEntry ? modelData.description : ""
-                                color: theme.textFaint
+                                text: rowItem.isEntry ? rowItem.modelData.description : ""
+                                color: Theme.textFaint
                                 font.pixelSize: 11
                             }
                         }

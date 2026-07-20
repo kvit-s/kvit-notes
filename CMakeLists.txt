@@ -124,6 +124,9 @@ add_subdirectory(third_party/microtex)
 # the naming the split document uses.
 add_library(kvit-core STATIC
     src/appcontext.cpp
+    src/qmlservices.cpp
+    src/appactions.h
+    src/qmlsingletons.h
     src/kvitapplication.cpp
     src/blockkindregistry.cpp
     src/extensionregistry.cpp
@@ -269,6 +272,40 @@ target_link_libraries(kvit-core PRIVATE
 )
 
 target_include_directories(kvit-core PUBLIC src)
+
+# qmltyperegistrar writes `#include <diagramcanvas.h>` — the basename, with no
+# directory — for every type carrying QML_ELEMENT, and guards each one with
+# __has_include. The rest of the tree reaches that header as
+# "diagrams/diagramcanvas.h", so with only src on the path the guard silently
+# skips the include and the generated file then fails to compile on the
+# undeclared type. PRIVATE because only the generated translation unit, which
+# is compiled into this library, needs the shorter spelling.
+target_include_directories(kvit-core PRIVATE src/diagrams)
+
+# The `Kvit` QML module. Its types are declared by the QML_ELEMENT macros on
+# the C++ classes, and qmltyperegistrar writes the .qmltypes description of
+# them at build time.
+#
+# The point of generating that file is qmllint. It previously read a
+# hand-written stub (tools/qmllint/Kvit) that named the types but described
+# none of their properties, kept in step with the code by a checker script.
+# The generated file carries the real surface — every property, method and
+# signal — so qmllint can check uses, not just imports, and cannot fall out of
+# date with the C++.
+#
+# NO_PLUGIN: kvit-core is linked directly into every binary that uses it, so
+# there is nothing for a plugin to load. See AppContext::registerQmlTypes()
+# for the consequence that has, which is not obvious.
+#
+# The QML files themselves still ship in resources.qrc rather than through
+# QML_FILES here. Moving them is a larger change and is not needed for the
+# type checking this enables.
+qt_add_qml_module(kvit-core
+    URI Kvit
+    VERSION 1.0
+    NO_PLUGIN
+    OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/qmlmodules/Kvit
+)
 
 # The premium module, built as its own library so the open build never
 # compiles a line of it. It links the core and is linked BY the executable —

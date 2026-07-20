@@ -18,6 +18,8 @@
 #include "block.h"
 #include "blockmodel.h"
 #include "extensionregistry.h"
+#include "perflog.h"
+#include "qmlservices.h"
 
 #include <QQmlContext>
 #include <QRegularExpression>
@@ -118,26 +120,19 @@ private slots:
         }
     }
 
-    // The names the shell binds to are a contract between C++ and QML that
-    // neither compiler checks. Pinning the published set means a rename has
-    // to be made deliberately, in both places, rather than discovered later
-    // as an undefined value at runtime.
+    // The core publishes no context properties at all any more: every service
+    // reaches QML as a `Kvit` module singleton, where qmllint checks its uses
+    // statically instead of a list here pinning them by hand.
+    //
+    // The empty expectation is the assertion, not a leftover. A context
+    // property added back would be invisible to the lint gate — that is the
+    // whole reason they were removed — so the one thing worth checking is
+    // that none reappears. Anything genuinely needing to reach QML should be
+    // registered in qmlsingletons.h, which the extension registry also
+    // reserves names against.
     void everyPublishedContextPropertyIsAccountedFor()
     {
         static const QStringList expected = {
-            "blockModel", "markdownFormatter", "undoStack", "documentManager",
-            "clipboard", "blockMenuModel", "mathCommandModel",
-            "documentSelection", "documentSearch", "documentOutline",
-            "documentStats", "documentExporter", "documentSerializer",
-            "noteCollection", "folderTreeModel", "noteListModel",
-            "collectionSearch", "startupController", "noteTemplates",
-            "documentImporter", "embedMetadata", "egressPolicy", "appSettings",
-            "perfLog",
-            "theme", "typography", "codeLanguageList", "imageAssets",
-            "blockAttributes", "shortcutCatalog", "a11y", "systemTray",
-            "globalHotkey", "fileWatcher", "navigationHistory", "updateChecker",
-            "quickSwitcherModel", "tableTools", "todoMeta", "kanbanTools",
-            "queryTools", "mathRenderer", "blockKinds", "extensions",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
 
@@ -148,12 +143,122 @@ private slots:
         QVERIFY2(added.isEmpty() && removed.isEmpty(),
                  qPrintable(QStringLiteral(
                      "Published context properties changed. Added: [%1]. "
-                     "Removed: [%2]. Update the shell's bindings and this "
-                     "list together.")
+                     "Removed: [%2]. The core is meant to publish none — a "
+                     "new one is invisible to qmllint; register it in "
+                     "qmlsingletons.h instead.")
                         .arg(QStringList(added.begin(), added.end()).join(", "),
                              QStringList(removed.begin(), removed.end())
                                  .join(", "))));
         QCOMPARE(actual.size(), expected.size());   // no duplicate publishes
+    }
+
+    // The services QML now reaches as `Kvit` module singletons rather than as
+    // context properties. Two properties matter and neither is visible from
+    // QML alone.
+    //
+    // A singleton that resolves to null is not an error QML raises on its
+    // own: every member read off it is undefined, which is the same quiet
+    // wrongness the context properties had. Asserting the instance exists is
+    // what turns a broken factory into a failure here.
+    //
+    // And the instance has to be THIS composition's. Registering singletons
+    // with qmlRegisterSingletonInstance would bind one object for the whole
+    // process, which would break the second AppContext that tests rely on for
+    // isolation; the per-engine create() seam exists to avoid that, so the
+    // second half checks a second composition really does get its own.
+    void everySingletonResolvesWithinItsOwnComposition()
+    {
+        static const QStringList singletons = {
+            QStringLiteral("QueryTools"),      QStringLiteral("GlobalHotkey"),
+            QStringLiteral("FileWatcher"),     QStringLiteral("ShortcutCatalog"),
+            QStringLiteral("QuickSwitcherModel"),
+            QStringLiteral("FolderTreeModel"),
+            QStringLiteral("MarkdownFormatter"),
+            QStringLiteral("BlockMenuModel"),
+            QStringLiteral("MathCommandModel"),
+            QStringLiteral("DocumentStats"),
+            QStringLiteral("DocumentExporter"),
+            QStringLiteral("DocumentSerializer"),
+            QStringLiteral("DocumentImporter"),
+            QStringLiteral("EmbedMetadata"),
+            QStringLiteral("SystemTray"),
+            QStringLiteral("NavigationHistory"),
+            QStringLiteral("UpdateChecker"),
+            QStringLiteral("TableTools"),
+            QStringLiteral("KanbanTools"),
+            QStringLiteral("TodoMeta"),
+            QStringLiteral("MathRenderer"),
+            QStringLiteral("UndoStack"),
+            QStringLiteral("DocumentOutline"),
+            QStringLiteral("CollectionSearch"),
+            QStringLiteral("NoteTemplates"),
+            QStringLiteral("EgressPolicy"),
+            QStringLiteral("Typography"),
+            QStringLiteral("ImageAssets"),
+            QStringLiteral("BlockAttributes"),
+            QStringLiteral("Clipboard"),
+            QStringLiteral("A11y"),
+            QStringLiteral("Extensions"),
+            QStringLiteral("BlockKindRegistry"),
+            QStringLiteral("DocumentSearch"),
+            QStringLiteral("NoteListModel"),
+            QStringLiteral("AppSettings"),
+            QStringLiteral("DocumentManager"),
+            QStringLiteral("NoteCollection"),
+            QStringLiteral("BlockModel"),
+            QStringLiteral("Theme"),
+            QStringLiteral("DocumentSelection"),
+        };
+
+        // A second composition, wired exactly like the one under test.
+        QTemporaryDir otherDir;
+        AppContext other;
+        other.openSettings(otherDir.filePath(QStringLiteral("settings.json")));
+        QQmlEngine otherEngine;
+        other.installContextProperties(&otherEngine);
+
+        // PerfLog is the exception the loop below would get wrong. It is a
+        // process-global that every composition shares, so it resolves
+        // through PerfLog::instance() rather than the per-engine table, and
+        // both engines are SUPPOSED to see one object. Asserting that
+        // directly pins the sharing rather than leaving it untested.
+        QObject *minePerfLog = m_engine.singletonInstance<QObject *>(
+            QStringLiteral("Kvit"), QStringLiteral("PerfLog"));
+        QCOMPARE(minePerfLog, static_cast<QObject *>(&PerfLog::instance()));
+        QCOMPARE(otherEngine.singletonInstance<QObject *>(
+                     QStringLiteral("Kvit"), QStringLiteral("PerfLog")),
+                 minePerfLog);
+
+        for (const QString &type : singletons) {
+
+            QObject *mine =
+                m_engine.singletonInstance<QObject *>(QStringLiteral("Kvit"), type);
+            QVERIFY2(mine, qPrintable(type + QStringLiteral(" resolved to null")));
+
+            // Identity, not just existence. Qt default-constructs a
+            // QML_SINGLETON whose factory it does not find, and the result is
+            // a valid object of the right class, distinct per engine, wired
+            // to nothing — so every cheaper assertion here passes while the
+            // shell renders empty. Comparing against what this composition
+            // registered for that same type is what catches it.
+            QObject *registered =
+                m_context->services()->lookup(mine->metaObject());
+            QVERIFY2(mine == registered,
+                     qPrintable(type + QStringLiteral(" is not this context's "
+                                                      "instance; the engine "
+                                                      "constructed its own")));
+
+            QObject *theirs =
+                otherEngine.singletonInstance<QObject *>(QStringLiteral("Kvit"), type);
+            QVERIFY2(theirs, qPrintable(type + QStringLiteral(" resolved to null "
+                                                             "in the second context")));
+
+            QVERIFY2(mine != theirs,
+                     qPrintable(type + QStringLiteral(" is shared between two "
+                                                      "AppContexts; the singleton "
+                                                      "is process-global rather "
+                                                      "than per-engine")));
+        }
     }
 
     void withNoModuleInstalledEverySlotIsInert()
@@ -263,20 +368,46 @@ private slots:
         options.configureLoggingFromSettings = false;
 
         QTemporaryDir dir;
+
+        // Derived from what the core actually occupies, rather than a name
+        // written in here. Services migrated to the Kvit module one batch at
+        // a time, and a hardcoded name stopped being a collision the moment
+        // its service moved — which is how this test once broke rather than
+        // caught anything.
+        //
+        // The singleton names are the half that still matters. The core
+        // publishes no context properties now, so a module cannot collide
+        // with one; what it can do is ask for `theme` while the core owns the
+        // `Theme` singleton, which is the confusion the case-insensitive rule
+        // exists to refuse.
+        const QStringList reserved = KvitQml::singletonNames();
+        QVERIFY2(!reserved.isEmpty(),
+                 "The Kvit module registers no singletons, so there is nothing "
+                 "for a module namespace to collide with and this test cannot "
+                 "demonstrate the refusal.");
+        const QString coreName = reserved.first().toLower();
+
         AppContext context(options);
         context.openSettings(dir.filePath(QStringLiteral("settings.json")));
         context.extensions()->install(
-            std::make_unique<NameGrabbingExtension>(QStringLiteral("blockModel")));
+            std::make_unique<NameGrabbingExtension>(coreName));
 
         QQmlEngine engine;
-        QTest::ignoreMessage(QtWarningMsg,
-                             QRegularExpression(QStringLiteral("already taken")));
+        // Matching the explanation, not just the refusal: someone hitting
+        // this needs to learn that the core owns a singleton of that name and
+        // that the two would be confusable, which is the whole reason the
+        // comparison ignores case.
+        QTest::ignoreMessage(
+            QtWarningMsg,
+            QRegularExpression(QStringLiteral(
+                "the editor already publishes '%1'").arg(reserved.first())));
         context.installContextProperties(&engine);
 
-        // The core kept the name, and the module published nothing.
         QVERIFY(context.extensions()->publishedNamespaces().isEmpty());
-        QCOMPARE(engine.rootContext()->contextProperty("blockModel").value<QObject *>(),
-                 static_cast<QObject *>(context.blockModel()));
+        // The module got nothing, and the name it asked for is not on the
+        // context either — the refusal is a refusal, not a silent rename.
+        QVERIFY(!engine.rootContext()
+                     ->contextProperty(coreName).isValid());
 
         // A namespace that collides with nothing is published, which is what
         // shows the refusal above was about the collision.

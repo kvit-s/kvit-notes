@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Canvas affordances and menu items are separate scopes reading ids
+// declared around them.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -18,8 +22,13 @@ import Kvit 1.0
 // with line/column diagnostics. Unsupported diagram families fall back to
 // editable source with a clear diagnostic; the Markdown is never discarded.
 // Keeps the non-text focus API of the other wave-2 blocks.
-Item {
+BlockDelegateBase {
     id: root
+
+    // The editor window this row is in, typed. Null for any other window,
+    // so the guards below still mean what they meant.
+    readonly property KvitShell shell: Window.window as KvitShell
+
 
     required property int index
     required property string blockId
@@ -43,12 +52,12 @@ Item {
     property bool fitMode: true
     property real zoomLevel: 1.0
     readonly property int maxReadHeight: 720
-    readonly property int labelFontSize: typography.sizeForBlockType(Block.Paragraph)
+    readonly property int labelFontSize: Typography.sizeForBlockType(Block.Paragraph)
 
     readonly property bool blockSelected: {
-        var revision = documentSelection.revision
-        return documentSelection.isBlockSelected(root.index)
-            || documentSelection.portionForBlock(root.index).selected === true
+        var revision = DocumentSelection.revision
+        return DocumentSelection.isBlockSelected(root.index)
+            || DocumentSelection.portionForBlock(root.index).selected === true
     }
 
     // ---- non-text focus API (matches MathBlock) ----
@@ -59,19 +68,16 @@ Item {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        var win = Window.window
-        if (!win || !win.blockDrag || !win.blockDrag.active) return false
-        return win.blockDrag.isMulti ? root.blockSelected
-                                     : win.blockDrag.sourceIndex === root.index
+        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
+        return root.shell.blockDrag.isMulti ? root.blockSelected
+                                     : root.shell.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler) win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            var win = Window.window
-            if (win && win.lastFocusedBlock !== undefined) win.lastFocusedBlock = index
+            if (root.shell && root.shell.lastFocusedBlock !== undefined) root.shell.lastFocusedBlock = index
             previewSource = content
         }
     }
@@ -112,11 +118,9 @@ Item {
         var line = readCanvas.sourceLineForOffset(off)
         var msg = readCanvas.selectionLabel()
                 + (line > 0 ? qsTr(" — line %1").arg(line) : "")
-        var win = Window.window
-        if (win && win.showTransientStatus)
-            win.showTransientStatus(msg)
-        if (typeof a11y !== "undefined")
-            a11y.announce(msg)
+            AppActions.requestTransientStatus(msg)
+        if (typeof A11y !== "undefined")
+            A11y.announce(msg)
     }
     // Enter the source editor with the cursor on the selected element.
     function editSelectionSource() {
@@ -129,23 +133,19 @@ Item {
     // refusal through the status affordance and announcer.
     function applyGesture(src, doneMessage) {
         if (src !== "" && src !== root.content) {
-            blockModel.updateContent(root.index, src)
-            var win = Window.window
+            BlockModel.updateContent(root.index, src)
             if (doneMessage !== undefined && doneMessage !== "") {
-                if (win && win.showTransientStatus)
-                    win.showTransientStatus(doneMessage)
-                if (typeof a11y !== "undefined")
-                    a11y.announce(doneMessage)
+                    AppActions.requestTransientStatus(doneMessage)
+                if (typeof A11y !== "undefined")
+                    A11y.announce(doneMessage)
             }
             return true
         }
         var err = readCanvas.gestureError
         if (err !== "") {
-            var w = Window.window
-            if (w && w.showTransientStatus)
-                w.showTransientStatus(err)
-            if (typeof a11y !== "undefined")
-                a11y.announce(err)
+            AppActions.requestTransientStatus(err)
+            if (typeof A11y !== "undefined")
+                A11y.announce(err)
         }
         return false
     }
@@ -162,44 +162,44 @@ Item {
     }
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
-        if (!root.listView || targetIndex < 0 || targetIndex >= blockModel.count)
+        if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
             return false
         root.listView.currentIndex = targetIndex
-        var target = root.listView.itemAtIndex(targetIndex)
+        var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
         if (!target) return false
         if (direction < 0) target.focusAtEnd(); else target.focusAtStart()
         return true
     }
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        blockModel.removeBlock(root.index)
+        BlockModel.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
-                var item = listView.itemAtIndex(prevIndex)
+                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
-                var item = listView.itemAtIndex(newIndex)
+                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        blockModel.insertBlock(newIndex, 0, "")
+        BlockModel.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
             lv.currentIndex = newIndex
-            var item = lv.itemAtIndex(newIndex)
+            var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
     }
@@ -214,7 +214,7 @@ Item {
         debounce.stop()
         root.previewSource = sourceArea.text
         if (sourceArea.text !== root.content)
-            blockModel.updateContentById(root.blockId, sourceArea.text)
+            BlockModel.updateContentById(root.blockId, sourceArea.text)
     }
 
     Timer {
@@ -226,7 +226,7 @@ Item {
     // A save, export, note switch or shutdown must see the text the user has
     // just typed, not the text as of the last time the timer happened to fire.
     Connections {
-        target: documentManager
+        target: DocumentManager
         function onPendingEditsRequested() {
             if (debounce.running)
                 root.commitPendingSource()
@@ -239,21 +239,21 @@ Item {
 
     // Shared theme bindings for a DiagramCanvas.
     component ThemedCanvas: DiagramCanvas {
-        fontFamily: typography.fontFamily
+        fontFamily: Typography.fontFamily
         fontPixelSize: root.labelFontSize
-        nodeFillColor: theme.chipBackground
-        nodeStrokeColor: theme.accent
-        edgeColor: theme.textSecondary
-        labelColor: theme.textPrimary
-        edgeLabelColor: theme.textMuted
-        edgeLabelBackground: theme.panelBackground
-        subgraphFillColor: theme.blockHoverTint
-        subgraphStrokeColor: theme.border
-        noteFillColor: theme.highlightBackground
-        noteStrokeColor: theme.warning
-        activationFillColor: theme.hoverTint
-        pageBackgroundColor: theme.windowBackground
-        selectionRingColor: theme.focusRing
+        nodeFillColor: Theme.chipBackground
+        nodeStrokeColor: Theme.accent
+        edgeColor: Theme.textSecondary
+        labelColor: Theme.textPrimary
+        edgeLabelColor: Theme.textMuted
+        edgeLabelBackground: Theme.panelBackground
+        subgraphFillColor: Theme.blockHoverTint
+        subgraphStrokeColor: Theme.border
+        noteFillColor: Theme.highlightBackground
+        noteStrokeColor: Theme.warning
+        activationFillColor: Theme.hoverTint
+        pageBackgroundColor: Theme.windowBackground
+        selectionRingColor: Theme.focusRing
     }
 
     Rectangle {
@@ -262,9 +262,9 @@ Item {
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
-        color: root.blockSelected ? theme.blockSelectionTint
-             : (root.isHovered ? theme.blockHoverTint : "transparent")
-        border.color: root.blockSelected ? theme.accent : "transparent"
+        color: root.blockSelected ? Theme.blockSelectionTint
+             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+        border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
 
@@ -282,8 +282,8 @@ Item {
             visible: !root.editing
             height: root.editing ? 0 : readBody.height + 10
             radius: 6
-            color: theme.panelBackground
-            border.color: theme.border
+            color: Theme.panelBackground
+            border.color: Theme.border
             border.width: 1
 
             Column {
@@ -391,13 +391,11 @@ Item {
                                     dragging = false
                                     var newSrc = readCanvas.finishNodeDragSource()
                                     if (newSrc !== "" && newSrc !== root.content) {
-                                        blockModel.updateContent(root.index, newSrc)
-                                        var win = Window.window
-                                        if (win && win.showTransientStatus)
-                                            win.showTransientStatus(
+                                        BlockModel.updateContent(root.index, newSrc)
+                                            AppActions.requestTransientStatus(
                                                 qsTr("Arranged %1").arg(pressNode))
-                                        if (typeof a11y !== "undefined")
-                                            a11y.announce(qsTr("Moved %1").arg(pressNode))
+                                        if (typeof A11y !== "undefined")
+                                            A11y.announce(qsTr("Moved %1").arg(pressNode))
                                     }
                                     pressNode = ""
                                     return
@@ -558,8 +556,8 @@ Item {
                                 required property int index
                                 readonly property rect box: nodeAffordances.selRect
                                 width: 12; height: 12; radius: 6
-                                color: theme.accent
-                                border.color: theme.panelBackground
+                                color: Theme.accent
+                                border.color: Theme.panelBackground
                                 border.width: 2
                                 x: (index === 0 ? box.x + box.width / 2
                                   : index === 1 ? box.x + box.width
@@ -617,7 +615,7 @@ Item {
                     Text {
                         visible: root.content.trim().length === 0
                         text: qsTr("Empty Mermaid diagram — click to edit")
-                        color: theme.textFaint; font.italic: true; font.pixelSize: 13
+                        color: Theme.textFaint; font.italic: true; font.pixelSize: 13
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
@@ -626,7 +624,7 @@ Item {
                         wrapMode: Text.Wrap
                         text: qsTr("Unsupported Mermaid diagram type in this Kvit version. "
                                    + "The source is preserved — click to edit, or treat it as code.")
-                        color: theme.textMuted; font.pixelSize: 12
+                        color: Theme.textMuted; font.pixelSize: 12
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
@@ -637,14 +635,14 @@ Item {
                         text: "⚠ " + readCanvas.errorText
                               + (readCanvas.errorLine > 0
                                  ? " (line " + readCanvas.errorLine + ")" : "")
-                        color: theme.danger; font.pixelSize: 12
+                        color: Theme.danger; font.pixelSize: 12
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
                         visible: root.content.trim().length > 0 && !readCanvas.hasError
                                  && !readCanvas.hasScene
                         text: qsTr("Rendering…")
-                        color: theme.textFaint; font.pixelSize: 12
+                        color: Theme.textFaint; font.pixelSize: 12
                     }
                 }
 
@@ -652,7 +650,7 @@ Item {
                 Text {
                     visible: readCanvas.hasScene && readCanvas.hasError
                     text: qsTr("⚠ Preview is from the last valid source")
-                    color: theme.warning; font.pixelSize: 11
+                    color: Theme.warning; font.pixelSize: 11
                 }
             }
 
@@ -671,17 +669,17 @@ Item {
                     property bool active: false
                     signal clicked()
                     width: chipText.implicitWidth + 12; height: 18; radius: 4
-                    color: chipArea.containsMouse ? theme.hoverTint
-                         : (active ? theme.selectionTint : theme.chipBackground)
-                    border.color: theme.border; border.width: 1
+                    color: chipArea.containsMouse ? Theme.hoverTint
+                         : (active ? Theme.selectionTint : Theme.chipBackground)
+                    border.color: Theme.border; border.width: 1
                     Text { id: chipText; anchors.centerIn: parent; text: chip.label
-                        color: theme.textSecondary; font.pixelSize: 10 }
+                        color: Theme.textSecondary; font.pixelSize: 10 }
                     MouseArea { id: chipArea; anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor; onClicked: chip.clicked() }
                 }
 
                 Text { anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Mermaid"); color: theme.textFaint; font.pixelSize: 10 }
+                    text: qsTr("Mermaid"); color: Theme.textFaint; font.pixelSize: 10 }
                 ChipButton { label: qsTr("Fit"); active: root.fitMode
                     onClicked: root.fitMode = true }
                 ChipButton { label: "100%"; active: !root.fitMode && root.zoomLevel === 1.0
@@ -695,7 +693,7 @@ Item {
                 ChipButton { label: "+"; onClicked: {
                     root.zoomLevel = Math.min(3.0, readCanvas.renderScale * 1.25)
                     root.fitMode = false } }
-                ChipButton { label: qsTr("Copy"); onClicked: clipboard.text = root.content }
+                ChipButton { label: qsTr("Copy"); onClicked: Clipboard.text = root.content }
                 // "Copy as ASCII diagram": the rendered scene as Unicode
                 // box-drawing text — the same vocabulary the
                 // crooked-diagram repair recognizes.
@@ -706,7 +704,7 @@ Item {
                     onClicked: {
                         var text = readCanvas.textDiagram()
                         if (text !== "")
-                            clipboard.text = text
+                            Clipboard.text = text
                     }
                 }
                 ChipButton {
@@ -715,14 +713,14 @@ Item {
                     onClicked: {
                         var s = readCanvas.resetArrangementSource()
                         if (s !== "" && s !== root.content)
-                            blockModel.updateContent(root.index, s)
+                            BlockModel.updateContent(root.index, s)
                     }
                 }
                 ChipButton { label: qsTr("PNG"); visible: readCanvas.hasScene
                     onClicked: savePngDialog.open() }
                 ChipButton { label: qsTr("Edit"); onClicked: root.focusAtEnd() }
                 ChipButton { label: qsTr("As code")
-                    onClicked: blockModel.convertBlock(root.index, Block.CodeBlock,
+                    onClicked: BlockModel.convertBlock(root.index, Block.CodeBlock,
                                                        root.content, false, "plain") }
             }
 
@@ -733,15 +731,15 @@ Item {
                 anchors.right: parent.right; anchors.bottom: parent.bottom
                 anchors.margins: 6
                 width: zoomText.implicitWidth + 10; height: 16; radius: 4
-                color: theme.chipBackground
-                border.color: theme.border; border.width: 1
+                color: Theme.chipBackground
+                border.color: Theme.border; border.width: 1
                 visible: readCanvas.hasScene
                 Text {
                     id: zoomText
                     objectName: "diagramZoomText"
                     anchors.centerIn: parent
                     text: Math.round(readCanvas.renderScale * 100) + "%"
-                    color: theme.textFaint; font.pixelSize: 9
+                    color: Theme.textFaint; font.pixelSize: 9
                 }
             }
         }
@@ -763,21 +761,21 @@ Item {
                 objectName: "mermaidSourceArea"
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content
-                font.family: typography.monoFamily
-                font.pixelSize: typography.sizeForBlockType(Block.CodeBlock)
-                color: theme.textPrimary
+                font.family: Typography.monoFamily
+                font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
+                color: Theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
                 background: Rectangle {
-                    color: theme.codePanelBackground
+                    color: Theme.codePanelBackground
                     radius: 4
-                    border.color: theme.border; border.width: 1
+                    border.color: Theme.border; border.width: 1
                 }
                 onActiveFocusChanged: {
                     if (!activeFocus) {
                         debounce.stop()
                         if (text !== root.content)
-                            blockModel.updateContent(root.index, text)
+                            BlockModel.updateContent(root.index, text)
                         text = Qt.binding(function() { return root.content })
                     }
                 }
@@ -810,7 +808,7 @@ Item {
                         debounce.stop()
                         root.previewSource = text
                         if (text !== root.content)
-                            blockModel.updateContent(root.index, text)
+                            BlockModel.updateContent(root.index, text)
                         event.accepted = true
                         return
                     }
@@ -842,15 +840,15 @@ Item {
                   + diagStrip.height + 14
                 : 0
             radius: 4
-            color: theme.panelBackground
-            border.color: theme.border; border.width: 1
+            color: Theme.panelBackground
+            border.color: Theme.border; border.width: 1
             clip: true
 
             Text {
                 anchors.centerIn: parent
                 visible: !previewCanvas.hasScene && !previewCanvas.hasError
                 text: previewCanvas.rendering ? qsTr("Rendering…") : qsTr("Preview")
-                color: theme.textFaint; font.pixelSize: 12
+                color: Theme.textFaint; font.pixelSize: 12
             }
             Flickable {
                 id: previewFlick
@@ -915,12 +913,12 @@ Item {
                     text: (previewCanvas.errorLine > 0
                            ? "line " + previewCanvas.errorLine + ":" + previewCanvas.errorColumn + "  " : "")
                           + "⚠ " + previewCanvas.errorText
-                    color: theme.danger; font.pixelSize: 11
+                    color: Theme.danger; font.pixelSize: 11
                 }
                 Text {
                     visible: previewCanvas.hasError && previewCanvas.hasScene
                     text: qsTr("Preview is from the last valid source")
-                    color: theme.warning; font.pixelSize: 10
+                    color: Theme.warning; font.pixelSize: 10
                 }
             }
         }
@@ -1081,7 +1079,7 @@ Item {
             onTriggered: {
                 var s = readCanvas.resetArrangementSource()
                 if (s !== "" && s !== root.content)
-                    blockModel.updateContent(root.index, s)
+                    BlockModel.updateContent(root.index, s)
             }
         }
         MenuItem {
@@ -1098,8 +1096,8 @@ Item {
         property bool renameMode: false
         padding: 4
         background: Rectangle {
-            color: theme.popupBackground
-            border.color: theme.accent
+            color: Theme.popupBackground
+            border.color: Theme.accent
             border.width: 1
             radius: 4
         }
@@ -1122,7 +1120,7 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: labelEditor.renameMode ? qsTr("Id:") : qsTr("Label:")
-                color: theme.textMuted
+                color: Theme.textMuted
                 font.pixelSize: 11
             }
             TextField {
@@ -1152,13 +1150,11 @@ Item {
         defaultSuffix: "png"
         nameFilters: [ qsTr("PNG images (*.png)") ]
         onAccepted: {
-            var win = Window.window
-            if (!win) return
-            var path = win.urlToLocalPath(selectedFile)
+            if (!root.shell) return
+            var path = root.shell.urlToLocalPath(selectedFile)
             var ok = readCanvas.savePng(path, 2.0)
-            if (win.showTransientStatus)
-                win.showTransientStatus(ok ? qsTr("Diagram saved to ") + path
-                                           : qsTr("Could not save the diagram"))
+            AppActions.requestTransientStatus(ok ? qsTr("Diagram saved to ") + path
+                                                 : qsTr("Could not save the diagram"))
         }
     }
 
@@ -1166,11 +1162,11 @@ Item {
     Rectangle {
         objectName: "plusButton"
         width: 18; height: 18; x: 10; y: 8; radius: 4
-        color: plusArea.containsMouse ? theme.hoverTint : "transparent"
+        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: root.isHovered ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: theme.textMuted; font.pixelSize: 14; font.bold: true }
+        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
@@ -1184,7 +1180,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Column { anchors.centerIn: parent; spacing: 2
             Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: theme.textFaint } } } } }
+                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } } }
         MouseArea {
             id: mermaidHandle
             objectName: "dragHandle"
@@ -1194,23 +1190,20 @@ Item {
             onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
             onPositionChanged: function(mouse) {
                 if (!pressed) return
-                var win = Window.window
-                if (!win || !win.blockDrag) return
+                if (!root.shell || !root.shell.blockDrag) return
                 var sp = mermaidHandle.mapToItem(null, mouse.x, mouse.y)
                 if (!dragging) {
                     if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; win.blockDrag.begin(root.index, sp.x, sp.y)
-                } else { win.blockDrag.update(sp.x, sp.y) }
+                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
+                } else { root.shell.blockDrag.update(sp.x, sp.y) }
             }
             onReleased: {
-                var win = Window.window
-                if (dragging) { dragging = false; if (win && win.blockDrag) win.blockDrag.drop(); return }
+                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
                 if (root.listView) root.listView.currentIndex = root.index
-                documentSelection.selectBlock(root.index)
+                DocumentSelection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
-            onCanceled: { if (dragging) { dragging = false; var win = Window.window
-                if (win && win.blockDrag) win.blockDrag.cancel() } }
+            onCanceled: { if (dragging) { dragging = false;                if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() } }
         }
     }
 }

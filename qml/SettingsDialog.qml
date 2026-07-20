@@ -4,11 +4,12 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The settings dialog: Appearance — the features.md §10.1 theme picker
 // and the §10.3 accent/highlight color selection — and Typography — the
-// six §10.2 settings. Every control binds live to the theme / typography
-// / appSettings objects, so the document behind the dialog previews each
+// six §10.2 settings. Every control binds live to the theme / Typography
+// / AppSettings objects, so the document behind the dialog previews each
 // change immediately; there is no Apply step.
 Dialog {
     id: settingsDialog
@@ -23,8 +24,8 @@ Dialog {
     padding: 0
 
     background: Rectangle {
-        color: theme.popupBackground
-        border.color: theme.borderStrong
+        color: Theme.popupBackground
+        border.color: Theme.borderStrong
         border.width: 1
         radius: 6
     }
@@ -53,39 +54,44 @@ Dialog {
                 Label {
                     text: qsTr("Theme")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
 
                 RowLayout {
                     spacing: 10
                     Repeater {
-                        model: theme.availableThemes
+                        model: Theme.availableThemes
                         // A theme card: swatch above the name, the
                         // active one ringed in accent.
                         ColumnLayout {
+                            // Named so the children below reach it directly.
+                            // Through `parent` they cannot be typed: qmllint
+                            // sees only QQuickItem and cannot know `preview`
+                            // or `modelData` are on it.
+                            id: card
                             required property string modelData
                             readonly property var preview:
-                                theme.themePreview(modelData)
+                                Theme.themePreview(modelData)
                             spacing: 4
 
                             Rectangle {
-                                objectName: "themeCard_" + parent.modelData
+                                objectName: "themeCard_" + card.modelData
                                 Layout.preferredWidth: 96
                                 Layout.preferredHeight: 60
                                 radius: 5
-                                color: parent.preview.background
+                                color: card.preview.background
                                 border.width:
-                                    theme.themeId === parent.modelData ? 2 : 1
+                                    Theme.themeId === card.modelData ? 2 : 1
                                 border.color:
-                                    theme.themeId === parent.modelData
-                                        ? theme.accent : theme.borderStrong
+                                    Theme.themeId === card.modelData
+                                        ? Theme.accent : Theme.borderStrong
 
                                 Rectangle { // panel stripe
                                     width: 26
                                     height: parent.height - 12
                                     x: 6; y: 6
                                     radius: 3
-                                    color: parent.parent.preview.panel
+                                    color: card.preview.panel
                                 }
                                 Label {
                                     text: "Aa"
@@ -93,30 +99,30 @@ Dialog {
                                     anchors.top: parent.top
                                     anchors.margins: 8
                                     font.pixelSize: 16
-                                    color: parent.parent.preview.text
+                                    color: card.preview.text
                                 }
                                 Rectangle { // accent dot
                                     width: 10; height: 10; radius: 5
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     anchors.margins: 8
-                                    color: parent.parent.preview.accent
+                                    color: card.preview.accent
                                 }
                                 MouseArea {
                                     anchors.fill: parent
-                                    onClicked: theme.themeId
-                                        = parent.parent.modelData
+                                    onClicked: Theme.themeId
+                                        = card.modelData
                                 }
                             }
                             Label {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: {
-                                    var name = parent.modelData
+                                    var name = card.modelData
                                     return name.charAt(0).toUpperCase()
                                         + name.slice(1)
                                 }
                                 font.pixelSize: 11
-                                color: theme.textMuted
+                                color: Theme.textMuted
                             }
                         }
                     }
@@ -127,7 +133,7 @@ Dialog {
                 Label {
                     text: qsTr("Accent color")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                     Layout.topMargin: 6
                 }
                 RowLayout {
@@ -136,38 +142,38 @@ Dialog {
                     Rectangle { // "theme default" swatch
                         objectName: "accentDefaultSwatch"
                         width: 24; height: 24; radius: 12
-                        color: theme.mutedGlyph
-                        border.width: theme.accentOverride === "" ? 2 : 1
-                        border.color: theme.accentOverride === ""
-                            ? theme.textPrimary : theme.borderStrong
+                        color: Theme.mutedGlyph
+                        border.width: Theme.accentOverride === "" ? 2 : 1
+                        border.color: Theme.accentOverride === ""
+                            ? Theme.textPrimary : Theme.borderStrong
                         Label {
                             anchors.centerIn: parent
                             text: "✕"
                             font.pixelSize: 10
-                            color: theme.onAccent
+                            color: Theme.onAccent
                         }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: theme.accentOverride = ""
+                            onClicked: Theme.accentOverride = ""
                         }
                         ToolTip.visible: accentDefaultHover.hovered
                         ToolTip.text: qsTr("Theme default")
                         HoverHandler { id: accentDefaultHover }
                     }
                     Repeater {
-                        model: theme.colorPalette
+                        model: Theme.colorPalette
                         Rectangle {
                             required property string modelData
                             width: 24; height: 24; radius: 12
                             color: modelData
                             border.width:
-                                theme.accentOverride === modelData ? 2 : 1
+                                Theme.accentOverride === modelData ? 2 : 1
                             border.color:
-                                theme.accentOverride === modelData
-                                    ? theme.textPrimary : theme.borderStrong
+                                Theme.accentOverride === modelData
+                                    ? Theme.textPrimary : Theme.borderStrong
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: theme.accentOverride
+                                onClicked: Theme.accentOverride
                                     = parent.modelData
                             }
                         }
@@ -178,8 +184,8 @@ Dialog {
                         implicitHeight: 26
                         font.pixelSize: 11
                         placeholderText: "#rrggbb"
-                        text: theme.accentOverride
-                        onEditingFinished: theme.accentOverride = text
+                        text: Theme.accentOverride
+                        onEditingFinished: Theme.accentOverride = text
                     }
                 }
 
@@ -187,7 +193,7 @@ Dialog {
                 Label {
                     text: qsTr("Highlight color")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                     Layout.topMargin: 6
                 }
                 RowLayout {
@@ -196,35 +202,35 @@ Dialog {
                     Rectangle {
                         objectName: "highlightDefaultSwatch"
                         width: 24; height: 24; radius: 12
-                        color: theme.mutedGlyph
-                        border.width: theme.highlightOverride === "" ? 2 : 1
-                        border.color: theme.highlightOverride === ""
-                            ? theme.textPrimary : theme.borderStrong
+                        color: Theme.mutedGlyph
+                        border.width: Theme.highlightOverride === "" ? 2 : 1
+                        border.color: Theme.highlightOverride === ""
+                            ? Theme.textPrimary : Theme.borderStrong
                         Label {
                             anchors.centerIn: parent
                             text: "✕"
                             font.pixelSize: 10
-                            color: theme.onAccent
+                            color: Theme.onAccent
                         }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: theme.highlightOverride = ""
+                            onClicked: Theme.highlightOverride = ""
                         }
                     }
                     Repeater {
-                        model: theme.highlightPalette
+                        model: Theme.highlightPalette
                         Rectangle {
                             required property string modelData
                             width: 24; height: 24; radius: 12
                             color: modelData
                             border.width:
-                                theme.highlightOverride === modelData ? 2 : 1
+                                Theme.highlightOverride === modelData ? 2 : 1
                             border.color:
-                                theme.highlightOverride === modelData
-                                    ? theme.textPrimary : theme.borderStrong
+                                Theme.highlightOverride === modelData
+                                    ? Theme.textPrimary : Theme.borderStrong
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: theme.highlightOverride
+                                onClicked: Theme.highlightOverride
                                     = parent.modelData
                             }
                         }
@@ -235,8 +241,8 @@ Dialog {
                         implicitHeight: 26
                         font.pixelSize: 11
                         placeholderText: "#rrggbb"
-                        text: theme.highlightOverride
-                        onEditingFinished: theme.highlightOverride = text
+                        text: Theme.highlightOverride
+                        onEditingFinished: Theme.highlightOverride = text
                     }
                 }
 
@@ -245,7 +251,7 @@ Dialog {
                     text: qsTr("Sample: normal, ==highlighted==, and "
                                + "[linked](x) text follow these choices.")
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     wrapMode: Text.Wrap
                 }
 
@@ -258,86 +264,86 @@ Dialog {
                 columnSpacing: 12
                 rowSpacing: 10
 
-                Label { text: qsTr("Editor font"); color: theme.textSecondary }
+                Label { text: qsTr("Editor font"); color: Theme.textSecondary }
                 ComboBox {
                     id: familyCombo
                     objectName: "fontFamilyCombo"
                     Layout.fillWidth: true
                     model: [qsTr("System default")].concat(Qt.fontFamilies())
                     currentIndex: {
-                        if (typography.fontFamily === "")
+                        if (Typography.fontFamily === "")
                             return 0
                         var idx = Qt.fontFamilies()
-                            .indexOf(typography.fontFamily)
+                            .indexOf(Typography.fontFamily)
                         return idx < 0 ? 0 : idx + 1
                     }
                     onActivated: function(index) {
-                        typography.fontFamily =
+                        Typography.fontFamily =
                             index === 0 ? "" : model[index]
                     }
                 }
 
-                Label { text: qsTr("Font size"); color: theme.textSecondary }
+                Label { text: qsTr("Font size"); color: Theme.textSecondary }
                 RowLayout {
                     SpinBox {
                         objectName: "fontSizeSpin"
                         from: 10; to: 28
-                        value: typography.baseSize
-                        onValueModified: typography.baseSize = value
+                        value: Typography.baseSize
+                        onValueModified: Typography.baseSize = value
                     }
                     Label {
                         text: qsTr("px — headings scale with it")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
-                Label { text: qsTr("Line height"); color: theme.textSecondary }
+                Label { text: qsTr("Line height"); color: Theme.textSecondary }
                 RowLayout {
                     Slider {
                         id: lineHeightSlider
                         objectName: "lineHeightSlider"
                         Layout.preferredWidth: 180
                         from: 1.0; to: 2.0; stepSize: 0.05
-                        value: typography.lineHeight
-                        onMoved: typography.lineHeight = value
+                        value: Typography.lineHeight
+                        onMoved: Typography.lineHeight = value
                     }
                     Label {
-                        text: "×" + typography.lineHeight.toFixed(2)
+                        text: "×" + Typography.lineHeight.toFixed(2)
                         font.pixelSize: 11
-                        color: theme.textMuted
+                        color: Theme.textMuted
                     }
                 }
 
                 Label {
                     text: qsTr("Block spacing")
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 RowLayout {
                     SpinBox {
                         objectName: "paragraphSpacingSpin"
                         from: 0; to: 40
-                        value: typography.paragraphSpacing
-                        onValueModified: typography.paragraphSpacing = value
+                        value: Typography.paragraphSpacing
+                        onValueModified: Typography.paragraphSpacing = value
                     }
                     Label {
                         text: qsTr("px between blocks")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
                 Label {
                     text: qsTr("Content width")
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 RowLayout {
                     CheckBox {
                         id: maxWidthCheck
                         objectName: "maxWidthCheck"
                         text: qsTr("Limit to")
-                        checked: typography.maxContentWidth > 0
-                        onToggled: typography.maxContentWidth =
+                        checked: Typography.maxContentWidth > 0
+                        onToggled: Typography.maxContentWidth =
                             checked ? maxWidthSpin.value : 0
                     }
                     SpinBox {
@@ -345,29 +351,29 @@ Dialog {
                         objectName: "maxWidthSpin"
                         from: 300; to: 2000; stepSize: 50
                         enabled: maxWidthCheck.checked
-                        value: typography.maxContentWidth > 0
-                            ? typography.maxContentWidth : 700
+                        value: Typography.maxContentWidth > 0
+                            ? Typography.maxContentWidth : 700
                         onValueModified:
-                            typography.maxContentWidth = value
+                            Typography.maxContentWidth = value
                     }
                     Label {
                         text: qsTr("px, centered")
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                     }
                 }
 
-                Label { text: qsTr("Code font"); color: theme.textSecondary }
+                Label { text: qsTr("Code font"); color: Theme.textSecondary }
                 ComboBox {
                     objectName: "monoFamilyCombo"
                     Layout.fillWidth: true
-                    model: typography.monospaceFamilies()
+                    model: Typography.monospaceFamilies()
                     currentIndex: {
-                        var idx = model.indexOf(typography.monoFamily)
+                        var idx = model.indexOf(Typography.monoFamily)
                         return idx < 0 ? 0 : idx
                     }
                     onActivated: function(index) {
-                        typography.monoFamily = model[index]
+                        Typography.monoFamily = model[index]
                     }
                 }
 
@@ -376,8 +382,8 @@ Dialog {
                 Button {
                     objectName: "typographyResetButton"
                     Layout.columnSpan: 2
-                    text: qsTr("Reset typography")
-                    onClicked: typography.resetToDefaults()
+                    text: qsTr("Reset Typography")
+                    onClicked: Typography.resetToDefaults()
                 }
             }
 
@@ -388,19 +394,19 @@ Dialog {
                 Label {
                     text: qsTr("Remote content")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 CheckBox {
                     objectName: "autoLoadRemoteToggle"
                     text: qsTr("Load remote images and previews automatically")
-                    checked: egressPolicy.autoLoadRemoteContent
-                    onToggled: egressPolicy.autoLoadRemoteContent = checked
+                    checked: EgressPolicy.autoLoadRemoteContent
+                    onToggled: EgressPolicy.autoLoadRemoteContent = checked
                 }
                 Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     text: qsTr("Off by default. A note can name any address, "
                         + "so loading one on sight would tell that site you "
                         + "opened the note, and from where. With this off, "
@@ -410,16 +416,16 @@ Dialog {
                 RowLayout {
                     Layout.fillWidth: true
                     // allowedOrigins() is a plain function call, so both
-                    // bindings read egressPolicy.revision to re-evaluate when
+                    // bindings read EgressPolicy.revision to re-evaluate when
                     // an approval is granted or forgotten.
                     readonly property int approvedCount: {
-                        var r = egressPolicy.revision
-                        return egressPolicy.allowedOrigins().length
+                        var r = EgressPolicy.revision
+                        return EgressPolicy.allowedOrigins().length
                     }
                     Label {
                         Layout.fillWidth: true
                         font.pixelSize: 11
-                        color: theme.textFaint
+                        color: Theme.textFaint
                         text: parent.approvedCount === 0
                             ? qsTr("No sites approved.")
                             : qsTr("%n site(s) approved.", "", parent.approvedCount)
@@ -428,26 +434,26 @@ Dialog {
                         objectName: "forgetOriginsButton"
                         text: qsTr("Forget approved sites")
                         enabled: parent.approvedCount > 0
-                        onClicked: egressPolicy.forgetAllOrigins()
+                        onClicked: EgressPolicy.forgetAllOrigins()
                     }
                 }
 
                 Label {
                     text: qsTr("Updates")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 CheckBox {
                     objectName: "updateCheckToggle"
                     text: qsTr("Check for new releases once a day")
-                    checked: updateChecker.enabled
-                    onToggled: updateChecker.enabled = checked
+                    checked: UpdateChecker.enabled
+                    onToggled: UpdateChecker.enabled = checked
                 }
                 Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
-                    color: theme.textFaint
+                    color: Theme.textFaint
                     text: qsTr("One request to the GitHub Releases API at "
                         + "startup, at most once per day, to show a notice "
                         + "when a newer version exists. Nothing is sent "
@@ -456,17 +462,17 @@ Dialog {
                 }
 
                 Label {
-                    visible: systemTray.available
+                    visible: SystemTray.available
                     text: qsTr("System tray")
                     font.bold: true
-                    color: theme.textSecondary
+                    color: Theme.textSecondary
                 }
                 CheckBox {
                     objectName: "closeToTrayToggle"
-                    visible: systemTray.available
+                    visible: SystemTray.available
                     text: qsTr("Keep running in the tray when the window is closed")
-                    checked: systemTray.closeToTray
-                    onToggled: systemTray.closeToTray = checked
+                    checked: SystemTray.closeToTray
+                    onToggled: SystemTray.closeToTray = checked
                 }
                 Item { Layout.fillHeight: true }
             }

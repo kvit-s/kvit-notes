@@ -51,6 +51,24 @@ public:
     //
     // Must be a valid QML identifier: a lowercase letter or underscore
     // followed by letters, digits or underscores.
+    //
+    // It must also not match a name the core occupies, COMPARED WITHOUT
+    // REGARD TO CASE. The core's own objects reach QML as singletons of the
+    // `Kvit` module — `Theme`, `BlockModel`, `NoteCollection` and the rest —
+    // and those are capitalised while a namespace must start lowercase, so
+    // the two can never collide as identifiers. They would instead coexist:
+    // `theme.x` and `Theme.x` in one file, one character apart, standing for
+    // entirely unrelated objects. Refusing the lowercase form costs a module
+    // author one name and removes a class of bug that is very hard to see at
+    // a distance from its cause.
+    //
+    // This is a deliberate restriction rather than an accident of the
+    // implementation, and it is enforced in
+    // ExtensionRegistry::installContextProperties. The refusal warning names
+    // the core singleton it collided with and suggests an alternative, so a
+    // module author meets the reason rather than only the rule. Please do not
+    // relax it to an exact-match comparison without deciding again that the
+    // confusion above is acceptable.
     virtual QString qmlNamespace() const = 0;
 
     // Claim fence languages and their delegates. Called before any block is

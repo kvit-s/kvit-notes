@@ -14,6 +14,7 @@
 #include <QTextDocument>
 #include <QQuickTextDocument>
 #include <QQmlParserStatus>
+#include <QtQml/qqmlregistration.h>
 
 #include "markdownformatter.h"
 #include "theme.h"
@@ -70,6 +71,7 @@ class MarkdownHighlighter;
 class BlockEditorEngine : public QObject, public QQmlParserStatus
 {
     Q_OBJECT
+    QML_ELEMENT
     Q_INTERFACES(QQmlParserStatus)
     Q_PROPERTY(QQuickTextDocument *document READ document WRITE setDocument NOTIFY documentChanged)
     Q_PROPERTY(QString markdown READ markdown WRITE setMarkdown NOTIFY markdownChanged)

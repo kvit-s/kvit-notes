@@ -249,8 +249,12 @@ void TestEgressPolicy::openingANoteMakesNoRequest()
     QQmlEngine engine;
     ctx.installContextProperties(&engine);
     allowLoopback(ctx.egressPolicy());
-    auto *embed = qobject_cast<EmbedMetadata *>(
-        engine.rootContext()->contextProperty("embedMetadata").value<QObject *>());
+    // Reached the way EmbedBlock.qml reaches it: the `Kvit` module singleton
+    // this engine's AppContext resolves to. It was a context property until
+    // that name moved to the module; this is the same object by the path
+    // production now uses.
+    auto *embed = engine.singletonInstance<EmbedMetadata *>(
+        QStringLiteral("Kvit"), QStringLiteral("EmbedMetadata"));
     QVERIFY(embed);
 
     QSignalSpy consent(embed, &EmbedMetadata::consentRequired);
@@ -276,8 +280,12 @@ void TestEgressPolicy::approvedOriginFetches()
     QQmlEngine engine;
     ctx.installContextProperties(&engine);
     allowLoopback(ctx.egressPolicy());
-    auto *embed = qobject_cast<EmbedMetadata *>(
-        engine.rootContext()->contextProperty("embedMetadata").value<QObject *>());
+    // Reached the way EmbedBlock.qml reaches it: the `Kvit` module singleton
+    // this engine's AppContext resolves to. It was a context property until
+    // that name moved to the module; this is the same object by the path
+    // production now uses.
+    auto *embed = engine.singletonInstance<EmbedMetadata *>(
+        QStringLiteral("Kvit"), QStringLiteral("EmbedMetadata"));
     QVERIFY(embed);
 
     // What clicking "Load preview" does.

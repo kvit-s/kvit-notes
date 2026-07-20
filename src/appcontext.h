@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "accessibilityannouncer.h"
+#include "appactions.h"
 #include "blockattributes.h"
 #include "blockeditorengine.h"
 #include "blockmenumodel.h"
@@ -43,6 +44,7 @@
 #include "notecollection.h"
 #include "notelistmodel.h"
 #include "notetemplates.h"
+#include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
 #include "settingsstore.h"
@@ -155,6 +157,12 @@ public:
     // their fence kinds before the shell loads.
     ExtensionRegistry *extensions() { return &m_extensions; }
     BlockKindRegistry *blockKinds() { return &m_blockKinds; }
+    // What the QML singletons must resolve to. Exposed so a test can compare
+    // each singleton against the object registered for its type, and so catch
+    // the engine default-constructing one of its own — which looks identical
+    // from QML and is wired to nothing. See
+    // everySingletonResolvesWithinItsOwnComposition in tests/test_shell.cpp.
+    const KvitQml::ServiceTable *services() const { return &m_services; }
     // The one transport and the one policy. The launcher hands the fetcher
     // to the update checker; nothing else in the tree opens a connection.
     EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }
@@ -165,10 +173,15 @@ private:
 
     const Options m_options;
     QStringList m_installedProperties;
+    // What the QML singletons resolve against. Declared before the services
+    // it points at so it is destroyed after them, and so an engine outliving
+    // this context cannot read a table of dangling pointers.
+    KvitQml::ServiceTable m_services;
 
     // Declaration order = construction order; destruction runs in reverse.
     // The registries come first: the block model resolves delegate kinds
     // against one of them, and modules claim kinds before anything renders.
+    AppActions m_appActions;
     BlockKindRegistry m_blockKinds;
     ExtensionRegistry m_extensions;
     UndoStack m_undoStack;
