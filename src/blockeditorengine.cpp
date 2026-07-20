@@ -476,7 +476,20 @@ BlockEditorEngine::BlockEditorEngine(QObject *parent)
 {
 }
 
-BlockEditorEngine::~BlockEditorEngine() = default;
+BlockEditorEngine::~BlockEditorEngine()
+{
+    // The highlighter is parented to the QTextDocument, not to the engine, and
+    // holds a raw back-pointer into it. A TextArea's document routinely
+    // outlives the engine bound to it, so leaving the highlighter behind would
+    // let the next edit run a highlight pass through freed memory. m_doc is a
+    // QPointer: when it is null the document went first and took the
+    // highlighter down with it as its child.
+    if (m_doc) {
+        m_doc->disconnect(this);
+        delete m_highlighter;
+    }
+    m_highlighter = nullptr;
+}
 
 void BlockEditorEngine::classBegin()
 {
@@ -535,6 +548,12 @@ void BlockEditorEngine::attachDocument(QTextDocument *doc)
 
     connect(m_doc, &QTextDocument::contentsChange,
             this, &BlockEditorEngine::onContentsChange);
+    // The highlighter is the document's child, so it dies with the document.
+    // Drop the raw pointer at the same moment, or a later rehighlight() would
+    // follow it into freed memory.
+    connect(m_doc, &QObject::destroyed, this, [this]() {
+        m_highlighter = nullptr;
+    });
 
     requestRebuild();
 }

@@ -302,6 +302,14 @@ private:
     void refreshTocBlockIndex(int index);
     void emitTocBlockIndexesChangedIfNeeded(const QList<int> &before);
 
+    // Argument screening for the single-block operations, applied before a
+    // command is constructed so validation does not depend on whether an
+    // UndoStack is attached.
+    bool isValidIndex(int index) const;
+    bool isValidSplit(int index, int position) const;
+    // Forward merges only: removeIndex must sit after keepIndex.
+    bool isValidMerge(int keepIndex, int removeIndex) const;
+
     // Valid, unique, ascending indexes out of a QML-provided list.
     QList<int> validIndexes(const QVariantList &indexes) const;
     // Push through the undo stack (which executes) or execute directly

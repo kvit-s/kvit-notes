@@ -191,16 +191,24 @@ void BlockModel::insertBlock(int index, int type, const QString &content, int in
     state.content = content;
     state.indentLevel = qBound(0, indentLevel, MaxIndentLevel);
 
+    // Clamp here rather than inside insertBlockInternal alone: the command
+    // has to remember the position it actually inserted at, or undo removes
+    // the wrong block and redo inserts a second copy.
+    const int at = qBound(0, index, m_blocks.count());
+
     if (m_undoStack) {
-        auto cmd = std::make_unique<InsertBlockCommand>(this, index, state);
+        auto cmd = std::make_unique<InsertBlockCommand>(this, at, state);
         m_undoStack->push(std::move(cmd));
     } else {
-        insertBlockInternal(index, state);
+        insertBlockInternal(at, state);
     }
 }
 
 void BlockModel::removeBlock(int index)
 {
+    if (!isValidIndex(index))
+        return;
+
     if (m_undoStack) {
         auto cmd = std::make_unique<RemoveBlockCommand>(this, index);
         m_undoStack->push(std::move(cmd));
@@ -420,6 +428,36 @@ void BlockModel::setCalloutTitle(int index, const QString &title)
     } else {
         applyStateInternal(index, newState);
     }
+}
+
+// Index validation for the QML-invokable single-block operations. A delegate
+// can hand over a stale or -1 index while it is being torn down, so every
+// entry point screens its arguments here BEFORE deciding whether to push a
+// command — otherwise the checks that live in the *Internal methods protect
+// only the stack-less path, and an attached UndoStack turns the same bad
+// index into a destructive edit.
+
+bool BlockModel::isValidIndex(int index) const
+{
+    return index >= 0 && index < m_blocks.count();
+}
+
+bool BlockModel::isValidSplit(int index, int position) const
+{
+    if (!isValidIndex(index))
+        return false;
+    return position >= 0 && position <= m_blocks.at(index)->content().length();
+}
+
+bool BlockModel::isValidMerge(int keepIndex, int removeIndex) const
+{
+    if (!isValidIndex(keepIndex) || !isValidIndex(removeIndex))
+        return false;
+    // Forward merges only. Every caller folds a block into an earlier one,
+    // and a backward merge cannot be undone correctly: removing the earlier
+    // block shifts the kept block down, so the stored keep index no longer
+    // names it.
+    return removeIndex > keepIndex;
 }
 
 QList<int> BlockModel::validIndexes(const QVariantList &indexes) const
@@ -798,6 +836,9 @@ void BlockModel::rebuildDerivedOrder() const
 
 void BlockModel::splitBlock(int index, int position)
 {
+    if (!isValidSplit(index, position))
+        return;
+
     if (m_undoStack) {
         auto cmd = std::make_unique<SplitBlockCommand>(this, index, position);
         m_undoStack->push(std::move(cmd));
@@ -808,6 +849,9 @@ void BlockModel::splitBlock(int index, int position)
 
 void BlockModel::mergeBlocks(int keepIndex, int removeIndex)
 {
+    if (!isValidMerge(keepIndex, removeIndex))
+        return;
+
     if (m_undoStack) {
         auto cmd = std::make_unique<MergeBlocksCommand>(this, keepIndex, removeIndex);
         m_undoStack->push(std::move(cmd));
@@ -1080,14 +1124,11 @@ void BlockModel::applyStateInternal(int index, const Block::State &state)
 
 void BlockModel::splitBlockInternal(int index, int position)
 {
-    if (index < 0 || index >= m_blocks.count())
+    if (!isValidSplit(index, position))
         return;
 
     Block *block = m_blocks.at(index);
     QString content = block->content();
-
-    if (position < 0 || position > content.length())
-        return;
 
     QString before = content.left(position);
     QString after = content.mid(position);
@@ -1111,11 +1152,7 @@ void BlockModel::splitBlockInternal(int index, int position)
 
 void BlockModel::mergeBlocksInternal(int keepIndex, int removeIndex)
 {
-    if (keepIndex < 0 || keepIndex >= m_blocks.count())
-        return;
-    if (removeIndex < 0 || removeIndex >= m_blocks.count())
-        return;
-    if (keepIndex == removeIndex)
+    if (!isValidMerge(keepIndex, removeIndex))
         return;
 
     Block *keepBlock = m_blocks.at(keepIndex);
