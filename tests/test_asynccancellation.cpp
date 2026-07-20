@@ -42,6 +42,7 @@ private slots:
     void closingDuringScanDoesNotBlockGui();
     void resultsFromTheAbandonedRootNeverApply();
     void savesDoNotQueueBehindBulkBackgroundWork();
+    void cancellingAnIndexSaveLeavesTheIndexOwedARewrite();
 
 private:
     // A vault big enough that its scan is still running when the switch
@@ -431,6 +432,40 @@ void TestAsyncCancellation::savesDoNotQueueBehindBulkBackgroundWork()
                             250.0);
 
     global->waitForDone();
+}
+
+// saveIndexFileIfDirtyAsync clears the dirty flag BEFORE the write starts and
+// leaves it to the result handler to set it back if the write failed.
+// Cancelling suppresses that handler and additionally discards any queued
+// request, so a cancelled save leaves the collection believing the index on
+// disk matches memory when nothing was written.
+//
+// refresh() cancels while the collection stays OPEN, so this is reachable in
+// ordinary use rather than only at shutdown. It is masked today only because
+// an index save cannot actually be interrupted; the moment it can be, the
+// index goes stale with nothing remembering it is owed.
+void TestAsyncCancellation::cancellingAnIndexSaveLeavesTheIndexOwedARewrite()
+{
+    buildVault(m_dirA->path(), 400);
+
+    NoteCollection collection;
+    QVERIFY(collection.openRoot(m_dirA->path()));
+    QTRY_VERIFY_WITH_TIMEOUT(!collection.scanInProgress(), 30000);
+
+    // Dirty the index and start the asynchronous save, then cancel it the way
+    // refresh() does.
+    collection.markIndexDirtyForTesting();
+    QVERIFY(collection.indexDirtyForTesting());
+    collection.saveIndexFileIfDirtyAsyncForTesting();
+    QVERIFY2(!collection.indexDirtyForTesting(),
+             "the flag is cleared before the write; that is the precondition "
+             "this test is about");
+
+    collection.cancelAsyncIndexSaveForTesting();
+
+    QVERIFY2(collection.indexDirtyForTesting(),
+             "a cancelled index save must leave the index marked dirty, or "
+             "nothing will ever rewrite it");
 }
 
 QTEST_MAIN(TestAsyncCancellation)
