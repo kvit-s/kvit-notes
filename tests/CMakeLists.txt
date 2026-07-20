@@ -38,6 +38,12 @@ qt_add_executable(test_updatechecker test_updatechecker.cpp)
 target_link_libraries(test_updatechecker PRIVATE kvit-core Qt6::Test)
 add_test(NAME UpdateCheckerTests COMMAND test_updatechecker)
 
+# Network egress policy: every remote access the app makes is gated here, and
+# the tests drive a loopback HTTP server rather than the real internet.
+qt_add_executable(test_egresspolicy test_egresspolicy.cpp)
+target_link_libraries(test_egresspolicy PRIVATE kvit-core Qt6::Test Qt6::Network Qt6::Qml)
+add_test(NAME EgressPolicyTests COMMAND test_egresspolicy)
+
 # Single-file mode tests: a file argument opens with no vault, typed blocks
 # parse in-file, and the vault upgrade keeps the file.
 qt_add_executable(test_singlefilemode test_singlefilemode.cpp)

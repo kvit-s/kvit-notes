@@ -109,7 +109,7 @@ bool KvitApplication::start(const QStringList &arguments)
     // startup path; UpdateChecker itself enforces opt-out and once-per-day.
     UpdateChecker *updates = m_context.updateChecker();
     updates->setCurrentVersion(m_app.applicationVersion());
-    updates->setFetcher(createNetworkUpdateFetcher(this));
+    updates->setFetcher(m_context.egressFetcher());
     QTimer::singleShot(5000, updates, &UpdateChecker::maybeCheck);
 
     return true;

@@ -182,6 +182,55 @@ bug (pure-`#000000` glyphs with yellow/cyan fringes where the light theme's
 text color is `#1a1a1a`; yellow-tinted headings in the dark set). Recapture
 under llvmpipe before using any of them as a pixel baseline.
 
+## Network egress goes through one policy
+
+A note is untrusted input. Anyone who can hand you a `.md` file can put a
+URL in it, so any request the editor makes on the note's behalf discloses
+the reader's address, user agent and reading time to whoever chose that
+URL, and points the editor at whatever the URL names, including hosts only
+the reader's machine can reach. Two objects exist to contain that:
+
+- `EgressPolicy` (src/egresspolicy.{h,cpp}) decides. It holds the master
+  switch `network.autoLoadRemoteContent` (off by default), the set of
+  origins the reader has approved (`network.allowedOrigins`), the
+  scheme and credential rules, and the address classification that rejects
+  loopback, RFC1918, IPv6 unique-local, link-local (which is where
+  `169.254.169.254` lives), multicast and reserved ranges. It is published
+  to QML as `egressPolicy`.
+- `EgressFetcher` (src/egressfetcher.{h,cpp}) executes, and is the only
+  `QNetworkAccessManager` in the tree. It resolves the hostname first,
+  checks every returned address, pins the connection to the address it
+  checked while keeping the original hostname for the `Host` header and TLS
+  verification, refuses to let Qt follow redirects so each hop is
+  re-checked from scratch, caps the read buffer so an oversized body is
+  abandoned rather than buffered, and enforces a timeout and a content-type
+  check.
+
+Rules that are easy to break without noticing:
+
+- **Never bind a remote URL to a QML `Image.source`.** Qt's own network
+  stack would fetch it, outside every check above. Delegates call
+  `egressPolicy.imageSourceFor(url)`, which passes local paths through and
+  turns an approved http(s) URL into an `image://remote/...` id served by
+  `RemoteImageProvider` over the fetcher.
+- **`isAllowed()` and `allowedOrigins()` are function calls, not
+  properties.** A QML binding over them never re-evaluates on its own, so
+  read `egressPolicy.revision` inside the binding to make it live. Every
+  decision-affecting change bumps that revision.
+- **Loopback is blocked, which a hermetic test needs to undo.**
+  `EgressPolicy::setLoopbackAllowedForTests()` is the only way, and it is
+  deliberately neither `Q_INVOKABLE` nor backed by a setting.
+- **Remote media is gated but not proxied.** `MediaBlock.qml` withholds the
+  URL from `MediaPlayer` until the origin is approved, but playback then
+  streams through QtMultimedia's own stack, so address validation and byte
+  caps do not cover the media stream itself. Routing a seekable stream
+  through the fetcher would mean buffering whole files. Consent is the
+  control there; everything else is fully mediated.
+
+The suite is `tests/test_egresspolicy.cpp` (`EgressPolicyTests`), which
+drives a loopback `QTcpServer` rather than the real internet and covers the
+refusals, the redirect re-checks, and the streaming cap.
+
 ## Settings wiring order in AppContext
 
 `Theme::setSettings()` and `Typography::setSettings()` snapshot the store's

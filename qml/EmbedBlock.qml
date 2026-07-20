@@ -49,16 +49,45 @@ Item {
     readonly property bool failed: loaded && meta.ok === false
     readonly property bool isVideo: loaded && meta.video === true
 
+    // Whether this URL's origin may be contacted. Reading egressPolicy.revision
+    // is what makes the binding live: isAllowed() is a plain function call, so
+    // without the revision dependency the card would never notice the reader
+    // approving the origin.
+    readonly property bool remoteAllowed: {
+        var r = egressPolicy.revision
+        return egressPolicy.isAllowed(root.embedUrl)
+    }
+    // Nothing cached and no permission to fetch: the inert state.
+    readonly property bool awaitingConsent: !loaded && !remoteAllowed
+    readonly property bool canOfferLoad: egressPolicy.canRequestConsent(embedUrl)
+
+    // Cached metadata is displayed; a fetch happens only once the origin is
+    // approved. Opening a note must not contact the hosts the note names —
+    // that would disclose the reader's address and reading time to whoever
+    // wrote it, and aim the editor at whatever the URL points to.
     function refreshMeta() {
         if (embedUrl === "")
             return
         var cached = embedMetadata.cachedMetadata(embedUrl)
-        if (cached && cached.url !== undefined)
+        if (cached && cached.url !== undefined) {
             meta = cached
+            return
+        }
+        meta = ({})
+        if (remoteAllowed)
+            embedMetadata.requestMetadata(embedUrl)
+    }
+    // The reader asked for this card specifically: approve the origin, which
+    // covers the page and the thumbnail and favicon it names, then fetch.
+    function loadPreview() {
+        if (embedUrl === "")
+            return
+        egressPolicy.allowOrigin(embedUrl)
         embedMetadata.requestMetadata(embedUrl)
     }
     Component.onCompleted: refreshMeta()
     onEmbedUrlChanged: refreshMeta()
+    onRemoteAllowedChanged: refreshMeta()
     Connections {
         target: embedMetadata
         function onMetadataReady(u) {
@@ -238,6 +267,11 @@ Item {
             anchors.fill: parent
             anchors.margins: 10
             spacing: 12
+            // Above the card-wide "open the link" MouseArea declared below,
+            // so the Load button gets the click. The rest of the row is text
+            // and images, which do not accept mouse events, so clicks there
+            // still fall through to opening the link.
+            z: 1
 
             // Thumbnail (or a placeholder tile).
             Rectangle {
@@ -250,7 +284,12 @@ Item {
                 Image {
                     objectName: "embedThumb"
                     anchors.fill: parent
-                    source: (root.loaded && root.meta.image) ? root.meta.image : ""
+                    // Routed through the image://remote provider, never bound
+                    // to the URL directly: the thumbnail is chosen by the
+                    // fetched page, so it is as untrusted as the page and has
+                    // to travel over the checked transport like everything
+                    // else. An unapproved origin yields no source at all.
+                    source: egressPolicy.imageSourceFor(root.loaded ? root.meta.image : "")
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                 }
@@ -299,11 +338,51 @@ Item {
                     font.pixelSize: 12
                     color: theme.textMuted
                 }
+                // The inert card's affordance. Until this is clicked the block
+                // is a piece of text naming a URL, and nothing has been
+                // requested from that URL's host.
+                Row {
+                    visible: root.awaitingConsent
+                    spacing: 8
+                    Rectangle {
+                        objectName: "embedLoadButton"
+                        width: loadLabel.implicitWidth + 16
+                        height: loadLabel.implicitHeight + 8
+                        radius: 4
+                        visible: root.canOfferLoad
+                        color: theme.hoverTint
+                        border.color: loadArea.containsMouse ? theme.accent : theme.border
+                        Text {
+                            id: loadLabel
+                            anchors.centerIn: parent
+                            text: qsTr("Load preview")
+                            font.pixelSize: 11
+                            color: loadArea.containsMouse ? theme.textPrimary
+                                                          : theme.textMuted
+                        }
+                        MouseArea {
+                            id: loadArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.loadPreview()
+                        }
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.canOfferLoad
+                            ? qsTr("· not loaded")
+                            : qsTr("· %1").arg(egressPolicy.refusalReason(root.embedUrl))
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                    }
+                }
+
                 Row {
                     spacing: 6
                     Image {
-                        visible: root.loaded && root.meta.favicon
-                        source: (root.loaded && root.meta.favicon) ? root.meta.favicon : ""
+                        visible: source != ""
+                        source: egressPolicy.imageSourceFor(root.loaded ? root.meta.favicon : "")
                         width: 14; height: 14
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true

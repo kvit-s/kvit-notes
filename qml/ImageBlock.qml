@@ -78,6 +78,22 @@ Item {
         imageAssets.resolve(img.path,
                             noteDir,
                             noteCollection.isOpen ? noteCollection.rootPath : "")
+    // What the Image actually loads. A local file passes through; an http(s)
+    // image is routed to the image://remote provider once the reader has
+    // approved its origin, and is "" until then. A note is untrusted input,
+    // so an image URL in one must not become a request just by being opened —
+    // that would disclose the reader's address and reading time to whoever
+    // wrote the note. Reading egressPolicy.revision keeps this live across an
+    // approval.
+    readonly property string displaySource: {
+        var r = egressPolicy.revision
+        return egressPolicy.imageSourceFor(delegate.resolvedSource)
+    }
+    // A remote image the reader has not approved yet: the placeholder offers
+    // to load it instead of showing a broken-image tile.
+    readonly property bool awaitingConsent:
+        delegate.resolvedSource !== "" && delegate.displaySource === ""
+
     readonly property int maxWidth: Math.max(80, delegate.width - 96)
     // Displayed width: the stored width (capped), else the natural width
     // (capped). Height follows the aspect ratio (PreserveAspectFit).
@@ -312,7 +328,7 @@ Item {
             Image {
                 id: image
                 anchors.fill: parent
-                source: delegate.resolvedSource
+                source: delegate.displaySource
                 asynchronous: true
                 cache: true
                 // Maintain aspect by default (§1.2.8); `aspect=stretch` fills.
@@ -366,10 +382,64 @@ Item {
                 width: 32; height: 32
             }
 
+            // Unapproved remote image: an inert tile that offers to load it.
+            // Distinct from the broken-path placeholder below, because
+            // nothing is broken — the image simply has not been requested.
+            Rectangle {
+                objectName: "imageConsentPlaceholder"
+                anchors.fill: parent
+                visible: delegate.awaitingConsent
+                color: theme.codePanelBackground
+                border.color: theme.border
+                radius: 6
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "🔗"
+                        font.pixelSize: 24
+                        color: theme.textFaint
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: qsTr("Remote image not loaded")
+                        color: theme.textMuted
+                        font.pixelSize: 12
+                    }
+                    Rectangle {
+                        objectName: "imageLoadButton"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: imgLoadLabel.implicitWidth + 16
+                        height: imgLoadLabel.implicitHeight + 8
+                        radius: 4
+                        visible: egressPolicy.canRequestConsent(delegate.resolvedSource)
+                        color: theme.hoverTint
+                        border.color: imgLoadArea.containsMouse ? theme.accent : theme.border
+                        Text {
+                            id: imgLoadLabel
+                            anchors.centerIn: parent
+                            text: qsTr("Load image")
+                            font.pixelSize: 11
+                            color: imgLoadArea.containsMouse ? theme.textPrimary
+                                                             : theme.textMuted
+                        }
+                        MouseArea {
+                            id: imgLoadArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: egressPolicy.allowOrigin(delegate.resolvedSource)
+                        }
+                    }
+                }
+            }
+
             // Broken-path / unsupported placeholder (§1.2.8).
             Rectangle {
                 anchors.fill: parent
-                visible: delegate.resolvedSource === "" || image.status === Image.Error
+                visible: !delegate.awaitingConsent
+                    && (delegate.resolvedSource === "" || image.status === Image.Error)
                 color: theme.codePanelBackground
                 border.color: theme.border
                 radius: 6
@@ -398,12 +468,15 @@ Item {
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton
-                enabled: delegate.resolvedSource !== "" && image.status === Image.Ready
+                enabled: delegate.displaySource !== "" && image.status === Image.Ready
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: {
                     var win = Window.window
+                    // The lightbox gets the gated source, not the raw URL:
+                    // handing it the URL would reopen the direct-load path
+                    // this delegate just closed.
                     if (win && win.openLightbox)
-                        win.openLightbox(delegate.resolvedSource, delegate.img.alt)
+                        win.openLightbox(delegate.displaySource, delegate.img.alt)
                 }
             }
 
