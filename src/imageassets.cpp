@@ -69,12 +69,61 @@ ImageAssets::Kind ImageAssets::kindForExtension(const QString &path)
     return Kind::None;
 }
 
+namespace {
+
+// The alt text and the caption sit inside delimiters that also occur in
+// ordinary prose: "]" ends the alt, "|" introduces the width, and '"' ends
+// the caption. Backslash-escape those on write and undo it on read, so a
+// field carrying one keeps its text instead of changing the expression's
+// shape. The escapes are symmetric and applied to exactly one field each,
+// which is what makes the round trip total.
+QString escapeField(const QString &text, const QString &specials)
+{
+    QString out;
+    out.reserve(text.size());
+    for (const QChar c : text) {
+        if (c == u'\\' || specials.contains(c))
+            out.append(u'\\');
+        out.append(c);
+    }
+    return out;
+}
+
+QString unescapeField(const QString &text)
+{
+    QString out;
+    out.reserve(text.size());
+    for (int i = 0; i < text.size(); ++i) {
+        if (text.at(i) == u'\\' && i + 1 < text.size())
+            ++i;
+        out.append(text.at(i));
+    }
+    return out;
+}
+
+// The last "|" that is not itself escaped, or -1.
+int lastUnescapedBar(const QString &text)
+{
+    for (int i = text.size() - 1; i >= 0; --i) {
+        if (text.at(i) != u'|')
+            continue;
+        int slashes = 0;
+        for (int j = i - 1; j >= 0 && text.at(j) == u'\\'; --j)
+            ++slashes;
+        if ((slashes & 1) == 0)
+            return i;
+    }
+    return -1;
+}
+
+} // namespace
+
 ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
 {
     Parsed result;
     // ![altAndWidth](path optionally followed by "caption")
     static const QRegularExpression re(
-        QStringLiteral("^!\\[([^\\]]*)\\]\\((.*)\\)$"));
+        QStringLiteral("^!\\[((?:\\\\.|[^\\]\\\\])*)\\]\\((.*)\\)$"));
     const QRegularExpressionMatch m = re.match(line);
     if (!m.hasMatch())
         return result;
@@ -86,11 +135,11 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
     QString path = inner;
     QString caption;
     static const QRegularExpression capRe(
-        QStringLiteral("^(.*?)\\s+\"([^\"]*)\"$"));
+        QStringLiteral("^(.*?)\\s+\"((?:\\\\.|[^\"\\\\])*)\"$"));
     const QRegularExpressionMatch cm = capRe.match(inner);
     if (cm.hasMatch()) {
         path = cm.captured(1);
-        caption = cm.captured(2);
+        caption = unescapeField(cm.captured(2));
     }
     if (path.isEmpty())
         return result;   // no image without a path
@@ -98,7 +147,7 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
     // Split an optional Obsidian |width (or |WxH) suffix off the alt text.
     QString alt = altPart;
     int width = 0;
-    const int bar = altPart.lastIndexOf('|');
+    const int bar = lastUnescapedBar(altPart);
     if (bar >= 0) {
         const QString suffix = altPart.mid(bar + 1).trimmed();
         static const QRegularExpression wRe(QStringLiteral("^(\\d+)(?:x\\d+)?$"));
@@ -108,6 +157,7 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
             alt = altPart.left(bar);
         }
     }
+    alt = unescapeField(alt);
 
     result.valid = true;
     result.alt = alt;
@@ -130,12 +180,13 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
 QString ImageAssets::buildMarkdown(const QString &path, const QString &alt,
                                    const QString &caption, int width)
 {
-    QString altPart = alt;
+    QString altPart = escapeField(alt, QStringLiteral("]|"));
     if (width > 0)
         altPart += QStringLiteral("|") + QString::number(width);
     QString out = QStringLiteral("![") + altPart + QStringLiteral("](") + path;
     if (!caption.isEmpty())
-        out += QStringLiteral(" \"") + caption + QStringLiteral("\"");
+        out += QStringLiteral(" \"") + escapeField(caption, QStringLiteral("\""))
+             + QStringLiteral("\"");
     out += QStringLiteral(")");
     return out;
 }

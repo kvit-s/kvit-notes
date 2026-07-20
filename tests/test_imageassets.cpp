@@ -108,6 +108,39 @@ private slots:
                  markdown);
     }
 
+    // M9: fields carrying the delimiter characters must survive a build ->
+    // parse round trip rather than changing the expression's structure.
+    void buildParseRoundTripsHostileFields_data()
+    {
+        QTest::addColumn<QString>("path");
+        QTest::addColumn<QString>("alt");
+        QTest::addColumn<QString>("caption");
+        QTest::addColumn<int>("width");
+        QTest::newRow("plain")          << "x.png" << "alt" << "cap" << 0;
+        QTest::newRow("bracket in alt") << "x.png" << "a [b] c" << "" << 0;
+        QTest::newRow("close bracket")  << "x.png" << "a] c" << "" << 0;
+        QTest::newRow("quote caption")  << "x.png" << "alt" << "he said \"hi\"" << 0;
+        QTest::newRow("paren path")     << "a_(b).png" << "alt" << "" << 0;
+        QTest::newRow("space path")     << "my pic.png" << "alt" << "" << 0;
+        QTest::newRow("all at once")    << "a_(b) c.png" << "x]y" << "q\"r" << 300;
+        QTest::newRow("bar in alt")     << "x.png" << "a|b" << "" << 0;
+    }
+    void buildParseRoundTripsHostileFields()
+    {
+        QFETCH(QString, path);
+        QFETCH(QString, alt);
+        QFETCH(QString, caption);
+        QFETCH(int, width);
+        const QString md =
+            ImageAssets::buildMarkdown(path, alt, caption, width);
+        const auto p = ImageAssets::parseLine(md);
+        QVERIFY2(p.valid, qPrintable("did not parse: " + md));
+        QCOMPARE(p.path, path);
+        QCOMPARE(p.alt, alt);
+        QCOMPARE(p.caption, caption);
+        QCOMPARE(p.width, width);
+    }
+
     void resolveOrder()
     {
         QTemporaryDir dir;

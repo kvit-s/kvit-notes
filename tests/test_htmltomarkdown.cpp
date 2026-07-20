@@ -4,6 +4,9 @@
 #include <QtTest/QtTest>
 
 #include "htmltomarkdown.h"
+#include "markdownformatter.h"
+
+#include <QUrl>
 
 // Covers the HTML arm of the smart-paste matrix (features.md §5.3): pasting a
 // browser or word-processor payload converts to Kvit markdown rather than
@@ -29,8 +32,18 @@ private slots:
     void testHasStructure();
     void testMarkdownCharactersInTextAreEscaped();
 
+    // M9: delimiters must be chosen to fit the content they wrap.
+    void testInlineCodeChoosesFenceLongerThanContent_data();
+    void testInlineCodeChoosesFenceLongerThanContent();
+    void testCodeFenceChoosesFenceLongerThanContent();
+    void testLinkDestinationWithParenthesesSurvives();
+
 private:
     HtmlToMarkdown converter;
+
+    // Read the produced markdown back with the app's own inline parser, so
+    // the assertions are about what Kvit will see, not about spelling.
+    MarkdownFormatter reader;
 };
 
 void TestHtmlToMarkdown::testHeadings()
@@ -157,6 +170,79 @@ void TestHtmlToMarkdown::testMarkdownCharactersInTextAreEscaped()
     // silently become emphasis once the payload is markdown.
     QCOMPARE(converter.convert("<p>2 * 3 * 4</p>"), QString("2 \\* 3 \\* 4"));
     QCOMPARE(converter.convert("<p>a_b_c</p>"), QString("a\\_b\\_c"));
+}
+
+// ---------- M9: delimiters sized to their content ----------
+
+void TestHtmlToMarkdown::testInlineCodeChoosesFenceLongerThanContent_data()
+{
+    QTest::addColumn<QString>("codeText");
+    QTest::newRow("no backtick")    << "ls -l";
+    QTest::newRow("one backtick")   << "a ` b";
+    QTest::newRow("two backticks")  << "a `` b";
+    QTest::newRow("three backticks")<< "a ``` b";
+    QTest::newRow("leading tick")   << "`x";
+    QTest::newRow("trailing tick")  << "x`";
+    QTest::newRow("only ticks")     << "``";
+}
+
+void TestHtmlToMarkdown::testInlineCodeChoosesFenceLongerThanContent()
+{
+    QFETCH(QString, codeText);
+    const QString html = "<p>run <code>" + codeText.toHtmlEscaped()
+                       + "</code> now</p>";
+    const QString md = converter.convert(html);
+
+    // Reading the result back must recover the original code text exactly.
+    const QList<FormattedSpan> spans = reader.parseSpans(md);
+    const FormattedSpan *code = nullptr;
+    for (const FormattedSpan &s : spans) {
+        if (s.type == QLatin1String("code"))
+            code = &s;
+    }
+    QVERIFY2(code, qPrintable("no code span parsed out of: " + md));
+    const QString inner =
+        md.mid(code->start + code->openLen, code->contentLength());
+    // CommonMark strips one space of padding from each end when both are
+    // present, which is how a span may start or end with a backtick.
+    QString recovered = inner;
+    if (recovered.size() >= 2 && recovered.startsWith(QLatin1Char(' '))
+        && recovered.endsWith(QLatin1Char(' ')))
+        recovered = recovered.mid(1, recovered.size() - 2);
+    QVERIFY2(recovered == codeText,
+             qPrintable("produced: " + md + " | recovered: " + recovered));
+}
+
+void TestHtmlToMarkdown::testCodeFenceChoosesFenceLongerThanContent()
+{
+    // A <pre> line containing a ``` run must not be closed by it.
+    const QString md = converter.convert("<pre>a ``` b</pre>");
+    const int firstNewline = md.indexOf(QLatin1Char('\n'));
+    QVERIFY(firstNewline > 0);
+    const QString opener = md.left(firstNewline);
+    QVERIFY2(opener.length() >= 4,
+             qPrintable("fence must outrun the ``` inside: " + md));
+    QVERIFY2(md.contains("a ``` b"), qPrintable(md));
+    // The fence appears exactly twice: opener and closer, nowhere inside.
+    QCOMPARE(md.count(opener), 2);
+}
+
+void TestHtmlToMarkdown::testLinkDestinationWithParenthesesSurvives()
+{
+    const QString md = converter.convert(
+        "<p><a href=\"http://x/a_(b)_c\">wiki</a></p>");
+    const QList<FormattedSpan> spans = reader.parseSpans(md);
+    const FormattedSpan *link = nullptr;
+    for (const FormattedSpan &s : spans) {
+        if (s.type == QLatin1String("link"))
+            link = &s;
+    }
+    QVERIFY2(link, qPrintable("no link span parsed out of: " + md));
+    // Percent-encoding is not an escape the reader must undo: it is the same
+    // URL, and it fits a destination grammar that admits no parentheses.
+    QCOMPARE(link->url, QString("http://x/a_%28b%29_c"));
+    QCOMPARE(QUrl::fromPercentEncoding(link->url.toUtf8()),
+             QString("http://x/a_(b)_c"));
 }
 
 QTEST_MAIN(TestHtmlToMarkdown)
