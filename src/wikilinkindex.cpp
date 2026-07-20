@@ -16,12 +16,6 @@ namespace {
 
 const QString mdSuffix = QStringLiteral(".md");
 
-QString nameOfRelPath(const QString &relPath)
-{
-    int slash = relPath.lastIndexOf(QLatin1Char('/'));
-    return slash < 0 ? relPath : relPath.mid(slash + 1);
-}
-
 QByteArray sha256Of(const QByteArray &content)
 {
     return QCryptographicHash::hash(content, QCryptographicHash::Sha256);

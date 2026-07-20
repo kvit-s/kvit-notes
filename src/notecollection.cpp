@@ -7,6 +7,7 @@
 #include "block.h"
 #include "collectionsearchindex.h"
 #include "notefileio.h"
+#include "noteindexfile.h"
 #include "perflog.h"
 #include "wikilinkscanner.h"
 
@@ -61,11 +62,6 @@ void restoreFileTime(const QString &path, const QDateTime &mtime)
     }
 }
 
-QString joinRelPath(const QString &folder, const QString &name)
-{
-    return folder.isEmpty() ? name : folder + QLatin1Char('/') + name;
-}
-
 // ---- vault containment ----
 //
 // A vault is the directory subtree the user selected, and every path the
@@ -112,49 +108,10 @@ bool isWithinCanonicalRoot(const QString &canonicalRoot, const QString &absPath)
     return canonical.startsWith(canonicalRoot + QLatin1Char('/'));
 }
 
-QString folderOfRelPath(const QString &relPath)
-{
-    int slash = relPath.lastIndexOf(QLatin1Char('/'));
-    return slash < 0 ? QString() : relPath.left(slash);
-}
-
-QString nameOfRelPath(const QString &relPath)
-{
-    int slash = relPath.lastIndexOf(QLatin1Char('/'));
-    return slash < 0 ? relPath : relPath.mid(slash + 1);
-}
-
 QDateTime fileCreatedTime(const QFileInfo &info)
 {
     QDateTime birth = info.birthTime();
     return birth.isValid() ? birth : info.lastModified();
-}
-
-qint64 dateTimeMs(const QDateTime &dt)
-{
-    return dt.isValid() ? dt.toMSecsSinceEpoch() : 0;
-}
-
-QDateTime dateTimeFromMs(qint64 ms)
-{
-    return ms > 0 ? QDateTime::fromMSecsSinceEpoch(ms) : QDateTime();
-}
-
-QJsonArray stringListToJson(const QStringList &values)
-{
-    QJsonArray array;
-    for (const QString &value : values)
-        array.append(value);
-    return array;
-}
-
-QStringList stringListFromJson(const QJsonArray &array)
-{
-    QStringList values;
-    values.reserve(array.size());
-    for (const QJsonValue &value : array)
-        values.append(value.toString());
-    return values;
 }
 
 // A finished future is not necessarily a future that produced a result, and
@@ -339,6 +296,7 @@ void NoteCollection::attachStoresToRoot()
     m_trash.setRootPath(m_rootPath);
     m_backups.setRootPath(m_rootPath);
     m_recoveryJournals.setRootPath(m_rootPath);
+    m_indexFile.setRootPath(m_rootPath);
 }
 
 void NoteCollection::loadRecoveryEntries()
@@ -551,11 +509,11 @@ void NoteCollection::scan()
     m_indexDirty = false;
 
     bool indexOk = false;
-    const QHash<QString, NoteEntry> cachedNotes = loadIndexFile(&indexOk);
+    const QHash<QString, NoteEntry> cachedNotes = m_indexFile.load(&indexOk);
     m_notes.reserve(cachedNotes.size());
     m_folderOwnNoteCounts.reserve(cachedNotes.size());
     m_folderRecursiveNoteCounts.reserve(cachedNotes.size());
-    m_indexDirty = !indexOk && QFileInfo::exists(indexFilePath());
+    m_indexDirty = !indexOk && QFileInfo::exists(m_indexFile.path());
 
     QSet<QString> visitedDirs;
     scanDirectory(QString(), cachedNotes, &visitedDirs);
@@ -581,8 +539,8 @@ void NoteCollection::scanAsync()
     const quint64 generation = ++m_asyncScanGeneration;
 
     bool indexOk = false;
-    QHash<QString, NoteEntry> cachedNotes = loadIndexFile(&indexOk);
-    const bool indexFileExists = QFileInfo::exists(indexFilePath());
+    QHash<QString, NoteEntry> cachedNotes = m_indexFile.load(&indexOk);
+    const bool indexFileExists = QFileInfo::exists(m_indexFile.path());
     m_notes.reserve(cachedNotes.size());
     m_folderOwnNoteCounts.reserve(cachedNotes.size());
     m_folderRecursiveNoteCounts.reserve(cachedNotes.size());
@@ -999,45 +957,12 @@ NoteCollection::AsyncIndexResult NoteCollection::parseSavedNoteTask(
     return result;
 }
 
-QByteArray NoteCollection::buildIndexFileBytes(
-    const QHash<QString, NoteEntry> &notes)
-{
-    QJsonObject root;
-    // Version 2: the sidecar no longer caches full
-    // bodies or per-block display text — global search reads those from the
-    // SQLite index. Wiki-link targets, previously re-derived from the cached
-    // body on every load, are persisted so warm startup keeps the backlink
-    // graph without reading every note. An older version-1 cache is discarded.
-    root.insert(QStringLiteral("version"), 2);
 
-    QJsonArray entries;
-    QStringList paths = notes.keys();
-    paths.sort();
-    for (const QString &relPath : paths) {
-        const auto it = notes.constFind(relPath);
-        if (it == notes.constEnd())
-            continue;
-        const NoteEntry &entry = it.value();
-        QJsonObject object;
-        object.insert(QStringLiteral("relPath"), entry.relPath);
-        object.insert(QStringLiteral("title"), entry.title);
-        object.insert(QStringLiteral("createdMs"),
-                      double(dateTimeMs(entry.created)));
-        object.insert(QStringLiteral("modifiedMs"),
-                      double(dateTimeMs(entry.modified)));
-        object.insert(QStringLiteral("size"), double(entry.fileSize));
-        object.insert(QStringLiteral("wordCount"), entry.wordCount);
-        object.insert(QStringLiteral("snippet"), entry.snippet);
-        object.insert(QStringLiteral("links"), stringListToJson(entry.links));
-        object.insert(QStringLiteral("frontMatter"),
-                      NoteFrontMatter::serialize(entry.meta));
-        entries.append(object);
-    }
-    root.insert(QStringLiteral("notes"), entries);
-
-    return QJsonDocument(root).toJson(QJsonDocument::Compact);
-}
-
+// Runs on a pool thread against the snapshot in `request`, never against live
+// collection state. Serializing and writing are NoteIndexFile's; the
+// generation stamp and the result record are this class's, because the handler
+// that receives them has to know whether the vault it was saving for is still
+// the vault that is open.
 NoteCollection::AsyncIndexSaveResult
 NoteCollection::writeIndexFileSnapshot(const AsyncIndexSaveRequest &request)
 {
@@ -1052,10 +977,10 @@ NoteCollection::writeIndexFileSnapshot(const AsyncIndexSaveRequest &request)
                     {QStringLiteral("notes"), request.notes.size()},
                     {QStringLiteral("async"), true}});
 
-    const QByteArray bytes = buildIndexFileBytes(request.notes);
+    const QByteArray bytes = NoteIndexFile::buildBytes(request.notes);
     result.bytes = bytes.size();
     perf.addContext(QStringLiteral("bytes"), result.bytes);
-    result.ok = writeFileBytesAtomic(request.path, bytes);
+    result.ok = NoteIndexFile::writeBytes(request.path, bytes);
     perf.addContext(QStringLiteral("ok"), result.ok);
     return result;
 }
@@ -1187,104 +1112,8 @@ void NoteCollection::clearFolderNoteCounts()
     m_folderRecursiveNoteCounts.clear();
 }
 
-QString NoteCollection::indexFilePath() const
-{
-    if (!isOpen())
-        return QString();
-    return m_rootPath + QLatin1Char('/') + kvitDirName
-        + QLatin1Char('/') + indexFileName;
-}
 
-QHash<QString, NoteCollection::NoteEntry>
-NoteCollection::loadIndexFile(bool *ok) const
-{
-    if (ok)
-        *ok = false;
 
-    QHash<QString, NoteEntry> notes;
-    const QString path = indexFilePath();
-    if (path.isEmpty() || !QFileInfo::exists(path))
-        return notes;
-
-    bool readOk = false;
-    const QByteArray bytes = readFileBytes(path, &readOk);
-    if (!readOk)
-        return notes;
-
-    QJsonParseError error;
-    const QJsonDocument doc = QJsonDocument::fromJson(bytes, &error);
-    if (error.error != QJsonParseError::NoError || !doc.isObject())
-        return notes;
-
-    const QJsonObject root = doc.object();
-    // Only the current sidecar format is trusted; an older cache is dropped and
-    // rebuilt from Markdown.
-    if (root.value(QStringLiteral("version")).toInt() != 2)
-        return notes;
-
-    const QJsonArray entries = root.value(QStringLiteral("notes")).toArray();
-    notes.reserve(entries.size());
-    for (const QJsonValue &value : entries) {
-        const QJsonObject object = value.toObject();
-        const QString relPath = object.value(QStringLiteral("relPath")).toString();
-        if (relPath.isEmpty()
-            || !relPath.endsWith(mdSuffix, Qt::CaseInsensitive))
-            continue;
-
-        NoteEntry entry;
-        entry.relPath = relPath;
-        entry.folder = folderOfRelPath(relPath);
-        const QString fallbackName = nameOfRelPath(relPath);
-        entry.title = object.value(QStringLiteral("title")).toString(
-            fallbackName.endsWith(mdSuffix, Qt::CaseInsensitive)
-                ? fallbackName.left(fallbackName.size() - mdSuffix.size())
-                : fallbackName);
-        entry.created = dateTimeFromMs(
-            qint64(object.value(QStringLiteral("createdMs")).toDouble()));
-        entry.modified = dateTimeFromMs(
-            qint64(object.value(QStringLiteral("modifiedMs")).toDouble()));
-        entry.fileSize =
-            qint64(object.value(QStringLiteral("size")).toDouble(-1));
-        entry.wordCount = object.value(QStringLiteral("wordCount")).toInt();
-        entry.snippet = object.value(QStringLiteral("snippet")).toString();
-        // Wiki-link targets are read from the sidecar; without the body cached
-        // they can no longer be re-derived here.
-        entry.links = stringListFromJson(
-            object.value(QStringLiteral("links")).toArray());
-        entry.meta = NoteFrontMatter::parse(
-            object.value(QStringLiteral("frontMatter")).toString());
-        notes.insert(relPath, entry);
-    }
-
-    if (ok)
-        *ok = true;
-    return notes;
-}
-
-bool NoteCollection::saveIndexFile() const
-{
-    const QString path = indexFilePath();
-    if (path.isEmpty())
-        return false;
-
-    PerfLog::ScopedTimer perf(
-        QStringLiteral("collection.index_save"),
-        QVariantMap{{QStringLiteral("path"), path},
-                    {QStringLiteral("notes"), m_notes.size()}});
-
-    if (m_notes.isEmpty() && !QFileInfo::exists(path)) {
-        perf.addContext(QStringLiteral("skipped"), true);
-        return true; // nothing to write is not a failure
-    }
-
-    const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
-    QDir().mkpath(dir);
-    const QByteArray bytes = buildIndexFileBytes(m_notes);
-    perf.addContext(QStringLiteral("bytes"), bytes.size());
-    const bool ok = writeFileBytesAtomic(path, bytes);
-    perf.addContext(QStringLiteral("ok"), ok);
-    return ok;
-}
 
 void NoteCollection::saveIndexFileIfDirty()
 {
@@ -1294,7 +1123,7 @@ void NoteCollection::saveIndexFileIfDirty()
     // regardless left the sidecar stale with nothing remembering that it
     // needed rewriting, so the next session paid for a full rescan and any
     // later chance to retry was gone.
-    if (saveIndexFile())
+    if (m_indexFile.save(m_notes))
         m_indexDirty = false;
 }
 
@@ -1772,7 +1601,7 @@ void NoteCollection::saveIndexFileIfDirtyAsync()
     if (!m_indexDirty)
         return;
 
-    const QString path = indexFilePath();
+    const QString path = m_indexFile.path();
     if (path.isEmpty())
         return;
 

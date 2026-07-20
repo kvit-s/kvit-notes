@@ -21,6 +21,7 @@
 #include "cancellationtoken.h"
 #include "notebackupstore.h"
 #include "noteentry.h"
+#include "noteindexfile.h"
 #include "notefrontmatter.h"
 #include "notetrashstore.h"
 #include "recoveryjournalstore.h"
@@ -429,8 +430,6 @@ private:
         const AsyncRefreshRequest &request);
     static AsyncIndexResult parseSavedNoteTask(
         const AsyncSavedNoteTask &task);
-    static QByteArray buildIndexFileBytes(
-        const QHash<QString, NoteEntry> &notes);
     static AsyncIndexSaveResult writeIndexFileSnapshot(
         const AsyncIndexSaveRequest &request);
     void setScanInProgress(bool inProgress);
@@ -467,11 +466,10 @@ private:
     // note's text — headings, backlink contexts — read it on demand.
     QString readNoteBody(const QString &relPath) const;
 
-    QString indexFilePath() const;
-    QHash<QString, NoteEntry> loadIndexFile(bool *ok) const;
-    // False when the sidecar could not be written, so the caller keeps the
-    // dirty flag set and the change is retried rather than forgotten.
-    bool saveIndexFile() const;
+    // The sidecar's format and file are NoteIndexFile's; the dirty flag and
+    // the decision of when to write are this class's, because a failed write
+    // has to leave the collection still owing one.
+    NoteIndexFile m_indexFile;
     void saveIndexFileIfDirty();
     void markIndexDirty();
 
