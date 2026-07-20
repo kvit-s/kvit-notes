@@ -23,6 +23,8 @@ private slots:
     void nonDeviationsHaveAChordAndKnownWiring();
     void categoriesCoverTheFourSpecSections();
     void noDuplicateActions();
+    void everyChordSurvivesPlatformRendering();
+    void literalTriggersRenderAsThemselves();
 };
 
 void TestShortcutMap::everySpecShortcutPresentWithChord_data()
@@ -126,6 +128,47 @@ void TestShortcutMap::noDuplicateActions()
                  qPrintable("duplicate action in catalog: " + e.action));
         seen.append(e.action);
     }
+}
+
+void TestShortcutMap::everyChordSurvivesPlatformRendering()
+{
+    // The cheat sheet shows displayChord, so a chord the platform renderer
+    // cannot express would leave the reference blank where a working key
+    // exists. Holds on every platform: only the spelling differs.
+    for (const ShortcutInfo &e : ShortcutCatalog::entries()) {
+        const QString shown = ShortcutCatalog::displayChord(e.chord);
+        if (e.chord.isEmpty()) {
+            QVERIFY2(shown.isEmpty(),
+                     qPrintable(e.action + " has no chord but renders one"));
+            continue;
+        }
+        QVERIFY2(!shown.isEmpty(),
+                 qPrintable(e.action + " has chord \"" + e.chord
+                            + "\" but renders blank"));
+    }
+}
+
+void TestShortcutMap::literalTriggersRenderAsThemselves()
+{
+    // Two catalog entries are typed characters rather than modifier chords.
+    // They must survive rendering unchanged — "\\" opens the math command
+    // menu and "$" auto-pairs inline math, and both are shown to the user
+    // exactly as they are typed.
+    QCOMPARE(ShortcutCatalog::displayChord(QStringLiteral("\\")),
+             QStringLiteral("\\"));
+    QCOMPARE(ShortcutCatalog::displayChord(QStringLiteral("$")),
+             QStringLiteral("$"));
+    QCOMPARE(ShortcutCatalog::displayChord(QString()), QString());
+
+    // On Windows and Linux the portable spelling is already native, so the
+    // resolution is the identity there; macOS is where it substitutes glyphs.
+#ifndef Q_OS_MACOS
+    QCOMPARE(ShortcutCatalog::displayChord(QStringLiteral("Ctrl+B")),
+             QStringLiteral("Ctrl+B"));
+#else
+    QVERIFY(!ShortcutCatalog::displayChord(QStringLiteral("Ctrl+B"))
+                 .contains(QStringLiteral("Ctrl")));
+#endif
 }
 
 QTEST_MAIN(TestShortcutMap)

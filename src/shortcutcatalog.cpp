@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "shortcutcatalog.h"
 
+#include <QKeySequence>
 #include <QVariantMap>
 
 const QList<ShortcutInfo> &ShortcutCatalog::entries()
@@ -88,6 +89,23 @@ QStringList ShortcutCatalog::categories() const
     return cats;
 }
 
+QString ShortcutCatalog::displayChord(const QString &chord)
+{
+    // Qt binds "Ctrl+B" to Command-B on macOS (Ctrl and Meta are swapped
+    // unless AA_MacDontSwapCtrlAndMeta is set, and this app does not set it),
+    // so the chords above are already correct there. What was wrong was
+    // showing them: the reference printed the stored "Ctrl+B" while the key
+    // that worked was Command-B. NativeText resolves each chord the same way
+    // the binding does, giving the platform's own glyphs on macOS and leaving
+    // the Windows/Linux spelling untouched.
+    if (chord.isEmpty())
+        return QString();
+    const QKeySequence seq = QKeySequence::fromString(chord, QKeySequence::PortableText);
+    if (seq.isEmpty())
+        return chord;   // a literal trigger like "\\" or "$", not a chord
+    return seq.toString(QKeySequence::NativeText);
+}
+
 QVariantList ShortcutCatalog::model() const
 {
     QVariantList rows;
@@ -95,7 +113,10 @@ QVariantList ShortcutCatalog::model() const
         QVariantMap m;
         m.insert("category", e.category);
         m.insert("action", e.action);
+        // The portable chord stays the catalog's identity (the audit compares
+        // against it); displayChord is what a human should be shown.
         m.insert("chord", e.chord);
+        m.insert("displayChord", displayChord(e.chord));
         m.insert("note", e.note);
         m.insert("intentional", e.intentional);
         rows.append(m);

@@ -128,11 +128,18 @@ void AppContext::wire()
     m_startupController.setUndoStack(&m_undoStack);
 
     // System integration seams. The tray shows only where a status-notifier
-    // host exists; the global hotkey backend is not registered under WSLg,
-    // but both route their actions through their signals so the in-app path
-    // (quick capture, tray menu) works regardless.
+    // host exists; both route their actions through their signals so the
+    // in-app path (quick capture, tray menu) works regardless.
     m_systemTray.show();
-    m_globalHotkey.setSupported(false);   // no X11/portal backend on this platform
+    // No system-wide grab is registered on ANY platform: GlobalHotkey is a
+    // seam with no backend behind it (X11 XGrabKey, the GlobalShortcuts
+    // portal, RegisterHotKey, and the macOS equivalent are all unwritten), so
+    // this is false everywhere rather than a WSLg-specific limitation as the
+    // previous comment implied. The configured chord still works while the
+    // window has focus, through the Shortcut in main.qml that reads the same
+    // setting. features.md §15.1 describes the system-wide behavior as
+    // intended, not as shipped.
+    m_globalHotkey.setSupported(false);
 
     // External file watching (features.md §12.1). Debounced outside
     // changes refresh the affected note paths when possible; directory-level
@@ -208,9 +215,20 @@ void AppContext::openSettings(const QString &settingsPath)
                 .filePath(QStringLiteral("perf.log")));
     }
 
-    m_globalHotkey.registerShortcut(
-        m_settingsStore.value(QStringLiteral("hotkey.quickCapture"),
-                              QStringLiteral("Ctrl+Alt+N")).toString());
+    // The quick-capture chord, both now and whenever it is edited. The
+    // in-app Shortcut in main.qml reads the same key, so the two never
+    // disagree about which chord the user chose.
+    const auto applyQuickCaptureChord = [this]() {
+        m_globalHotkey.registerShortcut(
+            m_settingsStore.value(QStringLiteral("hotkey.quickCapture"),
+                                  QStringLiteral("Ctrl+Alt+N")).toString());
+    };
+    applyQuickCaptureChord();
+    connect(&m_settingsStore, &SettingsStore::valueChanged,
+            &m_globalHotkey, [applyQuickCaptureChord](const QString &key) {
+                if (key == QLatin1String("hotkey.quickCapture"))
+                    applyQuickCaptureChord();
+            });
 
     // The disclosed opt-out update check reads its enabled flag and
     // once-per-day stamp from the same store.

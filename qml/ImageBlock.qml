@@ -86,6 +86,14 @@ Item {
               : (image.implicitWidth > 0 ? image.implicitWidth : 320)
         return Math.min(w, maxWidth)
     }
+    // Live width while a resize drag is in flight; 0 when none is. The frame
+    // binds to this instead of being assigned during the drag: assigning to
+    // width would destroy its binding to displayWidth permanently, and this
+    // delegate is pooled, so the next block to reuse it would inherit the
+    // stale width and stop tracking its own model row.
+    property int previewWidth: 0
+    readonly property int effectiveWidth:
+        previewWidth > 0 ? previewWidth : displayWidth
 
     readonly property bool blockSelected: {
         var revision = documentSelection.revision // dependency only
@@ -128,10 +136,14 @@ Item {
         isPooled = true
         focusTarget.focus = false
         opacity = 0
+        previewWidth = 0
     }
     ListView.onReused: {
         isPooled = false
         opacity = 1
+        // A drag interrupted by scrolling must not follow the delegate to
+        // whatever block reuses it.
+        previewWidth = 0
     }
 
     // Focus API parity with EditableBlock; an image has no cursor.
@@ -299,9 +311,9 @@ Item {
             Accessible.name: delegate.img.alt !== "" ? delegate.img.alt
                 : (delegate.img.caption !== "" ? delegate.img.caption
                                                : qsTr("Image"))
-            width: delegate.displayWidth
+            width: delegate.effectiveWidth
             height: image.status === Image.Ready && image.implicitHeight > 0
-                ? delegate.displayWidth * (image.implicitHeight / image.implicitWidth)
+                ? delegate.effectiveWidth * (image.implicitHeight / image.implicitWidth)
                 : 160
             anchors.horizontalCenter: parent.horizontalCenter
 
@@ -434,6 +446,7 @@ Item {
                         startW = imageFrame.width
                         pressX = mapToItem(delegate, mouse.x, mouse.y).x
                         liveWidth = Math.round(startW)
+                        delegate.previewWidth = liveWidth
                     }
                     onPositionChanged: function(mouse) {
                         if (!pressed) return
@@ -441,12 +454,16 @@ Item {
                         var w = Math.round(startW + (cur - pressX))
                         w = Math.max(40, Math.min(w, delegate.maxWidth))
                         liveWidth = w
-                        imageFrame.width = w   // live preview
+                        delegate.previewWidth = w   // live preview
                     }
                     onReleased: {
-                        // Commit the new width as one undo step.
+                        // Commit the new width as one undo step, then hand the
+                        // frame back to its binding. writeImage updates the
+                        // model row this delegate parses, so displayWidth
+                        // already carries the new width and nothing flickers.
                         delegate.writeImage(delegate.img.path, delegate.img.alt,
                                             delegate.img.caption, liveWidth)
+                        delegate.previewWidth = 0
                     }
                 }
             }

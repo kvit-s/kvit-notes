@@ -42,6 +42,12 @@ public:
     // can show "— (reason)" rather than a blank.
     Q_INVOKABLE QVariantList model() const;
 
+    // A chord rendered the way the running platform spells it: Command and
+    // Option glyphs on macOS, "Ctrl+B" on Windows and Linux. The stored chord
+    // is the portable form and stays the catalog's identity; this is only for
+    // display, so the cheat sheet cannot disagree with the keys that work.
+    Q_INVOKABLE static QString displayChord(const QString &chord);
+
     // Lookup helper for the test: the chord for an action, or a sentinel.
     static QString chordFor(const QString &action);
     static bool contains(const QString &action);

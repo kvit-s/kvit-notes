@@ -35,6 +35,17 @@ Item {
     // Configurable embed dimensions (§1.2.14): stored width/height in px.
     readonly property int embedWidth: blockAttributes.num(attributes, "width", 0)
     readonly property int embedHeight: blockAttributes.num(attributes, "height", 0)
+    // Live card size while a resize drag is in flight; 0 when none is. The
+    // card binds to these rather than being assigned during the drag, because
+    // assigning to width, implicitHeight, or anchors.right destroys those
+    // bindings for good — and this delegate is pooled, so the next block to
+    // reuse it would keep the dragged geometry and ignore its own attributes.
+    property int previewWidth: 0
+    property int previewHeight: 0
+    readonly property int effectiveWidth:
+        previewWidth > 0 ? previewWidth : embedWidth
+    readonly property int effectiveHeight:
+        previewHeight > 0 ? previewHeight : embedHeight
     function setEmbedSize(payload) {
         blockModel.setBlockAttributes(root.index, payload)
     }
@@ -108,8 +119,16 @@ Item {
 
     implicitHeight: card.implicitHeight + 12
 
-    ListView.onPooled: { isPooled = true; focusTarget.focus = false; opacity = 0 }
-    ListView.onReused: { isPooled = false; opacity = 1 }
+    ListView.onPooled: {
+        isPooled = true; focusTarget.focus = false; opacity = 0
+        previewWidth = 0; previewHeight = 0
+    }
+    ListView.onReused: {
+        isPooled = false; opacity = 1
+        // A drag interrupted by scrolling must not follow the delegate to
+        // whatever block reuses it.
+        previewWidth = 0; previewHeight = 0
+    }
 
     function focusAtStart() { focusTarget.forceActiveFocus() }
     function focusAtEnd() { focusTarget.forceActiveFocus() }
@@ -214,13 +233,13 @@ Item {
         anchors.left: parent.left
         // A configured width drops the right anchor for an explicit size
         // (§1.2.14); the default card spans the full content width.
-        anchors.right: root.embedWidth > 0 ? undefined : parent.right
+        anchors.right: root.effectiveWidth > 0 ? undefined : parent.right
         anchors.leftMargin: 48
         anchors.rightMargin: 8
         anchors.top: parent.top
         anchors.topMargin: 4
-        width: root.embedWidth > 0
-            ? Math.min(root.embedWidth, root.embedMaxWidth) : undefined
+        width: root.effectiveWidth > 0
+            ? Math.min(root.effectiveWidth, root.embedMaxWidth) : undefined
         radius: 8
         clip: true
         color: root.blockSelected ? theme.blockSelectionTint
@@ -230,8 +249,8 @@ Item {
                     : root.isFocused ? theme.focusRing : theme.border
         border.width: root.isFocused ? 2 : 1
         opacity: root.isDragSource ? 0.35 : 1
-        implicitHeight: root.embedHeight > 0
-            ? root.embedHeight : Math.max(84, cardRow.implicitHeight + 20)
+        implicitHeight: root.effectiveHeight > 0
+            ? root.effectiveHeight : Math.max(84, cardRow.implicitHeight + 20)
 
         Row {
             id: cardRow
@@ -367,6 +386,7 @@ Item {
                     var p = mapToItem(root, mouse.x, mouse.y)
                     pressX = p.x; pressY = p.y
                     liveW = Math.round(startW); liveH = Math.round(startH)
+                    root.previewWidth = liveW; root.previewHeight = liveH
                 }
                 onPositionChanged: function(mouse) {
                     if (!pressed) return
@@ -374,15 +394,20 @@ Item {
                     liveW = Math.max(160, Math.min(Math.round(startW + (p.x - pressX)),
                                                    root.embedMaxWidth))
                     liveH = Math.max(64, Math.round(startH + (p.y - pressY)))
-                    card.anchors.right = undefined
-                    card.width = liveW
-                    card.implicitHeight = liveH
+                    root.previewWidth = liveW
+                    root.previewHeight = liveH
                 }
                 onReleased: {
+                    // Commit, then hand the card back to its bindings. The
+                    // written attributes feed embedWidth/embedHeight, so the
+                    // committed size is already in place when the preview
+                    // clears.
                     var payload = blockAttributes.withValue(
                         blockAttributes.withValue(root.attributes, "width", String(liveW)),
                         "height", String(liveH))
                     root.setEmbedSize(payload)
+                    root.previewWidth = 0
+                    root.previewHeight = 0
                 }
             }
         }
