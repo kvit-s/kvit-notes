@@ -27,11 +27,22 @@ The suite is heterogeneous, and the labels matter:
 - `unit`: deterministic C++ tests, headless-safe. This is the merge gate on
   every platform: `ctest -L unit` (or `ctest --preset unit-linux`).
 - `performance`: timing-sensitive; informational on loaded machines.
-- `gui-smoke`: offscreen-capable GUI suites.
+- `shell`: loads the shipped `resources.qrc` and constructs the real
+  application shell. Deterministic offscreen, and a merge gate on every
+  platform alongside `unit`: `ctest --preset shell-linux`. These are what
+  catch a QML syntax error, a file missing from the resource file, an import
+  that does not resolve, or a renamed context property.
 - `visual`: Qt Quick suites that need a real, focused display. Headless or
   xvfb runs of these are smoke tests only; they are not evidence a UI change
   is correct, and window-focus failures under a loaded compositor are not
   regressions.
+
+QML is also linted statically, and that check blocks merges too:
+`tools/run-qmllint.sh` runs over `qml/`. It reads every file, including those
+no test instantiates, and rejects malformed QML, unresolvable imports and uses
+of types that do not exist. Its header comment explains which qmllint
+categories are switched off and why — in short, this project reaches C++
+through context properties, which a static analyser cannot see at all.
 
 For UI-facing changes, also look at the running app. The automated suites
 render on the CPU and cannot see GPU-path rendering problems.

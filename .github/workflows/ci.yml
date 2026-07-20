@@ -1,9 +1,18 @@
-# CI: one workflow, three OS jobs. The `unit` CTest
-# label is the merge gate everywhere; performance and xvfb GUI runs are
-# informational on Linux; v* tags run the packaging steps into a draft
-# release. Third-party actions are pinned by commit SHA, and the
-# packaging/signing job runs through the protected "release" environment so
-# a compromised PR cannot reach signing credentials.
+# CI: one workflow. Merges are gated by three things — the `unit` CTest label
+# and the `shell` label on all three OSes, and qmllint on Linux. Performance
+# and xvfb GUI runs stay informational, because loaded shared runners make
+# timings advisory and xvfb cannot deliver real window focus. v* tags run the
+# packaging steps into a draft release.
+#
+# The `shell` label is a gate rather than a smoke test: those suites load the
+# production resources.qrc, so they are what stops a QML syntax error, a
+# missing resource or an unresolvable import from merging green. They ran
+# under continue-on-error until the release review pointed out that every
+# required check could pass with a shell that does not load.
+#
+# Third-party actions are pinned by commit SHA, and the packaging/signing job
+# runs through the protected "release" environment so a compromised PR cannot
+# reach signing credentials.
 #
 # The local acceptance gate for the UI suites remains DISPLAY=:0
 # ./build.sh --test on a rested real display (CONTRIBUTING.md): CI protects
@@ -31,6 +40,7 @@ jobs:
         include:
           - os: ubuntu-24.04
             preset: linux-release
+            shell-preset: shell-linux
             test-preset: unit-linux
             qt-arch: linux_gcc_64
           # windows-2022, not windows-latest: since the windows-2025-vs2026
@@ -41,10 +51,12 @@ jobs:
           # is a deliberate toolchain change, not a runner-label default.
           - os: windows-2022
             preset: windows-msvc-release
+            shell-preset: shell-windows
             test-preset: unit-windows
             qt-arch: win64_msvc2022_64
           - os: macos-14
             preset: macos-release
+            shell-preset: shell-macos
             test-preset: unit-macos
             qt-arch: clang_64
     runs-on: ${{ matrix.os }}
@@ -94,12 +106,18 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build-${{ matrix.preset }} -L performance --output-on-failure
 
-      - name: GUI smoke tests (informational)
-        if: runner.os == 'Linux'
-        continue-on-error: true
+      # The second merge gate, alongside the unit suites. ShellTests loads the
+      # production resources.qrc — the shipped main.qml, not the integration
+      # suite's mirror of it — with the real context properties attached, so
+      # it is the only check that a QML syntax error, a file missing from the
+      # qrc, an unresolvable import or a renamed context property cannot merge
+      # green. It ran under continue-on-error before, which meant it could
+      # not. It is deterministic offscreen and takes under a second, so it
+      # blocks on every OS rather than Linux alone.
+      - name: Shell tests (gate)
         env:
-          QT_QPA_PLATFORM: offscreen
-        run: ctest --test-dir build-${{ matrix.preset }} -L gui-smoke --output-on-failure
+          QT_QPA_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || 'offscreen' }}
+        run: ctest --preset ${{ matrix.shell-preset }} --output-on-failure
 
       # Encodes the ruled local-gate policy: xvfb cannot deliver real focus,
       # so the Qt Quick suites never gate merges from CI.
@@ -118,13 +136,43 @@ jobs:
           pip install pyyaml
           tools/generate-notices.py --check
 
+  # Static QML analysis, blocking. Complements the runtime ShellTests gate
+  # above: qmllint reads every file in qml/, including the ones no test
+  # happens to instantiate, and rejects malformed QML, an import that does
+  # not resolve and a use of a type that does not exist. Its own README is
+  # the header comment of tools/run-qmllint.sh, which explains why the
+  # context-property categories are switched off.
+  qmllint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          modules: qtmultimedia qtshadertools qtimageformats
+          cache: true
+
+      # The `Kvit` module is registered imperatively in C++, so qmllint reads
+      # it from a hand-written type description. This fails if that stub and
+      # AppContext::registerQmlTypes() have drifted apart, which would
+      # otherwise surface as confusing "type not found" errors below.
+      - name: QML type stub matches C++ registrations
+        run: tools/check-qml-types.py
+
+      - name: qmllint
+        run: tools/run-qmllint.sh
+
   # Tag-triggered packaging: produces every artifact
   # into a draft release for inspection; publishing the release is a manual
   # step of the release procedure (docs/release-rollback.md). The protected
   # environment carries signing secrets and requires manual approval.
   package:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build-test
+    needs: [build-test, qmllint]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release
@@ -132,6 +180,40 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Validate the tag before anything is built, so a bad tag costs seconds
+      # rather than a full packaging run. `v*` matches any tag, including one
+      # whose version has nothing to do with the source being built; the
+      # release version must be a SemVer string whose numeric core equals
+      # PROJECT_VERSION, with the prerelease suffix preserved so an RC
+      # identifies itself as an RC. build-appimage.sh applies the same rules
+      # and derives the same value; this step surfaces a mismatch early and
+      # publishes it as an output for the steps below.
+      - name: Validate release version against PROJECT_VERSION
+        id: version
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          BASE=$(grep -oP 'project\(kvit-notes VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not a SemVer version (expected v1.0.0 or v1.0.0-rc1)."
+            exit 1
+          fi
+          if [[ "$VERSION" != "$BASE" && "$VERSION" != "$BASE"-* && "$VERSION" != "$BASE"+* ]]; then
+            echo "::error::Tag '$TAG' has base version '${VERSION%%[-+]*}' but CMakeLists.txt declares '$BASE'."
+            exit 1
+          fi
+
+          # Any suffix at all means this is not the final release.
+          if [ "$VERSION" = "$BASE" ]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (base $BASE)"
 
       - name: Linux system dependencies
         run: |
@@ -149,7 +231,13 @@ jobs:
           modules: qtmultimedia qtshadertools qtimageformats
           cache: true
 
+      # The script configures the preset itself, so a fresh checkout is all it
+      # needs. It verifies the linuxdeploy downloads against pinned SHA-256
+      # digests before executing them, and refuses to produce an artifact
+      # whose license payload is incomplete.
       - name: Build AppImage
+        env:
+          KVIT_VERSION_FULL: ${{ steps.version.outputs.version }}
         run: packaging/linux/build-appimage.sh
 
       - name: Checksums
@@ -157,11 +245,24 @@ jobs:
           cd dist
           sha256sum * > SHA256SUMS.txt
 
+      # Pin the AUR -bin package to the artifact this run produced, and fail
+      # if the two disagree. The PKGBUILD carries a placeholder digest until
+      # this runs, so it can never publish with verification disabled.
+      - name: Pin the AUR package to the release artifact
+        run: |
+          tools/update-aur-digest.sh "${{ steps.version.outputs.version }}" dist/SHA256SUMS.txt
+          tools/update-aur-digest.sh --check "${{ steps.version.outputs.version }}" dist/SHA256SUMS.txt
+          cp packaging/aur/kvit-notes-bin/PKGBUILD dist/PKGBUILD.aur
+
+      # `prerelease` comes from the version check rather than a substring
+      # test: any SemVer suffix marks a prerelease, so 1.0.0-beta.1 and
+      # 1.0.0-rc1 are both flagged, and the binary inside reports the same
+      # suffixed version rather than claiming to be the final release.
       - name: Draft release with artifacts
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true
-          prerelease: ${{ contains(github.ref_name, '-rc') }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
           files: |
             dist/*
             THIRD-PARTY-NOTICES.md

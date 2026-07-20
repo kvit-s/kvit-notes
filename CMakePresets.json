@@ -87,6 +87,25 @@
       "configurePreset": "macos-release",
       "filter": { "include": { "label": "unit" } },
       "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "shell-linux",
+      "configurePreset": "linux-release",
+      "filter": { "include": { "label": "shell" } },
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "shell-windows",
+      "configurePreset": "windows-msvc-release",
+      "configuration": "Release",
+      "filter": { "include": { "label": "shell" } },
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "shell-macos",
+      "configurePreset": "macos-release",
+      "filter": { "include": { "label": "shell" } },
+      "output": { "outputOnFailure": true }
     }
   ]
 }

@@ -36,7 +36,10 @@ Trigger: a P0/P1 confirmed against the latest published release.
 3. **Propagate the supersede** to every channel that mirrors releases:
    - Flathub: push the new version manifest;
    - winget: submit the updated manifest PR;
-   - AUR `-bin`: bump pkgver;
+   - AUR `-bin`: run `tools/update-aur-digest.sh <version>`, which bumps
+     pkgver and pins `sha256sums` to the digest in the release's
+     SHA256SUMS.txt. Never publish a PKGBUILD carrying the placeholder
+     digest or `SKIP`; `--check` verifies before publishing;
    - Homebrew tap: bump the cask.
 4. **The in-app update check follows automatically**: it reads the GitHub
    `latest` release, which is now the fixed version.
@@ -45,7 +48,15 @@ Trigger: a P0/P1 confirmed against the latest published release.
 
 ## Version discipline
 
-- SemVer from `v1.0.0`. Prerelease identifiers only in tags (`-rcN`);
-  `PROJECT_VERSION` in CMakeLists.txt carries the plain version.
+- SemVer from `v1.0.0`. `PROJECT_VERSION` in CMakeLists.txt carries the
+  three numeric components, which is all CMake's `project(VERSION)`
+  accepts; the prerelease identifier lives in the tag.
+- The binary reports the full tag version, suffix included. The tag job
+  derives it and passes it as `KVIT_VERSION_FULL`, so a `v1.0.0-rc1`
+  build calls itself `1.0.0-rc1` in About and in the update check, and
+  an installed RC is correctly seen as older than stable `1.0.0`.
+- A tag whose numeric core does not match `PROJECT_VERSION` fails the
+  packaging job before anything is built. Bump `project(VERSION ...)`
+  and retag rather than working around it.
 - `CHANGELOG.md` (Keep a Changelog) is updated in the PR that makes the
   change, not at release time; release notes are generated from it.

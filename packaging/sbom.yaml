@@ -21,7 +21,8 @@ components:
     spdx: Zlib
     origin: https://github.com/leethomason/tinyxml2
     files: third_party/microtex/tinyxml2
-    license_file: third_party/microtex/tinyxml2/tinyxml2.h (header notice)
+    license_file: third_party/microtex/tinyxml2/LICENSE.txt; installed
+      into every binary artifact as LICENSE.tinyxml2
     ships_in: [windows, macos, linux, source]
     obligations: Keep the notice; altered sources must be marked.
 
@@ -86,8 +87,10 @@ components:
     origin: https://www.qt.io (aqtinstall binaries in CI)
     files: dynamically linked; runtime libraries and plugins bundled by
       windeployqt / macdeployqt / linuxdeploy at packaging time
-    license_file: shipped as packaging/licenses/qt (Phase D packaging step
-      copies the LGPL-3 and GPL-exception texts into each artifact)
+    license_file: packaging/licenses/qt holds the canonical LGPL-3 and
+      GPL-3 texts; packaging copies them into each artifact under
+      share/licenses/kvit-notes/qt, alongside the Qt kit's own licensing
+      document when the kit provides one
     ships_in: [windows, macos, linux]
     obligations: See packaging/qt-lgpl-checklist.md - dynamic linking only,
       license texts in every artifact, source-availability statement,
