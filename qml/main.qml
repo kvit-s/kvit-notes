@@ -1829,7 +1829,7 @@ ApplicationWindow {
     property bool externalConflict: false
     property string conflictPath: ""
     Connections {
-        target: fileWatcher
+        target: FileWatcher
         function onNoteChangedExternally(absPath) {
             if (absPath !== documentManager.currentFilePath)
                 return   // not the open note — the tree re-scan handles the rest
@@ -1872,7 +1872,7 @@ ApplicationWindow {
         }
     }
     Connections {
-        target: globalHotkey
+        target: GlobalHotkey
         function onActivated() { root.openQuickCapture() }
     }
     // In-app quick-capture chord (works while the window is focused, so capture

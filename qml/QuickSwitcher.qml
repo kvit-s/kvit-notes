@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The quick switcher: Ctrl+P opens a centered popup listing the
 // collection's notes, fuzzy-filtered through the shared matcher in
@@ -45,7 +46,7 @@ Popup {
     }
 
     function refilter() {
-        rows = quickSwitcherModel.itemsFor(queryField.text)
+        rows = QuickSwitcherModel.itemsFor(queryField.text)
         highlightIndex = rows.length > 0 ? 0 : -1
         if (resultsList)
             resultsList.positionViewAtBeginning()

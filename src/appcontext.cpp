@@ -286,6 +286,19 @@ void AppContext::installContextProperties(QQmlEngine *engine)
         return;
     QQmlContext *context = engine->rootContext();
 
+    // The services this composition offers QML as singletons. Each one's
+    // create() reads its instance back out of here, so an engine gets the
+    // AppContext that installed on it and no other. Registered before the
+    // shell loads, because the first binding that touches a singleton
+    // resolves it.
+    m_services.add(&m_queryTools);
+    m_services.add(&m_globalHotkey);
+    m_services.add(&m_fileWatcher);
+    m_services.add(&m_shortcutCatalog);
+    m_services.add(&m_quickSwitcherModel);
+    m_services.add(&m_folderTreeModel);
+    KvitQml::attachServices(engine, &m_services);
+
     // Every property goes through one helper so the published set is
     // recorded as it is built, and two things read that one list. A test
     // compares it with the names the shell binds to, so neither side drifts
@@ -312,10 +325,8 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     publish("documentExporter", &m_documentExporter);
     publish("documentSerializer", &m_documentSerializer);
     publish("noteCollection", &m_noteCollection);
-    publish("folderTreeModel", &m_folderTreeModel);
     publish("noteListModel", &m_noteListModel);
     publish("collectionSearch", &m_collectionSearch);
-    publish("startupController", &m_startupController);
     publish("noteTemplates", &m_noteTemplates);
     publish("documentImporter", &m_documentImporter);
     publish("embedMetadata", &m_embedMetadata);
@@ -336,22 +347,15 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // presentation values off a block's `attributes` payload, and the
     // attribute editors compute a new payload to hand to setBlockAttributes.
     publish("blockAttributes", &m_blockAttributes);
-    // The shortcut catalog (features.md §13): the source the shortcut
-    // reference renders and the test_shortcutmap audit checks.
-    publish("shortcutCatalog", &m_shortcutCatalog);
     // The live-region announcer: dynamic changes speak
     // through this seam to assistive technology.
     publish("a11y", &m_a11y);
     publish("systemTray", &m_systemTray);
-    publish("globalHotkey", &m_globalHotkey);
-    publish("fileWatcher", &m_fileWatcher);
     publish("navigationHistory", &m_navigationHistory);
     publish("updateChecker", &m_updateChecker);
-    publish("quickSwitcherModel", &m_quickSwitcherModel);
     publish("tableTools", &m_tableTools);
     publish("todoMeta", &m_todoMeta);
     publish("kanbanTools", &m_kanbanTools);
-    publish("queryTools", &m_queryTools);
     // Math: the MicroTeX seam. The provider owns rendering under
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.

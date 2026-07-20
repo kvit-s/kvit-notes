@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The [[ completion popup: opened when "[[" is typed in prose, listing
 // the collection's notes through the shared fuzzy matcher
@@ -88,7 +89,7 @@ Popup {
             }
             rows = headRows
         } else {
-            var items = quickSwitcherModel.itemsFor(query, 8)
+            var items = QuickSwitcherModel.itemsFor(query, 8)
             var noteRows = []
             for (var n = 0; n < items.length; ++n) {
                 // The minimal unambiguous target: the bare title when it

@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The navigation sidebar: scopes, the folder tree, and the tag list.
 // Functional Fusion styling only. All state lives in noteCollection /
@@ -30,7 +31,7 @@ Rectangle {
             return ""
         var idx = folderTreeView.indexAt(
             pos.x, pos.y + folderTreeView.contentY)
-        return idx < 0 ? "" : folderTreeModel.relPathAt(idx)
+        return idx < 0 ? "" : FolderTreeModel.relPathAt(idx)
     }
 
     function setDropHover(sceneX, sceneY) {
@@ -252,7 +253,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: folderTreeModel
+            model: FolderTreeModel
 
             delegate: Rectangle {
                 id: folderRow
@@ -290,7 +291,7 @@ Rectangle {
                         visible: model.hasChildren
                         width: 10
                         TapHandler {
-                            onTapped: folderTreeModel.toggleExpanded(index)
+                            onTapped: FolderTreeModel.toggleExpanded(index)
                         }
                     }
                     Item { width: 10; visible: !model.hasChildren }

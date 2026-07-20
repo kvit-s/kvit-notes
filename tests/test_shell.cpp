@@ -122,6 +122,13 @@ private slots:
     // neither compiler checks. Pinning the published set means a rename has
     // to be made deliberately, in both places, rather than discovered later
     // as an undefined value at runtime.
+    //
+    // This list shrinks as services move to the `Kvit` QML module, where
+    // qmllint checks their uses statically and nothing has to be pinned by
+    // hand. It still covers everything that has not moved, and it is still
+    // what ExtensionRegistry refuses a colliding module namespace against.
+    // The singletons have their own guard in
+    // everySingletonResolvesWithinItsOwnComposition below.
     void everyPublishedContextPropertyIsAccountedFor()
     {
         static const QStringList expected = {
@@ -129,15 +136,15 @@ private slots:
             "clipboard", "blockMenuModel", "mathCommandModel",
             "documentSelection", "documentSearch", "documentOutline",
             "documentStats", "documentExporter", "documentSerializer",
-            "noteCollection", "folderTreeModel", "noteListModel",
-            "collectionSearch", "startupController", "noteTemplates",
+            "noteCollection", "noteListModel",
+            "collectionSearch", "noteTemplates",
             "documentImporter", "embedMetadata", "egressPolicy", "appSettings",
             "perfLog",
             "theme", "typography", "codeLanguageList", "imageAssets",
-            "blockAttributes", "shortcutCatalog", "a11y", "systemTray",
-            "globalHotkey", "fileWatcher", "navigationHistory", "updateChecker",
-            "quickSwitcherModel", "tableTools", "todoMeta", "kanbanTools",
-            "queryTools", "mathRenderer", "blockKinds", "extensions",
+            "blockAttributes", "a11y", "systemTray",
+            "navigationHistory", "updateChecker",
+            "tableTools", "todoMeta", "kanbanTools",
+            "mathRenderer", "blockKinds", "extensions",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
 
@@ -154,6 +161,65 @@ private slots:
                              QStringList(removed.begin(), removed.end())
                                  .join(", "))));
         QCOMPARE(actual.size(), expected.size());   // no duplicate publishes
+    }
+
+    // The services QML now reaches as `Kvit` module singletons rather than as
+    // context properties. Two properties matter and neither is visible from
+    // QML alone.
+    //
+    // A singleton that resolves to null is not an error QML raises on its
+    // own: every member read off it is undefined, which is the same quiet
+    // wrongness the context properties had. Asserting the instance exists is
+    // what turns a broken factory into a failure here.
+    //
+    // And the instance has to be THIS composition's. Registering singletons
+    // with qmlRegisterSingletonInstance would bind one object for the whole
+    // process, which would break the second AppContext that tests rely on for
+    // isolation; the per-engine create() seam exists to avoid that, so the
+    // second half checks a second composition really does get its own.
+    void everySingletonResolvesWithinItsOwnComposition()
+    {
+        static const QStringList singletons = {
+            QStringLiteral("QueryTools"),      QStringLiteral("GlobalHotkey"),
+            QStringLiteral("FileWatcher"),     QStringLiteral("ShortcutCatalog"),
+            QStringLiteral("QuickSwitcherModel"),
+            QStringLiteral("FolderTreeModel"),
+        };
+
+        // A second composition, wired exactly like the one under test.
+        QTemporaryDir otherDir;
+        AppContext other;
+        other.openSettings(otherDir.filePath(QStringLiteral("settings.json")));
+        QQmlEngine otherEngine;
+        other.installContextProperties(&otherEngine);
+
+        // Identity, not just existence. Qt default-constructs a QML_SINGLETON
+        // whose create() it does not find, which yields a perfectly valid
+        // object wired to nothing — no warning, no null, just a folder tree
+        // that is always empty. Only comparing addresses catches that.
+        QCOMPARE(m_engine.singletonInstance<QObject *>(
+                     QStringLiteral("Kvit"), QStringLiteral("FolderTreeModel")),
+                 static_cast<QObject *>(m_context->folderTreeModel()));
+        QCOMPARE(m_engine.singletonInstance<QObject *>(
+                     QStringLiteral("Kvit"), QStringLiteral("QuickSwitcherModel")),
+                 static_cast<QObject *>(m_context->quickSwitcherModel()));
+
+        for (const QString &type : singletons) {
+            QObject *mine =
+                m_engine.singletonInstance<QObject *>(QStringLiteral("Kvit"), type);
+            QVERIFY2(mine, qPrintable(type + QStringLiteral(" resolved to null")));
+
+            QObject *theirs =
+                otherEngine.singletonInstance<QObject *>(QStringLiteral("Kvit"), type);
+            QVERIFY2(theirs, qPrintable(type + QStringLiteral(" resolved to null "
+                                                             "in the second context")));
+
+            QVERIFY2(mine != theirs,
+                     qPrintable(type + QStringLiteral(" is shared between two "
+                                                      "AppContexts; the singleton "
+                                                      "is process-global rather "
+                                                      "than per-engine")));
+        }
     }
 
     void withNoModuleInstalledEverySlotIsInert()

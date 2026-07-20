@@ -124,6 +124,8 @@ add_subdirectory(third_party/microtex)
 # the naming the split document uses.
 add_library(kvit-core STATIC
     src/appcontext.cpp
+    src/qmlservices.cpp
+    src/qmlsingletons.h
     src/kvitapplication.cpp
     src/blockkindregistry.cpp
     src/extensionregistry.cpp

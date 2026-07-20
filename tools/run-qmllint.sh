@@ -110,3 +110,55 @@ fi
     "${FILES[@]}"
 
 echo "qmllint: ${#FILES[@]} files clean"
+
+# ── Second pass: the files that no longer read a context property
+#
+# `unqualified` and `missing-property` are off above because a context
+# property is invisible to static analysis, so every read of one is reported.
+# That is a property of the FILE, not of the tree: once a file reaches all its
+# C++ state through the `Kvit` module, both categories can be switched on for
+# it, and then a misspelled name or a property that does not exist on a
+# singleton is a static error rather than a runtime undefined.
+#
+# The list is derived, not maintained. Any file mentioning none of the names
+# AppContext still publishes qualifies, so a file graduates into this pass on
+# the commit that converts its last context property, and cannot be forgotten.
+# The count below is expected to rise as services move to the module; it
+# reaching every file is what retires the first pass entirely.
+# Read whole-file rather than line-by-line: at least one publish() call wraps
+# its name onto the following line, and a line-oriented match silently missed
+# it — which graduated a file that still read that property.
+mapfile -t CONTEXT_NAMES < <(
+    perl -0777 -ne 'print "$1\n" while /publish\(\s*"([A-Za-z0-9_]+)"/g' \
+        src/appcontext.cpp | sort -u)
+
+if [ ${#CONTEXT_NAMES[@]} -eq 0 ]; then
+    echo "No context properties found in src/appcontext.cpp — has publish() been renamed?" >&2
+    exit 2
+fi
+
+# One alternation of whole-word matches, so a file is excluded on any hit.
+CONTEXT_PATTERN="\\b($(IFS='|'; echo "${CONTEXT_NAMES[*]}"))\\b"
+
+STRICT=()
+for file in "${FILES[@]}"; do
+    if ! grep -qE "$CONTEXT_PATTERN" "$file"; then
+        STRICT+=("$file")
+    fi
+done
+
+if [ ${#STRICT[@]} -eq 0 ]; then
+    echo "qmllint (strict): no files are free of context properties yet"
+    exit 0
+fi
+
+"$QMLLINT" \
+    -I qml \
+    -I "$MODULE_DIR" \
+    -W 0 \
+    --equality-type-coercion info \
+    --Quick.layout-positioning info \
+    --Quick.anchor-combinations info \
+    "${STRICT[@]}"
+
+echo "qmllint (strict, unqualified + missing-property enabled): ${#STRICT[@]}/${#FILES[@]} files clean"

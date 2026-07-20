@@ -40,7 +40,7 @@ Item {
                                  columns: [], rows: [], groups: [] })
 
     function refresh() {
-        queryResult = queryTools.run(root.content)
+        queryResult = QueryTools.run(root.content)
     }
     function scheduleRefresh() {
         refreshTimer.restart()

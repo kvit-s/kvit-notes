@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // Discoverable keyboard-shortcut cheat sheet (features.md §13).
 // It renders the ShortcutCatalog — the same source the test_shortcutmap audit
@@ -35,7 +36,7 @@ Dialog {
     }
 
     function rowsFor(category) {
-        var all = shortcutCatalog.model()
+        var all = ShortcutCatalog.model()
         var out = []
         for (var i = 0; i < all.length; i++)
             if (all[i].category === category)
@@ -52,7 +53,7 @@ Dialog {
             spacing: 14
 
             Repeater {
-                model: shortcutCatalog.categories()
+                model: ShortcutCatalog.categories()
 
                 Column {
                     required property string modelData

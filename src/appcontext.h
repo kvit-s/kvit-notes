@@ -43,6 +43,7 @@
 #include "notecollection.h"
 #include "notelistmodel.h"
 #include "notetemplates.h"
+#include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
 #include "settingsstore.h"
@@ -155,6 +156,12 @@ public:
     // their fence kinds before the shell loads.
     ExtensionRegistry *extensions() { return &m_extensions; }
     BlockKindRegistry *blockKinds() { return &m_blockKinds; }
+    // Exposed so a test can assert that the QML singleton of the same type
+    // resolves to THIS composition's object rather than to one the QML engine
+    // default-constructed for itself, which looks identical from QML and is
+    // wired to nothing.
+    FolderTreeModel *folderTreeModel() { return &m_folderTreeModel; }
+    QuickSwitcherModel *quickSwitcherModel() { return &m_quickSwitcherModel; }
     // The one transport and the one policy. The launcher hands the fetcher
     // to the update checker; nothing else in the tree opens a connection.
     EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }
@@ -165,6 +172,10 @@ private:
 
     const Options m_options;
     QStringList m_installedProperties;
+    // What the QML singletons resolve against. Declared before the services
+    // it points at so it is destroyed after them, and so an engine outliving
+    // this context cannot read a table of dangling pointers.
+    KvitQml::ServiceTable m_services;
 
     // Declaration order = construction order; destruction runs in reverse.
     // The registries come first: the block model resolves delegate kinds
