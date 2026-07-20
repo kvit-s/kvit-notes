@@ -79,9 +79,7 @@ BlockDelegateBase {
     }
 
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
 
     // Gaining focus records this as the current block, like

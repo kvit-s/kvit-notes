@@ -361,9 +361,7 @@ BlockDelegateBase {
     // reveal and dismisses any open menu — both intended in selection
     // mode.
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
 
     function activateEditor() {
@@ -1136,12 +1134,9 @@ BlockDelegateBase {
     // (features.md §4.3 "position menu near cursor"). The anchor is in
     // window coordinates — the popup's overlay parent fills the window.
     function openBlockMenu(mode) {
-        var win = Window.window
-        if (!win || !win.blockMenu)
-            return
         var rect = textArea.positionToRectangle(textArea.cursorPosition)
         var topLeft = textArea.mapToItem(null, rect.x, rect.y)
-        win.blockMenu.openForBlock(delegate.index, mode,
+        AppActions.requestBlockMenu(delegate.index, mode,
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
     }
 
@@ -1164,12 +1159,10 @@ BlockDelegateBase {
     }
 
     function openMathMenu() {
-        var win = Window.window
-        if (!win || !win.mathCommandMenu)
-            return
+
         var rect = textArea.positionToRectangle(textArea.cursorPosition)
         var topLeft = textArea.mapToItem(null, rect.x, rect.y)
-        win.mathCommandMenu.openForHost(textArea,
+        AppActions.requestMathCommandMenu(textArea,
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height),
             false /* inline context: single-line templates */)
         textArea.syncMathMenuQuery()
@@ -1185,12 +1178,10 @@ BlockDelegateBase {
     }
 
     function openWikiMenu() {
-        var win = Window.window
-        if (!win || !win.wikiLinkMenu)
-            return
+
         var rect = textArea.positionToRectangle(textArea.cursorPosition)
         var topLeft = textArea.mapToItem(null, rect.x, rect.y)
-        win.wikiLinkMenu.openForHost(textArea,
+        AppActions.requestWikiLinkMenu(textArea,
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
         textArea.syncWikiMenuQuery()
     }
@@ -1270,8 +1261,7 @@ BlockDelegateBase {
         var url = editorEngine.linkAtDocumentPosition(docPos)
         if (url.length > 0) {
             var win = Window.window
-            if (win && win.linkOpener)
-                win.linkOpener.activate(url)
+            AppActions.requestOpenLink(url)
         }
     }
 
@@ -1282,11 +1272,9 @@ BlockDelegateBase {
         if (delegate.verbatimEditing)
             return
         var win = Window.window
-        if (!win || !win.linkDialog)
-            return
         var info = editorEngine.linkSpanAtCursor(textArea.cursorPosition)
         if (info.found) {
-            win.linkDialog.openForEdit(delegate.index, info.start, info.end,
+            AppActions.requestEditLink(delegate.index, info.start, info.end,
                                        info.text, info.url, info.removable)
         } else {
             var mdStart = editorEngine.toMarkdownPosition(textArea.selectionStart)
@@ -1296,7 +1284,7 @@ BlockDelegateBase {
                       editorEngine.markdownForRange(textArea.selectionStart,
                                                     textArea.selectionEnd))
                 : ""
-            win.linkDialog.openForInsert(delegate.index, mdStart, mdEnd, initialText)
+            AppActions.requestInsertLink(delegate.index, mdStart, mdEnd, initialText)
         }
     }
 
@@ -3612,8 +3600,7 @@ BlockDelegateBase {
                                   textArea.positionAt(p.x, p.y))
                     if (url.length > 0) {
                         var win = Window.window
-                        if (win && win.linkOpener)
-                            win.linkOpener.activate(url)
+                        AppActions.requestOpenLink(url)
                         mouse.accepted = true
                         return
                     }

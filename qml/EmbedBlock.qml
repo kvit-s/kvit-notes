@@ -109,6 +109,12 @@ BlockDelegateBase {
     }
 
     function openEmbed() {
+        // Left reaching through the window on purpose. The guard is not a
+        // null check: it CHOOSES between two behaviours, and the else branch
+        // is what opens the link when the containing window has no link
+        // opener at all. AppActions cannot express "is anyone listening", so
+        // converting this would silently drop the fallback. Group A's shell
+        // cast types this line without changing what it does.
         var win = Window.window
         if (win && win.linkOpener)
             win.linkOpener.activate(embedUrl)
@@ -135,9 +141,7 @@ BlockDelegateBase {
                                      : win.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {

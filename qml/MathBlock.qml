@@ -115,8 +115,7 @@ BlockDelegateBase {
                                      : win.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler) win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
@@ -388,12 +387,10 @@ BlockDelegateBase {
 
             function openMathMenu(triggerPos) {
                 var win = Window.window
-                if (!win || !win.mathCommandMenu)
-                    return
                 mathTriggerPos = triggerPos
                 var rect = positionToRectangle(cursorPosition)
                 var topLeft = sourceArea.mapToItem(null, rect.x, rect.y)
-                win.mathCommandMenu.openForHost(sourceArea,
+                AppActions.requestMathCommandMenu(sourceArea,
                     Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height),
                     true /* display-math context */)
                 syncMathMenuQuery()

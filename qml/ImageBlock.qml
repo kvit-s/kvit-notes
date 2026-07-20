@@ -133,9 +133,7 @@ BlockDelegateBase {
     }
 
     function focusSelectionHandler() {
-        var win = Window.window
-        if (win && win.selectionKeyHandler)
-            win.selectionKeyHandler.forceActiveFocus()
+        AppActions.requestSelectionFocus()
     }
 
     onIsFocusedChanged: {

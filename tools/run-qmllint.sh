@@ -132,6 +132,7 @@ echo "qmllint: ${#FILES[@]} files clean"
 # fails this script, and a finished file that nobody added is reported below
 # rather than quietly left out.
 STRICT_CLEAN=(
+    qml/BlockDelegateBase.qml
     qml/CalloutBlock.qml
     qml/BacklinksPanel.qml
     qml/CalloutColorPicker.qml

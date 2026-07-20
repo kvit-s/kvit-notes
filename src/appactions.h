@@ -6,6 +6,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QRectF>
 #include <QUrl>
 
 // The shell-level actions a block delegate can ask for.
@@ -70,6 +71,35 @@ public:
         emit transientStatusRequested(message);
     }
 
+    // Objects the window owns that a delegate asks it to drive. These were
+    // reached as `win.selectionKeyHandler.forceActiveFocus()` and the like —
+    // a delegate reaching through the window into one of its children, two
+    // layers past anything it should know about. Asking for the effect
+    // instead means the child stays private to the shell.
+    Q_INVOKABLE void requestSelectionFocus() { emit selectionFocusRequested(); }
+    Q_INVOKABLE void requestOpenLink(const QUrl &url) { emit openLinkRequested(url); }
+    Q_INVOKABLE void requestBlockMenu(int index, const QString &mode, const QRectF &area)
+    {
+        emit blockMenuRequested(index, mode, area);
+    }
+    Q_INVOKABLE void requestMathCommandMenu(QObject *host, const QRectF &area, bool displayMath)
+    {
+        emit mathCommandMenuRequested(host, area, displayMath);
+    }
+    Q_INVOKABLE void requestWikiLinkMenu(QObject *host, const QRectF &area)
+    {
+        emit wikiLinkMenuRequested(host, area);
+    }
+    Q_INVOKABLE void requestEditLink(int index, int start, int end, const QString &text,
+                                     const QString &url, bool removable)
+    {
+        emit editLinkRequested(index, start, end, text, url, removable);
+    }
+    Q_INVOKABLE void requestInsertLink(int index, int start, int end, const QString &text)
+    {
+        emit insertLinkRequested(index, start, end, text);
+    }
+
 signals:
     void scrollToBlockRequested(int index);
     void openNoteByPathRequested(const QString &relPath);
@@ -82,6 +112,14 @@ signals:
     void insertTableRequested(int index);
     void lightboxRequested(const QString &source, const QString &alt);
     void transientStatusRequested(const QString &message);
+    void selectionFocusRequested();
+    void openLinkRequested(const QUrl &url);
+    void blockMenuRequested(int index, const QString &mode, const QRectF &area);
+    void mathCommandMenuRequested(QObject *host, const QRectF &area, bool displayMath);
+    void wikiLinkMenuRequested(QObject *host, const QRectF &area);
+    void editLinkRequested(int index, int start, int end, const QString &text,
+                           const QString &url, bool removable);
+    void insertLinkRequested(int index, int start, int end, const QString &text);
 };
 
 #endif // APPACTIONS_H

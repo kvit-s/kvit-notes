@@ -304,6 +304,21 @@ ApplicationWindow {
         function onInsertTableRequested(index) { root.insertTableIntoBlock(index) }
         function onLightboxRequested(source, alt) { root.openLightbox(source, alt) }
         function onTransientStatusRequested(message) { root.showTransientStatus(message) }
+        // Objects this window owns. A delegate asks for the effect; which
+        // child provides it stays private to the shell.
+        function onSelectionFocusRequested() { selectionKeyHandler.forceActiveFocus() }
+        function onOpenLinkRequested(url) { linkOpener.activate(url) }
+        function onBlockMenuRequested(index, mode, area) { blockMenu.openForBlock(index, mode, area) }
+        function onMathCommandMenuRequested(host, area, displayMath) {
+            mathCommandMenu.openForHost(host, area, displayMath)
+        }
+        function onWikiLinkMenuRequested(host, area) { wikiLinkMenu.openForHost(host, area) }
+        function onEditLinkRequested(index, start, end, text, url, removable) {
+            linkDialog.openForEdit(index, start, end, text, url, removable)
+        }
+        function onInsertLinkRequested(index, start, end, text) {
+            linkDialog.openForInsert(index, start, end, text)
+        }
     }
 
     function urlToLocalPath(fileUrl) {
