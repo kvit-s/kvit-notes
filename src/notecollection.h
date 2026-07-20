@@ -20,6 +20,7 @@
 
 #include "cancellationtoken.h"
 #include "notefrontmatter.h"
+#include "vaultlock.h"
 
 class QFileInfo;
 class CollectionSearchIndex;
@@ -302,6 +303,10 @@ signals:
     void wikiLinkRewriteIncomplete(const QStringList &skipped,
                                    const QStringList &failed);
     void operationFailed(const QString &message);
+    // The vault is open in another process, so this session refused it rather
+    // than becoming a second writer whose saves would discard the other's.
+    // `detail` names the holder where the lock file said who it was.
+    void vaultInUse(const QString &path, const QString &detail);
     void scanInProgressChanged();
     void scanStarted();
     void scanFinished();
@@ -513,6 +518,9 @@ private:
     // against this, never against m_rootPath's text, so a vault reached
     // through a link still recognizes its own contents.
     QString m_canonicalRoot;
+    // Held for as long as this collection has the vault open, so no second
+    // process can load the same state and save over this session's writes.
+    VaultLock m_vaultLock;
     int m_revision = 0;
 
     QHash<QString, NoteEntry> m_notes;    // by relPath
