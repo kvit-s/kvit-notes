@@ -146,14 +146,29 @@ such:
 
 ## One habit, stated plainly
 
-Eight times in this work a rewrite matched more than had been read: a
-`documentStats` collision, a cross-wired colour menu, a `root.` prefix on a
-method that lived elsewhere, a comment with "window" in it, function
-*definitions* caught by a call-site regex, the 66-site id, and two more. Every
-one was caught — three by tests, one by the build, four by the linter — but the
-rate is the point, and the deepest-scoped files are where it bit hardest.
-Writing a rewrite is not the same as reading the code it rewrites, and the
-static gate this work enables is now one of the things that reads it.
+Eight times during this work a rewrite matched more of the code than its author
+had read. The pattern is always the same: a search-and-replace or a regular
+expression written against what the code was assumed to look like, applied to
+files that did not all look that way.
+
+| Instance | What the rewrite hit that it should not have | Caught by |
+|---|---|---|
+| `documentStats` → `DocumentStats` | the invokable of the same name, not only the object | strict lint (later) |
+| colour-menu id | cross-wired onto the span-type menu above it | strict lint |
+| `root.selectRange` | a method that lives on `selectionKeyHandler`, not the root | strict lint |
+| `win` → `root.shell` | the word "window" inside 33 comments | build (unused-id) / reading the diff |
+| bare-method prefixing | the function *definitions*, producing `function delegate.x()` | build (syntax) |
+| 66-site id | `root` in four files whose root id is `delegate` | strict lint |
+| `TocBlock` id | `tocRow`, an id that does not exist in that file | build |
+| `root.defaultFontFamily` | a property invented before it was a function | build |
+
+Every instance was caught, three by tests, one by the build failing to compile,
+four by the linter, and none shipped. The value is not any single catch; it is
+that the rate is high, and the deepest-scoped files, where a delegate nests
+components four levels down and `modelData` means a different object at each, are
+where it bit hardest. Writing a rewrite is not the same as
+reading the code it rewrites, and the static gate this work enables is now one
+of the things that reads it.
 
 ## A note for whoever counts this area next
 
