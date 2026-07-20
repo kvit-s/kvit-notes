@@ -74,6 +74,13 @@ private slots:
     void testSetBlockAttributesCommand();
     void testSetBlockAttributesOneUndoStep();
 
+    // Index validation must not depend on whether a stack is attached
+    void testSplitBlockInvalidIndexWithStack();
+    void testMergeBlocksInvalidIndexWithStack();
+    void testRemoveBlockInvalidIndexWithStack();
+    void testInsertBlockClampedIndexUndoRedo();
+    void testMergeBlocksReverseOrderRejected();
+
 private:
     void clearModel(BlockModel &model);
 };
@@ -690,6 +697,142 @@ void TestCommands::testSetBlockAttributesOneUndoStep()
     const int before = stack.count();
     model.setBlockAttributes(0, "align=center rounded");
     QCOMPARE(stack.count(), before);
+}
+
+// Index validation must not depend on whether a stack is attached.
+// BlockModel::splitBlock/mergeBlocks/removeBlock/insertBlock are invokable
+// from QML, where a delegate can hand over a stale or -1 index; the
+// stack-attached path must reject exactly what the direct path rejects.
+
+void TestCommands::testSplitBlockInvalidIndexWithStack()
+{
+    BlockModel model;
+    UndoStack stack;
+    model.setUndoStack(&stack);
+
+    clearModel(model);
+    model.insertBlockInternal(0, Block::Paragraph, "Hello World");
+
+    const int countBefore = model.count();
+
+    model.splitBlock(-1, 0);
+    model.splitBlock(100, 0);
+    QCOMPARE(model.count(), countBefore);
+    QVERIFY(!stack.canUndo());
+
+    // Invalid position within a valid block is equally a no-op.
+    model.splitBlock(0, -1);
+    model.splitBlock(0, 1000);
+    QCOMPARE(model.count(), countBefore);
+    QCOMPARE(model.getContent(0), QString("Hello World"));
+    QVERIFY(!stack.canUndo());
+}
+
+void TestCommands::testMergeBlocksInvalidIndexWithStack()
+{
+    BlockModel model;
+    UndoStack stack;
+    model.setUndoStack(&stack);
+
+    clearModel(model);
+    model.insertBlockInternal(0, Block::Paragraph, "First");
+    model.insertBlockInternal(1, Block::Paragraph, "Second");
+
+    const int countBefore = model.count();
+
+    model.mergeBlocks(-1, 0);
+    model.mergeBlocks(0, -1);
+    model.mergeBlocks(100, 0);
+    model.mergeBlocks(0, 100);
+    model.mergeBlocks(0, 0);
+
+    QCOMPARE(model.count(), countBefore);
+    QCOMPARE(model.getContent(0), QString("First"));
+    QCOMPARE(model.getContent(1), QString("Second"));
+    QVERIFY(!stack.canUndo());
+}
+
+void TestCommands::testRemoveBlockInvalidIndexWithStack()
+{
+    BlockModel model;
+    UndoStack stack;
+    model.setUndoStack(&stack);
+
+    clearModel(model);
+    model.insertBlockInternal(0, Block::Heading1, "Title");
+
+    model.removeBlock(-1);
+    model.removeBlock(100);
+
+    QCOMPARE(model.count(), 1);
+    QVERIFY(!stack.canUndo());
+
+    // Undoing an out-of-range removal must not conjure a default block.
+    stack.undo();
+    QCOMPARE(model.count(), 1);
+    QCOMPARE(model.getContent(0), QString("Title"));
+}
+
+void TestCommands::testInsertBlockClampedIndexUndoRedo()
+{
+    BlockModel model;
+    UndoStack stack;
+    model.setUndoStack(&stack);
+
+    clearModel(model);
+    model.insertBlockInternal(0, Block::Paragraph, "Existing");
+
+    // Out-of-range insertion positions clamp; the command must remember the
+    // clamped index so undo removes the block it actually inserted.
+    model.insertBlock(-5, Block::Paragraph, "Clamped");
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.getContent(0), QString("Clamped"));
+
+    stack.undo();
+    QCOMPARE(model.count(), 1);
+    QCOMPARE(model.getContent(0), QString("Existing"));
+
+    stack.redo();
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.getContent(0), QString("Clamped"));
+
+    model.insertBlock(1000, Block::Paragraph, "AtEnd");
+    QCOMPARE(model.count(), 3);
+    QCOMPARE(model.getContent(2), QString("AtEnd"));
+
+    stack.undo();
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.getContent(0), QString("Clamped"));
+    QCOMPARE(model.getContent(1), QString("Existing"));
+}
+
+void TestCommands::testMergeBlocksReverseOrderRejected()
+{
+    BlockModel model;
+    UndoStack stack;
+    model.setUndoStack(&stack);
+
+    clearModel(model);
+    model.insertBlockInternal(0, Block::Paragraph, "First");
+    model.insertBlockInternal(1, Block::Paragraph, "Second");
+
+    // Merging backwards has no caller and its undo cannot restore the
+    // original order, so it is rejected outright on both paths.
+    model.mergeBlocks(1, 0);
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.getContent(0), QString("First"));
+    QCOMPARE(model.getContent(1), QString("Second"));
+    QVERIFY(!stack.canUndo());
+
+    BlockModel direct;
+    while (direct.rowCount() > 0)
+        direct.removeBlock(0);
+    direct.insertBlockInternal(0, Block::Paragraph, "First");
+    direct.insertBlockInternal(1, Block::Paragraph, "Second");
+    direct.mergeBlocks(1, 0);
+    QCOMPARE(direct.count(), 2);
+    QCOMPARE(direct.getContent(0), QString("First"));
+    QCOMPARE(direct.getContent(1), QString("Second"));
 }
 
 QTEST_MAIN(TestCommands)

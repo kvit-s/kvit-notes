@@ -6,6 +6,7 @@
 #include <QTextBlock>
 #include <QTextLayout>
 #include <QSignalSpy>
+#include <QSyntaxHighlighter>
 #include <QtMath>
 
 #include <QTemporaryDir>
@@ -196,6 +197,9 @@ private slots:
     void testMathSpanRangeAtDocument();
     void testShouldAutoPairDollarRules();
     void testShouldAutoPairDollarVerbatim();
+
+    // --- highlighter lifetime ---
+    void testDocumentSurvivesEngineDestruction();
 };
 
 void TestBlockEditorEngine::testDisplayText_data()
@@ -1841,6 +1845,34 @@ void TestBlockEditorEngine::testShouldAutoPairDollarVerbatim()
     verbatim.setVerbatim(true);
     verbatim.setMarkdown(QStringLiteral("price = "));
     QVERIFY(!verbatim.shouldAutoPairDollar(8));
+}
+
+// The MarkdownHighlighter is parented to the QTextDocument it highlights and
+// holds a raw pointer back to the engine. A TextArea's document routinely
+// outlives the engine attached to it (delegate teardown order is not
+// guaranteed), so the engine must take the highlighter down with it —
+// otherwise the next edit runs a highlight pass through a dangling pointer.
+void TestBlockEditorEngine::testDocumentSurvivesEngineDestruction()
+{
+    QTextDocument doc;
+    (void)doc.documentLayout();
+
+    {
+        BlockEditorEngine engine;
+        engine.attachDocument(&doc);
+        engine.setMarkdown(QStringLiteral("Hello **world**"));
+        settle();
+        QCOMPARE(doc.toPlainText(), QStringLiteral("Hello world"));
+    }
+
+    // Editing the surviving document must not reach the destroyed engine.
+    QTextCursor cursor(&doc);
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertText(QStringLiteral(" more *text*"));
+    settle();
+
+    QCOMPARE(doc.toPlainText(), QStringLiteral("Hello world more *text*"));
+    QVERIFY(doc.findChildren<QSyntaxHighlighter *>().isEmpty());
 }
 
 QTEST_MAIN(TestBlockEditorEngine)
