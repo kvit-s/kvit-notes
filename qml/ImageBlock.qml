@@ -502,10 +502,22 @@ Item {
             font.italic: true
             color: theme.textMuted
             background: null
-            onEditingFinished: {
+            // Same hazard as the other deferred editors: editingFinished may
+            // never arrive if the model is replaced first, so the caption is
+            // also committed on the document-level flush.
+            function commitPendingCaption() {
                 if (text !== delegate.img.caption)
                     delegate.writeImage(delegate.img.path, delegate.img.alt,
                                         text, delegate.img.width)
+            }
+            Connections {
+                target: documentManager
+                function onPendingEditsRequested() {
+                    captionField.commitPendingCaption()
+                }
+            }
+            onEditingFinished: {
+                captionField.commitPendingCaption()
             }
         }
     }
