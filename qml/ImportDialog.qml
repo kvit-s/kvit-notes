@@ -29,8 +29,8 @@ Dialog {
     property string pendingDir: ""
 
     function targetFolder() {
-        return noteListModel && noteListModel.scope === "folder"
-            ? noteListModel.folderPath : ""
+        return NoteListModel && NoteListModel.scope === "folder"
+            ? NoteListModel.folderPath : ""
     }
 
     function openDialog() {

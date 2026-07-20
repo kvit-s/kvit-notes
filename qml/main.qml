@@ -49,13 +49,13 @@ ApplicationWindow {
     property bool noteListCollapsed: false
 
     onSidebarWidthChanged:
-        appSettings.setValue("panels.sidebarWidth", sidebarWidth)
+        AppSettings.setValue("panels.sidebarWidth", sidebarWidth)
     onNoteListWidthChanged:
-        appSettings.setValue("panels.noteListWidth", noteListWidth)
+        AppSettings.setValue("panels.noteListWidth", noteListWidth)
     onSidebarCollapsedChanged:
-        appSettings.setValue("panels.sidebarCollapsed", sidebarCollapsed)
+        AppSettings.setValue("panels.sidebarCollapsed", sidebarCollapsed)
     onNoteListCollapsedChanged:
-        appSettings.setValue("panels.noteListCollapsed", noteListCollapsed)
+        AppSettings.setValue("panels.noteListCollapsed", noteListCollapsed)
 
     // Window geometry, persisted like the panel layout. Saves debounce
     // through a timer (move/resize fire per-event) and record only the
@@ -70,10 +70,10 @@ ApplicationWindow {
             if (!root.geometryRestored
                 || root.visibility !== Window.Windowed)
                 return
-            appSettings.setValue("window.width", root.width)
-            appSettings.setValue("window.height", root.height)
-            appSettings.setValue("window.x", root.x)
-            appSettings.setValue("window.y", root.y)
+            AppSettings.setValue("window.width", root.width)
+            AppSettings.setValue("window.height", root.height)
+            AppSettings.setValue("window.x", root.x)
+            AppSettings.setValue("window.y", root.y)
         }
     }
     onWidthChanged: geometrySaveTimer.restart()
@@ -85,9 +85,9 @@ ApplicationWindow {
             return
         // Full screen (focus mode) and minimized leave the flag alone.
         if (visibility === Window.Maximized)
-            appSettings.setValue("window.maximized", true)
+            AppSettings.setValue("window.maximized", true)
         else if (visibility === Window.Windowed)
-            appSettings.setValue("window.maximized", false)
+            AppSettings.setValue("window.maximized", false)
     }
     // A stored position is only reapplied when its rect still lands on a
     // connected screen; monitors change between sessions.
@@ -112,7 +112,7 @@ ApplicationWindow {
         (statusBar.visible ? statusBar.height : 0)
         + (extensionBottomBar.visible ? extensionBottomBar.height : 0)
     onStatusBarVisibleChanged:
-        appSettings.setValue("view.statusBar", statusBarVisible)
+        AppSettings.setValue("view.statusBar", statusBarVisible)
 
     // features.md §17.1 document outline pane: a right-side dock listing
     // the document's headings, toggled from the view menu (Ctrl+Shift+O),
@@ -123,9 +123,9 @@ ApplicationWindow {
     property bool backlinksVisible: false
     property int backlinksWidth: 260
     onBacklinksVisibleChanged:
-        appSettings.setValue("view.backlinks", backlinksVisible)
+        AppSettings.setValue("view.backlinks", backlinksVisible)
     onOutlineVisibleChanged:
-        appSettings.setValue("view.outline", outlineVisible)
+        AppSettings.setValue("view.outline", outlineVisible)
 
     // features.md §16.1 focus mode: hide all chrome (toolbar, side
     // panels, outline, status bar), center the editor column, and go
@@ -137,12 +137,12 @@ ApplicationWindow {
     property bool focusMode: false
     property bool typewriterMode: false
     onFocusModeChanged: {
-        appSettings.setValue("view.focusMode", focusMode)
+        AppSettings.setValue("view.focusMode", focusMode)
         root.visibility = focusMode ? Window.FullScreen : Window.Windowed
         A11y.announceMode(qsTr("Focus mode"), focusMode)   // §14.2
     }
     onTypewriterModeChanged: {
-        appSettings.setValue("view.typewriterMode", typewriterMode)
+        AppSettings.setValue("view.typewriterMode", typewriterMode)
         A11y.announceMode(qsTr("Typewriter mode"), typewriterMode)   // §14.2
         if (typewriterMode)
             Qt.callLater(function() {
@@ -241,10 +241,10 @@ ApplicationWindow {
         }
     }
     Connections {
-        target: documentSearch
+        target: DocumentSearch
         function onRevisionChanged() {
-            if (documentSearch.query !== "")
-                A11y.announceMatchCount(documentSearch.matchCount)
+            if (DocumentSearch.query !== "")
+                A11y.announceMatchCount(DocumentSearch.matchCount)
         }
     }
 
@@ -304,55 +304,55 @@ ApplicationWindow {
     // and exercise the read path. Writes happen where each state
     // changes: the handlers and Connections below.
     function applyPersistedSessionState() {
-        panelsVisible = appSettings.value("panels.visible", true)
+        panelsVisible = AppSettings.value("panels.visible", true)
         BlockMenuModel.setRecentTypes(
-            appSettings.value("blockMenu.recent", []))
+            AppSettings.value("blockMenu.recent", []))
         MathCommandModel.setRecentCommands(
-            appSettings.value("math.recentCommands", []))
+            AppSettings.value("math.recentCommands", []))
         // Read both sort keys before assigning either: the first
         // assignment fires projectionChanged, whose save handler below
         // would overwrite the not-yet-read second key.
-        var sortMode = appSettings.value("noteList.sortMode", "modified")
-        var sortAscending = appSettings.value("noteList.ascending", false)
-        noteListModel.sortMode = sortMode
-        noteListModel.ascending = sortAscending
+        var sortMode = AppSettings.value("noteList.sortMode", "modified")
+        var sortAscending = AppSettings.value("noteList.ascending", false)
+        NoteListModel.sortMode = sortMode
+        NoteListModel.ascending = sortAscending
         sidebar.applyPersistedSearchHistory()
         findBar.applyPersistedOptions()
-        sidebarWidth = appSettings.value("panels.sidebarWidth", 200)
-        noteListWidth = appSettings.value("panels.noteListWidth", 260)
+        sidebarWidth = AppSettings.value("panels.sidebarWidth", 200)
+        noteListWidth = AppSettings.value("panels.noteListWidth", 260)
         sidebarCollapsed =
-            appSettings.value("panels.sidebarCollapsed", false)
+            AppSettings.value("panels.sidebarCollapsed", false)
         noteListCollapsed =
-            appSettings.value("panels.noteListCollapsed", false)
-        statusBarVisible = appSettings.value("view.statusBar", true)
-        outlineVisible = appSettings.value("view.outline", false)
-        backlinksVisible = appSettings.value("view.backlinks", false)
+            AppSettings.value("panels.noteListCollapsed", false)
+        statusBarVisible = AppSettings.value("view.statusBar", true)
+        outlineVisible = AppSettings.value("view.outline", false)
+        backlinksVisible = AppSettings.value("view.backlinks", false)
         DocumentOutline.levelMask =
-            appSettings.value("view.outlineLevels", 0xF)
+            AppSettings.value("view.outlineLevels", 0xF)
         // Focus/typewriter modes (view states). Focus mode is NOT restored on
         // launch (starting full-screen with no chrome would disorient); it is
         // a per-session toggle. Typewriter mode does restore.
-        typewriterMode = appSettings.value("view.typewriterMode", false)
+        typewriterMode = AppSettings.value("view.typewriterMode", false)
         appToolbar.applyPersistedCustomization()
         // Oversized-file guard cap: adjustable without a rebuild, next
         // to the autosave settings.
         documentManager.maxOpenFileSizeMiB =
-            appSettings.value("maxOpenFileSizeMiB", 10)
+            AppSettings.value("maxOpenFileSizeMiB", 10)
         // Window geometry: size restores unconditionally (with a sanity
         // floor), position only when still on a connected screen.
-        var winW = Number(appSettings.value("window.width", 0))
-        var winH = Number(appSettings.value("window.height", 0))
+        var winW = Number(AppSettings.value("window.width", 0))
+        var winH = Number(AppSettings.value("window.height", 0))
         if (winW >= 500 && winH >= 350) {
             width = winW
             height = winH
         }
-        var winX = Number(appSettings.value("window.x", -1e9))
-        var winY = Number(appSettings.value("window.y", -1e9))
+        var winX = Number(AppSettings.value("window.x", -1e9))
+        var winY = Number(AppSettings.value("window.y", -1e9))
         if (winX > -1e8 && savedRectOnScreen(winX, winY, width, height)) {
             x = winX
             y = winY
         }
-        if (appSettings.value("window.maximized", false))
+        if (AppSettings.value("window.maximized", false))
             root.visibility = Window.Maximized
         geometryRestored = true
     }
@@ -362,12 +362,12 @@ ApplicationWindow {
     }
 
     onPanelsVisibleChanged:
-        appSettings.setValue("panels.visible", panelsVisible)
+        AppSettings.setValue("panels.visible", panelsVisible)
 
     Connections {
         target: BlockMenuModel
         function onRecentChanged() {
-            appSettings.setValue("blockMenu.recent",
+            AppSettings.setValue("blockMenu.recent",
                                  BlockMenuModel.recentTypes())
         }
     }
@@ -375,7 +375,7 @@ ApplicationWindow {
     Connections {
         target: MathCommandModel
         function onRecentChanged() {
-            appSettings.setValue("math.recentCommands",
+            AppSettings.setValue("math.recentCommands",
                                  MathCommandModel.recentCommands())
         }
     }
@@ -385,7 +385,7 @@ ApplicationWindow {
     Connections {
         target: DocumentOutline
         function onLevelMaskChanged() {
-            appSettings.setValue("view.outlineLevels", DocumentOutline.levelMask)
+            AppSettings.setValue("view.outlineLevels", DocumentOutline.levelMask)
         }
         // A table-of-contents fence's stored body is derived from the
         // headings: keep it current so the file reads correctly
@@ -450,10 +450,10 @@ ApplicationWindow {
     // setValue no-ops when the value is unchanged, so saving both sort
     // keys on every projection change is idempotent.
     Connections {
-        target: noteListModel
+        target: NoteListModel
         function onProjectionChanged() {
-            appSettings.setValue("noteList.sortMode", noteListModel.sortMode)
-            appSettings.setValue("noteList.ascending", noteListModel.ascending)
+            AppSettings.setValue("noteList.sortMode", NoteListModel.sortMode)
+            AppSettings.setValue("noteList.ascending", NoteListModel.ascending)
         }
     }
 
@@ -683,8 +683,8 @@ ApplicationWindow {
     function createNoteInCurrentScope() {
         if (!collectionOpen)
             return
-        var folder = noteListModel.scope === "folder"
-            ? noteListModel.folderPath : ""
+        var folder = NoteListModel.scope === "folder"
+            ? NoteListModel.folderPath : ""
         var relPath = noteCollection.createNote(folder, "")
         if (relPath !== "") {
             openNoteByPath(relPath)
@@ -700,8 +700,8 @@ ApplicationWindow {
     function createFromTemplate(templateName) {
         if (!collectionOpen)
             return ""
-        var folder = noteListModel.scope === "folder"
-            ? noteListModel.folderPath : ""
+        var folder = NoteListModel.scope === "folder"
+            ? NoteListModel.folderPath : ""
         var relPath = noteCollection.createNote(folder, templateName)
         if (relPath === "")
             return ""
@@ -1124,8 +1124,8 @@ ApplicationWindow {
         id: quickSwitcher
         onNoteChosen: function(relPath) { root.openNoteByPath(relPath) }
         onCreateRequested: function(title) {
-            var folder = noteListModel.scope === "folder"
-                ? noteListModel.folderPath : ""
+            var folder = NoteListModel.scope === "folder"
+                ? NoteListModel.folderPath : ""
             var relPath = noteCollection.createNote(folder, title)
             if (relPath !== "")
                 root.openNoteByPath(relPath)
@@ -1882,8 +1882,8 @@ ApplicationWindow {
     // on every platform without a working grab, which is all of them today.
     Shortcut {
         sequence: {
-            var r = appSettings.revision // re-evaluate when a setting changes
-            return appSettings.value("hotkey.quickCapture", "Ctrl+Alt+N")
+            var r = AppSettings.revision // re-evaluate when a setting changes
+            return AppSettings.value("hotkey.quickCapture", "Ctrl+Alt+N")
         }
         onActivated: root.openQuickCapture()
     }
@@ -2579,12 +2579,12 @@ ApplicationWindow {
     Binding {
         target: CollectionSearch
         property: "folderScope"
-        value: noteListModel.scope === "folder" ? noteListModel.folderPath : ""
+        value: NoteListModel.scope === "folder" ? NoteListModel.folderPath : ""
     }
     Binding {
         target: CollectionSearch
         property: "tagFilter"
-        value: noteListModel.tagFilter
+        value: NoteListModel.tagFilter
     }
 
     // The crash-recovery journal follows the open note;
@@ -3083,7 +3083,7 @@ ApplicationWindow {
     // The values are kept and retried, so this warns rather than
     // interrupting: a dialog per debounced write would be unusable.
     Connections {
-        target: appSettings
+        target: AppSettings
 
         function onWriteFailed(filePath, error) {
             root.showTransientStatus(
@@ -3114,7 +3114,7 @@ ApplicationWindow {
                 // removed note at this instant.
                 documentManager.newDocument()
                 Qt.callLater(function() {
-                    var next = noteListModel.relPathAt(0)
+                    var next = NoteListModel.relPathAt(0)
                     if (next !== "")
                         root.openNoteByPath(next)
                 })

@@ -75,10 +75,10 @@ Item {
       : TextEdit.AlignLeft
 
     readonly property bool hasSearchMatches: {
-        if (!documentSearch.active || documentSearch.matchCount === 0)
+        if (!DocumentSearch.active || DocumentSearch.matchCount === 0)
             return false
-        var revision = documentSearch.revision
-        return documentSearch.matchesForBlock(root.index).length > 0
+        var revision = DocumentSearch.revision
+        return DocumentSearch.matchesForBlock(root.index).length > 0
     }
     readonly property bool hasDropCap:
         root.blockType === Block.Paragraph

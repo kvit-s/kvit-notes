@@ -92,8 +92,8 @@ Item {
     property bool enableLightweightReadOnly: false
     property bool editorRequested: false
     readonly property var blockSearchMatches: {
-        var revision = documentSearch.revision // dependency only
-        return documentSearch.matchesForBlock(delegate.index)
+        var revision = DocumentSearch.revision // dependency only
+        return DocumentSearch.matchesForBlock(delegate.index)
     }
     readonly property bool hasSearchMatches: blockSearchMatches.length > 0
     readonly property bool useReadOnlyText:
@@ -126,9 +126,9 @@ Item {
     // view.codeLineNumbers. The revision read re-evaluates
     // this binding when the setting flips.
     readonly property bool codeLineNumbers: {
-        var r = appSettings.revision  // dependency only
+        var r = AppSettings.revision  // dependency only
         return codeChrome
-            && appSettings.value("view.codeLineNumbers", false) === true
+            && AppSettings.value("view.codeLineNumbers", false) === true
     }
     readonly property int codeHeaderHeight: codeChrome ? 26 : 0
     // Digits of the largest line number, sized in the mono font.

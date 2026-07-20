@@ -8,7 +8,7 @@ import Kvit 1.0
 
 // The navigation sidebar: scopes, the folder tree, and the tag list.
 // Functional Fusion styling only. All state lives in noteCollection /
-// noteListModel; this pane renders and forwards.
+// NoteListModel; this pane renders and forwards.
 Rectangle {
     id: sidebar
     objectName: "sidebar"
@@ -58,7 +58,7 @@ Rectangle {
     property var recentSearches: []
 
     function applyPersistedSearchHistory() {
-        recentSearches = appSettings.value("search.recent", [])
+        recentSearches = AppSettings.value("search.recent", [])
     }
 
     function commitRecentSearch(query) {
@@ -68,7 +68,7 @@ Rectangle {
         var list = recentSearches.filter(function(item) { return item !== q })
         list.unshift(q)
         recentSearches = list.slice(0, 6)
-        appSettings.setValue("search.recent", recentSearches)
+        AppSettings.setValue("search.recent", recentSearches)
     }
 
     function focusSearch() {
@@ -189,7 +189,7 @@ Rectangle {
             objectName: "allNotesRow"
             Layout.fillWidth: true
             height: 28
-            color: noteListModel.scope === "all" ? theme.selectionTint : "transparent"
+            color: NoteListModel.scope === "all" ? theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
@@ -209,7 +209,7 @@ Rectangle {
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: noteListModel.scope = "all"
+                onClicked: NoteListModel.scope = "all"
             }
         }
 
@@ -218,7 +218,7 @@ Rectangle {
             objectName: "favoritesRow"
             Layout.fillWidth: true
             height: 28
-            color: noteListModel.scope === "favorites" ? theme.selectionTint : "transparent"
+            color: NoteListModel.scope === "favorites" ? theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
@@ -232,7 +232,7 @@ Rectangle {
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: noteListModel.scope = "favorites"
+                onClicked: NoteListModel.scope = "favorites"
             }
         }
 
@@ -263,8 +263,8 @@ Rectangle {
                     if (sidebar.dropTargetActive
                         && sidebar.dropTargetFolder === model.relPath)
                         return theme.selectionActiveTint
-                    if (noteListModel.scope === "folder"
-                        && noteListModel.folderPath === model.relPath)
+                    if (NoteListModel.scope === "folder"
+                        && NoteListModel.folderPath === model.relPath)
                         return theme.selectionTint
                     return rowHover.hovered ? theme.hoverTint : "transparent"
                 }
@@ -357,8 +357,8 @@ Rectangle {
                     anchors.fill: parent
                     z: -1
                     onClicked: {
-                        noteListModel.folderPath = model.relPath
-                        noteListModel.scope = "folder"
+                        NoteListModel.folderPath = model.relPath
+                        NoteListModel.scope = "folder"
                     }
                 }
             }
@@ -395,7 +395,7 @@ Rectangle {
             delegate: Rectangle {
                 width: tagListView.width
                 height: 24
-                color: noteListModel.tagFilter === modelData.name
+                color: NoteListModel.tagFilter === modelData.name
                        ? theme.selectionTint
                        : (tagHover.hovered ? theme.hoverTint : "transparent")
 
@@ -458,8 +458,8 @@ Rectangle {
                     anchors.fill: parent
                     z: -1
                     // Toggle: clicking the active tag clears the filter.
-                    onClicked: noteListModel.tagFilter =
-                        noteListModel.tagFilter === modelData.name
+                    onClicked: NoteListModel.tagFilter =
+                        NoteListModel.tagFilter === modelData.name
                             ? "" : modelData.name
                 }
             }
@@ -741,8 +741,8 @@ Rectangle {
             if (newName !== originalName)
                 noteCollection.renameTag(originalName, newName)
             noteCollection.setTagColor(newName, selectedColor)
-            if (noteListModel.tagFilter === originalName)
-                noteListModel.tagFilter = newName
+            if (NoteListModel.tagFilter === originalName)
+                NoteListModel.tagFilter = newName
         }
 
         contentItem: ColumnLayout {
@@ -799,8 +799,8 @@ Rectangle {
 
         onAccepted: {
             noteCollection.renameTag(fromName, intoName)
-            if (noteListModel.tagFilter === fromName)
-                noteListModel.tagFilter = intoName
+            if (NoteListModel.tagFilter === fromName)
+                NoteListModel.tagFilter = intoName
         }
 
         contentItem: Label {
@@ -835,8 +835,8 @@ Rectangle {
 
         onAccepted: {
             noteCollection.deleteTag(targetName)
-            if (noteListModel.tagFilter === targetName)
-                noteListModel.tagFilter = ""
+            if (NoteListModel.tagFilter === targetName)
+                NoteListModel.tagFilter = ""
         }
 
         contentItem: Label {
@@ -873,10 +873,10 @@ Rectangle {
         }
 
         onAccepted: {
-            if (noteListModel.scope === "folder"
-                && (noteListModel.folderPath === targetPath
-                    || noteListModel.folderPath.startsWith(targetPath + "/")))
-                noteListModel.scope = "all"
+            if (NoteListModel.scope === "folder"
+                && (NoteListModel.folderPath === targetPath
+                    || NoteListModel.folderPath.startsWith(targetPath + "/")))
+                NoteListModel.scope = "all"
             noteCollection.deleteFolder(targetPath)
         }
 

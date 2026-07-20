@@ -9,7 +9,7 @@ import Kvit 1.0
 // The settings dialog: Appearance — the features.md §10.1 theme picker
 // and the §10.3 accent/highlight color selection — and Typography — the
 // six §10.2 settings. Every control binds live to the theme / Typography
-// / appSettings objects, so the document behind the dialog previews each
+// / AppSettings objects, so the document behind the dialog previews each
 // change immediately; there is no Apply step.
 Dialog {
     id: settingsDialog

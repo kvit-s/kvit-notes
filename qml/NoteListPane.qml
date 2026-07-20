@@ -6,7 +6,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Kvit 1.0
 
-// The note list: rows of the noteListModel projection with sort controls,
+// The note list: rows of the NoteListModel projection with sort controls,
 // pin/favorite toggles, bulk selection with its action bar, inline rename,
 // drag-to-folder, and manual-order drag when sorting manually inside a
 // folder.
@@ -61,13 +61,13 @@ Rectangle {
             return
         }
         if ((modifiers & Qt.ShiftModifier) && selectionAnchor !== "") {
-            var from = noteListModel.rowOf(selectionAnchor)
-            var to = noteListModel.rowOf(relPath)
+            var from = NoteListModel.rowOf(selectionAnchor)
+            var to = NoteListModel.rowOf(relPath)
             if (from >= 0 && to >= 0) {
                 var range = []
                 var step = from <= to ? 1 : -1
                 for (var i = from; i !== to + step; i += step)
-                    range.push(noteListModel.relPathAt(i))
+                    range.push(NoteListModel.relPathAt(i))
                 selectedPaths = range
             }
             return
@@ -79,7 +79,7 @@ Rectangle {
 
     function startRename(relPath) {
         renamingPath = relPath
-        var row = noteListModel.rowOf(relPath)
+        var row = NoteListModel.rowOf(relPath)
         if (row >= 0)
             noteListView.positionViewAtIndex(row, ListView.Contain)
     }
@@ -91,7 +91,7 @@ Rectangle {
             if (noteListPane.selectedPaths.length === 0)
                 return
             var alive = noteListPane.selectedPaths.filter(function(p) {
-                return noteListModel.rowOf(p) !== -1
+                return NoteListModel.rowOf(p) !== -1
             })
             if (alive.length !== noteListPane.selectedPaths.length)
                 noteListPane.selectedPaths = alive
@@ -120,8 +120,8 @@ Rectangle {
         property int reorderGap: -1
 
         readonly property bool reorderEnabled:
-            noteListModel.scope === "folder"
-            && noteListModel.sortMode === "manual"
+            NoteListModel.scope === "folder"
+            && NoteListModel.sortMode === "manual"
 
         function begin(path, name) {
             relPath = path
@@ -151,10 +151,10 @@ Rectangle {
         }
         function gapAt(contentY) {
             if (contentY >= noteListView.contentHeight)
-                return noteListModel.count
+                return NoteListModel.count
             var idx = noteListView.indexAt(10, Math.max(0, contentY))
             if (idx < 0)
-                return noteListModel.count
+                return NoteListModel.count
             var item = noteListView.itemAtIndex(idx)
             if (item && contentY > item.y + item.height / 2)
                 return idx + 1
@@ -166,7 +166,7 @@ Rectangle {
             if (reorderGap >= 0) {
                 // Positions after removal: dropping below itself shifts
                 // the target up by one.
-                var from = noteListModel.rowOf(relPath)
+                var from = NoteListModel.rowOf(relPath)
                 var position = reorderGap > from ? reorderGap - 1 : reorderGap
                 noteCollection.setManualPosition(relPath, position)
             } else {
@@ -247,10 +247,10 @@ Rectangle {
             Label {
                 objectName: "noteListScopeLabel"
                 text: {
-                    if (noteListModel.scope === "favorites")
+                    if (NoteListModel.scope === "favorites")
                         return qsTr("Favorites")
-                    if (noteListModel.scope === "folder") {
-                        var path = noteListModel.folderPath
+                    if (NoteListModel.scope === "folder") {
+                        var path = NoteListModel.folderPath
                         if (path === "")
                             return qsTr("Notes") // the collection root
                         var slash = path.lastIndexOf("/")
@@ -297,23 +297,23 @@ Rectangle {
                 model: [qsTr("Modified"), qsTr("Created"), qsTr("Title"),
                         qsTr("Manual")]
                 currentIndex: Math.max(0,
-                    modes.indexOf(noteListModel.sortMode))
+                    modes.indexOf(NoteListModel.sortMode))
                 onActivated: function(index) {
-                    noteListModel.sortMode = modes[index]
+                    NoteListModel.sortMode = modes[index]
                     if (modes[index] === "manual")
-                        noteListModel.ascending = true // the stored order
+                        NoteListModel.ascending = true // the stored order
                 }
             }
             ToolButton {
                 objectName: "sortDirectionButton"
-                text: noteListModel.ascending ? "↑" : "↓"
+                text: NoteListModel.ascending ? "↑" : "↓"
                 font.pixelSize: 12
                 implicitHeight: 24
                 implicitWidth: 24
                 ToolTip.visible: hovered
-                ToolTip.text: noteListModel.ascending
+                ToolTip.text: NoteListModel.ascending
                               ? qsTr("Ascending") : qsTr("Descending")
-                onClicked: noteListModel.ascending = !noteListModel.ascending
+                onClicked: NoteListModel.ascending = !NoteListModel.ascending
             }
             ToolButton {
                 objectName: "noteListCollapseButton"
@@ -498,7 +498,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: noteListModel
+            model: NoteListModel
 
             delegate: Rectangle {
                 id: noteRow
@@ -604,7 +604,7 @@ Rectangle {
                         // The date shown follows the sort: created dates
                         // under the created sort, modified otherwise.
                         text: Qt.formatDateTime(
-                                  noteListModel.sortMode === "created"
+                                  NoteListModel.sortMode === "created"
                                       ? model.created : model.modified,
                                   "MMM d, yyyy hh:mm")
                               + " · " + model.wordCount + " "

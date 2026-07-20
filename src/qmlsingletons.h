@@ -15,6 +15,7 @@
 #include "documentexporter.h"
 #include "documentimporter.h"
 #include "documentoutline.h"
+#include "documentsearch.h"
 #include "documentserializer.h"
 #include "documentstats.h"
 #include "egresspolicy.h"
@@ -29,11 +30,13 @@
 #include "mathcommandmodel.h"
 #include "mathrenderer.h"
 #include "navigationhistory.h"
+#include "notelistmodel.h"
 #include "notetemplates.h"
 #include "perflog.h"
 #include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
+#include "settingsstore.h"
 #include "shortcutcatalog.h"
 #include "systemtray.h"
 #include "tabledata.h"
@@ -127,6 +130,14 @@ KVIT_QML_SINGLETON_NAMED(ExtensionRegistry, Extensions)
 // fence-kind enum namespace, which main.qml reads as `BlockKinds.Kanban`. The
 // registry object is a different thing and takes its class name.
 KVIT_QML_SINGLETON_NAMED(BlockKindRegistry, BlockKindRegistry)
+
+KVIT_QML_SINGLETON(DocumentSearch)
+KVIT_QML_SINGLETON(NoteListModel)
+// `SettingsStore` is already registered as a creatable element, because tests
+// open a second store on a path of their own. The application's one store has
+// always been `appSettings` to QML, so the singleton takes that name and the
+// creatable type keeps its own.
+KVIT_QML_SINGLETON_NAMED(SettingsStore, AppSettings)
 
 // The one process-global here. PerfLog is a singleton in its own right and
 // every composition shares it, so it resolves through PerfLog::instance()

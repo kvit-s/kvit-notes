@@ -35,16 +35,16 @@ Rectangle {
     property bool showViewGroup: true
 
     function applyPersistedCustomization() {
-        showBlockGroup = appSettings.value("toolbar.showBlockType", true)
-        showFormatGroup = appSettings.value("toolbar.showFormatting", true)
-        showInsertGroup = appSettings.value("toolbar.showInsert", true)
-        showViewGroup = appSettings.value("toolbar.showView", true)
+        showBlockGroup = AppSettings.value("toolbar.showBlockType", true)
+        showFormatGroup = AppSettings.value("toolbar.showFormatting", true)
+        showInsertGroup = AppSettings.value("toolbar.showInsert", true)
+        showViewGroup = AppSettings.value("toolbar.showView", true)
     }
     Component.onCompleted: applyPersistedCustomization()
 
     function setGroupVisible(key, prop, value) {
         toolbar[prop] = value
-        appSettings.setValue(key, value)
+        AppSettings.setValue(key, value)
     }
 
     // ---- The caret's block and formatting state --------------------
@@ -509,10 +509,10 @@ Rectangle {
                     // from anywhere; the gutter binding in EditableBlock reads
                     // the same key.
                     checked: {
-                        var r = appSettings.revision  // dependency only
-                        return appSettings.value("view.codeLineNumbers", false) === true
+                        var r = AppSettings.revision  // dependency only
+                        return AppSettings.value("view.codeLineNumbers", false) === true
                     }
-                    onTriggered: appSettings.setValue("view.codeLineNumbers",
+                    onTriggered: AppSettings.setValue("view.codeLineNumbers",
                                                       !checked)
                 }
                 MenuItem {
@@ -522,10 +522,10 @@ Rectangle {
                     // Same reactive pattern as code line numbers; MathBlock
                     // reads the same key.
                     checked: {
-                        var r = appSettings.revision  // dependency only
-                        return appSettings.value("view.equationNumbers", false) === true
+                        var r = AppSettings.revision  // dependency only
+                        return AppSettings.value("view.equationNumbers", false) === true
                     }
-                    onTriggered: appSettings.setValue("view.equationNumbers",
+                    onTriggered: AppSettings.setValue("view.equationNumbers",
                                                       !checked)
                 }
                 MenuSeparator {}

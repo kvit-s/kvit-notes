@@ -134,8 +134,8 @@ private slots:
     {
         static const QStringList expected = {
             "blockModel", "documentManager",
-            "documentSelection", "documentSearch",
-            "noteCollection", "noteListModel", "appSettings",
+            "documentSelection",
+            "noteCollection",
             "theme",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
@@ -203,6 +203,9 @@ private slots:
             QStringLiteral("A11y"),
             QStringLiteral("Extensions"),
             QStringLiteral("BlockKindRegistry"),
+            QStringLiteral("DocumentSearch"),
+            QStringLiteral("NoteListModel"),
+            QStringLiteral("AppSettings"),
         };
 
         // A second composition, wired exactly like the one under test.

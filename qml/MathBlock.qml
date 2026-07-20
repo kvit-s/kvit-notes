@@ -66,8 +66,8 @@ Item {
     readonly property int pngMathVerticalPadding:
         Math.max(2, Math.ceil(root.mathPixelSize * 0.12))
     readonly property bool numbered: {
-        var r = appSettings.revision // re-evaluate when a setting changes
-        return appSettings.value("view.equationNumbers", false) === true
+        var r = AppSettings.revision // re-evaluate when a setting changes
+        return AppSettings.value("view.equationNumbers", false) === true
     }
     readonly property int equationNumber: blockModel.mathNumber(root.index)
 
