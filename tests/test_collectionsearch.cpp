@@ -41,6 +41,10 @@ private slots:
     void testRowCapIsVisibleNeverSilent();
     void testMarkdownPosition();
     void testRevisionContract();
+    void testClearedQueryDropsInFlightResults();
+    void testSupersededQueryNeverShowsStaleSnapshot();
+    void testEqualLengthTagRenameReachesSearchIndex();
+    void testRestoredRecoveryReachesSearchIndex();
 
 private:
     void writeNote(const QString &relPath, const QString &content);
@@ -362,6 +366,120 @@ void TestCollectionSearch::testRevisionContract()
     // Clearing the query empties the results: bump.
     m_search->setQuery(QString());
     QTRY_COMPARE(revisionSpy.count(), 2);
+}
+
+void TestCollectionSearch::testClearedQueryDropsInFlightResults()
+{
+    // Warm the index first: a query submitted before the cold reconcile
+    // lands answers from an empty database and could not repopulate
+    // anything, which would make this test pass for the wrong reason.
+    m_search->setQuery(QStringLiteral("fox"));
+    QTRY_COMPARE(m_search->noteCount(), 2);
+    m_search->setQuery(QString());
+    QTRY_COMPARE(m_search->noteCount(), 0);
+
+    // Record every snapshot the view is told to render, so a result that
+    // appears and is then cleared again is still caught.
+    QList<int> published;
+    connect(m_search, &CollectionSearch::revisionChanged, this,
+            [this, &published]() { published << m_search->noteCount(); });
+
+    // Submit, then clear the input before the reply can be delivered: the
+    // reply belongs to an input that no longer exists.
+    m_search->setQuery(QStringLiteral("fox"));
+    m_search->submitNow(); // queued to the read thread; no reply yet
+    m_search->setQuery(QString());
+    QCOMPARE(m_search->noteCount(), 0);
+
+    // Give the in-flight reply every chance to land.
+    QTest::qWait(300);
+    QVERIFY2(!published.contains(2),
+             "the cleared query was repopulated by an in-flight reply");
+    QCOMPARE(m_search->noteCount(), 0);
+    QCOMPARE(m_search->matchCount(), 0);
+    QCOMPARE(m_search->results(), QVariantList());
+}
+
+void TestCollectionSearch::testSupersededQueryNeverShowsStaleSnapshot()
+{
+    // Warm the index so the superseded reply carries real results.
+    m_search->setQuery(QStringLiteral("fox"));
+    QTRY_COMPARE(m_search->noteCount(), 2);
+    m_search->setQuery(QString());
+    QTRY_COMPARE(m_search->noteCount(), 0);
+
+    // Every snapshot the view is told to render, in order.
+    QStringList seen;
+    connect(m_search, &CollectionSearch::revisionChanged, this, [this, &seen]() {
+        const QVariantList groups = m_search->results();
+        for (const QVariant &group : groups)
+            seen << group.toMap().value(QStringLiteral("relPath")).toString();
+    });
+
+    m_search->setQuery(QStringLiteral("fox"));
+    m_search->submitNow();                       // "fox" is in flight
+    m_search->setQuery(QStringLiteral("bread")); // superseded before it lands
+
+    QTRY_COMPARE(m_search->noteCount(), 1);
+    QCOMPARE(m_search->results().at(0).toMap().value("relPath").toString(),
+             QStringLiteral("Recipes/Bread.md"));
+    QVERIFY2(!seen.contains(QStringLiteral("Fox notes.md")),
+             "a superseded query's results were displayed");
+}
+
+void TestCollectionSearch::testEqualLengthTagRenameReachesSearchIndex()
+{
+    // A same-length rename leaves the file size unchanged, and the
+    // front-matter rewrite deliberately restores the mtime, so neither
+    // freshness key moves. The search index must still be told.
+    writeNote(QStringLiteral("Library.md"),
+              QStringLiteral("---\ntags: [books]\n---\nShelf contents here\n"));
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    QTRY_VERIFY(!m_search->indexing());
+
+    m_search->setTagFilter(QStringLiteral("books"));
+    m_search->setQuery(QStringLiteral("shelf"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+
+    QVERIFY(m_collection->renameTag(QStringLiteral("books"),
+                                    QStringLiteral("draft")));
+    QTRY_VERIFY(!m_search->indexing());
+
+    // The new tag matches.
+    m_search->setTagFilter(QStringLiteral("draft"));
+    m_search->setQuery(QStringLiteral("shelf"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+
+    // The old tag does not.
+    m_search->setTagFilter(QStringLiteral("books"));
+    m_search->setQuery(QStringLiteral("shelf"));
+    QTest::qWait(300);
+    QCOMPARE(m_search->noteCount(), 0);
+}
+
+void TestCollectionSearch::testRestoredRecoveryReachesSearchIndex()
+{
+    // Restoring a crash journal rewrites the note on disk; global search
+    // must see the restored content, not the pre-crash text.
+    const QString journal = m_collection->journalPathFor(
+        QStringLiteral("Plain.md"));
+    QVERIFY(!journal.isEmpty());
+    {
+        QFile file(journal);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("Recovered zarfblat content\n");
+    }
+    // Pending recovery is detected when the collection opens.
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    QTRY_VERIFY(!m_search->indexing());
+
+    QVERIFY(m_collection->restoreRecovery(QStringLiteral("Plain.md")));
+    QTRY_VERIFY(!m_search->indexing());
+
+    m_search->setQuery(QStringLiteral("zarfblat"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+    QCOMPARE(m_search->results().at(0).toMap().value("relPath").toString(),
+             QStringLiteral("Plain.md"));
 }
 
 QTEST_MAIN(TestCollectionSearch)

@@ -126,13 +126,41 @@ void SettingsStore::scheduleWrite()
 void SettingsStore::writeFile()
 {
     m_writeTimer.stop();
-    m_dirty = false;
-    if (m_filePath.isEmpty())
+    if (m_filePath.isEmpty()) {
+        m_dirty = false; // nowhere to write: nothing is being lost
         return;
+    }
 
+    // The dirty flag is only cleared once the bytes are committed. Clearing
+    // it up front loses the change outright when the disk is full or the
+    // location is read-only: the next flush sees nothing pending and the
+    // user's preference is gone with no trace.
+    const QByteArray bytes =
+        QJsonDocument(m_values).toJson(QJsonDocument::Indented);
     QSaveFile file(m_filePath);
-    if (!file.open(QIODevice::WriteOnly))
+    if (!file.open(QIODevice::WriteOnly)) {
+        reportWriteFailure(file.errorString());
         return;
-    file.write(QJsonDocument(m_values).toJson(QJsonDocument::Indented));
-    file.commit();
+    }
+    if (file.write(bytes) != bytes.size()) {
+        const QString error = file.errorString();
+        file.cancelWriting();
+        reportWriteFailure(error);
+        return;
+    }
+    if (!file.commit()) {
+        reportWriteFailure(file.errorString());
+        return;
+    }
+    m_dirty = false;
+}
+
+void SettingsStore::reportWriteFailure(const QString &error)
+{
+    // The change stays pending so the next flush, the next setting change,
+    // or the destructor retries it. No timer is restarted here: a location
+    // that cannot be written usually stays that way, and a self-restarting
+    // timer would spin failing writes for the life of the process.
+    m_dirty = true;
+    emit writeFailed(m_filePath, error);
 }

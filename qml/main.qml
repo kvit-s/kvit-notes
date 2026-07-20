@@ -3069,6 +3069,18 @@ ApplicationWindow {
         closeConfirmDialog.open()
     }
 
+    // Settings that cannot reach disk (read-only location, full disk).
+    // The values are kept and retried, so this warns rather than
+    // interrupting: a dialog per debounced write would be unusable.
+    Connections {
+        target: appSettings
+
+        function onWriteFailed(filePath, error) {
+            root.showTransientStatus(
+                qsTr("Could not save settings: %1").arg(error))
+        }
+    }
+
     // Collection wiring: saves refresh the index; renames rebind the
     // open document; deleting the open note moves on without
     // resurrecting the trashed file.

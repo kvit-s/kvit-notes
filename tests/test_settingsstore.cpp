@@ -34,6 +34,8 @@ private slots:
     void testNonObjectFileRecoversToDefaults();
     void testOpenCreatesMissingDirectory();
     void testReopenLandsPendingWriteOnOldPath();
+    void testFailedWriteKeepsChangesPending();
+    void testFailedWriteIsReported();
 
 private:
     QString path(const QString &name = QStringLiteral("settings.json")) const
@@ -293,6 +295,62 @@ void TestSettingsStore::testReopenLandsPendingWriteOnOldPath()
     QCOMPARE(readDisk(first).value("home").toString(), QString("first"));
     QVERIFY(!QFile::exists(second));
     QVERIFY(!store.contains("home"));
+}
+
+void TestSettingsStore::testFailedWriteKeepsChangesPending()
+{
+    // A read-only directory stands in for a full disk or a read-only
+    // mount: QSaveFile cannot create its temporary file. The change must
+    // survive the failure and reach disk once writing is possible again,
+    // rather than being dropped on the floor.
+    const QString dirPath = m_dir->filePath(QStringLiteral("cfg"));
+    QVERIFY(QDir().mkpath(dirPath));
+    const QString filePath = dirPath + QStringLiteral("/settings.json");
+
+    SettingsStore store;
+    QVERIFY(store.open(filePath));
+
+    QVERIFY(QFile::setPermissions(dirPath,
+                                  QFileDevice::ReadOwner
+                                      | QFileDevice::ExeOwner));
+    store.setValue("theme", "dark");
+    store.flush(); // fails: the directory rejects the temporary file
+    QVERIFY(!QFileInfo::exists(filePath));
+
+    // Writing becomes possible again; the pending change must still land.
+    QVERIFY(QFile::setPermissions(dirPath,
+                                  QFileDevice::ReadOwner
+                                      | QFileDevice::WriteOwner
+                                      | QFileDevice::ExeOwner));
+    store.flush();
+    QCOMPARE(readDisk(filePath).value("theme").toString(),
+             QStringLiteral("dark"));
+}
+
+void TestSettingsStore::testFailedWriteIsReported()
+{
+    // The user gets told, rather than the preference vanishing quietly.
+    const QString dirPath = m_dir->filePath(QStringLiteral("cfg2"));
+    QVERIFY(QDir().mkpath(dirPath));
+    const QString filePath = dirPath + QStringLiteral("/settings.json");
+
+    SettingsStore store;
+    QVERIFY(store.open(filePath));
+    QSignalSpy failedSpy(&store, &SettingsStore::writeFailed);
+
+    QVERIFY(QFile::setPermissions(dirPath,
+                                  QFileDevice::ReadOwner
+                                      | QFileDevice::ExeOwner));
+    store.setValue("theme", "dark");
+    store.flush();
+    const int failures = failedSpy.count();
+    QVERIFY(QFile::setPermissions(dirPath,
+                                  QFileDevice::ReadOwner
+                                      | QFileDevice::WriteOwner
+                                      | QFileDevice::ExeOwner));
+
+    QCOMPARE(failures, 1);
+    QCOMPARE(failedSpy.at(0).at(0).toString(), filePath);
 }
 
 QTEST_MAIN(TestSettingsStore)

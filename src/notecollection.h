@@ -272,6 +272,11 @@ public:
     void setIndexParseObserverForTesting(
         std::function<void(const QString &)> observer);
 
+    // Test seam: whether the index sidecar still holds unwritten changes.
+    // Lets the I/O-failure tests observe that a failed write is retained
+    // for a later retry rather than forgotten.
+    bool indexDirtyForTesting() const { return m_indexDirty; }
+
 signals:
     void rootChanged();
     void revisionChanged();
@@ -436,7 +441,9 @@ private:
 
     QString indexFilePath() const;
     QHash<QString, NoteEntry> loadIndexFile(bool *ok) const;
-    void saveIndexFile() const;
+    // False when the sidecar could not be written, so the caller keeps the
+    // dirty flag set and the change is retried rather than forgotten.
+    bool saveIndexFile() const;
     void saveIndexFileIfDirty();
     void markIndexDirty();
 
