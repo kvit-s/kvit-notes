@@ -381,9 +381,56 @@ Dialog {
                 }
             }
 
-            // ---- General (the disclosed opt-out update check) ------
+            // ---- General (remote content and the opt-out update check) ----
             ColumnLayout {
                 spacing: 14
+
+                Label {
+                    text: qsTr("Remote content")
+                    font.bold: true
+                    color: theme.textSecondary
+                }
+                CheckBox {
+                    objectName: "autoLoadRemoteToggle"
+                    text: qsTr("Load remote images and previews automatically")
+                    checked: egressPolicy.autoLoadRemoteContent
+                    onToggled: egressPolicy.autoLoadRemoteContent = checked
+                }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: theme.textFaint
+                    text: qsTr("Off by default. A note can name any address, "
+                        + "so loading one on sight would tell that site you "
+                        + "opened the note, and from where. With this off, "
+                        + "each preview, image and media file offers a Load "
+                        + "button and the site you approve is remembered.")
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    // allowedOrigins() is a plain function call, so both
+                    // bindings read egressPolicy.revision to re-evaluate when
+                    // an approval is granted or forgotten.
+                    readonly property int approvedCount: {
+                        var r = egressPolicy.revision
+                        return egressPolicy.allowedOrigins().length
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                        text: parent.approvedCount === 0
+                            ? qsTr("No sites approved.")
+                            : qsTr("%n site(s) approved.", "", parent.approvedCount)
+                    }
+                    Button {
+                        objectName: "forgetOriginsButton"
+                        text: qsTr("Forget approved sites")
+                        enabled: parent.approvedCount > 0
+                        onClicked: egressPolicy.forgetAllOrigins()
+                    }
+                }
 
                 Label {
                     text: qsTr("Updates")

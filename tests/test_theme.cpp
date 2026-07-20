@@ -34,6 +34,7 @@ private slots:
     void testAccentOverride();
     void testHighlightOverride();
     void testInvalidOverrideClears();
+    void testInvalidPersistedOverrideIgnored();
     void testPersistsThroughSettings();
     void testFirstStartDefaultsToSystem();
     void testStaleSettingsValueFallsBack();
@@ -320,6 +321,42 @@ void TestTheme::testInvalidOverrideClears()
     theme.setAccentOverride(QStringLiteral("not-a-color"));
     QCOMPARE(theme.accentOverride(), QString());
     QCOMPARE(theme.accent(), Theme::tokensFor(QStringLiteral("light")).accent);
+}
+
+// setAccentOverride/setHighlightOverride reject a string QColor cannot
+// parse, but setSettings() reads the same two keys straight out of the
+// store. A hand-edited or corrupted settings file therefore installs an
+// invalid QColor as the accent, which renders as black rather than falling
+// back to the theme's own accent.
+void TestTheme::testInvalidPersistedOverrideIgnored()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("settings.json");
+
+    {
+        SettingsStore store;
+        QVERIFY(store.open(path));
+        store.setValue(QStringLiteral("theme.accent"),
+                       QStringLiteral("not-a-color"));
+        store.setValue(QStringLiteral("theme.highlight"),
+                       QStringLiteral("#zzzzzz"));
+        store.flush();
+    }
+
+    SettingsStore store;
+    QVERIFY(store.open(path));
+    Theme theme;
+    theme.setSettings(&store);
+
+    // The junk is discarded and the theme's own tokens stand.
+    QCOMPARE(theme.accentOverride(), QString());
+    QCOMPARE(theme.highlightOverride(), QString());
+    const Theme::Tokens light = Theme::tokensFor(QStringLiteral("light"));
+    QVERIFY(theme.accent().isValid());
+    QVERIFY(theme.highlightBackground().isValid());
+    QCOMPARE(theme.accent(), light.accent);
+    QCOMPARE(theme.highlightBackground(), light.highlightBackground);
 }
 
 void TestTheme::testPersistsThroughSettings()

@@ -240,6 +240,11 @@ bool MermaidLexer::matchBraceBlock()
     t.column = startCol;
     t.offset = shapeData ? m_pos - 1 : m_pos;   // shape data spans the `@`
     t.length = found + 1 - t.offset;
+    // Where the block body sits in the source, so the parser can record spans
+    // for the individual `key: value` entries inside it and an edit can
+    // rewrite one in place.
+    t.labelOffset = m_pos + 1;
+    t.labelLength = found - m_pos - 1;
     if (shapeData) {
         m_tokens.last().text.chop(1);   // drop the `@` from the node id
         m_tokens.last().length -= 1;
@@ -312,13 +317,39 @@ bool MermaidLexer::matchEdge()
         while (j < m_src.size() && (m_src.at(j) == u' ' || m_src.at(j) == u'\t'))
             ++j;
         const int textStart = j;
-        // The label text runs (spaces and all) up to the second link run.
-        while (j < m_src.size() && m_src.at(j) != u'\n' && !isLink(m_src.at(j)))
-            ++j;
-        const int textEnd = j;
-        int run2 = textEnd;
-        while (run2 < m_src.size() && isLink(m_src.at(run2)))
-            ++run2;
+        // The label text runs up to the closing link run — the one that ends
+        // in an arrowhead. Stopping at the first `-`, `=` or `.` instead cuts
+        // ordinary label text in half: `-- well-known v1.2 -->` would end the
+        // label at the hyphen and read `-known v1.2 --` as topology.
+        int textEnd = -1;
+        int run2 = -1;
+        while (j < m_src.size() && m_src.at(j) != u'\n') {
+            if (!isLink(m_src.at(j))) {
+                ++j;
+                continue;
+            }
+            int r = j;
+            while (r < m_src.size() && isLink(m_src.at(r)))
+                ++r;
+            const QChar head = r < m_src.size() ? m_src.at(r) : QChar();
+            // `>` closes a link unambiguously. `o` and `x` also start ordinary
+            // words, so they only close one when nothing word-like follows —
+            // otherwise `-- a-ok --> B` would end at `-o`.
+            const bool closes = head == u'>'
+                || ((head == u'o' || head == u'x')
+                    && (r + 1 >= m_src.size()
+                        || !m_src.at(r + 1).isLetterOrNumber()));
+            if (closes) {
+                textEnd = j;
+                run2 = r;
+                break;
+            }
+            j = r;   // an interior hyphen or dot: part of the label
+        }
+        if (textEnd < 0) {
+            textEnd = j;
+            run2 = j;
+        }
         const bool hasHead = run2 < m_src.size()
             && (m_src.at(run2) == u'>' || m_src.at(run2) == u'o'
                 || m_src.at(run2) == u'x');

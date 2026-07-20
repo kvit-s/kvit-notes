@@ -35,6 +35,17 @@ Item {
     // Configurable embed dimensions (§1.2.14): stored width/height in px.
     readonly property int embedWidth: blockAttributes.num(attributes, "width", 0)
     readonly property int embedHeight: blockAttributes.num(attributes, "height", 0)
+    // Live card size while a resize drag is in flight; 0 when none is. The
+    // card binds to these rather than being assigned during the drag, because
+    // assigning to width, implicitHeight, or anchors.right destroys those
+    // bindings for good — and this delegate is pooled, so the next block to
+    // reuse it would keep the dragged geometry and ignore its own attributes.
+    property int previewWidth: 0
+    property int previewHeight: 0
+    readonly property int effectiveWidth:
+        previewWidth > 0 ? previewWidth : embedWidth
+    readonly property int effectiveHeight:
+        previewHeight > 0 ? previewHeight : embedHeight
     function setEmbedSize(payload) {
         blockModel.setBlockAttributes(root.index, payload)
     }
@@ -49,16 +60,45 @@ Item {
     readonly property bool failed: loaded && meta.ok === false
     readonly property bool isVideo: loaded && meta.video === true
 
+    // Whether this URL's origin may be contacted. Reading egressPolicy.revision
+    // is what makes the binding live: isAllowed() is a plain function call, so
+    // without the revision dependency the card would never notice the reader
+    // approving the origin.
+    readonly property bool remoteAllowed: {
+        var r = egressPolicy.revision
+        return egressPolicy.isAllowed(root.embedUrl)
+    }
+    // Nothing cached and no permission to fetch: the inert state.
+    readonly property bool awaitingConsent: !loaded && !remoteAllowed
+    readonly property bool canOfferLoad: egressPolicy.canRequestConsent(embedUrl)
+
+    // Cached metadata is displayed; a fetch happens only once the origin is
+    // approved. Opening a note must not contact the hosts the note names —
+    // that would disclose the reader's address and reading time to whoever
+    // wrote it, and aim the editor at whatever the URL points to.
     function refreshMeta() {
         if (embedUrl === "")
             return
         var cached = embedMetadata.cachedMetadata(embedUrl)
-        if (cached && cached.url !== undefined)
+        if (cached && cached.url !== undefined) {
             meta = cached
+            return
+        }
+        meta = ({})
+        if (remoteAllowed)
+            embedMetadata.requestMetadata(embedUrl)
+    }
+    // The reader asked for this card specifically: approve the origin, which
+    // covers the page and the thumbnail and favicon it names, then fetch.
+    function loadPreview() {
+        if (embedUrl === "")
+            return
+        egressPolicy.allowOrigin(embedUrl)
         embedMetadata.requestMetadata(embedUrl)
     }
     Component.onCompleted: refreshMeta()
     onEmbedUrlChanged: refreshMeta()
+    onRemoteAllowedChanged: refreshMeta()
     Connections {
         target: embedMetadata
         function onMetadataReady(u) {
@@ -108,8 +148,16 @@ Item {
 
     implicitHeight: card.implicitHeight + 12
 
-    ListView.onPooled: { isPooled = true; focusTarget.focus = false; opacity = 0 }
-    ListView.onReused: { isPooled = false; opacity = 1 }
+    ListView.onPooled: {
+        isPooled = true; focusTarget.focus = false; opacity = 0
+        previewWidth = 0; previewHeight = 0
+    }
+    ListView.onReused: {
+        isPooled = false; opacity = 1
+        // A drag interrupted by scrolling must not follow the delegate to
+        // whatever block reuses it.
+        previewWidth = 0; previewHeight = 0
+    }
 
     function focusAtStart() { focusTarget.forceActiveFocus() }
     function focusAtEnd() { focusTarget.forceActiveFocus() }
@@ -214,13 +262,13 @@ Item {
         anchors.left: parent.left
         // A configured width drops the right anchor for an explicit size
         // (§1.2.14); the default card spans the full content width.
-        anchors.right: root.embedWidth > 0 ? undefined : parent.right
+        anchors.right: root.effectiveWidth > 0 ? undefined : parent.right
         anchors.leftMargin: 48
         anchors.rightMargin: 8
         anchors.top: parent.top
         anchors.topMargin: 4
-        width: root.embedWidth > 0
-            ? Math.min(root.embedWidth, root.embedMaxWidth) : undefined
+        width: root.effectiveWidth > 0
+            ? Math.min(root.effectiveWidth, root.embedMaxWidth) : undefined
         radius: 8
         clip: true
         color: root.blockSelected ? theme.blockSelectionTint
@@ -230,14 +278,19 @@ Item {
                     : root.isFocused ? theme.focusRing : theme.border
         border.width: root.isFocused ? 2 : 1
         opacity: root.isDragSource ? 0.35 : 1
-        implicitHeight: root.embedHeight > 0
-            ? root.embedHeight : Math.max(84, cardRow.implicitHeight + 20)
+        implicitHeight: root.effectiveHeight > 0
+            ? root.effectiveHeight : Math.max(84, cardRow.implicitHeight + 20)
 
         Row {
             id: cardRow
             anchors.fill: parent
             anchors.margins: 10
             spacing: 12
+            // Above the card-wide "open the link" MouseArea declared below,
+            // so the Load button gets the click. The rest of the row is text
+            // and images, which do not accept mouse events, so clicks there
+            // still fall through to opening the link.
+            z: 1
 
             // Thumbnail (or a placeholder tile).
             Rectangle {
@@ -250,7 +303,12 @@ Item {
                 Image {
                     objectName: "embedThumb"
                     anchors.fill: parent
-                    source: (root.loaded && root.meta.image) ? root.meta.image : ""
+                    // Routed through the image://remote provider, never bound
+                    // to the URL directly: the thumbnail is chosen by the
+                    // fetched page, so it is as untrusted as the page and has
+                    // to travel over the checked transport like everything
+                    // else. An unapproved origin yields no source at all.
+                    source: egressPolicy.imageSourceFor(root.loaded ? root.meta.image : "")
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                 }
@@ -299,11 +357,51 @@ Item {
                     font.pixelSize: 12
                     color: theme.textMuted
                 }
+                // The inert card's affordance. Until this is clicked the block
+                // is a piece of text naming a URL, and nothing has been
+                // requested from that URL's host.
+                Row {
+                    visible: root.awaitingConsent
+                    spacing: 8
+                    Rectangle {
+                        objectName: "embedLoadButton"
+                        width: loadLabel.implicitWidth + 16
+                        height: loadLabel.implicitHeight + 8
+                        radius: 4
+                        visible: root.canOfferLoad
+                        color: theme.hoverTint
+                        border.color: loadArea.containsMouse ? theme.accent : theme.border
+                        Text {
+                            id: loadLabel
+                            anchors.centerIn: parent
+                            text: qsTr("Load preview")
+                            font.pixelSize: 11
+                            color: loadArea.containsMouse ? theme.textPrimary
+                                                          : theme.textMuted
+                        }
+                        MouseArea {
+                            id: loadArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.loadPreview()
+                        }
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.canOfferLoad
+                            ? qsTr("· not loaded")
+                            : qsTr("· %1").arg(egressPolicy.refusalReason(root.embedUrl))
+                        font.pixelSize: 11
+                        color: theme.textFaint
+                    }
+                }
+
                 Row {
                     spacing: 6
                     Image {
-                        visible: root.loaded && root.meta.favicon
-                        source: (root.loaded && root.meta.favicon) ? root.meta.favicon : ""
+                        visible: source != ""
+                        source: egressPolicy.imageSourceFor(root.loaded ? root.meta.favicon : "")
                         width: 14; height: 14
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
@@ -367,6 +465,7 @@ Item {
                     var p = mapToItem(root, mouse.x, mouse.y)
                     pressX = p.x; pressY = p.y
                     liveW = Math.round(startW); liveH = Math.round(startH)
+                    root.previewWidth = liveW; root.previewHeight = liveH
                 }
                 onPositionChanged: function(mouse) {
                     if (!pressed) return
@@ -374,15 +473,20 @@ Item {
                     liveW = Math.max(160, Math.min(Math.round(startW + (p.x - pressX)),
                                                    root.embedMaxWidth))
                     liveH = Math.max(64, Math.round(startH + (p.y - pressY)))
-                    card.anchors.right = undefined
-                    card.width = liveW
-                    card.implicitHeight = liveH
+                    root.previewWidth = liveW
+                    root.previewHeight = liveH
                 }
                 onReleased: {
+                    // Commit, then hand the card back to its bindings. The
+                    // written attributes feed embedWidth/embedHeight, so the
+                    // committed size is already in place when the preview
+                    // clears.
                     var payload = blockAttributes.withValue(
                         blockAttributes.withValue(root.attributes, "width", String(liveW)),
                         "height", String(liveH))
                     root.setEmbedSize(payload)
+                    root.previewWidth = 0
+                    root.previewHeight = 0
                 }
             }
         }

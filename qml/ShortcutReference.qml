@@ -93,7 +93,7 @@ Dialog {
                                 Label {
                                     id: chordLabel
                                     anchors.centerIn: parent
-                                    text: modelData.chord
+                                    text: modelData.displayChord
                                     font.pixelSize: 12
                                     font.family: "monospace"
                                     color: theme.textPrimary

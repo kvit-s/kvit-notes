@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "textcanvas.h"
 
+#include "diagrambudget.h"
+
 #include <algorithm>
 
 namespace {
@@ -48,10 +50,16 @@ QChar TextCanvas::at(int row, int col) const
     return line.at(col);
 }
 
-void TextCanvas::ensure(int row, int col)
+bool TextCanvas::ensure(int row, int col)
 {
     if (row < 0 || col < 0)
-        return;
+        return false;
+    // Rows and columns come from scene coordinates, so a note-supplied
+    // arrangement decides how much storage this grid asks for. Growth past the
+    // budget is dropped: the export is clipped rather than unbounded, and
+    // put()/at() already treat out-of-range cells as absent.
+    if (row >= Diagram::kMaxTextCanvasRows || col >= Diagram::kMaxTextCanvasCols)
+        return false;
     while (m_lines.size() <= row) {
         m_lines.append(QString());
         m_arms.append(QList<quint8>());
@@ -65,13 +73,15 @@ void TextCanvas::ensure(int row, int col)
         arms.append(0);
         doubles.append(false);
     }
+    return true;
 }
 
 void TextCanvas::put(int row, int col, QChar c)
 {
     if (row < 0 || col < 0)
         return;
-    ensure(row, col);
+    if (!ensure(row, col))
+        return;
     m_lines[row][col] = c;
     m_arms[row][col] = 0;
     m_doubles[row][col] = false;
@@ -107,7 +117,8 @@ void TextCanvas::mergeArms(int row, int col, int arms, bool doubleVertical)
 {
     if (row < 0 || col < 0)
         return;
-    ensure(row, col);
+    if (!ensure(row, col))
+        return;
     const QChar existing = m_lines.at(row).at(col);
     int current = m_arms.at(row).at(col);
     if (current == 0)

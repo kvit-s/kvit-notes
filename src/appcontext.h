@@ -26,6 +26,8 @@
 #include "documentselection.h"
 #include "documentserializer.h"
 #include "documentstats.h"
+#include "egressfetcher.h"
+#include "egresspolicy.h"
 #include "embedmetadata.h"
 #include "filewatcher.h"
 #include "foldertreemodel.h"
@@ -96,9 +98,11 @@ public:
     ~AppContext() override;
 
     // Replace the transport embed cards fetch through, before any fetch is
-    // issued; AppContext takes ownership. The default is the real network
-    // fetcher, so a test that does not call this would reach the network —
-    // which is exactly why the harness calls it.
+    // issued; AppContext takes ownership. The default is the EgressFetcher,
+    // which holds the only QNetworkAccessManager in the tree, so a test that
+    // does not call this would reach the network — which is exactly why the
+    // harness calls it. The egress policy in front of the transport is
+    // unaffected: this swaps the wire, not the consent decision.
     void setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher);
 
     // The context-property names installContextProperties() published, in
@@ -144,6 +148,10 @@ public:
     Theme *theme() { return &m_theme; }
     Typography *typography() { return &m_typography; }
     UpdateChecker *updateChecker() { return &m_updateChecker; }
+    // The one transport and the one policy. The launcher hands the fetcher
+    // to the update checker; nothing else in the tree opens a connection.
+    EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }
+    EgressPolicy *egressPolicy() { return &m_egressPolicy; }
 
 private:
     void wire();
@@ -175,9 +183,15 @@ private:
     CollectionSearch m_collectionSearch;
     NoteTemplates m_noteTemplates;
     DocumentImporter m_documentImporter;
-    // Declared before the metadata cache that borrows it: EmbedMetadata holds
-    // a non-owning pointer, so the fetcher must outlive it.
-    std::unique_ptr<EmbedFetcher> m_embedFetcher;
+    // The network trust boundary, declared before everything that borrows it.
+    // The policy outlives the fetcher, and both outlive the embed cache and
+    // the image provider that hold non-owning pointers to them.
+    EgressPolicy m_egressPolicy;
+    std::unique_ptr<EgressFetcher> m_egressFetcher;
+    // A test-supplied embed transport, when one has been installed. Declared
+    // beside the fetcher it stands in for and before the cache that borrows
+    // whichever of the two is in use.
+    std::unique_ptr<EmbedFetcher> m_embedFetcherOverride;
     EmbedMetadata m_embedMetadata;
     StartupController m_startupController;
     ImageAssets m_imageAssets;

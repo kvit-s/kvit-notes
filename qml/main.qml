@@ -1876,9 +1876,15 @@ ApplicationWindow {
         function onActivated() { root.openQuickCapture() }
     }
     // In-app quick-capture chord (works while the window is focused, so capture
-    // is reachable even where the system-wide grab is unavailable).
+    // is reachable even where the system-wide grab is unavailable). It reads
+    // the same setting the system-wide registration uses, so changing the chord
+    // moves both; hard-coding it here left the setting appearing to do nothing
+    // on every platform without a working grab, which is all of them today.
     Shortcut {
-        sequence: "Ctrl+Alt+N"
+        sequence: {
+            var r = appSettings.revision // re-evaluate when a setting changes
+            return appSettings.value("hotkey.quickCapture", "Ctrl+Alt+N")
+        }
         onActivated: root.openQuickCapture()
     }
     Connections {
@@ -2108,10 +2114,14 @@ ApplicationWindow {
             for (var u = 0; u < drop.urls.length; ++u) {
                 var url = "" + drop.urls[u]
                 if (url.indexOf("file://") === 0) {
-                    var local = url.replace(/^file:\/\//, "")
-                    if (imageAssets.kindOf(local) === "none")
+                    // Hand the whole file:// URL over and let ingestLocalFile
+                    // decode it with QUrl::toLocalFile(). Stripping the scheme
+                    // here left %23 and %25 in the path, so a file named
+                    // "photo #2.png" resolved to nothing and the drop was
+                    // silently ignored.
+                    if (imageAssets.kindOf(url) === "none")
                         continue  // not an image/media file
-                    var stored = imageAssets.ingestLocalFile(local, slug, root2, nd)
+                    var stored = imageAssets.ingestLocalFile(url, slug, root2, nd)
                     if (stored !== "")
                         blocks.push(blockForPath(stored))
                 } else if (url.indexOf("http") === 0) {
@@ -3069,6 +3079,18 @@ ApplicationWindow {
         closeConfirmDialog.open()
     }
 
+    // Settings that cannot reach disk (read-only location, full disk).
+    // The values are kept and retried, so this warns rather than
+    // interrupting: a dialog per debounced write would be unusable.
+    Connections {
+        target: appSettings
+
+        function onWriteFailed(filePath, error) {
+            root.showTransientStatus(
+                qsTr("Could not save settings: %1").arg(error))
+        }
+    }
+
     // Collection wiring: saves refresh the index; renames rebind the
     // open document; deleting the open note moves on without
     // resurrecting the trashed file.
@@ -3100,6 +3122,19 @@ ApplicationWindow {
         }
         function onOperationFailed(message) {
             errorDialog.errorMessage = message
+            errorDialog.open()
+        }
+        // The vault is open in another Kvit process. Only one session may
+        // write a vault: both would load the same state and the second to
+        // save would discard the first's work. This window keeps running as
+        // a plain editor, so File > Open still works on individual notes.
+        function onVaultInUse(path, detail) {
+            errorDialog.errorMessage =
+                qsTr("%1\n\nOnly one Kvit window can have a vault open, "
+                     + "because two would overwrite each other's changes. "
+                     + "Close the other window and reopen this folder, or "
+                     + "keep working here on single files.\n\n%2")
+                    .arg(detail).arg(path)
             errorDialog.open()
         }
         function onWikiLinksRewritten(linkCount, noteCount) {

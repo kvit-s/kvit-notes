@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "diagramcanvas.h"
+
+#include "diagrambudget.h"
 #include "diagrampainter.h"
 #include "mermaidedits.h"
 #include "mermaidparser.h"
@@ -61,8 +63,13 @@ void DiagramCanvas::setRenderScale(qreal s)
 
 void DiagramCanvas::updateImplicitSize()
 {
-    setImplicitSize(m_scene.bounds.width() * m_renderScale,
-                    m_scene.bounds.height() * m_renderScale);
+    // Scene bounds derive from node coordinates, which a manual arrangement
+    // comment in the note controls. An implicit size in the millions wedges
+    // the scene graph, so it is bounded here as well as at the parser.
+    setImplicitSize(qMin(m_scene.bounds.width() * m_renderScale,
+                         Diagram::kMaxSceneSpan),
+                    qMin(m_scene.bounds.height() * m_renderScale,
+                         Diagram::kMaxSceneSpan));
 }
 
 void DiagramCanvas::resetScene()
@@ -743,12 +750,29 @@ bool DiagramCanvas::savePng(const QString &filePath, qreal scale) const
     if (!m_hasScene || m_scene.isEmpty() || filePath.isEmpty())
         return false;
     scale = qBound(0.5, scale, 8.0);
-    const QSize px(qMax(1, int(m_scene.bounds.width() * scale)),
-                   qMax(1, int(m_scene.bounds.height() * scale)));
+    // The requested raster is bounded twice: each edge, and the total area. A
+    // scene wide enough to exceed either is scaled down to fit rather than
+    // asking for a backing store the process cannot serve.
+    qreal w = m_scene.bounds.width() * scale;
+    qreal h = m_scene.bounds.height() * scale;
+    const qreal edgeFit = qMin(1.0, qMin(Diagram::kMaxRasterEdge / qMax(w, 1.0),
+                                         Diagram::kMaxRasterEdge / qMax(h, 1.0)));
+    w *= edgeFit;
+    h *= edgeFit;
+    const qreal area = qMax(w * h, 1.0);
+    const qreal areaFit =
+        qMin(1.0, std::sqrt(double(Diagram::kMaxRasterPixels) / area));
+    w *= areaFit;
+    h *= areaFit;
+    const QSize px(qMax(1, int(w)), qMax(1, int(h)));
     QImage image(px, QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+        return false;
     image.fill(m_pageBackground);
     QPainter p(&image);
-    p.scale(scale, scale);
+    // Paint at the scale the raster was actually allocated for, so a scene
+    // clamped to fit is drawn whole rather than cropped to its top-left.
+    p.scale(scale * edgeFit * areaFit, scale * edgeFit * areaFit);
     Diagram::paintScene(&p, m_scene, sceneColors(), m_fontFamily);
     p.end();
     return image.save(filePath, "PNG");

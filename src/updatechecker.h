@@ -13,9 +13,15 @@
 class SettingsStore;
 
 // Transport seam for the update check, mirroring EmbedFetcher: the real
-// launcher installs a QNetworkAccessManager-backed implementation, tests
-// inject a fake, and a checker with no fetcher does nothing at all - which
-// is why no automated suite can ever reach the network through this path.
+// launcher installs EgressFetcher, tests inject a fake, and a checker with no
+// fetcher does nothing at all - which is why no automated suite can ever
+// reach the network through this path.
+//
+// The update check is the one request the app makes without asking per
+// origin, because the endpoint is fixed and the Settings toggle that enables
+// it is the consent. It still travels over EgressFetcher, so it gets the same
+// address validation, redirect revalidation, byte cap and timeout as
+// everything else.
 class UpdateFetcher
 {
 public:
@@ -23,10 +29,6 @@ public:
     virtual void fetch(const QUrl &url,
                        std::function<void(bool ok, const QByteArray &body)> done) = 0;
 };
-
-// The QNetworkAccessManager implementation used by the real app: one GET,
-// bounded timeout, no retries, silent on every failure.
-UpdateFetcher *createNetworkUpdateFetcher(QObject *parent);
 
 // The disclosed, opt-out update check: on startup, at
 // most once per calendar day, GET the GitHub Releases `latest` endpoint and,

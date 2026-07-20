@@ -4,6 +4,7 @@
 #include "embedmetadata.h"
 #include "notecollection.h"
 #include "imageassets.h"
+#include "egresspolicy.h"
 
 #include <QDir>
 #include <QFile>
@@ -154,17 +155,32 @@ QVariantMap EmbedMetadata::cachedMetadata(const QString &url) const
     return readCache(url);
 }
 
+bool EmbedMetadata::needsConsent(const QString &url) const
+{
+    if (url.isEmpty() || !readCache(url).isEmpty())
+        return false;
+    return !m_policy || !m_policy->isAllowed(url);
+}
+
 void EmbedMetadata::requestMetadata(const QString &url)
 {
     if (url.isEmpty())
         return;
-    // Cached already? Report immediately.
+    // Cached already? Report immediately. A cache entry is metadata the
+    // reader has already allowed to be fetched once, so re-reading it makes
+    // no request and needs no new approval.
     if (!readCache(url).isEmpty()) {
         emit metadataReady(url);
         return;
     }
     if (m_inFlight.contains(url))
         return;
+    // Opening a note is not consent to contact the hosts it names. Nothing
+    // below this line runs until the reader has approved the origin.
+    if (!m_policy || !m_policy->isAllowed(url)) {
+        emit consentRequired(url);
+        return;
+    }
     if (!m_fetcher) {
         // No fetcher (e.g., offline test with no seam): write the fallback.
         writeCache(url, parseOpenGraph(QString(), url));

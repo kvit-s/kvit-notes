@@ -8,6 +8,7 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QDir>
+#include <QStandardPaths>
 #include <QFile>
 
 #include "appcontext.h"
@@ -111,6 +112,14 @@ public slots:
         m_context->openSettings(
             m_collectionDir.filePath(QStringLiteral("app-settings.json")));
         m_context->installContextProperties(engine);
+
+        // No collection is open here, so EmbedMetadata falls back to the
+        // per-user cache directory, which survives between runs. Clear it, or
+        // a card another run already fetched renders from cache and the
+        // inert-by-default assertions pass or fail depending on history.
+        QDir(QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+                 .filePath(QStringLiteral("embedcache")))
+            .removeRecursively();
 
         // Sample content, so the shell opens on a populated document. The
         // undo stack is reset afterwards: loading the sample is not an edit

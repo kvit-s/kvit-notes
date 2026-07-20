@@ -13,7 +13,11 @@ finish-args:
   - --device=dri
   # Notes live where the user keeps them; a vault is an ordinary folder.
   - --filesystem=home
-  # The optional update check and embed preview cards.
+  # The optional update check, and remote content the reader approves
+  # (preview cards, images, media). Nothing is fetched without that
+  # approval: EgressPolicy gates every request, so this permission is not
+  # what decides whether a note can reach the network. See devel.md
+  # "Network egress goes through one policy".
   - --share=network
   # Media blocks (audio/video playback).
   - --socket=pulseaudio
@@ -25,9 +29,16 @@ modules:
     sources:
       - type: git
         url: https://github.com/kvit-s/kvit-notes.git
-        # tag + commit pinned by the release submission; placeholder until
-        # the repo is public (l-public-repo-clean-history).
+        # A tag is mutable: it can be moved to a different commit after
+        # submission, so it does not pin what Flathub builds. The commit
+        # below is what actually fixes the source, and Flathub requires it
+        # for git sources. Both are set by tools/update-flatpak-commit.sh
+        # as a step of the release procedure (docs/release-rollback.md);
+        # the placeholder is not a real object, so a manifest that reaches
+        # a build unpinned fails to fetch rather than building something
+        # unintended.
         tag: v1.0.0
+        commit: "0000000000000000000000000000000000000000"
     post-install:
       - install -Dm644 packaging/flatpak/org.kvit.Notes.metainfo.xml
         /app/share/metainfo/org.kvit.Notes.metainfo.xml

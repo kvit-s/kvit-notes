@@ -86,8 +86,25 @@ public:
     // the latest.
     void submitQuery(quint64 generation, const SearchQuery &request);
 
+    // Abandon outstanding query work without submitting a replacement —
+    // what clearing the search box needs. A running query stops at its next
+    // cancellation check and anything still queued below `generation` is
+    // dropped unread. Replies already on their way are still delivered, so
+    // the caller must also reject them by generation.
+    void cancelQueries(quint64 generation);
+
     // The current index revision of a note, for click-time staleness checks.
-    // Runs a short synchronous read on a dedicated connection.
+    //
+    // BLOCKS THE CALLER. The read is short, but it is a
+    // BlockingQueuedConnection onto the read worker's thread, so it also waits
+    // for whatever that worker is already doing — a full-text query over a
+    // large vault, for instance. Calling it from the GUI thread ties the
+    // interface to query latency.
+    //
+    // Nothing calls this today (verified across src/, qml/ and tests/), which
+    // is why it has not been made asynchronous: there is no caller whose
+    // behaviour would tell us what the right non-blocking shape is. Give it
+    // one and it should return a future or take a callback rather than block.
     qint64 revisionOf(const QString &relPath) const;
 
 signals:

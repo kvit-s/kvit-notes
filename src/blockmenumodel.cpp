@@ -217,10 +217,26 @@ BlockMenuModel::MatchTier BlockMenuModel::matchTier(const Entry &entry,
     return MatchTier(FuzzyMatch::tierFor(loweredQuery, candidates));
 }
 
+QString BlockMenuModel::entryId(const Entry &entry)
+{
+    return QString::number(static_cast<int>(entry.type))
+         + QLatin1Char(':') + entry.defaultLanguage;
+}
+
+const BlockMenuModel::Entry *BlockMenuModel::entryForId(const QString &id) const
+{
+    for (const Entry &entry : m_catalog) {
+        if (entryId(entry) == id)
+            return &entry;
+    }
+    return nullptr;
+}
+
 QVariantMap BlockMenuModel::entryRow(const Entry &entry) const
 {
     QVariantMap row{
         { QStringLiteral("kind"), QStringLiteral("entry") },
+        { QStringLiteral("entryId"), entryId(entry) },
         { QStringLiteral("name"), entry.name },
         { QStringLiteral("description"), entry.description },
         { QStringLiteral("icon"), entry.icon },
@@ -249,13 +265,9 @@ QVariantList BlockMenuModel::itemsFor(const QString &query) const
         // headers in canonical order.
         if (!m_recent.isEmpty()) {
             rows.append(headerRow(QStringLiteral("Recently used")));
-            for (int type : m_recent) {
-                for (const Entry &entry : m_catalog) {
-                    if (static_cast<int>(entry.type) == type) {
-                        rows.append(entryRow(entry));
-                        break;
-                    }
-                }
+            for (const QString &id : m_recent) {
+                if (const Entry *entry = entryForId(id))
+                    rows.append(entryRow(*entry));
             }
         }
         QString currentGroup;
@@ -320,20 +332,39 @@ QVariantList BlockMenuModel::itemsFor(const QString &query) const
     return rows;
 }
 
-void BlockMenuModel::noteUsed(int type)
+void BlockMenuModel::noteUsedEntry(const QString &entryId)
 {
-    m_recent.removeAll(type);
-    m_recent.prepend(type);
+    if (!entryForId(entryId))
+        return;  // not a catalog entry; nothing to remember
+    m_recent.removeAll(entryId);
+    m_recent.prepend(entryId);
     while (m_recent.size() > MaxRecent)
         m_recent.removeLast();
     emit recentChanged();
 }
 
+void BlockMenuModel::noteUsed(int type)
+{
+    // The plain entry for a type is the one with no default language; a
+    // type whose every entry is specialized falls back to the first.
+    const QString plain = QString::number(type) + QLatin1Char(':');
+    if (entryForId(plain)) {
+        noteUsedEntry(plain);
+        return;
+    }
+    for (const Entry &entry : m_catalog) {
+        if (static_cast<int>(entry.type) == type) {
+            noteUsedEntry(entryId(entry));
+            return;
+        }
+    }
+}
+
 QVariantList BlockMenuModel::recentTypes() const
 {
     QVariantList list;
-    for (int type : m_recent)
-        list.append(type);
+    for (const QString &id : m_recent)
+        list.append(id);
     return list;
 }
 
@@ -341,16 +372,25 @@ void BlockMenuModel::setRecentTypes(const QVariantList &types)
 {
     m_recent.clear();
     for (const QVariant &value : types) {
-        bool ok = false;
-        const int type = value.toInt(&ok);
-        if (!ok || m_recent.contains(type))
+        QString id;
+        // Entry ids are strings. Settings written by earlier versions hold
+        // plain block-type numbers (JSON delivers them as doubles), which
+        // resolve to that type's plain entry so recency survives the
+        // upgrade instead of being silently dropped.
+        if (value.typeId() == QMetaType::QString) {
+            id = value.toString();
+        } else {
+            bool ok = false;
+            const int type = value.toInt(&ok);
+            if (!ok)
+                continue;
+            id = QString::number(type) + QLatin1Char(':');
+        }
+        if (id.isEmpty() || m_recent.contains(id))
             continue;
-        const bool inCatalog = std::any_of(
-            m_catalog.cbegin(), m_catalog.cend(),
-            [type](const Entry &entry) { return int(entry.type) == type; });
-        if (!inCatalog)
+        if (!entryForId(id))
             continue;  // stale entry (or a hand-edited value)
-        m_recent.append(type);
+        m_recent.append(id);
         if (m_recent.size() == MaxRecent)
             break;
     }

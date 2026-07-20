@@ -198,6 +198,28 @@ QStringList stringListFromJson(const QJsonArray &array)
     return values;
 }
 
+// A finished future is not necessarily a future that produced a result, and
+// reading one that did not is a null dereference rather than an empty value.
+// Two routine situations deliver finished() with nothing behind it:
+//
+//   - cancel(). QFuture::cancel() marks the future finished-and-cancelled.
+//     For a future from QtConcurrent::run() it cannot interrupt the running
+//     function at all, so the cancel is purely a bookkeeping change: the
+//     watcher reports finished immediately while the work carries on.
+//   - setFuture() replacing a still-running task, which delivers finished
+//     for the future being dropped.
+//
+// Both happen on ordinary paths — switching vaults, closing one, or starting
+// a second refresh — so every handler asks this before it reads. The rule
+// belongs in one place: it was previously applied to the saved-note handler
+// alone, after a crash in the integration suite, while the scan, refresh and
+// index-save handlers kept reading unconditionally.
+template <typename T>
+static bool hasDeliverableResult(const QFutureWatcher<T> &watcher)
+{
+    return !watcher.future().isCanceled() && watcher.future().resultCount() > 0;
+}
+
 } // namespace
 
 NoteCollection::NoteCollection(QObject *parent)
@@ -305,6 +327,9 @@ void NoteCollection::closeRoot()
         m_searchIndex->closeIndex();
         m_searchIndexRoot.clear();
     }
+    // Released last: nothing above may still be writing when another process
+    // is allowed in.
+    m_vaultLock.release();
     emit rootChanged();
     bump();
 }
@@ -321,7 +346,22 @@ bool NoteCollection::prepareRootPath(const QString &path)
         return false;
     }
 
-    m_rootPath = QDir(path).absolutePath();
+    // Take the vault before reading any of its state. Everything below this
+    // point loads files that will later be written back whole, so a second
+    // process reaching the same point would set up the lost update
+    // tests/test_vaultlock.cpp demonstrates. Unavailable (no locking on this
+    // filesystem, read-only directory) opens unlocked rather than refusing:
+    // an unopenable vault is a worse outcome than an unguarded one.
+    const QString absolute = QDir(path).absolutePath();
+    if (m_vaultLock.acquire(absolute) == VaultLock::Result::HeldByAnother) {
+        // One signal, not operationFailed as well: the UI needs to say
+        // something specific here rather than show a generic failure, and two
+        // signals for one event invites handling it twice.
+        emit vaultInUse(absolute, m_vaultLock.blockingHolder().describe());
+        return false;
+    }
+
+    m_rootPath = absolute;
     m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
     return true;
 }
@@ -594,6 +634,8 @@ void NoteCollection::scanAsync()
     request.indexOk = indexOk;
     request.indexFileExists = indexFileExists;
     request.generation = generation;
+    m_scanCancel = makeCancellationToken();
+    request.cancel = m_scanCancel;
     m_asyncListingWatcher.setFuture(
         QtConcurrent::run(&NoteCollection::buildAsyncScanListing, request));
 }
@@ -772,6 +814,11 @@ NoteCollection::AsyncScanListing NoteCollection::buildAsyncScanListing(
     QSet<QString> visitedDirs;
     std::function<void(const QString &)> scanDir =
         [&](const QString &currentRelDir) {
+            // A vault the user has already left should stop being walked.
+            // QtConcurrent::run cannot interrupt this, so the check is the
+            // only way out before the last directory.
+            if (isCancelled(request.cancel))
+                return;
             const QString absDir = currentRelDir.isEmpty()
                 ? request.rootPath
                 : request.rootPath + QLatin1Char('/') + currentRelDir;
@@ -785,6 +832,8 @@ NoteCollection::AsyncScanListing NoteCollection::buildAsyncScanListing(
                     | QDir::NoSymLinks,
                 QDir::Name);
             for (const QFileInfo &info : entries) {
+                if (isCancelled(request.cancel))
+                    return;
                 const QString name = info.fileName();
                 if (name.startsWith(QLatin1Char('.')))
                     continue;
@@ -837,6 +886,7 @@ NoteCollection::AsyncScanListing NoteCollection::buildAsyncScanListing(
         || request.cachedNotes.size() != noteCount) {
         listing.indexDirty = true;
     }
+    listing.cancelled = isCancelled(request.cancel);
     return listing;
 }
 
@@ -869,6 +919,12 @@ NoteCollection::AsyncRefreshResult NoteCollection::buildAsyncRefreshResult(
     QSet<QString> visitedDirs;
     std::function<void(const QString &)> scanDir =
         [&](const QString &currentRelDir) {
+            // Between directories, and again between notes below: this walk
+            // reads and parses every changed body, so an abandoned refresh
+            // that ran to the end would hold a pool thread against work whose
+            // result is already going to be thrown away.
+            if (isCancelled(request.cancel))
+                return;
             const QString absDir =
                 request.rootPath + QLatin1Char('/') + currentRelDir;
             const QString canonicalDir = canonicalizeMissingOk(absDir);
@@ -881,6 +937,8 @@ NoteCollection::AsyncRefreshResult NoteCollection::buildAsyncRefreshResult(
                     | QDir::NoSymLinks,
                 QDir::Name);
             for (const QFileInfo &info : entries) {
+                if (isCancelled(request.cancel))
+                    return;
                 const QString name = info.fileName();
                 if (name.startsWith(QLatin1Char('.')))
                     continue;
@@ -936,6 +994,7 @@ NoteCollection::AsyncRefreshResult NoteCollection::buildAsyncRefreshResult(
         scanDir(relDir);
     }
 
+    result.cancelled = isCancelled(request.cancel);
     return result;
 }
 
@@ -1234,11 +1293,11 @@ NoteCollection::loadIndexFile(bool *ok) const
     return notes;
 }
 
-void NoteCollection::saveIndexFile() const
+bool NoteCollection::saveIndexFile() const
 {
     const QString path = indexFilePath();
     if (path.isEmpty())
-        return;
+        return false;
 
     PerfLog::ScopedTimer perf(
         QStringLiteral("collection.index_save"),
@@ -1247,7 +1306,7 @@ void NoteCollection::saveIndexFile() const
 
     if (m_notes.isEmpty() && !QFileInfo::exists(path)) {
         perf.addContext(QStringLiteral("skipped"), true);
-        return;
+        return true; // nothing to write is not a failure
     }
 
     const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
@@ -1256,14 +1315,19 @@ void NoteCollection::saveIndexFile() const
     perf.addContext(QStringLiteral("bytes"), bytes.size());
     const bool ok = writeFileBytesAtomic(path, bytes);
     perf.addContext(QStringLiteral("ok"), ok);
+    return ok;
 }
 
 void NoteCollection::saveIndexFileIfDirty()
 {
     if (!m_indexDirty)
         return;
-    saveIndexFile();
-    m_indexDirty = false;
+    // Only a write that actually landed clears the flag. Clearing it
+    // regardless left the sidecar stale with nothing remembering that it
+    // needed rewriting, so the next session paid for a full rescan and any
+    // later chance to retry was gone.
+    if (saveIndexFile())
+        m_indexDirty = false;
 }
 
 void NoteCollection::markIndexDirty()
@@ -1287,7 +1351,13 @@ void NoteCollection::setScanInProgress(bool inProgress)
 
 void NoteCollection::applyAsyncScanListing()
 {
+    if (!hasDeliverableResult(m_asyncListingWatcher))
+        return;
     const AsyncScanListing listing = m_asyncListingWatcher.result();
+    // A stopped walk lists only part of the vault; publishing it would show
+    // a truncated folder tree and index only what it happened to reach.
+    if (listing.cancelled)
+        return;
     if (!isOpen() || listing.rootPath != m_rootPath
         || listing.generation != m_asyncScanGeneration)
         return;
@@ -1415,6 +1485,16 @@ void NoteCollection::flushAsyncIndexUpdates()
     bump();
 }
 
+bool NoteCollection::listingWatcherIsRunningForTesting() const
+{
+    return m_asyncListingWatcher.isRunning();
+}
+
+bool NoteCollection::refreshWatcherIsRunningForTesting() const
+{
+    return m_asyncRefreshWatcher.isRunning();
+}
+
 void NoteCollection::cancelAsyncScan()
 {
     ++m_asyncScanGeneration;
@@ -1422,6 +1502,12 @@ void NoteCollection::cancelAsyncScan()
         m_asyncRevisionTimer.stop();
     m_asyncPendingUpdates = 0;
     m_asyncParseGeneration = 0;
+    // Signal first: the listing walk polls this and returns early, so the
+    // wait below is bounded by the gap between two checks rather than by the
+    // rest of the vault.
+    if (m_scanCancel)
+        m_scanCancel->cancel();
+    m_scanCancel.reset();
     if (m_asyncListingWatcher.isRunning()) {
         const QSignalBlocker blocker(&m_asyncListingWatcher);
         m_asyncListingWatcher.cancel();
@@ -1452,6 +1538,8 @@ void NoteCollection::startAsyncDirectoryRefresh(const QStringList &relDirs)
     request.relDirs = relDirs;
     request.currentNotes = m_notes;
     request.generation = ++m_asyncRefreshGeneration;
+    m_refreshCancel = makeCancellationToken();
+    request.cancel = m_refreshCancel;
     m_asyncRefreshTimer.start();
     m_asyncRefreshWatcher.setFuture(
         QtConcurrent::run(&NoteCollection::buildAsyncRefreshResult, request));
@@ -1459,7 +1547,14 @@ void NoteCollection::startAsyncDirectoryRefresh(const QStringList &relDirs)
 
 void NoteCollection::applyAsyncRefreshResult()
 {
+    if (!hasDeliverableResult(m_asyncRefreshWatcher))
+        return;
     const AsyncRefreshResult result = m_asyncRefreshWatcher.result();
+    // A stopped walk saw only part of the subtree, and seenNotes drives
+    // removals below: applying it would drop every note the walk had not
+    // reached yet.
+    if (result.cancelled)
+        return;
     if (!isOpen() || result.rootPath != m_rootPath
         || result.generation != m_asyncRefreshGeneration) {
         return;
@@ -1612,6 +1707,9 @@ void NoteCollection::applyAsyncRefreshResult()
 void NoteCollection::cancelAsyncRefresh()
 {
     ++m_asyncRefreshGeneration;
+    if (m_refreshCancel)
+        m_refreshCancel->cancel();
+    m_refreshCancel.reset();
     if (m_asyncRefreshWatcher.isRunning()) {
         const QSignalBlocker blocker(&m_asyncRefreshWatcher);
         m_asyncRefreshWatcher.cancel();
@@ -1643,13 +1741,11 @@ void NoteCollection::startAsyncSavedNoteIndex(AsyncSavedNoteTask task)
 
 void NoteCollection::applyAsyncSavedNoteResult()
 {
-    // finished() also fires for canceled/empty futures (a setFuture
-    // replacement racing a completing task); result() on one is a crash —
-    // observed as a SIGSEGV in the integration suite's tag-rename test
-    // under WSLg. Skip the apply but still drain the pending queue below.
-    const bool hasResult =
-        !m_asyncSavedNoteWatcher.future().isCanceled()
-        && m_asyncSavedNoteWatcher.future().resultCount() > 0;
+    // Skip the apply but still drain the pending queue below. This was the
+    // first place the resultless-finished crash was observed (a SIGSEGV in
+    // the integration suite's tag-rename test under WSLg); the shared check
+    // is now what all four handlers use.
+    const bool hasResult = hasDeliverableResult(m_asyncSavedNoteWatcher);
     const AsyncIndexResult result =
         hasResult ? m_asyncSavedNoteWatcher.result() : AsyncIndexResult();
 
@@ -1747,9 +1843,13 @@ void NoteCollection::startAsyncIndexSave(AsyncIndexSaveRequest request)
 
 void NoteCollection::applyAsyncIndexSaveResult()
 {
-    const AsyncIndexSaveResult result = m_asyncIndexSaveWatcher.result();
-    if (result.generation == m_asyncIndexSaveGeneration && !result.ok
-        && !m_indexSaveQueued)
+    // A cancelled index save produced nothing, but the queue below still has
+    // to drain, so this cannot return early the way the others do.
+    const bool hasResult = hasDeliverableResult(m_asyncIndexSaveWatcher);
+    const AsyncIndexSaveResult result =
+        hasResult ? m_asyncIndexSaveWatcher.result() : AsyncIndexSaveResult();
+    if (hasResult && result.generation == m_asyncIndexSaveGeneration
+        && !result.ok && !m_indexSaveQueued)
         m_indexDirty = true;
 
     if (m_indexSaveQueued) {
@@ -2990,6 +3090,13 @@ bool NoteCollection::rewriteFrontMatter(const QString &relPath)
     if (!writeTextFileAtomic(absPath, rewritten))
         return false;
     restoreFileTime(absPath, mtime);
+    // The reconcile pass decides freshness from file size and mtime, and
+    // this rewrite deliberately restores the mtime so metadata edits do not
+    // reorder "recently modified". A same-length change — renaming a tag
+    // `books` to `draft`, say — therefore moves neither key, and reconcile
+    // would skip the note and serve the old tags forever. Tell the search
+    // index outright instead of hoping it notices.
+    reindexNoteInSearch(relPath);
     return true;
 }
 
@@ -3577,6 +3684,10 @@ bool NoteCollection::restoreRecovery(const QString &relPath)
         }
     }
     indexNote(relPath);
+    // indexNote only refreshes the in-memory entry and its JSON sidecar;
+    // global search is a separate database and would otherwise keep serving
+    // the pre-crash text.
+    reindexNoteInSearch(relPath);
     saveIndexFileIfDirty();
     bump();
     return true;
@@ -3734,9 +3845,16 @@ void NoteCollection::saveCollectionFile()
 
     const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
     QDir().mkpath(dir);
-    writeTextFileAtomic(dir + QLatin1Char('/') + collectionFileName,
-                        QString::fromUtf8(
-                            QJsonDocument(root).toJson(QJsonDocument::Indented)));
+    const QString path = dir + QLatin1Char('/') + collectionFileName;
+    if (!writeTextFileAtomic(path,
+                             QString::fromUtf8(QJsonDocument(root).toJson(
+                                 QJsonDocument::Indented)))) {
+        // Tag colours, folder expansion, manual order and the last-open
+        // note all live in this file. Silently dropping the write loses
+        // them at the next start with nothing shown to the user.
+        emit operationFailed(
+            tr("Cannot save collection settings to \"%1\"").arg(path));
+    }
 }
 
 // ----------------------------------------------------------------- misc

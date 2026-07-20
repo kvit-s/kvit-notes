@@ -32,12 +32,15 @@ public:
 
     Q_INVOKABLE void closeDb() { m_db.close(); }
 
+    void requestCancel() { m_cancel.store(true); }
+
     Q_INVOKABLE void reconcile(QList<ReconcileEntry> listing)
     {
         if (!m_db.isUsable()) {
             emit reconcileFinished();
             return;
         }
+        m_cancel.store(false);
         PerfLog::ScopedTimer perf(QStringLiteral("search.index.rebuild"),
                                   QVariantMap{{QStringLiteral("notes"),
                                                listing.size()}});
@@ -59,6 +62,11 @@ public:
         const int total = listing.size();
         int reindexed = 0;
         for (const ReconcileEntry &e : listing) {
+            // Between notes: reading and parsing one body is the unit of
+            // work, so this is the finest granularity available without
+            // leaving the index half-written mid-note.
+            if (m_cancel.load())
+                break;
             if (!m_db.hasNoteFresh(e.relPath, e.fileSize, e.modifiedMs)) {
                 QString text;
                 if (readFile(e.absPath, &text)) {
@@ -129,6 +137,11 @@ private:
     }
 
     SearchIndexDb m_db;
+    // Reconcile walks and reparses the whole vault on one thread. Without a
+    // way out it runs to the end even when the vault it was reconciling has
+    // been closed, holding the write connection and the thread against work
+    // whose result nobody will use. Same idiom as the read worker below.
+    std::atomic_bool m_cancel{false};
 };
 
 // The read side: one query at a time on one read connection, cancellable when a
@@ -286,6 +299,15 @@ void CollectionSearchIndex::openForRoot(const QString &rootPath)
 
 void CollectionSearchIndex::closeIndex()
 {
+    // Both closes are BlockingQueuedConnection, so each waits for whatever
+    // its worker is doing to return first. Signal the cancel flags directly
+    // before queueing: they are plain atomics, safe to set from here, and a
+    // reconcile or query that stops at its next check turns a wait for the
+    // whole vault into a wait for one note.
+    if (m_writeWorker)
+        m_writeWorker->requestCancel();
+    if (m_readWorker)
+        m_readWorker->requestCancel();
     if (m_writeWorker)
         QMetaObject::invokeMethod(m_writeWorker, "closeDb",
                                   Qt::BlockingQueuedConnection);
@@ -393,6 +415,15 @@ void CollectionSearchIndex::submitQuery(quint64 generation,
     QMetaObject::invokeMethod(m_readWorker, "runQuery", Qt::QueuedConnection,
                               Q_ARG(quint64, generation),
                               Q_ARG(SearchQuery, request));
+}
+
+void CollectionSearchIndex::cancelQueries(quint64 generation)
+{
+    if (!m_usable || !m_readWorker)
+        return;
+    m_submittedGeneration.store(generation);
+    m_readWorker->setTarget(generation);
+    m_readWorker->requestCancel();
 }
 
 qint64 CollectionSearchIndex::revisionOf(const QString &relPath) const

@@ -11,9 +11,19 @@ target_link_libraries(test_blockattributes PRIVATE kvit-core Qt6::Test)
 add_test(NAME BlockAttributesTests COMMAND test_blockattributes)
 
 # ShortcutMap tests (features.md §13 shortcut catalog audit)
+# Shortcut catalog audit. Qt resolves StandardKey through the platform theme,
+# which only exists once a QGuiApplication does: without Qt6::Gui this binary
+# would assert against Qt's built-in fallback table instead of the bindings the
+# running app gets, and the two genuinely differ (Redo answers to Ctrl+Y in the
+# app and not in the fallback). Qt6::Gui makes QTEST_MAIN build a
+# QGuiApplication, so the audit sees what the app sees.
 qt_add_executable(test_shortcutmap test_shortcutmap.cpp)
-target_link_libraries(test_shortcutmap PRIVATE kvit-core Qt6::Test)
+target_link_libraries(test_shortcutmap PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME ShortcutMapTests COMMAND test_shortcutmap)
+# A GUI application needs a platform plugin; offscreen loads a real platform
+# theme without needing a display.
+set_tests_properties(ShortcutMapTests
+    PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # Accessibility announcer tests (live-region seam). Needs a GUI
 # context for the QAccessible announcement path, so Qt6::Gui gives QGuiApplication.
@@ -37,6 +47,12 @@ add_test(NAME FileWatcherTests COMMAND test_filewatcher)
 qt_add_executable(test_updatechecker test_updatechecker.cpp)
 target_link_libraries(test_updatechecker PRIVATE kvit-core Qt6::Test)
 add_test(NAME UpdateCheckerTests COMMAND test_updatechecker)
+
+# Network egress policy: every remote access the app makes is gated here, and
+# the tests drive a loopback HTTP server rather than the real internet.
+qt_add_executable(test_egresspolicy test_egresspolicy.cpp)
+target_link_libraries(test_egresspolicy PRIVATE kvit-core Qt6::Test Qt6::Network Qt6::Qml)
+add_test(NAME EgressPolicyTests COMMAND test_egresspolicy)
 
 # Single-file mode tests: a file argument opens with no vault, typed blocks
 # parse in-file, and the vault upgrade keeps the file.
@@ -306,6 +322,20 @@ add_test(NAME NoteFrontMatterTests COMMAND test_notefrontmatter)
 qt_add_executable(test_notecollection test_notecollection.cpp)
 target_link_libraries(test_notecollection PRIVATE kvit-core Qt6::Test)
 add_test(NAME NoteCollectionTests COMMAND test_notecollection)
+
+# Cancellation and GUI responsiveness of the collection's background work
+# (A2). Times the vault-switch and shutdown paths, which must not wait out a
+# running scan.
+qt_add_executable(test_asynccancellation test_asynccancellation.cpp)
+target_link_libraries(test_asynccancellation PRIVATE kvit-core Qt6::Test
+                      Qt6::Concurrent)
+add_test(NAME AsyncCancellationTests COMMAND test_asynccancellation)
+
+# Cross-process vault safety. Launches itself as a second process, so this is
+# the only suite that can observe two Kvit sessions on one vault.
+qt_add_executable(test_vaultlock test_vaultlock.cpp)
+target_link_libraries(test_vaultlock PRIVATE kvit-core Qt6::Test)
+add_test(NAME VaultLockTests COMMAND test_vaultlock)
 
 # Wiki-link navigation history
 qt_add_executable(test_navigationhistory test_navigationhistory.cpp)

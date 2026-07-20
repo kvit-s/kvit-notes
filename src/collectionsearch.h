@@ -118,8 +118,10 @@ private:
     QVariantList m_groups;
 
     QTimer m_debounce;
-    quint64 m_generation = 0;   // last submitted
-    quint64 m_accepted = 0;     // last applied
+    // The generation of the input currently on screen. Advanced by every
+    // input change and by every submission, so a reply is displayable only
+    // while it still answers the current input.
+    quint64 m_generation = 0;
 };
 
 #endif // COLLECTIONSEARCH_H

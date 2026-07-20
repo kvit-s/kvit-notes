@@ -11,52 +11,12 @@
 #include <QTimer>
 #include <QUrl>
 
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
-
 #include "blockkindregistry.h"
 #include "codelanguages.h"
 #include "diagrams/diagramcanvas.h"
 #include "extensionregistry.h"
 #include "perflog.h"
-
-namespace {
-
-// The real embed fetcher: pulls a page's HTML through a
-// QNetworkAccessManager with a bounded timeout and safe redirects. Tests wire
-// a fake instead, so the suite never touches the network.
-class NetworkEmbedFetcher : public EmbedFetcher
-{
-public:
-    void fetch(const QString &url,
-               std::function<void(bool, const QString &)> done) override
-    {
-        QNetworkRequest req((QUrl(url)));
-        req.setHeader(QNetworkRequest::UserAgentHeader,
-                      QByteArrayLiteral("KvitEmbed/1.0"));
-        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-        QNetworkReply *reply = m_nam.get(req);
-        QTimer *timer = new QTimer(reply);
-        timer->setSingleShot(true);
-        QObject::connect(timer, &QTimer::timeout, reply, &QNetworkReply::abort);
-        timer->start(8000);
-        QObject::connect(reply, &QNetworkReply::finished, reply, [reply, done]() {
-            if (reply->error() != QNetworkReply::NoError) {
-                done(false, QString());
-            } else {
-                done(true, QString::fromUtf8(reply->readAll().left(200000)));
-            }
-            reply->deleteLater();
-        });
-    }
-
-private:
-    QNetworkAccessManager m_nam;
-};
-
-} // namespace
+#include "remoteimageprovider.h"
 
 AppContext::AppContext(QObject *parent)
     : AppContext(Options{}, parent)
@@ -66,7 +26,7 @@ AppContext::AppContext(QObject *parent)
 AppContext::AppContext(const Options &options, QObject *parent)
     : QObject(parent)
     , m_options(options)
-    , m_embedFetcher(std::make_unique<NetworkEmbedFetcher>())
+    , m_egressFetcher(std::make_unique<EgressFetcher>())
 {
     wire();
 }
@@ -75,11 +35,18 @@ void AppContext::setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher)
 {
     if (!fetcher)
         return;
-    // EmbedMetadata borrows the fetcher, so hand it the new one before the
-    // old one is destroyed at the end of this scope.
-    std::unique_ptr<EmbedFetcher> previous = std::move(m_embedFetcher);
-    m_embedFetcher = std::move(fetcher);
-    m_embedMetadata.setFetcher(m_embedFetcher.get());
+    // EmbedMetadata borrows its fetcher, so hand it the new one before the
+    // previous override is destroyed at the end of this scope. The default
+    // it is replacing is the EgressFetcher, which owns the only
+    // QNetworkAccessManager in the tree — so a harness that does not call
+    // this reaches the network for real.
+    //
+    // Only the wire is swapped. EgressPolicy still sits in front of it, and
+    // m_egressFetcher stays wired to the remote image provider, so consent
+    // and address validation behave under test exactly as they ship.
+    std::unique_ptr<EmbedFetcher> previous = std::move(m_embedFetcherOverride);
+    m_embedFetcherOverride = std::move(fetcher);
+    m_embedMetadata.setFetcher(m_embedFetcherOverride.get());
 }
 
 AppContext::~AppContext() = default;
@@ -135,9 +102,18 @@ void AppContext::wire()
     m_noteTemplates.setCollection(&m_noteCollection);
     // Import into the collection (features.md §12.6).
     m_documentImporter.setCollection(&m_noteCollection);
-    // Embed preview cards (features.md §1.2.14).
-    m_embedMetadata.setFetcher(m_embedFetcher.get());
+    // Every outbound request in the app runs over one fetcher, which asks one
+    // policy. Embed previews, the images those previews name, remote images
+    // and media in a note, and the update check all pass through here.
+    m_egressFetcher->setPolicy(&m_egressPolicy);
+    // Embed preview cards (features.md §1.2.14). The card is inert until the
+    // reader approves the origin, so a note cannot fetch by being opened.
+    m_embedMetadata.setFetcher(m_egressFetcher.get());
+    m_embedMetadata.setPolicy(&m_egressPolicy);
     m_embedMetadata.setCollection(&m_noteCollection);
+    // The update check shares this transport, but the launcher hands it over
+    // (KvitApplication::start), so composing an AppContext in a test still
+    // yields an update checker with no fetcher and no way to reach the wire.
 
     m_startupController.setCollection(&m_noteCollection);
     m_startupController.setDocumentManager(&m_documentManager);
@@ -145,12 +121,19 @@ void AppContext::wire()
     m_startupController.setUndoStack(&m_undoStack);
 
     // System integration seams. The tray shows only where a status-notifier
-    // host exists; the global hotkey backend is not registered under WSLg,
-    // but both route their actions through their signals so the in-app path
-    // (quick capture, tray menu) works regardless.
+    // host exists; both route their actions through their signals so the
+    // in-app path (quick capture, tray menu) works regardless.
     if (m_options.showSystemTray)
         m_systemTray.show();
-    m_globalHotkey.setSupported(false);   // no X11/portal backend on this platform
+    // No system-wide grab is registered on ANY platform: GlobalHotkey is a
+    // seam with no backend behind it (X11 XGrabKey, the GlobalShortcuts
+    // portal, RegisterHotKey, and the macOS equivalent are all unwritten), so
+    // this is false everywhere rather than a WSLg-specific limitation as the
+    // previous comment implied. The configured chord still works while the
+    // window has focus, through the Shortcut in main.qml that reads the same
+    // setting. features.md §15.1 describes the system-wide behavior as
+    // intended, not as shipped.
+    m_globalHotkey.setSupported(false);
 
     // External file watching (features.md §12.1). Debounced outside
     // changes refresh the affected note paths when possible; directory-level
@@ -228,13 +211,31 @@ void AppContext::openSettings(const QString &settingsPath)
                 .filePath(QStringLiteral("perf.log")));
     }
 
-    m_globalHotkey.registerShortcut(
-        m_settingsStore.value(QStringLiteral("hotkey.quickCapture"),
-                              QStringLiteral("Ctrl+Alt+N")).toString());
+    // The quick-capture chord, both now and whenever it is edited. The
+    // in-app Shortcut in main.qml reads the same key, so the two never
+    // disagree about which chord the user chose.
+    const auto applyQuickCaptureChord = [this]() {
+        m_globalHotkey.registerShortcut(
+            m_settingsStore.value(QStringLiteral("hotkey.quickCapture"),
+                                  QStringLiteral("Ctrl+Alt+N")).toString());
+    };
+    applyQuickCaptureChord();
+    connect(&m_settingsStore, &SettingsStore::valueChanged,
+            &m_globalHotkey, [applyQuickCaptureChord](const QString &key) {
+                if (key == QLatin1String("hotkey.quickCapture"))
+                    applyQuickCaptureChord();
+            });
 
     // The disclosed opt-out update check reads its enabled flag and
     // once-per-day stamp from the same store.
     m_updateChecker.setSettings(&m_settingsStore);
+
+    // Remote-content consent: the master switch and the origins the reader
+    // has approved. Attached here rather than in wire() for the same reason
+    // Theme is — the policy reads its stored values on attach, and a store
+    // that has not been opened yet would answer with defaults and drop every
+    // approval the reader made in an earlier session.
+    m_egressPolicy.setSettings(&m_settingsStore);
 
     // Close-to-tray is opt-in (tray.closeToTray, default off): closing the
     // last window quits unless the user chose to stay resident in the tray.
@@ -304,6 +305,8 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     publish("noteTemplates", &m_noteTemplates);
     publish("documentImporter", &m_documentImporter);
     publish("embedMetadata", &m_embedMetadata);
+    // Delegates ask this before rendering anything remote; see EgressPolicy.
+    publish("egressPolicy", &m_egressPolicy);
     publish("appSettings", &m_settingsStore);
     publish("perfLog", &PerfLog::instance());
     publish("theme", &m_theme);
@@ -339,6 +342,12 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.
     engine->addImageProvider(QStringLiteral("math"), new MathImageProvider);
+    // The only way a remote image reaches QML: image://remote/<url> fetches
+    // through the egress fetcher, so consent, address validation, redirect
+    // revalidation and the byte cap all apply. Binding a remote URL straight
+    // to an Image's `source` would bypass every one of them.
+    engine->addImageProvider(QStringLiteral("remote"),
+                             new RemoteImageProvider(m_egressFetcher.get()));
     publish("mathRenderer", &m_mathTools);
 
     // The two extension seams: block-kind registration and QML slot

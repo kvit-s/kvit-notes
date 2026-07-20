@@ -192,6 +192,14 @@ Theme::Tokens sepiaTokens()
     return t;
 }
 
+// A colour override the painter can actually use, or nothing. The empty
+// string is how both overrides say "no override", so an unusable value and
+// an absent one collapse to the same state.
+QString validColorOrEmpty(const QString &value)
+{
+    return QColor::isValidColorName(value) ? value : QString();
+}
+
 const QString kSettingsThemeId = QStringLiteral("theme.id");
 const QString kSettingsAccent = QStringLiteral("theme.accent");
 const QString kSettingsHighlight = QStringLiteral("theme.highlight");
@@ -226,8 +234,14 @@ void Theme::setSettings(SettingsStore *settings)
                                   QStringLiteral("system")).toString();
     if (!availableThemes().contains(m_themeId))
         m_themeId = QStringLiteral("system");  // stale or hand-edited
-    m_accentOverride = m_settings->value(kSettingsAccent).toString();
-    m_highlightOverride = m_settings->value(kSettingsHighlight).toString();
+    // Same validation the live setters apply. A hand-edited or corrupted
+    // settings file would otherwise install a string QColor cannot parse,
+    // and refresh() would paint the accent with an invalid colour instead
+    // of falling back to the theme's own token.
+    m_accentOverride = validColorOrEmpty(
+        m_settings->value(kSettingsAccent).toString());
+    m_highlightOverride = validColorOrEmpty(
+        m_settings->value(kSettingsHighlight).toString());
     const bool reduced = m_settings->value(kSettingsReducedMotion, false).toBool();
     if (reduced != m_reducedMotion) {
         m_reducedMotion = reduced;

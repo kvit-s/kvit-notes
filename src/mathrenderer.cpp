@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "mathrenderer.h"
 
+#include "diagrams/diagrambudget.h"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -11,6 +13,7 @@
 #include <QMutexLocker>
 #include <QPainter>
 #include <QPainterPath>
+#include <QtMath>
 #include <QFontMetricsF>
 #include <QTextStream>
 #include <QUrlQuery>
@@ -270,12 +273,23 @@ QImage render(const QString &tex, int textSizePx, const QColor &fg,
     const QString trimmed = normalizedTex(tex);
     if (trimmed.isEmpty())
         return QImage();
+    // Layout cost and raster extent both grow with the source, and a note can
+    // carry a formula of any length. Past the budget it is an error the block
+    // reports, not a buffer the process tries to serve.
+    if (trimmed.size() > Diagram::kMaxTexChars) {
+        if (error)
+            *error = QStringLiteral("Formula is too long (%1 characters; "
+                                    "the limit is %2)")
+                         .arg(trimmed.size()).arg(Diagram::kMaxTexChars);
+        return QImage();
+    }
 
     QMutexLocker locker(&g_mathMutex);
     if (!ensureInited(error))
         return QImage();
 
-    const float size = textSizePx > 0 ? static_cast<float>(textSizePx) : 20.0f;
+    const float size = static_cast<float>(
+        qBound(1, textSizePx > 0 ? textSizePx : 20, Diagram::kMaxTextSizePx));
     const auto render = createRender(trimmed, size, fg, true, error);
     if (!render)
         return QImage();
@@ -283,9 +297,24 @@ QImage render(const QString &tex, int textSizePx, const QColor &fg,
     const int w = qMax(1, render->getWidth());
     const int h = qMax(1, render->getHeight());
     const int vpad = qMax(0, verticalPaddingPx);
-    const qreal ratio = dpr > 0 ? dpr : 1.0;
-    QImage image(qRound(w * ratio), qRound((h + 2 * vpad) * ratio),
+    qreal ratio = dpr > 0 ? qMin(dpr, Diagram::kMaxDevicePixelRatio) : 1.0;
+    // Formula extent, text size and device pixel ratio all multiply into the
+    // backing store, and a note controls the first of them outright. Shrink
+    // the ratio until the raster fits the budget rather than asking for a
+    // buffer the process cannot serve.
+    const qreal logicalW = w;
+    const qreal logicalH = h + 2 * vpad;
+    const qreal maxRatioByEdge =
+        qMin(Diagram::kMaxRasterEdge / qMax(logicalW, 1.0),
+             Diagram::kMaxRasterEdge / qMax(logicalH, 1.0));
+    const qreal maxRatioByArea = std::sqrt(
+        double(Diagram::kMaxRasterPixels)
+        / qMax(logicalW * logicalH, 1.0));
+    ratio = qMax(0.01, qMin(ratio, qMin(maxRatioByEdge, maxRatioByArea)));
+    QImage image(qRound(logicalW * ratio), qRound(logicalH * ratio),
                  QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+        return QImage();
     image.setDevicePixelRatio(ratio);
     image.fill(Qt::transparent);
     {
@@ -338,6 +367,12 @@ Metrics measure(const QString &tex, int textSizePx, bool displayStyle)
         metrics.valid = true;
         return metrics;
     }
+    if (trimmed.size() > Diagram::kMaxTexChars) {
+        metrics.error = QStringLiteral("Formula is too long (%1 characters; "
+                                       "the limit is %2)")
+                            .arg(trimmed.size()).arg(Diagram::kMaxTexChars);
+        return metrics;
+    }
 
     QMutexLocker locker(&g_mathMutex);
     if (!ensureInited(&metrics.error))
@@ -363,14 +398,19 @@ Metrics measure(const QString &tex, int textSizePx, bool displayStyle)
 
 QString errorFor(const QString &tex)
 {
-    QString error;
-    const QImage image = render(tex, 20, QColor(Qt::black), 1.0, &error);
-    if (!image.isNull())
+    // Validity is a property of parsing and layout, so this measures rather
+    // than rasterizes. Rendering here allocated the formula's full backing
+    // store and painted it once just to discard it, and the image provider
+    // then rendered the same formula again for display — two full rasters per
+    // formula, on the path that opens a note.
+    const Metrics m = measure(tex, 20);
+    if (m.valid)
         return QString();
     // A blank expression is not an error — it just renders nothing.
     if (tex.trimmed().isEmpty())
         return QString();
-    return error.isEmpty() ? QStringLiteral("Unrenderable expression") : error;
+    return m.error.isEmpty() ? QStringLiteral("Unrenderable expression")
+                             : m.error;
 }
 
 QStringList availableCommands()
