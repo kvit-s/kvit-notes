@@ -145,6 +145,7 @@ void DocumentManager::setAutoSaveInterval(int seconds)
 
 bool DocumentManager::save()
 {
+    flushPendingEdits();
     if (m_currentFilePath.isEmpty()) {
         // No file path - need to use saveAs
         return false;
@@ -155,6 +156,7 @@ bool DocumentManager::save()
 
 bool DocumentManager::saveAsync()
 {
+    flushPendingEdits();
     if (m_currentFilePath.isEmpty()) {
         // No file path - need to use saveAs
         return false;
@@ -165,6 +167,7 @@ bool DocumentManager::saveAsync()
 
 bool DocumentManager::saveAs(const QUrl &fileUrl)
 {
+    flushPendingEdits();
     QString filePath = fileUrl.toLocalFile();
 
     // Ensure .md extension
@@ -521,6 +524,13 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
         m_asyncPersistenceDelayMs,
         m_activeWriteCancel));
     return true;
+}
+
+void DocumentManager::flushPendingEdits()
+{
+    // Synchronous by contract: the connected delegates commit into the model
+    // before this returns, so the caller can rely on the document being whole.
+    emit pendingEditsRequested();
 }
 
 void DocumentManager::cancelPendingWrites()

@@ -219,16 +219,17 @@ Item {
         })
     }
 
-    // Debounce source edits into one preview refresh and one model write.
-    Timer {
-        id: debounce
-        interval: 250
-        onTriggered: {
+    // Commit the edited source into the model, addressed by the block's stable
+    // id rather than by row: this runs 250 ms after typing stopped, by which
+    // time rows may have shifted or this delegate may have been pooled onto a
+    // different block, making a previously captured index unsafe.
+    function commitPendingSource() {
+            debounce.stop()
             root.previewTex = sourceArea.text
             if (sourceArea.text !== root.content) {
                 var caret = sourceArea.cursorPosition
                 var keepMenu = sourceArea.activeMathMenu() !== null
-                blockModel.updateContent(root.index, sourceArea.text)
+                blockModel.updateContentById(root.blockId, sourceArea.text)
                 // Re-applying the model-backed source can move the TextArea
                 // caret before the command trigger. Restore it before query
                 // synchronization so a slow typist does not lose the popup.
@@ -247,8 +248,28 @@ Item {
                     })
                 }
             }
+    }
+
+    // Debounce source edits into one preview refresh and one model write.
+    Timer {
+        id: debounce
+        interval: 250
+        onTriggered: root.commitPendingSource()
+    }
+
+    // A save, export, note switch or shutdown must see the text the user has
+    // just typed, not the text as of the last time the timer happened to fire.
+    Connections {
+        target: documentManager
+        function onPendingEditsRequested() {
+            if (debounce.running)
+                root.commitPendingSource()
         }
     }
+
+    // A pooled delegate is about to become a different block; anything still
+    // pending belongs to the old one and must not follow it.
+    Component.onDestruction: debounce.stop()
 
     Rectangle {
         anchors.fill: parent

@@ -204,15 +204,38 @@ Item {
         })
     }
 
+    // Commit the edited source into the model. Addressed by the block's stable
+    // id rather than by row: this runs 250 ms after typing stopped, by which
+    // time rows may have shifted or this delegate may have been pooled and
+    // rebound to a different block, so an index captured earlier can no longer
+    // be trusted to mean the same block. A false return means the block is
+    // gone and the edit is dropped rather than written somewhere arbitrary.
+    function commitPendingSource() {
+        debounce.stop()
+        root.previewSource = sourceArea.text
+        if (sourceArea.text !== root.content)
+            blockModel.updateContentById(root.blockId, sourceArea.text)
+    }
+
     Timer {
         id: debounce
         interval: 250
-        onTriggered: {
-            root.previewSource = sourceArea.text
-            if (sourceArea.text !== root.content)
-                blockModel.updateContent(root.index, sourceArea.text)
+        onTriggered: root.commitPendingSource()
+    }
+
+    // A save, export, note switch or shutdown must see the text the user has
+    // just typed, not the text as of the last time the timer happened to fire.
+    Connections {
+        target: documentManager
+        function onPendingEditsRequested() {
+            if (debounce.running)
+                root.commitPendingSource()
         }
     }
+
+    // A pooled delegate is about to become a different block; anything still
+    // pending belongs to the old one and must not follow it.
+    Component.onDestruction: debounce.stop()
 
     // Shared theme bindings for a DiagramCanvas.
     component ThemedCanvas: DiagramCanvas {

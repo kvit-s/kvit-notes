@@ -115,6 +115,17 @@ public:
     // writer and it is the one that knows the current path.
     Q_INVOKABLE void cancelPendingWrites();
 
+    // Ask every editor holding uncommitted text to write it into the model now.
+    //
+    // Several block editors keep their text outside BlockModel until a debounce
+    // timer fires or focus is lost: query source, diagram source, math source,
+    // image captions, callout titles. Until that happens the model does not
+    // have the edit and isDirty() does not know about it, so a save, an export,
+    // a note switch or a shutdown could all act on a document that was missing
+    // the user's most recent typing. Anything that reads or persists the
+    // document must call this first.
+    Q_INVOKABLE void flushPendingEdits();
+
     // Replace the whole document body with the given markdown as ONE
     // undo step (restore from backup).
     Q_INVOKABLE bool restoreBody(const QString &markdown);
@@ -161,6 +172,10 @@ signals:
     void openSucceeded(const QString &filePath);
     void openFailed(const QString &error);
     void documentModified();
+
+    // Editors holding uncommitted text must commit it synchronously in
+    // response to this. Connected on the QML side by the block delegates.
+    void pendingEditsRequested();
 
 private slots:
     void onAutoSaveTimer();

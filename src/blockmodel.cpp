@@ -209,6 +209,16 @@ void BlockModel::removeBlock(int index)
     }
 }
 
+bool BlockModel::updateContentById(const QString &blockId,
+                                   const QString &content)
+{
+    const int index = indexOfBlockId(blockId);
+    if (index < 0)
+        return false;   // the block left the model; the edit has nowhere to go
+    updateContent(index, content);
+    return true;
+}
+
 void BlockModel::updateContent(int index, const QString &content)
 {
     if (index < 0 || index >= m_blocks.count())
