@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
+import Kvit 1.0
 
 // Divider style picker (features.md §1.2.9): choose the rule's
 // style, thickness, width, and color. It reports a canonical attribute payload
@@ -41,13 +42,13 @@ Popup {
     function emitPayload() {
         var p = ""
         if (root.currentStyle !== "solid")
-            p = blockAttributes.withValue(p, "style", root.currentStyle)
+            p = BlockAttributes.withValue(p, "style", root.currentStyle)
         if (root.currentThickness !== 2)
-            p = blockAttributes.withValue(p, "thickness", String(root.currentThickness))
+            p = BlockAttributes.withValue(p, "thickness", String(root.currentThickness))
         if (root.currentWidth !== "full")
-            p = blockAttributes.withValue(p, "width", root.currentWidth)
+            p = BlockAttributes.withValue(p, "width", root.currentWidth)
         if (root.currentColor !== "")
-            p = blockAttributes.withValue(p, "color", root.currentColor)
+            p = BlockAttributes.withValue(p, "color", root.currentColor)
         root.applied(p)
     }
 

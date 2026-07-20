@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
+import Kvit 1.0
 
 // Quick-capture window (features.md §15.1). A small always-on-top window the
 // global hotkey (or the tray menu) opens for jotting a note without switching to
@@ -51,14 +52,14 @@ Window {
         if (rp === "") {
             root.saveFailed = true
             captureArea.forceActiveFocus()
-            if (typeof a11y !== "undefined")
-                a11y.announce(qsTr("Could not save the note. The text is still here."))
+            if (typeof A11y !== "undefined")
+                A11y.announce(qsTr("Could not save the note. The text is still here."))
             return
         }
         root.saveFailed = false
         root.captured(rp)
-        if (typeof a11y !== "undefined")
-            a11y.announce(qsTr("Note captured"))
+        if (typeof A11y !== "undefined")
+            A11y.announce(qsTr("Note captured"))
         root.close()
     }
 

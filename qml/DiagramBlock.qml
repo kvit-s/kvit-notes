@@ -43,7 +43,7 @@ Item {
     property bool fitMode: true
     property real zoomLevel: 1.0
     readonly property int maxReadHeight: 720
-    readonly property int labelFontSize: typography.sizeForBlockType(Block.Paragraph)
+    readonly property int labelFontSize: Typography.sizeForBlockType(Block.Paragraph)
 
     readonly property bool blockSelected: {
         var revision = documentSelection.revision
@@ -115,8 +115,8 @@ Item {
         var win = Window.window
         if (win && win.showTransientStatus)
             win.showTransientStatus(msg)
-        if (typeof a11y !== "undefined")
-            a11y.announce(msg)
+        if (typeof A11y !== "undefined")
+            A11y.announce(msg)
     }
     // Enter the source editor with the cursor on the selected element.
     function editSelectionSource() {
@@ -134,8 +134,8 @@ Item {
             if (doneMessage !== undefined && doneMessage !== "") {
                 if (win && win.showTransientStatus)
                     win.showTransientStatus(doneMessage)
-                if (typeof a11y !== "undefined")
-                    a11y.announce(doneMessage)
+                if (typeof A11y !== "undefined")
+                    A11y.announce(doneMessage)
             }
             return true
         }
@@ -144,8 +144,8 @@ Item {
             var w = Window.window
             if (w && w.showTransientStatus)
                 w.showTransientStatus(err)
-            if (typeof a11y !== "undefined")
-                a11y.announce(err)
+            if (typeof A11y !== "undefined")
+                A11y.announce(err)
         }
         return false
     }
@@ -239,7 +239,7 @@ Item {
 
     // Shared theme bindings for a DiagramCanvas.
     component ThemedCanvas: DiagramCanvas {
-        fontFamily: typography.fontFamily
+        fontFamily: Typography.fontFamily
         fontPixelSize: root.labelFontSize
         nodeFillColor: theme.chipBackground
         nodeStrokeColor: theme.accent
@@ -396,8 +396,8 @@ Item {
                                         if (win && win.showTransientStatus)
                                             win.showTransientStatus(
                                                 qsTr("Arranged %1").arg(pressNode))
-                                        if (typeof a11y !== "undefined")
-                                            a11y.announce(qsTr("Moved %1").arg(pressNode))
+                                        if (typeof A11y !== "undefined")
+                                            A11y.announce(qsTr("Moved %1").arg(pressNode))
                                     }
                                     pressNode = ""
                                     return
@@ -695,7 +695,7 @@ Item {
                 ChipButton { label: "+"; onClicked: {
                     root.zoomLevel = Math.min(3.0, readCanvas.renderScale * 1.25)
                     root.fitMode = false } }
-                ChipButton { label: qsTr("Copy"); onClicked: clipboard.text = root.content }
+                ChipButton { label: qsTr("Copy"); onClicked: Clipboard.text = root.content }
                 // "Copy as ASCII diagram": the rendered scene as Unicode
                 // box-drawing text — the same vocabulary the
                 // crooked-diagram repair recognizes.
@@ -706,7 +706,7 @@ Item {
                     onClicked: {
                         var text = readCanvas.textDiagram()
                         if (text !== "")
-                            clipboard.text = text
+                            Clipboard.text = text
                     }
                 }
                 ChipButton {
@@ -763,8 +763,8 @@ Item {
                 objectName: "mermaidSourceArea"
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content
-                font.family: typography.monoFamily
-                font.pixelSize: typography.sizeForBlockType(Block.CodeBlock)
+                font.family: Typography.monoFamily
+                font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
                 color: theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true

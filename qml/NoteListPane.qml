@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The note list: rows of the noteListModel projection with sort controls,
 // pin/favorite toggles, bulk selection with its action bar, inline rename,
@@ -29,7 +30,7 @@ Rectangle {
 
     // While a global-search query is active the results view replaces
     // the note rows.
-    readonly property bool searching: collectionSearch.query !== ""
+    readonly property bool searching: CollectionSearch.query !== ""
 
     // Bulk selection (features.md §8.3): relPaths, gestured like the block
     // selection — Click selects (and opens), Ctrl+Click toggles,

@@ -370,7 +370,7 @@ Item {
                 anchors.fill: parent
                 background: null
                 wrapMode: TextEdit.Wrap
-                font.pixelSize: typography.baseSize - 1
+                font.pixelSize: Typography.baseSize - 1
                 color: theme.textPrimary
                 Component.onCompleted: { forceActiveFocus(); cursorPosition = length }
                 Keys.onPressed: function(event) {

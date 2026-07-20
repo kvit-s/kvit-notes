@@ -34,8 +34,8 @@ Item {
     property bool isHovered: hoverArea.containsMouse
 
     // Configurable embed dimensions (§1.2.14): stored width/height in px.
-    readonly property int embedWidth: blockAttributes.num(attributes, "width", 0)
-    readonly property int embedHeight: blockAttributes.num(attributes, "height", 0)
+    readonly property int embedWidth: BlockAttributes.num(attributes, "width", 0)
+    readonly property int embedHeight: BlockAttributes.num(attributes, "height", 0)
     // Live card size while a resize drag is in flight; 0 when none is. The
     // card binds to these rather than being assigned during the drag, because
     // assigning to width, implicitHeight, or anchors.right destroys those
@@ -61,17 +61,17 @@ Item {
     readonly property bool failed: loaded && meta.ok === false
     readonly property bool isVideo: loaded && meta.video === true
 
-    // Whether this URL's origin may be contacted. Reading egressPolicy.revision
+    // Whether this URL's origin may be contacted. Reading EgressPolicy.revision
     // is what makes the binding live: isAllowed() is a plain function call, so
     // without the revision dependency the card would never notice the reader
     // approving the origin.
     readonly property bool remoteAllowed: {
-        var r = egressPolicy.revision
-        return egressPolicy.isAllowed(root.embedUrl)
+        var r = EgressPolicy.revision
+        return EgressPolicy.isAllowed(root.embedUrl)
     }
     // Nothing cached and no permission to fetch: the inert state.
     readonly property bool awaitingConsent: !loaded && !remoteAllowed
-    readonly property bool canOfferLoad: egressPolicy.canRequestConsent(embedUrl)
+    readonly property bool canOfferLoad: EgressPolicy.canRequestConsent(embedUrl)
 
     // Cached metadata is displayed; a fetch happens only once the origin is
     // approved. Opening a note must not contact the hosts the note names —
@@ -94,7 +94,7 @@ Item {
     function loadPreview() {
         if (embedUrl === "")
             return
-        egressPolicy.allowOrigin(embedUrl)
+        EgressPolicy.allowOrigin(embedUrl)
         EmbedMetadata.requestMetadata(embedUrl)
     }
     Component.onCompleted: refreshMeta()
@@ -309,7 +309,7 @@ Item {
                     // fetched page, so it is as untrusted as the page and has
                     // to travel over the checked transport like everything
                     // else. An unapproved origin yields no source at all.
-                    source: egressPolicy.imageSourceFor(root.loaded ? root.meta.image : "")
+                    source: EgressPolicy.imageSourceFor(root.loaded ? root.meta.image : "")
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                 }
@@ -392,7 +392,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.canOfferLoad
                             ? qsTr("· not loaded")
-                            : qsTr("· %1").arg(egressPolicy.refusalReason(root.embedUrl))
+                            : qsTr("· %1").arg(EgressPolicy.refusalReason(root.embedUrl))
                         font.pixelSize: 11
                         color: theme.textFaint
                     }
@@ -402,7 +402,7 @@ Item {
                     spacing: 6
                     Image {
                         visible: source != ""
-                        source: egressPolicy.imageSourceFor(root.loaded ? root.meta.favicon : "")
+                        source: EgressPolicy.imageSourceFor(root.loaded ? root.meta.favicon : "")
                         width: 14; height: 14
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
@@ -482,8 +482,8 @@ Item {
                     // written attributes feed embedWidth/embedHeight, so the
                     // committed size is already in place when the preview
                     // clears.
-                    var payload = blockAttributes.withValue(
-                        blockAttributes.withValue(root.attributes, "width", String(liveW)),
+                    var payload = BlockAttributes.withValue(
+                        BlockAttributes.withValue(root.attributes, "width", String(liveW)),
                         "height", String(liveH))
                     root.setEmbedSize(payload)
                     root.previewWidth = 0

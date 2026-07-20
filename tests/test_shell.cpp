@@ -132,14 +132,11 @@ private slots:
     void everyPublishedContextPropertyIsAccountedFor()
     {
         static const QStringList expected = {
-            "blockModel", "undoStack", "documentManager",
-            "clipboard",
-            "documentSelection", "documentSearch", "documentOutline",
-            "noteCollection", "noteListModel",
-            "collectionSearch", "noteTemplates", "egressPolicy", "appSettings",
+            "blockModel", "documentManager",
+            "documentSelection", "documentSearch",
+            "noteCollection", "noteListModel", "appSettings",
             "perfLog",
-            "theme", "typography", "codeLanguageList", "imageAssets",
-            "blockAttributes", "a11y", "blockKinds", "extensions",
+            "theme", "codeLanguageList",
         };
         const QStringList actual = m_context->installedContextPropertyNames();
 
@@ -194,6 +191,18 @@ private slots:
             QStringLiteral("KanbanTools"),
             QStringLiteral("TodoMeta"),
             QStringLiteral("MathRenderer"),
+            QStringLiteral("UndoStack"),
+            QStringLiteral("DocumentOutline"),
+            QStringLiteral("CollectionSearch"),
+            QStringLiteral("NoteTemplates"),
+            QStringLiteral("EgressPolicy"),
+            QStringLiteral("Typography"),
+            QStringLiteral("ImageAssets"),
+            QStringLiteral("BlockAttributes"),
+            QStringLiteral("Clipboard"),
+            QStringLiteral("A11y"),
+            QStringLiteral("Extensions"),
+            QStringLiteral("BlockKindRegistry"),
         };
 
         // A second composition, wired exactly like the one under test.

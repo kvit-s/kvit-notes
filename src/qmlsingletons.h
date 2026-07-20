@@ -6,20 +6,30 @@
 
 #include <QtQml/qqmlregistration.h>
 
+#include "accessibilityannouncer.h"
+#include "blockattributes.h"
+#include "blockkindregistry.h"
 #include "blockmenumodel.h"
+#include "clipboardhelper.h"
+#include "collectionsearch.h"
 #include "documentexporter.h"
 #include "documentimporter.h"
+#include "documentoutline.h"
 #include "documentserializer.h"
 #include "documentstats.h"
+#include "egresspolicy.h"
 #include "embedmetadata.h"
+#include "extensionregistry.h"
 #include "filewatcher.h"
 #include "foldertreemodel.h"
 #include "globalhotkey.h"
+#include "imageassets.h"
 #include "kanbandata.h"
 #include "markdownformatter.h"
 #include "mathcommandmodel.h"
 #include "mathrenderer.h"
 #include "navigationhistory.h"
+#include "notetemplates.h"
 #include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
@@ -27,6 +37,8 @@
 #include "systemtray.h"
 #include "tabledata.h"
 #include "todometa.h"
+#include "typography.h"
+#include "undostack.h"
 #include "updatechecker.h"
 
 // Which services QML reaches as `Kvit` module singletons, and how each one
@@ -97,5 +109,22 @@ KVIT_QML_SINGLETON(TableTools)
 KVIT_QML_SINGLETON(KanbanTools)
 KVIT_QML_SINGLETON_NAMED(TodoMetaTools, TodoMeta)
 KVIT_QML_SINGLETON_NAMED(MathTools, MathRenderer)
+
+
+KVIT_QML_SINGLETON(UndoStack)
+KVIT_QML_SINGLETON(DocumentOutline)
+KVIT_QML_SINGLETON(CollectionSearch)
+KVIT_QML_SINGLETON(NoteTemplates)
+KVIT_QML_SINGLETON(EgressPolicy)
+KVIT_QML_SINGLETON(Typography)
+KVIT_QML_SINGLETON(ImageAssets)
+KVIT_QML_SINGLETON(BlockAttributes)
+KVIT_QML_SINGLETON_NAMED(ClipboardHelper, Clipboard)
+KVIT_QML_SINGLETON_NAMED(AccessibilityAnnouncer, A11y)
+KVIT_QML_SINGLETON_NAMED(ExtensionRegistry, Extensions)
+// Not `BlockKinds`: blockkindregistry.h already exports that name for the
+// fence-kind enum namespace, which main.qml reads as `BlockKinds.Kanban`. The
+// registry object is a different thing and takes its class name.
+KVIT_QML_SINGLETON_NAMED(BlockKindRegistry, BlockKindRegistry)
 
 #endif // QMLSINGLETONS_H

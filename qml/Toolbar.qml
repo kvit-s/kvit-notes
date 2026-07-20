@@ -395,7 +395,7 @@ Rectangle {
             font.pixelSize: 12
             implicitHeight: 28
             onClicked: {
-                noteTemplates.seedBuiltinsIfEmpty()
+                NoteTemplates.seedBuiltinsIfEmpty()
                 templatesMenu.popup(this, 0, height)
             }
             Menu {
@@ -407,8 +407,8 @@ Rectangle {
                     title: qsTr("New from template")
                     Repeater {
                         model: {
-                            var r = noteTemplates.revision  // dependency
-                            return noteTemplates.templateNames()
+                            var r = NoteTemplates.revision  // dependency
+                            return NoteTemplates.templateNames()
                         }
                         MenuItem {
                             required property string modelData

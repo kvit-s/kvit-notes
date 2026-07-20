@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // Global-search results: grouped per note — a title row, then one row
 // per match with its context snippet, the matched text bolded. Clicking
@@ -18,8 +19,8 @@ Item {
 
     // Grouped results, live under the search revision.
     readonly property var groups: {
-        var revision = collectionSearch.revision
-        return collectionSearch.results()
+        var revision = CollectionSearch.revision
+        return CollectionSearch.results()
     }
 
     function escapeHtml(text) {
@@ -54,15 +55,15 @@ Item {
                 objectName: "searchResultSummary"
                 // While the index is still building, results may be incomplete;
                 // the count is never presented as final.
-                text: !collectionSearch.complete
+                text: !CollectionSearch.complete
                       ? qsTr("Indexing… %1 match(es) so far — results may be "
                              + "incomplete")
-                            .arg(collectionSearch.matchCount)
-                      : collectionSearch.noteCount === 0
+                            .arg(CollectionSearch.matchCount)
+                      : CollectionSearch.noteCount === 0
                         ? qsTr("No results")
                         : qsTr("%1 match(es) in %2 note(s)")
-                              .arg(collectionSearch.matchCount)
-                              .arg(collectionSearch.noteCount)
+                              .arg(CollectionSearch.matchCount)
+                              .arg(CollectionSearch.noteCount)
                 font.pixelSize: 11
                 color: theme.textMuted
                 elide: Text.ElideRight
@@ -80,13 +81,13 @@ Item {
                         qsTr("Last 30 days"), qsTr("Last year"),
                         qsTr("Custom range…")]
                 currentIndex: Math.max(0,
-                    presets.indexOf(collectionSearch.datePreset))
+                    presets.indexOf(CollectionSearch.datePreset))
                 onActivated: function(index) {
                     if (presets[index] === "custom") {
                         dateRangePicker.openFor()
                         return
                     }
-                    collectionSearch.datePreset = presets[index]
+                    CollectionSearch.datePreset = presets[index]
                 }
 
                 // The calendar range picker for the custom date range

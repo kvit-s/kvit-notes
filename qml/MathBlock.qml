@@ -62,7 +62,7 @@ Item {
     // the text font's x-height — the displaystyle layout supplies the large
     // operators; the letters themselves stay at prose size like LaTeX.
     readonly property int mathPixelSize: MathRenderer.opticalMathPixelSize(
-        typography.fontFamily, typography.sizeForBlockType(Block.Paragraph))
+        Typography.fontFamily, Typography.sizeForBlockType(Block.Paragraph))
     readonly property int pngMathVerticalPadding:
         Math.max(2, Math.ceil(root.mathPixelSize * 0.12))
     readonly property bool numbered: {
@@ -201,8 +201,8 @@ Item {
             "Bulleted list", "Numbered list", "To-do", "Quote", "Code block",
             "Divider", "Heading 4", "Image", "Callout", "Math block", "Media",
             "Table"]
-        if (typeof a11y !== "undefined" && names[newType])
-            a11y.announceConversion(names[newType])
+        if (typeof A11y !== "undefined" && names[newType])
+            A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
         blockModel.convertBlock(root.index, newType, root.content, false, lang)
     }

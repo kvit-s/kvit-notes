@@ -44,13 +44,13 @@ Item {
     property bool shellHovered: false
 
     readonly property var appTheme: theme
-    readonly property var appTypography: typography
+    readonly property var appTypography: Typography
     readonly property int contentFontSize: {
         // sizeForBlockType() is invokable C++; explicitly read baseSize so the
         // QML binding subscribes to typographyChanged and live size changes
         // re-evaluate already-instantiated delegates.
-        var baseSize = typography.baseSize
-        return typography.sizeForBlockType(root.blockType)
+        var baseSize = Typography.baseSize
+        return Typography.sizeForBlockType(root.blockType)
     }
     readonly property int contentFontWeight: {
         switch (root.blockType) {
@@ -61,13 +61,13 @@ Item {
             default: return Font.Normal
         }
     }
-    readonly property string contentFontFamily: typography.fontFamily !== ""
-        ? typography.fontFamily : Qt.application.font.family
+    readonly property string contentFontFamily: Typography.fontFamily !== ""
+        ? Typography.fontFamily : Qt.application.font.family
     readonly property color contentColor: theme.textPrimary
     readonly property string blockAlign: {
         if (!root.attributes || root.attributes.length === 0)
             return "left"
-        return blockAttributes.str(root.attributes, "align", "left")
+        return BlockAttributes.str(root.attributes, "align", "left")
     }
     readonly property int alignHAlign:
         root.blockAlign === "center" ? TextEdit.AlignHCenter
@@ -84,7 +84,7 @@ Item {
         root.blockType === Block.Paragraph
         && !!root.attributes
         && root.attributes.indexOf("dropcap") >= 0
-        && blockAttributes.num(root.attributes, "dropcap", 0) >= 2
+        && BlockAttributes.num(root.attributes, "dropcap", 0) >= 2
     // Only rows inside the active text range need the editor for portion paint.
     readonly property bool inTextSelectionRange: {
         if (!documentSelection.hasTextSelection)
@@ -298,8 +298,8 @@ Item {
             item.setBlockAlignment(value)
         else {
             var next = (value === "left" || value === "")
-                ? blockAttributes.without(root.attributes, "align")
-                : blockAttributes.withValue(root.attributes, "align", value)
+                ? BlockAttributes.without(root.attributes, "align")
+                : BlockAttributes.withValue(root.attributes, "align", value)
             blockModel.setBlockAttributes(root.index, next)
         }
     }
@@ -317,8 +317,8 @@ Item {
             "Bulleted list", "Numbered list", "To-do", "Quote", "Code block",
             "Divider", "Heading 4", "Image", "Callout", "Math block", "Media",
             "Table"]
-        if (typeof a11y !== "undefined" && names[newType])
-            a11y.announceConversion(names[newType])
+        if (typeof A11y !== "undefined" && names[newType])
+            A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
         blockModel.convertBlock(root.index, newType, root.content, false, lang)
     }

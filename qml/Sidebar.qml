@@ -96,17 +96,17 @@ Rectangle {
             implicitHeight: 26
             font.pixelSize: 11
             placeholderText: qsTr("Search all notes")
-            onTextEdited: collectionSearch.query = text
+            onTextEdited: CollectionSearch.query = text
             onAccepted: {
                 // Enter runs the current query immediately, bypassing the
                 // debounce.
-                collectionSearch.query = text
-                collectionSearch.submitNow()
+                CollectionSearch.query = text
+                CollectionSearch.submitNow()
                 sidebar.commitRecentSearch(text)
             }
             Keys.onEscapePressed: {
                 text = ""
-                collectionSearch.query = ""
+                CollectionSearch.query = ""
             }
         }
 
@@ -141,7 +141,7 @@ Rectangle {
                         anchors.fill: parent
                         onClicked: {
                             globalSearchField.text = modelData
-                            collectionSearch.query = modelData
+                            CollectionSearch.query = modelData
                         }
                     }
                 }

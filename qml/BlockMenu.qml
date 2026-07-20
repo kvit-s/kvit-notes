@@ -190,7 +190,7 @@ Popup {
         if (type === Block.Paragraph && row.language === "dropcap") {
             blockModel.convertBlock(idx, Block.Paragraph, "", false, "")
             blockModel.setBlockAttributes(
-                idx, blockAttributes.withValue(blockModel.getAttributes(idx),
+                idx, BlockAttributes.withValue(blockModel.getAttributes(idx),
                                                "dropcap", "3"))
             applied(idx, type)
             return
@@ -203,7 +203,7 @@ Popup {
         // the document's current headings so its stored body is correct from
         // insertion.
         var seed = lang === "kanban" ? "## To do\n## In progress\n## Done"
-                 : (lang === "toc" ? documentOutline.tocMarkdown()
+                 : (lang === "toc" ? DocumentOutline.tocMarkdown()
                  : (lang === "mermaid"
                     ? "flowchart LR\n"
                       + "  A[Start] --> B{Decision}\n"

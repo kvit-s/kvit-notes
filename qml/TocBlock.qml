@@ -3,10 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Window
+import Kvit 1.0
 
 // Table-of-contents block (features.md §17.2): a
 // `toc`-tagged code fence rendered read-only as a clickable list of the
-// document's headings. The list is a live projection of documentOutline —
+// document's headings. The list is a live projection of DocumentOutline —
 // it regenerates as headings change — and clicking an entry scrolls to that
 // heading. Editing is regeneration, not free text, so this delegate carries
 // the block focus/selection/drag API (like DividerDelegate) but no editor.
@@ -30,8 +31,8 @@ Item {
     // Live heading list; re-read only when the outline's heading projection
     // changes, not when outline panel state changes.
     property var headings: {
-        var r = documentOutline.slugsRevision // dependency only
-        return documentOutline.headings()
+        var r = DocumentOutline.slugsRevision // dependency only
+        return DocumentOutline.headings()
     }
     readonly property int minLevel: {
         var m = 6

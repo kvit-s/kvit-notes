@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import Kvit 1.0
 
 // Divider block (features.md §1.2.9): a horizontal rule with no text
 // content. It keeps the focus API of the editable delegates so block
@@ -24,15 +25,15 @@ Item {
 
     // ---- Divider style (features.md §1.2.9) ----
     readonly property string divStyle:
-        blockAttributes.str(attributes, "style", "solid")
+        BlockAttributes.str(attributes, "style", "solid")
     readonly property int divThickness:
-        Math.max(1, Math.min(12, blockAttributes.num(attributes, "thickness", 2)))
+        Math.max(1, Math.min(12, BlockAttributes.num(attributes, "thickness", 2)))
     readonly property string divColorAttr:
-        blockAttributes.str(attributes, "color", "")
+        BlockAttributes.str(attributes, "color", "")
     readonly property color divColor: divColorAttr !== ""
         ? divColorAttr : (isFocused ? theme.accent : theme.border)
     readonly property string divWidthAttr:
-        blockAttributes.str(attributes, "width", "full")
+        BlockAttributes.str(attributes, "width", "full")
     readonly property real divWidthFraction: {
         if (divWidthAttr === "full" || divWidthAttr === "")
             return 1.0

@@ -8,7 +8,7 @@ import Kvit 1.0
 
 // The settings dialog: Appearance — the features.md §10.1 theme picker
 // and the §10.3 accent/highlight color selection — and Typography — the
-// six §10.2 settings. Every control binds live to the theme / typography
+// six §10.2 settings. Every control binds live to the theme / Typography
 // / appSettings objects, so the document behind the dialog previews each
 // change immediately; there is no Apply step.
 Dialog {
@@ -266,14 +266,14 @@ Dialog {
                     Layout.fillWidth: true
                     model: [qsTr("System default")].concat(Qt.fontFamilies())
                     currentIndex: {
-                        if (typography.fontFamily === "")
+                        if (Typography.fontFamily === "")
                             return 0
                         var idx = Qt.fontFamilies()
-                            .indexOf(typography.fontFamily)
+                            .indexOf(Typography.fontFamily)
                         return idx < 0 ? 0 : idx + 1
                     }
                     onActivated: function(index) {
-                        typography.fontFamily =
+                        Typography.fontFamily =
                             index === 0 ? "" : model[index]
                     }
                 }
@@ -283,8 +283,8 @@ Dialog {
                     SpinBox {
                         objectName: "fontSizeSpin"
                         from: 10; to: 28
-                        value: typography.baseSize
-                        onValueModified: typography.baseSize = value
+                        value: Typography.baseSize
+                        onValueModified: Typography.baseSize = value
                     }
                     Label {
                         text: qsTr("px — headings scale with it")
@@ -300,11 +300,11 @@ Dialog {
                         objectName: "lineHeightSlider"
                         Layout.preferredWidth: 180
                         from: 1.0; to: 2.0; stepSize: 0.05
-                        value: typography.lineHeight
-                        onMoved: typography.lineHeight = value
+                        value: Typography.lineHeight
+                        onMoved: Typography.lineHeight = value
                     }
                     Label {
-                        text: "×" + typography.lineHeight.toFixed(2)
+                        text: "×" + Typography.lineHeight.toFixed(2)
                         font.pixelSize: 11
                         color: theme.textMuted
                     }
@@ -318,8 +318,8 @@ Dialog {
                     SpinBox {
                         objectName: "paragraphSpacingSpin"
                         from: 0; to: 40
-                        value: typography.paragraphSpacing
-                        onValueModified: typography.paragraphSpacing = value
+                        value: Typography.paragraphSpacing
+                        onValueModified: Typography.paragraphSpacing = value
                     }
                     Label {
                         text: qsTr("px between blocks")
@@ -337,8 +337,8 @@ Dialog {
                         id: maxWidthCheck
                         objectName: "maxWidthCheck"
                         text: qsTr("Limit to")
-                        checked: typography.maxContentWidth > 0
-                        onToggled: typography.maxContentWidth =
+                        checked: Typography.maxContentWidth > 0
+                        onToggled: Typography.maxContentWidth =
                             checked ? maxWidthSpin.value : 0
                     }
                     SpinBox {
@@ -346,10 +346,10 @@ Dialog {
                         objectName: "maxWidthSpin"
                         from: 300; to: 2000; stepSize: 50
                         enabled: maxWidthCheck.checked
-                        value: typography.maxContentWidth > 0
-                            ? typography.maxContentWidth : 700
+                        value: Typography.maxContentWidth > 0
+                            ? Typography.maxContentWidth : 700
                         onValueModified:
-                            typography.maxContentWidth = value
+                            Typography.maxContentWidth = value
                     }
                     Label {
                         text: qsTr("px, centered")
@@ -362,13 +362,13 @@ Dialog {
                 ComboBox {
                     objectName: "monoFamilyCombo"
                     Layout.fillWidth: true
-                    model: typography.monospaceFamilies()
+                    model: Typography.monospaceFamilies()
                     currentIndex: {
-                        var idx = model.indexOf(typography.monoFamily)
+                        var idx = model.indexOf(Typography.monoFamily)
                         return idx < 0 ? 0 : idx
                     }
                     onActivated: function(index) {
-                        typography.monoFamily = model[index]
+                        Typography.monoFamily = model[index]
                     }
                 }
 
@@ -377,8 +377,8 @@ Dialog {
                 Button {
                     objectName: "typographyResetButton"
                     Layout.columnSpan: 2
-                    text: qsTr("Reset typography")
-                    onClicked: typography.resetToDefaults()
+                    text: qsTr("Reset Typography")
+                    onClicked: Typography.resetToDefaults()
                 }
             }
 
@@ -394,8 +394,8 @@ Dialog {
                 CheckBox {
                     objectName: "autoLoadRemoteToggle"
                     text: qsTr("Load remote images and previews automatically")
-                    checked: egressPolicy.autoLoadRemoteContent
-                    onToggled: egressPolicy.autoLoadRemoteContent = checked
+                    checked: EgressPolicy.autoLoadRemoteContent
+                    onToggled: EgressPolicy.autoLoadRemoteContent = checked
                 }
                 Label {
                     Layout.fillWidth: true
@@ -411,11 +411,11 @@ Dialog {
                 RowLayout {
                     Layout.fillWidth: true
                     // allowedOrigins() is a plain function call, so both
-                    // bindings read egressPolicy.revision to re-evaluate when
+                    // bindings read EgressPolicy.revision to re-evaluate when
                     // an approval is granted or forgotten.
                     readonly property int approvedCount: {
-                        var r = egressPolicy.revision
-                        return egressPolicy.allowedOrigins().length
+                        var r = EgressPolicy.revision
+                        return EgressPolicy.allowedOrigins().length
                     }
                     Label {
                         Layout.fillWidth: true
@@ -429,7 +429,7 @@ Dialog {
                         objectName: "forgetOriginsButton"
                         text: qsTr("Forget approved sites")
                         enabled: parent.approvedCount > 0
-                        onClicked: egressPolicy.forgetAllOrigins()
+                        onClicked: EgressPolicy.forgetAllOrigins()
                     }
                 }
 

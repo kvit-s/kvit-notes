@@ -312,6 +312,18 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_kanbanTools);
     m_services.add(&m_todoMeta);
     m_services.add(&m_mathTools);
+    m_services.add(&m_undoStack);
+    m_services.add(&m_documentOutline);
+    m_services.add(&m_collectionSearch);
+    m_services.add(&m_noteTemplates);
+    m_services.add(&m_egressPolicy);
+    m_services.add(&m_typography);
+    m_services.add(&m_imageAssets);
+    m_services.add(&m_blockAttributes);
+    m_services.add(&m_clipboardHelper);
+    m_services.add(&m_a11y);
+    m_services.add(&m_extensions);
+    m_services.add(&m_blockKinds);
     KvitQml::attachServices(engine, &m_services);
 
     // Every property goes through one helper so the published set is
@@ -327,36 +339,26 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     };
 
     publish("blockModel", &m_blockModel);
-    publish("undoStack", &m_undoStack);
     publish("documentManager", &m_documentManager);
-    publish("clipboard", &m_clipboardHelper);
     publish("documentSelection", &m_documentSelection);
     publish("documentSearch", &m_documentSearch);
-    publish("documentOutline", &m_documentOutline);
     publish("noteCollection", &m_noteCollection);
     publish("noteListModel", &m_noteListModel);
-    publish("collectionSearch", &m_collectionSearch);
-    publish("noteTemplates", &m_noteTemplates);
     // Delegates ask this before rendering anything remote; see EgressPolicy.
-    publish("egressPolicy", &m_egressPolicy);
     publish("appSettings", &m_settingsStore);
     publish("perfLog", &PerfLog::instance());
     publish("theme", &m_theme);
-    publish("typography", &m_typography);
     // The canonical code-highlight language ids: the single
     // source of truth for the language picker and the /code aliases, so the
     // UI list can never drift from what the highlighter recognizes.
     publish(
         "codeLanguageList",
         QVariant::fromValue(CodeLanguages::supportedLanguages()));
-    publish("imageAssets", &m_imageAssets);
     // The per-block attribute reader/editor: delegates read typed
     // presentation values off a block's `attributes` payload, and the
     // attribute editors compute a new payload to hand to setBlockAttributes.
-    publish("blockAttributes", &m_blockAttributes);
     // The live-region announcer: dynamic changes speak
     // through this seam to assistive technology.
-    publish("a11y", &m_a11y);
     // Math: the MicroTeX seam. The provider owns rendering under
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.
@@ -372,8 +374,6 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // injection. Both are inert in the open build: no module is installed,
     // so `blockKinds` reports only the built-in fence kinds and every
     // `extensions` slot resolves to an empty source.
-    publish("blockKinds", &m_blockKinds);
-    publish("extensions", &m_extensions);
     // Modules publish last and under their own namespace, and every name the
     // core just took is refused to them.
     m_extensions.installContextProperties(context, m_installedProperties);

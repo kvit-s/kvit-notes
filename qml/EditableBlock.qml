@@ -8,7 +8,7 @@ import QtQuick.Window
 import Kvit 1.0
 
 // The shared editing core every text-carrying block delegate wraps: the
-// TextArea + hybrid editing engine, key handling, clipboard, focus API,
+// TextArea + hybrid editing engine, key handling, Clipboard, focus API,
 // hover/handle/focus-indicator chrome, and indentation margin. Per-type
 // delegates (TextBlockDelegate, BulletListDelegate, ...) instantiate this
 // with their leading chrome (bullet glyph, ordinal label, checkbox, quote
@@ -47,14 +47,14 @@ Item {
     // quote's attribution line, for example. Anchored to the
     // content column; the delegate's component positions itself within it.
     property Component trailingChrome: null
-    // The theme/typography context properties, re-exposed so the engine
+    // The theme/Typography context properties, re-exposed so the engine
     // bindings below can reach them past the engine's own property names.
     readonly property var appTheme: theme
-    readonly property var appTypography: typography
-    property int contentFontSize: typography.baseSize
+    readonly property var appTypography: Typography
+    property int contentFontSize: Typography.baseSize
     property int contentFontWeight: Font.Normal
-    property string contentFontFamily: typography.fontFamily !== ""
-        ? typography.fontFamily : Qt.application.font.family
+    property string contentFontFamily: Typography.fontFamily !== ""
+        ? Typography.fontFamily : Qt.application.font.family
     property color contentColor: theme.textPrimary
     property bool contentStrikeout: false
     // Code blocks: the engine maps 1:1 and nothing parses or reveals;
@@ -184,15 +184,15 @@ Item {
     // accent, recoloring the panel tint, border, bar, and header
     // coherently. Absent
     // (the common case) it falls back to the type's accent, byte-identical.
-    readonly property color calloutAccent: blockAttributes.has(delegate.attributes, "color")
-        ? blockAttributes.str(delegate.attributes, "color")
+    readonly property color calloutAccent: BlockAttributes.has(delegate.attributes, "color")
+        ? BlockAttributes.str(delegate.attributes, "color")
         : delegate.calloutInfo.accent
 
     // ---- Text alignment (features.md §9.2) ----
     // The `align` attribute (left|center|right) maps to the TextArea's
     // horizontal alignment for paragraphs and headings. Absent = left, so an
     // unstyled block is unchanged. Lists/quotes/code never receive it.
-    readonly property string blockAlign: blockAttributes.str(delegate.attributes, "align", "left")
+    readonly property string blockAlign: BlockAttributes.str(delegate.attributes, "align", "left")
     readonly property int alignHAlign:
         delegate.blockAlign === "center" ? TextEdit.AlignHCenter
       : delegate.blockAlign === "right"  ? TextEdit.AlignRight
@@ -201,8 +201,8 @@ Item {
     // value; left removes the attribute so the default carries no tag.
     function setBlockAlignment(value) {
         var next = (value === "left" || value === "")
-            ? blockAttributes.without(delegate.attributes, "align")
-            : blockAttributes.withValue(delegate.attributes, "align", value)
+            ? BlockAttributes.without(delegate.attributes, "align")
+            : BlockAttributes.withValue(delegate.attributes, "align", value)
         blockModel.setBlockAttributes(delegate.index, next)
     }
 
@@ -215,15 +215,15 @@ Item {
     // reflows to normal text for editing — a documented, delegate-only form.
     readonly property int dropCapLines:
         (blockType === Block.Paragraph && !calloutMode && !verbatimEditing)
-            ? blockAttributes.num(attributes, "dropcap", 0) : 0
+            ? BlockAttributes.num(attributes, "dropcap", 0) : 0
     readonly property bool hasDropCap: dropCapLines >= 2 && delegate.content.length > 0
     readonly property bool dropCapActive: hasDropCap && !delegate.isFocused
     readonly property string dropCapColorAttr:
-        blockAttributes.str(attributes, "dropcapcolor", "")
+        BlockAttributes.str(attributes, "dropcapcolor", "")
     readonly property color dropCapColor:
         dropCapColorAttr !== "" ? dropCapColorAttr : delegate.contentColor
     readonly property string dropCapFontAttr:
-        blockAttributes.str(attributes, "dropcapfont", "")
+        BlockAttributes.str(attributes, "dropcapfont", "")
     readonly property int dropCapPixelSize:
         Math.round(delegate.contentFontSize * (dropCapLines * 1.15))
     readonly property int dropCapWidth:
@@ -231,8 +231,8 @@ Item {
     // Set/clear the drop cap as one undo step (used by the paragraph menu).
     function setDropCap(lines) {
         var next = (lines >= 2)
-            ? blockAttributes.withValue(delegate.attributes, "dropcap", String(lines))
-            : blockAttributes.without(delegate.attributes, "dropcap")
+            ? BlockAttributes.withValue(delegate.attributes, "dropcap", String(lines))
+            : BlockAttributes.without(delegate.attributes, "dropcap")
         blockModel.setBlockAttributes(delegate.index, next)
     }
 
@@ -247,11 +247,11 @@ Item {
     // reset removes the attribute so it falls back to the typed accent.
     function setCalloutColor(v) {
         blockModel.setBlockAttributes(delegate.index,
-            blockAttributes.withValue(delegate.attributes, "color", v))
+            BlockAttributes.withValue(delegate.attributes, "color", v))
     }
     function resetCalloutColor() {
         blockModel.setBlockAttributes(delegate.index,
-            blockAttributes.without(delegate.attributes, "color"))
+            BlockAttributes.without(delegate.attributes, "color"))
     }
 
     // Exposed for tests
@@ -499,10 +499,10 @@ Item {
 
     // Remove the coordinator's range from the model (one undo step) and
     // return the {index, cursor} landing spot.
-    // Copy markdown in every clipboard flavor (§5.1). Shared by the
+    // Copy markdown in every Clipboard flavor (§5.1). Shared by the
     // cross-block and in-block copy/cut paths.
     function copyMarkdownToClipboard(md) {
-        clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
+        Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
     }
 
     function crossBlockDeleteRange() {
@@ -622,16 +622,16 @@ Item {
         }
         // Ctrl+V / Ctrl+Shift+V over a cross-block selection: the range goes
         // first, exactly as every sibling operation here does, and the
-        // clipboard lands at the collapsed caret. Without this branch the
+        // Clipboard lands at the collapsed caret. Without this branch the
         // per-block handler would run instead and see only the head block's
         // own selection, leaving the rest of the range in the document.
         if (event.key === Qt.Key_V && ctrl) {
-            if (clipboard && clipboard.hasText) {
+            if (Clipboard && Clipboard.hasText) {
                 var stripPaste = (event.modifiers & Qt.ShiftModifier) ? true : false
                 var pasteRes = crossBlockDeleteRange()
                 if (pasteRes.index !== undefined)
                     pasteMarkdownAtBlock(pasteRes.index, pasteRes.cursor,
-                                         clipboard.text, stripPaste)
+                                         Clipboard.text, stripPaste)
             }
             event.accepted = true
             return true
@@ -782,13 +782,13 @@ Item {
     function assetRoot() {
         return noteCollection.isOpen ? noteCollection.rootPath : ""
     }
-    // §5.3 paste arm: clipboard image data → asset file → image block below
+    // §5.3 paste arm: Clipboard image data → asset file → image block below
     // (or converting the current empty block). Returns true if it handled an
     // image, so the text-paste path can be skipped.
     function handleImagePaste() {
-        if (!imageAssets.clipboardHasImage())
+        if (!ImageAssets.clipboardHasImage())
             return false
-        var stored = imageAssets.ingestClipboardImage(
+        var stored = ImageAssets.ingestClipboardImage(
             noteSlug(), assetRoot(), noteDir())
         if (stored === "")
             return false
@@ -796,7 +796,7 @@ Item {
         return true
     }
     function insertImageBlock(storedPath) {
-        var md = imageAssets.build(storedPath, "", "", 0)
+        var md = ImageAssets.build(storedPath, "", "", 0)
         if (delegate.content === "" && !delegate.verbatimEditing) {
             blockModel.convertBlock(delegate.index, Block.Image, md)
             delegate.refocusBlock(delegate.index, 0)
@@ -902,7 +902,7 @@ Item {
         refocusBlock(caretIdx, caretPos)
     }
 
-    // Insert clipboard markdown at a markdown offset inside block `idx`,
+    // Insert Clipboard markdown at a markdown offset inside block `idx`,
     // splitting into blocks on newlines the way the in-block paste does:
     // the first line joins the text before the caret, the last line joins
     // the text after it. Used by the cross-block paste path, which has
@@ -1050,8 +1050,8 @@ Item {
             "Bulleted list", "Numbered list", "To-do", "Quote", "Code block",
             "Divider", "Heading 4", "Image", "Callout", "Math block", "Media",
             "Table"]
-        if (typeof a11y !== "undefined" && names[newType])
-            a11y.announceConversion(names[newType])
+        if (typeof A11y !== "undefined" && names[newType])
+            A11y.announceConversion(names[newType])
         blockModel.convertBlock(idx, newType, editorEngine.markdown, false, lang)
         refocusBlock(idx, mdPos)
     }
@@ -1773,7 +1773,7 @@ Item {
                                 id: calloutColorPicker
                                 x: parent ? parent.width - width : 0
                                 y: parent ? parent.height + 4 : 0
-                                currentColor: blockAttributes.str(delegate.attributes, "color", "")
+                                currentColor: BlockAttributes.str(delegate.attributes, "color", "")
                                 onColorPicked: function(v) { delegate.setCalloutColor(v) }
                                 onResetRequested: delegate.resetCalloutColor()
                             }
@@ -1909,7 +1909,7 @@ Item {
                             HoverHandler { id: copyHover }
                             TapHandler {
                                 onTapped: {
-                                    clipboard.text = delegate.content
+                                    Clipboard.text = delegate.content
                                     copyButton.copied = true
                                     copyResetTimer.restart()
                                 }
@@ -2000,7 +2000,7 @@ Item {
                 // DocumentOutline, so a `[text](#slug)` whose slug matches no
                 // heading renders muted. Context property, no name clash with
                 // the engine's own `linkResolver` property.
-                linkResolver: documentOutline
+                linkResolver: DocumentOutline
                 // The wiki-link resolver: with no collection open every
                 // [[wiki-link]] styles as an ordinary link rather than all
                 // rendering "unresolved".
@@ -2220,7 +2220,7 @@ Item {
                 }
 
                 // Clipboard operations (features.md §5) on the C++
-                // clipboard helper. Copy puts MARKDOWN on the clipboard
+                // Clipboard helper. Copy puts MARKDOWN on the Clipboard
                 // (the engine maps the visual selection, wrapping selected
                 // span content in its markers); paste inserts markdown at
                 // the cursor (rendering follows from the engine), splitting
@@ -2233,7 +2233,7 @@ Item {
                     // All three flavors (§5.1): text for plain targets, HTML
                     // so rich-text targets get formatting instead of raw
                     // syntax, and the internal marker for pasting back.
-                    clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
+                    Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
                     return true
                 }
 
@@ -2251,16 +2251,16 @@ Item {
                 }
 
                 function pasteFromClipboard(stripFormatting) {
-                    // Image data on the clipboard becomes an image block
+                    // Image data on the Clipboard becomes an image block
                     // (§5.3), even in a code block (an image is not code).
                     if (delegate.handleImagePaste())
                         return
-                    if (!clipboard || !clipboard.hasText) return
+                    if (!Clipboard || !Clipboard.hasText) return
 
                     // A lone URL over a text selection links the selection
                     // rather than replacing it (§5.3) — the common "copy a
                     // link, select the words, paste" gesture.
-                    if (!stripFormatting && clipboard.hasUrl
+                    if (!stripFormatting && Clipboard.hasUrl
                         && selectionEnd > selectionStart
                         && !delegate.verbatimEditing) {
                         var label = editorEngine.markdownForRange(selectionStart,
@@ -2268,7 +2268,7 @@ Item {
                         if (label.length > 0 && label.indexOf("\n") < 0) {
                             var linkPos = selectionStart
                             remove(selectionStart, selectionEnd)
-                            var linkMd = "[" + label + "](" + clipboard.url + ")"
+                            var linkMd = "[" + label + "](" + Clipboard.url + ")"
                             insert(linkPos, linkMd)
                             cursorPosition = linkPos + linkMd.length
                             return
@@ -2279,8 +2279,8 @@ Item {
                     // structured HTML converted, everything else as text.
                     // Paste-plain deliberately bypasses it — Ctrl+Shift+V
                     // means "whatever the source's plain text was".
-                    var pasted = (stripFormatting ? clipboard.text
-                                                  : clipboard.markdown())
+                    var pasted = (stripFormatting ? Clipboard.text
+                                                  : Clipboard.markdown())
                                      .replace(/\r\n/g, "\n")
                     if (stripFormatting) {
                         pasted = pasted.split("\n").map(function(line) {
@@ -2318,7 +2318,7 @@ Item {
                     // markdown literal, so a pasted "## Title" would render as
                     // the characters "## Title". Flat text keeps the literal
                     // splice, which is what pasting plain lines should do.
-                    if (!stripFormatting && clipboard.hasStructuredMarkdown) {
+                    if (!stripFormatting && Clipboard.hasStructuredMarkdown) {
                         delegate.pasteStructuredMarkdown(delegate.index, before,
                                                          pasted, after)
                         return
@@ -3094,13 +3094,13 @@ Item {
                     if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
                         if (event.modifiers & Qt.ShiftModifier) {
                             // Ctrl+Shift+Z: Redo
-                            if (undoStack && undoStack.canRedo) {
-                                undoStack.redo()
+                            if (UndoStack && UndoStack.canRedo) {
+                                UndoStack.redo()
                             }
                         } else {
                             // Ctrl+Z: Undo
-                            if (undoStack && undoStack.canUndo) {
-                                undoStack.undo()
+                            if (UndoStack && UndoStack.canUndo) {
+                                UndoStack.undo()
                             }
                         }
                         event.accepted = true
@@ -3109,8 +3109,8 @@ Item {
 
                     // Ctrl+Y: Redo
                     if (event.key === Qt.Key_Y && (event.modifiers & Qt.ControlModifier)) {
-                        if (undoStack && undoStack.canRedo) {
-                            undoStack.redo()
+                        if (UndoStack && UndoStack.canRedo) {
+                            UndoStack.redo()
                         }
                         event.accepted = true
                         return

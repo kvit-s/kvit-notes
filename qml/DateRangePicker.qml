@@ -4,11 +4,12 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The custom date-range picker for global search (features.md §8.4).
 // One month view with paging; the first day clicked starts the range,
 // the second completes it (swapped if earlier), and each pick applies
-// live through collectionSearch.customFrom/customTo with the "custom"
+// live through CollectionSearch.customFrom/customTo with the "custom"
 // preset.
 Popup {
     id: picker
@@ -28,7 +29,7 @@ Popup {
     property bool pickingEnd: false
 
     function openFor() {
-        var from = collectionSearch.customFrom
+        var from = CollectionSearch.customFrom
         visibleMonth = (from && !isNaN(from.getTime())) ? from : new Date()
         pickingEnd = false
         open()
@@ -41,29 +42,29 @@ Popup {
     // Qt.formatDate always names the intended calendar day. String
     // order on yyyy-MM-dd is date order.
     readonly property string fromKey:
-        dayValid(collectionSearch.customFrom)
-            ? Qt.formatDate(collectionSearch.customFrom, "yyyy-MM-dd") : ""
+        dayValid(CollectionSearch.customFrom)
+            ? Qt.formatDate(CollectionSearch.customFrom, "yyyy-MM-dd") : ""
     readonly property string toKey:
-        dayValid(collectionSearch.customTo)
-            ? Qt.formatDate(collectionSearch.customTo, "yyyy-MM-dd") : ""
+        dayValid(CollectionSearch.customTo)
+            ? Qt.formatDate(CollectionSearch.customTo, "yyyy-MM-dd") : ""
     function dayKey(year, month, day) {  // month 0-based (MonthGrid)
         function pad(n) { return (n < 10 ? "0" : "") + n }
         return year + "-" + pad(month + 1) + "-" + pad(day)
     }
 
     function pickDay(day) {
-        collectionSearch.datePreset = "custom"
+        CollectionSearch.datePreset = "custom"
         if (!pickingEnd) {
-            collectionSearch.customFrom = day
-            collectionSearch.customTo = day
+            CollectionSearch.customFrom = day
+            CollectionSearch.customTo = day
             pickingEnd = true
         } else {
-            var from = collectionSearch.customFrom
+            var from = CollectionSearch.customFrom
             if (dayValid(from) && day < from) {
-                collectionSearch.customTo = from
-                collectionSearch.customFrom = day
+                CollectionSearch.customTo = from
+                CollectionSearch.customFrom = day
             } else {
-                collectionSearch.customTo = day
+                CollectionSearch.customTo = day
             }
             pickingEnd = false
         }
@@ -164,8 +165,8 @@ Popup {
                 color: theme.textMuted
                 elide: Text.ElideRight
                 text: {
-                    var from = collectionSearch.customFrom
-                    var to = collectionSearch.customTo
+                    var from = CollectionSearch.customFrom
+                    var to = CollectionSearch.customTo
                     if (!picker.dayValid(from))
                         return qsTr("Pick a start day")
                     var fromText = Qt.formatDate(from, "yyyy-MM-dd")
@@ -182,9 +183,9 @@ Popup {
                 focusPolicy: Qt.NoFocus
                 implicitHeight: 22
                 onClicked: {
-                    collectionSearch.customFrom = new Date(NaN)
-                    collectionSearch.customTo = new Date(NaN)
-                    collectionSearch.datePreset = "any"
+                    CollectionSearch.customFrom = new Date(NaN)
+                    CollectionSearch.customTo = new Date(NaN)
+                    CollectionSearch.datePreset = "any"
                     picker.pickingEnd = false
                     picker.close()
                 }

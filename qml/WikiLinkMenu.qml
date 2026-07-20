@@ -73,7 +73,7 @@ Popup {
             var headingQuery = query.substring(hashIdx + 1).toLowerCase()
             var heads = []
             if (target === "") {
-                var own = documentOutline.headings()
+                var own = DocumentOutline.headings()
                 for (var i = 0; i < own.length; ++i)
                     heads.push(own[i].text)
             } else {

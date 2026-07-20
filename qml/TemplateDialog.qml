@@ -4,11 +4,12 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // Template management dialog (features.md §18): CRUD over
 // the .kvit/templates/ markdown files, plus "save current note as template".
 // The pick-on-create flow lives in the toolbar's Templates menu; this dialog
-// edits the templates themselves. All state is in noteTemplates (files on
+// edits the templates themselves. All state is in NoteTemplates (files on
 // disk); this dialog reads and forwards.
 Dialog {
     id: dlg
@@ -26,15 +27,15 @@ Dialog {
     property string selected: ""
 
     function openManage() {
-        noteTemplates.seedBuiltinsIfEmpty()
-        var names = noteTemplates.templateNames()
+        NoteTemplates.seedBuiltinsIfEmpty()
+        var names = NoteTemplates.templateNames()
         selected = names.length > 0 ? names[0] : ""
         loadSelected()
         open()
     }
 
     function loadSelected() {
-        editor.text = selected !== "" ? noteTemplates.readTemplate(selected) : ""
+        editor.text = selected !== "" ? NoteTemplates.readTemplate(selected) : ""
     }
 
     onSelectedChanged: loadSelected()
@@ -59,8 +60,8 @@ Dialog {
                     clip: true
                     // Re-read the names on any template-set change.
                     model: {
-                        var r = noteTemplates.revision  // dependency only
-                        return noteTemplates.templateNames()
+                        var r = NoteTemplates.revision  // dependency only
+                        return NoteTemplates.templateNames()
                     }
                     delegate: ItemDelegate {
                         required property string modelData
@@ -84,7 +85,7 @@ Dialog {
                     text: qsTr("Add")
                     enabled: newNameField.text.trim().length > 0
                     onClicked: {
-                        if (noteTemplates.writeTemplate(
+                        if (NoteTemplates.writeTemplate(
                                 newNameField.text.trim(),
                                 "# {{title}}\n\n")) {
                             dlg.selected = newNameField.text.trim()
@@ -99,8 +100,8 @@ Dialog {
                 text: qsTr("Delete selected")
                 enabled: dlg.selected !== ""
                 onClicked: {
-                    noteTemplates.deleteTemplate(dlg.selected)
-                    var names = noteTemplates.templateNames()
+                    NoteTemplates.deleteTemplate(dlg.selected)
+                    var names = NoteTemplates.templateNames()
                     dlg.selected = names.length > 0 ? names[0] : ""
                 }
             }
@@ -137,7 +138,7 @@ Dialog {
                         objectName: "templateEditor"
                         enabled: dlg.selected !== ""
                         wrapMode: TextArea.Wrap
-                        font.family: typography.monoFamily
+                        font.family: Typography.monoFamily
                         placeholderText: qsTr("Template markdown — use {{date}}, "
                             + "{{time}}, {{title}}, {{date:FORMAT}}")
                     }
@@ -150,7 +151,7 @@ Dialog {
                     objectName: "saveTemplateButton"
                     text: qsTr("Save template")
                     enabled: dlg.selected !== ""
-                    onClicked: noteTemplates.writeTemplate(dlg.selected, editor.text)
+                    onClicked: NoteTemplates.writeTemplate(dlg.selected, editor.text)
                 }
             }
         }

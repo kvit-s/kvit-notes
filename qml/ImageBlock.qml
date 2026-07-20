@@ -32,30 +32,30 @@ Item {
     // centered, so an unstyled image is unchanged; only an explicit
     // align=left|right moves it.
     readonly property string imageAlign:
-        blockAttributes.str(attributes, "align", "center")
+        BlockAttributes.str(attributes, "align", "center")
     function setBlockAlignment(value) {
         var next = (value === "center" || value === "")
-            ? blockAttributes.without(attributes, "align")
-            : blockAttributes.withValue(attributes, "align", value)
+            ? BlockAttributes.without(attributes, "align")
+            : BlockAttributes.withValue(attributes, "align", value)
         blockModel.setBlockAttributes(delegate.index, next)
     }
 
     // ---- Image effects (features.md §1.2.8) ----
     // rounded (radius, default 12), shadow, border (optional custom color), and
     // the maintain-aspect toggle (`aspect=stretch` drops proportion locking).
-    readonly property bool imgRounded: blockAttributes.has(attributes, "rounded")
+    readonly property bool imgRounded: BlockAttributes.has(attributes, "rounded")
     readonly property int imgRadius: {
-        var v = blockAttributes.num(attributes, "rounded", 0)
+        var v = BlockAttributes.num(attributes, "rounded", 0)
         return v > 0 ? v : 12
     }
-    readonly property bool imgShadow: blockAttributes.has(attributes, "shadow")
-    readonly property bool imgBorder: blockAttributes.has(attributes, "border")
+    readonly property bool imgShadow: BlockAttributes.has(attributes, "shadow")
+    readonly property bool imgBorder: BlockAttributes.has(attributes, "border")
     readonly property color imgBorderColor: {
-        var c = blockAttributes.str(attributes, "border", "")
+        var c = BlockAttributes.str(attributes, "border", "")
         return c !== "" ? c : theme.border
     }
     readonly property bool imgStretch:
-        blockAttributes.str(attributes, "aspect", "") === "stretch"
+        BlockAttributes.str(attributes, "aspect", "") === "stretch"
     // Set new image-effect attributes as one undo step (used by the popover).
     function setImageEffects(payload) {
         blockModel.setBlockAttributes(delegate.index, payload)
@@ -68,14 +68,14 @@ Item {
     property bool isHovered: hoverArea.containsMouse
 
     // ---- Parsed image + resolved source ----
-    readonly property var img: imageAssets.parse(content)
+    readonly property var img: ImageAssets.parse(content)
     readonly property string noteDir: {
         var p = documentManager.currentFilePath
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
     readonly property string resolvedSource:
-        imageAssets.resolve(img.path,
+        ImageAssets.resolve(img.path,
                             noteDir,
                             noteCollection.isOpen ? noteCollection.rootPath : "")
     // What the Image actually loads. A local file passes through; an http(s)
@@ -83,11 +83,11 @@ Item {
     // approved its origin, and is "" until then. A note is untrusted input,
     // so an image URL in one must not become a request just by being opened —
     // that would disclose the reader's address and reading time to whoever
-    // wrote the note. Reading egressPolicy.revision keeps this live across an
+    // wrote the note. Reading EgressPolicy.revision keeps this live across an
     // approval.
     readonly property string displaySource: {
-        var r = egressPolicy.revision
-        return egressPolicy.imageSourceFor(delegate.resolvedSource)
+        var r = EgressPolicy.revision
+        return EgressPolicy.imageSourceFor(delegate.resolvedSource)
     }
     // A remote image the reader has not approved yet: the placeholder offers
     // to load it instead of showing a broken-image tile.
@@ -172,7 +172,7 @@ Item {
     // Rewrite the block's markdown through the model as one undo step.
     function writeImage(path, alt, caption, width) {
         blockModel.updateContent(delegate.index,
-                                 imageAssets.build(path, alt, caption, width))
+                                 ImageAssets.build(path, alt, caption, width))
     }
 
     function deleteCurrentBlock() {
@@ -425,7 +425,7 @@ Item {
                         width: imgLoadLabel.implicitWidth + 16
                         height: imgLoadLabel.implicitHeight + 8
                         radius: 4
-                        visible: egressPolicy.canRequestConsent(delegate.resolvedSource)
+                        visible: EgressPolicy.canRequestConsent(delegate.resolvedSource)
                         color: theme.hoverTint
                         border.color: imgLoadArea.containsMouse ? theme.accent : theme.border
                         Text {
@@ -441,7 +441,7 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: egressPolicy.allowOrigin(delegate.resolvedSource)
+                            onClicked: EgressPolicy.allowOrigin(delegate.resolvedSource)
                         }
                     }
                 }

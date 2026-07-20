@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import Kvit 1.0
 
 // Basic code block (features.md §1.2.7): monospace on a light panel,
 // whitespace preserved exactly, content verbatim — the engine parses and
@@ -18,9 +19,9 @@ EditableBlock {
     // the language selector, optional line-number gutter, copy button, and
     // horizontal scrolling for long lines all ride on this flag.
     codeChrome: true
-    contentFontFamily: typography.monoFamily
+    contentFontFamily: Typography.monoFamily
     contentFontSize: {
-        var base = typography.baseSize  // re-evaluation dependency
-        return typography.sizeForBlockType(root.blockType)
+        var base = Typography.baseSize  // re-evaluation dependency
+        return Typography.sizeForBlockType(root.blockType)
     }
 }

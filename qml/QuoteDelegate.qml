@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import Kvit 1.0
 
 // Quote block (features.md §1.2.6): stacked accent bars (one per nesting
 // depth), muted text, and an optional attribution line — the last content
@@ -63,7 +64,7 @@ EditableBlock {
                 anchors.top: parent.top
                 text: "— " + root.attributionText
                 color: theme.textMuted
-                font.pixelSize: Math.max(11, typography.baseSize - 2)
+                font.pixelSize: Math.max(11, Typography.baseSize - 2)
                 font.italic: false
             }
         }

@@ -34,14 +34,14 @@ Item {
     property bool isFocused: focusTarget.activeFocus
     property bool isHovered: hoverArea.containsMouse
 
-    readonly property var media: imageAssets.parse(content)
+    readonly property var media: ImageAssets.parse(content)
     readonly property string noteDir: {
         var p = documentManager.currentFilePath
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
     readonly property string resolvedSource:
-        imageAssets.resolve(media.path, noteDir,
+        ImageAssets.resolve(media.path, noteDir,
                             noteCollection.isOpen ? noteCollection.rootPath : "")
     // Remote media needs the reader's approval before the player is given a
     // URL, for the same reason images do: opening a note must not contact the
@@ -55,10 +55,10 @@ Item {
     // devel.md records the gap.
     readonly property bool isRemote: /^https?:\/\//i.test(root.resolvedSource)
     readonly property string playbackSource: {
-        var r = egressPolicy.revision
+        var r = EgressPolicy.revision
         if (!root.isRemote)
             return root.resolvedSource
-        return egressPolicy.isAllowed(root.resolvedSource) ? root.resolvedSource : ""
+        return EgressPolicy.isAllowed(root.resolvedSource) ? root.resolvedSource : ""
     }
     readonly property bool awaitingConsent:
         root.resolvedSource !== "" && root.playbackSource === ""
@@ -275,7 +275,7 @@ Item {
                         width: mediaLoadLabel.implicitWidth + 16
                         height: mediaLoadLabel.implicitHeight + 8
                         radius: 4
-                        visible: egressPolicy.canRequestConsent(root.resolvedSource)
+                        visible: EgressPolicy.canRequestConsent(root.resolvedSource)
                         color: theme.hoverTint
                         border.color: mediaLoadArea.containsMouse ? theme.accent
                                                                   : theme.border
@@ -292,7 +292,7 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: egressPolicy.allowOrigin(root.resolvedSource)
+                            onClicked: EgressPolicy.allowOrigin(root.resolvedSource)
                         }
                     }
                     Text {

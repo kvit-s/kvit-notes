@@ -465,8 +465,8 @@ Item {
                 objectName: "querySourceArea"
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content
-                font.family: typography.monoFamily
-                font.pixelSize: typography.sizeForBlockType(Block.CodeBlock)
+                font.family: Typography.monoFamily
+                font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
                 color: theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true

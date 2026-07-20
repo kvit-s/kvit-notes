@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // Image-effects popover (features.md §1.2.8): toggle rounded
 // corners, drop shadow, a border, and the maintain-aspect option. It reports a
@@ -28,8 +29,8 @@ Popup {
     }
 
     function toggleFlag(key) {
-        root.applied(blockAttributes.withFlag(root.attributes, key,
-                     !blockAttributes.has(root.attributes, key)))
+        root.applied(BlockAttributes.withFlag(root.attributes, key,
+                     !BlockAttributes.has(root.attributes, key)))
     }
 
     // A checkbox-styled row driven by external state (no internal toggle, so the
@@ -70,29 +71,29 @@ Popup {
         spacing: 4
         ToggleRow {
             label: qsTr("Rounded corners")
-            on: blockAttributes.has(root.attributes, "rounded")
+            on: BlockAttributes.has(root.attributes, "rounded")
             onToggled: root.toggleFlag("rounded")
         }
         ToggleRow {
             label: qsTr("Drop shadow")
-            on: blockAttributes.has(root.attributes, "shadow")
+            on: BlockAttributes.has(root.attributes, "shadow")
             onToggled: root.toggleFlag("shadow")
         }
         ToggleRow {
             label: qsTr("Border")
-            on: blockAttributes.has(root.attributes, "border")
+            on: BlockAttributes.has(root.attributes, "border")
             onToggled: root.toggleFlag("border")
         }
         ToggleRow {
             label: qsTr("Maintain aspect ratio")
             // Maintained by default; unchecking stores aspect=stretch.
-            on: blockAttributes.str(root.attributes, "aspect", "") !== "stretch"
+            on: BlockAttributes.str(root.attributes, "aspect", "") !== "stretch"
             onToggled: {
                 var isMaintain =
-                    blockAttributes.str(root.attributes, "aspect", "") !== "stretch"
+                    BlockAttributes.str(root.attributes, "aspect", "") !== "stretch"
                 root.applied(isMaintain
-                    ? blockAttributes.withValue(root.attributes, "aspect", "stretch")
-                    : blockAttributes.without(root.attributes, "aspect"))
+                    ? BlockAttributes.withValue(root.attributes, "aspect", "stretch")
+                    : BlockAttributes.without(root.attributes, "aspect"))
             }
         }
     }

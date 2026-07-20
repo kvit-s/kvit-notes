@@ -139,11 +139,11 @@ ApplicationWindow {
     onFocusModeChanged: {
         appSettings.setValue("view.focusMode", focusMode)
         root.visibility = focusMode ? Window.FullScreen : Window.Windowed
-        a11y.announceMode(qsTr("Focus mode"), focusMode)   // §14.2
+        A11y.announceMode(qsTr("Focus mode"), focusMode)   // §14.2
     }
     onTypewriterModeChanged: {
         appSettings.setValue("view.typewriterMode", typewriterMode)
-        a11y.announceMode(qsTr("Typewriter mode"), typewriterMode)   // §14.2
+        A11y.announceMode(qsTr("Typewriter mode"), typewriterMode)   // §14.2
         if (typewriterMode)
             Qt.callLater(function() {
                 if (appToolbar.targetBlock)
@@ -237,14 +237,14 @@ ApplicationWindow {
 
         function onIsDirtyChanged() {
             if (!documentManager.isDirty)
-                a11y.announceSaveState(false)
+                A11y.announceSaveState(false)
         }
     }
     Connections {
         target: documentSearch
         function onRevisionChanged() {
             if (documentSearch.query !== "")
-                a11y.announceMatchCount(documentSearch.matchCount)
+                A11y.announceMatchCount(documentSearch.matchCount)
         }
     }
 
@@ -327,7 +327,7 @@ ApplicationWindow {
         statusBarVisible = appSettings.value("view.statusBar", true)
         outlineVisible = appSettings.value("view.outline", false)
         backlinksVisible = appSettings.value("view.backlinks", false)
-        documentOutline.levelMask =
+        DocumentOutline.levelMask =
             appSettings.value("view.outlineLevels", 0xF)
         // Focus/typewriter modes (view states). Focus mode is NOT restored on
         // launch (starting full-screen with no chrome would disorient); it is
@@ -383,9 +383,9 @@ ApplicationWindow {
     // Persist the outline level filter; keep the caret's section lit as the
     // current block changes (the section highlight is off the keystroke path).
     Connections {
-        target: documentOutline
+        target: DocumentOutline
         function onLevelMaskChanged() {
-            appSettings.setValue("view.outlineLevels", documentOutline.levelMask)
+            appSettings.setValue("view.outlineLevels", DocumentOutline.levelMask)
         }
         // A table-of-contents fence's stored body is derived from the
         // headings: keep it current so the file reads correctly
@@ -420,7 +420,7 @@ ApplicationWindow {
                 "tocBlocks": tocIndexes.length
             })
         try {
-            var toc = documentOutline.tocMarkdown()
+            var toc = DocumentOutline.tocMarkdown()
             for (var n = 0; n < tocIndexes.length; n++) {
                 var i = tocIndexes[n]
                 scanned++
@@ -442,7 +442,7 @@ ApplicationWindow {
     Connections {
         target: blockListView
         function onCurrentIndexChanged() {
-            documentOutline.setCurrentBlock(blockListView.currentIndex)
+            DocumentOutline.setCurrentBlock(blockListView.currentIndex)
         }
     }
 
@@ -559,7 +559,7 @@ ApplicationWindow {
             return
         if (heading !== "") {
             Qt.callLater(function() {
-                documentOutline.rebuildNow()
+                DocumentOutline.rebuildNow()
                 scrollToHeadingText(heading)
             })
         }
@@ -627,8 +627,8 @@ ApplicationWindow {
     // A wiki-link's #heading part is raw heading text; slug it through
     // the shared slug function before outline lookup.
     function scrollToHeadingText(heading) {
-        var idx = documentOutline.blockIndexForSlug(
-            documentOutline.slugForText(heading))
+        var idx = DocumentOutline.blockIndexForSlug(
+            DocumentOutline.slugForText(heading))
         if (idx >= 0)
             scrollToBlock(idx)
         else
@@ -670,12 +670,12 @@ ApplicationWindow {
     // the query seeds DocumentSearch and the clicked occurrence becomes
     // the current match through the cursor-seeding rule.
     function openSearchResult(relPath, blockIndex, displayStart) {
-        var mdPos = collectionSearch.markdownPosition(relPath, blockIndex,
+        var mdPos = CollectionSearch.markdownPosition(relPath, blockIndex,
                                                       displayStart)
         if (!openNoteByPath(relPath))
             return
-        sidebar.commitRecentSearch(collectionSearch.query)
-        findBar.openAt(collectionSearch.query, blockIndex, mdPos)
+        sidebar.commitRecentSearch(CollectionSearch.query)
+        findBar.openAt(CollectionSearch.query, blockIndex, mdPos)
     }
 
     // Ctrl+N in collection mode: a new note in the current folder scope
@@ -706,7 +706,7 @@ ApplicationWindow {
         if (relPath === "")
             return ""
         var title = noteCollection.noteInfo(relPath).title
-        var inst = noteTemplates.instantiate(templateName, title)
+        var inst = NoteTemplates.instantiate(templateName, title)
         if (!openNoteByPath(relPath))
             return relPath
         // The note is open and empty; load the expanded body, then apply the
@@ -737,7 +737,7 @@ ApplicationWindow {
             documentManager.save()
         var fm = noteCollection.frontMatterFor(currentNoteRelPath)
         var full = (fm ? fm : "") + DocumentSerializer.serialize(blockModel)
-        return noteTemplates.writeTemplate(name, full)
+        return NoteTemplates.writeTemplate(name, full)
     }
 
     // Map a scene point to {index, mdPos, inText} on the block list.
@@ -807,8 +807,8 @@ ApplicationWindow {
     Shortcut {
         sequences: [StandardKey.Undo]  // Ctrl+Z (and platform variants)
         onActivated: {
-            if (undoStack && undoStack.canUndo) {
-                undoStack.undo()
+            if (UndoStack && UndoStack.canUndo) {
+                UndoStack.undo()
             }
         }
     }
@@ -816,8 +816,8 @@ ApplicationWindow {
     Shortcut {
         sequences: [StandardKey.Redo]  // Ctrl+Y or Ctrl+Shift+Z depending on platform
         onActivated: {
-            if (undoStack && undoStack.canRedo) {
-                undoStack.redo()
+            if (UndoStack && UndoStack.canRedo) {
+                UndoStack.redo()
             }
         }
     }
@@ -926,7 +926,7 @@ ApplicationWindow {
             // recoverable no-op with a status-bar note, never an error.
             if (url.charAt(0) === "#") {
                 var slug = url.substring(1)
-                var idx = documentOutline.blockIndexForSlug(slug)
+                var idx = DocumentOutline.blockIndexForSlug(slug)
                 if (idx >= 0) {
                     root.scrollToBlock(idx)
                 } else {
@@ -970,7 +970,7 @@ ApplicationWindow {
             blockIndex = index
             mdStart = start
             mdEnd = end
-            headingTargets = documentOutline.headings()
+            headingTargets = DocumentOutline.headings()
             linkTextField.text = initialText
             linkUrlField.text = ""
             open()
@@ -983,7 +983,7 @@ ApplicationWindow {
             blockIndex = index
             mdStart = start
             mdEnd = end
-            headingTargets = documentOutline.headings()
+            headingTargets = DocumentOutline.headings()
             linkTextField.text = text
             linkUrlField.text = url
             open()
@@ -1485,13 +1485,13 @@ ApplicationWindow {
             })
         }
 
-        // The selected blocks as structural markdown, in every clipboard
+        // The selected blocks as structural markdown, in every Clipboard
         // flavor (§5.1): plain text, rendered HTML for rich-text targets, and
         // the internal marker so pasting back into Kvit is lossless.
         function copyBlocksToClipboard() {
             var md = DocumentSerializer.serializeBlocks(
                 blockModel, documentSelection.selectedIndexes())
-            clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
+            Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
         }
 
         // Remove the selected blocks and land the cursor on the block
@@ -1582,18 +1582,18 @@ ApplicationWindow {
                 return
             }
 
-            // Ctrl+V: paste the clipboard as typed blocks after the
+            // Ctrl+V: paste the Clipboard as typed blocks after the
             // selection (§5.3); the new blocks become the selection
             if (event.key === Qt.Key_V && ctrl) {
-                if (clipboard.hasText) {
+                if (Clipboard.hasText) {
                     var indexes = documentSelection.selectedIndexes()
                     var insertAt = indexes.length > 0
                         ? Number(indexes[indexes.length - 1]) + 1
                         : blockModel.count
                     // §5.3 format matrix (internal / HTML / plain); paste-plain
                     // deliberately takes the source's own plain text instead.
-                    var pasteText = (shift ? clipboard.text
-                                           : clipboard.markdown())
+                    var pasteText = (shift ? Clipboard.text
+                                           : Clipboard.markdown())
                                         .replace(/\r\n/g, "\n")
                     // Oversized-paste guard: the same threshold as file
                     // open — a whale payload gets a confirm dialog instead
@@ -1836,7 +1836,7 @@ ApplicationWindow {
             if (documentManager.isDirty) {
                 root.conflictPath = absPath
                 root.externalConflict = true
-                a11y.announce(qsTr("This note changed on disk"))
+                A11y.announce(qsTr("This note changed on disk"))
             } else {
                 // Not dirty here: loading theirs is lossless, so do it silently.
                 root.loadTheirs(absPath)
@@ -2079,10 +2079,10 @@ ApplicationWindow {
     }
     // Turn a stored image/media path into the right block type by extension.
     function blockForPath(stored) {
-        var kind = imageAssets.kindOf(stored)
+        var kind = ImageAssets.kindOf(stored)
         var type = kind === "media" ? Block.Media
                  : Block.Image  // default images (and unknown local files show placeholder)
-        return { type: type, content: imageAssets.build(stored, "", "", 0) }
+        return { type: type, content: ImageAssets.build(stored, "", "", 0) }
     }
     function handleEditorDrop(drop) {
         var afterIndex = dropTargetIndex(drop.y)
@@ -2098,10 +2098,10 @@ ApplicationWindow {
                 || fmts[f].indexOf("image/") === 0) {
                 var buf = drop.getDataAsArrayBuffer(fmts[f])
                 if (buf) {
-                    var storedB = imageAssets.ingestImageBytes(buf, slug, root2, nd)
+                    var storedB = ImageAssets.ingestImageBytes(buf, slug, root2, nd)
                     if (storedB !== "") {
                         blocks.push({ type: Block.Image,
-                            content: imageAssets.build(storedB, "", "", 0) })
+                            content: ImageAssets.build(storedB, "", "", 0) })
                         insertBlocksAt(afterIndex, blocks)
                         return
                     }
@@ -2119,16 +2119,16 @@ ApplicationWindow {
                     // here left %23 and %25 in the path, so a file named
                     // "photo #2.png" resolved to nothing and the drop was
                     // silently ignored.
-                    if (imageAssets.kindOf(url) === "none")
+                    if (ImageAssets.kindOf(url) === "none")
                         continue  // not an image/media file
-                    var stored = imageAssets.ingestLocalFile(url, slug, root2, nd)
+                    var stored = ImageAssets.ingestLocalFile(url, slug, root2, nd)
                     if (stored !== "")
                         blocks.push(blockForPath(stored))
                 } else if (url.indexOf("http") === 0) {
-                    if (imageAssets.kindOf(url) === "media")
-                        blocks.push({ type: Block.Media, content: imageAssets.build(url, "", "", 0) })
+                    if (ImageAssets.kindOf(url) === "media")
+                        blocks.push({ type: Block.Media, content: ImageAssets.build(url, "", "", 0) })
                     else
-                        blocks.push({ type: Block.Image, content: imageAssets.build(url, "", "", 0) })
+                        blocks.push({ type: Block.Image, content: ImageAssets.build(url, "", "", 0) })
                 }
             }
             if (blocks.length > 0) {
@@ -2141,7 +2141,7 @@ ApplicationWindow {
         //    the text splits into paragraph blocks at the drop point (§5.4).
         if (drop.hasText) {
             var txt = ("" + drop.text).trim()
-            if (txt.indexOf("http") === 0 && imageAssets.kindOf(txt) !== "none") {
+            if (txt.indexOf("http") === 0 && ImageAssets.kindOf(txt) !== "none") {
                 blocks.push(blockForPath(txt))
             } else {
                 var lines = txt.split("\n")
@@ -2188,13 +2188,13 @@ ApplicationWindow {
         MenuItem {
             objectName: "ctxPaste"
             text: qsTr("Paste")
-            enabled: clipboard.hasText
+            enabled: Clipboard.hasText
             onTriggered: textContextMenu.target.pasteClipboard(false)
         }
         MenuItem {
             objectName: "ctxPastePlain"
             text: qsTr("Paste as plain text")
-            enabled: clipboard.hasText
+            enabled: Clipboard.hasText
             onTriggered: textContextMenu.target.pasteClipboard(true)
         }
         MenuSeparator {}
@@ -2318,10 +2318,10 @@ ApplicationWindow {
             var path = imagePathField.text.trim()
             if (path === "" || targetIndex < 0)
                 return
-            var md = imageAssets.build(path, "", "", 0)
+            var md = ImageAssets.build(path, "", "", 0)
             // An audio/video path lands a Media block; everything else an
             // Image. The dialog is shared.
-            var type = imageAssets.parse(md).kind === "media"
+            var type = ImageAssets.parse(md).kind === "media"
                      ? Block.Media : Block.Image
             blockModel.convertBlock(targetIndex, type, md)
             var idx = targetIndex
@@ -2577,12 +2577,12 @@ ApplicationWindow {
     // Global-search filters follow the sidebar's active scope, so
     // folder-level search composes.
     Binding {
-        target: collectionSearch
+        target: CollectionSearch
         property: "folderScope"
         value: noteListModel.scope === "folder" ? noteListModel.folderPath : ""
     }
     Binding {
-        target: collectionSearch
+        target: CollectionSearch
         property: "tagFilter"
         value: noteListModel.tagFilter
     }
@@ -2850,7 +2850,7 @@ ApplicationWindow {
                 anchors.fill: parent
                 anchors.margins: 20
                 wrapMode: Text.WordWrap
-                text: qsTr("The clipboard holds %1 of text — over the %2 limit. Pasting it may take a while.")
+                text: qsTr("The Clipboard holds %1 of text — over the %2 limit. Pasting it may take a while.")
                     .arg(root.formatMiB(largePasteConfirmDialog.pendingText.length))
                     .arg(root.formatMiB(documentManager.maxOpenFileSizeMiB
                                         * 1024 * 1024))
@@ -3287,7 +3287,7 @@ ApplicationWindow {
     Loader {
         id: extensionBanner
         objectName: "extensionBanner"
-        source: extensions.slotSource("banner")
+        source: Extensions.slotSource("banner")
         active: source != ""
         anchors.top: oversizedFileBanner.visible ? oversizedFileBanner.bottom
                      : conflictBanner.visible ? conflictBanner.bottom
@@ -3544,7 +3544,7 @@ ApplicationWindow {
             // (delegates cannot be x-offset: ListView re-asserts item
             // positions on every relayout).
             readonly property int centeringMargin: {
-                var max = typography.maxContentWidth
+                var max = Typography.maxContentWidth
                 // Focus mode (§16.1) centers the column even when the user has
                 // left the max width uncapped: a fullscreen edge-to-edge line
                 // would be the opposite of focused, so it applies a readable
@@ -3570,7 +3570,7 @@ ApplicationWindow {
 
                 width: parent.width
                 // Blank-line rhythm between blocks (§10.2).
-                spacing: typography.paragraphSpacing
+                spacing: Typography.paragraphSpacing
 
                 reuseItems: true
                 // Keep a small offscreen row window warm for ordinary
@@ -3613,7 +3613,7 @@ ApplicationWindow {
                     // instead of acting as a catch-all that would shadow
                     // every appended choice.
                     Component.onCompleted: {
-                        var registered = blockKinds.registeredDelegates()
+                        var registered = BlockKindRegistry.registeredDelegates()
                         for (var i = 0; i < registered.length; ++i) {
                             var entry = registered[i]
                             var component = Qt.createComponent(entry.delegateUrl)
@@ -3843,7 +3843,7 @@ ApplicationWindow {
     Loader {
         id: extensionBottomBar
         objectName: "extensionBottomBar"
-        source: extensions.slotSource("bottomBar")
+        source: Extensions.slotSource("bottomBar")
         active: source != ""
         anchors.left: parent.left
         anchors.right: parent.right
@@ -3856,7 +3856,7 @@ ApplicationWindow {
     Loader {
         id: extensionSidePanel
         objectName: "extensionSidePanel"
-        source: extensions.slotSource("sidePanel")
+        source: Extensions.slotSource("sidePanel")
         active: source != ""
         anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
         anchors.right: backlinksPanel.visible ? backlinksPanel.left
