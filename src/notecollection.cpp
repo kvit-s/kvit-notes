@@ -281,7 +281,7 @@ void NoteCollection::closeRoot()
     m_tagColors.clear();
     m_manualOrder.clear();
     m_lastOpenNote.clear();
-    m_pendingRecovery.clear();
+    m_recoveryJournals.clear();
     m_indexDirty = false;
     if (m_searchIndex) {
         m_searchIndex->closeIndex();
@@ -334,18 +334,12 @@ void NoteCollection::attachStoresToRoot()
 {
     m_trash.setRootPath(m_rootPath);
     m_backups.setRootPath(m_rootPath);
+    m_recoveryJournals.setRootPath(m_rootPath);
 }
 
 void NoteCollection::loadRecoveryEntries()
 {
-    m_pendingRecovery.clear();
-    const QDir recoveryDir(m_rootPath + QStringLiteral("/") + kvitDirName
-                           + QStringLiteral("/recovery"));
-    const QStringList journals = recoveryDir.entryList(QDir::Files, QDir::Name);
-    for (const QString &encoded : journals) {
-        m_pendingRecovery.append(QString::fromUtf8(
-            QByteArray::fromPercentEncoding(encoded.toUtf8())));
-    }
+    m_recoveryJournals.reload();
 }
 
 void NoteCollection::refresh()
@@ -3478,24 +3472,17 @@ QString NoteCollection::backupBody(const QString &relPath,
 
 QString NoteCollection::journalPathFor(const QString &relPath) const
 {
-    if (!isOpen() || relPath.isEmpty())
-        return QString();
-    const QString dirPath = m_rootPath + QStringLiteral("/") + kvitDirName
-        + QStringLiteral("/recovery");
-    QDir().mkpath(dirPath);
-    // The file name IS the relPath, percent-encoded (flat directory).
-    const QString encoded = QString::fromUtf8(
-        QUrl::toPercentEncoding(relPath));
-    return dirPath + QLatin1Char('/') + encoded;
+    return m_recoveryJournals.journalPathFor(relPath);
 }
 
 QVariantList NoteCollection::recoveryEntries() const
 {
     QVariantList entries;
-    for (const QString &relPath : m_pendingRecovery) {
-        const QString journal = journalPathFor(relPath);
+    const QStringList pending = m_recoveryJournals.pending();
+    for (const QString &relPath : pending) {
+        const QString journal = m_recoveryJournals.journalPathFor(relPath);
         bool ok = false;
-        const QString text = readTextFile(journal, &ok);
+        const QString text = m_recoveryJournals.readJournal(relPath, &ok);
         if (!ok)
             continue;
         const NoteFrontMatter::Split split = NoteFrontMatter::split(text);
@@ -3514,11 +3501,10 @@ QVariantList NoteCollection::recoveryEntries() const
 
 bool NoteCollection::restoreRecovery(const QString &relPath)
 {
-    if (!m_pendingRecovery.contains(relPath))
+    if (!m_recoveryJournals.isPending(relPath))
         return false;
-    const QString journal = journalPathFor(relPath);
     bool ok = false;
-    const QString text = readTextFile(journal, &ok);
+    const QString text = m_recoveryJournals.readJournal(relPath, &ok);
     if (!ok) {
         emit operationFailed(tr("Cannot read the recovered content"));
         return false;
@@ -3532,8 +3518,7 @@ bool NoteCollection::restoreRecovery(const QString &relPath)
         emit operationFailed(tr("Cannot restore \"%1\"").arg(relPath));
         return false;
     }
-    QFile::remove(journal);
-    m_pendingRecovery.removeAll(relPath);
+    m_recoveryJournals.resolve(relPath);
 
     // The folder may be new to the index (recreated path).
     const QString folderPath = folderOfRelPath(relPath);
@@ -3562,10 +3547,9 @@ bool NoteCollection::restoreRecovery(const QString &relPath)
 
 void NoteCollection::discardRecovery(const QString &relPath)
 {
-    if (!m_pendingRecovery.contains(relPath))
+    if (!m_recoveryJournals.isPending(relPath))
         return;
-    QFile::remove(journalPathFor(relPath));
-    m_pendingRecovery.removeAll(relPath);
+    m_recoveryJournals.resolve(relPath);
     bump();
 }
 

@@ -23,6 +23,7 @@
 #include "noteentry.h"
 #include "notefrontmatter.h"
 #include "notetrashstore.h"
+#include "recoveryjournalstore.h"
 #include "vaultlock.h"
 
 class QFileInfo;
@@ -514,6 +515,9 @@ private:
     NoteTrashStore m_trash;
     // <root>/.kvit/backups: rotated copies taken before an overwrite.
     NoteBackupStore m_backups;
+    // <root>/.kvit/recovery: dirty-state journals, and the pending list a
+    // crash leaves behind.
+    RecoveryJournalStore m_recoveryJournals;
     int m_revision = 0;
 
     QHash<QString, NoteEntry> m_notes;    // by relPath
@@ -565,7 +569,6 @@ private:
     QHash<QString, QStringList> m_manualOrder; // folder -> file names
     QString m_lastOpenNote;
 
-    QStringList m_pendingRecovery; // relPaths with startup journals
     std::function<void(const QString &)> m_indexParseObserver;
     bool m_indexDirty = false;
     bool m_scanInProgress = false;
