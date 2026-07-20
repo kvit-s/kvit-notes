@@ -23,8 +23,9 @@ locally. Two trees are involved, with a strict role split:
 
 - **The WSL checkout of this repo is the only place code is edited.**
   Agent sessions, git history, and the Linux build all live here.
-- **`D:\projects\kvit-chat` is a disposable one-way mirror, not a git
-  clone.** It exists only because MSVC builds want local NTFS I/O and
+- **A directory on an NTFS drive — say `D:\projects\kvit-notes` — is a
+  disposable one-way mirror, not a git clone.** It exists only because
+  MSVC builds want local NTFS I/O and
   reliable incremental-build timestamps; building in place over the
   `\\wsl$` share was considered and rejected (measured ~1.5x slower on
   bulk reads, with per-open latency and cross-filesystem timestamp
@@ -32,13 +33,33 @@ locally. Two trees are involved, with a strict role split:
   written there outside the build outputs is overwritten or deleted by
   the next sync.
 
-**Sync is automatic.** `win-build.bat` calls back into WSL
-(`wsl.exe -e bash tools/win-sync.sh`) before every configure/build, so
-a Windows build cannot run stale code from either entry point. The sync
-is an rsync mirror with delete propagation, excluding `.git`, `build*`
-directories, `tests/screenshots`, and the Windows-side result logs; it
-preserves the WSL tree's bytes, so files keep the LF endings a CI
-checkout gets. `KVIT_NO_SYNC=1` skips it when WSL is unavailable.
+**Create the mirror once.** The sync is an rsync mirror with delete
+propagation, so it will erase anything in the destination that is not in
+this tree. `tools/win-sync.sh` therefore has no default destination: name
+it on the command line or in `KVIT_WIN_ROOT`, and initialize it once
+before any sync will run against it.
+
+```
+tools/win-sync.sh --init /mnt/d/projects/kvit-notes
+```
+
+`--init` accepts only a new or empty directory, refuses one holding a
+`.git` directory, and writes a `.kvit-notes-mirror` marker naming the
+checkout it came from. Later syncs require that marker, so a mistyped or
+recycled path is refused rather than emptied. The script also refuses a
+destination equal to, inside, or containing the source tree, and any path
+broad enough to be more than a project directory (`/`, `/mnt/d`,
+`/mnt/d/projects`). Every run prints the resolved source and destination
+and states that deletions propagate. The `WinSyncGuards` CTest entry
+(`tests/test_win_sync.sh`) covers these refusals.
+
+**Sync is automatic after that.** `win-build.bat` calls back into WSL
+(`wsl.exe -e bash tools/win-sync.sh "$KVIT_WIN_ROOT"`) before every
+configure/build, so a Windows build cannot run stale code from either
+entry point. The mirror excludes `.git`, `build*` directories,
+`tests/screenshots`, and the Windows-side result logs; it preserves the
+WSL tree's bytes, so files keep the LF endings a CI checkout gets.
+`KVIT_NO_SYNC=1` skips it when WSL is unavailable.
 
 **Toolchain.** Visual Studio 2022 Community plus Qt 6.10.1
 `msvc2022_64` under `C:\Qt` (the `qtmultimedia` module was added with
@@ -48,17 +69,21 @@ aqtinstall, so the Qt MaintenanceTool does not know it is there). The
 bat helpers below set it, along with the VS-bundled cmake/ctest paths.
 
 **Entry points.** From a WSL shell, `tools/win.sh` is the whole
-workflow:
+workflow. Each verb takes the mirror directory after it, or reads
+`KVIT_WIN_ROOT`, and refuses a directory without the marker:
 
 ```
-tools/win.sh build      sync + configure if needed + build
-tools/win.sh test       sync + build + full unit suite (prints verdict)
-tools/win.sh deploy     windeployqt staging incl. the qoffscreen.dll copy
-tools/win.sh selftest   deployed --math-selftest probe
-tools/win.sh sync       mirror only
+tools/win.sh build MIRROR      sync + configure if needed + build
+tools/win.sh test MIRROR       sync + build + full unit suite (prints verdict)
+tools/win.sh deploy MIRROR     windeployqt staging incl. the qoffscreen.dll copy
+tools/win.sh selftest MIRROR   deployed --math-selftest probe
+tools/win.sh sync MIRROR       mirror only (add --init the first time)
 ```
 
-From a Windows prompt in `D:\projects\kvit-chat`, the bat helpers
+Exporting `KVIT_WIN_ROOT=/mnt/d/projects/kvit-notes` in the shell profile
+keeps this to one word per command.
+
+From a Windows prompt in the mirror directory, the bat helpers
 (checked in at the repo root, mirrored like everything else) do the
 same; `win-build.bat` performs the sync itself:
 
