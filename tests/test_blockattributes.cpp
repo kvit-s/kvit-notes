@@ -6,7 +6,11 @@
 #include "documentserializer.h"
 #include "blockmodel.h"
 #include "block.h"
+#include "blockkindregistry.h"
 #include "undostack.h"
+
+#include <QMetaEnum>
+#include <QSet>
 
 // The per-block presentation attribute mechanism. Covers the
 // pure parse/serialize core (BlockAttributes), the typed QML reads, the editing
@@ -50,6 +54,19 @@ private slots:
     void serializerHeadingImageDividerCalloutRoundTrip();
     void serializerUnstyledIsByteIdentical();
     void serializerDropsAttributeIntoModelState();
+
+    // ---- every block kind survives serialize -> parse -> serialize ----
+    void serializerAttributeRoundTripAllKinds_data();
+    void serializerAttributeRoundTripAllKinds();
+    void attributeRoundTripCoversEveryBlockType();
+    void serializerAttributeRoundTripFenceKinds_data();
+    void serializerAttributeRoundTripFenceKinds();
+
+    // ---- reading what older versions wrote ----
+    void legacyTrailingCodeFenceTagParses();
+    void legacyTrailingMathFenceTagParses();
+    void legacyTrailingTableRowTagParses();
+    void codeContentKeepingACommentIsVerbatim();
 };
 
 // ---------- stripTag ----------
@@ -312,6 +329,296 @@ void TestBlockAttributes::serializerDropsAttributeIntoModelState()
     ser.loadIntoModel(&model2, out);
     QCOMPARE(model2.blockAt(0)->attributes(), QStringLiteral("dropcap=3"));
     QCOMPARE(model2.blockAt(0)->content(), QStringLiteral("Once upon a time."));
+}
+
+// ---------- every block kind survives serialize -> parse -> serialize ----------
+
+namespace {
+
+// One row of the all-kinds coverage table: a fully specified block carrying an
+// attribute payload. The same list drives the round-trip test and the
+// completeness check below, so a new Block::BlockType fails the build's test
+// run until it is given a row here.
+struct KindCase
+{
+    const char *name;
+    Block::State state;
+};
+
+QList<KindCase> allKindCases()
+{
+    auto make = [](Block::BlockType type, const QString &content,
+                   const QString &attributes) {
+        Block::State s;
+        s.type = type;
+        s.content = content;
+        s.attributes = attributes;
+        return s;
+    };
+
+    QList<KindCase> cases;
+    cases << KindCase{ "Paragraph",
+                       make(Block::Paragraph, QStringLiteral("Some text."),
+                            QStringLiteral("align=center")) };
+    cases << KindCase{ "Heading1",
+                       make(Block::Heading1, QStringLiteral("Title"),
+                            QStringLiteral("align=center")) };
+    cases << KindCase{ "Heading2",
+                       make(Block::Heading2, QStringLiteral("Section"),
+                            QStringLiteral("align=right")) };
+    cases << KindCase{ "Heading3",
+                       make(Block::Heading3, QStringLiteral("Subsection"),
+                            QStringLiteral("align=left")) };
+    cases << KindCase{ "Heading4",
+                       make(Block::Heading4, QStringLiteral("Detail"),
+                            QStringLiteral("align=center")) };
+    cases << KindCase{ "BulletList",
+                       make(Block::BulletList, QStringLiteral("an item"),
+                            QStringLiteral("align=right")) };
+    cases << KindCase{ "NumberedList",
+                       make(Block::NumberedList, QStringLiteral("first"),
+                            QStringLiteral("align=right")) };
+
+    Block::State todo = make(Block::Todo, QStringLiteral("do the thing"),
+                             QStringLiteral("align=left"));
+    todo.checked = true;
+    cases << KindCase{ "Todo", todo };
+
+    Block::State quote = make(Block::Quote,
+                              QStringLiteral("first line\nsecond line"),
+                              QStringLiteral("align=center"));
+    quote.indentLevel = 1;
+    cases << KindCase{ "Quote", quote };
+
+    Block::State code = make(Block::CodeBlock,
+                             QStringLiteral("int main()\n{\n    return 0;\n}"),
+                             QStringLiteral("align=center wrap"));
+    code.language = QStringLiteral("cpp");
+    cases << KindCase{ "CodeBlock", code };
+
+    cases << KindCase{ "Divider",
+                       make(Block::Divider, QString(),
+                            QStringLiteral("style=dashed width=50%")) };
+    cases << KindCase{ "Image",
+                       make(Block::Image, QStringLiteral("![alt|420](x.png)"),
+                            QStringLiteral("align=right rounded shadow")) };
+    cases << KindCase{ "Media",
+                       make(Block::Media, QStringLiteral("![clip|420](clip.mp4)"),
+                            QStringLiteral("align=center")) };
+
+    Block::State callout = make(Block::Callout,
+                                QStringLiteral("body line\nsecond body line"),
+                                QStringLiteral("color=#fff3cd"));
+    callout.language = QStringLiteral("info");
+    callout.calloutTitle = QStringLiteral("Note");
+    cases << KindCase{ "Callout", callout };
+
+    cases << KindCase{ "MathBlock",
+                       make(Block::MathBlock,
+                            QStringLiteral("E = mc^2 \\\\\n\\alpha + \\beta"),
+                            QStringLiteral("align=left")) };
+    cases << KindCase{ "Table",
+                       make(Block::Table,
+                            QStringLiteral("| A | B |\n| --- | --- |\n| 1 | 2 |"),
+                            QStringLiteral("align=center")) };
+    return cases;
+}
+
+// The sentinel paragraphs that bracket the block under test. A block whose
+// serialization the parser cannot terminate swallows the trailing one, which
+// is the data-loss symptom the round trip is really guarding.
+const char *const kLeadText = "lead paragraph";
+const char *const kTrailText = "trailing paragraph";
+
+} // namespace
+
+void TestBlockAttributes::serializerAttributeRoundTripAllKinds_data()
+{
+    QTest::addColumn<int>("caseIndex");
+    const QList<KindCase> cases = allKindCases();
+    for (int i = 0; i < cases.size(); ++i)
+        QTest::newRow(cases.at(i).name) << i;
+}
+
+void TestBlockAttributes::serializerAttributeRoundTripAllKinds()
+{
+    QFETCH(int, caseIndex);
+    const KindCase kind = allKindCases().at(caseIndex);
+
+    Block::State lead;
+    lead.content = QString::fromLatin1(kLeadText);
+    Block::State trail;
+    trail.content = QString::fromLatin1(kTrailText);
+
+    DocumentSerializer ser;
+    ser.setTrailingNewline(false);
+    BlockModel model;
+    model.replaceAllBlocksInternal({ lead, kind.state, trail });
+
+    const QString markdown = ser.serialize(&model);
+
+    BlockModel reloaded;
+    ser.loadIntoModel(&reloaded, markdown);
+
+    QCOMPARE(reloaded.count(), 3);
+    QCOMPARE(reloaded.blockAt(0)->content(), QString::fromLatin1(kLeadText));
+    // The document after the styled block must survive intact.
+    QCOMPARE(reloaded.blockAt(2)->blockType(), Block::Paragraph);
+    QCOMPARE(reloaded.blockAt(2)->content(), QString::fromLatin1(kTrailText));
+
+    const Block *back = reloaded.blockAt(1);
+    QCOMPARE(back->blockType(), kind.state.type);
+    QCOMPARE(back->content(), kind.state.content);
+    QCOMPARE(back->attributes(), kind.state.attributes);
+    QCOMPARE(back->language(), kind.state.language);
+    QCOMPARE(back->calloutTitle(), kind.state.calloutTitle);
+    QCOMPARE(back->checked(), kind.state.checked);
+    QCOMPARE(back->indentLevel(), kind.state.indentLevel);
+
+    // Serialize -> parse -> serialize is a fixed point.
+    QCOMPARE(ser.serialize(&reloaded), markdown);
+}
+
+void TestBlockAttributes::attributeRoundTripCoversEveryBlockType()
+{
+    QSet<int> covered;
+    for (const KindCase &kind : allKindCases())
+        covered.insert(int(kind.state.type));
+
+    const QMetaEnum types = QMetaEnum::fromType<Block::BlockType>();
+    QVERIFY(types.isValid());
+    for (int i = 0; i < types.keyCount(); ++i) {
+        QVERIFY2(covered.contains(types.value(i)),
+                 qPrintable(QStringLiteral(
+                     "Block::%1 has no row in allKindCases(); add one so its "
+                     "attributes are known to round-trip")
+                                .arg(QString::fromLatin1(types.key(i)))));
+    }
+}
+
+void TestBlockAttributes::serializerAttributeRoundTripFenceKinds_data()
+{
+    QTest::addColumn<QString>("language");
+    // The registry's fence languages (kanban, toc, mermaid, query) are code
+    // blocks with a bespoke delegate, so they inherit the code-fence
+    // serialization and need the same guarantee.
+    for (const QString &language : BlockKindRegistry::instance().languages())
+        QTest::newRow(qPrintable(language)) << language;
+}
+
+void TestBlockAttributes::serializerAttributeRoundTripFenceKinds()
+{
+    QFETCH(QString, language);
+
+    Block::State fence;
+    fence.type = Block::CodeBlock;
+    fence.language = language;
+    fence.content = QStringLiteral("body line one\nbody line two");
+    fence.attributes = QStringLiteral("align=center height=320");
+    Block::State trail;
+    trail.content = QString::fromLatin1(kTrailText);
+
+    DocumentSerializer ser;
+    ser.setTrailingNewline(false);
+    BlockModel model;
+    model.replaceAllBlocksInternal({ fence, trail });
+
+    const QString markdown = ser.serialize(&model);
+    BlockModel reloaded;
+    ser.loadIntoModel(&reloaded, markdown);
+
+    QCOMPARE(reloaded.count(), 2);
+    QCOMPARE(reloaded.blockAt(0)->blockType(), Block::CodeBlock);
+    QCOMPARE(reloaded.blockAt(0)->language(), language);
+    QCOMPARE(reloaded.blockAt(0)->content(), fence.content);
+    QCOMPARE(reloaded.blockAt(0)->attributes(), fence.attributes);
+    QCOMPARE(reloaded.blockAt(1)->content(), QString::fromLatin1(kTrailText));
+    QCOMPARE(ser.serialize(&reloaded), markdown);
+}
+
+// ---------- reading what older versions wrote ----------
+
+void TestBlockAttributes::legacyTrailingCodeFenceTagParses()
+{
+    // Kvit once appended the tag after the CLOSING fence, which no longer
+    // closed the block. Notes on disk still carry that shape, so the parser
+    // accepts it and rewrites it to the canonical opener form.
+    DocumentSerializer ser;
+    ser.setTrailingNewline(false);
+    const QString legacy = QStringLiteral(
+        "```cpp\nint x = 1;\n```  <!--kvit align=center-->\n\n"
+        "trailing paragraph");
+    BlockModel model;
+    ser.loadIntoModel(&model, legacy);
+
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.blockAt(0)->blockType(), Block::CodeBlock);
+    QCOMPARE(model.blockAt(0)->language(), QStringLiteral("cpp"));
+    QCOMPARE(model.blockAt(0)->content(), QStringLiteral("int x = 1;"));
+    QCOMPARE(model.blockAt(0)->attributes(), QStringLiteral("align=center"));
+    QCOMPARE(model.blockAt(1)->content(), QStringLiteral("trailing paragraph"));
+    QCOMPARE(ser.serialize(&model),
+             QStringLiteral("```cpp  <!--kvit align=center-->\n"
+                            "int x = 1;\n```\n\ntrailing paragraph"));
+}
+
+void TestBlockAttributes::legacyTrailingMathFenceTagParses()
+{
+    DocumentSerializer ser;
+    ser.setTrailingNewline(false);
+    const QString legacy = QStringLiteral(
+        "$$\nE = mc^2\n$$  <!--kvit align=left-->\n\ntrailing paragraph");
+    BlockModel model;
+    ser.loadIntoModel(&model, legacy);
+
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.blockAt(0)->blockType(), Block::MathBlock);
+    QCOMPARE(model.blockAt(0)->content(), QStringLiteral("E = mc^2"));
+    QCOMPARE(model.blockAt(0)->attributes(), QStringLiteral("align=left"));
+    QCOMPARE(model.blockAt(1)->content(), QStringLiteral("trailing paragraph"));
+    QCOMPARE(ser.serialize(&model),
+             QStringLiteral("$$  <!--kvit align=left-->\nE = mc^2\n$$\n\n"
+                            "trailing paragraph"));
+}
+
+void TestBlockAttributes::legacyTrailingTableRowTagParses()
+{
+    // The table tag once rode the last data row, where it landed inside the
+    // final cell on reparse.
+    DocumentSerializer ser;
+    ser.setTrailingNewline(false);
+    const QString legacy = QStringLiteral(
+        "| A | B |\n| --- | --- |\n| 1 | 2 |  <!--kvit align=center-->\n\n"
+        "trailing paragraph");
+    BlockModel model;
+    ser.loadIntoModel(&model, legacy);
+
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.blockAt(0)->blockType(), Block::Table);
+    QCOMPARE(model.blockAt(0)->content(),
+             QStringLiteral("| A | B |\n| --- | --- |\n| 1 | 2 |"));
+    QCOMPARE(model.blockAt(0)->attributes(), QStringLiteral("align=center"));
+    QCOMPARE(model.blockAt(1)->content(), QStringLiteral("trailing paragraph"));
+}
+
+void TestBlockAttributes::codeContentKeepingACommentIsVerbatim()
+{
+    // A kvit-shaped comment on an ordinary code line is content, not an
+    // attribute: only a line that is otherwise a bare fence closer is read as
+    // the legacy tagged form.
+    DocumentSerializer ser;
+    ser.setTrailingNewline(false);
+    const QString md = QStringLiteral(
+        "```html\n<p>x</p>  <!--kvit align=center-->\n```\n\ntrailing paragraph");
+    BlockModel model;
+    ser.loadIntoModel(&model, md);
+
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.blockAt(0)->blockType(), Block::CodeBlock);
+    QCOMPARE(model.blockAt(0)->content(),
+             QStringLiteral("<p>x</p>  <!--kvit align=center-->"));
+    QVERIFY(model.blockAt(0)->attributes().isEmpty());
+    QCOMPARE(ser.serialize(&model), md);
 }
 
 QTEST_MAIN(TestBlockAttributes)
