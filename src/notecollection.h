@@ -25,6 +25,7 @@
 #include "notetrashstore.h"
 #include "recoveryjournalstore.h"
 #include "searchindexfeed.h"
+#include "wikilinkindex.h"
 #include "vaultlock.h"
 
 class QFileInfo;
@@ -531,17 +532,11 @@ private:
     QHash<QString, NoteEntry> m_notes;    // by relPath
     QMap<QString, FolderEntry> m_folders; // by relPath, sorted
 
-    // Rename-safe links (§3.3): referrer relPath → the lowercased
-    // note-part keys in it that resolve to `relPath` right now. Snapshot
-    // BEFORE a rename/move, applied after.
-    QHash<QString, QSet<QString>> collectWikiReferrers(
-        const QString &relPath) const;
-    struct RewriteSnapshot {
-        QSet<QString> keys;
-        QByteArray hash;
-        QDateTime modified;
-        int linkCount = 0;
-    };
+    // Rename-safe links (§3.3). The graph itself — resolution, referrers,
+    // backlinks — lives in WikiLinkIndex; what stays here is the two-phase
+    // plan built on top of it, because applying one writes files, emits the
+    // toast signals and refreshes the index entries.
+    using RewriteSnapshot = WikiLinkIndex::RewriteSnapshot;
     struct RenamePlan {
         QString id;
         QString kind; // noteRename, noteMove, folderRename
@@ -562,14 +557,10 @@ private:
                                       const QString &openBody);
     RenamePlan m_pendingRenamePlan;
 
-    // Lazy wiki-resolution cache (§3.2): lowercased basename → relPaths,
-    // rebuilt when the revision or note count moves. Mutable because
-    // resolveWikiTarget is a const query.
-    void ensureWikiIndex() const;
-    void invalidateWikiIndex() const { m_wikiIndexRevision = -1; }
-    mutable QHash<QString, QStringList> m_wikiBasenames;
-    mutable int m_wikiIndexRevision = -1;
-    mutable int m_wikiIndexNoteCount = -1;
+    // The [[wiki-link]] graph over m_notes (§3.2/§3.3): target resolution,
+    // referrers, backlinks and heading lists. Reads m_notes and never writes
+    // it, so it is rebuildable and holds nothing this class does not.
+    WikiLinkIndex m_wikiLinks;
     QHash<QString, int> m_folderOwnNoteCounts;
     QHash<QString, int> m_folderRecursiveNoteCounts;
 

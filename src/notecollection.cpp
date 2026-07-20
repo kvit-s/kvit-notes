@@ -189,6 +189,10 @@ NoteCollection::NoteCollection(QObject *parent)
           // member with the same lifetime.
           [this]() { return searchReconcileListing(); },
           [this](const QString &relPath) { return absolutePath(relPath); })
+    , m_wikiLinks(&m_notes,
+                  [this]() { return m_revision; },
+                  [this](const QString &relPath) { return absolutePath(relPath); },
+                  [this](const QString &relPath) { return readNoteBody(relPath); })
 {
     m_asyncRevisionTimer.setSingleShot(true);
     m_asyncRevisionTimer.setInterval(50);
@@ -1136,7 +1140,7 @@ void NoteCollection::insertNoteEntry(const QString &relPath,
     removeNoteEntry(relPath);
     m_notes.insert(relPath, entry);
     adjustFolderNoteCounts(entry.folder, 1);
-    invalidateWikiIndex();
+    m_wikiLinks.invalidate();
 }
 
 void NoteCollection::removeNoteEntry(const QString &relPath)
@@ -1146,7 +1150,7 @@ void NoteCollection::removeNoteEntry(const QString &relPath)
         return;
     adjustFolderNoteCounts(it.value().folder, -1);
     m_notes.remove(relPath);
-    invalidateWikiIndex();
+    m_wikiLinks.invalidate();
 }
 
 void NoteCollection::adjustFolderNoteCounts(const QString &folderPath, int delta)
@@ -1859,146 +1863,27 @@ void NoteCollection::cancelAsyncIndexSave()
 
 QStringList NoteCollection::extractWikiLinks(const QString &body)
 {
-    QStringList targets;
-    const QList<WikiLinkScanner::Occurrence> occurrences =
-        WikiLinkScanner::scan(body);
-    for (const WikiLinkScanner::Occurrence &occurrence : occurrences) {
-        if (!occurrence.note.isEmpty()) // bare [[#heading]] is same-note only
-            targets.append(occurrence.rawTarget);
-    }
-    return targets;
+    return WikiLinkIndex::extractLinks(body);
 }
 
 int NoteCollection::rewriteWikiTargetsInText(QString *text,
                                              const QSet<QString> &oldKeys,
                                              const QString &replacement)
 {
-    if (!text || oldKeys.isEmpty())
-        return 0;
-    QList<WikiLinkScanner::Occurrence> replacements;
-    const QList<WikiLinkScanner::Occurrence> occurrences =
-        WikiLinkScanner::scan(*text);
-    for (const WikiLinkScanner::Occurrence &occurrence : occurrences) {
-        QString key = occurrence.note.toLower();
-        if (key.endsWith(mdSuffix))
-            key.chop(mdSuffix.size());
-        if (!key.isEmpty() && oldKeys.contains(key))
-            replacements.append(occurrence);
-    }
-    for (int i = replacements.size() - 1; i >= 0; --i) {
-        const WikiLinkScanner::Occurrence &occurrence = replacements.at(i);
-        text->replace(occurrence.noteStart, occurrence.noteLength, replacement);
-    }
-    return replacements.size();
+    return WikiLinkIndex::rewriteTargetsInText(text, oldKeys, replacement);
 }
 
-QHash<QString, QSet<QString>> NoteCollection::collectWikiReferrers(
-    const QString &relPath) const
-{
-    QHash<QString, QSet<QString>> referrers;
-    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
-        QSet<QString> keys;
-        for (const QString &raw : it->links) {
-            QString notePart = raw;
-            const int hash = notePart.indexOf(QLatin1Char('#'));
-            if (hash >= 0)
-                notePart = notePart.left(hash);
-            notePart = notePart.trimmed();
-            if (notePart.isEmpty())
-                continue;
-            if (resolveWikiTarget(notePart) != relPath)
-                continue;
-            QString key = notePart.toLower();
-            if (key.endsWith(mdSuffix))
-                key.chop(mdSuffix.size());
-            keys.insert(key);
-        }
-        if (!keys.isEmpty())
-            referrers.insert(it.key(), keys);
-    }
-    return referrers;
-}
 
 QHash<QString, NoteCollection::RewriteSnapshot>
 NoteCollection::snapshotNoteReferrers(const QString &relPath) const
 {
-    QHash<QString, RewriteSnapshot> snapshots;
-    const auto referrers = collectWikiReferrers(relPath);
-    for (auto it = referrers.constBegin(); it != referrers.constEnd(); ++it) {
-        bool ok = false;
-        const QByteArray bytes = readFileBytes(absolutePath(it.key()), &ok);
-        if (!ok)
-            continue;
-        RewriteSnapshot snapshot;
-        snapshot.keys = it.value();
-        snapshot.hash = contentHash(bytes);
-        snapshot.modified = QFileInfo(absolutePath(it.key())).lastModified();
-        // Scan the file text just read for content hashing, not a resident body
-        // cache.
-        const QString referrerBody =
-            NoteFrontMatter::split(QString::fromUtf8(bytes)).body;
-        for (const WikiLinkScanner::Occurrence &occurrence :
-             WikiLinkScanner::scan(referrerBody)) {
-            QString key = occurrence.note.toLower();
-            if (key.endsWith(mdSuffix))
-                key.chop(mdSuffix.size());
-            if (snapshot.keys.contains(key))
-                ++snapshot.linkCount;
-        }
-        snapshots.insert(it.key(), snapshot);
-    }
-    return snapshots;
+    return m_wikiLinks.snapshotNoteReferrers(relPath);
 }
 
 QHash<QString, NoteCollection::RewriteSnapshot>
 NoteCollection::snapshotFolderReferrers(const QString &oldPrefix) const
 {
-    QHash<QString, RewriteSnapshot> snapshots;
-    const QString lowered = oldPrefix.toLower() + QLatin1Char('/');
-    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
-        // Prefilter with the resident wiki-link targets so only notes that may
-        // link under the folder are read from disk.
-        bool candidate = false;
-        for (const QString &raw : it->links) {
-            QString notePart = raw;
-            const int hash = notePart.indexOf(QLatin1Char('#'));
-            if (hash >= 0)
-                notePart = notePart.left(hash);
-            while (notePart.startsWith(QLatin1Char('/')))
-                notePart.remove(0, 1);
-            if (notePart.toLower().startsWith(lowered)) {
-                candidate = true;
-                break;
-            }
-        }
-        if (!candidate)
-            continue;
-
-        // Read the candidate once and take the accurate count from its body.
-        bool ok = false;
-        const QByteArray bytes = readFileBytes(absolutePath(it.key()), &ok);
-        if (!ok)
-            continue;
-        const QString body =
-            NoteFrontMatter::split(QString::fromUtf8(bytes)).body;
-        int count = 0;
-        for (const WikiLinkScanner::Occurrence &occurrence :
-             WikiLinkScanner::scan(body)) {
-            QString note = occurrence.note;
-            while (note.startsWith(QLatin1Char('/')))
-                note.remove(0, 1);
-            if (note.toLower().startsWith(lowered))
-                ++count;
-        }
-        if (count == 0)
-            continue;
-        RewriteSnapshot snapshot;
-        snapshot.hash = contentHash(bytes);
-        snapshot.modified = QFileInfo(absolutePath(it.key())).lastModified();
-        snapshot.linkCount = count;
-        snapshots.insert(it.key(), snapshot);
-    }
-    return snapshots;
+    return m_wikiLinks.snapshotFolderReferrers(oldPrefix);
 }
 
 QVariantMap NoteCollection::renamePlanMap(const RenamePlan &plan) const
@@ -2158,69 +2043,15 @@ QVariantMap NoteCollection::applyWikiLinkRewrites(
             {QStringLiteral("openRewriteCount"), openRewriteCount}};
 }
 
-void NoteCollection::ensureWikiIndex() const
-{
-    if (m_wikiIndexRevision == m_revision
-        && m_wikiIndexNoteCount == m_notes.size())
-        return;
-    m_wikiBasenames.clear();
-    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
-        QString base = nameOfRelPath(it.key());
-        if (base.endsWith(mdSuffix, Qt::CaseInsensitive))
-            base.chop(mdSuffix.size());
-        m_wikiBasenames[base.toLower()].append(it.key());
-    }
-    m_wikiIndexRevision = m_revision;
-    m_wikiIndexNoteCount = m_notes.size();
-}
 
 QString NoteCollection::resolveWikiTarget(const QString &target) const
 {
-    const QVariantMap result = wikiTargetResolution(target);
-    return result.value(QStringLiteral("status")) == QLatin1String("unique")
-        ? result.value(QStringLiteral("relPath")).toString() : QString();
+    return m_wikiLinks.resolve(target);
 }
 
 QVariantMap NoteCollection::wikiTargetResolution(const QString &target) const
 {
-    QString wanted = target.trimmed();
-    const int hash = wanted.indexOf(QLatin1Char('#'));
-    if (hash >= 0)
-        wanted = wanted.left(hash).trimmed();
-    if (wanted.endsWith(mdSuffix, Qt::CaseInsensitive))
-        wanted.chop(mdSuffix.size());
-    while (wanted.startsWith(QLatin1Char('/')))
-        wanted.remove(0, 1);
-    if (wanted.isEmpty())
-        return {{QStringLiteral("status"), QStringLiteral("missing")},
-                {QStringLiteral("relPath"), QString()},
-                {QStringLiteral("candidates"), QStringList()}};
-
-    ensureWikiIndex();
-    const QString lowered = wanted.toLower();
-    const int slash = lowered.lastIndexOf(QLatin1Char('/'));
-    const QString base = slash >= 0 ? lowered.mid(slash + 1) : lowered;
-
-    QStringList matches;
-    const QStringList candidates = m_wikiBasenames.value(base);
-    for (const QString &relPath : candidates) {
-        QString path = relPath;
-        if (path.endsWith(mdSuffix, Qt::CaseInsensitive))
-            path.chop(mdSuffix.size());
-        const QString lowerPath = path.toLower();
-        if (lowerPath != lowered
-            && !lowerPath.endsWith(QLatin1Char('/') + lowered))
-            continue;
-        matches.append(relPath);
-    }
-    matches.sort(Qt::CaseInsensitive);
-    const QString status = matches.isEmpty() ? QStringLiteral("missing")
-        : matches.size() == 1 ? QStringLiteral("unique")
-                              : QStringLiteral("ambiguous");
-    return {{QStringLiteral("status"), status},
-            {QStringLiteral("relPath"), matches.size() == 1
-                 ? matches.first() : QString()},
-            {QStringLiteral("candidates"), matches}};
+    return m_wikiLinks.resolution(target);
 }
 
 QStringList NoteCollection::linksFrom(const QString &relPath) const
@@ -2242,88 +2073,12 @@ QString NoteCollection::readNoteBody(const QString &relPath) const
 
 QStringList NoteCollection::headingsFor(const QString &relPath) const
 {
-    const NoteEntry *entry = note(relPath);
-    if (!entry)
-        return {};
-    QStringList headings;
-    bool inFence = false;
-    // Read only this note, not a resident body cache.
-    const QStringList lines = readNoteBody(relPath).split(QLatin1Char('\n'));
-    for (const QString &line : lines) {
-        const QString trimmed = line.trimmed();
-        if (trimmed.startsWith(QLatin1String("```"))
-            || trimmed.startsWith(QLatin1String("~~~"))) {
-            inFence = !inFence;
-            continue;
-        }
-        if (inFence || !trimmed.startsWith(QLatin1Char('#')))
-            continue;
-        int level = 0;
-        while (level < trimmed.size()
-               && trimmed.at(level) == QLatin1Char('#'))
-            ++level;
-        if (level > 6 || level >= trimmed.size()
-            || trimmed.at(level) != QLatin1Char(' '))
-            continue;
-        const QString text = trimmed.mid(level + 1).trimmed();
-        if (!text.isEmpty())
-            headings.append(text);
-    }
-    return headings;
+    return m_wikiLinks.headingsFor(relPath);
 }
 
 QVariantList NoteCollection::backlinksTo(const QString &relPath) const
 {
-    QVariantList out;
-    if (relPath.isEmpty())
-        return out;
-
-    QStringList paths = m_notes.keys();
-    paths.sort();
-    for (const QString &referrer : paths) {
-        if (referrer == relPath)
-            continue;
-        const NoteEntry &entry = m_notes[referrer];
-        int count = 0;
-        for (const QString &raw : entry.links) {
-            if (resolveWikiTarget(raw) == relPath)
-                ++count;
-        }
-        if (count == 0)
-            continue;
-
-        // Context lines: the referrer's raw body lines whose links resolve
-        // to the target — the surrounding text the panel shows per match. Only
-        // the notes that actually refer here are read, and only after the
-        // resident links established count > 0.
-        const QString body = readNoteBody(referrer);
-        QStringList contexts;
-        QSet<int> contextLineStarts;
-        for (const WikiLinkScanner::Occurrence &occurrence :
-             WikiLinkScanner::scan(body)) {
-            if (occurrence.note.isEmpty()
-                || resolveWikiTarget(occurrence.rawTarget) != relPath)
-                continue;
-            int start = body.lastIndexOf(QLatin1Char('\n'),
-                                         occurrence.start - 1);
-            start = start < 0 ? 0 : start + 1;
-            if (contextLineStarts.contains(start))
-                continue;
-            contextLineStarts.insert(start);
-            int end = body.indexOf(QLatin1Char('\n'), occurrence.start);
-            if (end < 0)
-                end = body.size();
-            contexts.append(body.mid(start, end - start).trimmed().left(200));
-        }
-
-        out.append(QVariantMap{
-            {QStringLiteral("relPath"), referrer},
-            {QStringLiteral("title"), entry.title},
-            {QStringLiteral("count"), count},
-            {QStringLiteral("contexts"), contexts},
-        });
-    }
-    return out;
+    return m_wikiLinks.backlinksTo(relPath);
 }
 
 // ----------------------------------------------------------- queries
@@ -2907,7 +2662,7 @@ void NoteCollection::renamePathsUnderFolder(const QString &oldPrefix,
             emit noteMoved(key, newRelPath);
         }
     }
-    invalidateWikiIndex();
+    m_wikiLinks.invalidate();
     rebuildFolderNoteCounts();
 
     // Manual-order keys.
