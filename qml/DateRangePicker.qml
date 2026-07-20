@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The MonthGrid delegate's own bindings and its nested handlers are
+// separate scopes, so the cell is named and its model role declared
+// rather than injected.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -124,25 +129,26 @@ Popup {
             font.pixelSize: 11
 
             delegate: Rectangle {
+                id: dayCell
                 required property var model
                 readonly property string cellKey:
-                    picker.dayKey(model.year, model.month, model.day)
+                    picker.dayKey(dayCell.model.year, dayCell.model.month, dayCell.model.day)
                 readonly property bool isEndpoint:
-                    cellKey === picker.fromKey || cellKey === picker.toKey
+                    dayCell.cellKey === picker.fromKey || dayCell.cellKey === picker.toKey
                 readonly property bool inRange:
                     picker.fromKey !== "" && picker.toKey !== ""
-                    && cellKey >= picker.fromKey && cellKey <= picker.toKey
+                    && dayCell.cellKey >= picker.fromKey && dayCell.cellKey <= picker.toKey
                 implicitWidth: 30
                 implicitHeight: 24
                 radius: 4
-                color: isEndpoint ? Theme.accent
-                     : inRange ? Theme.selectionTint
+                color: dayCell.isEndpoint ? Theme.accent
+                     : dayCell.inRange ? Theme.selectionTint
                      : dayHover.hovered ? Theme.hoverTint : "transparent"
-                opacity: model.month === grid.month ? 1 : 0.35
+                opacity: dayCell.model.month === grid.month ? 1 : 0.35
 
                 Label {
                     anchors.centerIn: parent
-                    text: model.day
+                    text: dayCell.model.day
                     font.pixelSize: 11
                     color: parent.isEndpoint ? Theme.onAccent
                                              : Theme.textPrimary

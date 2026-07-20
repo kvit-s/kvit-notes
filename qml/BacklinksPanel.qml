@@ -1,6 +1,12 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Nested Repeaters whose delegates hold their own model roles, with the
+// inner content in separate scopes again. Binding them lets each row be
+// addressed by id — which also retires an alias this file carried
+// because the inner delegate's role shadowed the outer one.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -35,7 +41,7 @@ Rectangle {
         function onRootChanged() { panel.refresh() }
     }
     Connections {
-        target: appWindow
+        target: panel.appWindow
         function onCurrentNoteRelPathChanged() { panel.refresh() }
     }
 
@@ -98,9 +104,6 @@ Rectangle {
             delegate: Column {
                 id: entryColumn
                 required property var modelData
-                // Captured under a distinct name: the context Repeater's
-                // own modelData shadows this one in inner scopes.
-                readonly property var entryData: modelData
                 width: backlinksList.width
                 padding: 0
 
@@ -117,7 +120,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.rightMargin: 10
                         Text {
-                            text: modelData.title
+                            text: entryColumn.modelData.title
                             font.pixelSize: 13
                             font.bold: true
                             color: Theme.textPrimary
@@ -125,7 +128,7 @@ Rectangle {
                             Layout.fillWidth: true
                         }
                         Text {
-                            text: modelData.count
+                            text: entryColumn.modelData.count
                             font.pixelSize: 11
                             color: Theme.textFaint
                         }
@@ -133,13 +136,14 @@ Rectangle {
                     HoverHandler { id: rowHover }
                     TapHandler {
                         onTapped: if (panel.appWindow)
-                            panel.appWindow.openNoteByPath(modelData.relPath)
+                            panel.appWindow.openNoteByPath(entryColumn.modelData.relPath)
                     }
                 }
 
                 Repeater {
-                    model: modelData.contexts
+                    model: entryColumn.modelData.contexts
                     Rectangle {
+                        id: contextRow
                         required property var modelData
                         width: backlinksList.width
                         height: contextText.implicitHeight + 8
@@ -152,7 +156,7 @@ Rectangle {
                             anchors.leftMargin: 22
                             anchors.right: parent.right
                             anchors.rightMargin: 10
-                            text: modelData
+                            text: contextRow.modelData
                             font.pixelSize: 11
                             color: Theme.textMuted
                             elide: Text.ElideRight
@@ -162,7 +166,7 @@ Rectangle {
                         TapHandler {
                             onTapped: if (panel.appWindow)
                                 panel.appWindow.openNoteByPath(
-                                    entryColumn.entryData.relPath)
+                                    entryColumn.modelData.relPath)
                         }
                     }
                 }

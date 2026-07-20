@@ -133,11 +133,13 @@ echo "qmllint: ${#FILES[@]} files clean"
 # rather than quietly left out.
 STRICT_CLEAN=(
     qml/CalloutBlock.qml
+    qml/BacklinksPanel.qml
     qml/CalloutColorPicker.qml
     qml/ColorPicker.qml
     qml/ImageEffectsPopover.qml
     qml/SettingsDialog.qml
     qml/CodeBlockDelegate.qml
+    qml/DateRangePicker.qml
     qml/ExportDialog.qml
     qml/FindBar.qml
     qml/FormattingBar.qml
@@ -157,6 +159,7 @@ STRICT_CLEAN=(
     qml/TableSizePicker.qml
     qml/TodoDelegate.qml
     qml/TemplateDialog.qml
+    qml/WikiLinkMenu.qml
 )
 
 strict_lint() {

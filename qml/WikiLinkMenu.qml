@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The row delegate nests a Column and handlers, each its own scope.
+// Binding them lets the contents address the row by id; its roles were
+// already declared as required properties.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -165,12 +170,13 @@ Popup {
             model: menu.rows
 
             delegate: Rectangle {
+                id: menuRow
                 required property var modelData
                 required property int index
                 width: menuList.width
                 height: 40
                 radius: 4
-                color: index === menu.highlightIndex
+                color: menuRow.index === menu.highlightIndex
                        ? Theme.hoverTint : "transparent"
 
                 Column {
@@ -183,18 +189,18 @@ Popup {
 
                     Text {
                         width: parent.width
-                        text: modelData.kind === "heading"
-                              ? "# " + modelData.heading : modelData.title
+                        text: menuRow.modelData.kind === "heading"
+                              ? "# " + menuRow.modelData.heading : menuRow.modelData.title
                         color: Theme.textPrimary
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
                     Text {
                         width: parent.width
-                        visible: modelData.kind === "note"
-                                 && modelData.folder !== ""
-                        text: modelData.kind === "note"
-                              ? modelData.folder : ""
+                        visible: menuRow.modelData.kind === "note"
+                                 && menuRow.modelData.folder !== ""
+                        text: menuRow.modelData.kind === "note"
+                              ? menuRow.modelData.folder : ""
                         color: Theme.textFaint
                         font.pixelSize: 10
                         elide: Text.ElideRight
@@ -204,7 +210,7 @@ Popup {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
-                    onEntered: menu.highlightIndex = index
+                    onEntered: menu.highlightIndex = menuRow.index
                     onClicked: menu.applyHighlighted()
                 }
             }
