@@ -61,10 +61,6 @@ void UndoStack::push(std::unique_ptr<UndoCommand> command)
     emit undoTextChanged();
     emit redoTextChanged();
     emit countChanged();
-
-    if (m_cleanIndex > m_index) {
-        m_cleanIndex = -1;  // Can never be clean again by undoing
-    }
     emit cleanChanged();
 }
 
@@ -160,6 +156,16 @@ void UndoStack::clear()
 void UndoStack::clearRedoStack()
 {
     if (m_index < static_cast<int>(m_commands.size())) {
+        // The clean state lived somewhere in the branch about to be
+        // dropped, so no position on the stack will hold the saved
+        // content once these commands are gone. Losing it here rather
+        // than in the callers matters because the replacing command
+        // pushes the index straight back to the clean index, which
+        // would otherwise read as clean again.
+        const bool cleanDiscarded = m_cleanIndex > m_index;
+        if (cleanDiscarded)
+            m_cleanIndex = -1;
+
         // Remove all commands after current index
         while (static_cast<int>(m_commands.size()) > m_index) {
             m_commands.pop_back();
@@ -167,6 +173,8 @@ void UndoStack::clearRedoStack()
         emit canRedoChanged();
         emit redoTextChanged();
         emit countChanged();
+        if (cleanDiscarded)
+            emit cleanChanged();
     }
 }
 

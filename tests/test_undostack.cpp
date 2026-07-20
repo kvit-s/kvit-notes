@@ -86,6 +86,10 @@ private slots:
     void testCleanState();
     void testSetClean();
     void testCleanAfterUndo();
+    void testDivergentEditDiscardsCleanState();
+    void testDivergentMacroDiscardsCleanState();
+    void testDivergentEditKeepsReachableCleanState();
+    void testDivergentMergedTypingStaysDirty();
 
     // Merge tests
     void testMergeCommands();
@@ -325,6 +329,100 @@ void TestUndoStack::testCleanAfterUndo()
 
     stack.undo();
     QVERIFY(stack.isClean());
+}
+
+void TestUndoStack::testDivergentEditDiscardsCleanState()
+{
+    // Save, undo, then edit in a new direction: the saved state lived in
+    // the redo branch that the new edit throws away, so no position on
+    // the stack is the saved content any more.
+    BlockModel model;
+    UndoStack stack;
+    stack.setMergeWindow(0);
+
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.setClean();
+    QVERIFY(stack.isClean());
+
+    stack.undo();
+    QVERIFY(!stack.isClean());
+
+    QSignalSpy cleanSpy(&stack, &UndoStack::cleanChanged);
+    stack.push(std::make_unique<MockCommand>(&model));
+    QVERIFY(!stack.isClean());
+    QVERIFY(cleanSpy.count() >= 1);
+
+    // Nor can undoing back reach it.
+    stack.undo();
+    QVERIFY(!stack.isClean());
+    stack.undo();
+    QVERIFY(!stack.isClean());
+}
+
+void TestUndoStack::testDivergentMacroDiscardsCleanState()
+{
+    // Same divergence, but the replacing edit arrives as a macro.
+    BlockModel model;
+    UndoStack stack;
+    stack.setMergeWindow(0);
+
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.setClean();
+    stack.undo();
+
+    stack.beginMacro("Divergent");
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.endMacro();
+
+    QVERIFY(!stack.isClean());
+    stack.undo();
+    QVERIFY(!stack.isClean());
+}
+
+void TestUndoStack::testDivergentEditKeepsReachableCleanState()
+{
+    // The saved state sits before the discarded branch, so it survives
+    // the divergent edit and undo still reaches it.
+    BlockModel model;
+    UndoStack stack;
+    stack.setMergeWindow(0);
+
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.push(std::make_unique<MockCommand>(&model));
+    stack.undo();
+    stack.setClean();
+    QVERIFY(stack.isClean());
+
+    stack.push(std::make_unique<MockCommand>(&model));
+    QVERIFY(!stack.isClean());
+
+    stack.undo();
+    QVERIFY(stack.isClean());
+}
+
+void TestUndoStack::testDivergentMergedTypingStaysDirty()
+{
+    // A typing burst that diverges from the saved branch stays dirty at
+    // every keystroke, including the ones that merge into the command
+    // that replaced the branch.
+    BlockModel model;
+    UndoStack stack;
+    stack.setMergeWindow(1000);
+
+    stack.push(std::make_unique<MergeableMockCommand>(&model, 1));
+    stack.push(std::make_unique<MergeableMockCommand>(&model, 2));
+    stack.setClean();
+    stack.undo();
+
+    stack.push(std::make_unique<MergeableMockCommand>(&model, 3));
+    QVERIFY(!stack.isClean());
+    stack.push(std::make_unique<MergeableMockCommand>(&model, 4));
+    QVERIFY(!stack.isClean());
+    stack.push(std::make_unique<MergeableMockCommand>(&model, 5));
+    QVERIFY(!stack.isClean());
 }
 
 void TestUndoStack::testMergeCommands()
