@@ -7,10 +7,13 @@
 #include <QObject>
 #include <QString>
 #include <QUuid>
+#include <QtQml/qqmlregistration.h>
 
 class Block : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Block is model data; the enum is what QML needs")
 
     Q_PROPERTY(QString blockId READ blockId CONSTANT)
     Q_PROPERTY(BlockType blockType READ blockType WRITE setBlockType NOTIFY blockTypeChanged)

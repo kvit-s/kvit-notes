@@ -51,25 +51,26 @@ void AppContext::setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher)
 
 AppContext::~AppContext() = default;
 
+// Emitted by qmltyperegistrar from the QML_ELEMENT macros on the types
+// themselves; see the generated build/kvit-core_qmltyperegistrations.cpp.
+extern void qml_register_types_Kvit();
+
 void AppContext::registerQmlTypes()
 {
-    qmlRegisterType<BlockEditorEngine>("Kvit", 1, 0, "BlockEditorEngine");
-    // Creatable so tests can open a second store on a path; the app
-    // itself uses the appSettings context property.
-    qmlRegisterType<SettingsStore>("Kvit", 1, 0, "SettingsStore");
-    qmlRegisterUncreatableType<Theme>("Kvit", 1, 0, "Theme",
-                                      QStringLiteral("Use the theme context property"));
-    qmlRegisterUncreatableType<Block>("Kvit", 1, 0, "Block",
-                                      QStringLiteral("Block is model data; the enum is what QML needs"));
-    // The built-in fence kinds, so main.qml's DelegateChooser names them
-    // (`BlockKinds.Kanban`) instead of repeating their numbers. One
-    // definition, in blockkindregistry.h.
-    qmlRegisterUncreatableMetaObject(
-        BlockKinds::staticMetaObject, "Kvit", 1, 0, "BlockKinds",
-        QStringLiteral("BlockKinds is an enum namespace"));
-    // The native Mermaid diagram painter, used by DiagramBlock.qml. Parses
-    // and lays out off the UI thread.
-    qmlRegisterType<DiagramCanvas>("Kvit", 1, 0, "DiagramCanvas");
+    // Calling this by hand is not redundant. The generator also emits a
+    // file-scope QQmlModuleRegistration whose constructor would register the
+    // module on its own — but kvit-core is a STATIC library, so the linker
+    // drops that object file for want of any reference to it, and the types
+    // then do not exist at runtime. The symptom is not a link error: QML
+    // reports "ReferenceError: <Type> is not defined" and the shell renders
+    // wrong. ShellTests catches it, and did so while this was being written.
+    //
+    // Naming the generated function here is the reference that keeps the
+    // translation unit alive. The alternative, letting qt_add_qml_module
+    // build a plugin and importing it with Q_IMPORT_QML_PLUGIN, would add a
+    // plugin target for a library that is linked directly into every binary
+    // that uses it.
+    qml_register_types_Kvit();
 }
 
 void AppContext::wire()

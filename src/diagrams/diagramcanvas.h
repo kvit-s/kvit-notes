@@ -8,6 +8,7 @@
 #include <QColor>
 #include <QFutureWatcher>
 #include <QString>
+#include <QtQml/qqmlregistration.h>
 
 #include "diagrampainter.h"
 #include "diagramscene.h"
@@ -25,6 +26,7 @@
 class DiagramCanvas : public QQuickPaintedItem
 {
     Q_OBJECT
+    QML_ELEMENT
     Q_PROPERTY(QString source READ source WRITE setSource NOTIFY sourceChanged)
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontChanged)
     Q_PROPERTY(int fontPixelSize READ fontPixelSize WRITE setFontPixelSize NOTIFY fontChanged)

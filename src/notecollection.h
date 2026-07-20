@@ -15,6 +15,7 @@
 #include <QSet>
 #include <QTimer>
 #include <QVariantMap>
+#include <QtQml/qqmlregistration.h>
 
 #include <functional>
 
@@ -49,6 +50,9 @@ class CollectionSearchIndex;
 class NoteCollection : public QObject
 {
     Q_OBJECT
+    // Named as the type of BlockEditorEngine::wikiResolver; see the note on
+    // DocumentOutline for why this is anonymous.
+    QML_ANONYMOUS
 
     Q_PROPERTY(QString rootPath READ rootPath NOTIFY rootChanged)
     Q_PROPERTY(bool isOpen READ isOpen NOTIFY rootChanged)

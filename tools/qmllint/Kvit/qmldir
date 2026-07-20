@@ -1,3 +1,0 @@
-module Kvit
-depends QtQuick
-typeinfo kvit.qmltypes

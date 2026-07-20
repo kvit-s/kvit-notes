@@ -10,6 +10,7 @@
 #include <QSet>
 #include <QString>
 #include <QVariantList>
+#include <QtQml/qqmlregistration.h>
 
 class BlockModel;
 
@@ -30,6 +31,10 @@ class BlockModel;
 class DocumentOutline : public QAbstractListModel
 {
     Q_OBJECT
+    // Named as the type of BlockEditorEngine::linkResolver. Anonymous rather
+    // than an element because QML never instantiates one: this only lets the
+    // type be resolved where it appears in another type's property.
+    QML_ANONYMOUS
     // Bumped on every observable change of the tree, the level filter, or the
     // current section; panel bindings depend on it.
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)

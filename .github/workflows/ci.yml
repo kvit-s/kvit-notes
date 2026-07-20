@@ -156,12 +156,20 @@ jobs:
           modules: qtmultimedia qtshadertools qtimageformats
           cache: true
 
-      # The `Kvit` module is registered imperatively in C++, so qmllint reads
-      # it from a hand-written type description. This fails if that stub and
-      # AppContext::registerQmlTypes() have drifted apart, which would
-      # otherwise surface as confusing "type not found" errors below.
-      - name: QML type stub matches C++ registrations
-        run: tools/check-qml-types.py
+      # qmllint reads the `Kvit` module's type description from the build
+      # tree, where qmltyperegistrar writes it from the QML_ELEMENT macros on
+      # the C++ classes. Only that generator has to run, not a compile, so
+      # this stays a configure plus one small target rather than a build of
+      # the editor.
+      #
+      # This replaced a checker script that compared a hand-written stub
+      # against the imperative registrations in AppContext. Generated
+      # metadata cannot drift from the C++, so there is nothing left to
+      # check.
+      - name: Generate the Kvit QML type description
+        run: |
+          cmake -S . -B build
+          cmake --build build --target kvit-core_qmltyperegistration
 
       - name: qmllint
         run: tools/run-qmllint.sh

@@ -6,11 +6,14 @@
 
 #include <QColor>
 #include <QObject>
+#include <QtQml/qqmlregistration.h>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
 
 class SettingsStore;
+class QQmlEngine;
+class QJSEngine;
 
 // The theme token object: one C++ QObject
 // exposing every color the application draws with, as a Q_PROPERTY per
@@ -28,6 +31,8 @@ class SettingsStore;
 class Theme : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Use the theme context property")
 
     // "light" | "dark" | "sepia" | "system" (persisted).
     Q_PROPERTY(QString themeId READ themeId WRITE setThemeId NOTIFY themeChanged)
