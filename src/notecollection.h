@@ -407,6 +407,12 @@ private:
                        const QHash<QString, NoteEntry> &cachedNotes,
                        QSet<QString> *visitedDirs);
     void scanAsync();
+    // A full rescan that does not block the GUI thread, used by the external
+    // file watcher's refresh path when the change cannot be narrowed to known
+    // notes. It is the async counterpart of refresh(): it cancels the same
+    // in-flight work and then rebuilds through scanAsync(), which finishes on
+    // a worker thread with the same bump()/syncSearchIndex() a refresh() does.
+    void fullRefreshAsync();
     void indexNote(const QString &relPath);
     void indexNote(const QString &relPath,
                    const QHash<QString, NoteEntry> &cachedNotes);

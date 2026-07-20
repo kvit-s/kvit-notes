@@ -39,6 +39,7 @@ private slots:
     void closingDuringDirectoryRefreshDoesNotCrash();
     void reportBlockingCostPerStage();
     void switchingRootDuringScanDoesNotBlockGui();
+    void refreshPathsWithRootDoesNotBlockGui();
     void closingDuringScanDoesNotBlockGui();
     void resultsFromTheAbandonedRootNeverApply();
     void savesDoNotQueueBehindBulkBackgroundWork();
@@ -230,7 +231,8 @@ void TestAsyncCancellation::reportBlockingCostPerStage()
     // changed note body INSIDE a QtConcurrent::run future, so the work that
     // cannot be cancelled is the expensive kind rather than a bare directory
     // walk. It has to be aimed at a SUBDIRECTORY: refreshPaths() given the
-    // root falls through to the fully synchronous refresh() instead.
+    // root does a full async rescan (fullRefreshAsync) rather than this
+    // narrower directory-reparse path, so it would not exercise the same work.
     {
         // 1500 notes under one folder, so a single directory refresh has to
         // reparse all of them.
@@ -320,6 +322,42 @@ void TestAsyncCancellation::switchingRootDuringScanDoesNotBlockGui()
     KVIT_ASSERT_WALL_BUDGET(switchMs, "root switch during scan", 250.0);
 
     QTRY_VERIFY_WITH_TIMEOUT(!collection.scanInProgress(), 30000);
+}
+
+// The external file watcher calls refreshPaths() on a debounced burst of
+// changes. When a change cannot be narrowed to a known note - the root itself,
+// or a path outside the vault - refreshPaths() used to fall through to the
+// fully synchronous refresh() and block the GUI thread for the whole rescan.
+// It now takes a full async rescan instead, so the call returns at once and
+// the scan runs on a worker thread.
+void TestAsyncCancellation::refreshPathsWithRootDoesNotBlockGui()
+{
+    buildVault(m_dirA->path(), 600);
+
+    NoteCollection collection;
+    QVERIFY(collection.openRoot(m_dirA->path()));   // synchronous: fully loaded
+    QVERIFY(!collection.scanInProgress());
+
+    QElapsedTimer timer;
+    timer.start();
+    collection.refreshPaths(QStringList{m_dirA->path()});   // the root path
+    const qint64 blockedMs = timer.elapsed();
+
+    qInfo() << "refreshPaths(root) blocked the GUI thread for"
+            << blockedMs << "ms";
+
+    // A scan is now genuinely running on a worker thread, which is what proves
+    // the call went async rather than completing inline. Returning while that
+    // scan is still in flight is the evidence the GUI thread was not held for
+    // it; the wall-clock budget is the coarse backstop and load-sensitive, so
+    // it is not judged on a busy machine (tests/timingbudget.h).
+    QVERIFY2(collection.scanInProgress(),
+             "refreshPaths(root) should start an async scan, not block on a "
+             "synchronous one");
+    KVIT_ASSERT_WALL_BUDGET(blockedMs, "refreshPaths(root)", 250.0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(!collection.scanInProgress(), 30000);
+    QVERIFY(collection.note("folder0/note0.md"));  // rescan republished the vault
 }
 
 // The same wait sits on the shutdown path, where it shows up as a window that

@@ -321,12 +321,27 @@ void NoteCollection::refresh()
     syncSearchIndex();
 }
 
+void NoteCollection::fullRefreshAsync()
+{
+    if (!isOpen())
+        return;
+    // scanAsync() cancels the async scan itself; the other three in-flight
+    // operations are cancelled here for parity with refresh(), because a full
+    // rebuild supersedes any narrower work still running.
+    cancelAsyncRefresh();
+    cancelAsyncSavedNote();
+    cancelAsyncIndexSave();
+    scanAsync();
+}
+
 void NoteCollection::refreshPaths(const QStringList &absPaths)
 {
     if (!isOpen())
         return;
     if (absPaths.isEmpty()) {
-        refresh();
+        // Driven by the external file watcher, never a deliberate user action,
+        // so it must not block the GUI thread on a full scan.
+        fullRefreshAsync();
         return;
     }
 
@@ -365,7 +380,7 @@ void NoteCollection::refreshPaths(const QStringList &absPaths)
     }
 
     if (needsFullRefresh) {
-        refresh();
+        fullRefreshAsync();
         return;
     }
 
