@@ -150,10 +150,20 @@ void CollectionSearch::setCustomTo(const QDate &date)
 
 void CollectionSearch::scheduleQuery()
 {
+    // Every input change makes each outstanding reply stale: it answers a
+    // question nobody is asking any more. Advancing the generation here —
+    // not only when a new query is submitted — is what stops a reply that
+    // was already in flight from being displayed after the input moved on.
+    ++m_generation;
+
     // An empty query is inert and applies immediately: the ordinary editing
     // path pays nothing.
     if (m_query.trimmed().isEmpty()) {
         m_debounce.stop();
+        // Nothing will be submitted to supersede the running query, so tell
+        // the worker to stop and to drop anything still queued.
+        if (m_index)
+            m_index->cancelQueries(m_generation);
         publishEmpty();
         return;
     }
@@ -196,10 +206,13 @@ void CollectionSearch::submit()
 void CollectionSearch::onQueryFinished(quint64 generation,
                                        SearchResults results)
 {
-    // Keep only the latest generation.
-    if (generation < m_accepted)
+    // Only the reply for the input currently on screen may be shown. A
+    // merely-newer-than-last-displayed test is not enough: clearing the
+    // query or typing on submits nothing for a stale reply to lose to, so
+    // it would be accepted and repopulate results for an input that is
+    // gone.
+    if (generation != m_generation)
         return;
-    m_accepted = generation;
     applyResults(results, !indexing());
 }
 

@@ -395,6 +395,15 @@ void CollectionSearchIndex::submitQuery(quint64 generation,
                               Q_ARG(SearchQuery, request));
 }
 
+void CollectionSearchIndex::cancelQueries(quint64 generation)
+{
+    if (!m_usable || !m_readWorker)
+        return;
+    m_submittedGeneration.store(generation);
+    m_readWorker->setTarget(generation);
+    m_readWorker->requestCancel();
+}
+
 qint64 CollectionSearchIndex::revisionOf(const QString &relPath) const
 {
     // Runs on the read worker's connection so it never opens a competing

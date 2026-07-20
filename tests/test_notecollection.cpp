@@ -95,6 +95,8 @@ private slots:
     // Crash recovery
     void testRecoveryLifecycle();
     void testRecoveryRecreatesDeletedFolder();
+    void testFailedIndexWriteKeepsIndexDirty();
+    void testFailedCollectionWriteIsReported();
     void testRefreshDoesNotIngestLiveJournals();
 
     // Wiki-links
@@ -1565,6 +1567,50 @@ void TestNoteCollection::testBenchmark500NoteOpen()
              qPrintable(QStringLiteral("500-note open must stay under 1 s "
                                        "(measured %1 ms)")
                             .arg(elapsed)));
+}
+
+namespace {
+// A read-only .kvit directory stands in for a full disk or a read-only
+// mount: the sidecar writes fail while the notes themselves stay writable.
+constexpr QFileDevice::Permissions kReadOnlyDir =
+    QFileDevice::ReadOwner | QFileDevice::ExeOwner;
+constexpr QFileDevice::Permissions kWritableDir =
+    QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner;
+} // namespace
+
+void TestNoteCollection::testFailedIndexWriteKeepsIndexDirty()
+{
+    writeNote("A.md", "alpha\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    const QString kvitDir = m_dir->filePath(".kvit");
+    QVERIFY(QDir().mkpath(kvitDir));
+
+    QVERIFY(QFile::setPermissions(kvitDir, kReadOnlyDir));
+    // The note itself is written; only the index sidecar fails.
+    m_collection->setTags("A.md", {"one"});
+    const bool stillDirty = m_collection->indexDirtyForTesting();
+    QVERIFY(QFile::setPermissions(kvitDir, kWritableDir)); // restore first
+
+    QVERIFY2(stillDirty,
+             "a failed index write cleared the dirty flag, so the change "
+             "will never be retried");
+}
+
+void TestNoteCollection::testFailedCollectionWriteIsReported()
+{
+    writeNote("A.md", "alpha\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    const QString kvitDir = m_dir->filePath(".kvit");
+    QVERIFY(QDir().mkpath(kvitDir));
+
+    QSignalSpy failedSpy(m_collection, &NoteCollection::operationFailed);
+    QVERIFY(QFile::setPermissions(kvitDir, kReadOnlyDir));
+    m_collection->setTagColor("one", "#ff0000"); // writes collection.json
+    const int failures = failedSpy.count();
+    QVERIFY(QFile::setPermissions(kvitDir, kWritableDir)); // restore first
+
+    QVERIFY2(failures > 0,
+             "a failed collection-state write was not surfaced to the user");
 }
 
 QTEST_MAIN(TestNoteCollection)

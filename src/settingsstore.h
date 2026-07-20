@@ -53,11 +53,16 @@ signals:
     // Emitted per real change; consumers watching one key filter here.
     void valueChanged(const QString &key);
     void revisionChanged();
+    // A write did not reach disk (read-only location, full disk). The
+    // values stay pending and are retried on the next flush or change, so
+    // this is a warning the user can act on, not a report of lost data.
+    void writeFailed(const QString &filePath, const QString &error);
 
 private:
     void bumpRevision();
     void scheduleWrite();
     void writeFile();
+    void reportWriteFailure(const QString &error);
 
     QString m_filePath;
     QJsonObject m_values;

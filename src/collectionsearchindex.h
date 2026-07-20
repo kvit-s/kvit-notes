@@ -86,6 +86,13 @@ public:
     // the latest.
     void submitQuery(quint64 generation, const SearchQuery &request);
 
+    // Abandon outstanding query work without submitting a replacement —
+    // what clearing the search box needs. A running query stops at its next
+    // cancellation check and anything still queued below `generation` is
+    // dropped unread. Replies already on their way are still delivered, so
+    // the caller must also reject them by generation.
+    void cancelQueries(quint64 generation);
+
     // The current index revision of a note, for click-time staleness checks.
     // Runs a short synchronous read on a dedicated connection.
     qint64 revisionOf(const QString &relPath) const;

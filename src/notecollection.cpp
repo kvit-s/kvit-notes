@@ -1234,11 +1234,11 @@ NoteCollection::loadIndexFile(bool *ok) const
     return notes;
 }
 
-void NoteCollection::saveIndexFile() const
+bool NoteCollection::saveIndexFile() const
 {
     const QString path = indexFilePath();
     if (path.isEmpty())
-        return;
+        return false;
 
     PerfLog::ScopedTimer perf(
         QStringLiteral("collection.index_save"),
@@ -1247,7 +1247,7 @@ void NoteCollection::saveIndexFile() const
 
     if (m_notes.isEmpty() && !QFileInfo::exists(path)) {
         perf.addContext(QStringLiteral("skipped"), true);
-        return;
+        return true; // nothing to write is not a failure
     }
 
     const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
@@ -1256,14 +1256,19 @@ void NoteCollection::saveIndexFile() const
     perf.addContext(QStringLiteral("bytes"), bytes.size());
     const bool ok = writeFileBytesAtomic(path, bytes);
     perf.addContext(QStringLiteral("ok"), ok);
+    return ok;
 }
 
 void NoteCollection::saveIndexFileIfDirty()
 {
     if (!m_indexDirty)
         return;
-    saveIndexFile();
-    m_indexDirty = false;
+    // Only a write that actually landed clears the flag. Clearing it
+    // regardless left the sidecar stale with nothing remembering that it
+    // needed rewriting, so the next session paid for a full rescan and any
+    // later chance to retry was gone.
+    if (saveIndexFile())
+        m_indexDirty = false;
 }
 
 void NoteCollection::markIndexDirty()
@@ -2990,6 +2995,13 @@ bool NoteCollection::rewriteFrontMatter(const QString &relPath)
     if (!writeTextFileAtomic(absPath, rewritten))
         return false;
     restoreFileTime(absPath, mtime);
+    // The reconcile pass decides freshness from file size and mtime, and
+    // this rewrite deliberately restores the mtime so metadata edits do not
+    // reorder "recently modified". A same-length change — renaming a tag
+    // `books` to `draft`, say — therefore moves neither key, and reconcile
+    // would skip the note and serve the old tags forever. Tell the search
+    // index outright instead of hoping it notices.
+    reindexNoteInSearch(relPath);
     return true;
 }
 
@@ -3577,6 +3589,10 @@ bool NoteCollection::restoreRecovery(const QString &relPath)
         }
     }
     indexNote(relPath);
+    // indexNote only refreshes the in-memory entry and its JSON sidecar;
+    // global search is a separate database and would otherwise keep serving
+    // the pre-crash text.
+    reindexNoteInSearch(relPath);
     saveIndexFileIfDirty();
     bump();
     return true;
@@ -3734,9 +3750,16 @@ void NoteCollection::saveCollectionFile()
 
     const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
     QDir().mkpath(dir);
-    writeTextFileAtomic(dir + QLatin1Char('/') + collectionFileName,
-                        QString::fromUtf8(
-                            QJsonDocument(root).toJson(QJsonDocument::Indented)));
+    const QString path = dir + QLatin1Char('/') + collectionFileName;
+    if (!writeTextFileAtomic(path,
+                             QString::fromUtf8(QJsonDocument(root).toJson(
+                                 QJsonDocument::Indented)))) {
+        // Tag colours, folder expansion, manual order and the last-open
+        // note all live in this file. Silently dropping the write loses
+        // them at the next start with nothing shown to the user.
+        emit operationFailed(
+            tr("Cannot save collection settings to \"%1\"").arg(path));
+    }
 }
 
 // ----------------------------------------------------------------- misc
