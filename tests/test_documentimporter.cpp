@@ -10,6 +10,11 @@
 #include <QFile>
 #include <QTextStream>
 
+#ifdef Q_OS_UNIX
+#include <csignal>
+#include <sys/resource.h>
+#endif
+
 // Import into the collection: the importable-file test,
 // single/batch/folder import with structure preserved, collision suffixing,
 // front-matter survival (the Obsidian-vault case), and the dry-run counts.
@@ -30,6 +35,7 @@ private slots:
     void testDryRunFiles();
     void testDryRunFolder();
     void testNonImportableSkipped();
+    void testTruncatedWriteIsNotCountedOrLeftBehind();
 
 private:
     QTemporaryDir *m_root = nullptr;   // the collection
@@ -164,6 +170,42 @@ void TestDocumentImporter::testNonImportableSkipped()
 {
     const QString png = writeSource("image.png", "notmarkdown");
     QCOMPARE(m_importer->importFiles({png}, QString()), 0);
+}
+
+void TestDocumentImporter::testTruncatedWriteIsNotCountedOrLeftBehind()
+{
+#ifndef Q_OS_UNIX
+    QSKIP("needs RLIMIT_FSIZE to force a short write");
+#else
+    // A write that cannot store every byte must not be reported as an import.
+    // RLIMIT_FSIZE caps how much this process may write to any one file, so
+    // the copy opens fine and then fails partway — the truncation shape a
+    // full disk or a quota produces, without needing either.
+    QByteArray payload;
+    payload.fill('x', 64 * 1024);
+    payload.prepend("# Long note\n\n");
+    const QString src = writeSource("Long.md", QString::fromLatin1(payload));
+
+    struct rlimit saved;
+    QVERIFY(getrlimit(RLIMIT_FSIZE, &saved) == 0);
+    // Writing past the cap raises SIGXFSZ, which terminates by default.
+    auto *prevHandler = signal(SIGXFSZ, SIG_IGN);
+    struct rlimit capped;
+    capped.rlim_cur = 4096;
+    capped.rlim_max = saved.rlim_max;
+    QVERIFY(setrlimit(RLIMIT_FSIZE, &capped) == 0);
+
+    const int imported = m_importer->importFiles({src}, QString());
+
+    QVERIFY(setrlimit(RLIMIT_FSIZE, &saved) == 0);
+    signal(SIGXFSZ, prevHandler);
+
+    // A note that could not be written whole is not an import...
+    QCOMPARE(imported, 0);
+    // ...and leaves no truncated file for the collection to index.
+    QVERIFY(!QFile::exists(m_collection->absolutePath("Long.md")));
+    QVERIFY(!m_collection->noteRelPaths().contains("Long.md"));
+#endif
 }
 
 QTEST_MAIN(TestDocumentImporter)

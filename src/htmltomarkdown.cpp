@@ -31,6 +31,53 @@ QString escapeInline(const QString &text)
     return out;
 }
 
+// The longest run of backticks anywhere in text (0 when there is none).
+int longestBacktickRun(const QString &text)
+{
+    int longest = 0;
+    int run = 0;
+    for (const QChar c : text) {
+        if (c == u'`') {
+            ++run;
+            longest = qMax(longest, run);
+        } else {
+            run = 0;
+        }
+    }
+    return longest;
+}
+
+// Wrap text as a CommonMark inline code span. The delimiter must be a
+// backtick run longer than any run inside, or the content would close the
+// span early; when the content starts or ends with a backtick, one space of
+// padding on each side keeps the delimiters distinguishable (readers strip
+// exactly that pair back off).
+QString inlineCodeSpan(const QString &text)
+{
+    const QString fence(longestBacktickRun(text) + 1, u'`');
+    const bool pad = text.startsWith(u'`') || text.endsWith(u'`');
+    const QString body = pad ? u' ' + text + u' ' : text;
+    return fence + body + fence;
+}
+
+// A link destination goes into "[text](DEST)", whose grammar admits neither
+// spaces nor parentheses. Percent-encoding those is not an escape that a
+// reader has to undo — it is the same URL, so the link still resolves.
+QString encodeLinkDestination(const QString &href)
+{
+    QString out;
+    out.reserve(href.size());
+    for (const QChar c : href) {
+        if (c == u'(')       out += QLatin1String("%28");
+        else if (c == u')')  out += QLatin1String("%29");
+        else if (c == u' ')  out += QLatin1String("%20");
+        else if (c == u'<')  out += QLatin1String("%3C");
+        else if (c == u'>')  out += QLatin1String("%3E");
+        else                 out += c;
+    }
+    return out;
+}
+
 // A fragment is inline code when it is monospace but its whole block is not
 // (a wholly monospace block is a <pre>, handled as a fence instead).
 //
@@ -127,7 +174,7 @@ QString HtmlToMarkdown::inlineMarkdown(const QTextBlock &block,
 
         QString body = text.mid(lead, trail - lead);
         if (code)
-            body = QStringLiteral("`%1`").arg(body);
+            body = inlineCodeSpan(body);
         if (!suppressBold && fmt.fontWeight() >= QFont::Bold)
             body = QStringLiteral("**%1**").arg(body);
         if (fmt.fontItalic())
@@ -137,7 +184,8 @@ QString HtmlToMarkdown::inlineMarkdown(const QTextBlock &block,
 
         const QString href = fmt.anchorHref();
         if (!href.isEmpty())
-            body = QStringLiteral("[%1](%2)").arg(body, href);
+            body = QStringLiteral("[%1](%2)")
+                       .arg(body, encodeLinkDestination(href));
 
         out.append(leadSpace + body + tail);
     }
@@ -149,9 +197,13 @@ QString HtmlToMarkdown::blockMarkdown(const QTextBlock &block) const
     if (!block.isValid())
         return QString();
 
-    // <pre> becomes a fenced code block, keeping its text verbatim.
+    // <pre> becomes a fenced code block, keeping its text verbatim. The fence
+    // must outrun any backtick run inside, or a ``` line in the pasted code
+    // would close the block early and spill the rest into the document.
     if (blockIsPreformatted(block)) {
-        return QStringLiteral("```\n%1\n```").arg(block.text());
+        const QString text = block.text();
+        const QString fence(qMax(3, longestBacktickRun(text) + 1), u'`');
+        return fence + u'\n' + text + u'\n' + fence;
     }
 
     const QTextBlockFormat blockFmt = block.blockFormat();

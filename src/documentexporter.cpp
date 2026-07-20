@@ -114,6 +114,46 @@ void DocumentExporter::setImageContext(const QString &noteDir,
     m_collectionRoot = collectionRoot;
 }
 
+void DocumentExporter::setLiveNote(const QString &relPath, BlockModel *model)
+{
+    if (relPath.isEmpty() || !model) {
+        clearLiveNote();
+        return;
+    }
+    DocumentSerializer serializer;
+    m_liveRelPath = relPath;
+    m_liveMarkdown = serializer.serialize(model);
+}
+
+void DocumentExporter::clearLiveNote()
+{
+    m_liveRelPath.clear();
+    m_liveMarkdown.clear();
+}
+
+QPair<QString, QString>
+DocumentExporter::useImageContextFor(NoteCollection *collection,
+                                     const QString &relPath)
+{
+    const QPair<QString, QString> previous{m_noteDir, m_collectionRoot};
+    if (collection) {
+        m_noteDir =
+            QFileInfo(collection->absolutePath(relPath)).absolutePath();
+        m_collectionRoot = collection->rootPath();
+    }
+    return previous;
+}
+
+QString DocumentExporter::bodyForExport(NoteCollection *collection,
+                                        const QString &relPath) const
+{
+    if (!m_liveRelPath.isEmpty() && relPath == m_liveRelPath)
+        return m_liveMarkdown;
+    return collection
+        ? collection->noteInfo(relPath).value(QStringLiteral("body")).toString()
+        : QString();
+}
+
 QString DocumentExporter::extensionFor(const QString &format)
 {
     if (format == QLatin1String("html")) return QStringLiteral("html");
@@ -370,9 +410,10 @@ QString DocumentExporter::cssBlock() const
 
 // ---- the HTML builder ----
 
-QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
-                                    const QString &title,
-                                    bool browserTarget) const
+QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
+                                        bool browserTarget,
+                                        bool *sawMathOut,
+                                        bool *sawMermaidOut) const
 {
     // Browser-targeted HTML leaves the TeX in the document for MathJax by
     // default; KVIT_MATH_RENDER=png forces PNG embeds (the escape hatch for
@@ -397,20 +438,48 @@ QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
         const Blk &b = blocks.at(i);
 
         if (isListType(b.type)) {
-            // Collect the contiguous list run and emit a (possibly nested) list.
+            // Collect the contiguous list run and emit it with its nesting:
+            // an item deeper than the one before opens a sublist INSIDE the
+            // still-open <li>, which is where HTML wants a nested list. The
+            // closing </li> is deferred for exactly that reason, so a flat
+            // run still emits <ul><li>a</li><li>b</li></ul> unchanged.
             const bool ordered = b.type == Block::NumberedList;
-            body += ordered ? QStringLiteral("<ol>") : QStringLiteral("<ul>");
+            const QString openTag = ordered ? QStringLiteral("<ol>")
+                                            : QStringLiteral("<ul>");
+            const QString closeTag = ordered ? QStringLiteral("</ol>")
+                                             : QStringLiteral("</ul>");
+            int depth = 0;   // lists currently open in this run
             while (i < blocks.size() && isListType(blocks.at(i).type)
                    && (blocks.at(i).type == Block::NumberedList) == ordered) {
                 const Blk &item = blocks.at(i);
+                const int target = qMax(0, item.indentLevel) + 1;
+                if (depth == 0) {
+                    while (depth < target) { body += openTag; ++depth; }
+                } else if (target > depth) {
+                    while (depth < target) { body += openTag; ++depth; }
+                } else {
+                    body += QStringLiteral("</li>");
+                    while (depth > target) {
+                        body += closeTag + QStringLiteral("</li>");
+                        --depth;
+                    }
+                }
                 QString li = renderInline(item.content, mathJax, &sawMath);
                 if (item.type == Block::Todo)
                     li = (item.checked ? QStringLiteral("&#9745; ")
                                        : QStringLiteral("&#9744; ")) + li;
-                body += "<li>" + li + "</li>";
+                body += "<li>" + li;
                 ++i;
             }
-            body += ordered ? QStringLiteral("</ol>") : QStringLiteral("</ul>");
+            if (depth > 0) {
+                body += QStringLiteral("</li>");
+                while (depth > 0) {
+                    body += closeTag;
+                    --depth;
+                    if (depth > 0)
+                        body += QStringLiteral("</li>");
+                }
+            }
             continue;
         }
 
@@ -588,6 +657,22 @@ QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
         ++i;
     }
 
+    if (sawMathOut)
+        *sawMathOut = sawMath;
+    if (sawMermaidOut)
+        *sawMermaidOut = sawMermaid;
+    return body;
+}
+
+QString DocumentExporter::wrapHtmlDocument(const QString &body,
+                                           const QString &title,
+                                           bool browserTarget, bool sawMath,
+                                           bool sawMermaid) const
+{
+    const QString mathMode =
+        qEnvironmentVariable("KVIT_MATH_RENDER").trimmed().toLower();
+    const bool mathJax = browserTarget && mathMode != QLatin1String("png");
+
     // One script tag each, only when the document actually contains that
     // content — a math/mermaid-free export carries no network dependency at all.
     const QString mathJaxTag = (mathJax && sawMath)
@@ -602,6 +687,17 @@ QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
         "<style>%2</style>\n%3%5</head>\n<body>\n%4\n</body></html>\n")
         .arg(esc(title.isEmpty() ? QStringLiteral("Kvit Export") : title),
              cssBlock(), mathJaxTag, body, mermaidTag);
+}
+
+QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
+                                    const QString &title,
+                                    bool browserTarget) const
+{
+    bool sawMath = false;
+    bool sawMermaid = false;
+    const QString body =
+        buildHtmlBody(blocks, browserTarget, &sawMath, &sawMermaid);
+    return wrapHtmlDocument(body, title, browserTarget, sawMath, sawMermaid);
 }
 
 QString DocumentExporter::htmlForModel(BlockModel *model, const QString &title) const
@@ -769,24 +865,58 @@ int DocumentExporter::exportNotes(QObject *collectionObj,
     QDir().mkpath(destDir);
     const QString ext = extensionFor(format);
 
+    const QPair<QString, QString> savedContext{m_noteDir, m_collectionRoot};
+
     if (singleFile) {
-        // One concatenated file (HTML/text/markdown). PDF concatenation prints
-        // each note's HTML into one document.
+        // One combined file. For HTML and PDF that means ONE document: each
+        // note contributes only its <body> contents, the wrapper closes over
+        // all of them once, and each shared script tag is injected once
+        // however many notes needed it. Concatenating whole documents instead
+        // produced a file with several <html> elements and duplicated
+        // document-level scripts and ids, which is invalid HTML and ambiguous
+        // input to the PDF printer.
+        const bool htmlLike = format != QLatin1String("markdown")
+            && format != QLatin1String("text");
+        const bool browserTarget = format != QLatin1String("pdf");
         QString combined;
+        QString htmlBody;
+        bool sawMath = false;
+        bool sawMermaid = false;
+        bool firstNote = true;
+
         for (const QString &rel : notes) {
-            const QString body = collection->noteInfo(rel)
-                .value(QStringLiteral("body")).toString();
+            useImageContextFor(collection, rel);
+            const QString body = bodyForExport(collection, rel);
             const QString title = collection->noteInfo(rel)
                 .value(QStringLiteral("title")).toString();
-            if (format == QLatin1String("markdown"))
+            if (format == QLatin1String("markdown")) {
                 combined += "# " + title + "\n\n" + body + "\n\n";
-            else if (format == QLatin1String("text"))
+            } else if (format == QLatin1String("text")) {
                 combined += plainTextForMarkdown(body) + "\n\n";
-            else
-                combined += buildHtml(blocksFromMarkdown(body), title,
-                                      format != QLatin1String("pdf"))
-                          + "\n<hr>\n";
+            } else {
+                bool noteMath = false;
+                bool noteMermaid = false;
+                const QString one =
+                    buildHtmlBody(blocksFromMarkdown(body), browserTarget,
+                                  &noteMath, &noteMermaid);
+                sawMath = sawMath || noteMath;
+                sawMermaid = sawMermaid || noteMermaid;
+                // Each note after the first starts its own printed page, and
+                // keeps the rule that used to separate them on screen.
+                htmlBody += firstNote
+                    ? QStringLiteral("<section>\n")
+                    : QStringLiteral("<hr>\n<section style=\""
+                                     "page-break-before:always\">\n");
+                htmlBody += one + QStringLiteral("\n</section>\n");
+            }
+            firstNote = false;
         }
+        if (htmlLike)
+            combined = wrapHtmlDocument(htmlBody, QString(), browserTarget,
+                                        sawMath, sawMermaid);
+
+        m_noteDir = savedContext.first;
+        m_collectionRoot = savedContext.second;
         const QString out = QDir(destDir).filePath(QStringLiteral("collection.") + ext);
         int written = 0;
         if (format == QLatin1String("pdf"))
@@ -800,8 +930,12 @@ int DocumentExporter::exportNotes(QObject *collectionObj,
     // One file per note, mirroring the folder tree.
     int written = 0;
     for (const QString &rel : notes) {
+        // Each note resolves relative media against its OWN folder; carrying
+        // one context across the whole run made notes in other folders pick
+        // up same-named files from wherever the export started.
+        useImageContextFor(collection, rel);
         const QVariantMap info = collection->noteInfo(rel);
-        const QString body = info.value(QStringLiteral("body")).toString();
+        const QString body = bodyForExport(collection, rel);
         const QString title = info.value(QStringLiteral("title")).toString();
         QString outRel = rel;
         if (outRel.endsWith(QLatin1String(".md"), Qt::CaseInsensitive))
@@ -811,6 +945,8 @@ int DocumentExporter::exportNotes(QObject *collectionObj,
         if (writeMarkdownAs(body, title, format, outPath))
             ++written;
     }
+    m_noteDir = savedContext.first;
+    m_collectionRoot = savedContext.second;
     perf.addContext(QStringLiteral("written"), written);
     return written;
 }

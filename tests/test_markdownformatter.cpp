@@ -59,6 +59,11 @@ private slots:
     void testRemoveSpanTypeComposite();
 
     // Links and autolinks
+    // M9: the rich-text clipboard flavor must render every span type, not
+    // leak the markdown source of the ones with per-instance markers.
+    void testToHtmlRendersParameterizedSpans_data();
+    void testToHtmlRendersParameterizedSpans();
+
     void testParseSpansLink();
     void testParseSpansLinkEdges();
     void testParseSpansAutolink();
@@ -1330,6 +1335,39 @@ void TestMarkdownFormatter::testWikiLinkPrecedenceAndEdges()
     QCOMPARE(spans.size(), 1);
     QCOMPARE(spans[0].type, QString("wikilink"));
     QCOMPARE(spans[0].start, 1);
+}
+
+void TestMarkdownFormatter::testToHtmlRendersParameterizedSpans_data()
+{
+    QTest::addColumn<QString>("markdown");
+    QTest::addColumn<QString>("visibleText");
+    QTest::addColumn<QString>("mustNotAppear");
+
+    QTest::newRow("link")      << "see [the docs](http://x/a) now"
+                               << "the docs" << "](";
+    QTest::newRow("autolink")  << "see <http://x/a> now"
+                               << "http://x/a" << "<http";
+    QTest::newRow("wikilink")  << "see [[Some Note]] now"
+                               << "Some Note" << "[[";
+    QTest::newRow("wikialias") << "see [[Some Note|alias]] now"
+                               << "alias" << "[[";
+    QTest::newRow("color")
+        << "a <span style=\"color:#ff0000\">red text</span> b"
+        << "red text" << "style=&";
+    QTest::newRow("math")      << "a $x^2$ b"
+                               << "x^2" << "$";
+}
+
+void TestMarkdownFormatter::testToHtmlRendersParameterizedSpans()
+{
+    QFETCH(QString, markdown);
+    QFETCH(QString, visibleText);
+    QFETCH(QString, mustNotAppear);
+
+    MarkdownFormatter formatter;
+    const QString html = formatter.toHtml(markdown);
+    QVERIFY2(html.contains(visibleText), qPrintable(html));
+    QVERIFY2(!html.contains(mustNotAppear), qPrintable(html));
 }
 
 QTEST_MAIN(TestMarkdownFormatter)

@@ -22,6 +22,7 @@ enum MatcherKind {
     AutolinkMatcher,  // bare http(s) URL — zero-length markers
     ColorMatcher,     // <span style="color:VALUE">…</span>
     MathMatcher,      // $…$ inline math with Pandoc adjacency
+    CodeMatcher,      // `code`, or a longer backtick run closed by its equal
     EscapeMatcher,    // \X literal punctuation
     WikiLinkMatcher,  // [[target#heading|alias]] note references
 };
@@ -70,7 +71,7 @@ const SpanTypeDef kSpanTypes[] = {
     // prose stay literal.
     {"superscript", DelimiterPair, "^",  false, false, SpanFormat::Superscript, true},
     {"subscript",   DelimiterPair, "~",  false, false, SpanFormat::Subscript,   true},
-    {"code",       DelimiterPair, "`",   true,  false, SpanFormat::Code},
+    {"code",       CodeMatcher,     "`",   true,  false, SpanFormat::Code},
     // Inline math $x^2$ (features.md §1.2.15). Verbatim TeX content; the
     // Pandoc adjacency rule (in matchTypeAt) keeps prose dollars like "$5
     // and $6" literal. Only "$" starts this type, so its position among
@@ -283,6 +284,42 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
         span.openLen = marker.length();
         span.closeLen = marker.length();
         span.end = end;
+        break;
+    }
+    case CodeMatcher: {
+        // `code`, or a longer backtick run closed by a run of exactly the
+        // same length. CommonMark sizes the delimiter to the content so a
+        // span may contain backticks at all; a one-length-only reader would
+        // mis-split every such span it met.
+        if (md.at(pos) != QLatin1Char('`'))
+            return false;
+        int openLen = 0;
+        while (pos + openLen < md.length()
+               && md.at(pos + openLen) == QLatin1Char('`'))
+            ++openLen;
+        // Scan for a run of the same length, skipping longer runs (a run of
+        // 3 does not close a run of 2).
+        int i = pos + openLen;
+        int closeAt = -1;
+        while (i < md.length()) {
+            if (md.at(i) != QLatin1Char('`')) {
+                ++i;
+                continue;
+            }
+            int run = 0;
+            while (i + run < md.length() && md.at(i + run) == QLatin1Char('`'))
+                ++run;
+            if (run == openLen) {
+                closeAt = i;
+                break;
+            }
+            i += run;
+        }
+        if (closeAt < 0 || closeAt == pos + openLen)
+            return false;   // unclosed, or an empty span
+        span.openLen = openLen;
+        span.closeLen = openLen;
+        span.end = closeAt + openLen;
         break;
     }
     case LinkMatcher: {
@@ -522,21 +559,26 @@ QString MarkdownFormatter::extractInnerText(const QString &rawText, const QStrin
     return rawText.mid(markerLen, rawText.length() - markerLen * 2);
 }
 
-// Marker length/string by type name. Meaningful for symmetric delimiter
-// types only (a link's markers are per-instance; use FormattedSpan's
-// openLen/closeLen/openMarker/closeMarker for those).
+// Marker length/string by type name. Meaningful for the symmetric types —
+// the delimiter pairs, and inline code, whose default marker is one backtick
+// even though an individual span may use a longer run. A link's markers are
+// per-instance; use FormattedSpan's openLen/closeLen/openMarker/closeMarker
+// for those, and for a code span whose run is longer than the default.
+bool markerIsSymmetric(const SpanTypeDef *def)
+{
+    return def && (def->matcher == DelimiterPair || def->matcher == CodeMatcher);
+}
+
 int MarkdownFormatter::getMarkerLength(const QString &type) const
 {
     const SpanTypeDef *def = findTypeDef(type);
-    return (def && def->matcher == DelimiterPair)
-        ? int(qstrlen(def->openMarker)) : 0;
+    return markerIsSymmetric(def) ? int(qstrlen(def->openMarker)) : 0;
 }
 
 QString MarkdownFormatter::getMarkerString(const QString &type) const
 {
     const SpanTypeDef *def = findTypeDef(type);
-    return (def && def->matcher == DelimiterPair)
-        ? QLatin1String(def->openMarker) : QString();
+    return markerIsSymmetric(def) ? QLatin1String(def->openMarker) : QString();
 }
 
 QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown) const
@@ -608,8 +650,12 @@ QString MarkdownFormatter::toHtml(const QString &markdown) const
             html += escapeHtml(markdown.mid(pos, span.start - pos));
         }
 
-        // Add the formatted span
-        QString innerText = extractInnerText(span.rawText, span.type);
+        // Add the formatted span. The markers come off per instance: a
+        // link's "](url)" and a color span's opening tag vary with their
+        // parameter, so the type-level marker length is 0 for them and would
+        // hand the raw markdown through as if it were text.
+        QString innerText =
+            span.rawText.mid(span.openLen, span.contentLength());
 
         if (span.type == "bolditalic") {
             html += "<b><i>" + escapeHtml(innerText) + "</i></b>";
@@ -635,6 +681,18 @@ QString MarkdownFormatter::toHtml(const QString &markdown) const
             html += "<code>" + escapeHtml(
                 markdown.mid(span.start + span.openLen, span.contentLength()))
                  + "</code>";
+        } else if (span.type == "link" || span.type == "autolink") {
+            html += "<a href=\"" + escapeHtml(span.url) + "\">"
+                  + escapeHtml(innerText) + "</a>";
+        } else if (span.type == "wikilink") {
+            // A note reference has no address outside Kvit, so the rich-text
+            // flavor carries what the editor shows: the alias when there is
+            // one, otherwise the target.
+            const int bar = innerText.lastIndexOf(QLatin1Char('|'));
+            html += escapeHtml(bar >= 0 ? innerText.mid(bar + 1) : innerText);
+        } else if (span.type == "color") {
+            html += "<span style=\"color:" + escapeHtml(span.color) + "\">"
+                  + escapeHtml(innerText) + "</span>";
         } else {
             // Every other type shows its text unstyled rather than being
             // dropped — table cells render through this path, and the fix-1
@@ -850,13 +908,25 @@ QString MarkdownFormatter::applySpanType(const QString &text, int selectionStart
                                          int selectionEnd, const QString &type) const
 {
     const SpanTypeDef *def = findTypeDef(type);
-    if (!def || def->matcher != DelimiterPair)
+    if (!markerIsSymmetric(def))
         return text;
-    const QString marker = QLatin1String(def->openMarker);
+    const QString selected =
+        text.mid(selectionStart, selectionEnd - selectionStart);
+    QString marker = QLatin1String(def->openMarker);
+    if (def->matcher == CodeMatcher) {
+        // Size the delimiter to the content: a selection containing backticks
+        // needs a longer run than any inside it, or it would close early.
+        int longest = 0;
+        int run = 0;
+        for (const QChar c : selected) {
+            run = (c == QLatin1Char('`')) ? run + 1 : 0;
+            longest = qMax(longest, run);
+        }
+        marker = QString(longest + 1, QLatin1Char('`'));
+    }
     // A collapsed cursor gets an empty marker pair (format-then-type,
     // features.md §2.2.7).
-    return text.left(selectionStart) + marker
-           + text.mid(selectionStart, selectionEnd - selectionStart)
+    return text.left(selectionStart) + marker + selected
            + marker + text.mid(selectionEnd);
 }
 

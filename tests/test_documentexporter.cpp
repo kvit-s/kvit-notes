@@ -6,6 +6,7 @@
 #include "blockmodel.h"
 #include "block.h"
 #include "notecollection.h"
+#include "documentserializer.h"
 
 #include <QTemporaryDir>
 #include <QFile>
@@ -48,8 +49,33 @@ private slots:
     void testExportCollectionPerNote();
     void testExportCollectionSingleFile();
 
+    // M8: one combined document, and lists that keep their nesting.
+    void testSingleFileHtmlIsOneDocument();
+    void testSingleFileHtmlInjectsSharedAssetsOnce();
+    void testSingleFileHtmlSeparatesNotesWithPageBreaks();
+    void testNestedListsNestInHtml();
+    void testNestedNumberedAndTodoListsNest();
+
+    // M7: each note resolves its images against its own folder, and the note
+    // being edited exports at its current state.
+    void testPerNoteImageBaseInCollectionExport();
+    void testLiveNoteSnapshotOverridesSavedBody();
+    void testLiveNoteSnapshotIsIgnoredForOtherNotes();
+
 private:
     DocumentExporter m_exporter;
+
+    // A note written straight to disk so its body is under test control.
+    static void writeNote(NoteCollection *coll, const QString &relPath,
+                          const QString &body)
+    {
+        const QString abs = coll->absolutePath(relPath);
+        QDir().mkpath(QFileInfo(abs).absolutePath());
+        QFile f(abs);
+        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        f.write(body.toUtf8());
+        f.close();
+    }
 };
 
 void TestDocumentExporter::testHtmlWrapper()
@@ -448,6 +474,213 @@ void TestDocumentExporter::testExportCollectionSingleFile()
     const int n = m_exporter.exportCollection(&coll, dest.path(), "html", true);
     QCOMPARE(n, 2);
     QVERIFY(QFile::exists(QDir(dest.path()).filePath("collection.html")));
+}
+
+// ---------- M8: one combined document ----------
+
+namespace {
+
+QString readAll(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+    return QString::fromUtf8(f.readAll());
+}
+
+int occurrences(const QString &haystack, const QString &needle)
+{
+    int n = 0;
+    for (int at = haystack.indexOf(needle); at >= 0;
+         at = haystack.indexOf(needle, at + needle.size()))
+        ++n;
+    return n;
+}
+
+} // namespace
+
+void TestDocumentExporter::testSingleFileHtmlIsOneDocument()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "One.md", "# One\n\nAlpha body.\n");
+    writeNote(&coll, "Two.md", "# Two\n\nBeta body.\n");
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", true), 2);
+    const QString html = readAll(QDir(dest.path()).filePath("collection.html"));
+    QVERIFY(!html.isEmpty());
+
+    // A combined export is ONE document, not several concatenated.
+    QCOMPARE(occurrences(html, "<!DOCTYPE html>"), 1);
+    QCOMPARE(occurrences(html, "<html"), 1);
+    QCOMPARE(occurrences(html, "</html>"), 1);
+    QCOMPARE(occurrences(html, "<head>"), 1);
+    QCOMPARE(occurrences(html, "<body>"), 1);
+    QCOMPARE(occurrences(html, "</body>"), 1);
+    // Nothing may follow the closing tag.
+    QVERIFY(html.trimmed().endsWith(QLatin1String("</html>")));
+    // Both notes are in it.
+    QVERIFY(html.contains("Alpha body."));
+    QVERIFY(html.contains("Beta body."));
+}
+
+void TestDocumentExporter::testSingleFileHtmlInjectsSharedAssetsOnce()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    // Both notes carry math, so a per-note wrapper would inject MathJax twice.
+    writeNote(&coll, "One.md", "# One\n\n$$\nE = mc^2\n$$\n");
+    writeNote(&coll, "Two.md", "# Two\n\n$$\na^2 + b^2\n$$\n");
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", true), 2);
+    const QString html = readAll(QDir(dest.path()).filePath("collection.html"));
+
+    QCOMPARE(occurrences(html, "<style>"), 1);
+    QCOMPARE(occurrences(html, "MathJax"), 1);
+}
+
+void TestDocumentExporter::testSingleFileHtmlSeparatesNotesWithPageBreaks()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "One.md", "# One\n\nAlpha.\n");
+    writeNote(&coll, "Two.md", "# Two\n\nBeta.\n");
+    writeNote(&coll, "Three.md", "# Three\n\nGamma.\n");
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", true), 3);
+    const QString html = readAll(QDir(dest.path()).filePath("collection.html"));
+
+    // Three notes means two breaks: one before each note after the first.
+    QCOMPARE(occurrences(html, "page-break-before"), 2);
+    // The old shape put a bare rule between whole documents.
+    QVERIFY(!html.contains("</html>\n<hr>"));
+}
+
+void TestDocumentExporter::testNestedListsNestInHtml()
+{
+    const QString html =
+        m_exporter.htmlForMarkdown("- one\n  - nested\n  - also nested\n- two");
+    QVERIFY(html.contains("<ul><li>one<ul><li>nested</li>"
+                          "<li>also nested</li></ul></li><li>two</li></ul>"));
+}
+
+void TestDocumentExporter::testNestedNumberedAndTodoListsNest()
+{
+    const QString ordered = m_exporter.htmlForMarkdown("1. a\n  1. deep\n2. b");
+    QVERIFY(ordered.contains("<ol><li>a<ol><li>deep</li></ol></li><li>b</li></ol>"));
+
+    const QString todo =
+        m_exporter.htmlForMarkdown("- [ ] top\n  - [x] child");
+    QVERIFY(todo.contains("&#9744; top<ul><li>&#9745; child</li></ul>"));
+}
+
+// ---------- M7: per-note image base ----------
+
+void TestDocumentExporter::testPerNoteImageBaseInCollectionExport()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    coll.createFolder("", "A");
+    coll.createFolder("", "B");
+
+    // Same file name in each folder, different bytes: whichever one the
+    // export inlines identifies the base directory it resolved against.
+    const QByteArray aBytes("AAAAAAAAAAAAAAAA");
+    const QByteArray bBytes("BBBBBBBBBBBBBBBB");
+    auto writeBinary = [&](const QString &rel, const QByteArray &bytes) {
+        QFile f(coll.absolutePath(rel));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(bytes);
+        f.close();
+    };
+    writeBinary("A/pic.png", aBytes);
+    writeBinary("B/pic.png", bBytes);
+    writeNote(&coll, "A/one.md", "# One\n\n![](pic.png)\n");
+    writeNote(&coll, "B/two.md", "# Two\n\n![](pic.png)\n");
+    coll.refresh();
+
+    // The dialog primes the context from whichever note is open; here that is
+    // the one in A. The export must not carry it into the note in B.
+    m_exporter.setImageContext(coll.absolutePath("A"), root.path());
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", false), 2);
+
+    const QString aHtml = readAll(QDir(dest.path()).filePath("A/one.html"));
+    const QString bHtml = readAll(QDir(dest.path()).filePath("B/two.html"));
+    QVERIFY(aHtml.contains(QString::fromLatin1(aBytes.toBase64())));
+    QVERIFY(bHtml.contains(QString::fromLatin1(bBytes.toBase64())));
+}
+
+void TestDocumentExporter::testLiveNoteSnapshotOverridesSavedBody()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "Open.md", "# Open\n\nSaved state.\n");
+    coll.refresh();
+
+    QTemporaryDir dest;
+
+    // Without a snapshot the export reads what last reached disk. That is
+    // correct for a note nobody is editing, and wrong for the open one.
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", false), 1);
+    QVERIFY(readAll(QDir(dest.path()).filePath("Open.html"))
+                .contains("Saved state."));
+
+    // The editor holds newer content than the file does.
+    BlockModel model;
+    DocumentSerializer serializer;
+    serializer.loadIntoModel(&model, "# Open\n\nUnsaved state.");
+    m_exporter.setLiveNote("Open.md", &model);
+
+    QTemporaryDir dest2;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest2.path(), "html", false), 1);
+    const QString html = readAll(QDir(dest2.path()).filePath("Open.html"));
+    QVERIFY(html.contains("Unsaved state."));
+    QVERIFY(!html.contains("Saved state."));
+
+    // The file itself is untouched: exporting is not a save.
+    QFile f(coll.absolutePath("Open.md"));
+    QVERIFY(f.open(QIODevice::ReadOnly | QIODevice::Text));
+    QVERIFY(QString::fromUtf8(f.readAll()).contains("Saved state."));
+
+    m_exporter.clearLiveNote();
+}
+
+void TestDocumentExporter::testLiveNoteSnapshotIsIgnoredForOtherNotes()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "Open.md", "# Open\n\nSaved open.\n");
+    writeNote(&coll, "Other.md", "# Other\n\nSaved other.\n");
+    coll.refresh();
+
+    BlockModel model;
+    DocumentSerializer serializer;
+    serializer.loadIntoModel(&model, "# Open\n\nUnsaved open.");
+    m_exporter.setLiveNote("Open.md", &model);
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", false), 2);
+    QVERIFY(readAll(QDir(dest.path()).filePath("Open.html"))
+                .contains("Unsaved open."));
+    // Every other note still exports from disk.
+    QVERIFY(readAll(QDir(dest.path()).filePath("Other.html"))
+                .contains("Saved other."));
+
+    m_exporter.clearLiveNote();
 }
 
 QTEST_MAIN(TestDocumentExporter)

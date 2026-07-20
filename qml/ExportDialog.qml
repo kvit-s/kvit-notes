@@ -58,6 +58,15 @@ Dialog {
             var abs = noteCollection.absolutePath(appWindow.currentNoteRelPath)
             noteDir = abs.substring(0, abs.lastIndexOf("/"))
         }
+        // The single-note scope renders the live model directly. A collection
+        // or selection export instead reads each note from disk, where the
+        // note being edited may be out of date, so hand the exporter the
+        // editor's current markdown for that one note. Exporting snapshots
+        // rather than saving: it must not write to the user's notes.
+        if (appWindow && appWindow.currentNoteRelPath !== "")
+            documentExporter.setLiveNote(appWindow.currentNoteRelPath, blockModel)
+        else
+            documentExporter.clearLiveNote()
         documentExporter.setImageContext(noteDir, root)
     }
 
@@ -162,6 +171,7 @@ Dialog {
                 count = documentExporter.exportCollection(
                     noteCollection, dir, exportDialog.format,
                     singleFileCheck.checked)
+            documentExporter.clearLiveNote()
             exportDialog.appWindow.showTransientStatus(
                 count > 0 ? (qsTr("Exported ") + count + qsTr(" notes to ") + dir)
                           : qsTr("Export failed"))
