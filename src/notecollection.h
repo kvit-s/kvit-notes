@@ -19,6 +19,7 @@
 #include <functional>
 
 #include "cancellationtoken.h"
+#include "notebackupstore.h"
 #include "noteentry.h"
 #include "notefrontmatter.h"
 #include "notetrashstore.h"
@@ -511,6 +512,8 @@ private:
     VaultLock m_vaultLock;
     // <root>/.kvit/trash: where deleted notes and folders land.
     NoteTrashStore m_trash;
+    // <root>/.kvit/backups: rotated copies taken before an overwrite.
+    NoteBackupStore m_backups;
     int m_revision = 0;
 
     QHash<QString, NoteEntry> m_notes;    // by relPath
@@ -563,7 +566,6 @@ private:
     QString m_lastOpenNote;
 
     QStringList m_pendingRecovery; // relPaths with startup journals
-    std::function<QDateTime()> m_clock; // null = QDateTime::currentDateTime
     std::function<void(const QString &)> m_indexParseObserver;
     bool m_indexDirty = false;
     bool m_scanInProgress = false;

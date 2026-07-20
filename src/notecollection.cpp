@@ -6,6 +6,7 @@
 #include "documentserializer.h"
 #include "block.h"
 #include "collectionsearchindex.h"
+#include "notefileio.h"
 #include "perflog.h"
 #include "wikilinkscanner.h"
 
@@ -36,55 +37,13 @@ const QString indexFileName = QStringLiteral("index.json");
 const QString trashDirName = QStringLiteral("trash");
 const QString mdSuffix = QStringLiteral(".md");
 
-QString readTextFile(const QString &path, bool *ok = nullptr)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (ok)
-            *ok = false;
-        return QString();
-    }
-    QTextStream stream(&file);
-    stream.setEncoding(QStringConverter::Utf8);
-    if (ok)
-        *ok = true;
-    return stream.readAll();
-}
-
-QByteArray readFileBytes(const QString &path, bool *ok = nullptr)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        if (ok)
-            *ok = false;
-        return QByteArray();
-    }
-    if (ok)
-        *ok = true;
-    return file.readAll();
-}
-
-bool writeTextFileAtomic(const QString &path, const QString &content)
-{
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-        return false;
-    QTextStream stream(&file);
-    stream.setEncoding(QStringConverter::Utf8);
-    stream << content;
-    stream.flush();
-    return file.commit();
-}
-
-bool writeFileBytesAtomic(const QString &path, const QByteArray &content)
-{
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly))
-        return false;
-    if (file.write(content) != content.size())
-        return false;
-    return file.commit();
-}
+// The four file primitives now live in notefileio.h, shared with the stores
+// split out of this class. Pulled in unqualified so every call site below
+// reads exactly as it did when they were defined here.
+using NoteFileIo::readFileBytes;
+using NoteFileIo::readTextFile;
+using NoteFileIo::writeFileBytesAtomic;
+using NoteFileIo::writeTextFileAtomic;
 
 QByteArray contentHash(const QByteArray &content)
 {
@@ -374,6 +333,7 @@ bool NoteCollection::prepareRootPath(const QString &path)
 void NoteCollection::attachStoresToRoot()
 {
     m_trash.setRootPath(m_rootPath);
+    m_backups.setRootPath(m_rootPath);
 }
 
 void NoteCollection::loadRecoveryEntries()
@@ -3475,139 +3435,43 @@ void NoteCollection::setLastOpenNote(const QString &relPath)
 }
 
 // ------------------------------------------------------------- backups
-
-namespace {
-const int backupFloorSecs = 10 * 60;
-const int backupKeep = 10;
-const QString backupStampFormat = QStringLiteral("yyyyMMdd-HHmmss");
-
-void writeBackupSnapshot(const QString &dirPath,
-                         const QString &target,
-                         QByteArray bytes)
-{
-    PerfLog::ScopedTimer perf(
-        QStringLiteral("collection.backup_before_overwrite.write"),
-        QVariantMap{{QStringLiteral("path"), target},
-                    {QStringLiteral("bytes"), bytes.size()},
-                    {QStringLiteral("async"), true}});
-
-    QDir().mkpath(dirPath);
-    const bool copied = writeFileBytesAtomic(target, bytes);
-    perf.addContext(QStringLiteral("copied"), copied);
-    if (!copied)
-        return;
-
-    QDir dir(dirPath);
-    QStringList existing = dir.entryList({QStringLiteral("*.md")},
-                                         QDir::Files, QDir::Name);
-    while (existing.size() > backupKeep)
-        QFile::remove(dirPath + QLatin1Char('/') + existing.takeFirst());
-}
-} // namespace
+//
+// The rotation policy, the directory layout and the pool-thread copy live in
+// NoteBackupStore. What stays here is the mapping from an absolute path to a
+// note in this collection, and the body-preview rule, which has to be the
+// same analyzeBody the scan and the status bar use so a backup listing and
+// the note list never describe the same text differently.
 
 void NoteCollection::setClockForTesting(std::function<QDateTime()> clock)
 {
-    m_clock = std::move(clock);
+    m_backups.setClockForTesting(std::move(clock));
 }
 
 void NoteCollection::setClockOffsetForTesting(int secs)
 {
     if (secs == 0)
-        m_clock = nullptr;
+        m_backups.setClockForTesting(nullptr);
     else
-        m_clock = [secs]() { return QDateTime::currentDateTime().addSecs(secs); };
+        m_backups.setClockForTesting(
+            [secs]() { return QDateTime::currentDateTime().addSecs(secs); });
 }
 
 void NoteCollection::backupBeforeOverwrite(const QString &absPath)
 {
-    PerfLog::ScopedTimer perf(
-        QStringLiteral("collection.backup_before_overwrite"),
-        QVariantMap{{QStringLiteral("path"), absPath}});
-
-    const QString relPath = relativePath(absPath);
-    if (relPath.isEmpty() || !QFileInfo::exists(absPath)) {
-        perf.addContext(QStringLiteral("skipped"), true);
-        return;
-    }
-
-    const QString dirPath = m_rootPath + QStringLiteral("/") + kvitDirName
-        + QStringLiteral("/") + QStringLiteral("backups") + QLatin1Char('/')
-        + relPath;
-    QDir dir(dirPath);
-    const QDateTime now = m_clock ? m_clock() : QDateTime::currentDateTime();
-
-    // Rotation floor: at most one backup per window, whatever the
-    // auto-save cadence.
-    QStringList existing = dir.entryList({QStringLiteral("*.md")},
-                                         QDir::Files, QDir::Name);
-    if (!existing.isEmpty()) {
-        const QString newest = existing.last();
-        const QDateTime newestStamp = QDateTime::fromString(
-            newest.left(newest.size() - 3), backupStampFormat);
-        if (newestStamp.isValid()
-            && newestStamp.secsTo(now) < backupFloorSecs) {
-            perf.addContext(QStringLiteral("skipped"), true);
-            perf.addContext(QStringLiteral("reason"),
-                            QStringLiteral("rotation_floor"));
-            return;
-        }
-    }
-
-    QString target = dirPath + QLatin1Char('/')
-        + now.toString(backupStampFormat) + mdSuffix;
-    if (QFileInfo::exists(target)) {
-        perf.addContext(QStringLiteral("skipped"), true);
-        perf.addContext(QStringLiteral("reason"),
-                        QStringLiteral("duplicate_stamp"));
-        return; // same-second duplicate: the window already has its copy
-    }
-
-    bool ok = false;
-    QByteArray bytes = readFileBytes(absPath, &ok);
-    perf.addContext(QStringLiteral("copied"), ok);
-    perf.addContext(QStringLiteral("bytes"), bytes.size());
-    perf.addContext(QStringLiteral("async"), ok);
-    if (!ok)
-        return;
-
-    QtConcurrent::run(writeBackupSnapshot, dirPath, target, std::move(bytes));
+    m_backups.backupBeforeOverwrite(relativePath(absPath), absPath);
 }
 
 QVariantList NoteCollection::backupsFor(const QString &relPath) const
 {
-    QVariantList listing;
-    const QString dirPath = m_rootPath + QStringLiteral("/") + kvitDirName
-        + QStringLiteral("/backups/") + relPath;
-    const QStringList files = QDir(dirPath).entryList(
-        {QStringLiteral("*.md")}, QDir::Files, QDir::Name | QDir::Reversed);
-    for (const QString &fileName : files) {
-        const QDateTime stamp = QDateTime::fromString(
-            fileName.left(fileName.size() - 3), backupStampFormat);
-        bool ok = false;
-        const QString text =
-            readTextFile(dirPath + QLatin1Char('/') + fileName, &ok);
-        if (!ok)
-            continue;
-        const NoteFrontMatter::Split split = NoteFrontMatter::split(text);
-        listing.append(QVariantMap{
-            {QStringLiteral("fileName"), fileName},
-            {QStringLiteral("timestamp"), stamp},
-            {QStringLiteral("preview"), analyzeBody(split.body).snippet},
-        });
-    }
-    return listing;
+    return m_backups.listFor(relPath, [](const QString &body) {
+        return analyzeBody(body).snippet;
+    });
 }
 
 QString NoteCollection::backupBody(const QString &relPath,
                                    const QString &fileName) const
 {
-    if (fileName.contains(QLatin1Char('/')))
-        return QString();
-    const QString path = m_rootPath + QStringLiteral("/") + kvitDirName
-        + QStringLiteral("/backups/") + relPath + QLatin1Char('/') + fileName;
-    bool ok = false;
-    const QString text = readTextFile(path, &ok);
-    return ok ? NoteFrontMatter::split(text).body : QString();
+    return m_backups.bodyOf(relPath, fileName);
 }
 
 // ------------------------------------------------------ crash recovery
