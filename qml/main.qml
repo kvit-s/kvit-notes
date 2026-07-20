@@ -1876,9 +1876,15 @@ ApplicationWindow {
         function onActivated() { root.openQuickCapture() }
     }
     // In-app quick-capture chord (works while the window is focused, so capture
-    // is reachable even where the system-wide grab is unavailable).
+    // is reachable even where the system-wide grab is unavailable). It reads
+    // the same setting the system-wide registration uses, so changing the chord
+    // moves both; hard-coding it here left the setting appearing to do nothing
+    // on every platform without a working grab, which is all of them today.
     Shortcut {
-        sequence: "Ctrl+Alt+N"
+        sequence: {
+            var r = appSettings.revision // re-evaluate when a setting changes
+            return appSettings.value("hotkey.quickCapture", "Ctrl+Alt+N")
+        }
         onActivated: root.openQuickCapture()
     }
     Connections {

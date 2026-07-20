@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "shortcutcatalog.h"
 
+#include <QKeySequence>
 #include <QVariantMap>
 
 const QList<ShortcutInfo> &ShortcutCatalog::entries()
@@ -12,9 +13,12 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
     // window-scoped ones as Shortcut elements in main.qml ("window").
     static const QList<ShortcutInfo> kEntries = {
         // §13.1 Text Formatting
-        {"Text Formatting", "Bold",              "Ctrl+B",       "engine", false, {}},
-        {"Text Formatting", "Italic",            "Ctrl+I",       "engine", false, {}},
-        {"Text Formatting", "Underline",         "Ctrl+U",       "engine", false, {}},
+        {"Text Formatting", "Bold",              "Ctrl+B",       "engine", false, {},
+         QKeySequence::Bold},
+        {"Text Formatting", "Italic",            "Ctrl+I",       "engine", false, {},
+         QKeySequence::Italic},
+        {"Text Formatting", "Underline",         "Ctrl+U",       "engine", false, {},
+         QKeySequence::Underline},
         {"Text Formatting", "Strikethrough",     "Ctrl+Shift+S", "engine", false, {}},
         {"Text Formatting", "Inline Code",       "Ctrl+E",       "engine", false, {}},
         {"Text Formatting", "Link",              "Ctrl+K",       "engine", false, {}},
@@ -55,16 +59,22 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
         {"Math Editing", "Inline math pair",       "$",          "engine", false, {}},
 
         // §13.4 General
-        {"General", "Save",              "Ctrl+S",       "window", false, {}},
+        {"General", "Save",              "Ctrl+S",       "window", false, {},
+         QKeySequence::Save},
         {"General", "Save As",           "",             "menu",   true,
          "StandardKey.SaveAs resolves to Ctrl+Shift+S, which §13.1 assigns to "
          "strikethrough; Save As yields and is reached from the File menu."},
-        {"General", "Undo",              "Ctrl+Z",       "window", false, {}},
-        {"General", "Redo",              "Ctrl+Y",       "window", false, {}},
-        {"General", "Find",              "Ctrl+F",       "window", false, {}},
+        {"General", "Undo",              "Ctrl+Z",       "window", false, {},
+         QKeySequence::Undo},
+        {"General", "Redo",              "Ctrl+Y",       "window", false, {},
+         QKeySequence::Redo},
+        {"General", "Find",              "Ctrl+F",       "window", false, {},
+         QKeySequence::Find},
         {"General", "Find & Replace",    "Ctrl+H",       "window", false, {}},
-        {"General", "Select All",        "Ctrl+A",       "engine", false, {}},
-        {"General", "New Note",          "Ctrl+N",       "window", false, {}},
+        {"General", "Select All",        "Ctrl+A",       "engine", false, {},
+         QKeySequence::SelectAll},
+        {"General", "New Note",          "Ctrl+N",       "window", false, {},
+         QKeySequence::New},
         {"General", "Toggle Sidebar",    "Ctrl+\\",      "window", false, {}},
         {"General", "Distraction-free",  "F11",          "window", false, {}},
         // Wiki-link navigation. Ctrl+P rather
@@ -88,6 +98,49 @@ QStringList ShortcutCatalog::categories() const
     return cats;
 }
 
+QString ShortcutCatalog::displayChord(QKeySequence::StandardKey standardKey,
+                                     const QString &chord)
+{
+    // A standard key usually binds SEVERAL sequences, and main.qml's
+    // `sequences: [StandardKey.X]` arms all of them — Redo answers to both
+    // Ctrl+Y and Ctrl+Shift+Z on Linux. Which one Qt lists first depends on
+    // the platform theme and is not stable between processes, so picking the
+    // first would make the reference show a different chord than the one the
+    // §13 table promises, at random.
+    //
+    // Prefer the documented chord whenever the platform really does bind it,
+    // and fall back to Qt's own answer when it does not — which is what
+    // happens on macOS, where Redo is Command-Shift-Z and the Windows/Linux
+    // Ctrl+Y is simply not among the bindings.
+    if (standardKey != QKeySequence::UnknownKey) {
+        const QList<QKeySequence> bound = QKeySequence::keyBindings(standardKey);
+        const QKeySequence documented =
+            QKeySequence::fromString(chord, QKeySequence::PortableText);
+        if (!documented.isEmpty() && bound.contains(documented))
+            return documented.toString(QKeySequence::NativeText);
+        if (!bound.isEmpty())
+            return bound.first().toString(QKeySequence::NativeText);
+    }
+    return displayChord(chord);
+}
+
+QString ShortcutCatalog::displayChord(const QString &chord)
+{
+    // Qt binds "Ctrl+B" to Command-B on macOS (Ctrl and Meta are swapped
+    // unless AA_MacDontSwapCtrlAndMeta is set, and this app does not set it),
+    // so the chords above are already correct there. What was wrong was
+    // showing them: the reference printed the stored "Ctrl+B" while the key
+    // that worked was Command-B. NativeText resolves each chord the same way
+    // the binding does, giving the platform's own glyphs on macOS and leaving
+    // the Windows/Linux spelling untouched.
+    if (chord.isEmpty())
+        return QString();
+    const QKeySequence seq = QKeySequence::fromString(chord, QKeySequence::PortableText);
+    if (seq.isEmpty())
+        return chord;   // a literal trigger like "\\" or "$", not a chord
+    return seq.toString(QKeySequence::NativeText);
+}
+
 QVariantList ShortcutCatalog::model() const
 {
     QVariantList rows;
@@ -95,7 +148,10 @@ QVariantList ShortcutCatalog::model() const
         QVariantMap m;
         m.insert("category", e.category);
         m.insert("action", e.action);
+        // The portable chord stays the catalog's identity (the audit compares
+        // against it); displayChord is what a human should be shown.
         m.insert("chord", e.chord);
+        m.insert("displayChord", displayChord(e.standardKey, e.chord));
         m.insert("note", e.note);
         m.insert("intentional", e.intentional);
         rows.append(m);

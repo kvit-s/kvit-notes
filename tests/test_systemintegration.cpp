@@ -26,6 +26,7 @@ private slots:
     void captureNoteWritesBodyTitledFromFirstLine();
     void captureNoteFallsBackToUntitled();
     void captureNoteLeavesNothingBehindWhenTheWriteFails();
+    void quickCaptureChordFollowsTheSetting();
 };
 
 void TestSystemIntegration::hotkeyRegistersOnlyWhenSupported()
@@ -173,6 +174,41 @@ void TestSystemIntegration::captureNoteLeavesNothingBehindWhenTheWriteFails()
     QCOMPARE(col.noteCount(), 0);
     QCOMPARE(QDir(dir.path()).entryList(QDir::Files | QDir::NoDotAndDotDot),
              QStringList());
+}
+
+void TestSystemIntegration::quickCaptureChordFollowsTheSetting()
+{
+    // The chord is stored in one place and read by two consumers: this
+    // registration and the in-app Shortcut in main.qml. Editing the setting
+    // has to move both, or the setting silently does nothing on every
+    // platform without a working system-wide grab -- which is all of them.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    SettingsStore store;
+    QVERIFY(store.open(dir.filePath("settings.json")));
+
+    GlobalHotkey hk;
+    hk.setSupported(true);   // pretend a backend exists, to observe re-arming
+    const auto apply = [&]() {
+        hk.registerShortcut(store.value(QStringLiteral("hotkey.quickCapture"),
+                                        QStringLiteral("Ctrl+Alt+N")).toString());
+    };
+    QObject::connect(&store, &SettingsStore::valueChanged, &hk,
+                     [&](const QString &key) {
+                         if (key == QLatin1String("hotkey.quickCapture"))
+                             apply();
+                     });
+    apply();
+    QCOMPARE(hk.shortcut(), QStringLiteral("Ctrl+Alt+N"));
+
+    store.setValue(QStringLiteral("hotkey.quickCapture"),
+                   QStringLiteral("Ctrl+Shift+Space"));
+    QCOMPARE(hk.shortcut(), QStringLiteral("Ctrl+Shift+Space"));
+    QVERIFY(hk.registered());
+
+    // An unrelated setting must not disturb the registration.
+    store.setValue(QStringLiteral("view.equationNumbers"), true);
+    QCOMPARE(hk.shortcut(), QStringLiteral("Ctrl+Shift+Space"));
 }
 
 QTEST_MAIN(TestSystemIntegration)
