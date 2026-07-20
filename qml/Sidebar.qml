@@ -1,6 +1,12 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Delegates and their nested rows are separate scopes throughout this
+// file — the folder tree, the tag list, the recent searches and two
+// colour palettes. Binding them means each delegate declares the model
+// roles it reads and its contents address them through its id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -124,6 +130,8 @@ Rectangle {
             Repeater {
                 model: sidebar.recentSearches
                 Rectangle {
+                    id: recentRow
+                    required property string modelData
                     Layout.fillWidth: true
                     height: 20
                     color: recentHover.hovered ? Theme.hoverTint : "transparent"
@@ -132,7 +140,7 @@ Rectangle {
                         anchors.fill: parent
                         anchors.leftMargin: 6
                         verticalAlignment: Text.AlignVCenter
-                        text: "↺ " + modelData
+                        text: "↺ " + recentRow.modelData
                         font.pixelSize: 11
                         color: Theme.textMuted
                         elide: Text.ElideRight
@@ -140,8 +148,8 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            globalSearchField.text = modelData
-                            CollectionSearch.query = modelData
+                            globalSearchField.text = recentRow.modelData
+                            CollectionSearch.query = recentRow.modelData
                         }
                     }
                 }
@@ -257,14 +265,24 @@ Rectangle {
 
             delegate: Rectangle {
                 id: folderRow
+                // FolderTreeModel's roles, declared rather than injected, so
+                // the nested Row and its handlers read them through the row.
+                required property string relPath
+                required property string name
+                required property int depth
+                required property bool expanded
+                required property bool hasChildren
+                required property string folderColor
+                required property int noteCount
+                required property int index
                 width: folderTreeView.width
                 height: 28
                 color: {
                     if (sidebar.dropTargetActive
-                        && sidebar.dropTargetFolder === model.relPath)
+                        && sidebar.dropTargetFolder === folderRow.relPath)
                         return Theme.selectionActiveTint
                     if (NoteListModel.scope === "folder"
-                        && NoteListModel.folderPath === model.relPath)
+                        && NoteListModel.folderPath === folderRow.relPath)
                         return Theme.selectionTint
                     return rowHover.hovered ? Theme.hoverTint : "transparent"
                 }
@@ -274,39 +292,39 @@ Rectangle {
             TapHandler {
                 acceptedButtons: Qt.RightButton
                 onTapped: folderContextMenu.openFor(
-                    model.relPath, model.name, model.folderColor)
+                    folderRow.relPath, folderRow.name, folderRow.folderColor)
             }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 8 + model.depth * 14
+                    anchors.leftMargin: 8 + folderRow.depth * 14
                     anchors.rightMargin: 6
                     spacing: 4
 
                     // Chevron: expand/collapse (§8.1)
                     Text {
-                        text: model.expanded ? "▾" : "▸"
+                        text: folderRow.expanded ? "▾" : "▸"
                         font.pixelSize: 10
                         color: Theme.textMuted
-                        visible: model.hasChildren
+                        visible: folderRow.hasChildren
                         width: 10
                         TapHandler {
-                            onTapped: FolderTreeModel.toggleExpanded(index)
+                            onTapped: FolderTreeModel.toggleExpanded(folderRow.index)
                         }
                     }
-                    Item { width: 10; visible: !model.hasChildren }
+                    Item { width: 10; visible: !folderRow.hasChildren }
 
                     // Folder glyph, tinted by the folder color (§8.1)
                     Rectangle {
                         width: 10
                         height: 8
                         radius: 2
-                        color: model.folderColor !== ""
-                               ? model.folderColor : Theme.mutedGlyph
+                        color: folderRow.folderColor !== ""
+                               ? folderRow.folderColor : Theme.mutedGlyph
                     }
 
                     Label {
-                        text: model.name
+                        text: folderRow.name
                         font.pixelSize: 12
                         elide: Text.ElideRight
                         Layout.fillWidth: true
@@ -321,8 +339,8 @@ Rectangle {
                         implicitWidth: 20
                         implicitHeight: 22
                         onClicked: folderDialog.openForRename(
-                                       model.relPath, model.name,
-                                       model.folderColor)
+                                       folderRow.relPath, folderRow.name,
+                                       folderRow.folderColor)
                     }
                     ToolButton {
                         objectName: "folderNewChildButton"
@@ -331,7 +349,7 @@ Rectangle {
                         font.pixelSize: 11
                         implicitWidth: 20
                         implicitHeight: 22
-                        onClicked: folderDialog.openForCreate(model.relPath)
+                        onClicked: folderDialog.openForCreate(folderRow.relPath)
                     }
                     ToolButton {
                         objectName: "folderDeleteButton"
@@ -341,13 +359,13 @@ Rectangle {
                         implicitWidth: 20
                         implicitHeight: 22
                         onClicked: deleteFolderDialog.openFor(
-                                       model.relPath, model.name,
-                                       model.noteCount)
+                                       folderRow.relPath, folderRow.name,
+                                       folderRow.noteCount)
                     }
 
                     Label {
                         visible: !rowHover.hovered
-                        text: model.noteCount
+                        text: folderRow.noteCount
                         font.pixelSize: 11
                         color: Theme.textFaint
                     }
@@ -357,7 +375,7 @@ Rectangle {
                     anchors.fill: parent
                     z: -1
                     onClicked: {
-                        NoteListModel.folderPath = model.relPath
+                        NoteListModel.folderPath = folderRow.relPath
                         NoteListModel.scope = "folder"
                     }
                 }
@@ -393,9 +411,11 @@ Rectangle {
             }
 
             delegate: Rectangle {
+                id: tagRow
+                required property var modelData
                 width: tagListView.width
                 height: 24
-                color: NoteListModel.tagFilter === modelData.name
+                color: NoteListModel.tagFilter === tagRow.modelData.name
                        ? Theme.selectionTint
                        : (tagHover.hovered ? Theme.hoverTint : "transparent")
 
@@ -404,7 +424,7 @@ Rectangle {
             TapHandler {
                 acceptedButtons: Qt.RightButton
                 onTapped: tagContextMenu.openFor(
-                    modelData.name, modelData.color, modelData.count)
+                    tagRow.modelData.name, tagRow.modelData.color, tagRow.modelData.count)
             }
 
                 RowLayout {
@@ -417,11 +437,11 @@ Rectangle {
                         width: 8
                         height: 8
                         radius: 4
-                        color: modelData.color !== "" ? modelData.color
+                        color: tagRow.modelData.color !== "" ? tagRow.modelData.color
                                                       : Theme.mutedGlyph
                     }
                     Label {
-                        text: modelData.name
+                        text: tagRow.modelData.name
                         font.pixelSize: 12
                         elide: Text.ElideRight
                         Layout.fillWidth: true
@@ -433,8 +453,8 @@ Rectangle {
                         font.pixelSize: 10
                         implicitWidth: 20
                         implicitHeight: 20
-                        onClicked: tagDialog.openFor(modelData.name,
-                                                     modelData.color)
+                        onClicked: tagDialog.openFor(tagRow.modelData.name,
+                                                     tagRow.modelData.color)
                     }
                     ToolButton {
                         objectName: "tagDeleteButton"
@@ -443,12 +463,12 @@ Rectangle {
                         font.pixelSize: 10
                         implicitWidth: 20
                         implicitHeight: 20
-                        onClicked: deleteTagDialog.openFor(modelData.name,
-                                                           modelData.count)
+                        onClicked: deleteTagDialog.openFor(tagRow.modelData.name,
+                                                           tagRow.modelData.count)
                     }
                     Label {
                         visible: !tagHover.hovered
-                        text: modelData.count
+                        text: tagRow.modelData.count
                         font.pixelSize: 11
                         color: Theme.textFaint
                     }
@@ -459,8 +479,8 @@ Rectangle {
                     z: -1
                     // Toggle: clicking the active tag clears the filter.
                     onClicked: NoteListModel.tagFilter =
-                        NoteListModel.tagFilter === modelData.name
-                            ? "" : modelData.name
+                        NoteListModel.tagFilter === tagRow.modelData.name
+                            ? "" : tagRow.modelData.name
                 }
             }
         }
@@ -468,6 +488,7 @@ Rectangle {
         // ---- Trash: item count and the empty action, behind a
         // count-naming confirmation. --------------------------------
         Rectangle {
+            id: trashRow
             objectName: "trashRow"
             Layout.fillWidth: true
             height: 26
@@ -492,7 +513,7 @@ Rectangle {
                 }
                 Label {
                     objectName: "trashCountLabel"
-                    text: parent.parent.trashCount
+                    text: trashRow.trashCount
                     font.pixelSize: 11
                     color: Theme.textFaint
                 }
@@ -685,14 +706,16 @@ Rectangle {
                 Repeater {
                     model: folderDialog.palette
                     Rectangle {
+                        id: folderSwatch
+                        required property string modelData
                         width: 20
                         height: 20
                         radius: 10
-                        color: modelData === "" ? Theme.mutedGlyph : modelData
-                        border.width: folderDialog.selectedColor === modelData ? 2 : 0
+                        color: folderSwatch.modelData === "" ? Theme.mutedGlyph : folderSwatch.modelData
+                        border.width: folderDialog.selectedColor === folderSwatch.modelData ? 2 : 0
                         border.color: Theme.textPrimary
                         TapHandler {
-                            onTapped: folderDialog.selectedColor = modelData
+                            onTapped: folderDialog.selectedColor = folderSwatch.modelData
                         }
                     }
                 }
@@ -758,14 +781,16 @@ Rectangle {
                 Repeater {
                     model: tagDialog.palette
                     Rectangle {
+                        id: tagSwatch
+                        required property string modelData
                         width: 20
                         height: 20
                         radius: 10
-                        color: modelData
-                        border.width: tagDialog.selectedColor === modelData ? 2 : 0
+                        color: tagSwatch.modelData
+                        border.width: tagDialog.selectedColor === tagSwatch.modelData ? 2 : 0
                         border.color: Theme.textPrimary
                         TapHandler {
-                            onTapped: tagDialog.selectedColor = modelData
+                            onTapped: tagDialog.selectedColor = tagSwatch.modelData
                         }
                     }
                 }

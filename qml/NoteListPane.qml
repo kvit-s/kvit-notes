@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The note rows, the recovery entries and the folder menu are each a
+// delegate whose contents are separate scopes. Binding them means each
+// declares the model roles it reads and addresses them by id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -74,7 +79,7 @@ Rectangle {
         }
         selectedPaths = [relPath]
         selectionAnchor = relPath
-        appWindow.openNoteByPath(relPath)
+        noteListPane.appWindow.openNoteByPath(relPath)
     }
 
     function startRename(relPath) {
@@ -106,7 +111,7 @@ Rectangle {
         color: Theme.border
     }
 
-    // ---- Note drag: onto a sidebar folder (move — the whole selection
+    // ---- Note drag: onto a noteListPane.sidebar folder (move — the whole selection
     // when a selected row is dragged), or within the list to reorder
     // when the manual sort is active ------------------------------------
     QtObject {
@@ -141,12 +146,12 @@ Rectangle {
                          && local.y >= 0 && local.y < noteListView.height
             if (inList && reorderEnabled && dragPaths.length === 1) {
                 reorderGap = gapAt(local.y + noteListView.contentY)
-                if (sidebar)
-                    sidebar.clearDropHover()
+                if (noteListPane.sidebar)
+                    noteListPane.sidebar.clearDropHover()
             } else {
                 reorderGap = -1
-                if (sidebar)
-                    sidebar.setDropHover(sceneX, sceneY)
+                if (noteListPane.sidebar)
+                    noteListPane.sidebar.setDropHover(sceneX, sceneY)
             }
         }
         function gapAt(contentY) {
@@ -170,8 +175,8 @@ Rectangle {
                 var position = reorderGap > from ? reorderGap - 1 : reorderGap
                 NoteCollection.setManualPosition(relPath, position)
             } else {
-                var target = sidebar
-                    ? sidebar.folderDropTargetAt(sceneX, sceneY) : ""
+                var target = noteListPane.sidebar
+                    ? noteListPane.sidebar.folderDropTargetAt(sceneX, sceneY) : ""
                 if (target !== "") {
                     for (var i = 0; i < dragPaths.length; i++)
                         NoteCollection.moveNote(dragPaths[i], target)
@@ -184,18 +189,18 @@ Rectangle {
             relPath = ""
             dragPaths = []
             reorderGap = -1
-            if (sidebar)
-                sidebar.clearDropHover()
+            if (noteListPane.sidebar)
+                noteListPane.sidebar.clearDropHover()
         }
     }
 
     // Floating proxy while a note row is dragged; lives in the window
     // content item (a positioner parent would override x/y), so it can
-    // travel over the sidebar.
+    // travel over the noteListPane.sidebar.
     Rectangle {
         id: noteDragProxy
         objectName: "noteDragProxy"
-        parent: appWindow ? appWindow.contentItem : noteListPane
+        parent: noteListPane.appWindow ? noteListPane.appWindow.contentItem : noteListPane
         visible: noteDrag.active
         z: 1000
         width: 180
@@ -272,7 +277,7 @@ Rectangle {
                 implicitWidth: 26
                 ToolTip.visible: hovered
                 ToolTip.text: qsTr("New note (Ctrl+N)")
-                onClicked: appWindow.createNoteInCurrentScope()
+                onClicked: noteListPane.appWindow.createNoteInCurrentScope()
             }
         }
 
@@ -361,13 +366,15 @@ Rectangle {
                 Repeater {
                     model: recoveryColumn.entries
                     delegate: ColumnLayout {
+                        id: recoveryEntry
+                        required property var modelData
                         Layout.fillWidth: true
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 4
                             Label {
-                                text: modelData.title
+                                text: recoveryEntry.modelData.title
                                 font.pixelSize: 11
                                 font.bold: true
                                 elide: Text.ElideRight
@@ -379,7 +386,7 @@ Rectangle {
                                 font.pixelSize: 10
                                 implicitHeight: 22
                                 onClicked: noteListPane.appWindow
-                                    .restoreRecoveredNote(modelData.relPath)
+                                    .restoreRecoveredNote(recoveryEntry.modelData.relPath)
                             }
                             ToolButton {
                                 objectName: "recoveryDiscardButton"
@@ -387,11 +394,11 @@ Rectangle {
                                 font.pixelSize: 10
                                 implicitHeight: 22
                                 onClicked: NoteCollection.discardRecovery(
-                                               modelData.relPath)
+                                               recoveryEntry.modelData.relPath)
                             }
                         }
                         Label {
-                            text: modelData.preview
+                            text: recoveryEntry.modelData.preview
                             font.pixelSize: 10
                             color: Theme.bannerText
                             elide: Text.ElideRight
@@ -502,6 +509,18 @@ Rectangle {
 
             delegate: Rectangle {
                 id: noteRow
+                // NoteListModel's roles, declared rather than injected, so
+                // the nested rows and handlers read them through noteRow.
+                required property int index
+                required property string relPath
+                required property string title
+                required property string snippet
+                required property string modified
+                required property string created
+                required property int wordCount
+                required property bool pinned
+                required property bool favorite
+                required property var tags
                 width: noteListView.width
                 // Content-derived with a floor: font metrics differ per
                 // platform (DirectWrite lines run taller than fontconfig's),
@@ -509,15 +528,15 @@ Rectangle {
                 height: Math.max(58, noteRowContent.implicitHeight + 14)
                 // Screen-reader name/role for each note (§14.2).
                 Accessible.role: Accessible.ListItem
-                Accessible.name: model.title
-                Accessible.selected: appWindow
-                    && appWindow.currentNoteRelPath === model.relPath
+                Accessible.name: noteRow.title
+                Accessible.selected: noteListPane.appWindow
+                    && noteListPane.appWindow.currentNoteRelPath === noteRow.relPath
                 color: {
-                    if (noteListPane.isSelected(model.relPath)
+                    if (noteListPane.isSelected(noteRow.relPath)
                         && noteListPane.selectedPaths.length > 1)
                         return Theme.selectionActiveTint
-                    if (appWindow
-                        && appWindow.currentNoteRelPath === model.relPath)
+                    if (noteListPane.appWindow
+                        && noteListPane.appWindow.currentNoteRelPath === noteRow.relPath)
                         return Theme.selectionTint
                     return noteRowHover.hovered ? Theme.hoverTint : "transparent"
                 }
@@ -537,20 +556,20 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 4
                         Label {
-                            visible: model.pinned
+                            visible: noteRow.pinned
                             text: "⚑"
                             font.pixelSize: 11
                             color: Theme.accent
                         }
                         Label {
-                            visible: model.favorite
+                            visible: noteRow.favorite
                             text: "★"
                             font.pixelSize: 11
                             color: Theme.pinColor
                         }
                         Label {
-                            visible: noteListPane.renamingPath !== model.relPath
-                            text: model.title
+                            visible: noteListPane.renamingPath !== noteRow.relPath
+                            text: noteRow.title
                             font.pixelSize: 12
                             font.bold: true
                             elide: Text.ElideRight
@@ -564,35 +583,35 @@ Rectangle {
                         TextField {
                             id: renameField
                             objectName: "noteRenameField"
-                            visible: noteListPane.renamingPath === model.relPath
+                            visible: noteListPane.renamingPath === noteRow.relPath
                             Layout.fillWidth: true
                             font.pixelSize: 12
                             implicitHeight: 22
 
                             onVisibleChanged: {
                                 if (visible) {
-                                    text = model.title
+                                    text = noteRow.title
                                     forceActiveFocus()
                                     selectAll()
                                 }
                             }
                             onAccepted: {
-                                var path = model.relPath
+                                var path = noteRow.relPath
                                 noteListPane.renamingPath = ""
-                                if (text !== model.title)
+                                if (text !== noteRow.title)
                                     noteListPane.appWindow.requestNoteRename(path, text)
                             }
                             Keys.onEscapePressed: noteListPane.renamingPath = ""
                             onActiveFocusChanged: {
                                 if (!activeFocus
-                                    && noteListPane.renamingPath === model.relPath)
+                                    && noteListPane.renamingPath === noteRow.relPath)
                                     noteListPane.renamingPath = ""
                             }
                         }
 
                     }
                     Label {
-                        text: model.snippet !== "" ? model.snippet
+                        text: noteRow.snippet !== "" ? noteRow.snippet
                                                    : qsTr("Empty note")
                         font.pixelSize: 11
                         color: Theme.textFaint
@@ -605,9 +624,9 @@ Rectangle {
                         // under the created sort, modified otherwise.
                         text: Qt.formatDateTime(
                                   NoteListModel.sortMode === "created"
-                                      ? model.created : model.modified,
+                                      ? noteRow.created : noteRow.modified,
                                   "MMM d, yyyy hh:mm")
-                              + " · " + model.wordCount + " "
+                              + " · " + noteRow.wordCount + " "
                               + qsTr("words")
                         font.pixelSize: 10
                         color: Theme.textDisabled
@@ -631,28 +650,28 @@ Rectangle {
                     ToolButton {
                         objectName: "notePinButton"
                         text: "⚑"
-                        opacity: model.pinned ? 1.0 : 0.4
+                        opacity: noteRow.pinned ? 1.0 : 0.4
                         font.pixelSize: 10
                         implicitWidth: 22
                         implicitHeight: 22
                         ToolTip.visible: hovered
-                        ToolTip.text: model.pinned ? qsTr("Unpin")
+                        ToolTip.text: noteRow.pinned ? qsTr("Unpin")
                                                    : qsTr("Pin to top")
                         onClicked: NoteCollection.setPinned(
-                                       model.relPath, !model.pinned)
+                                       noteRow.relPath, !noteRow.pinned)
                     }
                     ToolButton {
                         objectName: "noteFavoriteButton"
-                        text: model.favorite ? "★" : "☆"
+                        text: noteRow.favorite ? "★" : "☆"
                         font.pixelSize: 11
                         implicitWidth: 22
                         implicitHeight: 22
                         ToolTip.visible: hovered
-                        ToolTip.text: model.favorite
+                        ToolTip.text: noteRow.favorite
                                       ? qsTr("Remove from favorites")
                                       : qsTr("Add to favorites")
                         onClicked: NoteCollection.setFavorite(
-                                       model.relPath, !model.favorite)
+                                       noteRow.relPath, !noteRow.favorite)
                     }
                 }
 
@@ -670,7 +689,7 @@ Rectangle {
                     // Leave the hover toggles clickable: they span the
                     // last ~48px plus the 12px content margin.
                     anchors.rightMargin: noteRowHover.hovered ? 64 : 0
-                    visible: noteListPane.renamingPath !== model.relPath
+                    visible: noteListPane.renamingPath !== noteRow.relPath
 
                     property real pressSceneX: 0
                     property real pressSceneY: 0
@@ -690,7 +709,7 @@ Rectangle {
                             && Math.abs(scene.x - pressSceneX)
                                + Math.abs(scene.y - pressSceneY) > 8) {
                             dragging = true
-                            noteDrag.begin(model.relPath, model.title)
+                            noteDrag.begin(noteRow.relPath, noteRow.title)
                         }
                         if (dragging)
                             noteDrag.update(scene.x, scene.y)
@@ -708,10 +727,10 @@ Rectangle {
                     }
                     onClicked: function(mouse) {
                         if (!dragging)
-                            noteListPane.selectionClick(model.relPath,
+                            noteListPane.selectionClick(noteRow.relPath,
                                                         mouse.modifiers)
                     }
-                    onDoubleClicked: noteListPane.startRename(model.relPath)
+                    onDoubleClicked: noteListPane.startRename(noteRow.relPath)
                 }
 
                 // §9.5 note context menu (right button passes through
@@ -719,7 +738,7 @@ Rectangle {
                 TapHandler {
                     acceptedButtons: Qt.RightButton
                     onTapped: noteContextMenu.openFor(
-                        model.relPath, model.pinned, model.favorite)
+                        noteRow.relPath, noteRow.pinned, noteRow.favorite)
                 }
             }
 
@@ -772,7 +791,7 @@ Rectangle {
         MenuItem {
             objectName: "ctxNoteOpen"
             text: qsTr("Open")
-            onTriggered: appWindow.openNoteByPath(noteContextMenu.relPath)
+            onTriggered: noteListPane.appWindow.openNoteByPath(noteContextMenu.relPath)
         }
         MenuItem {
             objectName: "ctxNoteRename"
@@ -895,8 +914,8 @@ Rectangle {
     // F2 renames the open note (features.md §8.3's rename path).
     Shortcut {
         sequence: "F2"
-        enabled: noteListPane.visible && appWindow
-                 && appWindow.currentNoteRelPath !== ""
-        onActivated: noteListPane.startRename(appWindow.currentNoteRelPath)
+        enabled: noteListPane.visible && noteListPane.appWindow
+                 && noteListPane.appWindow.currentNoteRelPath !== ""
+        onActivated: noteListPane.startRename(noteListPane.appWindow.currentNoteRelPath)
     }
 }

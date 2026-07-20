@@ -146,10 +146,12 @@ STRICT_CLEAN=(
     qml/FormattingBar.qml
     qml/QuickSwitcher.qml
     qml/SearchResultsView.qml
+    qml/Sidebar.qml
     qml/ShortcutReference.qml
     qml/StatisticsPanel.qml
     qml/ImportDialog.qml
     qml/LanguagePicker.qml
+    qml/NoteListPane.qml
     qml/OutlinePanel.qml
     qml/Lightbox.qml
     qml/PanelSeam.qml
