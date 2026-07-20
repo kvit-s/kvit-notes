@@ -512,6 +512,16 @@ if(UNIX AND NOT APPLE)
              COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_win_sync.sh)
 endif()
 
+# The two hand-maintained QML resource lists. A file added to qml/ and to only
+# one of them either breaks the shipped shell or hangs the Qt Quick harness
+# until its timeout, so the lists are compared directly rather than waited on.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME QrcSyncGuard
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-qrc-sync.py)
+endif()
+
 # ── CTest labels. The suite is heterogeneous, so every entry gets exactly
 #    one label and CI filters with `ctest -L <label>`:
 #      unit        deterministic, headless-safe — the merge gate on all OSes

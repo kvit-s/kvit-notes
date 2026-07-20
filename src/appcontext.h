@@ -74,8 +74,41 @@ class AppContext : public QObject
     Q_OBJECT
 
 public:
+    // The parts of the composition that reach outside the process, and so
+    // cannot run the same way in a headless harness. Everything else — every
+    // service, every connection, every context property — is identical in
+    // production and under test, which is the point: a test that composes
+    // this class is testing the graph the application actually runs on.
+    //
+    // Keep this struct small. Each field is a place where the two
+    // compositions differ, and so a place a defect can hide from the suite.
+    struct Options {
+        // SystemTray::show() asks the desktop session for a status-notifier
+        // item. Offscreen there is no session to ask.
+        bool showSystemTray = true;
+        // PerfLog writes to a file path taken from settings. A harness keeps
+        // its own logging configuration.
+        bool configureLoggingFromSettings = true;
+    };
+
     explicit AppContext(QObject *parent = nullptr);
+    explicit AppContext(const Options &options, QObject *parent = nullptr);
     ~AppContext() override;
+
+    // Replace the transport embed cards fetch through, before any fetch is
+    // issued; AppContext takes ownership. The default is the real network
+    // fetcher, so a test that does not call this would reach the network —
+    // which is exactly why the harness calls it.
+    void setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher);
+
+    // The context-property names installContextProperties() published, in
+    // registration order. Exposed so a test can assert the published set
+    // against the names the shell binds to, rather than discovering a rename
+    // as an unresolved binding at runtime.
+    QStringList installedContextPropertyNames() const
+    {
+        return m_installedProperties;
+    }
 
     // Registers the QML types the shell instantiates (BlockEditorEngine,
     // SettingsStore, DiagramCanvas, and the enum-only types). Static because
@@ -114,6 +147,9 @@ public:
 
 private:
     void wire();
+
+    const Options m_options;
+    QStringList m_installedProperties;
 
     // Declaration order = construction order; destruction runs in reverse.
     UndoStack m_undoStack;

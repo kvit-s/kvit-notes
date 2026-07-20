@@ -9,6 +9,8 @@
 #include "settingsstore.h"
 #include "notecollection.h"
 
+#include "faultinjection.h"
+
 // System integration seams. The tray and global hotkey route
 // their actions through signals so the in-app path is exercised without a live
 // desktop (spike (b): WSLg grants neither a tray nor a system-wide hotkey). This
@@ -147,25 +149,16 @@ void TestSystemIntegration::captureNoteLeavesNothingBehindWhenTheWriteFails()
     QVERIFY(col.openRoot(dir.path()));
 
     // A vault the process cannot write to stands in for the read-only
-    // folder and the full disk. There is no write-failure seam in the
-    // collection, and adding one only for this would be a wider change
-    // than the fix, so the permission bits do the injection.
-    const QFileDevice::Permissions writable = QFileDevice::ReadOwner
-        | QFileDevice::WriteOwner | QFileDevice::ExeOwner;
-    QVERIFY(QFile::setPermissions(dir.path(),
-                                  QFileDevice::ReadOwner
-                                      | QFileDevice::ExeOwner));
-    QFile probe(dir.path() + QStringLiteral("/.probe"));
-    const bool enforced = !probe.open(QIODevice::WriteOnly);
-    if (probe.isOpen())
-        probe.close();
-    if (!enforced) {
-        QFile::setPermissions(dir.path(), writable);
-        QSKIP("this user bypasses directory permissions (running as root?)");
-    }
+    // folder and the full disk. The injection is at the OS boundary rather
+    // than through a seam in the collection: it exercises the real write
+    // path, including the parts Qt implements. The guard restores the
+    // permissions however this test leaves, so a failed assertion below
+    // cannot leak a read-only directory into the next one.
+    FaultInjection::DeniedWrites denied(dir.path());
+    if (!denied.supported())
+        QSKIP(qPrintable(denied.skipReason()));
 
     const QString rel = col.captureNote("Buy milk\nand eggs on the way home");
-    QFile::setPermissions(dir.path(), writable);
 
     // Failure is reported, so the window can keep the text on screen.
     QCOMPARE(rel, QString());

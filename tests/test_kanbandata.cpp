@@ -201,7 +201,10 @@ private slots:
         for (const QString &title : titles) {
             const QString md = setCard("## A\n- [ ] x", 0, 0, title, false,
                                        QStringList({ "real" }), "", "");
-            const Card &c = parse(md).columns[0].cards[0];
+            // By value: binding a reference here would dangle, because the
+            // Board parse() returns is a temporary that dies at the
+            // semicolon (caught by AddressSanitizer).
+            const Card c = parse(md).columns[0].cards[0];
             QVERIFY2(c.title == title,
                      qPrintable(QString("title %1 came back as %2 (source %3)")
                                     .arg(title, c.title, md)));
