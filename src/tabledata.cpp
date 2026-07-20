@@ -103,6 +103,11 @@ bool looksLikeTableStart(const QString &headerLine, const QString &delimiterLine
     return splitCells(headerLine).size() == splitCells(delimiterLine).size();
 }
 
+int cellCount(const QString &line)
+{
+    return splitCells(line).size();
+}
+
 Table parse(const QString &markdown)
 {
     Table t;

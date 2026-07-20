@@ -10,12 +10,29 @@
 
 // Per-block presentation storage.
 //
-// A block's presentation attributes live in a trailing HTML-comment tag
-// appended to its own markdown, e.g.
+// A block's presentation attributes live in an HTML-comment tag appended to
+// one line of its own markdown, e.g.
 //
 //     Some text.  <!--kvit align=center-->
 //     ---  <!--kvit style=dashed width=50%-->
 //     ![alt|420](x.png)  <!--kvit align=center rounded shadow-->
+//
+// A single-line block carries the tag on that line. A block whose markdown
+// spans several lines — a code fence, a $$ math fence, a table, a callout —
+// carries it on its OPENING line instead:
+//
+//     ```cpp  <!--kvit align=center-->
+//     int x = 1;
+//     ```
+//     | A | B |  <!--kvit align=center-->
+//     | --- | --- |
+//     | 1 | 2 |
+//
+// The last line of such a block is its closing fence or its final data row,
+// and a tag there does not survive a reparse: the fence scanners require a
+// bare closer, so a tagged one never closes the block and the remainder of
+// the note is swallowed as its content. DocumentSerializer::parse still
+// accepts that older shape when reading, and rewrites it to the form above.
 //
 // This is one pure parse/serialize pair used by DocumentSerializer for every
 // block type: the tag is split off before a block's content parses and

@@ -41,6 +41,11 @@ bool isDelimiterRow(const QString &line);
 // serializer to detect a table run.
 bool looksLikeTableStart(const QString &headerLine, const QString &delimiterLine);
 
+// How many cells a row splits into, by the same rule parse() applies (border
+// pipes dropped, \| unescaped). The normalizer uses it to spot a row the
+// writer left unfinished, so it must never drift from parse()'s own count.
+int cellCount(const QString &line);
+
 // Parse pipe-table markdown into a grid; invalid table → Table{valid=false}.
 Table parse(const QString &markdown);
 
