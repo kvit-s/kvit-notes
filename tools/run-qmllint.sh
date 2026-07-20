@@ -140,6 +140,9 @@ STRICT_CLEAN=(
     qml/TocBlock.qml
     qml/DiagramBlock.qml
     qml/QueryBlock.qml
+    qml/TableBlock.qml
+    qml/KanbanBlock.qml
+    qml/TextBlockDelegate.qml
     qml/CalloutBlock.qml
     qml/BacklinksPanel.qml
     qml/CalloutColorPicker.qml

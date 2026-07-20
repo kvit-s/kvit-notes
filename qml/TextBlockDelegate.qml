@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The gutter Loader's Component and the drag handler are separate
+// scopes reading the delegate root and the MouseArea by id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Window
 import Kvit 1.0
@@ -66,8 +70,15 @@ BlockDelegateBase {
             default: return Font.Normal
         }
     }
+    function defaultFontFamily() {
+        // Qt.application.font is documented API the type description for
+        // QQmlApplication omits, the same gap as Qt.application.screens.
+        // qmllint disable missing-property
+        return Qt.application.font.family
+        // qmllint enable missing-property
+    }
     readonly property string contentFontFamily: Typography.fontFamily !== ""
-        ? Typography.fontFamily : Qt.application.font.family
+        ? Typography.fontFamily : root.defaultFontFamily()
     readonly property color contentColor: Theme.textPrimary
     readonly property string blockAlign: {
         if (!root.attributes || root.attributes.length === 0)
@@ -235,9 +246,11 @@ BlockDelegateBase {
         if (item && item.markdownPositionAt)
             return item.markdownPositionAt(sceneX, sceneY)
         var p = readOnlyText.mapFromItem(null, sceneX, sceneY)
+        // qmllint disable missing-property
         if (typeof readOnlyText.positionAt === "function")
             return Math.max(0, Math.min(root.content.length,
                                         readOnlyText.positionAt(p.x, p.y)))
+        // qmllint enable missing-property
         return p.x < readOnlyText.width / 2 ? 0 : root.content.length
     }
     function pointInText(sceneX, sceneY) {
@@ -481,9 +494,11 @@ BlockDelegateBase {
             var localX = mouse.x - readOnlyText.x
             var localY = mouse.y - readOnlyText.y
             var pos = 0
+            // qmllint disable missing-property
             if (typeof readOnlyText.positionAt === "function")
                 pos = Math.max(0, Math.min(root.content.length,
                     readOnlyText.positionAt(localX, localY)))
+            // qmllint enable missing-property
             else
                 pos = localX < readOnlyText.width / 2 ? 0 : root.content.length
             root.focusAtPosition(pos)
@@ -571,7 +586,7 @@ BlockDelegateBase {
                             dragging = false
                         }
                         onPositionChanged: function(mouse) {
-                            if (!pressed || (pressedButtons & Qt.RightButton))
+                            if (!handleArea.pressed || (handleArea.pressedButtons & Qt.RightButton))
                                 return
                             if (!root.shell || !root.shell.blockDrag)
                                 return

@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Columns, cards and label chips are nested delegates whose content and
+// handlers are separate scopes reading the ids around them.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -192,6 +196,7 @@ BlockDelegateBase {
             Repeater {
                 model: root.allLabels
                 delegate: Rectangle {
+                    id: filterChip
                     required property var modelData
                     height: 20; radius: 10
                     width: fLabel.implicitWidth + 16
@@ -201,12 +206,12 @@ BlockDelegateBase {
                     Text {
                         id: fLabel
                         anchors.centerIn: parent
-                        text: "#" + modelData
+                        text: "#" + filterChip.modelData
                         font.pixelSize: 11
-                        color: root.labelFilter === modelData ? Theme.onAccent : Theme.textMuted
+                        color: root.labelFilter === filterChip.modelData ? Theme.onAccent : Theme.textMuted
                     }
                     TapHandler {
-                        onTapped: root.labelFilter = (root.labelFilter === modelData ? "" : modelData)
+                        onTapped: root.labelFilter = (root.labelFilter === filterChip.modelData ? "" : filterChip.modelData)
                     }
                 }
             }
@@ -299,12 +304,18 @@ BlockDelegateBase {
                             anchors.left: parent.left; anchors.right: parent.right
                             anchors.bottom: parent.bottom
                             onDropped: function(drop) {
+                                // drop.source is the dragged card delegate,
+                                // typed QQuickItem here; cardColIndex and
+                                // cardIndex are its own properties, which the
+                                // linter cannot see through the payload type.
+                                // qmllint disable missing-property
                                 if (!drop.source || drop.source.cardColIndex === undefined) return
                                 var toIdx = columnItem.colData.cards.length
                                 root.writeBoard(KanbanTools.moveCard(root.content,
                                     drop.source.cardColIndex, drop.source.cardIndex,
                                     columnItem.colIndex, toIdx))
                                 drop.accept()
+                                // qmllint enable missing-property
                             }
                         }
 
@@ -370,11 +381,18 @@ BlockDelegateBase {
                                         anchors.fill: parent
                                         enabled: !cardDrag.active
                                         onDropped: function(drop) {
+                                            // See the column onDropped above:
+                                            // drop.source is the dragged card,
+                                            // typed QQuickItem, so its own
+                                            // cardColIndex/cardIndex are opaque
+                                            // to the linter.
+                                            // qmllint disable missing-property
                                             if (!drop.source || drop.source.cardColIndex === undefined) return
                                             root.writeBoard(KanbanTools.moveCard(root.content,
                                                 drop.source.cardColIndex, drop.source.cardIndex,
                                                 cardItem.cardColIndex, cardItem.cardIndex))
                                             drop.accept()
+                                            // qmllint enable missing-property
                                         }
                                     }
 
@@ -418,13 +436,14 @@ BlockDelegateBase {
                                             Repeater {
                                                 model: cardItem.cardData.labels
                                                 delegate: Rectangle {
+                                                    id: cardLabelChip
                                                     required property var modelData
                                                     height: 16; radius: 8
                                                     width: lblT.implicitWidth + 12
                                                     color: Qt.alpha(root.labelColor(modelData), 0.2)
                                                     Text { id: lblT; anchors.centerIn: parent
-                                                        text: "#" + modelData; font.pixelSize: 9
-                                                        color: root.labelColor(modelData) }
+                                                        text: "#" + cardLabelChip.modelData; font.pixelSize: 9
+                                                        color: root.labelColor(cardLabelChip.modelData) }
                                                 }
                                             }
                                             Text {
@@ -511,10 +530,11 @@ BlockDelegateBase {
                 Repeater {
                     model: root.columns.length
                     delegate: Button {
+                        id: moveToButton
                         required property int index
                         objectName: "kanbanMoveTo"
-                        enabled: index !== cardEditor.col
-                        text: root.columns[index].name
+                        enabled: moveToButton.index !== cardEditor.col
+                        text: root.columns[moveToButton.index].name
                         onClicked: cardEditor.moveToColumn(index)
                     }
                 }

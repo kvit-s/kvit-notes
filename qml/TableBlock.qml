@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The table cells nest content and handlers in separate scopes that
+// read the row and cell ids declared around them.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -294,7 +298,7 @@ BlockDelegateBase {
                         MouseArea {
                             anchors.fill: parent
                             acceptedButtons: Qt.LeftButton
-                            onClicked: {
+                            onClicked: function(mouse) {
                                 if (rowItem.rowIndex === -1
                                     && (mouse.modifiers & Qt.NoModifier) === 0) {
                                     // plain click on header edits it
