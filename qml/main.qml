@@ -3124,6 +3124,19 @@ ApplicationWindow {
             errorDialog.errorMessage = message
             errorDialog.open()
         }
+        // The vault is open in another Kvit process. Only one session may
+        // write a vault: both would load the same state and the second to
+        // save would discard the first's work. This window keeps running as
+        // a plain editor, so File > Open still works on individual notes.
+        function onVaultInUse(path, detail) {
+            errorDialog.errorMessage =
+                qsTr("%1\n\nOnly one Kvit window can have a vault open, "
+                     + "because two would overwrite each other's changes. "
+                     + "Close the other window and reopen this folder, or "
+                     + "keep working here on single files.\n\n%2")
+                    .arg(detail).arg(path)
+            errorDialog.open()
+        }
         function onWikiLinksRewritten(linkCount, noteCount) {
             // Rename-safe wiki-links (§3.3): a passive toast, never a dialog.
             root.showTransientStatus(

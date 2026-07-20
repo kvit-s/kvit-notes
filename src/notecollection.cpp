@@ -305,6 +305,9 @@ void NoteCollection::closeRoot()
         m_searchIndex->closeIndex();
         m_searchIndexRoot.clear();
     }
+    // Released last: nothing above may still be writing when another process
+    // is allowed in.
+    m_vaultLock.release();
     emit rootChanged();
     bump();
 }
@@ -321,7 +324,22 @@ bool NoteCollection::prepareRootPath(const QString &path)
         return false;
     }
 
-    m_rootPath = QDir(path).absolutePath();
+    // Take the vault before reading any of its state. Everything below this
+    // point loads files that will later be written back whole, so a second
+    // process reaching the same point would set up the lost update
+    // tests/test_vaultlock.cpp demonstrates. Unavailable (no locking on this
+    // filesystem, read-only directory) opens unlocked rather than refusing:
+    // an unopenable vault is a worse outcome than an unguarded one.
+    const QString absolute = QDir(path).absolutePath();
+    if (m_vaultLock.acquire(absolute) == VaultLock::Result::HeldByAnother) {
+        // One signal, not operationFailed as well: the UI needs to say
+        // something specific here rather than show a generic failure, and two
+        // signals for one event invites handling it twice.
+        emit vaultInUse(absolute, m_vaultLock.blockingHolder().describe());
+        return false;
+    }
+
+    m_rootPath = absolute;
     m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
     return true;
 }
