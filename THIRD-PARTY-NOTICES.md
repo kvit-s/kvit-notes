@@ -38,12 +38,12 @@ manifest, not this file.
 ## kvit-newtx math fonts (NewTX / XCharter derivatives)
 
 - **Version:** generated 2026-07 from CTAN newtx + xcharter by Michael Sharpe
-- **License:** LPPL-1.3c AND LicenseRef-Bitstream-Charter
+- **License:** LPPL-1.3c AND LicenseRef-Bitstream-Charter AND OFL-1.1
 - **Origin:** https://ctan.org/pkg/newtx, https://ctan.org/pkg/xcharter; generation tooling tools/generate_newtx_microtex.py
 - **Files:** third_party/microtex/res/fonts/kvit-newtx
 - **License text:** third_party/microtex/res/fonts/kvit-newtx/LICENSES, NOTICE.md (authoritative provenance; the naming and attribution checklist was executed during the math port)
 - **Ships in:** windows, macos, linux, source
-- **Obligations:** LPPL renaming requirement satisfied by the kvit_newtx_* names; keep NOTICE.md and LICENSES with the fonts; Bitstream Charter notice must stay intact.
+- **Obligations:** LPPL renaming requirement satisfied by the kvit_newtx_* names; keep NOTICE.md and LICENSES with the fonts; Bitstream Charter notice must stay intact. The generated fonts also fold in STIX script and blackboard-bold glyphs (stxscr, txmiaSTbb, txbmiaSTbb, reaching users inside kvit_newtx_ntxmia and kvit_newtx_ntxbmia) under OFL-1.1, so LICENSES/OFL-1.1.txt must ship with them, the STI Pub Companies copyright must stay intact, and the fonts must not be sold on their own. The OFL reserved name "STIX" is not used by the generated fonts, which is what permits the kvit_newtx_* renaming.
 
 ## Greek alphabet fonts for MicroTeX
 
@@ -77,14 +77,13 @@ manifest, not this file.
 
 ## Qt Multimedia FFmpeg backend
 
-- **Version:** bundled with Qt 6.10.1 binaries
-- **License:** LGPL-2.1-or-later (FFmpeg build shipped by Qt)
+- **Version:** FFmpeg 7.1 (libavcodec 61.19.101) as shipped with Qt 6.10.1
+- **License:** LGPL-2.1-or-later
 - **Origin:** Qt-provided ffmpeg plugin (qtmultimedia)
-- **Files:** bundled by deploy tools when qtmultimedia ships
-- **License text:** covered by the Qt licenses folder in each artifact
+- **Files:** libavcodec.so.61, libavformat.so.61, libavutil.so.59, libswresample.so.5, libswscale.so.8 and plugins/multimedia/ libffmpegmediaplugin.so, deployed by linuxdeploy-plugin-qt into the Linux AppImage; the equivalent set on the other platforms once they are packaged
+- **License text:** covered by the Qt licenses folder in each artifact (share/licenses/kvit-notes/qt)
 - **Ships in:** windows, macos, linux
-- **Obligations:** Confirm the deployed ffmpeg build's license configuration (LGPL build, no GPL-only components) during Phase D enumeration.
-- **Open flag:** Per-artifact enumeration pending first packaged builds (D1-D3).
+- **Obligations:** LGPL dynamic linking only, license texts in the artifact, relink ability preserved. Enumeration resolved 2026-07-20 against the 1.0.0 Linux AppImage. The configuration string embedded in the deployed libavcodec and libavutil contains neither --enable-gpl nor --enable-nonfree, so this is a plain LGPL build with no GPL-only or nonfree components. It is built with --enable-openssl, but OpenSSL itself is not bundled - Qt ships stub shims (libQt6FFmpegStub-ssl.so.3, libQt6FFmpegStub-crypto.so.3, and the va, va-drm and va-x11 stubs) that resolve to the host libraries at runtime, so no OpenSSL or VA-API code is distributed in the artifact. Re-check this configuration whenever the Qt version moves.
 
 ## Contributor Covenant
 

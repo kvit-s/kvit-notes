@@ -221,7 +221,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev \
             libxkbcommon-x11-0 libxcb-cursor0 libfontconfig1 \
-            libfuse2t64 file
+            libfuse2t64 file sqlite3
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -233,8 +233,11 @@ jobs:
 
       # The script configures the preset itself, so a fresh checkout is all it
       # needs. It verifies the linuxdeploy downloads against pinned SHA-256
-      # digests before executing them, and refuses to produce an artifact
-      # whose license payload is incomplete.
+      # digests before executing them, refuses to produce an artifact whose
+      # license payload is incomplete, and finally runs the packed AppImage
+      # (tools/check-appimage.sh) to prove the math resources, QML imports,
+      # SQLite FTS5 index and image plugins work in the packaged runtime.
+      # sqlite3 above is what inspects the index the probe run builds.
       - name: Build AppImage
         env:
           KVIT_VERSION_FULL: ${{ steps.version.outputs.version }}

@@ -54,12 +54,19 @@ and states that deletions propagate. The `WinSyncGuards` CTest entry
 (`tests/test_win_sync.sh`) covers these refusals.
 
 **Sync is automatic after that.** `win-build.bat` calls back into WSL
-(`wsl.exe -e bash tools/win-sync.sh "$KVIT_WIN_ROOT"`) before every
-configure/build, so a Windows build cannot run stale code from either
-entry point. The mirror excludes `.git`, `build*` directories,
+before every configure/build, so a Windows build cannot run stale code
+from either entry point. It guesses neither end of that sync: the source
+checkout is read from the `source=` line of the `.kvit-notes-mirror`
+marker, and the mirror directory is its own location resolved through
+`wsl.exe wslpath`. A directory without the marker is refused rather than
+synced, so the Windows entry point enforces the same contract as the WSL
+one. The mirror excludes `.git`, `build*` directories,
 `tests/screenshots`, and the Windows-side result logs; it preserves the
-WSL tree's bytes, so files keep the LF endings a CI checkout gets.
-`KVIT_NO_SYNC=1` skips it when WSL is unavailable.
+WSL tree's bytes, so files keep the LF endings a CI checkout gets. The
+one exception is the bat helpers themselves, which `.gitattributes`
+checks out as CRLF on every platform because `cmd.exe` mis-parses labels
+and parenthesized blocks in LF-only batch files. `KVIT_NO_SYNC=1` skips
+the sync when WSL is unavailable.
 
 **Toolchain.** Visual Studio 2022 Community plus Qt 6.10.1
 `msvc2022_64` under `C:\Qt` (the `qtmultimedia` module was added with
@@ -83,9 +90,12 @@ tools/win.sh sync MIRROR       mirror only (add --init the first time)
 Exporting `KVIT_WIN_ROOT=/mnt/d/projects/kvit-notes` in the shell profile
 keeps this to one word per command.
 
-From a Windows prompt in the mirror directory, the bat helpers
-(checked in at the repo root, mirrored like everything else) do the
-same; `win-build.bat` performs the sync itself:
+From a Windows prompt in the mirror directory, the bat helpers do the
+same. They are tracked at the repo root and reach the mirror like every
+other file, through the sync; `win-build.bat` performs that sync itself.
+Each reads `QT_ROOT_DIR` and `VS_CMAKE_DIR` from the environment when set,
+so a Qt kit or Visual Studio edition installed somewhere other than the
+stock paths needs no edit:
 
 ```
 win-build.bat            sync + configure + build (also: configure | build | test)

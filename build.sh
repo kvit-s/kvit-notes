@@ -94,36 +94,59 @@ mkdir -p "$BUILD_DIR"
         colorize() {
             sed -e "s/PASS/$(printf '\033[32mPASS\033[0m')/g" \
                 -e "s/FAIL/$(printf '\033[31mFAIL\033[0m')/g" \
-                -e "s/SKIP/$(printf '\033[33mSKIP\033[0m')/g"
+                -e "s/SKIP/$(printf '\033[33mSKIP\033[0m')/g" \
+                -e "s/Passed/$(printf '\033[32mPassed\033[0m')/g" \
+                -e "s/\*\*\*Failed/$(printf '\033[31m***Failed\033[0m')/g" \
+                -e "s/\*\*\*Timeout/$(printf '\033[31m***Timeout\033[0m')/g"
         }
 
-        run_suite() {
-            local name="$1"; shift
+        # Every suite runs through CTest rather than by invoking the test
+        # binaries directly.
+        #
+        # The timeouts are the reason. tests/CMakeLists.txt sets TIMEOUT 600
+        # on IntegrationTests and 300 on VisualTests and ShellTests, because a
+        # QML load error leaves the Qt Quick Test harness waiting forever on
+        # its `when:` condition - that hung a run for hours on 2026-07-07.
+        # Invoking the binaries directly bypassed those properties entirely,
+        # so the local path had no protection against exactly the hang the
+        # timeouts were added for. CTest also applies its own default bound to
+        # every other entry, and reports which suites timed out.
+        #
+        # The glob that used to drive this run had one virtue worth keeping:
+        # a newly added test binary could not be silently left out. CTest
+        # discovers registered tests instead, so an executable built but never
+        # passed to add_test() would now be skipped. The check below closes
+        # that gap by comparing the binaries on disk against the ones CTest
+        # knows how to run, and fails loudly when they disagree.
+        UNREGISTERED=$(ctest --test-dir "$BUILD_DIR" --show-only=json-v1 2>/dev/null \
+            | python3 -c '
+import glob, json, os, sys
+try:
+    data = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)   # no CTest metadata; the run below reports the real problem
+registered = {os.path.basename(t["command"][0])
+              for t in data.get("tests", []) if t.get("command")}
+built = {os.path.basename(p) for p in glob.glob(sys.argv[1] + "/tests/test_*")
+         if os.path.isfile(p) and os.access(p, os.X_OK)}
+print(" ".join(sorted(built - registered)))
+' "$BUILD_DIR")
+
+        if [ -n "$UNREGISTERED" ]; then
             echo ""
-            echo "=== $name ==="
-            "$@" 2>&1 | colorize
-            if [ ${PIPESTATUS[0]} -ne 0 ]; then
-                FAILED=1
-                FAILED_SUITES="$FAILED_SUITES $name"
-            fi
-        }
+            echo -e "\033[31mTest binaries not registered with CTest:\033[0m$UNREGISTERED"
+            echo "Add an add_test() entry in tests/CMakeLists.txt, or they run nowhere."
+            FAILED=1
+            FAILED_SUITES="$FAILED_SUITES unregistered-binaries"
+        fi
 
-        # Run every C++ unit test binary first, then the Qt Quick suites.
-        # Discovery is by glob so a new test binary can never be silently
-        # left out of the run.
-        for t in "$BUILD_DIR"/tests/test_*; do
-            [ -f "$t" ] && [ -x "$t" ] || continue
-            base="$(basename "$t")"
-            case "$base" in
-                test_integration|test_visual) ;; # Qt Quick suites run last
-                *) run_suite "$base" "$t" ;;
-            esac
-        done
-
-        run_suite "test_integration (Qt Quick)" \
-            "$BUILD_DIR/tests/test_integration" -input "$PROJECT_DIR/tests/tst_integration.qml"
-        run_suite "test_visual (Qt Quick storyboard)" \
-            "$BUILD_DIR/tests/test_visual" -input "$PROJECT_DIR/tests/tst_visual.qml"
+        echo ""
+        echo "=== ctest ($BUILD_DIR) ==="
+        ctest --test-dir "$BUILD_DIR" --output-on-failure 2>&1 | colorize
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            FAILED=1
+            FAILED_SUITES="$FAILED_SUITES ctest"
+        fi
 
         if [ "$SHOW_SHOTS" -eq 1 ]; then
             echo ""
