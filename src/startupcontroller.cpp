@@ -192,7 +192,10 @@ void StartupController::tryFinishStartup()
     m_collection->initializeIfEmpty();
     const QStringList all = m_collection->noteRelPaths();
     if (!all.isEmpty() && openStartupNote(all.first())) {
-        finishStartup();
+        // The seeded welcome note opens asynchronously, exactly like the
+        // restore-last-note path above. Startup is finished by
+        // onStartupNoteOpenFinished once the note has actually loaded;
+        // declaring it finished here hands the UI an empty document.
         return;
     }
 

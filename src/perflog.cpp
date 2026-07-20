@@ -257,6 +257,14 @@ void PerfLog::record(const QString &operation,
     {
         QMutexLocker locker(&m_mutex);
         m_samples.append(sample);
+        // Retention is a bounded window of the most recent samples. The JSONL
+        // file rotates, so without this a long session with logging enabled
+        // grows in memory without limit while the on-disk log stays capped.
+        // Trimming only once the slack is used up keeps the cost amortized:
+        // one bulk move per kRetentionSlack records rather than shifting the
+        // whole list on every record.
+        if (m_samples.size() > kMaxRetainedSamples + kRetentionSlack)
+            m_samples.remove(0, m_samples.size() - kMaxRetainedSamples);
     }
 
     writeSample(sample);

@@ -63,6 +63,9 @@ private:
     };
     static QVariantMap toMap(const Entry &entry, bool ok);
     void trim();
+    // Removes repeats that sit next to each other in either stack, or next
+    // to the current entry, keeping the older of each pair.
+    void collapseAdjacentDuplicates();
 
     QList<Entry> m_back;
     QList<Entry> m_forward;

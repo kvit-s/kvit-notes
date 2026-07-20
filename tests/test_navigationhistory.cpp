@@ -21,6 +21,7 @@ private slots:
     void testReentrantVisitIsNoOp();
     void testPositionsRestoreOnBackAndForward();
     void testRenameRebindsEntries();
+    void testRenameCollapsesAdjacentDuplicates();
     void testDropScrubsEntries();
     void testClear();
 };
@@ -104,6 +105,25 @@ void TestNavigationHistory::testRenameRebindsEntries()
     history.renamePath("a.md", "renamed.md");
     QCOMPARE(history.goBack().value("relPath").toString(),
              QString("renamed.md"));
+}
+
+// Renaming one note onto a path already in the history can put two identical
+// entries next to each other, and Back onto the note you are already reading
+// looks like the button is broken. dropPath already collapses adjacent
+// repeats; rename has to do the same.
+void TestNavigationHistory::testRenameCollapsesAdjacentDuplicates()
+{
+    NavigationHistory history;
+    history.visit("a.md");
+    history.visit("b.md");
+    history.visit("c.md");
+    // back = [a, b], current = c. Renaming a.md to b.md makes back = [b, b].
+    history.renamePath("a.md", "b.md");
+
+    QCOMPARE(history.goBack().value("relPath").toString(), QString("b.md"));
+    // One more Back must reach a DIFFERENT note, not the same one again.
+    if (history.canGoBack())
+        QVERIFY(history.goBack().value("relPath").toString() != QString("b.md"));
 }
 
 void TestNavigationHistory::testDropScrubsEntries()
