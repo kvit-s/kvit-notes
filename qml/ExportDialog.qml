@@ -49,14 +49,14 @@ Dialog {
     function currentTitle() {
         if (!appWindow || appWindow.currentNoteRelPath === "")
             return "Document"
-        return noteCollection.noteInfo(appWindow.currentNoteRelPath).title
+        return NoteCollection.noteInfo(appWindow.currentNoteRelPath).title
     }
 
     function prepareContext() {
         var noteDir = ""
-        var root = noteCollection.isOpen ? noteCollection.rootPath : ""
+        var root = NoteCollection.isOpen ? NoteCollection.rootPath : ""
         if (appWindow && appWindow.currentNoteRelPath !== "") {
-            var abs = noteCollection.absolutePath(appWindow.currentNoteRelPath)
+            var abs = NoteCollection.absolutePath(appWindow.currentNoteRelPath)
             noteDir = abs.substring(0, abs.lastIndexOf("/"))
         }
         // The single-note scope renders the live model directly. A collection
@@ -166,11 +166,11 @@ Dialog {
             var count = 0
             if (exportDialog.scope === "selection")
                 count = DocumentExporter.exportNotes(
-                    noteCollection, exportDialog.selectedPaths(), dir,
+                    NoteCollection, exportDialog.selectedPaths(), dir,
                     exportDialog.format, singleFileCheck.checked)
             else
                 count = DocumentExporter.exportCollection(
-                    noteCollection, dir, exportDialog.format,
+                    NoteCollection, dir, exportDialog.format,
                     singleFileCheck.checked)
             DocumentExporter.clearLiveNote()
             exportDialog.appWindow.showTransientStatus(

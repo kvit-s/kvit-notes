@@ -768,19 +768,19 @@ Item {
 
     // Asset ingestion context for pasted/dropped images.
     function noteDir() {
-        var p = documentManager.currentFilePath
+        var p = DocumentManager.currentFilePath
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
     function noteSlug() {
-        var p = documentManager.currentFilePath
+        var p = DocumentManager.currentFilePath
         var fn = p.substring(p.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "")
         var slug = fn.toLowerCase().replace(/[^a-z0-9]+/g, "-")
                      .replace(/^-+|-+$/g, "")
         return slug === "" ? "image" : slug
     }
     function assetRoot() {
-        return noteCollection.isOpen ? noteCollection.rootPath : ""
+        return NoteCollection.isOpen ? NoteCollection.rootPath : ""
     }
     // §5.3 paste arm: Clipboard image data → asset file → image block below
     // (or converting the current empty block). Returns true if it handled an
@@ -2004,7 +2004,7 @@ Item {
                 // The wiki-link resolver: with no collection open every
                 // [[wiki-link]] styles as an ordinary link rather than all
                 // rendering "unresolved".
-                wikiResolver: noteCollection.isOpen ? noteCollection : null
+                wikiResolver: NoteCollection.isOpen ? NoteCollection : null
                 lineHeight: delegate.appTypography.lineHeight
                 monoFontFamily: delegate.appTypography.monoFamily
                 contentFontPixelSize: delegate.contentFontSize
@@ -2845,7 +2845,7 @@ Item {
                     // second "[" is inserted by hand so the menu opens on
                     // a settled document.
                     if (event.text === "[" && !delegate.verbatimEditing
-                        && noteCollection.isOpen
+                        && NoteCollection.isOpen
                         && !delegate.activeWikiMenu()
                         && selectionStart === selectionEnd
                         && cursorPosition > 0

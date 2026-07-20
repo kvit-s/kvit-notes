@@ -260,7 +260,7 @@ Item {
     // A save, export, note switch or shutdown must see the text the user has
     // just typed, not the text as of the last time the timer happened to fire.
     Connections {
-        target: documentManager
+        target: DocumentManager
         function onPendingEditsRequested() {
             if (debounce.running)
                 root.commitPendingSource()

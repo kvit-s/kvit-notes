@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The open note's tag strip: existing tags as removable chips, plus an
 // add-field with autocomplete over the registry (features.md §8.2 —
@@ -16,17 +17,17 @@ Item {
 
     // Tags of the open note, live under the collection revision.
     readonly property var noteTags: {
-        var revision = noteCollection.revision // dependency
+        var revision = NoteCollection.revision // dependency
         if (!appWindow || appWindow.currentNoteRelPath === "")
             return []
-        var info = noteCollection.noteInfo(appWindow.currentNoteRelPath)
+        var info = NoteCollection.noteInfo(appWindow.currentNoteRelPath)
         return info.tags !== undefined ? info.tags : []
     }
 
     // The registry as [{name, count, color}], same revision dependency.
     readonly property var registry: {
-        var revision = noteCollection.revision
-        return noteCollection.isOpen ? noteCollection.tagListing() : []
+        var revision = NoteCollection.revision
+        return NoteCollection.isOpen ? NoteCollection.tagListing() : []
     }
 
     // Suggestions: registry names matching the typed text (case-
@@ -65,7 +66,7 @@ Item {
     function applyTag(name) {
         if (name.trim() === "" || appWindow.currentNoteRelPath === "")
             return
-        noteCollection.addTag(appWindow.currentNoteRelPath, name.trim())
+        NoteCollection.addTag(appWindow.currentNoteRelPath, name.trim())
         addField.text = ""
         suggestionsPopup.close()
     }
@@ -111,7 +112,7 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             anchors.margins: -4 // a comfortable hit target
-                            onClicked: noteCollection.removeTag(
+                            onClicked: NoteCollection.removeTag(
                                            tagStrip.appWindow.currentNoteRelPath,
                                            chip.tagName)
                         }

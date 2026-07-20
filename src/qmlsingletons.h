@@ -14,6 +14,7 @@
 #include "collectionsearch.h"
 #include "documentexporter.h"
 #include "documentimporter.h"
+#include "documentmanager.h"
 #include "documentoutline.h"
 #include "documentsearch.h"
 #include "documentserializer.h"
@@ -30,6 +31,7 @@
 #include "mathcommandmodel.h"
 #include "mathrenderer.h"
 #include "navigationhistory.h"
+#include "notecollection.h"
 #include "notelistmodel.h"
 #include "notetemplates.h"
 #include "perflog.h"
@@ -132,6 +134,8 @@ KVIT_QML_SINGLETON_NAMED(ExtensionRegistry, Extensions)
 KVIT_QML_SINGLETON_NAMED(BlockKindRegistry, BlockKindRegistry)
 
 KVIT_QML_SINGLETON(DocumentSearch)
+KVIT_QML_SINGLETON(DocumentManager)
+KVIT_QML_SINGLETON(NoteCollection)
 KVIT_QML_SINGLETON(NoteListModel)
 // `SettingsStore` is already registered as a creatable element, because tests
 // open a second store on a path of their own. The application's one store has

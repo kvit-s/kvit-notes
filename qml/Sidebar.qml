@@ -7,7 +7,7 @@ import QtQuick.Layouts
 import Kvit 1.0
 
 // The navigation sidebar: scopes, the folder tree, and the tag list.
-// Functional Fusion styling only. All state lives in noteCollection /
+// Functional Fusion styling only. All state lives in NoteCollection /
 // NoteListModel; this pane renders and forwards.
 Rectangle {
     id: sidebar
@@ -201,8 +201,8 @@ Rectangle {
                     Layout.fillWidth: true
                 }
                 Label {
-                    text: noteCollection.revision >= 0
-                          ? noteCollection.noteCountInFolder("", true) : 0
+                    text: NoteCollection.revision >= 0
+                          ? NoteCollection.noteCountInFolder("", true) : 0
                     font.pixelSize: 11
                     color: theme.textFaint
                 }
@@ -388,8 +388,8 @@ Rectangle {
 
             // Array-of-maps model, live under the collection revision.
             model: {
-                var revision = noteCollection.revision
-                return noteCollection.isOpen ? noteCollection.tagListing() : []
+                var revision = NoteCollection.revision
+                return NoteCollection.isOpen ? NoteCollection.tagListing() : []
             }
 
             delegate: Rectangle {
@@ -474,9 +474,9 @@ Rectangle {
             color: trashHover.hovered ? theme.hoverTint : "transparent"
 
             readonly property int trashCount: {
-                var revision = noteCollection.revision
-                return noteCollection.isOpen
-                    ? noteCollection.trashItemCount() : 0
+                var revision = NoteCollection.revision
+                return NoteCollection.isOpen
+                    ? NoteCollection.trashItemCount() : 0
             }
 
             HoverHandler { id: trashHover }
@@ -510,10 +510,10 @@ Rectangle {
         MenuItem {
             objectName: "emptyTrashItem"
             text: qsTr("Empty trash…")
-            enabled: noteCollection.isOpen
-                     && noteCollection.trashItemCount() > 0
+            enabled: NoteCollection.isOpen
+                     && NoteCollection.trashItemCount() > 0
             onTriggered: emptyTrashDialog.openFor(
-                noteCollection.trashItemCount())
+                NoteCollection.trashItemCount())
         }
     }
 
@@ -533,7 +533,7 @@ Rectangle {
                 + "This cannot be undone.").arg(count)
             open()
         }
-        onAccepted: noteCollection.emptyTrash()
+        onAccepted: NoteCollection.emptyTrash()
 
         Label {
             id: emptyTrashText
@@ -562,7 +562,7 @@ Rectangle {
             objectName: "ctxFolderNewNote"
             text: qsTr("New note")
             onTriggered: {
-                var created = noteCollection.createNote(
+                var created = NoteCollection.createNote(
                     folderContextMenu.relPath, "")
                 if (created !== "" && sidebar.appWindow)
                     sidebar.appWindow.openNoteByPath(created)
@@ -585,7 +585,7 @@ Rectangle {
             text: qsTr("Delete…")
             onTriggered: deleteFolderDialog.openFor(
                 folderContextMenu.relPath, folderContextMenu.folderName,
-                noteCollection.noteCountInFolder(
+                NoteCollection.noteCountInFolder(
                     folderContextMenu.relPath, true))
         }
     }
@@ -658,15 +658,15 @@ Rectangle {
         onAccepted: {
             var name = folderNameField.text
             if (mode === "create") {
-                var created = noteCollection.createFolder(targetPath, name)
+                var created = NoteCollection.createFolder(targetPath, name)
                 if (created !== "" && selectedColor !== "")
-                    noteCollection.setFolderColor(created, selectedColor)
+                    NoteCollection.setFolderColor(created, selectedColor)
             } else {
                 var color = selectedColor
                 var oldPath = targetPath
                 sidebar.appWindow.requestFolderRename(
                     oldPath, name, function(result) {
-                        noteCollection.setFolderColor(result.newPath, color)
+                        NoteCollection.setFolderColor(result.newPath, color)
                     })
             }
         }
@@ -732,15 +732,15 @@ Rectangle {
             if (newName === "")
                 return
             if (newName !== originalName
-                && noteCollection.tagCount(newName) > 0) {
+                && NoteCollection.tagCount(newName) > 0) {
                 // Renaming onto an existing tag is a merge — confirm with
                 // the blast radius before touching files.
                 mergeTagDialog.openFor(originalName, newName)
                 return
             }
             if (newName !== originalName)
-                noteCollection.renameTag(originalName, newName)
-            noteCollection.setTagColor(newName, selectedColor)
+                NoteCollection.renameTag(originalName, newName)
+            NoteCollection.setTagColor(newName, selectedColor)
             if (NoteListModel.tagFilter === originalName)
                 NoteListModel.tagFilter = newName
         }
@@ -793,12 +793,12 @@ Rectangle {
             mergeText.text = qsTr(
                 "Merge \"%1\" into \"%2\"? %3 note(s) will be retagged.")
                 .arg(from).arg(into)
-                .arg(noteCollection.tagCount(from))
+                .arg(NoteCollection.tagCount(from))
             open()
         }
 
         onAccepted: {
-            noteCollection.renameTag(fromName, intoName)
+            NoteCollection.renameTag(fromName, intoName)
             if (NoteListModel.tagFilter === fromName)
                 NoteListModel.tagFilter = intoName
         }
@@ -834,7 +834,7 @@ Rectangle {
         }
 
         onAccepted: {
-            noteCollection.deleteTag(targetName)
+            NoteCollection.deleteTag(targetName)
             if (NoteListModel.tagFilter === targetName)
                 NoteListModel.tagFilter = ""
         }
@@ -877,7 +877,7 @@ Rectangle {
                 && (NoteListModel.folderPath === targetPath
                     || NoteListModel.folderPath.startsWith(targetPath + "/")))
                 NoteListModel.scope = "all"
-            noteCollection.deleteFolder(targetPath)
+            NoteCollection.deleteFolder(targetPath)
         }
 
         contentItem: Label {

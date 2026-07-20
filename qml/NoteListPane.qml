@@ -86,7 +86,7 @@ Rectangle {
 
     // Drop stale paths after any collection change.
     Connections {
-        target: noteCollection
+        target: NoteCollection
         function onRevisionChanged() {
             if (noteListPane.selectedPaths.length === 0)
                 return
@@ -168,13 +168,13 @@ Rectangle {
                 // the target up by one.
                 var from = NoteListModel.rowOf(relPath)
                 var position = reorderGap > from ? reorderGap - 1 : reorderGap
-                noteCollection.setManualPosition(relPath, position)
+                NoteCollection.setManualPosition(relPath, position)
             } else {
                 var target = sidebar
                     ? sidebar.folderDropTargetAt(sceneX, sceneY) : ""
                 if (target !== "") {
                     for (var i = 0; i < dragPaths.length; i++)
-                        noteCollection.moveNote(dragPaths[i], target)
+                        NoteCollection.moveNote(dragPaths[i], target)
                 }
             }
             end()
@@ -346,9 +346,9 @@ Rectangle {
                 spacing: 4
 
                 readonly property var entries: {
-                    var revision = noteCollection.revision
-                    return noteCollection.isOpen
-                           ? noteCollection.recoveryEntries() : []
+                    var revision = NoteCollection.revision
+                    return NoteCollection.isOpen
+                           ? NoteCollection.recoveryEntries() : []
                 }
 
                 Label {
@@ -386,7 +386,7 @@ Rectangle {
                                 text: qsTr("Discard")
                                 font.pixelSize: 10
                                 implicitHeight: 22
-                                onClicked: noteCollection.discardRecovery(
+                                onClicked: NoteCollection.discardRecovery(
                                                modelData.relPath)
                             }
                         }
@@ -434,7 +434,7 @@ Rectangle {
                     onClicked: {
                         var paths = noteListPane.selectedPaths
                         for (var i = 0; i < paths.length; i++)
-                            noteCollection.setPinned(paths[i], true)
+                            NoteCollection.setPinned(paths[i], true)
                     }
                 }
                 ToolButton {
@@ -447,7 +447,7 @@ Rectangle {
                     onClicked: {
                         var paths = noteListPane.selectedPaths
                         for (var i = 0; i < paths.length; i++)
-                            noteCollection.setFavorite(paths[i], true)
+                            NoteCollection.setFavorite(paths[i], true)
                     }
                 }
                 ToolButton {
@@ -638,7 +638,7 @@ Rectangle {
                         ToolTip.visible: hovered
                         ToolTip.text: model.pinned ? qsTr("Unpin")
                                                    : qsTr("Pin to top")
-                        onClicked: noteCollection.setPinned(
+                        onClicked: NoteCollection.setPinned(
                                        model.relPath, !model.pinned)
                     }
                     ToolButton {
@@ -651,7 +651,7 @@ Rectangle {
                         ToolTip.text: model.favorite
                                       ? qsTr("Remove from favorites")
                                       : qsTr("Add to favorites")
-                        onClicked: noteCollection.setFavorite(
+                        onClicked: NoteCollection.setFavorite(
                                        model.relPath, !model.favorite)
                     }
                 }
@@ -783,14 +783,14 @@ Rectangle {
         MenuItem {
             objectName: "ctxNotePin"
             text: noteContextMenu.notePinned ? qsTr("Unpin") : qsTr("Pin")
-            onTriggered: noteCollection.setPinned(
+            onTriggered: NoteCollection.setPinned(
                 noteContextMenu.relPath, !noteContextMenu.notePinned)
         }
         MenuItem {
             objectName: "ctxNoteFavorite"
             text: noteContextMenu.noteFavorite
                 ? qsTr("Remove from favorites") : qsTr("Add to favorites")
-            onTriggered: noteCollection.setFavorite(
+            onTriggered: NoteCollection.setFavorite(
                 noteContextMenu.relPath, !noteContextMenu.noteFavorite)
         }
         Menu {
@@ -803,7 +803,7 @@ Rectangle {
             }
             Repeater {
                 model: noteContextMenu.visible
-                    ? noteCollection.folderRelPaths() : []
+                    ? NoteCollection.folderRelPaths() : []
                 MenuItem {
                     required property string modelData
                     text: modelData
@@ -840,7 +840,7 @@ Rectangle {
 
         onAccepted: {
             for (var i = 0; i < targets.length; i++)
-                noteCollection.deleteNote(targets[i])
+                NoteCollection.deleteNote(targets[i])
             noteListPane.clearSelection()
         }
 
@@ -879,7 +879,7 @@ Rectangle {
             if (tag === "")
                 return
             for (var i = 0; i < targets.length; i++)
-                noteCollection.addTag(targets[i], tag)
+                NoteCollection.addTag(targets[i], tag)
         }
 
         contentItem: TextField {

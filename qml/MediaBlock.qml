@@ -36,13 +36,13 @@ Item {
 
     readonly property var media: ImageAssets.parse(content)
     readonly property string noteDir: {
-        var p = documentManager.currentFilePath
+        var p = DocumentManager.currentFilePath
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
     readonly property string resolvedSource:
         ImageAssets.resolve(media.path, noteDir,
-                            noteCollection.isOpen ? noteCollection.rootPath : "")
+                            NoteCollection.isOpen ? NoteCollection.rootPath : "")
     // Remote media needs the reader's approval before the player is given a
     // URL, for the same reason images do: opening a note must not contact the
     // hosts it names.

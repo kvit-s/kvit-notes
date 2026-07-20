@@ -1,6 +1,13 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The ListView delegate is its own component scope, so its reads of
+// `templateList` and `dlg` are unqualified access. Binding the enclosing
+// component's ids into the delegate resolves them, and is safe because the
+// delegate already declares `required property string modelData` rather than
+// relying on injection.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -167,7 +174,7 @@ Dialog {
         width: 320
         standardButtons: Dialog.Ok | Dialog.Cancel
         onOpened: saveNoteName.text = dlg.appWindow
-            ? noteCollection.noteInfo(dlg.appWindow.currentNoteRelPath).title : ""
+            ? NoteCollection.noteInfo(dlg.appWindow.currentNoteRelPath).title : ""
         onAccepted: {
             if (dlg.appWindow
                 && dlg.appWindow.saveCurrentNoteAsTemplate(saveNoteName.text.trim()))

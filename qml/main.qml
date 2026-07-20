@@ -20,11 +20,11 @@ ApplicationWindow {
                      ? Screen.desktopAvailableHeight - 60 : 720)
     visible: true
     title: {
-        var name = documentManager ? documentManager.currentFileName : "Kvit Notes"
+        var name = DocumentManager ? DocumentManager.currentFileName : "Kvit Notes"
         // Collection mode: the note title is the file name without ".md".
         if (currentNoteRelPath !== "" && name.toLowerCase().endsWith(".md"))
             name = name.substring(0, name.length - 3)
-        return (documentManager && documentManager.isDirty ? "* " : "")
+        return (DocumentManager && DocumentManager.isDirty ? "* " : "")
             + name + " - Kvit Notes"
     }
 
@@ -38,7 +38,7 @@ ApplicationWindow {
     // Collection mode shows the sidebar and note list; single-file mode
     // (file argument, or the test harness's unopened collection) keeps
     // the pre-Phase-8 editor-only geometry.
-    readonly property bool collectionOpen: noteCollection && noteCollection.isOpen
+    readonly property bool collectionOpen: NoteCollection && NoteCollection.isOpen
     property bool panelsVisible: true
 
     // Layout state (features.md §9.1): per-panel widths set by the seam
@@ -230,13 +230,13 @@ ApplicationWindow {
     // only the meaningful "Saved" transition (not every keystroke's dirtying);
     // the search match count speaks while the find bar is active.
     Connections {
-        target: documentManager
+        target: DocumentManager
         function onCurrentFilePathChanged() {
             Qt.callLater(refreshSessionBaseline)
         }
 
         function onIsDirtyChanged() {
-            if (!documentManager.isDirty)
+            if (!DocumentManager.isDirty)
                 A11y.announceSaveState(false)
         }
     }
@@ -336,7 +336,7 @@ ApplicationWindow {
         appToolbar.applyPersistedCustomization()
         // Oversized-file guard cap: adjustable without a rebuild, next
         // to the autosave settings.
-        documentManager.maxOpenFileSizeMiB =
+        DocumentManager.maxOpenFileSizeMiB =
             AppSettings.value("maxOpenFileSizeMiB", 10)
         // Window geometry: size restores unconditionally (with a sanity
         // floor), position only when still on a connected screen.
@@ -459,16 +459,16 @@ ApplicationWindow {
 
     // relPath of the open note ("" outside collection mode).
     readonly property string currentNoteRelPath:
-        collectionOpen && documentManager.hasFile
-            ? noteCollection.relativePath(documentManager.currentFilePath) : ""
+        collectionOpen && DocumentManager.hasFile
+            ? NoteCollection.relativePath(DocumentManager.currentFilePath) : ""
 
     // Switch notes: save-on-blur, load, undo clears (the existing open()
     // contract), search and selections reset.
     function openNoteByPath(relPath) {
         if (!collectionOpen || relPath === "")
             return false
-        var abs = noteCollection.absolutePath(relPath)
-        if (documentManager.currentFilePath === abs)
+        var abs = NoteCollection.absolutePath(relPath)
+        if (DocumentManager.currentFilePath === abs)
             return true
         // The departing note's scroll position, captured before the
         // switch so back/forward return the reader to it (§3.3). A
@@ -478,8 +478,8 @@ ApplicationWindow {
         // the current one's unsaved content and undo history. If the save did
         // not succeed - unwritable file, full disk - going ahead destroys work
         // the user never agreed to lose, so stay put and let the error stand.
-        if (documentManager.isDirty && documentManager.hasFile) {
-            if (!documentManager.save())
+        if (DocumentManager.isDirty && DocumentManager.hasFile) {
+            if (!DocumentManager.save())
                 return false
         }
         if (findBar.visible)
@@ -487,10 +487,10 @@ ApplicationWindow {
         if (documentSelection.hasBlockSelection
             || documentSelection.hasTextSelection)
             documentSelection.clear()
-        if (!documentManager.open(documentManager.toLocalFileUrl(abs)))
+        if (!DocumentManager.open(DocumentManager.toLocalFileUrl(abs)))
             return false
         NavigationHistory.visit(relPath, departingY)
-        noteCollection.setLastOpenNote(relPath)
+        NoteCollection.setLastOpenNote(relPath)
         root.lastFocusedBlock = 0
         blockListView.currentIndex = 0
         // Reset the session word tracker to the just-loaded document (the model
@@ -541,7 +541,7 @@ ApplicationWindow {
             showTransientStatus(qsTr("Wiki-links need an open collection"))
             return
         }
-        var resolution = noteCollection.wikiTargetResolution(target)
+        var resolution = NoteCollection.wikiTargetResolution(target)
         if (resolution.status === "ambiguous") {
             showTransientStatus(qsTr("Ambiguous link “%1”: %2")
                                 .arg(target)
@@ -572,13 +572,13 @@ ApplicationWindow {
     property var pendingRenameAfter: null
 
     function requestNoteRename(relPath, newTitle) {
-        beginRenamePlan(noteCollection.planNoteRename(relPath, newTitle), null)
+        beginRenamePlan(NoteCollection.planNoteRename(relPath, newTitle), null)
     }
     function requestNoteMove(relPath, targetFolder) {
-        beginRenamePlan(noteCollection.planNoteMove(relPath, targetFolder), null)
+        beginRenamePlan(NoteCollection.planNoteMove(relPath, targetFolder), null)
     }
     function requestFolderRename(relPath, newName, afterApply) {
-        beginRenamePlan(noteCollection.planFolderRename(relPath, newName), afterApply)
+        beginRenamePlan(NoteCollection.planFolderRename(relPath, newName), afterApply)
     }
     function beginRenamePlan(plan, afterApply) {
         if (!plan || !plan.ok)
@@ -594,15 +594,15 @@ ApplicationWindow {
         var openRelPath = root.currentNoteRelPath
         var openBody = openRelPath !== ""
             ? DocumentSerializer.serialize(blockModel) : ""
-        var wasDirty = documentManager.isDirty
-        var result = noteCollection.applyRenamePlan(
+        var wasDirty = DocumentManager.isDirty
+        var result = NoteCollection.applyRenamePlan(
             planId, updateLinks, openRelPath, openBody)
         if (!result.ok)
             return result
         if (result.openRewriteCount > 0
-                && documentManager.restoreBody(result.openBody)
+                && DocumentManager.restoreBody(result.openBody)
                 && !wasDirty)
-            documentManager.save()
+            DocumentManager.save()
         return result
     }
     function finishRenamePlan(updateLinks) {
@@ -646,8 +646,8 @@ ApplicationWindow {
             for (var i = 0; i < parts.length; ++i) {
                 var next = accumulated === ""
                     ? parts[i] : accumulated + "/" + parts[i]
-                if (noteCollection.folderRelPaths().indexOf(next) < 0)
-                    noteCollection.createFolder(accumulated, parts[i])
+                if (NoteCollection.folderRelPaths().indexOf(next) < 0)
+                    NoteCollection.createFolder(accumulated, parts[i])
                 accumulated = next
             }
             folder = accumulated
@@ -662,7 +662,7 @@ ApplicationWindow {
         if (title.toLowerCase().lastIndexOf(".md")
                 === title.length - 3 && title.length > 3)
             title = title.substring(0, title.length - 3)
-        return noteCollection.createNote(folder, title)
+        return NoteCollection.createNote(folder, title)
     }
 
     // A clicked global-search result (§8.4 "open note at match
@@ -685,7 +685,7 @@ ApplicationWindow {
             return
         var folder = NoteListModel.scope === "folder"
             ? NoteListModel.folderPath : ""
-        var relPath = noteCollection.createNote(folder, "")
+        var relPath = NoteCollection.createNote(folder, "")
         if (relPath !== "") {
             openNoteByPath(relPath)
             var item = blockListView.itemAtIndex(0)
@@ -702,10 +702,10 @@ ApplicationWindow {
             return ""
         var folder = NoteListModel.scope === "folder"
             ? NoteListModel.folderPath : ""
-        var relPath = noteCollection.createNote(folder, templateName)
+        var relPath = NoteCollection.createNote(folder, templateName)
         if (relPath === "")
             return ""
-        var title = noteCollection.noteInfo(relPath).title
+        var title = NoteCollection.noteInfo(relPath).title
         var inst = NoteTemplates.instantiate(templateName, title)
         if (!openNoteByPath(relPath))
             return relPath
@@ -714,10 +714,10 @@ ApplicationWindow {
         DocumentSerializer.loadIntoModel(blockModel, inst.body || "")
         var tags = inst.tags || []
         for (var i = 0; i < tags.length; i++)
-            noteCollection.addTag(relPath, tags[i])
+            NoteCollection.addTag(relPath, tags[i])
         if (inst.favorite === true)
-            noteCollection.setFavorite(relPath, true)
-        documentManager.save()
+            NoteCollection.setFavorite(relPath, true)
+        DocumentManager.save()
         Qt.callLater(function() {
             var item = blockListView.itemAtIndex(0)
             if (item && item.focusAtStart)
@@ -733,9 +733,9 @@ ApplicationWindow {
             return false
         // The on-disk note text (front-matter + serialized body) is the
         // template; save first so the file reflects the current buffer.
-        if (documentManager.isDirty)
-            documentManager.save()
-        var fm = noteCollection.frontMatterFor(currentNoteRelPath)
+        if (DocumentManager.isDirty)
+            DocumentManager.save()
+        var fm = NoteCollection.frontMatterFor(currentNoteRelPath)
         var full = (fm ? fm : "") + DocumentSerializer.serialize(blockModel)
         return NoteTemplates.writeTemplate(name, full)
     }
@@ -826,10 +826,10 @@ ApplicationWindow {
     Shortcut {
         sequences: [StandardKey.Save]  // Ctrl+S
         onActivated: {
-            if (documentManager.hasFile) {
-                documentManager.saveAsync()
+            if (DocumentManager.hasFile) {
+                DocumentManager.saveAsync()
             } else {
-                documentManager.saveFileDialog()
+                DocumentManager.saveFileDialog()
             }
         }
     }
@@ -1126,7 +1126,7 @@ ApplicationWindow {
         onCreateRequested: function(title) {
             var folder = NoteListModel.scope === "folder"
                 ? NoteListModel.folderPath : ""
-            var relPath = noteCollection.createNote(folder, title)
+            var relPath = NoteCollection.createNote(folder, title)
             if (relPath !== "")
                 root.openNoteByPath(relPath)
         }
@@ -1598,8 +1598,8 @@ ApplicationWindow {
                     // Oversized-paste guard: the same threshold as file
                     // open — a whale payload gets a confirm dialog instead
                     // of a silent multi-second stall.
-                    var capBytes = documentManager.maxOpenFileSizeMiB > 0
-                        ? documentManager.maxOpenFileSizeMiB * 1024 * 1024
+                    var capBytes = DocumentManager.maxOpenFileSizeMiB > 0
+                        ? DocumentManager.maxOpenFileSizeMiB * 1024 * 1024
                         : 0
                     if (capBytes > 0 && pasteText.length > capBytes) {
                         largePasteConfirmDialog.pendingText = pasteText
@@ -1655,14 +1655,14 @@ ApplicationWindow {
     Shortcut {
         sequences: [StandardKey.Open]  // Ctrl+O
         onActivated: {
-            if (documentManager.isDirty) {
+            if (DocumentManager.isDirty) {
                 unsavedChangesBeforeOpenDialog.open()
             } else if (root.collectionOpen) {
                 // In collection mode, offer to import rather than only open a
                 // standalone file.
                 openOrImportChoiceDialog.open()
             } else {
-                documentManager.openFileDialog()
+                DocumentManager.openFileDialog()
             }
         }
     }
@@ -1688,7 +1688,7 @@ ApplicationWindow {
                 DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
                 onClicked: {
                     openOrImportChoiceDialog.close()
-                    documentManager.openFileDialog()
+                    DocumentManager.openFileDialog()
                 }
             }
             Button {
@@ -1735,7 +1735,7 @@ ApplicationWindow {
                     createVaultDialog.close()
                     var dir = root.currentNoteDir()
                     if (dir !== "")
-                        noteCollection.openRootAsync(dir)
+                        NoteCollection.openRootAsync(dir)
                 }
             }
         }
@@ -1746,10 +1746,10 @@ ApplicationWindow {
         onActivated: {
             if (root.collectionOpen) {
                 root.createNoteInCurrentScope()
-            } else if (documentManager.isDirty) {
+            } else if (DocumentManager.isDirty) {
                 unsavedChangesBeforeNewDialog.open()
             } else {
-                documentManager.newDocument()
+                DocumentManager.newDocument()
             }
         }
     }
@@ -1831,9 +1831,9 @@ ApplicationWindow {
     Connections {
         target: FileWatcher
         function onNoteChangedExternally(absPath) {
-            if (absPath !== documentManager.currentFilePath)
+            if (absPath !== DocumentManager.currentFilePath)
                 return   // not the open note — the tree re-scan handles the rest
-            if (documentManager.isDirty) {
+            if (DocumentManager.isDirty) {
                 root.conflictPath = absPath
                 root.externalConflict = true
                 A11y.announce(qsTr("This note changed on disk"))
@@ -1845,13 +1845,13 @@ ApplicationWindow {
     }
     function keepMine() {
         // Re-write the editor's content, overwriting the external change.
-        documentManager.save()
+        DocumentManager.save()
         root.externalConflict = false
     }
     function loadTheirs(absPath) {
         var target = absPath !== undefined ? absPath : root.conflictPath
         // Force a reload past openNoteByPath's same-path short-circuit.
-        documentManager.open(documentManager.toLocalFileUrl(target))
+        DocumentManager.open(DocumentManager.toLocalFileUrl(target))
         root.lastFocusedBlock = 0
         blockListView.currentIndex = 0
         Qt.callLater(refreshSessionBaseline)
@@ -1939,10 +1939,10 @@ ApplicationWindow {
         property string relPath: ""
         function openFor(rel) {
             relPath = rel
-            goalField.value = noteCollection.goalFor(rel)
+            goalField.value = NoteCollection.goalFor(rel)
             open()
         }
-        onAccepted: noteCollection.setGoal(relPath, goalField.value)
+        onAccepted: NoteCollection.setGoal(relPath, goalField.value)
         contentItem: ColumnLayout {
             spacing: 8
             Label {
@@ -2043,18 +2043,18 @@ ApplicationWindow {
 
     // ---- External drop ingestion (features.md §5.3, §5.4) ----
     function currentNoteDir() {
-        var p = documentManager.currentFilePath
+        var p = DocumentManager.currentFilePath
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
     function currentNoteSlug() {
-        var p = documentManager.currentFilePath
+        var p = DocumentManager.currentFilePath
         var fn = p.substring(p.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "")
         var slug = fn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
         return slug === "" ? "image" : slug
     }
     function assetRoot() {
-        return noteCollection.isOpen ? noteCollection.rootPath : ""
+        return NoteCollection.isOpen ? NoteCollection.rootPath : ""
     }
     // The block index a drop at content-y lands after (-1 → append).
     function dropTargetIndex(dropY) {
@@ -2590,20 +2590,20 @@ ApplicationWindow {
     // The crash-recovery journal follows the open note;
     // "" outside collection mode disables it.
     Binding {
-        target: documentManager
+        target: DocumentManager
         property: "journalPath"
         value: root.currentNoteRelPath !== ""
-               ? noteCollection.journalPathFor(root.currentNoteRelPath) : ""
+               ? NoteCollection.journalPathFor(root.currentNoteRelPath) : ""
     }
 
     // Restore a crash-recovered note (the banner's Restore button): the
     // journal content lands on disk; a currently-open note reloads.
     function restoreRecoveredNote(relPath) {
-        if (!noteCollection.restoreRecovery(relPath))
+        if (!NoteCollection.restoreRecovery(relPath))
             return
         if (root.currentNoteRelPath === relPath) {
-            documentManager.open(documentManager.toLocalFileUrl(
-                noteCollection.absolutePath(relPath)))
+            DocumentManager.open(DocumentManager.toLocalFileUrl(
+                NoteCollection.absolutePath(relPath)))
         } else {
             openNoteByPath(relPath)
         }
@@ -2627,7 +2627,7 @@ ApplicationWindow {
         function openForCurrentNote() {
             if (root.currentNoteRelPath === "")
                 return
-            backups = noteCollection.backupsFor(root.currentNoteRelPath)
+            backups = NoteCollection.backupsFor(root.currentNoteRelPath)
             selectedRow = 0
             open()
         }
@@ -2635,10 +2635,10 @@ ApplicationWindow {
         onAccepted: {
             if (selectedRow < 0 || selectedRow >= backups.length)
                 return
-            var body = noteCollection.backupBody(
+            var body = NoteCollection.backupBody(
                 root.currentNoteRelPath, backups[selectedRow].fileName)
-            if (documentManager.restoreBody(body))
-                documentManager.save()
+            if (DocumentManager.restoreBody(body))
+                DocumentManager.save()
         }
 
         contentItem: ColumnLayout {
@@ -2731,12 +2731,12 @@ ApplicationWindow {
         onAccepted: {
             // Only close once the document is actually on disk. If the Save-As
             // dialog is cancelled or the write fails, stay open.
-            if (documentManager.saveFileDialog())
+            if (DocumentManager.saveFileDialog())
                 root.close()
         }
         // Discard is the user deciding to lose it, which is their call to make.
         onDiscarded: {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             root.close()
         }
         // Cancel: nothing happens, the window stays open.
@@ -2770,17 +2770,17 @@ ApplicationWindow {
             // cancelled Save-As and a failed write both mean it is not, and in
             // both cases the right thing is to leave the document alone rather
             // than continue into an action that discards it.
-            var saved = documentManager.hasFile
-                        ? documentManager.save()
-                        : documentManager.saveFileDialog()
+            var saved = DocumentManager.hasFile
+                        ? DocumentManager.save()
+                        : DocumentManager.saveFileDialog()
             if (!saved)
                 return
-            documentManager.openFileDialog()
+            DocumentManager.openFileDialog()
         }
 
         onDiscarded: {
             // Discard button clicked - open without saving
-            documentManager.openFileDialog()
+            DocumentManager.openFileDialog()
         }
 
         // Cancel - do nothing
@@ -2812,17 +2812,17 @@ ApplicationWindow {
             // Save button clicked. Same rule as the Open confirmation: starting
             // a new document throws this one away, so it has to be safely
             // stored first.
-            var saved = documentManager.hasFile
-                        ? documentManager.save()
-                        : documentManager.saveFileDialog()
+            var saved = DocumentManager.hasFile
+                        ? DocumentManager.save()
+                        : DocumentManager.saveFileDialog()
             if (!saved)
                 return
-            documentManager.newDocument()
+            DocumentManager.newDocument()
         }
 
         onDiscarded: {
             // Discard button clicked - create new without saving
-            documentManager.newDocument()
+            DocumentManager.newDocument()
         }
 
         // Cancel - do nothing
@@ -2852,7 +2852,7 @@ ApplicationWindow {
                 wrapMode: Text.WordWrap
                 text: qsTr("The Clipboard holds %1 of text — over the %2 limit. Pasting it may take a while.")
                     .arg(root.formatMiB(largePasteConfirmDialog.pendingText.length))
-                    .arg(root.formatMiB(documentManager.maxOpenFileSizeMiB
+                    .arg(root.formatMiB(DocumentManager.maxOpenFileSizeMiB
                                         * 1024 * 1024))
             }
         }
@@ -2917,7 +2917,7 @@ ApplicationWindow {
                 DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
                 onClicked: {
                     if (root.pendingRenamePlan)
-                        noteCollection.cancelRenamePlan(root.pendingRenamePlan.id)
+                        NoteCollection.cancelRenamePlan(root.pendingRenamePlan.id)
                     root.pendingRenamePlan = null
                     root.pendingRenameAfter = null
                     renameLinksDialog.close()
@@ -3003,20 +3003,20 @@ ApplicationWindow {
 
     // Handle save/open results
     Connections {
-        target: documentManager
+        target: DocumentManager
 
         function onSaveSucceeded(filePath) {
             // Keep the collection index (mtime, word count, snippet)
             // current with what just hit the disk.
             if (root.collectionOpen) {
-                var rel = noteCollection.relativePath(filePath)
+                var rel = NoteCollection.relativePath(filePath)
                 if (rel !== "" && rel === root.currentNoteRelPath) {
-                    var fm = noteCollection.frontMatterFor(root.currentNoteRelPath)
-                    noteCollection.noteSaved(filePath,
+                    var fm = NoteCollection.frontMatterFor(root.currentNoteRelPath)
+                    NoteCollection.noteSaved(filePath,
                                              (fm ? fm : "")
                                              + DocumentSerializer.serialize(blockModel))
                 } else {
-                    noteCollection.noteSaved(filePath)
+                    NoteCollection.noteSaved(filePath)
                 }
             }
         }
@@ -3025,7 +3025,7 @@ ApplicationWindow {
             // Backup rotation: copy the pre-save file when
             // the newest backup is older than the floor.
             if (root.collectionOpen)
-                noteCollection.backupBeforeOverwrite(filePath)
+                NoteCollection.backupBeforeOverwrite(filePath)
         }
 
         function onSaveFailed(error) {
@@ -3052,23 +3052,23 @@ ApplicationWindow {
 
     // Auto-save when window loses focus
     onActiveChanged: {
-        if (!active && documentManager && documentManager.isDirty && documentManager.hasFile) {
-            documentManager.saveAsync()
+        if (!active && DocumentManager && DocumentManager.isDirty && DocumentManager.hasFile) {
+            DocumentManager.saveAsync()
         }
     }
 
     // Orderly shutdown saves (features.md §12.2). Crash recovery relies
     // on this — the recovery journal only survives real crashes.
     onClosing: function(close) {
-        if (!documentManager || !documentManager.isDirty)
+        if (!DocumentManager || !DocumentManager.isDirty)
             return
 
-        if (documentManager.hasFile) {
+        if (DocumentManager.hasFile) {
             // A save that fails on the way out is the worst case for data loss:
             // there is no next attempt, and the recovery journal is not meant
             // to cover an orderly quit. Keep the window open so the error is
             // visible and the user can act on it.
-            if (!documentManager.save())
+            if (!DocumentManager.save())
                 close.accepted = false
             return
         }
@@ -3095,24 +3095,24 @@ ApplicationWindow {
     // open document; deleting the open note moves on without
     // resurrecting the trashed file.
     Connections {
-        target: noteCollection
+        target: NoteCollection
         enabled: root.collectionOpen
 
         function onNoteMoved(oldRelPath, newRelPath) {
-            if (documentManager.currentFilePath
-                    === noteCollection.absolutePath(oldRelPath))
-                documentManager.rebindFilePath(
-                    noteCollection.absolutePath(newRelPath))
+            if (DocumentManager.currentFilePath
+                    === NoteCollection.absolutePath(oldRelPath))
+                DocumentManager.rebindFilePath(
+                    NoteCollection.absolutePath(newRelPath))
         }
         function onNoteRemoved(relPath) {
-            if (documentManager.currentFilePath
-                    === noteCollection.absolutePath(relPath)) {
+            if (DocumentManager.currentFilePath
+                    === NoteCollection.absolutePath(relPath)) {
                 // Drop the dead file binding first: a save (auto-save,
                 // switch) must never rewrite the trashed path. The
                 // fallback note is chosen LATER: this signal precedes the
                 // revision bump, so the list model still contains the
                 // removed note at this instant.
-                documentManager.newDocument()
+                DocumentManager.newDocument()
                 Qt.callLater(function() {
                     var next = NoteListModel.relPathAt(0)
                     if (next !== "")
@@ -3152,8 +3152,8 @@ ApplicationWindow {
             // save writes the canonical current block instead of the one
             // captured at load.
             if (root.currentNoteRelPath !== "")
-                documentManager.setFrontMatter(
-                    noteCollection.frontMatterFor(root.currentNoteRelPath))
+                DocumentManager.setFrontMatter(
+                    NoteCollection.frontMatterFor(root.currentNoteRelPath))
         }
     }
 
@@ -3266,8 +3266,8 @@ ApplicationWindow {
                 onClicked: {
                     var path = root.oversizedFilePath
                     root.oversizedFilePath = ""
-                    documentManager.openAsync(
-                        documentManager.toLocalFileUrl(path), true)
+                    DocumentManager.openAsync(
+                        DocumentManager.toLocalFileUrl(path), true)
                 }
             }
             Button {
@@ -3932,7 +3932,7 @@ ApplicationWindow {
             // never a popup or a first-run prompt.
             Text {
                 objectName: "createVaultAffordance"
-                visible: !root.collectionOpen && documentManager.hasFile
+                visible: !root.collectionOpen && DocumentManager.hasFile
                 text: qsTr("Create vault from this folder…")
                 font.pixelSize: 11
                 font.underline: createVaultMouse.containsMouse
@@ -3956,12 +3956,12 @@ ApplicationWindow {
                     height: 8
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: documentManager && documentManager.isDirty ? theme.warning : theme.success
+                    color: DocumentManager && DocumentManager.isDirty ? theme.warning : theme.success
                 }
 
                 Text {
                     objectName: "saveStateText"
-                    text: documentManager && documentManager.isDirty ? "Unsaved" : "Saved"
+                    text: DocumentManager && DocumentManager.isDirty ? "Unsaved" : "Saved"
                     font.pixelSize: 11
                     color: theme.textMuted
                     anchors.verticalCenter: parent.verticalCenter
@@ -3986,9 +3986,9 @@ ApplicationWindow {
 
                 text: {
                     var tick = clockTick  // periodic re-evaluation
-                    if (!documentManager || documentManager.isDirty)
+                    if (!DocumentManager || DocumentManager.isDirty)
                         return ""
-                    var at = documentManager.lastSavedAt
+                    var at = DocumentManager.lastSavedAt
                     if (!at || isNaN(at.getTime()))
                         return ""
                     var secs = (Date.now() - at.getTime()) / 1000
@@ -3998,8 +3998,8 @@ ApplicationWindow {
                     return Qt.formatTime(at, "hh:mm")
                 }
                 ToolTip.visible: savedTimeHover.hovered
-                ToolTip.text: documentManager && documentManager.lastSavedAt
-                    ? Qt.formatDateTime(documentManager.lastSavedAt,
+                ToolTip.text: DocumentManager && DocumentManager.lastSavedAt
+                    ? Qt.formatDateTime(DocumentManager.lastSavedAt,
                                         "yyyy-MM-dd hh:mm:ss") : ""
                 HoverHandler { id: savedTimeHover }
             }
@@ -4100,7 +4100,7 @@ ApplicationWindow {
             // File path or "New Document"
             Text {
                 objectName: "filePathText"
-                text: documentManager && documentManager.hasFile ? documentManager.currentFilePath : "New Document"
+                text: DocumentManager && DocumentManager.hasFile ? DocumentManager.currentFilePath : "New Document"
                 elide: Text.ElideMiddle
                 Layout.fillWidth: true
                 font.pixelSize: 11
@@ -4216,9 +4216,9 @@ ApplicationWindow {
                             } else {
                                 var frag = content.substring(from, to)
                                 var vb = blockModel.blockAt(b).blockType === 8
-                                words += noteCollection.wordCountForMarkdown(
+                                words += NoteCollection.wordCountForMarkdown(
                                     frag, vb)
-                                chars += noteCollection.charCountForMarkdown(
+                                chars += NoteCollection.charCountForMarkdown(
                                     frag, vb)
                             }
                         }
@@ -4229,7 +4229,7 @@ ApplicationWindow {
                     if (inBlockSel.length > 0) {
                         // Already display text: count verbatim.
                         counts = {
-                            words: noteCollection.wordCountForMarkdown(
+                            words: NoteCollection.wordCountForMarkdown(
                                 inBlockSel, true),
                             chars: inBlockSel.length,
                             sel: true
@@ -4311,9 +4311,9 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignVCenter
 
                 property int goal: {
-                    var r = noteCollection.revision  // dependency only
+                    var r = NoteCollection.revision  // dependency only
                     return root.currentNoteRelPath !== ""
-                        ? noteCollection.goalFor(root.currentNoteRelPath) : 0
+                        ? NoteCollection.goalFor(root.currentNoteRelPath) : 0
                 }
                 property int words: docCounter.docWords
                 property real fraction: goal > 0

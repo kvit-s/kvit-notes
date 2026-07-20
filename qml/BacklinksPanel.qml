@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Kvit 1.0
 
 // The backlinks pane: referring notes for the open note, with the context
 // lines their links appear on. Rows come from NoteCollection::backlinksTo,
@@ -24,12 +25,12 @@ Rectangle {
     function refresh() {
         var current = appWindow ? appWindow.currentNoteRelPath : ""
         rows = (visible && current !== "")
-            ? noteCollection.backlinksTo(current) : []
+            ? NoteCollection.backlinksTo(current) : []
     }
 
     onVisibleChanged: refresh()
     Connections {
-        target: noteCollection
+        target: NoteCollection
         function onRevisionChanged() { panel.refresh() }
         function onRootChanged() { panel.refresh() }
     }

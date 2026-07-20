@@ -70,14 +70,14 @@ Item {
     // ---- Parsed image + resolved source ----
     readonly property var img: ImageAssets.parse(content)
     readonly property string noteDir: {
-        var p = documentManager.currentFilePath
+        var p = DocumentManager.currentFilePath
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
     readonly property string resolvedSource:
         ImageAssets.resolve(img.path,
                             noteDir,
-                            noteCollection.isOpen ? noteCollection.rootPath : "")
+                            NoteCollection.isOpen ? NoteCollection.rootPath : "")
     // What the Image actually loads. A local file passes through; an http(s)
     // image is routed to the image://remote provider once the reader has
     // approved its origin, and is "" until then. A note is untrusted input,
@@ -601,7 +601,7 @@ Item {
                                         text, delegate.img.width)
             }
             Connections {
-                target: documentManager
+                target: DocumentManager
                 function onPendingEditsRequested() {
                     captionField.commitPendingCaption()
                 }

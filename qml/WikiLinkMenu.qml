@@ -77,9 +77,9 @@ Popup {
                 for (var i = 0; i < own.length; ++i)
                     heads.push(own[i].text)
             } else {
-                var relPath = noteCollection.resolveWikiTarget(target)
+                var relPath = NoteCollection.resolveWikiTarget(target)
                 if (relPath !== "")
-                    heads = noteCollection.headingsFor(relPath)
+                    heads = NoteCollection.headingsFor(relPath)
             }
             var headRows = []
             for (var h = 0; h < heads.length; ++h) {
@@ -95,7 +95,7 @@ Popup {
                 // The minimal unambiguous target: the bare title when it
                 // resolves to this note, else the full path (".md" implied).
                 var title = items[n].title
-                var target2 = noteCollection.resolveWikiTarget(title)
+                var target2 = NoteCollection.resolveWikiTarget(title)
                         === items[n].relPath
                     ? title
                     : items[n].relPath.replace(/\.md$/i, "")

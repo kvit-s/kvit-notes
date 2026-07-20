@@ -61,7 +61,7 @@ Item {
         refresh()
     }
     Connections {
-        target: noteCollection
+        target: NoteCollection
         function onRevisionChanged() { root.scheduleRefresh() }
         function onRootChanged() { root.scheduleRefresh() }
     }
@@ -513,7 +513,7 @@ Item {
                 }
 
                 Connections {
-                    target: documentManager
+                    target: DocumentManager
                     function onPendingEditsRequested() {
                         sourceArea.commitPendingSource()
                     }

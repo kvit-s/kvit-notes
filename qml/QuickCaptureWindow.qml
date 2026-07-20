@@ -9,7 +9,7 @@ import Kvit 1.0
 // Quick-capture window (features.md §15.1). A small always-on-top window the
 // global hotkey (or the tray menu) opens for jotting a note without switching to
 // the main window. Save writes the text as a new note in the collection through
-// noteCollection.captureNote and reports it; Escape cancels. Reachable regardless
+// NoteCollection.captureNote and reports it; Escape cancels. Reachable regardless
 // of whether the OS delivers a system-wide hotkey.
 Window {
     id: root
@@ -48,7 +48,7 @@ Window {
     function save() {
         var body = captureArea.text.trim()
         if (body === "") { root.close(); return }
-        var rp = noteCollection.captureNote(body)
+        var rp = NoteCollection.captureNote(body)
         if (rp === "") {
             root.saveFailed = true
             captureArea.forceActiveFocus()
