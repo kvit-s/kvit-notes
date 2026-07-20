@@ -410,7 +410,11 @@ if(KVIT_UI_DRIVER)
         tools/uidriver.cpp
         resources.qrc
     )
-    target_link_libraries(kvit-uidriver PRIVATE kvit-core Qt6::Test)
+    # Widgets for the same reason kvit-notes needs it: this tool constructs
+    # the QApplication itself. kvit-core stopped exporting Widgets when its
+    # public link surface was narrowed, and nothing in a default build
+    # notices, because this target is off unless it is asked for.
+    target_link_libraries(kvit-uidriver PRIVATE kvit-core Qt6::Test Qt6::Widgets)
 endif()
 
 # Enable testing. Only when this project is the top-level build: a consumer that adds

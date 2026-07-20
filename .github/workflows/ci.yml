@@ -166,6 +166,41 @@ jobs:
       - name: qmllint
         run: tools/run-qmllint.sh
 
+  # Optional CMake targets, built but not run. Everything off by default is
+  # invisible to every other job, so a change elsewhere can break one and
+  # nothing notices until somebody reaches for the tool. That has now happened
+  # twice: narrowing kvit-core's public link surface broke kvit-uidriver,
+  # which constructs its own QApplication, and no routine build compiles it.
+  #
+  # kvit-uidriver matters more than its size suggests. Under WSLg an X11 grab
+  # of the shell comes back blank, so driving the real UI through this tool is
+  # the only way to observe what the GPU path actually renders - it is the
+  # instrument for the glyph-corruption bug class devel.md describes. It being
+  # broken is discovered at the worst moment, by someone already debugging
+  # something else.
+  #
+  # Compiling is the whole check. Running it needs a display, which is what
+  # the visual suites are for.
+  optional-targets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          modules: qtmultimedia qtshadertools qtimageformats
+          cache: true
+
+      - name: Configure with every optional target on
+        run: cmake -S . -B build-optional -DKVIT_UI_DRIVER=ON
+
+      - name: Build kvit-uidriver
+        run: cmake --build build-optional --target kvit-uidriver --parallel
+
   # AddressSanitizer + UndefinedBehaviorSanitizer over the deterministic
   # suites. Complements the other two gates by kind rather than by coverage:
   # ShellTests and qmllint check that the application is wired correctly,
@@ -232,7 +267,7 @@ jobs:
   # environment carries signing secrets and requires manual approval.
   package:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-test, qmllint]
+    needs: [build-test, qmllint, optional-targets]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release
