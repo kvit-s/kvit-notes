@@ -183,6 +183,12 @@ static bool hasDeliverableResult(const QFutureWatcher<T> &watcher)
 
 NoteCollection::NoteCollection(QObject *parent)
     : QObject(parent)
+    , m_searchFeed(
+          // Built here rather than passed in: the listing and the path
+          // resolver are this collection's own state, and the feed is a
+          // member with the same lifetime.
+          [this]() { return searchReconcileListing(); },
+          [this](const QString &relPath) { return absolutePath(relPath); })
 {
     m_asyncRevisionTimer.setSingleShot(true);
     m_asyncRevisionTimer.setInterval(50);
@@ -251,10 +257,7 @@ bool NoteCollection::openRootAsync(const QString &path)
     // Open the search index for the new root at once so queries hit the warm
     // database from the previous session while the background scan runs; the
     // reconcile that catches up to on-disk changes waits for finishAsyncScan.
-    if (m_searchIndex) {
-        m_searchIndex->openForRoot(m_rootPath);
-        m_searchIndexRoot = m_rootPath;
-    }
+    m_searchFeed.openFor(m_rootPath);
 
     scanAsync();
     loadRecoveryEntries();
@@ -283,10 +286,7 @@ void NoteCollection::closeRoot()
     m_lastOpenNote.clear();
     m_recoveryJournals.clear();
     m_indexDirty = false;
-    if (m_searchIndex) {
-        m_searchIndex->closeIndex();
-        m_searchIndexRoot.clear();
-    }
+    m_searchFeed.close();
     // Released last: nothing above may still be writing when another process
     // is allowed in.
     m_vaultLock.release();
@@ -3585,13 +3585,12 @@ void NoteCollection::noteSaved(const QString &absPath, const QString &fileText)
     // it is passed straight through so the worker skips a redundant disk read;
     // otherwise the worker reads the file. Queued FIFO writes
     // mean two rapid saves cannot let an older parse win.
-    if (m_searchIndex && m_searchIndexRoot == m_rootPath) {
-        if (!fileText.isNull())
-            m_searchIndex->replaceFromText(
-                relPath, fileText, info.size(),
-                info.lastModified().toMSecsSinceEpoch());
-        else
-            m_searchIndex->replaceFromPath(relPath, info.absoluteFilePath());
+    if (!fileText.isNull()) {
+        m_searchFeed.reindexNoteFromText(
+            m_rootPath, relPath, fileText, info.size(),
+            info.lastModified().toMSecsSinceEpoch());
+    } else {
+        m_searchFeed.reindexNote(m_rootPath, relPath);
     }
 
     AsyncSavedNoteTask task;
@@ -3718,31 +3717,15 @@ void NoteCollection::bump()
 
 void NoteCollection::setSearchIndex(CollectionSearchIndex *index)
 {
-    m_searchIndex = index;
-    m_searchIndexRoot.clear();
-    if (m_searchIndex && isOpen())
+    m_searchFeed.setIndex(index);
+    if (m_searchFeed.hasIndex() && isOpen())
         syncSearchIndex();
 }
 
-void NoteCollection::syncSearchIndex()
+// The repository's side of reconcile: what every indexed note looks like to
+// the freshness check, without reading a body.
+QList<ReconcileEntry> NoteCollection::searchReconcileListing() const
 {
-    if (!m_searchIndex)
-        return;
-    if (!isOpen()) {
-        if (!m_searchIndexRoot.isEmpty()) {
-            m_searchIndex->closeIndex();
-            m_searchIndexRoot.clear();
-        }
-        return;
-    }
-    // Open (or reopen) the cache database for the current root, then reconcile
-    // it against the on-disk listing: parse new or changed notes, drop missing
-    // ones. hasNoteFresh makes warm startup skip unchanged notes,
-    // so this stays cheap after the first cold build.
-    if (m_searchIndexRoot != m_rootPath) {
-        m_searchIndex->openForRoot(m_rootPath);
-        m_searchIndexRoot = m_rootPath;
-    }
     QList<ReconcileEntry> listing;
     listing.reserve(m_notes.size());
     for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
@@ -3754,17 +3737,20 @@ void NoteCollection::syncSearchIndex()
         e.modifiedMs = entry.modified.toMSecsSinceEpoch();
         listing.append(e);
     }
-    m_searchIndex->reconcile(listing);
+    return listing;
+}
+
+void NoteCollection::syncSearchIndex()
+{
+    m_searchFeed.syncTo(m_rootPath);
 }
 
 void NoteCollection::reindexNoteInSearch(const QString &relPath)
 {
-    if (m_searchIndex && m_searchIndexRoot == m_rootPath && !m_rootPath.isEmpty())
-        m_searchIndex->replaceFromPath(relPath, absolutePath(relPath));
+    m_searchFeed.reindexNote(m_rootPath, relPath);
 }
 
 void NoteCollection::dropNoteInSearch(const QString &relPath)
 {
-    if (m_searchIndex && m_searchIndexRoot == m_rootPath && !m_rootPath.isEmpty())
-        m_searchIndex->removePath(relPath);
+    m_searchFeed.dropNote(m_rootPath, relPath);
 }

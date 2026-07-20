@@ -24,6 +24,7 @@
 #include "notefrontmatter.h"
 #include "notetrashstore.h"
 #include "recoveryjournalstore.h"
+#include "searchindexfeed.h"
 #include "vaultlock.h"
 
 class QFileInfo;
@@ -492,6 +493,12 @@ private:
     void bump();
 
     // --- Search-index feed -------------------------------------------------
+    // Thin forwards onto SearchIndexFeed, which owns the channel and the
+    // root-matching guard. They stay as named methods because the call sites
+    // that need them are scattered across scanning, CRUD and metadata writes,
+    // and each one reads as a statement about this collection rather than
+    // about the index.
+    //
     // Open the index for the current root (if needed) and reconcile it against
     // the on-disk listing: the cold build and warm-startup sync. Called at each
     // scan/refresh settle point.
@@ -499,9 +506,10 @@ private:
     // Reparse one note into the index (save, create, tag write, rename target).
     void reindexNoteInSearch(const QString &relPath);
     void dropNoteInSearch(const QString &relPath);
+    // Every indexed note as the freshness check sees it.
+    QList<ReconcileEntry> searchReconcileListing() const;
 
-    CollectionSearchIndex *m_searchIndex = nullptr;
-    QString m_searchIndexRoot; // the root the index is currently open for
+    SearchIndexFeed m_searchFeed;
 
     QString m_rootPath;
     // m_rootPath with every symbolic link resolved. Containment is decided
