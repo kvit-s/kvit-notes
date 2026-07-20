@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The preview list's delegate builds a row out of separate Labels, each
+// its own scope. Binding those scopes lets them address the row by id
+// instead of reaching a model role by injection.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -492,31 +497,35 @@ Rectangle {
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 delegate: Row {
+                    // The Labels below are each their own scope, so the row
+                    // is named and its role declared rather than injected.
+                    id: previewRow
+                    required property var modelData
                     spacing: 0
                     Label {
-                        text: (modelData.blockIndex + 1) + ":  "
+                        text: (previewRow.modelData.blockIndex + 1) + ":  "
                         color: Theme.textFaint
                         font.pixelSize: 12
                     }
                     Label {
-                        text: modelData.prefix
+                        text: previewRow.modelData.prefix
                         color: Theme.textSecondary
                         font.pixelSize: 12
                     }
                     Label {
-                        text: modelData.matched
+                        text: previewRow.modelData.matched
                         color: Theme.danger
                         font.strikeout: true
                         font.pixelSize: 12
                     }
                     Label {
-                        text: modelData.replacement
+                        text: previewRow.modelData.replacement
                         color: Theme.success
                         font.bold: true
                         font.pixelSize: 12
                     }
                     Label {
-                        text: modelData.suffix
+                        text: previewRow.modelData.suffix
                         color: Theme.textSecondary
                         font.pixelSize: 12
                     }

@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The BarButton component's background is a separate scope, and its
+// checked state is computed from an id declared outside it. Binding the
+// scope is what lets both resolve.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -86,6 +91,9 @@ Rectangle {
     }
 
     component BarButton: ToolButton {
+        // Named so the background, which is its own scope, can read the
+        // button's state instead of reaching it through an untyped `parent`.
+        id: barButton
         property int flagBit: 0
         focusPolicy: Qt.NoFocus
         implicitWidth: 28
@@ -96,8 +104,8 @@ Rectangle {
                  && (bar.target.cursorFormatFlags & flagBit) !== 0
         background: Rectangle {
             radius: 4
-            color: parent.checked ? Theme.selectionTint
-                 : parent.hovered ? Theme.hoverTint : "transparent"
+            color: barButton.checked ? Theme.selectionTint
+                 : barButton.hovered ? Theme.hoverTint : "transparent"
         }
     }
 
@@ -133,12 +141,16 @@ Rectangle {
             onClicked: bar.target.toggleSpanType("code")
         }
         BarButton {
+            id: highlightButton
             objectName: "fbHighlightButton"
             text: "H"; flagBit: 0x40
+            // This one overrides the shared background to tint with the
+            // highlight colour, so it repeats the pattern and needs its own
+            // id for the same reason.
             background: Rectangle {
                 radius: 4
-                color: parent.checked ? Theme.highlightBackground
-                     : parent.hovered ? Theme.hoverTint : "transparent"
+                color: highlightButton.checked ? Theme.highlightBackground
+                     : highlightButton.hovered ? Theme.hoverTint : "transparent"
             }
             onClicked: bar.target.toggleSpanType("highlight")
         }

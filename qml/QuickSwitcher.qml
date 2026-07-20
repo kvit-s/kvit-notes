@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The results delegate nests a Column and a MouseArea, each its own
+// scope. Binding them lets both address the delegate by id; its model
+// roles were already declared as required properties.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -132,12 +137,15 @@ Popup {
                 model: switcher.rows
 
                 delegate: Rectangle {
+                    // Named so the Column and MouseArea inside, each its own
+                    // scope, address the row rather than relying on injection.
+                    id: resultRow
                     required property var modelData
                     required property int index
                     width: resultsList.width
                     height: 44
                     radius: 6
-                    color: index === switcher.highlightIndex
+                    color: resultRow.index === switcher.highlightIndex
                            ? Theme.hoverTint : "transparent"
 
                     Column {
@@ -150,15 +158,15 @@ Popup {
 
                         Text {
                             width: parent.width
-                            text: modelData.title
+                            text: resultRow.modelData.title
                             color: Theme.textPrimary
                             font.pixelSize: 14
                             elide: Text.ElideRight
                         }
                         Text {
                             width: parent.width
-                            visible: modelData.folder !== ""
-                            text: modelData.folder
+                            visible: resultRow.modelData.folder !== ""
+                            text: resultRow.modelData.folder
                             color: Theme.textFaint
                             font.pixelSize: 11
                             elide: Text.ElideRight
@@ -168,7 +176,7 @@ Popup {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        onEntered: switcher.highlightIndex = index
+                        onEntered: switcher.highlightIndex = resultRow.index
                         onClicked: switcher.applyHighlighted()
                     }
                 }

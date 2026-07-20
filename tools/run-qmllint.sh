@@ -139,6 +139,10 @@ STRICT_CLEAN=(
     qml/SettingsDialog.qml
     qml/CodeBlockDelegate.qml
     qml/ExportDialog.qml
+    qml/FindBar.qml
+    qml/FormattingBar.qml
+    qml/QuickSwitcher.qml
+    qml/ShortcutReference.qml
     qml/ImportDialog.qml
     qml/LanguagePicker.qml
     qml/Lightbox.qml

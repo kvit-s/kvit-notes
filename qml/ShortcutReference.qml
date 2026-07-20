@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Two nested Repeaters, each delegate holding Labels that are their own
+// scopes. Binding them lets the inner content address the category and
+// the row by id instead of reaching a model role by injection.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -56,12 +61,15 @@ Dialog {
                 model: ShortcutCatalog.categories()
 
                 Column {
+                    // The category name, read by the heading Label and by the
+                    // inner Repeater's model, both separate scopes.
+                    id: category
                     required property string modelData
                     width: parent.width
                     spacing: 2
 
                     Label {
-                        text: parent.modelData
+                        text: category.modelData
                         font.pixelSize: 13
                         font.bold: true
                         color: Theme.accent
@@ -69,22 +77,23 @@ Dialog {
                     }
 
                     Repeater {
-                        model: root.rowsFor(parent.modelData)
+                        model: root.rowsFor(category.modelData)
 
                         RowLayout {
+                            id: shortcutRow
                             required property var modelData
                             width: parent.width
                             spacing: 12
 
                             Label {
-                                text: modelData.action
+                                text: shortcutRow.modelData.action
                                 color: Theme.textPrimary
                                 font.pixelSize: 13
                                 Layout.preferredWidth: 180
                             }
                             // The chord as key caps, or a dash for a deviation.
                             Rectangle {
-                                visible: modelData.chord !== ""
+                                visible: shortcutRow.modelData.chord !== ""
                                 radius: 4
                                 color: Theme.chipBackground
                                 border.color: Theme.border
@@ -94,27 +103,27 @@ Dialog {
                                 Label {
                                     id: chordLabel
                                     anchors.centerIn: parent
-                                    text: modelData.displayChord
+                                    text: shortcutRow.modelData.displayChord
                                     font.pixelSize: 12
                                     font.family: "monospace"
                                     color: Theme.textPrimary
                                 }
                             }
                             Label {
-                                visible: modelData.chord === ""
+                                visible: shortcutRow.modelData.chord === ""
                                 text: "—"
                                 color: Theme.textMuted
                                 font.pixelSize: 13
                             }
                             Label {
-                                visible: modelData.note !== ""
-                                text: modelData.note
+                                visible: shortcutRow.modelData.note !== ""
+                                text: shortcutRow.modelData.note
                                 color: Theme.textMuted
                                 font.pixelSize: 11
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
-                            Item { Layout.fillWidth: modelData.note === "" }
+                            Item { Layout.fillWidth: shortcutRow.modelData.note === "" }
                         }
                     }
                 }
