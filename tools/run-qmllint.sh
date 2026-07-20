@@ -142,7 +142,9 @@ STRICT_CLEAN=(
     qml/FindBar.qml
     qml/FormattingBar.qml
     qml/QuickSwitcher.qml
+    qml/SearchResultsView.qml
     qml/ShortcutReference.qml
+    qml/StatisticsPanel.qml
     qml/ImportDialog.qml
     qml/LanguagePicker.qml
     qml/Lightbox.qml

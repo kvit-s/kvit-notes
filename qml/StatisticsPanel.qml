@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The stats rows are a Repeater delegate whose Texts are separate
+// scopes, and a few visibility bindings read the popup's own
+// appWindow property from nested scopes. Binding resolves both.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -32,7 +37,7 @@ Popup {
             ? targetBlock.selectedDisplayText : ""
 
     function recompute() {
-        docStats = DocumentStats.DocumentStats()
+        docStats = DocumentStats.documentStats()
         // Selection stats: a block selection, cross-block text range, or an
         // in-block selection, assembled as display text like the status bar.
         var selText = statsPopup.selectionText()
@@ -145,6 +150,7 @@ Popup {
                 return rows
             }
             RowLayout {
+                id: statRow
                 required property var modelData
                 Layout.fillWidth: true
                 Layout.leftMargin: 12
@@ -152,13 +158,13 @@ Popup {
                 Layout.topMargin: 5
                 Layout.bottomMargin: 5
                 Text {
-                    text: modelData.k
+                    text: statRow.modelData.k
                     font.pixelSize: 12
                     color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Text {
-                    text: modelData.v
+                    text: statRow.modelData.v
                     font.pixelSize: 12
                     font.bold: true
                     color: Theme.textPrimary
@@ -168,11 +174,11 @@ Popup {
 
         Rectangle {
             Layout.fillWidth: true; height: 1; color: Theme.border
-            visible: appWindow && appWindow.collectionOpen
+            visible: statsPopup.appWindow && statsPopup.appWindow.collectionOpen
         }
         // Session tracker (ephemeral): words added since the note opened.
         RowLayout {
-            visible: appWindow && appWindow.collectionOpen
+            visible: statsPopup.appWindow && statsPopup.appWindow.collectionOpen
             Layout.fillWidth: true
             Layout.leftMargin: 12
             Layout.rightMargin: 12
@@ -185,13 +191,15 @@ Popup {
                 Layout.fillWidth: true
             }
             Text {
-                property int delta: appWindow
-                    ? (statsPopup.docStats.words || 0) - appWindow.sessionStartWords
+                id: sessionDelta
+                property int delta: statsPopup.appWindow
+                    ? (statsPopup.docStats.words || 0)
+                      - statsPopup.appWindow.sessionStartWords
                     : 0
-                text: (delta >= 0 ? "+" : "") + delta
+                text: (sessionDelta.delta >= 0 ? "+" : "") + sessionDelta.delta
                 font.pixelSize: 12
                 font.bold: true
-                color: delta >= 0 ? Theme.success : Theme.textMuted
+                color: sessionDelta.delta >= 0 ? Theme.success : Theme.textMuted
             }
         }
     }

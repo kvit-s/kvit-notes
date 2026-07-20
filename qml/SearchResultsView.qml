@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Nested delegates whose contents are separate scopes: the match rows
+// sit inside a group Column, and their Labels and handlers reach both.
+// Binding the scopes lets each address the right one by id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -155,6 +160,7 @@ Item {
                 Repeater {
                     model: groupColumn.group.matches
                     delegate: Rectangle {
+                        id: matchRow
                         objectName: "searchMatchRow"
                         required property var modelData
 
@@ -169,7 +175,7 @@ Item {
                             anchors.rightMargin: 12
                             verticalAlignment: Text.AlignVCenter
                             textFormat: Text.StyledText
-                            text: resultsView.styledSnippet(modelData)
+                            text: resultsView.styledSnippet(matchRow.modelData)
                             font.pixelSize: 11
                             color: Theme.textSecondary
                             elide: Text.ElideRight
@@ -178,8 +184,8 @@ Item {
                             anchors.fill: parent
                             onClicked: resultsView.appWindow.openSearchResult(
                                            groupColumn.group.relPath,
-                                           modelData.blockIndex,
-                                           modelData.start)
+                                           matchRow.modelData.blockIndex,
+                                           matchRow.modelData.start)
                         }
                     }
                 }
