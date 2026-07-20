@@ -74,11 +74,61 @@
 // everySingletonResolvesWithinItsOwnComposition in tests/test_shell.cpp; it
 // compares addresses, because an instance that merely exists proves nothing.
 
-// The QML name is given separately because a few services are published under
-// a name that is not their class name — MathTools has always been
-// `mathRenderer` to QML, and renaming it here would be a second change riding
-// on this one. Keeping the old name, capitalised, makes every call site a
-// one-character edit and keeps the diff reviewable.
+// Every service QML reaches as a `Kvit` module singleton, as one list.
+//
+// Each entry is (C++ class, QML name). They differ for a few: MathTools has
+// always been `mathRenderer` to QML, ClipboardHelper `clipboard`,
+// AccessibilityAnnouncer `a11y`, and SettingsStore `appSettings` — keeping
+// those names made each call site a one-character edit rather than a rename
+// riding on the conversion.
+//
+// One list, because three things are generated from it: the wrapper structs
+// below, and KvitQml::singletonNames() in qmlservices.cpp, which the
+// extension registry reserves against. Written separately they would drift,
+// and the way they would drift is silent — a name missing from the reserved
+// set is a namespace a module may take.
+#define KVIT_QML_SINGLETONS(X)                \
+    X(QueryTools, QueryTools)                 \
+    X(GlobalHotkey, GlobalHotkey)             \
+    X(FileWatcher, FileWatcher)               \
+    X(ShortcutCatalog, ShortcutCatalog)       \
+    X(QuickSwitcherModel, QuickSwitcherModel) \
+    X(FolderTreeModel, FolderTreeModel)       \
+    X(MarkdownFormatter, MarkdownFormatter)   \
+    X(BlockMenuModel, BlockMenuModel)         \
+    X(MathCommandModel, MathCommandModel)     \
+    X(DocumentStats, DocumentStats)           \
+    X(DocumentExporter, DocumentExporter)     \
+    X(DocumentSerializer, DocumentSerializer) \
+    X(DocumentImporter, DocumentImporter)     \
+    X(EmbedMetadata, EmbedMetadata)           \
+    X(SystemTray, SystemTray)                 \
+    X(NavigationHistory, NavigationHistory)   \
+    X(UpdateChecker, UpdateChecker)           \
+    X(TableTools, TableTools)                 \
+    X(KanbanTools, KanbanTools)               \
+    X(TodoMetaTools, TodoMeta)                \
+    X(MathTools, MathRenderer)                \
+    X(UndoStack, UndoStack)                   \
+    X(DocumentOutline, DocumentOutline)       \
+    X(CollectionSearch, CollectionSearch)     \
+    X(NoteTemplates, NoteTemplates)           \
+    X(EgressPolicy, EgressPolicy)             \
+    X(Typography, Typography)                 \
+    X(ImageAssets, ImageAssets)               \
+    X(BlockAttributes, BlockAttributes)       \
+    X(ClipboardHelper, Clipboard)             \
+    X(AccessibilityAnnouncer, A11y)           \
+    X(ExtensionRegistry, Extensions)          \
+    X(BlockKindRegistry, BlockKindRegistry)   \
+    X(BlockModel, BlockModel)                 \
+    X(DocumentSelection, DocumentSelection)   \
+    X(DocumentSearch, DocumentSearch)         \
+    X(DocumentManager, DocumentManager)       \
+    X(NoteCollection, NoteCollection)         \
+    X(NoteListModel, NoteListModel)           \
+    X(SettingsStore, AppSettings)
+
 #define KVIT_QML_SINGLETON_NAMED(Type, Name)                                  \
     struct Name##Foreign                                                      \
     {                                                                         \
@@ -95,57 +145,19 @@
 
 #define KVIT_QML_SINGLETON(Type) KVIT_QML_SINGLETON_NAMED(Type, Type)
 
-KVIT_QML_SINGLETON(QueryTools)
-KVIT_QML_SINGLETON(GlobalHotkey)
-KVIT_QML_SINGLETON(FileWatcher)
-KVIT_QML_SINGLETON(ShortcutCatalog)
-KVIT_QML_SINGLETON(QuickSwitcherModel)
-KVIT_QML_SINGLETON(FolderTreeModel)
-
-KVIT_QML_SINGLETON(MarkdownFormatter)
-KVIT_QML_SINGLETON(BlockMenuModel)
-KVIT_QML_SINGLETON(MathCommandModel)
-KVIT_QML_SINGLETON(DocumentStats)
-KVIT_QML_SINGLETON(DocumentExporter)
-KVIT_QML_SINGLETON(DocumentSerializer)
-KVIT_QML_SINGLETON(DocumentImporter)
-KVIT_QML_SINGLETON(EmbedMetadata)
-KVIT_QML_SINGLETON(SystemTray)
-KVIT_QML_SINGLETON(NavigationHistory)
-KVIT_QML_SINGLETON(UpdateChecker)
-KVIT_QML_SINGLETON(TableTools)
-KVIT_QML_SINGLETON(KanbanTools)
-KVIT_QML_SINGLETON_NAMED(TodoMetaTools, TodoMeta)
-KVIT_QML_SINGLETON_NAMED(MathTools, MathRenderer)
+KVIT_QML_SINGLETONS(KVIT_QML_SINGLETON_NAMED)
 
 
-KVIT_QML_SINGLETON(UndoStack)
-KVIT_QML_SINGLETON(DocumentOutline)
-KVIT_QML_SINGLETON(CollectionSearch)
-KVIT_QML_SINGLETON(NoteTemplates)
-KVIT_QML_SINGLETON(EgressPolicy)
-KVIT_QML_SINGLETON(Typography)
-KVIT_QML_SINGLETON(ImageAssets)
-KVIT_QML_SINGLETON(BlockAttributes)
-KVIT_QML_SINGLETON_NAMED(ClipboardHelper, Clipboard)
-KVIT_QML_SINGLETON_NAMED(AccessibilityAnnouncer, A11y)
-KVIT_QML_SINGLETON_NAMED(ExtensionRegistry, Extensions)
+
+
 // Not `BlockKinds`: blockkindregistry.h already exports that name for the
 // fence-kind enum namespace, which main.qml reads as `BlockKinds.Kanban`. The
 // registry object is a different thing and takes its class name.
-KVIT_QML_SINGLETON_NAMED(BlockKindRegistry, BlockKindRegistry)
 
-KVIT_QML_SINGLETON(BlockModel)
-KVIT_QML_SINGLETON(DocumentSelection)
-KVIT_QML_SINGLETON(DocumentSearch)
-KVIT_QML_SINGLETON(DocumentManager)
-KVIT_QML_SINGLETON(NoteCollection)
-KVIT_QML_SINGLETON(NoteListModel)
 // `SettingsStore` is already registered as a creatable element, because tests
 // open a second store on a path of their own. The application's one store has
 // always been `appSettings` to QML, so the singleton takes that name and the
 // creatable type keeps its own.
-KVIT_QML_SINGLETON_NAMED(SettingsStore, AppSettings)
 
 // The one process-global here. PerfLog is a singleton in its own right and
 // every composition shares it, so it resolves through PerfLog::instance()

@@ -5,6 +5,7 @@
 #define QMLSERVICES_H
 
 #include <QHash>
+#include <QStringList>
 #include <QObject>
 #include <QQmlEngine>
 
@@ -46,6 +47,13 @@ public:
 private:
     QHash<const QMetaObject *, QObject *> m_services;
 };
+
+// The QML names of every singleton the `Kvit` module registers, generated
+// from the same list that declares them (KVIT_QML_SINGLETONS in
+// qmlsingletons.h). ExtensionRegistry reserves these so a module namespace
+// cannot be confusable with one of them; see the note there on why the
+// comparison is case-insensitive.
+QStringList singletonNames();
 
 // Publish `table` on `engine`. The table must outlive the engine; AppContext
 // owns both ends of that.

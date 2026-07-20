@@ -19,6 +19,7 @@
 #include "blockmodel.h"
 #include "extensionregistry.h"
 #include "perflog.h"
+#include "qmlservices.h"
 
 #include <QQmlContext>
 #include <QRegularExpression>
@@ -368,26 +369,23 @@ private slots:
 
         QTemporaryDir dir;
 
-        // Whatever the core still publishes, rather than a name written in
-        // here. Services are migrating to the Kvit module one batch at a
-        // time, so a hardcoded name stops being a collision the moment that
-        // one moves — which is how this test broke rather than caught
-        // anything.
-        QStringList coreNames;
-        {
-            AppContext probe(options);
-            probe.openSettings(dir.filePath(QStringLiteral("probe.json")));
-            QQmlEngine probeEngine;
-            probe.installContextProperties(&probeEngine);
-            coreNames = probe.installedContextPropertyNames();
-        }
-        QVERIFY2(!coreNames.isEmpty(),
-                 "The core publishes no context properties at all, so there is "
-                 "no core name for a module to collide with and this test can "
-                 "no longer demonstrate the refusal. The collision check now "
-                 "only separates one module from another; decide what it "
-                 "should guard before deleting or rewriting this.");
-        const QString coreName = coreNames.first();
+        // Derived from what the core actually occupies, rather than a name
+        // written in here. Services migrated to the Kvit module one batch at
+        // a time, and a hardcoded name stopped being a collision the moment
+        // its service moved — which is how this test once broke rather than
+        // caught anything.
+        //
+        // The singleton names are the half that still matters. The core
+        // publishes no context properties now, so a module cannot collide
+        // with one; what it can do is ask for `theme` while the core owns the
+        // `Theme` singleton, which is the confusion the case-insensitive rule
+        // exists to refuse.
+        const QStringList reserved = KvitQml::singletonNames();
+        QVERIFY2(!reserved.isEmpty(),
+                 "The Kvit module registers no singletons, so there is nothing "
+                 "for a module namespace to collide with and this test cannot "
+                 "demonstrate the refusal.");
+        const QString coreName = reserved.first().toLower();
 
         AppContext context(options);
         context.openSettings(dir.filePath(QStringLiteral("settings.json")));
@@ -395,14 +393,21 @@ private slots:
             std::make_unique<NameGrabbingExtension>(coreName));
 
         QQmlEngine engine;
-        QTest::ignoreMessage(QtWarningMsg,
-                             QRegularExpression(QStringLiteral("already taken")));
+        // Matching the explanation, not just the refusal: someone hitting
+        // this needs to learn that the core owns a singleton of that name and
+        // that the two would be confusable, which is the whole reason the
+        // comparison ignores case.
+        QTest::ignoreMessage(
+            QtWarningMsg,
+            QRegularExpression(QStringLiteral(
+                "the editor already publishes '%1'").arg(reserved.first())));
         context.installContextProperties(&engine);
 
-        // The core kept the name, and the module published nothing.
         QVERIFY(context.extensions()->publishedNamespaces().isEmpty());
-        QVERIFY(engine.rootContext()
-                    ->contextProperty(coreName).value<QObject *>() != nullptr);
+        // The module got nothing, and the name it asked for is not on the
+        // context either — the refusal is a refusal, not a silent rename.
+        QVERIFY(!engine.rootContext()
+                     ->contextProperty(coreName).isValid());
 
         // A namespace that collides with nothing is published, which is what
         // shows the refusal above was about the collision.

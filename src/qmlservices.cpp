@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "qmlservices.h"
 
+#include "qmlsingletons.h"
+
 #include <QQmlEngine>
 #include <QVariant>
 
@@ -14,6 +16,19 @@ const char *kServiceTableProperty = "_kvitServiceTable";
 }
 
 namespace KvitQml {
+
+QStringList singletonNames()
+{
+    // Expanded from the one list that also declares the wrappers, so the
+    // reserved set cannot fall behind the registrations.
+    static const QStringList names = {
+#define KVIT_QML_SINGLETON_NAME(Type, Name) QStringLiteral(#Name),
+        KVIT_QML_SINGLETONS(KVIT_QML_SINGLETON_NAME)
+#undef KVIT_QML_SINGLETON_NAME
+    };
+    return names;
+}
+
 
 void attachServices(QQmlEngine *engine, ServiceTable *table)
 {

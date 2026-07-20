@@ -367,5 +367,11 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // `extensions` slot resolves to an empty source.
     // Modules publish last and under their own namespace, and every name the
     // core just took is refused to them.
-    m_extensions.installContextProperties(context, m_installedProperties);
+    // Modules publish last, under their own namespace, and every name the
+    // core occupies is refused to them — both what it just put on the context
+    // and the QML names of its module singletons. The singleton half is what
+    // stops a module taking `theme` while the core owns `Theme`; see
+    // ExtensionRegistry::installContextProperties.
+    m_extensions.installContextProperties(
+        context, m_installedProperties + KvitQml::singletonNames());
 }

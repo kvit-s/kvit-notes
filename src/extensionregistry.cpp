@@ -7,6 +7,8 @@
 #include <QQmlContext>
 #include <QRegularExpression>
 
+#include <algorithm>
+
 #include "blockkindregistry.h"
 
 Q_LOGGING_CATEGORY(lcExtensions, "kvit.extensions")
@@ -94,11 +96,37 @@ void ExtensionRegistry::installContextProperties(QQmlContext *context,
                       qPrintable(extension->name()), qPrintable(ns));
             continue;
         }
-        if (taken.contains(ns)) {
-            qCWarning(lcExtensions,
-                      "module '%s' asked for QML namespace '%s', which is "
-                      "already taken; it will publish nothing",
-                      qPrintable(extension->name()), qPrintable(ns));
+        // Case-insensitive on purpose, and the reason is worth the two lines
+        // it takes to say. The core's own objects are QML singletons with
+        // capitalised names, while a module namespace must start lowercase,
+        // so `theme` and `Theme` can never collide as identifiers — they
+        // would simply coexist, one character apart, meaning entirely
+        // unrelated objects in the same file. That is a debugging trap rather
+        // than a style preference, and the module most likely to hit it is
+        // written in another repository by someone who cannot see this rule
+        // unless it is enforced.
+        const auto clashes = [&ns](const QString &name) {
+            return name.compare(ns, Qt::CaseInsensitive) == 0;
+        };
+        const auto hit = std::find_if(taken.cbegin(), taken.cend(), clashes);
+        if (hit != taken.cend()) {
+            if (*hit == ns) {
+                qCWarning(lcExtensions,
+                          "module '%s' asked for QML namespace '%s', which is "
+                          "already taken; it will publish nothing",
+                          qPrintable(extension->name()), qPrintable(ns));
+            } else {
+                qCWarning(lcExtensions,
+                          "module '%s' asked for QML namespace '%s', but the "
+                          "editor already publishes '%s'. QML would then have "
+                          "two names one character apart standing for "
+                          "unrelated objects, so the namespace is refused and "
+                          "the module will publish nothing. Choose a name of "
+                          "your own, such as '%s%s'.",
+                          qPrintable(extension->name()), qPrintable(ns),
+                          qPrintable(*hit), qPrintable(extension->name()),
+                          qPrintable(ns));
+            }
             continue;
         }
 
