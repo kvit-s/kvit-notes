@@ -4,6 +4,14 @@ Thanks for considering a contribution. This page covers building, testing,
 what we will and will not merge, and the licensing terms contributions are
 accepted under.
 
+Before changing anything structural, read [docs/adr/](docs/adr/). Those records
+hold the decisions the rest of the code is written against, including several
+invariants that look arbitrary until you know what they defend: only one object
+may write the open note, only one object may reach the network, and files on
+disk are the only authoritative copy of a note. A change that crosses one of
+those is not necessarily wrong, but it needs to argue with the record rather
+than around it.
+
 ## Building
 
 Requirements: Qt 6.10+, CMake 3.21+, and a C++20 compiler (GCC 12+,
