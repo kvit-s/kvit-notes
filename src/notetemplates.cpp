@@ -13,14 +13,38 @@
 
 namespace {
 
-// A safe file base name for a template: the user-visible name with path
-// separators and other awkward characters removed. Kept readable so the file
-// is still recognizable on disk.
+// The characters a template name may not contain: path separators and the
+// rest of the set Windows rejects in a file name. They used to be stripped,
+// which silently aliased distinct names onto one file — "A/B" and "AB" both
+// became AB.md, so saving one overwrote the other and deleting one deleted
+// the other. A name carrying any of them is now refused outright, which
+// keeps the file name and the user-visible name the same string.
+const QLatin1String kForbiddenNameChars("/\\:*?\"<>|");
+
+bool isValidTemplateName(const QString &name)
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty())
+        return false;
+    for (const QChar &ch : trimmed) {
+        if (kForbiddenNameChars.contains(ch))
+            return false;
+        // Control characters are equally unusable in a file name.
+        if (ch.category() == QChar::Other_Control)
+            return false;
+    }
+    // "." and ".." name directories, not templates.
+    if (trimmed == QLatin1String(".") || trimmed == QLatin1String(".."))
+        return false;
+    return true;
+}
+
+// The file base name for a valid template name. Names are no longer
+// rewritten, so this is just the trimmed name; callers must have checked
+// isValidTemplateName() first.
 QString sanitize(const QString &name)
 {
-    QString out = name.trimmed();
-    out.remove(QRegularExpression(QStringLiteral("[/\\\\:*?\"<>|]")));
-    return out;
+    return isValidTemplateName(name) ? name.trimmed() : QString();
 }
 
 QString readAll(const QString &path)

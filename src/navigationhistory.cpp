@@ -82,7 +82,36 @@ void NavigationHistory::renamePath(const QString &oldRelPath,
     }
     if (m_hasCurrent && m_current.relPath == oldRelPath)
         m_current.relPath = newRelPath;
+    // Renaming one note onto a path already in the history can leave two
+    // identical entries side by side, and Back onto the note already on
+    // screen looks like the button is broken. Deletion collapses those the
+    // same way.
+    collapseAdjacentDuplicates();
     emit changed();
+}
+
+// Adjacent repeats carry no navigation value: moving between two entries
+// naming the same note is a no-op the reader reads as a broken control. The
+// SURVIVING entry is the older one, whose stored scroll position is where
+// the reader actually was.
+void NavigationHistory::collapseAdjacentDuplicates()
+{
+    auto dedupe = [](QList<Entry> *stack) {
+        for (int i = stack->size() - 1; i > 0; --i) {
+            if (stack->at(i).relPath == stack->at(i - 1).relPath)
+                stack->removeAt(i);
+        }
+    };
+    dedupe(&m_back);
+    dedupe(&m_forward);
+    if (!m_hasCurrent)
+        return;
+    // The stack tops sit next to the current entry, so they can duplicate it
+    // too.
+    while (!m_back.isEmpty() && m_back.last().relPath == m_current.relPath)
+        m_back.removeLast();
+    while (!m_forward.isEmpty() && m_forward.last().relPath == m_current.relPath)
+        m_forward.removeLast();
 }
 
 void NavigationHistory::dropPath(const QString &relPath)

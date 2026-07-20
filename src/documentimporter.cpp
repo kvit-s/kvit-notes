@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QSet>
 
 namespace {
@@ -74,12 +75,18 @@ bool DocumentImporter::copyInto(const QString &sourcePath,
 
     const QString destAbs = m_collection->absolutePath(targetRelPath);
     QDir().mkpath(QFileInfo(destAbs).absolutePath());
-    QFile out(destAbs);
+    // QSaveFile writes a temporary alongside the destination and renames it
+    // into place only on commit, so a disk that fills partway through leaves
+    // no half-written note for the collection to index. Every byte must land:
+    // a short write is a failed import, not a smaller one.
+    QSaveFile out(destAbs);
     if (!out.open(QIODevice::WriteOnly))
         return false;
-    out.write(bytes);
-    out.close();
-    return true;
+    if (out.write(bytes) != bytes.size()) {
+        out.cancelWriting();
+        return false;
+    }
+    return out.commit();
 }
 
 QList<QPair<QString, QString>>

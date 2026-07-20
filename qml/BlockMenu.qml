@@ -146,7 +146,11 @@ Popup {
             return
         var idx = targetIndex
         var type = row.type
-        blockMenuModel.noteUsed(type)
+        // By entry, not by type: five catalog entries are CodeBlock, so the
+        // type alone would bring back "Code Block" for every one of them.
+        // The "/code <language>" rows carry no entryId and are not recorded.
+        if (row.entryId !== undefined)
+            blockMenuModel.noteUsedEntry(row.entryId)
         dismiss()
         // Media types insert rather than convert: an empty Image block has
         // no path, so the menu hands off to the insert flow. Image and Media

@@ -9,6 +9,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPointer>
 #include <QTimer>
 
 #include "settingsstore.h"
@@ -144,8 +145,15 @@ void UpdateChecker::maybeCheck()
     // Stamp before the request: at most one call per day even if the app
     // exits mid-flight or the reply never lands.
     m_settings->setValue(kLastCheckKey, today);
-    m_fetcher->fetch(m_endpoint, [this](bool ok, const QByteArray &body) {
-        applyResult(ok, body);
+    // The reply lands long after this returns, and the checker can be gone by
+    // then — closing the window during a check destroys it while the request
+    // is still in flight. A QPointer makes the callback inert in that case;
+    // capturing `this` reads freed memory (ASan: stack-use-after-scope in
+    // applyResult).
+    QPointer<UpdateChecker> self(this);
+    m_fetcher->fetch(m_endpoint, [self](bool ok, const QByteArray &body) {
+        if (self)
+            self->applyResult(ok, body);
     });
 }
 

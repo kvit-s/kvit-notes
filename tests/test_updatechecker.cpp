@@ -215,6 +215,50 @@ private slots:
         QVERIFY(!checker.updateAvailable());
         QCOMPARE(spy.count(), 0);
     }
+
+    // The real fetcher completes on the network reply, long after
+    // maybeCheck() returned, and the callback captured a bare `this`. A
+    // window closed while a check is in flight destroys the checker, and the
+    // reply then calls applyResult on freed memory. The callback must become
+    // inert once its checker is gone.
+    void deferredReplyAfterDestructionIsInert()
+    {
+        // Holds the callback instead of running it, the way a real network
+        // reply does.
+        class DeferringFetcher : public UpdateFetcher
+        {
+        public:
+            void fetch(const QUrl &,
+                       std::function<void(bool, const QByteArray &)> done) override
+            {
+                pending = std::move(done);
+            }
+            std::function<void(bool, const QByteArray &)> pending;
+        };
+
+        QTemporaryDir dir;
+        SettingsStore settings;
+        QVERIFY(settings.open(dir.filePath("settings.json")));
+
+        DeferringFetcher fetcher;
+        {
+            UpdateChecker checker;
+            checker.setSettings(&settings);
+            checker.setFetcher(&fetcher);
+            checker.setCurrentVersion(QStringLiteral("1.0.0"));
+            checker.maybeCheck();
+        }
+        QVERIFY(fetcher.pending != nullptr);
+
+        // The reply lands after the checker is gone. This must not touch it.
+        fetcher.pending(true, latestPayload("v9.9.9"));
+
+        // Reaching here without a crash or a sanitizer report is the result;
+        // the settings store, which outlived the checker, is untouched too.
+        QVERIFY(settings.value(QStringLiteral("updates.lastCheck"))
+                    .toString()
+                    .size() > 0);
+    }
 };
 
 QTEST_MAIN(TestUpdateChecker)

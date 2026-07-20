@@ -2114,10 +2114,14 @@ ApplicationWindow {
             for (var u = 0; u < drop.urls.length; ++u) {
                 var url = "" + drop.urls[u]
                 if (url.indexOf("file://") === 0) {
-                    var local = url.replace(/^file:\/\//, "")
-                    if (imageAssets.kindOf(local) === "none")
+                    // Hand the whole file:// URL over and let ingestLocalFile
+                    // decode it with QUrl::toLocalFile(). Stripping the scheme
+                    // here left %23 and %25 in the path, so a file named
+                    // "photo #2.png" resolved to nothing and the drop was
+                    // silently ignored.
+                    if (imageAssets.kindOf(url) === "none")
                         continue  // not an image/media file
-                    var stored = imageAssets.ingestLocalFile(local, slug, root2, nd)
+                    var stored = imageAssets.ingestLocalFile(url, slug, root2, nd)
                     if (stored !== "")
                         blocks.push(blockForPath(stored))
                 } else if (url.indexOf("http") === 0) {

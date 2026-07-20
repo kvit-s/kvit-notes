@@ -108,6 +108,39 @@ private slots:
                  markdown);
     }
 
+    // M9: fields carrying the delimiter characters must survive a build ->
+    // parse round trip rather than changing the expression's structure.
+    void buildParseRoundTripsHostileFields_data()
+    {
+        QTest::addColumn<QString>("path");
+        QTest::addColumn<QString>("alt");
+        QTest::addColumn<QString>("caption");
+        QTest::addColumn<int>("width");
+        QTest::newRow("plain")          << "x.png" << "alt" << "cap" << 0;
+        QTest::newRow("bracket in alt") << "x.png" << "a [b] c" << "" << 0;
+        QTest::newRow("close bracket")  << "x.png" << "a] c" << "" << 0;
+        QTest::newRow("quote caption")  << "x.png" << "alt" << "he said \"hi\"" << 0;
+        QTest::newRow("paren path")     << "a_(b).png" << "alt" << "" << 0;
+        QTest::newRow("space path")     << "my pic.png" << "alt" << "" << 0;
+        QTest::newRow("all at once")    << "a_(b) c.png" << "x]y" << "q\"r" << 300;
+        QTest::newRow("bar in alt")     << "x.png" << "a|b" << "" << 0;
+    }
+    void buildParseRoundTripsHostileFields()
+    {
+        QFETCH(QString, path);
+        QFETCH(QString, alt);
+        QFETCH(QString, caption);
+        QFETCH(int, width);
+        const QString md =
+            ImageAssets::buildMarkdown(path, alt, caption, width);
+        const auto p = ImageAssets::parseLine(md);
+        QVERIFY2(p.valid, qPrintable("did not parse: " + md));
+        QCOMPARE(p.path, path);
+        QCOMPARE(p.alt, alt);
+        QCOMPARE(p.caption, caption);
+        QCOMPARE(p.width, width);
+    }
+
     void resolveOrder()
     {
         QTemporaryDir dir;
@@ -204,6 +237,47 @@ private slots:
         QVERIFY2(stored.startsWith("assets/"), qPrintable(stored));
         QVERIFY(stored.endsWith(".png"));
         QVERIFY(QFileInfo(QDir(root).filePath(stored)).exists());
+    }
+
+    // The drop handler in main.qml strips the file:// scheme with a string
+    // replace and hands the remainder to ingestLocalFile. QML renders a QUrl
+    // with QUrl::toString(), which leaves a space literal but keeps the
+    // characters that are URL delimiters percent-encoded — '#' becomes %23,
+    // '%' becomes %25. Those survive the hand-strip and name a file that does
+    // not exist, so the drop is silently ignored. Passing the URL through
+    // intact ingests the file the user actually dropped.
+    void ingestLocalFilePercentDecodesUrls()
+    {
+        QTemporaryDir extern_;
+        QTemporaryDir dir;
+        const QString root = dir.path();
+        const QString src = extern_.path() + "/photo #2.png";
+        { QFile f(src); f.open(QIODevice::WriteOnly); f.write("x"); f.close(); }
+        QVERIFY(QFileInfo::exists(src));
+        ImageAssets ia;
+
+        const QUrl url = QUrl::fromLocalFile(src);
+        const QString asQmlSeesIt = url.toString();
+        QVERIFY2(asQmlSeesIt.contains(QLatin1String("%23")),
+                 qPrintable(asQmlSeesIt));
+
+        // A whole file:// URL ingests: ingestLocalFile decodes it via
+        // QUrl::toLocalFile().
+        const QString stored = ia.ingestLocalFile(asQmlSeesIt, "note",
+                                                  root, root);
+        QVERIFY2(!stored.isEmpty(), "a dropped file:// URL must ingest");
+        QVERIFY(QFileInfo(QDir(root).filePath(stored)).exists());
+
+        // The scheme-stripped form the QML builds names no real file, which
+        // is exactly why the QML must not construct it.
+        const QString handStripped =
+            asQmlSeesIt.mid(QStringLiteral("file://").size());
+        QVERIFY(handStripped.contains(QLatin1String("%23")));
+        QVERIFY2(!QFileInfo::exists(handStripped),
+                 "the percent-encoded path must not resolve");
+        QVERIFY2(ia.ingestLocalFile(handStripped, "note", root, root).isEmpty(),
+                 "ingesting the hand-stripped path must fail, which is the "
+                 "silently-dropped file the user sees");
     }
 };
 

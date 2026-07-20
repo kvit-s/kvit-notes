@@ -5,6 +5,7 @@
 #define DOCUMENTEXPORTER_H
 
 #include <QObject>
+#include <QPair>
 #include <QString>
 #include "block.h"
 
@@ -41,9 +42,19 @@ public:
 
     void setTheme(Theme *theme) { m_theme = theme; }
     // Image resolution context: the open note's folder and the collection root
-    // (either may be empty in single-file mode).
+    // (either may be empty in single-file mode). A collection or selection
+    // export overrides this per note as it goes, so relative media resolve
+    // against the folder each note actually lives in.
     Q_INVOKABLE void setImageContext(const QString &noteDir,
                                      const QString &collectionRoot);
+
+    // The note open in the editor, with its unsaved markdown, so a
+    // collection or selection export reflects what the user is looking at
+    // rather than what last reached disk. Export snapshots rather than
+    // saving, because exporting must not write to the user's notes.
+    // The snapshot is taken here, at call time.
+    Q_INVOKABLE void setLiveNote(const QString &relPath, BlockModel *model);
+    Q_INVOKABLE void clearLiveNote();
 
     // ---- HTML ----
     // Self-contained HTML for a live model / for stored markdown.
@@ -104,6 +115,27 @@ private:
     // PNG math — QTextDocument runs no JavaScript).
     QString buildHtml(const QList<Blk> &blocks, const QString &title,
                       bool browserTarget) const;
+
+    // The two halves of buildHtml, split so a combined export can assemble
+    // several notes into ONE document: the <body> contents for one note, and
+    // the wrapper that closes over them. sawMath/sawMermaid report which
+    // shared assets a fragment needs, so the wrapper injects each script tag
+    // once for the whole file however many notes asked for it.
+    QString buildHtmlBody(const QList<Blk> &blocks, bool browserTarget,
+                          bool *sawMath, bool *sawMermaid) const;
+    QString wrapHtmlDocument(const QString &body, const QString &title,
+                             bool browserTarget, bool sawMath,
+                             bool sawMermaid) const;
+
+    // Point image resolution at the folder holding relPath. Returns the
+    // previous (noteDir, collectionRoot) so a caller can restore it.
+    QPair<QString, QString> useImageContextFor(NoteCollection *collection,
+                                               const QString &relPath);
+    // The markdown to export for relPath: the editor's unsaved snapshot when
+    // this is the live note, otherwise the saved body.
+    QString bodyForExport(NoteCollection *collection,
+                          const QString &relPath) const;
+
     QString buildPlainText(const QList<Blk> &blocks) const;
 
     // Inline markdown -> HTML (recursive over the span registry). With
@@ -125,6 +157,8 @@ private:
     Theme *m_theme = nullptr;
     QString m_noteDir;
     QString m_collectionRoot;
+    QString m_liveRelPath;
+    QString m_liveMarkdown;
 };
 
 #endif // DOCUMENTEXPORTER_H
