@@ -1,6 +1,12 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// This delegate is the largest in the tree and nests many component
+// scopes — the editor engine, the code gutter, the drag handle,
+// popovers — that read the delegate root, textArea and listView by
+// id. Binding those ids is what lets them resolve.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -58,8 +64,15 @@ BlockDelegateBase {
     readonly property var appTypography: Typography
     property int contentFontSize: Typography.baseSize
     property int contentFontWeight: Font.Normal
+    function defaultFontFamily() {
+        // Documented API the QQmlApplication type description omits; see
+        // TextBlockDelegate for the same gap.
+        // qmllint disable missing-property
+        return Qt.application.font.family
+        // qmllint enable missing-property
+    }
     property string contentFontFamily: Typography.fontFamily !== ""
-        ? Typography.fontFamily : Qt.application.font.family
+        ? Typography.fontFamily : delegate.defaultFontFamily()
     property color contentColor: Theme.textPrimary
     property bool contentStrikeout: false
     // Code blocks: the engine maps 1:1 and nothing parses or reveals;
@@ -524,10 +537,10 @@ BlockDelegateBase {
     function moveCrossBlockHead(key) {
         var headIdx = DocumentSelection.textHeadIndex()
         var headMd = DocumentSelection.textHeadPosition()
-        if (headIdx < 0 || !listView)
+        if (headIdx < 0 || !delegate.listView)
             return
         var content = BlockModel.getContent(headIdx)
-        var headItem = (listView.itemAtIndex(headIdx) as BlockDelegateBase)
+        var headItem = (delegate.listView.itemAtIndex(headIdx) as BlockDelegateBase)
         var newIdx = headIdx
         var newMd = headMd
 
@@ -556,12 +569,12 @@ BlockDelegateBase {
                     ? headItem.xAtMarkdown(headMd) : 0
                 if (dir > 0 && headIdx < BlockModel.count - 1) {
                     newIdx = headIdx + 1
-                    var below = (listView.itemAtIndex(newIdx) as BlockDelegateBase)
+                    var below = (delegate.listView.itemAtIndex(newIdx) as BlockDelegateBase)
                     newMd = below && below.entryPositionAtX
                         ? below.entryPositionAtX(x, true) : 0
                 } else if (dir < 0 && headIdx > 0) {
                     newIdx = headIdx - 1
-                    var above = (listView.itemAtIndex(newIdx) as BlockDelegateBase)
+                    var above = (delegate.listView.itemAtIndex(newIdx) as BlockDelegateBase)
                     newMd = above && above.entryPositionAtX
                         ? above.entryPositionAtX(x, false)
                         : BlockModel.getContent(newIdx).length
@@ -944,7 +957,7 @@ BlockDelegateBase {
     }
 
     function refocusBlock(idx, markdownPos) {
-        var lv = listView
+        var lv = delegate.listView
         Qt.callLater(function() {
             if (lv) {
                 lv.currentIndex = idx
@@ -968,9 +981,9 @@ BlockDelegateBase {
         }
 
         Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = newIndex
-                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
+            if (delegate.listView) {
+                delegate.listView.currentIndex = newIndex
+                var item = (delegate.listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -983,9 +996,9 @@ BlockDelegateBase {
         BlockModel.splitBlock(delegate.index, pos)
 
         Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = newIndex
-                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
+            if (delegate.listView) {
+                delegate.listView.currentIndex = newIndex
+                var item = (delegate.listView.itemAtIndex(newIndex) as BlockDelegateBase)
                 if (item) item.focusAtStart()
             }
         })
@@ -997,9 +1010,9 @@ BlockDelegateBase {
         BlockModel.removeBlock(delegate.index)
 
         Qt.callLater(function() {
-            if (listView && prevIndex >= 0) {
-                listView.currentIndex = prevIndex
-                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
+            if (delegate.listView && prevIndex >= 0) {
+                delegate.listView.currentIndex = prevIndex
+                var item = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtEnd()
             }
         })
@@ -1016,9 +1029,9 @@ BlockDelegateBase {
         BlockModel.mergeBlocks(prevIndex, delegate.index)
 
         Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = prevIndex
-                var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
+            if (delegate.listView) {
+                delegate.listView.currentIndex = prevIndex
+                var item = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                 if (item) item.focusAtPosition(cursorPosInMerged)
             }
         })
@@ -1213,7 +1226,7 @@ BlockDelegateBase {
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
         BlockModel.insertBlock(newIndex, 0, "")
-        var lv = listView
+        var lv = delegate.listView
         Qt.callLater(function() {
             if (!lv)
                 return
@@ -1298,9 +1311,9 @@ BlockDelegateBase {
 
         // Maintain focus on the moved block
         Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = toIndex
-                var item = (listView.itemAtIndex(toIndex) as BlockDelegateBase)
+            if (delegate.listView) {
+                delegate.listView.currentIndex = toIndex
+                var item = (delegate.listView.itemAtIndex(toIndex) as BlockDelegateBase)
                 if (item) {
                     item.focusAtPosition(cursorPos)
                 }
@@ -1318,9 +1331,9 @@ BlockDelegateBase {
 
         // Maintain focus on the moved block
         Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = toIndex
-                var item = (listView.itemAtIndex(toIndex) as BlockDelegateBase)
+            if (delegate.listView) {
+                delegate.listView.currentIndex = toIndex
+                var item = (delegate.listView.itemAtIndex(toIndex) as BlockDelegateBase)
                 if (item) {
                     item.focusAtPosition(cursorPos)
                 }
@@ -1567,7 +1580,7 @@ BlockDelegateBase {
             anchors.top: parent.top
             anchors.topMargin: 4
             anchors.bottom: parent.bottom
-            width: item ? item.implicitWidth : 0
+            width: item ? (item as Item).implicitWidth : 0
             sourceComponent: delegate.leadingChrome
             opacity: delegate.typewriterDim  // fade the bullet/ordinal too
         }
@@ -1579,7 +1592,7 @@ BlockDelegateBase {
             anchors.left: contentArea.left
             anchors.right: contentArea.right
             anchors.top: contentArea.bottom
-            height: item ? item.implicitHeight : 0
+            height: item ? (item as Item).implicitHeight : 0
             sourceComponent: delegate.trailingChrome
         }
 
@@ -2319,9 +2332,9 @@ BlockDelegateBase {
                     var lastIndex = insertAt
                     var cursorMd = lastLine.length
                     Qt.callLater(function() {
-                        if (listView) {
-                            listView.currentIndex = lastIndex
-                            var item = (listView.itemAtIndex(lastIndex) as BlockDelegateBase)
+                        if (delegate.listView) {
+                            delegate.listView.currentIndex = lastIndex
+                            var item = (delegate.listView.itemAtIndex(lastIndex) as BlockDelegateBase)
                             if (item) item.focusAtPosition(cursorMd)
                         }
                     })
@@ -2352,8 +2365,6 @@ BlockDelegateBase {
                     anchors.fill: parent
                     acceptedButtons: Qt.RightButton
                     onPressed: function(mouse) {
-                        if (!delegate.shell || !delegate.shell.openTextContextMenu)
-                            return
                         var pos = textArea.positionAt(mouse.x, mouse.y)
                         if (textArea.selectionEnd <= textArea.selectionStart
                             || pos < textArea.selectionStart
@@ -2974,18 +2985,18 @@ BlockDelegateBase {
                             crossIdx = delegate.index - 1
                             crossMd = BlockModel.getContent(crossIdx).length
                         } else if (event.key === Qt.Key_Down
-                                   && isCursorOnLastLine()
+                                   && delegate.isCursorOnLastLine()
                                    && delegate.index < BlockModel.count - 1) {
                             crossIdx = delegate.index + 1
-                            var below = listView ? (listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
+                            var below = delegate.listView ? (delegate.listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
                             crossMd = below && below.entryPositionAtX
                                 ? below.entryPositionAtX(
                                       positionToRectangle(cursorPosition).x, true)
                                 : 0
                         } else if (event.key === Qt.Key_Up
-                                   && isCursorOnFirstLine() && delegate.index > 0) {
+                                   && delegate.isCursorOnFirstLine() && delegate.index > 0) {
                             crossIdx = delegate.index - 1
-                            var above = listView ? (listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
+                            var above = delegate.listView ? (delegate.listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
                             crossMd = above && above.entryPositionAtX
                                 ? above.entryPositionAtX(
                                       positionToRectangle(cursorPosition).x, false)
@@ -3246,10 +3257,10 @@ BlockDelegateBase {
 
                     // Ctrl+Up: Jump to previous block
                     if (event.key === Qt.Key_Up && (event.modifiers & Qt.ControlModifier)) {
-                        if (delegate.index > 0 && listView) {
+                        if (delegate.index > 0 && delegate.listView) {
                             var prevIndex = delegate.index - 1
-                            listView.currentIndex = prevIndex
-                            var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
+                            delegate.listView.currentIndex = prevIndex
+                            var item = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                             if (item) item.focusAtStart()
                             event.accepted = true
                         }
@@ -3258,10 +3269,10 @@ BlockDelegateBase {
 
                     // Ctrl+Down: Jump to next block
                     if (event.key === Qt.Key_Down && (event.modifiers & Qt.ControlModifier)) {
-                        if (delegate.index < BlockModel.count - 1 && listView) {
+                        if (delegate.index < BlockModel.count - 1 && delegate.listView) {
                             var nextIndex = delegate.index + 1
-                            listView.currentIndex = nextIndex
-                            var item = (listView.itemAtIndex(nextIndex) as BlockDelegateBase)
+                            delegate.listView.currentIndex = nextIndex
+                            var item = (delegate.listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                             if (item) item.focusAtStart()
                             event.accepted = true
                         }
@@ -3271,7 +3282,7 @@ BlockDelegateBase {
                     // Alt+Up: Move block up
                     if (event.key === Qt.Key_Up && (event.modifiers & Qt.AltModifier)) {
                         if (delegate.index > 0) {
-                            moveBlockUp()
+                            delegate.moveBlockUp()
                         }
                         event.accepted = true
                         return
@@ -3280,7 +3291,7 @@ BlockDelegateBase {
                     // Alt+Down: Move block down
                     if (event.key === Qt.Key_Down && (event.modifiers & Qt.AltModifier)) {
                         if (delegate.index < BlockModel.count - 1) {
-                            moveBlockDown()
+                            delegate.moveBlockDown()
                         }
                         event.accepted = true
                         return
@@ -3288,10 +3299,10 @@ BlockDelegateBase {
 
                     // Up arrow: Move to previous block if on first line
                     if (event.key === Qt.Key_Up && !(event.modifiers & Qt.ControlModifier)) {
-                        if (isCursorOnFirstLine() && delegate.index > 0 && listView) {
+                        if (delegate.isCursorOnFirstLine() && delegate.index > 0 && delegate.listView) {
                             var prevIndex = delegate.index - 1
-                            listView.currentIndex = prevIndex
-                            var item = (listView.itemAtIndex(prevIndex) as BlockDelegateBase)
+                            delegate.listView.currentIndex = prevIndex
+                            var item = (delegate.listView.itemAtIndex(prevIndex) as BlockDelegateBase)
                             if (item) item.focusAtEnd()
                             event.accepted = true
                         }
@@ -3300,10 +3311,10 @@ BlockDelegateBase {
 
                     // Down arrow: Move to next block if on last line
                     if (event.key === Qt.Key_Down && !(event.modifiers & Qt.ControlModifier)) {
-                        if (isCursorOnLastLine() && delegate.index < BlockModel.count - 1 && listView) {
+                        if (delegate.isCursorOnLastLine() && delegate.index < BlockModel.count - 1 && delegate.listView) {
                             var nextIndex = delegate.index + 1
-                            listView.currentIndex = nextIndex
-                            var item = (listView.itemAtIndex(nextIndex) as BlockDelegateBase)
+                            delegate.listView.currentIndex = nextIndex
+                            var item = (delegate.listView.itemAtIndex(nextIndex) as BlockDelegateBase)
                             if (item) item.focusAtStart()
                             event.accepted = true
                         }
@@ -3329,9 +3340,9 @@ BlockDelegateBase {
                         }
                         if (cursorPosition === 0 && delegate.index > 0) {
                             if (text === "") {
-                                deleteCurrentBlock()
+                                delegate.deleteCurrentBlock()
                             } else {
-                                mergeWithPreviousBlock()
+                                delegate.mergeWithPreviousBlock()
                             }
                             event.accepted = true
                             return
@@ -3341,7 +3352,7 @@ BlockDelegateBase {
                     // Delete: Merge with next block at end of text
                     if (event.key === Qt.Key_Delete) {
                         if (cursorPosition >= text.length && delegate.index < BlockModel.count - 1) {
-                            mergeWithNextBlock()
+                            delegate.mergeWithNextBlock()
                             event.accepted = true
                             return
                         }
@@ -3427,7 +3438,7 @@ BlockDelegateBase {
                             && text.charAt(text.length - 1) === "\n"
                         if (onTrailingEmptyLine) {
                             remove(text.length - 1, text.length)
-                            createBlockBelow()
+                            delegate.createBlockBelow()
                         } else {
                             if (selectionEnd > selectionStart)
                                 remove(selectionStart, selectionEnd)
@@ -3446,9 +3457,9 @@ BlockDelegateBase {
                     }
 
                     if (cursorPosition >= text.length) {
-                        createBlockBelow()
+                        delegate.createBlockBelow()
                     } else {
-                        splitBlockAtCursor()
+                        delegate.splitBlockAtCursor()
                     }
                     event.accepted = true
                 }
