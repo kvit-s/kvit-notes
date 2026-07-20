@@ -108,6 +108,10 @@ QString DocumentManager::currentFileName() const
 
 bool DocumentManager::isDirty() const
 {
+    // Metadata changes do not pass through the block model, so the undo stack
+    // is not the whole answer.
+    if (m_frontMatterDirty)
+        return true;
     if (m_undoStack) {
         return !m_undoStack->isClean();
     }
@@ -229,6 +233,7 @@ bool DocumentManager::open(const QUrl &fileUrl, bool ignoreSizeCap)
             m_undoStack->clear();
             m_undoStack->setClean();
         }
+        m_frontMatterDirty = false;
 
         emit openSucceeded(filePath);
         return true;
@@ -286,6 +291,7 @@ void DocumentManager::newDocument()
 
     m_currentFilePath.clear();
     m_frontMatter.clear();
+    m_frontMatterDirty = false;
     m_loadDiverged = false;
     emit currentFilePathChanged();
     setLastSavedAt(QDateTime());
@@ -294,6 +300,7 @@ void DocumentManager::newDocument()
         m_undoStack->clear();
         m_undoStack->setClean();
     }
+    m_frontMatterDirty = false;
 }
 
 QString DocumentManager::getDefaultSavePath() const
@@ -449,6 +456,7 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
     if (m_undoStack) {
         m_undoStack->setClean();
     }
+    m_frontMatterDirty = false;
 
     emit saveSucceeded(filePath);
     emit isDirtyChanged();
@@ -553,6 +561,7 @@ bool DocumentManager::loadFromFile(const QString &filePath)
     // and re-emitted byte-identically by saveToFile.
     NoteFrontMatter::Split split = NoteFrontMatter::split(content);
     m_frontMatter = split.block;
+    m_frontMatterDirty = false;
     m_serializer->loadIntoModel(m_model, split.body);
 
     // The divergence test runs at load, not save: by the first save the
@@ -733,6 +742,7 @@ void DocumentManager::onAsyncOpenFinished()
                     {QStringLiteral("ok"), true}});
 
     m_frontMatter = result.frontMatter;
+    m_frontMatterDirty = false;
     m_loadDiverged = result.loadDiverged;
     std::optional<QElapsedTimer> applyTimer;
     if (PerfLog::isEnabled()) {
@@ -757,6 +767,7 @@ void DocumentManager::onAsyncOpenFinished()
         m_undoStack->clear();
         m_undoStack->setClean();
     }
+    m_frontMatterDirty = false;
 
     PerfLog::instance().record(
         QStringLiteral("note.open"),
@@ -771,7 +782,21 @@ void DocumentManager::onAsyncOpenFinished()
 
 void DocumentManager::setFrontMatter(const QString &block)
 {
+    if (m_frontMatter == block)
+        return;
     m_frontMatter = block;
+
+    // Advance the revision so a body snapshot that started before this change
+    // is recognised as stale when it lands. Without it the older snapshot
+    // committed afterwards, silently restoring the previous metadata and
+    // marking the document clean.
+    ++m_documentRevision;
+    m_frontMatterDirty = true;
+    emit isDirtyChanged();
+    emit documentModified();
+
+    // The journal covers unsaved state, and the metadata is now part of it.
+    onDocumentChangedForJournal();
 }
 
 void DocumentManager::rebindFilePath(const QString &newPath)
@@ -1016,6 +1041,7 @@ void DocumentManager::onAsyncSaveFinished()
         removeJournal();
         if (m_undoStack)
             m_undoStack->setClean();
+        m_frontMatterDirty = false;
         emit saveSucceeded(result.path);
         emit isDirtyChanged();
         setLastSavedAt(QDateTime::currentDateTime());

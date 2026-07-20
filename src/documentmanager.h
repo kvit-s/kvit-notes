@@ -78,6 +78,11 @@ public:
     // metadata survives editing. The collection replaces it when
     // metadata changes.
     QString frontMatter() const { return m_frontMatter; }
+    // Replacing the metadata block is an edit to the open document like any
+    // other: it makes the document differ from what is on disk, so it marks it
+    // dirty and advances the revision. Anything less let a metadata change be
+    // overwritten by an older body snapshot that was already in flight, or be
+    // dropped entirely because the document still called itself clean.
     Q_INVOKABLE void setFrontMatter(const QString &block);
 
     // File operations
@@ -257,6 +262,10 @@ private:
     // that differ from what was read — the first save to the same path
     // copies the on-disk file to <filename>.bak first, then disarms.
     bool m_loadDiverged = false;
+    // Front matter is not part of the block model, so the undo stack cannot
+    // speak for it. Without this the document reported itself clean while
+    // holding metadata that had never been written.
+    bool m_frontMatterDirty = false;
     bool m_autoSaveEnabled = true;
     int m_autoSaveInterval = 30;  // seconds
     int m_maxOpenFileSizeMiB = 10;  // three War-and-Peaces (provisional,

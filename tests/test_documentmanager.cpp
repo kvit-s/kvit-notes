@@ -41,6 +41,8 @@ private slots:
     void testManualSaveAsyncTimingSplitsRecorded();
     void testInFlightSaveDoesNotResurrectARenamedNote();
     void testInFlightSaveDoesNotResurrectADeletedNote();
+    void testFrontMatterChangeMarksDocumentDirty();
+    void testOlderBodySnapshotDoesNotRestoreStaleFrontMatter();
     void testAutoSaveTimingSplitsRecorded();
     void testAutoSaveEditDuringAsyncWriteStaysDirtyAndNextCyclePersists();
 
@@ -314,6 +316,78 @@ void TestDocumentManager::testSaveTimingSplitsRecorded()
     QVERIFY(log.samples(QStringLiteral("note.save.commit")).first()
                 .context.value(QStringLiteral("ok")).toBool());
     QCOMPARE(log.samples(QStringLiteral("note.autosave")).size(), 0);
+}
+
+// H5. Front matter is part of the document but not part of the block model, so
+// the undo stack cannot speak for it. A metadata change used to leave the
+// document calling itself clean, which meant every save/close/autosave decision
+// that consults isDirty() was entitled to throw the change away.
+void TestDocumentManager::testFrontMatterChangeMarksDocumentDirty()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Body");
+    const QString path = m_tempDir->filePath("metadata_dirty.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+    QVERIFY(!m_manager->isDirty());
+
+    QSignalSpy dirtySpy(m_manager, &DocumentManager::isDirtyChanged);
+    m_manager->setFrontMatter(QStringLiteral("---\ntags: [added]\n---\n"));
+
+    QVERIFY2(m_manager->isDirty(),
+             "a metadata change leaves the document differing from disk");
+    QVERIFY(dirtySpy.count() >= 1);
+
+    // And saving it actually persists the metadata.
+    QVERIFY(m_manager->save());
+    QVERIFY(!m_manager->isDirty());
+    QVERIFY(readFile(path).contains(QStringLiteral("tags: [added]")));
+}
+
+// H5. A body snapshot taken before a metadata change carries the old front
+// matter, so it must not be accepted afterwards as a successful save of the
+// current document.
+//
+// Worth recording what running this established, because the review predicted
+// worse: the stale snapshot does reach disk, but it never marked the document
+// clean even before setFrontMatter advanced the revision - the undo-index arm
+// of the same check already rejected it. The revision bump is defence in depth
+// here rather than the sole guard. The defect that did bite is the one in
+// testFrontMatterChangeMarksDocumentDirty, where the document called itself
+// clean while holding metadata that had never been written.
+void TestDocumentManager::testOlderBodySnapshotDoesNotRestoreStaleFrontMatter()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Body");
+    const QString path = m_tempDir->filePath("snapshot_vs_metadata.md");
+    m_manager->setFrontMatter(QStringLiteral("---\ntags: [before]\n---\n"));
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+
+    // A body save starts, carrying the current (old) front matter.
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Edited body"));
+    QVERIFY(m_manager->saveAsync());
+
+    // The metadata changes while that snapshot is still in flight.
+    m_manager->setFrontMatter(QStringLiteral("---\ntags: [after]\n---\n"));
+
+    // The snapshot in flight carries the OLD front matter, so accepting it as
+    // a successful save of the current document is the defect: it would mark
+    // the document clean while the newer metadata exists only in memory.
+    QSignalSpy okSpy(m_manager, &DocumentManager::saveSucceeded);
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QTest::qWait(800);
+
+    QCOMPARE(okSpy.count(), 0);
+    QVERIFY2(m_manager->isDirty(),
+             "the in-flight snapshot predates the metadata change, so the "
+             "document still holds unsaved state and must not be called clean");
+
+    // The stale snapshot did reach disk - it was already committed - so the
+    // guarantee that matters is that the document knows it is behind and the
+    // next save corrects the file.
+    QVERIFY(m_manager->save());
+    const QString written = readFile(path);
+    QVERIFY2(written.contains(QStringLiteral("tags: [after]")),
+             "the newer metadata must survive the older body snapshot");
+    QVERIFY(!written.contains(QStringLiteral("tags: [before]")));
 }
 
 // H4. Autosave hands a worker the path the note had when the save started.
