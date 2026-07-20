@@ -27,6 +27,15 @@ private slots:
     void testScanFindsNestedStructure();
     void testScanSkipsKvitAndDotEntries();
     void testScanNeverWrites();
+
+    // Vault containment: nothing outside the selected root is reachable,
+    // by scan or by mutation.
+    void testScanExcludesSymlinkedNoteOutsideRoot();
+    void testScanExcludesSymlinkedDirectoryOutsideRoot();
+    void testScanTerminatesOnSymlinkCycle();
+    void testRefreshPathsExcludesSymlinkedNote();
+    void testMutationsRejectPathsEscapingRoot();
+    void testDeleteCannotReachOutsideThroughSymlink();
     void testIndexFields();
     void testPersistentIndexWarmStartSkipsUnchangedParse();
     void testCorruptPersistentIndexFallsBackToFullParse();
@@ -211,6 +220,165 @@ void TestNoteCollection::testScanNeverWrites()
     // state and note files remain untouched until state changes.
     QVERIFY(QFileInfo::exists(abs(".kvit/index.json")));
     QVERIFY(!QFileInfo::exists(abs(".kvit/collection.json")));
+}
+
+// A vault is the subtree the user selected, and nothing else. A symlink is
+// the one filesystem construct that lets a relative path inside the root
+// name a file outside it, so the scan must not follow one and no mutation
+// may resolve through one. These tests need real symbolic links: Windows
+// grants that privilege only to elevated processes, and QFile::link there
+// writes a .lnk shortcut instead, so they are skipped on that platform and
+// the containment code is exercised there through the escaping-path test.
+#ifdef Q_OS_WIN
+#  define SKIP_WITHOUT_SYMLINKS() \
+      QSKIP("real symbolic links require elevation on Windows")
+#else
+#  define SKIP_WITHOUT_SYMLINKS() do {} while (false)
+#endif
+
+void TestNoteCollection::testScanExcludesSymlinkedNoteOutsideRoot()
+{
+    SKIP_WITHOUT_SYMLINKS();
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QFile secret(outside.filePath("Secret.md"));
+    QVERIFY(secret.open(QIODevice::WriteOnly));
+    secret.write("private notes that live outside the vault\n");
+    secret.close();
+
+    writeNote("Welcome.md", "root note\n");
+    QVERIFY(QFile::link(outside.filePath("Secret.md"), abs("Alias.md")));
+
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    // The alias must not appear as a note under any name.
+    QVERIFY(!m_collection->note("Alias.md"));
+    QCOMPARE(m_collection->noteRelPaths(), QStringList{"Welcome.md"});
+}
+
+void TestNoteCollection::testScanExcludesSymlinkedDirectoryOutsideRoot()
+{
+    SKIP_WITHOUT_SYMLINKS();
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QVERIFY(QDir(outside.path()).mkpath("Private"));
+    QFile secret(outside.filePath("Private/Secret.md"));
+    QVERIFY(secret.open(QIODevice::WriteOnly));
+    secret.write("outside\n");
+    secret.close();
+
+    writeNote("Welcome.md", "root note\n");
+    QVERIFY(QFile::link(outside.filePath("Private"), abs("Linked")));
+
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    QVERIFY(!m_collection->folderRelPaths().contains("Linked"));
+    QVERIFY(!m_collection->note("Linked/Secret.md"));
+    QCOMPARE(m_collection->noteRelPaths(), QStringList{"Welcome.md"});
+}
+
+void TestNoteCollection::testScanTerminatesOnSymlinkCycle()
+{
+    SKIP_WITHOUT_SYMLINKS();
+    // A link back to an ancestor: following it re-enters the same directories
+    // forever, so the scan must either not follow it or notice the revisit.
+    writeNote("Welcome.md", "root note\n");
+    writeNote("Sub/Nested.md", "nested\n");
+    QVERIFY(QFile::link(m_dir->path(), abs("Sub/Loop")));
+
+    QElapsedTimer timer;
+    timer.start();
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    const qint64 elapsed = timer.elapsed();
+
+    QCOMPARE(m_collection->noteRelPaths(),
+             QStringList({"Sub/Nested.md", "Welcome.md"}));
+    QVERIFY2(elapsed < 5000,
+             qPrintable(QStringLiteral("scan took %1 ms").arg(elapsed)));
+}
+
+void TestNoteCollection::testRefreshPathsExcludesSymlinkedNote()
+{
+    SKIP_WITHOUT_SYMLINKS();
+    // The incremental walker must apply the same rule as the full scan;
+    // otherwise a file-watcher refresh reintroduces what the scan excluded.
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QVERIFY(QDir(outside.path()).mkpath("Private"));
+    QFile secret(outside.filePath("Private/Secret.md"));
+    QVERIFY(secret.open(QIODevice::WriteOnly));
+    secret.write("outside\n");
+    secret.close();
+
+    writeNote("Welcome.md", "root note\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    QVERIFY(QFile::link(outside.filePath("Private"), abs("Linked")));
+
+    m_collection->refreshPaths({m_dir->path()});
+    QTRY_VERIFY_WITH_TIMEOUT(!m_collection->scanInProgress(), 5000);
+
+    QVERIFY(!m_collection->note("Linked/Secret.md"));
+    QVERIFY(!m_collection->folderRelPaths().contains("Linked"));
+}
+
+void TestNoteCollection::testMutationsRejectPathsEscapingRoot()
+{
+    // Relative paths are the collection's whole addressing scheme, so one
+    // that climbs out of the root must be refused rather than resolved.
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QFile victim(outside.filePath("Victim.md"));
+    QVERIFY(victim.open(QIODevice::WriteOnly));
+    victim.write("someone else's file\n");
+    victim.close();
+
+    makeFixture();
+    const QString escaping =
+        QDir(m_dir->path()).relativeFilePath(outside.filePath("Victim.md"));
+    QVERIFY(escaping.startsWith(QLatin1String("..")));
+
+    QSignalSpy failSpy(m_collection, &NoteCollection::operationFailed);
+
+    QVERIFY(!m_collection->deleteNote(escaping));
+    QVERIFY(!m_collection->renameNote(escaping, "Renamed"));
+    QVERIFY(!m_collection->moveNote(escaping, QString()));
+    QVERIFY(!m_collection->setTags(escaping, {"tag"}));
+    QVERIFY(!m_collection->setPinned(escaping, true));
+    QVERIFY(m_collection->createNote(QStringLiteral(".."), "Sneak").isEmpty());
+    QVERIFY(m_collection->createFolder(QStringLiteral(".."), "Sneak").isEmpty());
+    QVERIFY(!m_collection->deleteFolder(QStringLiteral("..")));
+    QVERIFY(failSpy.count() > 0);
+
+    // The outside file is untouched, and nothing was created beside it.
+    QVERIFY(QFileInfo::exists(outside.filePath("Victim.md")));
+    QCOMPARE(QDir(outside.path()).entryList(QDir::Files | QDir::Dirs
+                                            | QDir::NoDotAndDotDot),
+             QStringList{"Victim.md"});
+}
+
+void TestNoteCollection::testDeleteCannotReachOutsideThroughSymlink()
+{
+    SKIP_WITHOUT_SYMLINKS();
+    // The damaging consequence of following a link: once the alias is in the
+    // index it is an ordinary note to every operation, so a delete the user
+    // believes is scoped to their vault moves someone else's file to the
+    // vault's trash.
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QVERIFY(QDir(outside.path()).mkpath("Private"));
+    QFile secret(outside.filePath("Private/Secret.md"));
+    QVERIFY(secret.open(QIODevice::WriteOnly));
+    secret.write("someone else's file\n");
+    secret.close();
+
+    writeNote("Welcome.md", "root note\n");
+    QVERIFY(QFile::link(outside.filePath("Private"), abs("Linked")));
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    const bool deleted = m_collection->deleteNote("Linked/Secret.md");
+    QVERIFY2(QFileInfo::exists(outside.filePath("Private/Secret.md")),
+             "a delete inside the vault removed a file outside it");
+    QVERIFY(!deleted);
 }
 
 void TestNoteCollection::testIndexFields()

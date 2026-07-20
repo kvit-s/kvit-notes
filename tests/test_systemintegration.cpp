@@ -25,6 +25,7 @@ private slots:
     void trayCloseToTrayIsOptInAndPersists();
     void captureNoteWritesBodyTitledFromFirstLine();
     void captureNoteFallsBackToUntitled();
+    void captureNoteLeavesNothingBehindWhenTheWriteFails();
 };
 
 void TestSystemIntegration::hotkeyRegistersOnlyWhenSupported()
@@ -136,6 +137,42 @@ void TestSystemIntegration::captureNoteFallsBackToUntitled()
     QFile f(col.absolutePath(rel));
     QVERIFY(f.open(QIODevice::ReadOnly));
     QVERIFY(QString::fromUtf8(f.readAll()).contains("some body"));
+}
+
+void TestSystemIntegration::captureNoteLeavesNothingBehindWhenTheWriteFails()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    NoteCollection col;
+    QVERIFY(col.openRoot(dir.path()));
+
+    // A vault the process cannot write to stands in for the read-only
+    // folder and the full disk. There is no write-failure seam in the
+    // collection, and adding one only for this would be a wider change
+    // than the fix, so the permission bits do the injection.
+    const QFileDevice::Permissions writable = QFileDevice::ReadOwner
+        | QFileDevice::WriteOwner | QFileDevice::ExeOwner;
+    QVERIFY(QFile::setPermissions(dir.path(),
+                                  QFileDevice::ReadOwner
+                                      | QFileDevice::ExeOwner));
+    QFile probe(dir.path() + QStringLiteral("/.probe"));
+    const bool enforced = !probe.open(QIODevice::WriteOnly);
+    if (probe.isOpen())
+        probe.close();
+    if (!enforced) {
+        QFile::setPermissions(dir.path(), writable);
+        QSKIP("this user bypasses directory permissions (running as root?)");
+    }
+
+    const QString rel = col.captureNote("Buy milk\nand eggs on the way home");
+    QFile::setPermissions(dir.path(), writable);
+
+    // Failure is reported, so the window can keep the text on screen.
+    QCOMPARE(rel, QString());
+    // And nothing half-made survives: no empty note on disk, none indexed.
+    QCOMPARE(col.noteCount(), 0);
+    QCOMPARE(QDir(dir.path()).entryList(QDir::Files | QDir::NoDotAndDotDot),
+             QStringList());
 }
 
 QTEST_MAIN(TestSystemIntegration)

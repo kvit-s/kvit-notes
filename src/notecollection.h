@@ -163,8 +163,12 @@ public:
     // --- Note operations --------------------------------------------------
     // Returns the new note's relPath, or "" on failure (operationFailed
     // names the reason). Untitled notes get unique "Untitled N" names.
+    // `body` reaches disk in the same write that creates the file, so a
+    // caller holding the only copy of some text never ends up with the note
+    // created and the text lost.
     Q_INVOKABLE QString createNote(const QString &folder,
-                                   const QString &title = QString());
+                                   const QString &title = QString(),
+                                   const QString &body = QString());
     // Quick capture (§15.1): create a root-folder note whose body is `text`,
     // titled from its first line (falling back to an Untitled name). Returns the
     // new note's relPath, or "" on failure.
@@ -369,8 +373,11 @@ private:
     bool prepareRootPath(const QString &path);
     void loadRecoveryEntries();
     void scan();
+    // `visitedDirs` carries the canonical directories already walked, so a
+    // directory reachable twice (a bind mount, a junction) is entered once.
     void scanDirectory(const QString &relDir,
-                       const QHash<QString, NoteEntry> &cachedNotes);
+                       const QHash<QString, NoteEntry> &cachedNotes,
+                       QSet<QString> *visitedDirs);
     void scanAsync();
     void indexNote(const QString &relPath);
     void indexNote(const QString &relPath,
@@ -441,6 +448,12 @@ private:
     void markIndexDirty();
 
     void assignColorsToNewTags(const QStringList &tags);
+    // Containment gate for every operation that writes. Returns true when
+    // `relPath` resolves inside the vault; otherwise reports the refusal and
+    // returns false. Scans already exclude symbolic links, so in practice
+    // nothing outside reaches the index — this is the second lock, for paths
+    // that arrive from QML or a caller rather than from a scan.
+    bool ensureWithinRoot(const QString &relPath);
     bool validName(const QString &name, QString *reason) const;
     QString uniqueUntitled(const QString &folder) const;
     bool moveToTrash(const QString &relPath);
@@ -465,6 +478,10 @@ private:
     QString m_searchIndexRoot; // the root the index is currently open for
 
     QString m_rootPath;
+    // m_rootPath with every symbolic link resolved. Containment is decided
+    // against this, never against m_rootPath's text, so a vault reached
+    // through a link still recognizes its own contents.
+    QString m_canonicalRoot;
     int m_revision = 0;
 
     QHash<QString, NoteEntry> m_notes;    // by relPath

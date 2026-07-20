@@ -24,24 +24,41 @@ Window {
     title: qsTr("Quick capture")
     color: theme.windowBackground
 
-    // Open centered and focused on the text field.
+    // Open centered and focused on the text field. Text that failed to save
+    // survives a re-open — the hotkey firing again must not be the thing that
+    // finally discards it.
     function openCapture() {
-        captureArea.text = ""
+        if (!root.saveFailed)
+            captureArea.text = ""
         root.show()
         root.raise()
         root.requestActivate()
         captureArea.forceActiveFocus()
     }
 
+    // Set when a save attempt failed, so the window explains itself instead of
+    // just refusing to close.
+    property bool saveFailed: false
+
+    // The window holds the only copy of what the user typed, so it closes
+    // only once the note is on disk. A read-only vault or a full disk comes
+    // back as an empty relPath; closing on that would discard the text with
+    // nothing to recover it from.
     function save() {
         var body = captureArea.text.trim()
         if (body === "") { root.close(); return }
         var rp = noteCollection.captureNote(body)
-        if (rp !== "") {
-            root.captured(rp)
+        if (rp === "") {
+            root.saveFailed = true
+            captureArea.forceActiveFocus()
             if (typeof a11y !== "undefined")
-                a11y.announce(qsTr("Note captured"))
+                a11y.announce(qsTr("Could not save the note. The text is still here."))
+            return
         }
+        root.saveFailed = false
+        root.captured(rp)
+        if (typeof a11y !== "undefined")
+            a11y.announce(qsTr("Note captured"))
         root.close()
     }
 
@@ -89,6 +106,17 @@ Window {
                         }
                     }
                 }
+            }
+
+            Label {
+                objectName: "quickCaptureError"
+                visible: root.saveFailed
+                width: parent.width
+                wrapMode: Text.Wrap
+                text: qsTr("Could not save the note — the notes folder may be "
+                           + "read-only or the disk full. Your text is still "
+                           + "here; try again.")
+                color: theme.danger
             }
 
             Row {

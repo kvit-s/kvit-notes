@@ -107,6 +107,52 @@ QString joinRelPath(const QString &folder, const QString &name)
     return folder.isEmpty() ? name : folder + QLatin1Char('/') + name;
 }
 
+// ---- vault containment ----
+//
+// A vault is the directory subtree the user selected, and every path the
+// collection hands to the filesystem must land inside it. Textual prefix
+// tests are not enough: a symbolic link is a path inside the root that names
+// a file outside it, so containment is decided on canonical paths, with
+// every link along the way already resolved.
+
+// The canonical form of a path that need not exist yet. QFileInfo's own
+// canonicalFilePath returns an empty string for anything missing, which
+// would leave containment unanswerable for a note about to be created, so
+// the deepest existing ancestor is canonicalized and the remaining segments
+// are appended to it.
+QString canonicalizeMissingOk(const QString &path)
+{
+    QString head = QDir::cleanPath(path);
+    QStringList tail;  // segments trimmed off, nearest-last
+    forever {
+        const QString canonical = QFileInfo(head).canonicalFilePath();
+        if (!canonical.isEmpty()) {
+            QString result = canonical;
+            while (!tail.isEmpty())
+                result += QLatin1Char('/') + tail.takeLast();
+            return result;
+        }
+        const int slash = head.lastIndexOf(QLatin1Char('/'));
+        if (slash <= 0)
+            return QDir::cleanPath(path);  // nothing on the way exists
+        tail.append(head.mid(slash + 1));
+        head.truncate(slash);
+    }
+}
+
+// True when `absPath` resolves to `canonicalRoot` itself or to something
+// beneath it. Both sides are canonical, so a link pointing out of the vault
+// fails here however innocent its textual path looks.
+bool isWithinCanonicalRoot(const QString &canonicalRoot, const QString &absPath)
+{
+    if (canonicalRoot.isEmpty())
+        return false;
+    const QString canonical = canonicalizeMissingOk(absPath);
+    if (canonical == canonicalRoot)
+        return true;
+    return canonical.startsWith(canonicalRoot + QLatin1Char('/'));
+}
+
 QString folderOfRelPath(const QString &relPath)
 {
     int slash = relPath.lastIndexOf(QLatin1Char('/'));
@@ -246,6 +292,7 @@ void NoteCollection::closeRoot()
     cancelAsyncSavedNote();
     cancelAsyncIndexSave();
     m_rootPath.clear();
+    m_canonicalRoot.clear();
     m_notes.clear();
     m_folders.clear();
     clearFolderNoteCounts();
@@ -275,6 +322,7 @@ bool NoteCollection::prepareRootPath(const QString &path)
     }
 
     m_rootPath = QDir(path).absolutePath();
+    m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
     return true;
 }
 
@@ -458,11 +506,27 @@ QString NoteCollection::relativePath(const QString &absPath) const
 {
     if (m_rootPath.isEmpty())
         return QString();
-    const QString canonical = QDir::cleanPath(absPath);
-    const QString prefix = m_rootPath + QLatin1Char('/');
-    if (!canonical.startsWith(prefix))
+    // Absolute paths arrive here from the file watcher, from saves, and from
+    // QML. Resolving links before the containment test is what stops a path
+    // that merely looks like it is under the root from being treated as a
+    // note — the empty return is every caller's "not mine".
+    if (!isWithinCanonicalRoot(m_canonicalRoot, absPath))
         return QString();
-    return canonical.mid(prefix.size());
+    const QString canonical = canonicalizeMissingOk(absPath);
+    if (canonical == m_canonicalRoot)
+        return QString();
+    return canonical.mid(m_canonicalRoot.size() + 1);
+}
+
+bool NoteCollection::ensureWithinRoot(const QString &relPath)
+{
+    if (!isOpen())
+        return false;
+    if (isWithinCanonicalRoot(m_canonicalRoot, m_rootPath + QLatin1Char('/')
+                                                   + relPath))
+        return true;
+    emit operationFailed(tr("\"%1\" is outside the notes folder").arg(relPath));
+    return false;
 }
 
 // --------------------------------------------------------------- scan
@@ -485,7 +549,8 @@ void NoteCollection::scan()
     m_folderRecursiveNoteCounts.reserve(cachedNotes.size());
     m_indexDirty = !indexOk && QFileInfo::exists(indexFilePath());
 
-    scanDirectory(QString(), cachedNotes);
+    QSet<QString> visitedDirs;
+    scanDirectory(QString(), cachedNotes, &visitedDirs);
     loadCollectionFile();
 
     if (!indexOk || cachedNotes.size() != m_notes.size())
@@ -534,11 +599,18 @@ void NoteCollection::scanAsync()
 }
 
 void NoteCollection::scanDirectory(const QString &relDir,
-                                   const QHash<QString, NoteEntry> &cachedNotes)
+                                   const QHash<QString, NoteEntry> &cachedNotes,
+                                   QSet<QString> *visitedDirs)
 {
-    QDir dir(relDir.isEmpty() ? m_rootPath : absolutePath(relDir));
+    const QString absDir = relDir.isEmpty() ? m_rootPath : absolutePath(relDir);
+    const QString canonicalDir = canonicalizeMissingOk(absDir);
+    if (visitedDirs->contains(canonicalDir))
+        return;
+    visitedDirs->insert(canonicalDir);
+    QDir dir(absDir);
     const QFileInfoList entries = dir.entryInfoList(
-        QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+        QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks,
+        QDir::Name);
     for (const QFileInfo &info : entries) {
         const QString name = info.fileName();
         if (name.startsWith(QLatin1Char('.'))) // .kvit and other dot entries
@@ -549,7 +621,7 @@ void NoteCollection::scanDirectory(const QString &relDir,
             folder.relPath = relPath;
             folder.name = name;
             m_folders.insert(relPath, folder);
-            scanDirectory(relPath, cachedNotes);
+            scanDirectory(relPath, cachedNotes, visitedDirs);
         } else if (name.endsWith(mdSuffix, Qt::CaseInsensitive)) {
             indexNote(relPath, cachedNotes);
         }
@@ -694,14 +766,23 @@ NoteCollection::AsyncScanListing NoteCollection::buildAsyncScanListing(
     listing.generation = request.generation;
 
     int noteCount = 0;
+    // Canonical directories already walked. Symbolic links are excluded
+    // below, but a directory can be re-entered by other means (a bind mount,
+    // a junction), and a scan that revisits one never finishes.
+    QSet<QString> visitedDirs;
     std::function<void(const QString &)> scanDir =
         [&](const QString &currentRelDir) {
             const QString absDir = currentRelDir.isEmpty()
                 ? request.rootPath
                 : request.rootPath + QLatin1Char('/') + currentRelDir;
+            const QString canonicalDir = canonicalizeMissingOk(absDir);
+            if (visitedDirs.contains(canonicalDir))
+                return;
+            visitedDirs.insert(canonicalDir);
             QDir dir(absDir);
             const QFileInfoList entries = dir.entryInfoList(
-                QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot,
+                QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot
+                    | QDir::NoSymLinks,
                 QDir::Name);
             for (const QFileInfo &info : entries) {
                 const QString name = info.fileName();
@@ -785,13 +866,19 @@ NoteCollection::AsyncRefreshResult NoteCollection::buildAsyncRefreshResult(
     result.relDirs = request.relDirs;
     result.generation = request.generation;
 
+    QSet<QString> visitedDirs;
     std::function<void(const QString &)> scanDir =
         [&](const QString &currentRelDir) {
             const QString absDir =
                 request.rootPath + QLatin1Char('/') + currentRelDir;
+            const QString canonicalDir = canonicalizeMissingOk(absDir);
+            if (visitedDirs.contains(canonicalDir))
+                return;
+            visitedDirs.insert(canonicalDir);
             QDir dir(absDir);
             const QFileInfoList entries = dir.entryInfoList(
-                QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot,
+                QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot
+                    | QDir::NoSymLinks,
                 QDir::Name);
             for (const QFileInfo &info : entries) {
                 const QString name = info.fileName();
@@ -2251,7 +2338,8 @@ QString NoteCollection::uniqueUntitled(const QString &folder) const
     return name;
 }
 
-QString NoteCollection::createNote(const QString &folder, const QString &title)
+QString NoteCollection::createNote(const QString &folder, const QString &title,
+                                   const QString &body)
 {
     if (!isOpen())
         return QString();
@@ -2272,11 +2360,13 @@ QString NoteCollection::createNote(const QString &folder, const QString &title)
     }
 
     const QString relPath = joinRelPath(folder, name + mdSuffix);
+    if (!ensureWithinRoot(relPath))
+        return QString();
     if (QFileInfo::exists(absolutePath(relPath))) {
         emit operationFailed(tr("A note named \"%1\" already exists").arg(name));
         return QString();
     }
-    if (!writeTextFileAtomic(absolutePath(relPath), QString())) {
+    if (!writeTextFileAtomic(absolutePath(relPath), body)) {
         emit operationFailed(tr("Cannot create note \"%1\"").arg(name));
         return QString();
     }
@@ -2324,15 +2414,17 @@ QString NoteCollection::captureNote(const QString &text)
         break;
     }
 
-    QString relPath = createNote(QString(), title);
+    // The captured text is usually the only copy — the window holds no
+    // draft and the user typed it seconds ago — so the note reaches disk in
+    // ONE write. Creating an empty note first and filling it afterwards left
+    // a window where the create succeeded and the body write did not, which
+    // published an empty note and reported failure at the same time.
+    QString relPath = createNote(QString(), title, text);
     if (relPath.isEmpty())                       // collision or invalid name
-        relPath = createNote(QString(), QString());
+        relPath = createNote(QString(), QString(), text);
     if (relPath.isEmpty())
         return QString();
 
-    // Write the captured body and re-index so word counts reflect it.
-    if (!writeTextFileAtomic(absolutePath(relPath), text))
-        return QString();
     indexNote(relPath);
     saveIndexFileIfDirty();
     bump();
@@ -2526,6 +2618,8 @@ bool NoteCollection::renameNote(const QString &relPath, const QString &newTitle)
         return true; // nothing to do, not an error
 
     const QString newRelPath = joinRelPath(entry->folder, name + mdSuffix);
+    if (!ensureWithinRoot(relPath) || !ensureWithinRoot(newRelPath))
+        return false;
     if (QFileInfo::exists(absolutePath(newRelPath))) {
         emit operationFailed(tr("A note named \"%1\" already exists").arg(name));
         return false;
@@ -2577,6 +2671,8 @@ bool NoteCollection::moveNote(const QString &relPath, const QString &targetFolde
 
     const QString name = nameOfRelPath(relPath);
     const QString newRelPath = joinRelPath(targetFolder, name);
+    if (!ensureWithinRoot(relPath) || !ensureWithinRoot(newRelPath))
+        return false;
     if (QFileInfo::exists(absolutePath(newRelPath))) {
         emit operationFailed(
             tr("\"%1\" already exists in the target folder").arg(entry->title));
@@ -2641,6 +2737,8 @@ bool NoteCollection::emptyTrash()
 
 bool NoteCollection::moveToTrash(const QString &relPath)
 {
+    if (!ensureWithinRoot(relPath))
+        return false;
     const QString trashDir =
         m_rootPath + QLatin1Char('/') + kvitDirName + QLatin1Char('/') + trashDirName;
     if (!QDir().mkpath(trashDir))
@@ -2704,6 +2802,8 @@ QString NoteCollection::createFolder(const QString &parent, const QString &name)
     }
 
     const QString relPath = joinRelPath(parent, trimmed);
+    if (!ensureWithinRoot(relPath))
+        return QString();
     if (QFileInfo::exists(absolutePath(relPath))) {
         emit operationFailed(
             tr("A folder named \"%1\" already exists").arg(trimmed));
@@ -2781,6 +2881,8 @@ bool NoteCollection::renameFolder(const QString &relPath, const QString &newName
 
     const QString parent = folderOfRelPath(relPath);
     const QString newRelPath = joinRelPath(parent, trimmed);
+    if (!ensureWithinRoot(relPath) || !ensureWithinRoot(newRelPath))
+        return false;
     if (QFileInfo::exists(absolutePath(newRelPath))) {
         emit operationFailed(
             tr("A folder named \"%1\" already exists").arg(trimmed));
@@ -2870,6 +2972,8 @@ void NoteCollection::setFolderColor(const QString &relPath, const QString &color
 
 bool NoteCollection::rewriteFrontMatter(const QString &relPath)
 {
+    if (!ensureWithinRoot(relPath))
+        return false;
     // The file's bytes are authoritative for the body (the open note's
     // unsaved edits flow through DocumentManager, not here).
     const QString absPath = absolutePath(relPath);
