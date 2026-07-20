@@ -17,21 +17,13 @@ class TestBlockKindRegistry : public QObject
     Q_OBJECT
 
 private slots:
-    void init()
-    {
-        // Every case starts from the built-ins alone: the registry is
-        // process-wide, so a leftover registration would leak between cases.
-        BlockKindRegistry::instance().reset();
-    }
-
-    void cleanupTestCase()
-    {
-        BlockKindRegistry::instance().reset();
-    }
+    // No init()/cleanup() resetting shared state: each case builds its own
+    // registry, so nothing one case registers can reach another. That
+    // isolation is the reason the registry is instance owned.
 
     void builtinFencesKeepTheirKinds()
     {
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
+        BlockKindRegistry registry;
         QCOMPARE(registry.kindForLanguage("kanban"), BlockModel::KanbanKind);
         QCOMPARE(registry.kindForLanguage("toc"), BlockModel::TocKind);
         QCOMPARE(registry.kindForLanguage("mermaid"), BlockModel::MermaidKind);
@@ -47,14 +39,14 @@ private slots:
     {
         // main.qml declares a DelegateChoice for each built-in statically, so
         // the common rendering path never consults the registry for a URL.
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
+        BlockKindRegistry registry;
         QVERIFY(registry.delegateUrl(BlockModel::KanbanKind).isEmpty());
         QVERIFY(registry.registeredDelegates().isEmpty());
     }
 
     void registeringALanguageAssignsAKindAboveTheBuiltins()
     {
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
+        BlockKindRegistry registry;
         const int kind = registry.registerFenceLanguage(
             "sample-fence", "qrc:/module/SampleBlock.qml");
 
@@ -68,7 +60,7 @@ private slots:
 
     void registeredLanguagesGetDistinctKinds()
     {
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
+        BlockKindRegistry registry;
         const int first = registry.registerFenceLanguage("diff", "qrc:/a.qml");
         const int second = registry.registerFenceLanguage("plan", "qrc:/b.qml");
         QVERIFY(first != second);
@@ -78,7 +70,7 @@ private slots:
     {
         // A module cannot take over a language another module (or the core)
         // already claimed, and a double install is harmless.
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
+        BlockKindRegistry registry;
         const int first = registry.registerFenceLanguage("diff", "qrc:/a.qml");
         const int again = registry.registerFenceLanguage("diff", "qrc:/other.qml");
         QCOMPARE(again, first);
@@ -91,7 +83,7 @@ private slots:
 
     void registeredDelegatesListsOnlyModuleEntries()
     {
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
+        BlockKindRegistry registry;
         const int kind = registry.registerFenceLanguage("diff", "qrc:/a.qml");
 
         const QVariantList entries = registry.registeredDelegates();
@@ -107,29 +99,60 @@ private slots:
         // The acceptance case: a new block kind reaches the delegate chooser
         // through delegateKindForBlock without that function knowing the
         // language exists.
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
-        QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "diff"),
+        BlockKindRegistry registry;
+        BlockModel model;
+        model.setBlockKindRegistry(&registry);
+        QCOMPARE(model.delegateKindForBlock(Block::CodeBlock, "diff"),
                  BlockModel::delegateKindFor(Block::CodeBlock));
 
         const int kind = registry.registerFenceLanguage("diff", "qrc:/a.qml");
-        QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "diff"), kind);
+        QCOMPARE(model.delegateKindForBlock(Block::CodeBlock, "diff"), kind);
 
         // Only code fences carry a language, so registering one cannot change
         // how any other block type renders.
-        QCOMPARE(BlockModel::delegateKindForBlock(Block::Paragraph, "diff"), 0);
-        QCOMPARE(BlockModel::delegateKindForBlock(Block::Quote, "diff"),
+        QCOMPARE(model.delegateKindForBlock(Block::Paragraph, "diff"), 0);
+        QCOMPARE(model.delegateKindForBlock(Block::Quote, "diff"),
                  static_cast<int>(Block::Quote));
     }
 
     void resetDropsModuleRegistrations()
     {
-        BlockKindRegistry &registry = BlockKindRegistry::instance();
+        BlockKindRegistry registry;
         registry.registerFenceLanguage("diff", "qrc:/a.qml");
         registry.reset();
 
         QCOMPARE(registry.kindForLanguage("diff"), 0);
         QCOMPARE(registry.kindForLanguage("mermaid"), BlockModel::MermaidKind);
         QVERIFY(registry.registeredDelegates().isEmpty());
+    }
+
+    // Two registries in one process do not see each other's registrations.
+    // Under the old process-wide registry this case could not be written at
+    // all, and a test that forgot to reset() silently inherited whatever the
+    // previous one registered.
+    void registriesAreIndependent()
+    {
+        BlockKindRegistry first;
+        BlockKindRegistry second;
+        const int kind = first.registerFenceLanguage("diff", "qrc:/a.qml");
+        QVERIFY(kind != 0);
+        QCOMPARE(second.kindForLanguage("diff"), 0);
+        QVERIFY(second.registeredDelegates().isEmpty());
+        // Both still carry the built-ins.
+        QCOMPARE(second.kindForLanguage("mermaid"), BlockModel::MermaidKind);
+    }
+
+    // A model with no registry wired resolves the built-in fences from its
+    // own, so a unit test that constructs a bare BlockModel still renders a
+    // `kanban` fence as a board.
+    void aModelWithNoRegistryStillKnowsTheBuiltins()
+    {
+        BlockModel model;
+        QVERIFY(model.blockKindRegistry() != nullptr);
+        QCOMPARE(model.delegateKindForBlock(Block::CodeBlock, "kanban"),
+                 BlockModel::KanbanKind);
+        QCOMPARE(model.delegateKindForBlock(Block::CodeBlock, "diff"),
+                 BlockModel::delegateKindFor(Block::CodeBlock));
     }
 };
 

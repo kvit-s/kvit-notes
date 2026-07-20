@@ -21,9 +21,28 @@
 
 #include <algorithm>
 
+void BlockModel::setBlockKindRegistry(BlockKindRegistry *registry)
+{
+    m_blockKinds = registry ? registry : &m_ownedBlockKinds;
+}
+
+int BlockModel::delegateKindForBlock(Block::BlockType type,
+                                     const QString &language) const
+{
+    if (type == Block::CodeBlock) {
+        // The registry holds the built-in fence languages and any a linked
+        // module claimed at startup; 0 means "not a fence kind", which falls
+        // through to the type's own kind.
+        const int kind = m_blockKinds->kindForLanguage(language);
+        if (kind != 0)
+            return kind;
+    }
+    return delegateKindFor(type);
+}
+
 int BlockModel::delegateKindForContent(Block::BlockType type,
                                        const QString &language,
-                                       const QString &content)
+                                       const QString &content) const
 {
     if (type == Block::Image || type == Block::Media) {
         const ImageAssets::Parsed p = ImageAssets::parseLine(content);

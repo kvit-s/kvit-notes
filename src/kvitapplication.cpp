@@ -61,7 +61,7 @@ bool KvitApplication::start(const QStringList &arguments)
     // Installed modules claim their fence languages before anything renders,
     // so the first block the shell lays out already resolves to the right
     // delegate. The open build installs no module, and this is a no-op.
-    ExtensionRegistry::instance().registerBlockKinds(BlockKindRegistry::instance());
+    m_context.extensions()->registerBlockKinds(*m_context.blockKinds());
 
     m_context.openSettings();
     m_context.applyStartupArguments(arguments);

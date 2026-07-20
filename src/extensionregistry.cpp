@@ -3,28 +3,28 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "extensionregistry.h"
 
+#include <QLoggingCategory>
+#include <QQmlContext>
+#include <QRegularExpression>
+
 #include "blockkindregistry.h"
+
+Q_LOGGING_CATEGORY(lcExtensions, "kvit.extensions")
 
 void KvitExtension::registerBlockKinds(BlockKindRegistry &registry)
 {
     Q_UNUSED(registry);
 }
 
-void KvitExtension::installContextProperties(QQmlContext *context)
+QVariantMap KvitExtension::contextObjects()
 {
-    Q_UNUSED(context);
+    return {};
 }
 
 QString KvitExtension::qmlSlot(const QString &slot) const
 {
     Q_UNUSED(slot);
     return QString();
-}
-
-ExtensionRegistry &ExtensionRegistry::instance()
-{
-    static ExtensionRegistry registry;
-    return registry;
 }
 
 ExtensionRegistry::ExtensionRegistry(QObject *parent)
@@ -72,12 +72,43 @@ void ExtensionRegistry::registerBlockKinds(BlockKindRegistry &registry)
         extension->registerBlockKinds(registry);
 }
 
-void ExtensionRegistry::installContextProperties(QQmlContext *context)
+void ExtensionRegistry::installContextProperties(QQmlContext *context,
+                                                 const QStringList &reservedNames)
 {
+    m_publishedNamespaces.clear();
     if (!context)
         return;
-    for (const auto &extension : m_extensions)
-        extension->installContextProperties(context);
+
+    // A QML identifier, so `agent.session` resolves rather than parsing as
+    // something else.
+    static const QRegularExpression identifier(
+        QStringLiteral("^[a-z_][A-Za-z0-9_]*$"));
+
+    QStringList taken = reservedNames;
+    for (const auto &extension : m_extensions) {
+        const QString ns = extension->qmlNamespace();
+        if (!identifier.match(ns).hasMatch()) {
+            qCWarning(lcExtensions,
+                      "module '%s' asked for QML namespace '%s', which is not a "
+                      "valid identifier; it will publish nothing",
+                      qPrintable(extension->name()), qPrintable(ns));
+            continue;
+        }
+        if (taken.contains(ns)) {
+            qCWarning(lcExtensions,
+                      "module '%s' asked for QML namespace '%s', which is "
+                      "already taken; it will publish nothing",
+                      qPrintable(extension->name()), qPrintable(ns));
+            continue;
+        }
+
+        // One property per module, holding everything it contributes. The map
+        // reaches QML as a JavaScript object, so `agent.session` works and no
+        // module can occupy a bare global name.
+        context->setContextProperty(ns, extension->contextObjects());
+        taken.append(ns);
+        m_publishedNamespaces.append(ns);
+    }
 }
 
 void ExtensionRegistry::clear()

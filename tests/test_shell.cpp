@@ -34,9 +34,8 @@ class TestShell : public QObject
 private slots:
     void initTestCase()
     {
-        ExtensionRegistry::instance().clear();
-        BlockKindRegistry::instance().reset();
-
+        // Nothing to reset: the context owns its registries, so this suite
+        // starts from the built-ins whatever else ran in the process.
         AppContext::registerQmlTypes();
         m_context = std::make_unique<AppContext>();
         m_context->openSettings(m_dir.filePath(QStringLiteral("settings.json")));
@@ -95,11 +94,15 @@ private slots:
         QTest::newRow("table") << int(Block::Table) << QString();
         QTest::newRow("code-plain") << int(Block::CodeBlock) << QString();
         QTest::newRow("code-python") << int(Block::CodeBlock) << QStringLiteral("python");
-        // The fence languages that route by the registry.
-        QTest::newRow("code-kanban") << int(Block::CodeBlock) << QStringLiteral("kanban");
-        QTest::newRow("code-toc") << int(Block::CodeBlock) << QStringLiteral("toc");
-        QTest::newRow("code-mermaid") << int(Block::CodeBlock) << QStringLiteral("mermaid");
-        QTest::newRow("code-query") << int(Block::CodeBlock) << QStringLiteral("query");
+        // The fence languages that route by the registry, taken FROM the
+        // registry rather than listed here. A fence kind added to the
+        // registry gets a case automatically; a hand-written list would let a
+        // new kind ship with no coverage, which is the drift this suite
+        // exists to catch.
+        for (const QString &language : m_context->blockKinds()->languages()) {
+            QTest::newRow(qPrintable(QStringLiteral("code-") + language))
+                << int(Block::CodeBlock) << language;
+        }
         // A fence language nobody registered must still render — as a plain
         // code block, the way an unknown highlight language always has.
         QTest::newRow("code-unregistered")
@@ -137,6 +140,47 @@ private slots:
                          Q_ARG(int, index)) && row,
                      "the delegate chooser produced no delegate for this block");
         QVERIFY(row->height() > 0);
+    }
+
+    // The block-kind numbers exist once, in the BlockKinds enum, and the
+    // shipped shell names them. This is the guard on that pairing: a kind
+    // added to the enum with no DelegateChoice to render it would otherwise
+    // produce an empty row at runtime and nothing would say so. The enum is
+    // read from the metaobject, so the check cannot fall behind it.
+    void everyBuiltinKindIsNamedByTheShell()
+    {
+        const QMetaObject &meta = BlockKinds::staticMetaObject;
+        const QMetaEnum kinds = meta.enumerator(meta.indexOfEnumerator("Kind"));
+        QVERIFY(kinds.isValid());
+        QVERIFY(kinds.keyCount() > 0);
+
+        QFile shell(QStringLiteral(":/qml/main.qml"));
+        QVERIFY2(shell.open(QIODevice::ReadOnly | QIODevice::Text),
+                 "the shipped shell is not in the test's resources");
+        const QString source = QString::fromUtf8(shell.readAll());
+
+        for (int i = 0; i < kinds.keyCount(); ++i) {
+            const QString token =
+                QStringLiteral("BlockKinds.") + QString::fromLatin1(kinds.key(i));
+            QVERIFY2(source.contains(token),
+                     qPrintable(QStringLiteral(
+                                    "qml/main.qml has no DelegateChoice for %1; "
+                                    "a block of that kind would render as an "
+                                    "empty row").arg(token)));
+        }
+
+        // The other half of the pairing: the shell must not carry a bare
+        // number where a kind belongs, which is how these fell out of step
+        // before.
+        for (int i = 0; i < kinds.keyCount(); ++i) {
+            const QString literal =
+                QStringLiteral("roleValue: %1").arg(kinds.value(i));
+            QVERIFY2(!source.contains(literal),
+                     qPrintable(QStringLiteral(
+                                    "qml/main.qml still hard-codes %1; use the "
+                                    "BlockKinds enum so the number lives in one "
+                                    "place").arg(literal)));
+        }
     }
 
     // Theme and typography snapshot the store when attached, so they must

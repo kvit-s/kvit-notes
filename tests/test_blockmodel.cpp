@@ -997,22 +997,25 @@ void TestBlockModel::testDelegateKindRole()
     QCOMPARE(BlockModel::delegateKindFor(Block::Divider),
              static_cast<int>(Block::Divider));
 
+    // Fence-language routing goes through a model, because the registry it
+    // resolves against is owned rather than global.
+    BlockModel kindModel;
     // Mermaid fences route by language like kanban/toc.
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "mermaid"),
+    QCOMPARE(kindModel.delegateKindForBlock(Block::CodeBlock, "mermaid"),
              BlockModel::MermaidKind);
     // Character-diagram tags carry no kind of their own: the tag only marks
     // the fence for ingest straightening (§7.5); the block renders as an
     // ordinary code block. `plain` and ordinary languages likewise stay on
     // the code delegate (the CodeBlock enum value).
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "diagram"),
+    QCOMPARE(kindModel.delegateKindForBlock(Block::CodeBlock, "diagram"),
              static_cast<int>(Block::CodeBlock));
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "text-diagram"),
+    QCOMPARE(kindModel.delegateKindForBlock(Block::CodeBlock, "text-diagram"),
              static_cast<int>(Block::CodeBlock));
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "ascii-diagram"),
+    QCOMPARE(kindModel.delegateKindForBlock(Block::CodeBlock, "ascii-diagram"),
              static_cast<int>(Block::CodeBlock));
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "plain"),
+    QCOMPARE(kindModel.delegateKindForBlock(Block::CodeBlock, "plain"),
              static_cast<int>(Block::CodeBlock));
-    QCOMPARE(BlockModel::delegateKindForBlock(Block::CodeBlock, "python"),
+    QCOMPARE(kindModel.delegateKindForBlock(Block::CodeBlock, "python"),
              static_cast<int>(Block::CodeBlock));
 
     BlockModel model;

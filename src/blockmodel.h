@@ -81,9 +81,19 @@ public:
     static constexpr int QueryKind = BlockKinds::Query;
     // Content-aware delegate kind: an Image/Media block whose URL is an embed
     // becomes EmbedKind; everything else falls back to the type/language kind.
-    static int delegateKindForContent(Block::BlockType type,
-                                      const QString &language,
-                                      const QString &content);
+    // The fence registry this model resolves kinds against. AppContext wires
+    // its shared one so a linked module's kinds are visible; a model with
+    // none of its own falls back to a private registry holding the built-ins,
+    // which is what keeps a bare BlockModel in a unit test rendering `kanban`
+    // fences as boards without any global state.
+    void setBlockKindRegistry(BlockKindRegistry *registry);
+    BlockKindRegistry *blockKindRegistry() const { return m_blockKinds; }
+
+    // Content-aware delegate kind: an Image/Media block whose URL is an embed
+    // becomes EmbedKind; everything else falls back to the type/language kind.
+    int delegateKindForContent(Block::BlockType type,
+                               const QString &language,
+                               const QString &content) const;
 
     static int delegateKindFor(Block::BlockType type)
     {
@@ -103,19 +113,7 @@ public:
     // The delegate kind considering the language: a `kanban` code fence gets
     // KanbanKind so the DelegateChooser recreates the delegate when a fence's
     // language becomes (or stops being) `kanban`.
-    static int delegateKindForBlock(Block::BlockType type, const QString &language)
-    {
-        if (type == Block::CodeBlock) {
-            // The registry holds the built-in fence languages and any a
-            // linked module claimed at startup; 0 means "not a fence kind",
-            // which falls through to the type's own kind.
-            const int kind =
-                BlockKindRegistry::instance().kindForLanguage(language);
-            if (kind != 0)
-                return kind;
-        }
-        return delegateKindFor(type);
-    }
+    int delegateKindForBlock(Block::BlockType type, const QString &language) const;
 
     // Indentation depth limit (features.md §3.3)
     static constexpr int MaxIndentLevel = 4;
@@ -286,6 +284,12 @@ signals:
     void tocBlockIndexesChanged();
 
 private:
+    // The registry kinds resolve against, and the private one used until
+    // something wires a shared registry in. Declared before it so it is
+    // constructed first.
+    BlockKindRegistry m_ownedBlockKinds;
+    BlockKindRegistry *m_blockKinds = &m_ownedBlockKinds;
+
     void addBlockCounts(const Block *block);
     void subtractBlockCounts(const Block *block);
     void adjustBlockCountsBeforeChange(const Block *block);

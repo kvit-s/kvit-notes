@@ -37,6 +37,12 @@ void AppContext::registerQmlTypes()
                                       QStringLiteral("Use the theme context property"));
     qmlRegisterUncreatableType<Block>("Kvit", 1, 0, "Block",
                                       QStringLiteral("Block is model data; the enum is what QML needs"));
+    // The built-in fence kinds, so main.qml's DelegateChooser names them
+    // (`BlockKinds.Kanban`) instead of repeating their numbers. One
+    // definition, in blockkindregistry.h.
+    qmlRegisterUncreatableMetaObject(
+        BlockKinds::staticMetaObject, "Kvit", 1, 0, "BlockKinds",
+        QStringLiteral("BlockKinds is an enum namespace"));
     // The native Mermaid diagram painter, used by DiagramBlock.qml. Parses
     // and lays out off the UI thread.
     qmlRegisterType<DiagramCanvas>("Kvit", 1, 0, "DiagramCanvas");
@@ -45,6 +51,10 @@ void AppContext::registerQmlTypes()
 void AppContext::wire()
 {
     m_blockModel.setUndoStack(&m_undoStack);
+    // The model resolves fence kinds against this context's registry, so a
+    // module's kinds are visible to it and a second AppContext in one process
+    // keeps its own.
+    m_blockModel.setBlockKindRegistry(&m_blockKinds);
 
     m_documentManager.setBlockModel(&m_blockModel);
     m_documentManager.setUndoStack(&m_undoStack);
@@ -248,60 +258,71 @@ void AppContext::installContextProperties(QQmlEngine *engine)
         return;
     QQmlContext *context = engine->rootContext();
 
-    context->setContextProperty("blockModel", &m_blockModel);
-    context->setContextProperty("markdownFormatter", &m_markdownFormatter);
-    context->setContextProperty("undoStack", &m_undoStack);
-    context->setContextProperty("documentManager", &m_documentManager);
-    context->setContextProperty("clipboard", &m_clipboardHelper);
-    context->setContextProperty("blockMenuModel", &m_blockMenuModel);
-    context->setContextProperty("mathCommandModel", &m_mathCommandModel);
-    context->setContextProperty("documentSelection", &m_documentSelection);
-    context->setContextProperty("documentSearch", &m_documentSearch);
-    context->setContextProperty("documentOutline", &m_documentOutline);
-    context->setContextProperty("documentStats", &m_documentStats);
-    context->setContextProperty("documentExporter", &m_documentExporter);
-    context->setContextProperty("documentSerializer", &m_documentSerializer);
-    context->setContextProperty("noteCollection", &m_noteCollection);
-    context->setContextProperty("folderTreeModel", &m_folderTreeModel);
-    context->setContextProperty("noteListModel", &m_noteListModel);
-    context->setContextProperty("collectionSearch", &m_collectionSearch);
-    context->setContextProperty("startupController", &m_startupController);
-    context->setContextProperty("noteTemplates", &m_noteTemplates);
-    context->setContextProperty("documentImporter", &m_documentImporter);
-    context->setContextProperty("embedMetadata", &m_embedMetadata);
+    // Every core name goes through this, so the list of what the shell
+    // already occupies is maintained by the act of publishing rather than
+    // kept in a second place that can fall behind. ExtensionRegistry refuses
+    // a module namespace that collides with one of them.
+    QStringList coreNames;
+    const auto publish = [&](const char *name, QObject *object) {
+        coreNames.append(QString::fromLatin1(name));
+        context->setContextProperty(QString::fromLatin1(name), object);
+    };
+
+    publish("blockModel", &m_blockModel);
+    publish("markdownFormatter", &m_markdownFormatter);
+    publish("undoStack", &m_undoStack);
+    publish("documentManager", &m_documentManager);
+    publish("clipboard", &m_clipboardHelper);
+    publish("blockMenuModel", &m_blockMenuModel);
+    publish("mathCommandModel", &m_mathCommandModel);
+    publish("documentSelection", &m_documentSelection);
+    publish("documentSearch", &m_documentSearch);
+    publish("documentOutline", &m_documentOutline);
+    publish("documentStats", &m_documentStats);
+    publish("documentExporter", &m_documentExporter);
+    publish("documentSerializer", &m_documentSerializer);
+    publish("noteCollection", &m_noteCollection);
+    publish("folderTreeModel", &m_folderTreeModel);
+    publish("noteListModel", &m_noteListModel);
+    publish("collectionSearch", &m_collectionSearch);
+    publish("startupController", &m_startupController);
+    publish("noteTemplates", &m_noteTemplates);
+    publish("documentImporter", &m_documentImporter);
+    publish("embedMetadata", &m_embedMetadata);
     // Delegates ask this before rendering anything remote; see EgressPolicy.
-    context->setContextProperty("egressPolicy", &m_egressPolicy);
-    context->setContextProperty("appSettings", &m_settingsStore);
-    context->setContextProperty("perfLog", &PerfLog::instance());
-    context->setContextProperty("theme", &m_theme);
-    context->setContextProperty("typography", &m_typography);
+    publish("egressPolicy", &m_egressPolicy);
+    publish("appSettings", &m_settingsStore);
+    publish("perfLog", &PerfLog::instance());
+    publish("theme", &m_theme);
+    publish("typography", &m_typography);
     // The canonical code-highlight language ids: the single
     // source of truth for the language picker and the /code aliases, so the
     // UI list can never drift from what the highlighter recognizes.
+    coreNames.append(QStringLiteral("codeLanguageList"));
     context->setContextProperty(
         "codeLanguageList",
         QVariant::fromValue(CodeLanguages::supportedLanguages()));
-    context->setContextProperty("imageAssets", &m_imageAssets);
+    publish("imageAssets", &m_imageAssets);
     // The per-block attribute reader/editor: delegates read typed
     // presentation values off a block's `attributes` payload, and the
     // attribute editors compute a new payload to hand to setBlockAttributes.
-    context->setContextProperty("blockAttributes", &m_blockAttributes);
+    publish("blockAttributes", &m_blockAttributes);
     // The shortcut catalog (features.md §13): the source the shortcut
     // reference renders and the test_shortcutmap audit checks.
-    context->setContextProperty("shortcutCatalog", &m_shortcutCatalog);
+    publish("shortcutCatalog", &m_shortcutCatalog);
     // The live-region announcer: dynamic changes speak
     // through this seam to assistive technology.
-    context->setContextProperty("a11y", &m_a11y);
-    context->setContextProperty("systemTray", &m_systemTray);
-    context->setContextProperty("globalHotkey", &m_globalHotkey);
-    context->setContextProperty("fileWatcher", &m_fileWatcher);
-    context->setContextProperty("navigationHistory", &m_navigationHistory);
-    context->setContextProperty("updateChecker", &m_updateChecker);
-    context->setContextProperty("quickSwitcherModel", &m_quickSwitcherModel);
-    context->setContextProperty("tableTools", &m_tableTools);
-    context->setContextProperty("todoMeta", &m_todoMeta);
-    context->setContextProperty("kanbanTools", &m_kanbanTools);
-    context->setContextProperty("queryTools", &m_queryTools);
+    publish("a11y", &m_a11y);
+    publish("systemTray", &m_systemTray);
+    publish("globalHotkey", &m_globalHotkey);
+    publish("fileWatcher", &m_fileWatcher);
+    publish("navigationHistory", &m_navigationHistory);
+    publish("updateChecker", &m_updateChecker);
+    publish("quickSwitcherModel", &m_quickSwitcherModel);
+    publish("tableTools", &m_tableTools);
+    publish("todoMeta", &m_todoMeta);
+    publish("kanbanTools", &m_kanbanTools);
+    publish("queryTools", &m_queryTools);
     // Math: the MicroTeX seam. The provider owns rendering under
     // image://math/...; mathRenderer is the parse-check + encoder the
     // delegates use. The engine takes ownership of the provider.
@@ -312,13 +333,15 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // to an Image's `source` would bypass every one of them.
     engine->addImageProvider(QStringLiteral("remote"),
                              new RemoteImageProvider(m_egressFetcher.get()));
-    context->setContextProperty("mathRenderer", &m_mathTools);
+    publish("mathRenderer", &m_mathTools);
 
     // The two extension seams: block-kind registration and QML slot
     // injection. Both are inert in the open build: no module is installed,
     // so `blockKinds` reports only the built-in fence kinds and every
     // `extensions` slot resolves to an empty source.
-    context->setContextProperty("blockKinds", &BlockKindRegistry::instance());
-    context->setContextProperty("extensions", &ExtensionRegistry::instance());
-    ExtensionRegistry::instance().installContextProperties(context);
+    publish("blockKinds", &m_blockKinds);
+    publish("extensions", &m_extensions);
+    // Modules publish last and under their own namespace, and the names the
+    // core just took are refused to them.
+    m_extensions.installContextProperties(context, coreNames);
 }

@@ -357,10 +357,14 @@ public slots:
         // install no module, so these are the same inert registries the open
         // app runs with: the shell's slot Loaders stay empty and the delegate
         // chooser sees only the built-in fence kinds.
-        engine->rootContext()->setContextProperty(
-            "blockKinds", &BlockKindRegistry::instance());
-        engine->rootContext()->setContextProperty(
-            "extensions", &ExtensionRegistry::instance());
+        // Owned by the harness rather than process-global, so each test
+        // binary starts from the built-ins with nothing another suite left
+        // behind.
+        BlockKindRegistry *blockKinds = new BlockKindRegistry(engine);
+        ExtensionRegistry *extensions = new ExtensionRegistry(engine);
+        model->setBlockKindRegistry(blockKinds);
+        engine->rootContext()->setContextProperty("blockKinds", blockKinds);
+        engine->rootContext()->setContextProperty("extensions", extensions);
 
         // Screenshot directory for the saveScreenshot helper.
         // build.sh wipes and exports KVIT_SHOT_DIR; standalone runs fall

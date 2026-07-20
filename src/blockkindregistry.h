@@ -14,20 +14,31 @@
 // renderer of its own. They live here rather than in BlockModel so the
 // registry can seed itself without depending on the model; BlockModel keeps
 // its historical constant names as aliases.
+//
+// This is a Q_NAMESPACE enum rather than a set of integer constants so QML
+// can name the same values. main.qml writes `roleValue: BlockKinds.Kanban`,
+// and the numbers exist in exactly one place. They used to be repeated as
+// literals in the DelegateChooser with a comment naming the C++ constant,
+// which is a pairing nothing checked.
 namespace BlockKinds {
-// A `kanban`-tagged fence renders as a board.
-constexpr int Kanban = 100;
-// A `toc`-tagged fence renders as a read-only linked heading list.
-constexpr int Toc = 101;
-// An image expression whose URL is a web page or video host renders as a
-// preview card. Derived from block CONTENT, not from a fence language, so it
-// is not a registry entry — the value is listed here only to keep the
-// numbering in one place.
-constexpr int Embed = 102;
-// A `mermaid`-tagged fence renders as a native diagram.
-constexpr int Mermaid = 103;
-// A `query`-tagged fence renders as a live collection query.
-constexpr int Query = 104;
+Q_NAMESPACE
+
+enum Kind {
+    // A `kanban`-tagged fence renders as a board.
+    Kanban = 100,
+    // A `toc`-tagged fence renders as a read-only linked heading list.
+    Toc = 101,
+    // An image expression whose URL is a web page or video host renders as a
+    // preview card. Derived from block CONTENT, not from a fence language, so
+    // it is not a registry entry — the value lives here to keep the numbering
+    // in one place, and it still needs a delegate like the others.
+    Embed = 102,
+    // A `mermaid`-tagged fence renders as a native diagram.
+    Mermaid = 103,
+    // A `query`-tagged fence renders as a live collection query.
+    Query = 104,
+};
+Q_ENUM_NS(Kind)
 }
 
 // The fence-language → delegate-kind registry.
@@ -55,10 +66,12 @@ public:
     // value and every built-in kind, so a module can never collide with core.
     static constexpr int FirstRegisteredKind = 200;
 
-    // The process-wide registry. BlockModel::delegateKindForBlock() reads it,
-    // and it is the object main.qml sees as the `blockKinds` context property.
-    static BlockKindRegistry &instance();
-
+    // Instance owned, deliberately. AppContext holds the one the application
+    // runs on and publishes it as the `blockKinds` context property; a test
+    // constructs its own and cannot disturb, or be disturbed by, anything
+    // else in the process. There is no instance() and there should not be:
+    // a process-global registry made every test that touched a fence kind
+    // depend on reset() being called in the right order.
     explicit BlockKindRegistry(QObject *parent = nullptr);
 
     // Registers `language` as a block kind of its own, rendered by the QML

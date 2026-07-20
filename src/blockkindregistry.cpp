@@ -3,12 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "blockkindregistry.h"
 
-BlockKindRegistry &BlockKindRegistry::instance()
-{
-    static BlockKindRegistry registry;
-    return registry;
-}
-
 BlockKindRegistry::BlockKindRegistry(QObject *parent)
     : QObject(parent)
 {

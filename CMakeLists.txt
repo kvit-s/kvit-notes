@@ -51,6 +51,43 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTes
 # the public repo is then the deletion of those paths, not an exclusion list.
 option(KVIT_AGENT "Build the premium agent module (src/agent, qml/agent)" OFF)
 
+# The premium module is a separate product, not an optional part of this one.
+# It lives in the private kvit-notes-pro repository, which links this
+# repository in as a submodule and configures the build from there; this
+# checkout deliberately contains none of its sources. Turning the option on
+# here otherwise fails deep inside qt_add_executable with "Cannot find source
+# file" for each missing path, which reads like a broken checkout rather than
+# a build that was asked for something this repository does not have.
+if(KVIT_AGENT)
+    set(_kvit_agent_expected
+        src/agent/agentmodule.cpp
+        agent_resources.qrc
+        tests/agent/test_agentmodule.cpp
+        tests/agent/test_agentshell.cpp)
+    set(_kvit_agent_missing "")
+    foreach(_file IN LISTS _kvit_agent_expected)
+        if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_file}")
+            list(APPEND _kvit_agent_missing "${_file}")
+        endif()
+    endforeach()
+    if(_kvit_agent_missing)
+        string(REPLACE ";" "\n    " _kvit_agent_missing_lines "${_kvit_agent_missing}")
+        message(FATAL_ERROR
+            "KVIT_AGENT=ON, but the premium agent module is not present in this "
+            "source tree.\n"
+            "Missing:\n    ${_kvit_agent_missing_lines}\n\n"
+            "This repository is the open core of Kvit Notes and ships without the "
+            "premium module by design. The module lives in the private "
+            "kvit-notes-pro repository, which includes this one as a submodule and "
+            "configures the build from there.\n\n"
+            "To build the open editor, configure with -DKVIT_AGENT=OFF (the "
+            "default). To build the premium editor, configure kvit-notes-pro "
+            "rather than this directory.")
+    endif()
+    unset(_kvit_agent_expected)
+    unset(_kvit_agent_missing)
+endif()
+
 # Vendored MicroTeX: the math typesetting engine
 # behind the MathRenderer seam. Built as a static `microtex` target.
 add_subdirectory(third_party/microtex)
