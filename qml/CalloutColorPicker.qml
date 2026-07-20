@@ -1,6 +1,13 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The Repeater delegate and the handlers inside it are separate
+// component scopes, so their reads of `root` and of the delegate's own
+// role are unqualified access. The delegate already declares that role
+// as a required property, so binding the scopes changes nothing it
+// depended on.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -48,6 +55,9 @@ Popup {
             Repeater {
                 model: root.swatches
                 delegate: Rectangle {
+                    // Named so the TapHandler below, which is its own scope,
+                    // can reach the role rather than relying on injection.
+                    id: swatch
                     required property var modelData
                     width: 22
                     height: 22
@@ -66,7 +76,7 @@ Popup {
                         border.width: swHover.hovered ? 1 : 0
                     }
                     TapHandler {
-                        onTapped: { root.colorPicked(modelData); root.close() }
+                        onTapped: { root.colorPicked(swatch.modelData); root.close() }
                     }
                 }
             }

@@ -64,21 +64,26 @@ Dialog {
                         // A theme card: swatch above the name, the
                         // active one ringed in accent.
                         ColumnLayout {
+                            // Named so the children below reach it directly.
+                            // Through `parent` they cannot be typed: qmllint
+                            // sees only QQuickItem and cannot know `preview`
+                            // or `modelData` are on it.
+                            id: card
                             required property string modelData
                             readonly property var preview:
                                 Theme.themePreview(modelData)
                             spacing: 4
 
                             Rectangle {
-                                objectName: "themeCard_" + parent.modelData
+                                objectName: "themeCard_" + card.modelData
                                 Layout.preferredWidth: 96
                                 Layout.preferredHeight: 60
                                 radius: 5
-                                color: parent.preview.background
+                                color: card.preview.background
                                 border.width:
-                                    Theme.themeId === parent.modelData ? 2 : 1
+                                    Theme.themeId === card.modelData ? 2 : 1
                                 border.color:
-                                    Theme.themeId === parent.modelData
+                                    Theme.themeId === card.modelData
                                         ? Theme.accent : Theme.borderStrong
 
                                 Rectangle { // panel stripe
@@ -86,7 +91,7 @@ Dialog {
                                     height: parent.height - 12
                                     x: 6; y: 6
                                     radius: 3
-                                    color: parent.parent.preview.panel
+                                    color: card.preview.panel
                                 }
                                 Label {
                                     text: "Aa"
@@ -94,25 +99,25 @@ Dialog {
                                     anchors.top: parent.top
                                     anchors.margins: 8
                                     font.pixelSize: 16
-                                    color: parent.parent.preview.text
+                                    color: card.preview.text
                                 }
                                 Rectangle { // accent dot
                                     width: 10; height: 10; radius: 5
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     anchors.margins: 8
-                                    color: parent.parent.preview.accent
+                                    color: card.preview.accent
                                 }
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: Theme.themeId
-                                        = parent.parent.modelData
+                                        = card.modelData
                                 }
                             }
                             Label {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: {
-                                    var name = parent.modelData
+                                    var name = card.modelData
                                     return name.charAt(0).toUpperCase()
                                         + name.slice(1)
                                 }

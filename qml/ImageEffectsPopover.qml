@@ -36,6 +36,7 @@ Popup {
     // A checkbox-styled row driven by external state (no internal toggle, so the
     // `on` binding never breaks on click — the model is the single truth).
     component ToggleRow: Item {
+        id: row
         property string label: ""
         property bool on: false
         signal toggled()
@@ -51,7 +52,7 @@ Popup {
             border.color: parent.on ? Theme.accent : Theme.border
             Text {
                 anchors.centerIn: parent
-                visible: box.parent.on
+                visible: row.on
                 text: "✓"; color: "white"; font.pixelSize: 11
             }
         }

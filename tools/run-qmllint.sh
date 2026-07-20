@@ -133,6 +133,10 @@ echo "qmllint: ${#FILES[@]} files clean"
 # rather than quietly left out.
 STRICT_CLEAN=(
     qml/CalloutBlock.qml
+    qml/CalloutColorPicker.qml
+    qml/ColorPicker.qml
+    qml/ImageEffectsPopover.qml
+    qml/SettingsDialog.qml
     qml/CodeBlockDelegate.qml
     qml/ExportDialog.qml
     qml/ImportDialog.qml
