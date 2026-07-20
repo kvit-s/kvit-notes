@@ -73,6 +73,16 @@ bool writeTextFileAtomic(const QString &path, const QString &content)
     stream.setEncoding(QStringConverter::Utf8);
     stream << content;
     stream.flush();
+    // A stream that ran out of space stops writing and records it here rather
+    // than reporting it from the insertion operator. Committing without this
+    // check renames a truncated file over the target and returns success, so
+    // the caller tells the user their note was saved while most of it is
+    // gone. writeFileBytesAtomic beside this one has always checked its
+    // write; this is the same guarantee for the text path.
+    if (stream.status() != QTextStream::Ok) {
+        file.cancelWriting();
+        return false;
+    }
     return file.commit();
 }
 

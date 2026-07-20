@@ -160,8 +160,8 @@ void TestSystemIntegration::captureNoteFallsBackToUntitled()
 // and leaves a file holding 4096 of 65545 bytes: the user is told the note
 // was captured, and most of it is gone.
 //
-// The QEXPECT_FAIL below records that. When the writer is fixed, this test
-// reports an unexpected pass and fails, which is the signal to remove it.
+// That writer now checks stream.status() and cancels rather than committing a
+// truncated file, so this test asserts the whole property directly.
 void TestSystemIntegration::captureNoteLeavesNoEmptyNoteWhenOnlyTheBodyFails()
 {
     QTemporaryDir dir;
@@ -181,13 +181,9 @@ void TestSystemIntegration::captureNoteLeavesNoEmptyNoteWhenOnlyTheBodyFails()
 
     const QString rel = col.captureNote(body);
 
-    QEXPECT_FAIL("", "writeTextFileAtomic ignores QTextStream::status(), so a "
-                     "short write reports success and the note is silently "
-                     "truncated", Abort);
     QVERIFY2(rel.isEmpty(),
              "capture reported success for a note whose body did not fit");
 
-    // Unreached until the writer is fixed; kept so the intent is explicit.
     QCOMPARE(col.noteCount(), 0);
     const QStringList left =
         QDir(dir.path()).entryList(QDir::Files | QDir::NoDotAndDotDot);
