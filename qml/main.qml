@@ -321,13 +321,6 @@ KvitShell {
         }
     }
 
-    function urlToLocalPath(fileUrl) {
-        var s = fileUrl.toString()
-        if (s.indexOf("file://") === 0)
-            s = s.substring(7)
-        return decodeURIComponent(s)
-    }
-
     // Scroll a block to the top of the editor viewport and focus it — the
     // find-bar's scroll-into-view generalized, reused by internal-link
     // navigation and the outline/TOC click-to-scroll.

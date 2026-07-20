@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Canvas affordances and menu items are separate scopes reading ids
+// declared around them.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -1149,9 +1153,8 @@ BlockDelegateBase {
             if (!root.shell) return
             var path = root.shell.urlToLocalPath(selectedFile)
             var ok = readCanvas.savePng(path, 2.0)
-            if (root.shell.showTransientStatus)
-                AppActions.requestTransientStatus(ok ? qsTr("Diagram saved to ") + path
-                                           : qsTr("Could not save the diagram"))
+            AppActions.requestTransientStatus(ok ? qsTr("Diagram saved to ") + path
+                                                 : qsTr("Could not save the diagram"))
         }
     }
 

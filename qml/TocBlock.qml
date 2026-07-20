@@ -1,6 +1,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The heading rows nest Texts and handlers, each its own scope.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Window
 import Kvit 1.0
@@ -271,6 +274,7 @@ BlockDelegateBase {
             Repeater {
                 model: delegate.headings
                 Item {
+                    id: headingRow
                     required property var modelData
                     required property int index
                     width: cardColumn.width
@@ -278,9 +282,9 @@ BlockDelegateBase {
 
                     Text {
                         id: entry
-                        x: (modelData.level - delegate.minLevel) * 16
-                        text: modelData.text === "" ? qsTr("(untitled)")
-                                                    : modelData.text
+                        x: (headingRow.modelData.level - delegate.minLevel) * 16
+                        text: headingRow.modelData.text === "" ? qsTr("(untitled)")
+                                                    : headingRow.modelData.text
                         font.pixelSize: 13
                         color: linkArea.containsMouse ? Theme.accent
                                                       : Theme.link
@@ -295,7 +299,7 @@ BlockDelegateBase {
                         // AppActions, and an unconnected signal is a no-op
                         // exactly as the old `if (window)` guard was.
                         onClicked: AppActions.requestScrollToBlock(
-                                       modelData.blockIndex)
+                                       headingRow.modelData.blockIndex)
                     }
                 }
             }

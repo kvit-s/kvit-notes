@@ -44,4 +44,14 @@ ApplicationWindow {
     // Typewriter scrolling (features.md §10.4): the caret line is kept
     // vertically centred. Delegates check it before scrolling themselves.
     property bool typewriterMode: false
+
+    // A file: URL as a local path. Pure string work with no window state, so
+    // it lives on the type rather than being reached through it; main.qml
+    // inherits this one implementation and delegates call it typed.
+    function urlToLocalPath(fileUrl) {
+        var s = fileUrl.toString()
+        if (s.indexOf("file://") === 0)
+            s = s.substring(7)
+        return decodeURIComponent(s)
+    }
 }

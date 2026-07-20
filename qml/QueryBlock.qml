@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// Deeply nested delegates — table cells, board groups, cards, card
+// rows — each hold Texts and handlers in separate scopes.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
@@ -277,6 +281,7 @@ BlockDelegateBase {
                                && root.queryResult.view === "table"
                                ? root.queryResult.columns : []
                         Text {
+                            id: headerCell
                             required property var modelData
                             text: modelData
                             font.pixelSize: 11
@@ -310,6 +315,7 @@ BlockDelegateBase {
                             return flat
                         }
                         Rectangle {
+                            id: tableCell
                             required property var modelData
                             width: Math.max(40, (tableGrid.width
                                 - tableGrid.columnSpacing
@@ -322,14 +328,14 @@ BlockDelegateBase {
                                 id: cellText
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width
-                                text: modelData.text
+                                text: tableCell.modelData.text
                                 font.pixelSize: 12
                                 color: Theme.textPrimary
                                 elide: Text.ElideRight
                             }
                             HoverHandler { id: cellHover }
                             TapHandler {
-                                onTapped: root.openRow(modelData.relPath)
+                                onTapped: root.openRow(tableCell.modelData.relPath)
                             }
                         }
                     }
@@ -364,6 +370,7 @@ BlockDelegateBase {
                                    && root.queryResult.view === "board"
                                    ? root.queryResult.groups : []
                             Rectangle {
+                                id: boardGroup
                                 required property var modelData
                                 width: 190
                                 height: groupColumn.implicitHeight + 12
@@ -383,20 +390,20 @@ BlockDelegateBase {
                                     Row {
                                         spacing: 5
                                         Text {
-                                            text: modelData.name
+                                            text: boardGroup.modelData.name
                                             font.pixelSize: 12
                                             font.bold: true
                                             color: Theme.textSecondary
                                         }
                                         Text {
-                                            text: modelData.cards.length
+                                            text: boardGroup.modelData.cards.length
                                             font.pixelSize: 11
                                             color: Theme.textFaint
                                         }
                                     }
 
                                     Repeater {
-                                        model: modelData.cards
+                                        model: boardGroup.modelData.cards
                                         Rectangle {
                                             id: boardCard
                                             required property var modelData
@@ -415,7 +422,7 @@ BlockDelegateBase {
                                                 anchors.margins: 5
                                                 spacing: 1
                                                 Repeater {
-                                                    model: modelData.cells
+                                                    model: boardCard.modelData.cells
                                                     Text {
                                                         required property var modelData
                                                         required property int index
