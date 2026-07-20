@@ -39,6 +39,8 @@ private slots:
     void testSaveFailsOnInvalidPath();
     void testSaveTimingSplitsRecorded();
     void testManualSaveAsyncTimingSplitsRecorded();
+    void testInFlightSaveDoesNotResurrectARenamedNote();
+    void testInFlightSaveDoesNotResurrectADeletedNote();
     void testAutoSaveTimingSplitsRecorded();
     void testAutoSaveEditDuringAsyncWriteStaysDirtyAndNextCyclePersists();
 
@@ -312,6 +314,60 @@ void TestDocumentManager::testSaveTimingSplitsRecorded()
     QVERIFY(log.samples(QStringLiteral("note.save.commit")).first()
                 .context.value(QStringLiteral("ok")).toBool());
     QCOMPARE(log.samples(QStringLiteral("note.autosave")).size(), 0);
+}
+
+// H4. Autosave hands a worker the path the note had when the save started.
+// Renaming the note in the collection while that worker is still running used
+// to leave two files: the renamed note, and the old name recreated by a write
+// that had no idea the note had moved. The rebind has to call the write off.
+void TestDocumentManager::testInFlightSaveDoesNotResurrectARenamedNote()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Initial");
+    const QString oldPath = m_tempDir->filePath("before_rename.md");
+    const QString newPath = m_tempDir->filePath("after_rename.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(oldPath)));
+
+    // A save is in flight against the old path.
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Edited before the rename"));
+    QVERIFY(m_manager->saveAsync());
+
+    // The collection renames the note underneath it, then rebinds.
+    QVERIFY(QFile::rename(oldPath, newPath));
+    m_manager->rebindFilePath(newPath);
+
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QTest::qWait(800);   // outlive the worker either way
+
+    QVERIFY2(!QFile::exists(oldPath),
+             "the abandoned save recreated the note at the name it no longer "
+             "has, leaving a duplicate beside the renamed file");
+    QVERIFY(QFile::exists(newPath));
+    QCOMPARE(m_manager->currentFilePath(), newPath);
+}
+
+// H4, the destructive variant. Deleting the open note moves it to the trash;
+// a save still running against the old path puts it straight back outside the
+// trash, so the note the user deleted reappears.
+void TestDocumentManager::testInFlightSaveDoesNotResurrectADeletedNote()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Initial");
+    const QString path = m_tempDir->filePath("deleted_while_saving.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Edited before the delete"));
+    QVERIFY(m_manager->saveAsync());
+
+    // The collection removes the note, and the shell closes the document.
+    QVERIFY(QFile::remove(path));
+    m_manager->newDocument();
+
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QTest::qWait(800);
+
+    QVERIFY2(!QFile::exists(path),
+             "the abandoned save recreated a note the user deleted");
 }
 
 void TestDocumentManager::testManualSaveAsyncTimingSplitsRecorded()

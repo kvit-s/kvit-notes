@@ -13,6 +13,8 @@
 #include <QUrl>
 #include <QTimer>
 #include <QVariantMap>
+#include <QAtomicInt>
+#include <QSharedPointer>
 
 #include "block.h"
 
@@ -98,6 +100,16 @@ public:
     // history, and dirty state all continue.
     Q_INVOKABLE void rebindFilePath(const QString &newPath);
 
+    // Abandon any write still in flight and wait for its worker to stop.
+    //
+    // An async save owns the path it was handed. Once the note has been
+    // renamed, moved, or deleted underneath it, letting that worker finish
+    // recreates the file at the old location — outside the trash after a
+    // delete, or as a duplicate after a rename. Every operation that changes
+    // where the open note lives must call this first, so there is exactly one
+    // writer and it is the one that knows the current path.
+    Q_INVOKABLE void cancelPendingWrites();
+
     // Replace the whole document body with the given markdown as ONE
     // undo step (restore from backup).
     Q_INVOKABLE bool restoreBody(const QString &markdown);
@@ -171,6 +183,15 @@ private:
         bool loadDiverged = false;
     };
 
+    // Shared between the GUI thread and one write worker. The worker reads it
+    // immediately before committing, which is the last moment the write can
+    // still be called off; QSaveFile discards its temporary file instead of
+    // renaming it over the target, so nothing reaches the note's old path.
+    struct WriteCancellation {
+        QAtomicInt cancelled{0};
+    };
+    using WriteCancellationPtr = QSharedPointer<WriteCancellation>;
+
     struct PersistenceWriteResult {
         QString operation;
         QString path;
@@ -188,6 +209,10 @@ private:
         double commitMs = 0.0;
         bool opened = false;
         bool committed = false;
+        // The write was called off before it could rename over the target,
+        // because the note moved. Distinct from a failure: nothing went wrong
+        // and there is nothing to report to the user.
+        bool cancelled = false;
     };
 
     static AsyncOpenResult loadFileForOpen(const QString &filePath,
@@ -201,7 +226,8 @@ private:
         quint64 contentHash,
         quint64 documentRevision,
         int undoIndex,
-        int delayMs);
+        int delayMs,
+        WriteCancellationPtr cancel);
 
     void setLastSavedAt(const QDateTime &when);
     QDateTime m_lastSavedAt;
@@ -254,6 +280,10 @@ private:
     quint64 m_pendingJournalHash = 0;
     int m_pendingJournalChars = -1;
     quint64 m_documentRevision = 0;
+    // Held for as long as a note write is in flight, so a path change can call
+    // it off. Journal writes are deliberately excluded: the journal lives at a
+    // fixed control path that note renames do not move.
+    WriteCancellationPtr m_activeWriteCancel;
     bool m_autosaveRequestedWhileRunning = false;
     bool m_journalRequestedWhileRunning = false;
     int m_asyncPersistenceDelayMs = 0;

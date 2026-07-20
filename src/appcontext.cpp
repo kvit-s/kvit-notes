@@ -154,6 +154,16 @@ void AppContext::wire()
             &m_fileWatcher, [this]() {
                 m_fileWatcher.watchFile(m_documentManager.currentFilePath());
             });
+    // A save replaces the file rather than editing it in place, so the kernel
+    // watch is left pointing at the inode that was just discarded. FileWatcher
+    // renews it when the guarded change event arrives, but that event is not
+    // guaranteed — a same-path save on some platforms delivers nothing at all —
+    // so confirm the registration here too. Both paths are idempotent.
+    connect(&m_documentManager, &DocumentManager::saveSucceeded,
+            &m_fileWatcher, [this](const QString &path) {
+                if (path == m_documentManager.currentFilePath())
+                    m_fileWatcher.rewatchCurrentFile();
+            });
 
     // Wiki-link navigation: back/forward history and the quick switcher's
     // filter. History entries follow collection renames/deletions and clear

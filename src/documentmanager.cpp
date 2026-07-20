@@ -272,6 +272,11 @@ bool DocumentManager::openAsync(const QUrl &fileUrl, bool ignoreSizeCap)
 void DocumentManager::newDocument()
 {
     invalidateAsyncOpen();
+    // Bumping the generation stops a late result from being applied, but the
+    // worker's write happens regardless of whether anyone reads the result.
+    // Abandoning the document is not a reason to let the file it came from be
+    // rewritten, so stop the write itself.
+    cancelPendingWrites();
     ++m_asyncSaveGeneration;
     ++m_asyncJournalGeneration;
     if (!m_model) return;
@@ -489,6 +494,7 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
     const int undoIndex = m_undoStack ? m_undoStack->index() : -1;
     const quint64 generation = ++m_asyncSaveGeneration;
     m_autosaveRequestedWhileRunning = false;
+    m_activeWriteCancel = WriteCancellationPtr::create();
     m_asyncSaveWatcher.setFuture(QtConcurrent::run(
         &DocumentManager::writeSnapshotToFile,
         operation,
@@ -499,8 +505,21 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
         0,
         m_documentRevision,
         undoIndex,
-        m_asyncPersistenceDelayMs));
+        m_asyncPersistenceDelayMs,
+        m_activeWriteCancel));
     return true;
+}
+
+void DocumentManager::cancelPendingWrites()
+{
+    if (m_activeWriteCancel)
+        m_activeWriteCancel->cancelled.storeRelease(1);
+    // The flag alone is a race: the worker may already be past its check. Wait
+    // for it to finish so the caller can change the path knowing no write is
+    // still running against the old one.
+    waitForPendingPersistence();
+    m_activeWriteCancel.reset();
+    m_autosaveRequestedWhileRunning = false;
 }
 
 void DocumentManager::setLastSavedAt(const QDateTime &when)
@@ -624,7 +643,8 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
                                      quint64 contentHash,
                                      quint64 documentRevision,
                                      int undoIndex,
-                                     int delayMs)
+                                     int delayMs,
+                                     WriteCancellationPtr cancel)
 {
     PersistenceWriteResult result;
     result.operation = operation;
@@ -660,6 +680,18 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
     timer.restart();
     stream.flush();
     result.flushMs = double(timer.nsecsElapsed()) / 1000000.0;
+
+    // Last chance to call the write off. Everything up to here touched only
+    // QSaveFile's temporary file; commit() is the rename that would put these
+    // bytes at filePath. If the note has moved since this worker started, that
+    // rename would resurrect it at the old location, so drop the temporary
+    // file and report a cancellation rather than a failure.
+    if (cancel && cancel->cancelled.loadAcquire() != 0) {
+        file.cancelWriting();
+        result.cancelled = true;
+        result.committed = false;
+        return result;
+    }
 
     timer.restart();
     result.committed = file.commit();
@@ -746,6 +778,10 @@ void DocumentManager::rebindFilePath(const QString &newPath)
 {
     if (m_currentFilePath == newPath || newPath.isEmpty())
         return;
+    // The note has already moved on disk. A save still running was handed the
+    // old path and would recreate the file there, leaving a duplicate beside
+    // the renamed note. Stop it before adopting the new path.
+    cancelPendingWrites();
     m_currentFilePath = newPath;
     emit currentFilePathChanged();
 }
@@ -870,7 +906,10 @@ void DocumentManager::writeJournal()
         hash,
         m_documentRevision,
         undoIndex,
-        m_asyncPersistenceDelayMs));
+        m_asyncPersistenceDelayMs,
+        // The journal has a fixed control path that note renames never move,
+        // so a path change is no reason to abandon it.
+        WriteCancellationPtr()));
 }
 
 void DocumentManager::removeJournal()
@@ -956,6 +995,13 @@ void DocumentManager::onAsyncSaveFinished()
         return;
 
     recordPersistenceWriteSplits(result);
+
+    if (result.cancelled) {
+        // Deliberately abandoned because the note moved: nothing failed and
+        // there is nothing to tell the user. The document stays dirty, so the
+        // next save writes it to wherever it lives now.
+        return;
+    }
 
     if (!result.committed) {
         emit saveFailed(result.error);
