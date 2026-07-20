@@ -315,6 +315,7 @@ void NoteCollection::closeRoot()
     cancelAsyncIndexSave();
     m_rootPath.clear();
     m_canonicalRoot.clear();
+    attachStoresToRoot();
     m_notes.clear();
     m_folders.clear();
     clearFolderNoteCounts();
@@ -363,7 +364,16 @@ bool NoteCollection::prepareRootPath(const QString &path)
 
     m_rootPath = absolute;
     m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
+    attachStoresToRoot();
     return true;
+}
+
+// Every collaborator that addresses a directory under <root>/.kvit learns the
+// root from one place, so opening or closing a vault cannot leave one of them
+// pointed at the previous one.
+void NoteCollection::attachStoresToRoot()
+{
+    m_trash.setRootPath(m_rootPath);
 }
 
 void NoteCollection::loadRecoveryEntries()
@@ -2828,52 +2838,26 @@ bool NoteCollection::moveNote(const QString &relPath, const QString &targetFolde
 
 int NoteCollection::trashItemCount() const
 {
-    if (!isOpen())
-        return 0;
-    const QDir trashDir(m_rootPath + QLatin1Char('/') + kvitDirName
-                        + QLatin1Char('/') + trashDirName);
-    if (!trashDir.exists())
-        return 0;
-    return int(trashDir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot)
-                   .size());
+    return m_trash.itemCount();
 }
 
 bool NoteCollection::emptyTrash()
 {
     if (!isOpen())
         return false;
-    QDir trashDir(m_rootPath + QLatin1Char('/') + kvitDirName
-                  + QLatin1Char('/') + trashDirName);
-    if (!trashDir.exists()) {
-        return true;
-    }
-    // Permanent by design (the §12.4 safety net ends here); the
-    // confirmation dialog names the item count first.
-    const bool ok = trashDir.removeRecursively();
+    const bool ok = m_trash.empty();
     bump();
     return ok;
 }
 
 bool NoteCollection::moveToTrash(const QString &relPath)
 {
+    // The containment gate stays here, ahead of the store: the store is
+    // handed an absolute path and does not re-derive it, so this is the only
+    // place that decides whether the path is inside the vault at all.
     if (!ensureWithinRoot(relPath))
         return false;
-    const QString trashDir =
-        m_rootPath + QLatin1Char('/') + kvitDirName + QLatin1Char('/') + trashDirName;
-    if (!QDir().mkpath(trashDir))
-        return false;
-
-    const QString stamp =
-        QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-    const QString name = nameOfRelPath(relPath);
-    QString target = trashDir + QLatin1Char('/') + stamp + QLatin1Char('-') + name;
-    int n = 2;
-    while (QFileInfo::exists(target)) {
-        target = trashDir + QLatin1Char('/') + stamp + QLatin1Char('-')
-            + QString::number(n++) + QLatin1Char('-') + name;
-    }
-    return QFile::rename(absolutePath(relPath), target)
-        || QDir().rename(absolutePath(relPath), target);
+    return m_trash.moveIn(absolutePath(relPath), nameOfRelPath(relPath));
 }
 
 bool NoteCollection::deleteNote(const QString &relPath)

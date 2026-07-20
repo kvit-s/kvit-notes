@@ -21,6 +21,7 @@
 #include "cancellationtoken.h"
 #include "noteentry.h"
 #include "notefrontmatter.h"
+#include "notetrashstore.h"
 #include "vaultlock.h"
 
 class QFileInfo;
@@ -391,6 +392,7 @@ private:
     };
 
     bool prepareRootPath(const QString &path);
+    void attachStoresToRoot();
     void loadRecoveryEntries();
     void scan();
     // `visitedDirs` carries the canonical directories already walked, so a
@@ -507,6 +509,8 @@ private:
     // Held for as long as this collection has the vault open, so no second
     // process can load the same state and save over this session's writes.
     VaultLock m_vaultLock;
+    // <root>/.kvit/trash: where deleted notes and folders land.
+    NoteTrashStore m_trash;
     int m_revision = 0;
 
     QHash<QString, NoteEntry> m_notes;    // by relPath
