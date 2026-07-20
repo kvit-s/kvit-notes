@@ -282,7 +282,10 @@ module contributes legible from the core:
   `BlockModel` in a unit test still renders a `kanban` fence as a board. The
   payoff is test isolation: cases used to depend on `reset()` being called in
   the right order in `init()`, and a suite that forgot inherited whatever the
-  last one registered. Now each case constructs what it needs.
+  last one registered. Now each case constructs what it needs. The sharpest
+  evidence for this is in "One composition root, in production and in tests"
+  below: the Qt Quick harness had drifted from the real object graph without a
+  single failing test, and shared mutable setup is how that stays invisible.
 - **Block-kind numbers exist once.** `BlockKinds` is a `Q_NAMESPACE` enum
   registered to QML, so `main.qml` writes `roleValue: BlockKinds.Kanban`
   instead of `100` with a comment naming the C++ constant. Two guards in
