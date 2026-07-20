@@ -1186,28 +1186,10 @@ Reference benchmarks from Daino Notes testing with "War and Peace" (561,693 word
 
 ### 21.9 Pre-Launch Implementation Follow-ups
 
-The launch-facing behavior of all three additions is implemented and covered by focused unit
-and integration tests. The 2026-07-12 audit found these remaining differences from the
-specification they were built to:
-
-- Query blocks currently evaluate synchronously on every relevant content or collection
-  revision. The planned 150 ms coalescing timer, `(spec, revision)` result cache, and explicit
-  1,000-note / 25 ms performance gate have not been implemented.
-- Wiki-link backlink extraction skips fenced code, but does not yet share the formatter's full
-  opaque-region rules for inline code and inline/display math. Those literal examples can be
-  indexed or rewritten as links even though the editor does not render them as wiki-links.
-- Rename-safe rewriting is atomic per file but currently automatic: there is no preflight
-  confirmation, modified-stamp conflict check, partial-failure report, open-document undo path,
-  or folder-rename target rewrite.
-- Bare duplicate wiki targets currently resolve deterministically to the shortest path instead
-  of remaining unresolved until the user supplies enough path to make the suffix unique.
-- The backlinks integration test covers revision-driven live updates, but not the plan's exact
-  external `FileWatcher::feedChange` panel path. The query-block integration test does cover that
-  external watcher path.
-- Mermaid text export is unit-tested across all five families and exposed in QML, but
-  `DiagramCanvas::textDiagram()` checks for a non-empty scene rather than using the stricter
-  `sceneCurrent()` guard specified by the plan; the visible action itself is hidden while a
-  render is pending or errored.
+Moved to [docs/backlog.md](docs/backlog.md). Known gaps between shipped
+behavior and this specification are tracked there rather than inside the
+specification itself, so that a reader can tell which of the two a given
+paragraph describes.
 
 ---
 
