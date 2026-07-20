@@ -114,15 +114,12 @@ BlockDelegateBase {
     }
 
     function openEmbed() {
-        // Left reaching through the window on purpose. The guard is not a
-        // null check: it CHOOSES between two behaviours, and the else branch
-        // is what opens the link when the containing window has no link
-        // opener at all. AppActions cannot express "is anyone listening", so
-        // converting this would silently drop the fallback. Group A's shell
-        // cast types this line without changing what it does.
-        if (root.shell && root.shell.linkOpener)
-            root.shell.linkOpener.activate(embedUrl)
-        else
+        // The guard SELECTS behaviour rather than checking for null: with an
+        // editor shell the link routes through its opener; without one — a
+        // preview hosted in some other window — it opens externally.
+        // KvitShell.openLink answers whether it handled the link, so the
+        // fallback survives without the delegate naming the opener object.
+        if (!root.shell || !root.shell.openLink(embedUrl))
             Qt.openUrlExternally(embedUrl)
     }
 

@@ -2025,6 +2025,26 @@ KvitShell {
             || (linkContextMenu.visible && linkContextMenu.target === target)
     }
 
+    // KvitShell query overrides: a delegate asks whether its completion menu
+    // is open for it, and gets the menu back to drive. The menus are this
+    // window's own objects; the delegate never names them.
+    function activeBlockMenu(index) {
+        return (blockMenu.visible && blockMenu.targetIndex === index)
+            ? blockMenu : null
+    }
+    function activeMathMenu(host) {
+        return (mathCommandMenu.visible && mathCommandMenu.targets(host))
+            ? mathCommandMenu : null
+    }
+    function activeWikiMenu(host) {
+        return (wikiLinkMenu.visible && wikiLinkMenu.targets(host))
+            ? wikiLinkMenu : null
+    }
+    function openLink(url) {
+        linkOpener.activate(url)
+        return true
+    }
+
     function openTextContextMenu(target) {
         if (DocumentSelection.hasBlockSelection
             && DocumentSelection.isBlockSelected(target.index)) {

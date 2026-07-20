@@ -390,9 +390,8 @@ BlockDelegateBase {
             property bool slotChainActive: false
 
             function activeMathMenu() {
-                var menu = root.shell ? root.shell.mathCommandMenu : null
-                return (menu && menu.visible && menu.targets(sourceArea))
-                        ? menu : null
+                return root.shell
+                    ? root.shell.activeMathMenu(sourceArea) : null
             }
 
             function openMathMenu(triggerPos) {

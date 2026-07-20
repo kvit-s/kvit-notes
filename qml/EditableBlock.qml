@@ -1144,9 +1144,8 @@ BlockDelegateBase {
     // null. Gates the key forwarding and the query updates so a menu
     // targeting another block never affects this one.
     function activeBlockMenu() {
-        var menu = delegate.shell ? delegate.shell.blockMenu : null
-        return (menu && menu.visible && menu.targetIndex === delegate.index)
-                ? menu : null
+        return delegate.shell
+            ? delegate.shell.activeBlockMenu(delegate.index) : null
     }
 
     // Open the block menu anchored at this block's text cursor
@@ -1172,8 +1171,7 @@ BlockDelegateBase {
     // The window's math command menu while it is open FOR THIS EDITOR,
     // else null (the activeBlockMenu() pattern).
     function activeMathMenu() {
-        var menu = delegate.shell ? delegate.shell.mathCommandMenu : null
-        return (menu && menu.visible && menu.targets(textArea)) ? menu : null
+        return delegate.shell ? delegate.shell.activeMathMenu(textArea) : null
     }
 
     function openMathMenu() {
@@ -1190,8 +1188,7 @@ BlockDelegateBase {
     // The window's wiki-link menu while it is open FOR THIS EDITOR, else
     // null (the activeMathMenu() pattern).
     function activeWikiMenu() {
-        var menu = delegate.shell ? delegate.shell.wikiLinkMenu : null
-        return (menu && menu.visible && menu.targets(textArea)) ? menu : null
+        return delegate.shell ? delegate.shell.activeWikiMenu(textArea) : null
     }
 
     function openWikiMenu() {

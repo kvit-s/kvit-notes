@@ -54,4 +54,29 @@ ApplicationWindow {
             s = s.substring(7)
         return decodeURIComponent(s)
     }
+
+    // The completion menus a delegate asks the shell about rather than
+    // reaching for. Each returns the menu OBJECT while it is open for the
+    // given block or editor, else null; the caller then drives that object
+    // (highlight, apply, dismiss) through an untyped local, which is the one
+    // part of this boundary a menu type would type and is not worth a fifth
+    // extracted type for these few call sites. main.qml owns the menus and
+    // overrides these to answer from them; the null bodies are what a window
+    // with no menus reports.
+    //
+    // This is the AppActions principle turned around: commands go out through
+    // AppActions, and these queries come back through here, so a delegate
+    // never holds the menu object except as the opaque thing it drives.
+    function activeBlockMenu(index) { return null }
+    function activeMathMenu(host) { return null }
+    function activeWikiMenu(host) { return null }
+
+    // Whether a context menu is open holding `target`'s selection — a bool,
+    // so it is a plain typed query.
+    function contextMenuHoldsSelection(target) { return false }
+
+    // Open a link, or fall back to the external opener when this window has
+    // none. Returns whether the shell handled it, so the caller can choose
+    // the fallback without reaching for the opener object.
+    function openLink(url) { return false }
 }
