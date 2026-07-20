@@ -20,8 +20,8 @@ enum MatcherKind {
     DelimiterPair,    // symmetric marker, e.g. ** ... **
     LinkMatcher,      // [text](url) — asymmetric markers
     AutolinkMatcher,  // bare http(s) URL — zero-length markers
-    ColorMatcher,     // <span style="color:VALUE">…</span> (decision 2)
-    MathMatcher,      // $…$ inline math with Pandoc adjacency (decision 10)
+    ColorMatcher,     // <span style="color:VALUE">…</span>
+    MathMatcher,      // $…$ inline math with Pandoc adjacency
     EscapeMatcher,    // \X literal punctuation
     WikiLinkMatcher,  // [[target#heading|alias]] note references
 };
@@ -71,10 +71,10 @@ const SpanTypeDef kSpanTypes[] = {
     {"superscript", DelimiterPair, "^",  false, false, SpanFormat::Superscript, true},
     {"subscript",   DelimiterPair, "~",  false, false, SpanFormat::Subscript,   true},
     {"code",       DelimiterPair, "`",   true,  false, SpanFormat::Code},
-    // Inline math $x^2$ (features.md §1.2.15, phase11 decision 10). Verbatim
-    // TeX content; the Pandoc adjacency rule (in matchTypeAt) keeps prose
-    // dollars like "$5 and $6" literal. Only "$" starts this type, so its
-    // position among the rows does not affect any other marker.
+    // Inline math $x^2$ (features.md §1.2.15). Verbatim TeX content; the
+    // Pandoc adjacency rule (in matchTypeAt) keeps prose dollars like "$5
+    // and $6" literal. Only "$" starts this type, so its position among
+    // the rows does not affect any other marker.
     {"math",       MathMatcher,     "$", true,  false, SpanFormat::Math},
     // Backslash escapes: "\X" is a one-char span whose opening marker is
     // the backslash — concealment hides it exactly like other markers, so
@@ -162,7 +162,7 @@ bool familyHasDouble(QChar c)
 
 // Match a symmetric delimiter span opening at `pos`. Returns the span end
 // (index just past the closing marker) or -1. The rules generalize the
-// Phase 1 hand-written "*" branches, parameterized by marker char/length:
+// earlier hand-written "*" branches, parameterized by marker char/length:
 //  - opening defers to a longer sibling type (the run continues and the
 //    registry has a longer marker of this char) — the longer row already
 //    had its chance at this position and failed;
@@ -352,12 +352,12 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
         break;
     }
     case MathMatcher: {
-        // Inline math $…$ with Pandoc's adjacency rule (decision 10): the
-        // opening $ is immediately followed by a non-space (and is not the
-        // $$ of a math block), the closing $ is immediately preceded by a
-        // non-space and not followed by a digit, and the content is a single
-        // non-empty line. The first $ after the opener decides — if it fails
-        // the close test the opener stays literal, so "$5 and $6" is prose.
+        // Inline math $…$ with Pandoc's adjacency rule: the opening $ is
+        // immediately followed by a non-space (and is not the $$ of a math
+        // block), the closing $ is immediately preceded by a non-space and
+        // not followed by a digit, and the content is a single non-empty
+        // line. The first $ after the opener decides — if it fails the close
+        // test the opener stays literal, so "$5 and $6" is prose.
         if (md.at(pos) != QLatin1Char('$'))
             return false;
         const int contentStart = pos + 1;
@@ -909,7 +909,7 @@ QString MarkdownFormatter::applyColor(const QString &text, int selectionStart,
     const QString closeMarker = QStringLiteral("</span>");
 
     // Re-coloring an existing color span whose content is exactly the
-    // selection rewrites its value in place (decision 2); a sub-selection
+    // selection rewrites its value in place; a sub-selection
     // wraps (and nests, innermost winning). The parsed list is held in a
     // local so the returned pointer into it does not dangle.
     const QList<FormattedSpan> spans = parseSpans(text);

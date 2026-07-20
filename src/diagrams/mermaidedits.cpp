@@ -29,7 +29,7 @@ Result okResult(const QString &source)
     return r;
 }
 
-// ---- shared gesture context (§20.2: spans from the AST, never regex) ----
+// ---- shared gesture context (spans from the AST, never regex) ----
 
 struct Stmt {
     SourceSpan span;       // token range, absolute in `source`
@@ -109,7 +109,7 @@ Ctx makeCtx(const QString &source)
     return ctx;
 }
 
-// §20.2: after any gesture the source must reparse without new diagnostics.
+// After any gesture the source must reparse without new diagnostics.
 Result postChecked(const Ctx &ctx, const QString &newSource,
                    const QString &newId = QString())
 {
@@ -215,7 +215,7 @@ QString indentAt(const QString &source, int offset)
 }
 
 // Insert `statementText` as a new line after the statement at `stmtIndex`
-// (before the §20.3 pos line, which is a comment and never a statement).
+// (before the pos line, which is a comment and never a statement).
 QString insertStatementAfter(const Ctx &ctx, int stmtIndex,
                              const QString &statementText)
 {
@@ -254,7 +254,7 @@ QPair<QString, QString> shapeDelimiters(NodeShape shape)
     return { "[", "]" };
 }
 
-// Quote a label only when the raw text requires it (§20.4).
+// Quote a label only when the raw text requires it.
 QString renderLabel(const QString &text, bool *needsRefusal)
 {
     *needsRefusal = false;
@@ -354,7 +354,7 @@ QString refTextInStatement(const Ctx &ctx, const Node &n, const Stmt &s,
     return n.id;
 }
 
-// The canonical §20.3 pos line for the given positions. Snapshot
+// The canonical pos line for the given positions. Snapshot
 // serialization is deterministic: caller order (source order) is preserved,
 // coordinates are rounded integers, and the plugin's entry pattern
 // `id=x,y` is emitted without dimension suffixes.
@@ -390,7 +390,7 @@ Result writeArrangement(const QString &source,
     const QString line = posLineFor(positions);
     QString out = source;
     if (pr.flowchart.hasPosLine && pr.flowchart.posLineSpan.valid()) {
-        // Replace only the pos line; every other byte is untouched (§20.2).
+        // Replace only the pos line; every other byte is untouched.
         out.replace(pr.flowchart.posLineSpan.start,
                     pr.flowchart.posLineSpan.length, line);
     } else if (out.endsWith(u'\n')) {
@@ -403,7 +403,7 @@ Result writeArrangement(const QString &source,
     return okResult(out);
 }
 
-// ---- §20.4 semantic gestures ----
+// ---- Semantic gestures ----
 
 Result setNodeLabel(const QString &source, const QString &nodeId,
                     const QString &newLabel)
@@ -480,7 +480,7 @@ Result renameNode(const QString &source, const QString &oldId,
     if (findNode(ctx, newId))
         return fail(QStringLiteral("A node named %1 already exists")
                         .arg(newId));
-    // Replace every AST-known reference span, last first (§20.4).
+    // Replace every AST-known reference span, last first.
     QList<SourceSpan> refs = n->refSpans;
     std::sort(refs.begin(), refs.end(),
               [](const SourceSpan &a, const SourceSpan &b) {
@@ -513,7 +513,7 @@ Result deleteNode(const QString &source, const QString &nodeId)
             continue;
         const QString kw = s.firstWord;
         if (kw == QLatin1String("class") || kw == QLatin1String("style")) {
-            // §20.2: refused rather than applied approximately when the
+            // Refused rather than applied approximately when the
             // statement styles other nodes too.
             bool others = false;
             for (const Node &other : ctx.pr.flowchart.nodes) {
@@ -537,7 +537,7 @@ Result deleteNode(const QString &source, const QString &nodeId)
             return fail(QStringLiteral("%1 is referenced from retained "
                                        "syntax; edit the source instead")
                             .arg(nodeId));
-        // A declaration or edge chain statement: removed whole (§20.4).
+        // A declaration or edge chain statement: removed whole.
         removals.append(removalRange(ctx, i));
     }
     if (removals.isEmpty())
@@ -578,7 +578,7 @@ Result deleteEdge(const QString &source, int edgeIndex)
         return postChecked(ctx, out);
     }
 
-    // §20.4: a chained statement is split so unaffected links survive.
+    // A chained statement is split so unaffected links survive.
     const Stmt &s = ctx.stmts.at(stmtIndex);
     const QString indent = indentAt(source, s.span.start);
     QStringList lines;
@@ -645,7 +645,7 @@ Result insertEdge(const QString &source, const QString &fromId,
     const Node *to = findNode(ctx, toId);
     if (!from || !to)
         return fail(QStringLiteral("Both ends must be existing nodes"));
-    // Insert after the last statement mentioning the source node (§20.4).
+    // Insert after the last statement mentioning the source node.
     int anchor = -1;
     for (int i = 0; i < ctx.stmts.size(); ++i)
         if (stmtMentionsNode(ctx.stmts.at(i), *from))
@@ -707,7 +707,7 @@ Result setNodeStyle(const QString &source, const QString &nodeId,
                 + QStringLiteral("stroke:%1").arg(stroke.name());
 
     // Reuse a Kvit classDef with the same declarations; never rewrite an
-    // existing one (§20.4).
+    // existing one.
     const QHash<QString, ClassDef> &defs = ctx.pr.flowchart.classDefs;
     QString className;
     for (auto it = defs.constBegin(); it != defs.constEnd(); ++it) {
@@ -794,7 +794,7 @@ Result reparentNode(const QString &source, const QString &nodeId,
 
     // The node's standalone declaration statement: a chain statement that
     // mentions no other node. Also count how many statements mention the
-    // node in total (edge chains keep subgraph membership alive, §20.2).
+    // node in total (edge chains keep subgraph membership alive).
     int declIndex = -1;
     int mentions = 0;
     for (int i = 0; i < ctx.stmts.size(); ++i) {
@@ -819,7 +819,7 @@ Result reparentNode(const QString &source, const QString &nodeId,
     }
     // Membership already inside a subgraph that stems from edge statements
     // cannot be moved by relocating a declaration alone: refuse rather than
-    // apply approximately (§20.2).
+    // apply approximately.
     bool memberOfSubgraph = false;
     for (const Subgraph &sg : ctx.pr.flowchart.subgraphs)
         if (sg.nodeIds.contains(nodeId) && sg.id != subgraphId)
@@ -943,7 +943,7 @@ Result reorderNode(const QString &source, const QString &nodeId, int delta)
     return postChecked(ctx, out);
 }
 
-// ---- §20.4 sequence reordering (Phase 5d) ----
+// ---- Sequence reordering ----
 
 namespace {
 

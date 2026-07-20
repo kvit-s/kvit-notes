@@ -6,8 +6,7 @@ import QtQuick
 // Divider block (features.md §1.2.9): a horizontal rule with no text
 // content. It keeps the focus API of the editable delegates so block
 // navigation is uniform: arrowing through it works, clicking selects it,
-// and (step 4) Backspace/Delete remove it and Enter adds a paragraph
-// below.
+// and Backspace/Delete remove it and Enter adds a paragraph below.
 Item {
     id: delegate
 
@@ -18,11 +17,12 @@ Item {
     required property int indentLevel
     required property bool checked
     required property int ordinal
-    // Per-block presentation attributes (phase12 §1.2.9): the divider's style,
-    // thickness, color, and width. Absent = a plain 2px full-width rule.
+    // Per-block presentation attributes (features.md §1.2.9): the
+    // divider's style, thickness, color, and width. Absent = a plain 2px
+    // full-width rule.
     required property string attributes
 
-    // ---- Divider style (phase12 §1.2.9) ----
+    // ---- Divider style (features.md §1.2.9) ----
     readonly property string divStyle:
         blockAttributes.str(attributes, "style", "solid")
     readonly property int divThickness:
@@ -257,7 +257,8 @@ Item {
         border.width: (delegate.blockSelected || delegate.isFocused) ? 2 : 0
     }
 
-    // The rule itself, drawn per style/thickness/color/width (phase12 §1.2.9).
+    // The rule itself, drawn per style/thickness/color/width
+    // (features.md §1.2.9).
     Canvas {
         id: dividerCanvas
         objectName: "dividerLine"

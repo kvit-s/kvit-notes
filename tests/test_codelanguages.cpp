@@ -48,7 +48,7 @@ private:
     }
 
 private slots:
-    // ---- Registry and aliases (decision 14) ----
+    // ---- Registry and aliases ----
     void supportedSetIsTheEleven()
     {
         const QStringList langs = CodeLanguages::supportedLanguages();

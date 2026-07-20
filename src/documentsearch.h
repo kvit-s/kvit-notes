@@ -20,7 +20,7 @@ class BlockModel;
 // delegates RENDER matches by querying it through the revision-counter
 // pattern — nobody else owns search state, mirroring DocumentSelection.
 //
-// Matches are computed over DISPLAY text (decision 2): what the user sees,
+// Matches are computed over DISPLAY text: what the user sees,
 // markers stripped — BlockEditorEngine::displayText(content), or the
 // content itself for verbatim code blocks. Positions are display
 // coordinates. Structural chrome (bullets, ordinals, checkboxes, quote
@@ -41,7 +41,7 @@ class DocumentSearch : public QObject
     Q_PROPERTY(bool wholeWord READ wholeWord WRITE setWholeWord NOTIFY optionsChanged)
     Q_PROPERTY(bool useRegex READ useRegex WRITE setUseRegex NOTIFY optionsChanged)
     Q_PROPERTY(bool preserveCase READ preserveCase WRITE setPreserveCase NOTIFY optionsChanged)
-    // Restrict matching to the armed domain (decision 9). Meaningful only
+    // Restrict matching to the armed domain. Meaningful only
     // while hasDomain; the bar shows the toggle only then.
     Q_PROPERTY(bool inSelectionOnly READ inSelectionOnly WRITE setInSelectionOnly NOTIFY optionsChanged)
     // Bumped on every observable change of matches/current/error/domain;
@@ -51,8 +51,8 @@ class DocumentSearch : public QObject
     // 1-based position of the current match for the "3 of 15" label;
     // 0 while there are no matches.
     Q_PROPERTY(int currentNumber READ currentNumber NOTIFY revisionChanged)
-    // True while the query is an uncompilable regular expression
-    // (decision 7): an error STATE, never a crash.
+    // True while the query is an uncompilable regular expression: an
+    // error STATE, never a crash.
     Q_PROPERTY(bool patternError READ patternError NOTIFY revisionChanged)
     Q_PROPERTY(bool hasDomain READ hasDomain NOTIFY revisionChanged)
 
@@ -73,7 +73,7 @@ public:
         }
     };
 
-    // Replacing a display range inside block content (decision 8):
+    // Replacing a display range inside block content:
     // select-and-type semantics through the engine's cut contract.
     struct ReplaceResult {
         QString content;
@@ -106,12 +106,12 @@ public:
     bool patternError() const { return m_patternError; }
     bool hasDomain() const { return m_domainMode != NoDomain; }
 
-    // Where find starts (decision 4): the last active cursor, markdown
-    // coordinates. Query/option recomputes seed the current match to the
-    // first match at/after it, wrapping to the document's first match.
+    // Where find starts: the last active cursor, markdown coordinates.
+    // Query/option recomputes seed the current match to the first match
+    // at/after it, wrapping to the document's first match.
     Q_INVOKABLE void setActiveCursor(int blockIndex, int mdPos);
 
-    // Step with wrap (decision 4). Both keep the seed on the new current
+    // Step with wrap. Both keep the seed on the new current
     // match so later recomputes stay nearby.
     Q_INVOKABLE void next();
     Q_INVOKABLE void previous();
@@ -122,7 +122,7 @@ public:
     // {"found", "blockIndex", "start", "length"} for scroll-to-match.
     Q_INVOKABLE QVariantMap currentMatchInfo() const;
 
-    // ---- In-selection domain (decision 9). The QML layer snapshots the
+    // ---- In-selection domain. The QML layer snapshots the
     // live DocumentSelection into these at arm time; ids keep the domain
     // valid across moves, and a vanished id prunes (block domain) or
     // clears the domain (text domain edge). Text positions are MARKDOWN
@@ -132,8 +132,8 @@ public:
                                    int endIndex, int endPos);
     Q_INVOKABLE void clearDomain();
 
-    // ---- Replace (decisions 8–10). Each is one undo step, isolated
-    // from the typing merge window. ----
+    // ---- Replace. Each is one undo step, isolated from the typing
+    // merge window. ----
     // Replaces the current match and advances to the next remaining one.
     Q_INVOKABLE bool replaceCurrent(const QString &replacement);
     // Replaces every match in the domain; returns how many were replaced.
@@ -149,25 +149,25 @@ public:
 
     // ---- Pure helpers (unit-tested without a GUI) ----
 
-    // Scan one block's searchable text. Zero-length matches are skipped
-    // (decision 7); matches never overlap. patternError reports an
-    // uncompilable regex (matches empty then).
+    // Scan one block's searchable text. Zero-length matches are skipped;
+    // matches never overlap. patternError reports an uncompilable regex
+    // (matches empty then).
     static QList<Match> scanText(const QString &text, const QString &query,
                                  bool caseSensitive, bool wholeWord,
                                  bool useRegex, bool *patternError = nullptr);
     // $1–$9, $& (whole match), $$ (literal dollar); anything else is
-    // literal. captures[0] is the whole match (decision 8).
+    // literal. captures[0] is the whole match.
     static QString substituteCaptures(const QString &replacement,
                                       const QStringList &captures);
-    // Adapt replacement casing to the matched text's (decision 9):
-    // ALL-UPPER → upper, all-lower → lower, Capitalized → capitalized,
-    // mixed or letterless → as typed.
+    // Adapt replacement casing to that of the matched text: ALL-UPPER
+    // → upper, all-lower → lower, Capitalized → capitalized, mixed or
+    // letterless → as typed.
     static QString applyPreserveCase(const QString &replacement,
                                      const QString &matched);
-    // Select-and-type replacement of a display range (decision 8):
-    // cutRangeResult (no reveals) + insert at the resulting markdown
-    // cursor. Verbatim (code) content splices directly — display IS
-    // markdown there.
+    // Select-and-type replacement of a display range: cutRangeResult
+    // (no reveals) + insert at the resulting markdown cursor.
+    // Verbatim (code) content splices directly — display IS markdown
+    // there.
     static ReplaceResult replaceRange(const QString &content, bool verbatim,
                                       int displayStart, int displayEnd,
                                       const QString &replacement);
@@ -219,7 +219,7 @@ private:
     int m_current = -1;
     bool m_patternError = false;
 
-    // Seed: block id + display position (decision 4).
+    // Seed: block id + display position.
     QString m_seedId;
     int m_seedDisplayPos = 0;
 

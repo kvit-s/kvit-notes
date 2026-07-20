@@ -146,7 +146,7 @@ void TestTheme::testTablesAreCompleteAndDistinct()
         for (const QColor &c : all)
             QVERIFY2(c.isValid(), qPrintable(id + " has an unset token"));
 
-        // The five code-highlight tokens (phase10 decision 3) are five
+        // The five code-highlight tokens are five
         // distinct colors within each theme, so the token classes are
         // visually separable.
         const QList<QColor> codeTokens{ t.codeKeyword, t.codeType,
@@ -168,7 +168,7 @@ void TestTheme::testTablesAreCompleteAndDistinct()
 
 void TestTheme::testDarkAndSepiaKeepContrast()
 {
-    // Coarse legibility floor (WCAG-grade auditing is Phase 12): body
+    // Coarse legibility floor (not a WCAG-grade audit): body
     // text against the editor background keeps a strong luminance gap,
     // and text stays legible over the selection and search tints.
     auto luminance = [](const QColor &c) {

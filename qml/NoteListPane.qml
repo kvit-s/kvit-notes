@@ -31,7 +31,7 @@ Rectangle {
     // the note rows.
     readonly property bool searching: collectionSearch.query !== ""
 
-    // Bulk selection (§8.3): relPaths, gestured like the Phase 6 block
+    // Bulk selection (features.md §8.3): relPaths, gestured like the block
     // selection — Click selects (and opens), Ctrl+Click toggles,
     // Shift+Click ranges from the last plain-clicked row.
     property var selectedPaths: []
@@ -107,7 +107,7 @@ Rectangle {
 
     // ---- Note drag: onto a sidebar folder (move — the whole selection
     // when a selected row is dragged), or within the list to reorder
-    // when the manual sort is active (decision 8) ------------------------
+    // when the manual sort is active ------------------------------------
     QtObject {
         id: noteDrag
         property bool active: false
@@ -613,10 +613,10 @@ Rectangle {
                     }
                 }
 
-                // Hover toggles (§8.3 pin / star); context menus are
-                // Phase 9. Overlaid on the top-right corner rather than
-                // participating in the title row, so their taller click
-                // targets never change the row's layout height on hover.
+                // Hover toggles (features.md §8.3 pin / star). Overlaid on
+                // the top-right corner rather than participating in the title
+                // row, so their taller click targets never change the row's
+                // layout height on hover.
                 Row {
                     id: noteRowToggles
                     visible: noteRowHover.hovered
@@ -891,8 +891,7 @@ Rectangle {
         standardButtons: Dialog.Ok | Dialog.Cancel
     }
 
-    // F2 renames the open note (§8.3's rename path until Phase 9 brings
-    // context menus).
+    // F2 renames the open note (features.md §8.3's rename path).
     Shortcut {
         sequence: "F2"
         enabled: noteListPane.visible && appWindow

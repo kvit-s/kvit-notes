@@ -80,7 +80,7 @@ Popup {
     }
 
     // Fed by the target delegate on every model content change while
-    // the menu is open (the query lives in the block, decision 1).
+    // the menu is open (the query lives in the block).
     function updateQuery(content) {
         if (mode === "slash") {
             if (content.length === 0 || content.charAt(0) !== "/"
@@ -136,7 +136,7 @@ Popup {
             applyRow(rows[highlightIndex])
     }
 
-    // Selecting an entry is one convertBlock (decision 2): the target's
+    // Selecting an entry is one convertBlock: the target's
     // content — the typed "/query" or the plus-button filter text — is
     // cleared and the type set in a single undo step. Dismiss precedes
     // the conversion because the type change may recreate the target's
@@ -148,12 +148,12 @@ Popup {
         var type = row.type
         blockMenuModel.noteUsed(type)
         dismiss()
-        // Media types insert rather than convert (decision 14): an empty
-        // Image block has no path, so the menu hands off to the insert flow.
-        // Image and Media both insert via the shared file/URL dialog, which
-        // classifies the path (decision 13/14): a media extension lands a
-        // Media block, everything else an Image.
-        // A Web Embed (phase11 decision 11) prompts for a URL and inserts an
+        // Media types insert rather than convert: an empty Image block has
+        // no path, so the menu hands off to the insert flow. Image and Media
+        // both insert via the shared file/URL dialog, which classifies the
+        // path: a media extension lands a Media block, everything else an
+        // Image.
+        // A Web Embed prompts for a URL and inserts an
         // ![](url) image expression that classifies to the embed card.
         if (type === Block.Image && row.language === "embed") {
             var winE = Window.window
@@ -191,7 +191,7 @@ Popup {
             applied(idx, type)
             return
         }
-        // A "/code <language>" row carries the language to seed (decision 14).
+        // A "/code <language>" row carries the language to seed.
         var lang = row.language !== undefined ? row.language : ""
         // A Task Board (kanban fence) starts with three empty columns so the
         // board renders something to drop cards into, all in the one
@@ -292,7 +292,7 @@ Popup {
                         anchors.rightMargin: 8
                         spacing: 10
 
-                        // Icon badge (glyphs until the Phase 9 icon set)
+                        // Icon badge (glyphs until an icon set lands)
                         Rectangle {
                             width: 28
                             height: 28

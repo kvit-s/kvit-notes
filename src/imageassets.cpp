@@ -116,9 +116,9 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
     result.width = width;
     result.kind = kindForExtension(path);
     // A lone ![](url) whose URL is an http(s) web page or video host (no media
-    // extension, so kindForExtension is None) is a WEB EMBED (phase11 decision
-    // 11), stored as an Image block; delegateKindForContent then renders it as
-    // a preview card. Keeps kindForExtension pure so EmbedMetadata::isEmbedUrl
+    // extension, so kindForExtension is None) is a WEB EMBED, stored as an
+    // Image block; delegateKindForContent then renders it as a preview
+    // card. Keeps kindForExtension pure so EmbedMetadata::isEmbedUrl
     // (which checks for None) still distinguishes it from a remote image file.
     if (result.kind == Kind::None
         && (path.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
@@ -159,7 +159,7 @@ QString ImageAssets::resolveSource(const QString &stored, const QString &noteDir
         return stored;
 
     // Note-relative, then root-relative, then absolute/cwd-relative — the
-    // first that exists wins (decision 5). QDir::absoluteFilePath returns an
+    // first that exists wins. QDir::absoluteFilePath returns an
     // absolute `stored` unchanged, so an absolute path is tried once.
     QStringList candidates;
     if (!noteDir.isEmpty())
@@ -176,7 +176,7 @@ QString ImageAssets::resolveSource(const QString &stored, const QString &noteDir
     return QString();   // unresolved → broken-path placeholder
 }
 
-// ---- Asset ingestion (decision 5) ----
+// ---- Asset ingestion ----
 
 QString ImageAssets::assetsDir(const QString &root, const QString &noteDir)
 {
@@ -246,7 +246,7 @@ QString ImageAssets::ingestFile(const QString &sourcePath, const QString &noteSl
     const QString absSrc = src.absoluteFilePath();
 
     // Link in place when the file already lives under the collection root:
-    // no copy, just store its root-relative path (decision 5).
+    // no copy, just store its root-relative path.
     if (!root.isEmpty()) {
         const QString rootAbs = QDir(root).absolutePath();
         if (absSrc.startsWith(rootAbs + QLatin1Char('/')))

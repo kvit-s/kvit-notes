@@ -54,7 +54,7 @@ enum class NodeShape {
 
 enum class EdgeStroke { Solid, Dotted, Thick };
 
-// A UTF-16 span into the fence source as stored on the block (§20.2: edit
+// A UTF-16 span into the fence source as stored on the block (edit
 // spans are computed from AST source offsets, never by regex over the body).
 struct SourceSpan {
     int start = -1;
@@ -73,7 +73,7 @@ struct Node {
     NodeShape shape = NodeShape::Rect;
     QStringList classes;   // classDef names applied via `class`/`:::`
     int order = 0;         // first-encounter order, a stable layout tie-breaker
-    // §20 source mapping.
+    // Source mapping.
     SourceSpan idSpan;              // the id token of the first declaration
     SourceSpan labelSpan;           // raw text between the shape brackets
     SourceSpan shapeSpan;           // the whole bracket construct `[label]`
@@ -91,7 +91,7 @@ struct Edge {
     bool invisible = false;    // `~~~` link: ranks like an edge, draws nothing
     int minLen = 1;            // rank span from extra dashes (`--->`)
     int order = 0;
-    // §20 source mapping.
+    // Source mapping.
     SourceSpan opSpan;         // the arrow token (incl. any inline label)
     SourceSpan pipeSpan;       // a `|label|` construct after the arrow, if any
     SourceSpan stmtSpan;       // the enclosing statement's token range
@@ -198,7 +198,7 @@ struct SequenceAst {
     }
 };
 
-// One `id=x,y` entry of a `%% mermaid-flow:pos` arrangement line (§20.3).
+// One `id=x,y` entry of a `%% mermaid-flow:pos` arrangement line.
 // Coordinates are node centers in logical pixels, origin at the scene's
 // top-left (the obsidian-mermaid-flow convention, locked by the cross-tool
 // fixtures).
@@ -216,7 +216,7 @@ struct FlowchartAst {
     QHash<QString, ClassDef> classDefs;
     QString accTitle;
     QString accDescr;
-    // §20.3 manual arrangement: the fence's single recognized pos line.
+    // Manual arrangement: the fence's single recognized pos line.
     bool hasPosLine = false;
     QList<PosEntry> posEntries;
     SourceSpan posLineSpan;    // the whole line, newline excluded

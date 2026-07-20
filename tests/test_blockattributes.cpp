@@ -8,10 +8,10 @@
 #include "block.h"
 #include "undostack.h"
 
-// Phase 12 Step 1: the per-block presentation attribute mechanism. Covers the
+// The per-block presentation attribute mechanism. Covers the
 // pure parse/serialize core (BlockAttributes), the typed QML reads, the editing
 // helpers, and the serializer split/re-attach — including the byte-identical
-// no-attribute case that keeps every Phase 0–11 document unchanged.
+// no-attribute case that keeps documents without attributes unchanged.
 class TestBlockAttributes : public QObject
 {
     Q_OBJECT
@@ -281,7 +281,7 @@ void TestBlockAttributes::serializerHeadingImageDividerCalloutRoundTrip()
 
 void TestBlockAttributes::serializerUnstyledIsByteIdentical()
 {
-    // A document with no attributes must serialize exactly as before Phase 12.
+    // A document with no attributes must serialize exactly as it was read.
     DocumentSerializer ser;
     ser.setTrailingNewline(false);
     const QString md = QStringLiteral(

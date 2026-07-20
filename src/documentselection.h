@@ -23,7 +23,7 @@ class QModelIndex;
 // index-based queries resolve ids at call time, and the model's
 // structural signals prune ids whose blocks were removed.
 //
-// The two selection kinds are mutually exclusive (decision 2): starting
+// The two selection kinds are mutually exclusive: starting
 // one clears the other.
 //
 // Block-selection semantics follow the file-manager convention: a
@@ -183,8 +183,7 @@ private:
     Granularity m_granularity = CharacterGranularity;
 
     // Ids captured at rowsAboutToBeRemoved so pruning works from the
-    // removed range instead of rescanning the whole model (Phase 6,
-    // finding A2).
+    // removed range instead of rescanning the whole model.
     QSet<QString> m_pendingRemovedIds;
 };
 

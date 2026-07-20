@@ -114,7 +114,7 @@ ApplicationWindow {
     onStatusBarVisibleChanged:
         appSettings.setValue("view.statusBar", statusBarVisible)
 
-    // §17.1 document outline pane (phase11 step 1): a right-side dock listing
+    // features.md §17.1 document outline pane: a right-side dock listing
     // the document's headings, toggled from the view menu (Ctrl+Shift+O),
     // persisted. Document-level, so it works in single-file mode too.
     property bool outlineVisible: false
@@ -127,9 +127,9 @@ ApplicationWindow {
     onOutlineVisibleChanged:
         appSettings.setValue("view.outline", outlineVisible)
 
-    // §16.1 focus mode (phase11 decision 5): hide all chrome (toolbar, side
+    // features.md §16.1 focus mode: hide all chrome (toolbar, side
     // panels, outline, status bar), center the editor column, and go
-    // full-screen. A composition of Phase 9's panel toggles plus a window-
+    // full-screen. A composition of the panel toggles plus a window-
     // state flip — presentation only, no document behavior. Escape or the
     // shortcut exits. §16.2 typewriter mode is independent and composable:
     // it keeps the caret line centered and fades non-caret blocks. Both
@@ -248,7 +248,7 @@ ApplicationWindow {
         }
     }
 
-    // §19.2 session word-count tracker (phase11 decision 7): the document's
+    // features.md §19.2 session word-count tracker: the document's
     // word count when the note opened; the statistics popover shows the delta.
     // Ephemeral, reset per note.
     property int sessionStartWords: 0
@@ -256,7 +256,7 @@ ApplicationWindow {
         sessionStartWords = blockModel ? blockModel.documentWordCount : 0
     }
 
-    // A transient status-bar note (phase11 decision 3): shown briefly, e.g.
+    // A transient status-bar note: shown briefly, e.g.
     // when an internal link resolves or dangles. Cleared by its timer.
     property string transientStatus: ""
     Timer {
@@ -284,7 +284,7 @@ ApplicationWindow {
 
     // Scroll a block to the top of the editor viewport and focus it — the
     // find-bar's scroll-into-view generalized, reused by internal-link
-    // navigation and the outline/TOC click-to-scroll (decision 3).
+    // navigation and the outline/TOC click-to-scroll.
     function scrollToBlock(idx) {
         if (idx < 0 || !blockModel || idx >= blockModel.count)
             return
@@ -387,8 +387,8 @@ ApplicationWindow {
         function onLevelMaskChanged() {
             appSettings.setValue("view.outlineLevels", documentOutline.levelMask)
         }
-        // A table-of-contents fence's stored body is derived from the headings
-        // (phase11 decision 4): keep it current so the file reads correctly
+        // A table-of-contents fence's stored body is derived from the
+        // headings: keep it current so the file reads correctly
         // elsewhere and export/serialize see the right list. The delegate
         // renders the live outline directly, so this is persistence only —
         // and it bypasses the undo stack (updateContentSilently), so it never
@@ -462,8 +462,8 @@ ApplicationWindow {
         collectionOpen && documentManager.hasFile
             ? noteCollection.relativePath(documentManager.currentFilePath) : ""
 
-    // Switch notes: save-on-blur, load, undo clears (decision 5 — the
-    // existing open() contract), search and selections reset.
+    // Switch notes: save-on-blur, load, undo clears (the existing open()
+    // contract), search and selections reset.
     function openNoteByPath(relPath) {
         if (!collectionOpen || relPath === "")
             return false
@@ -660,7 +660,7 @@ ApplicationWindow {
     }
 
     // A clicked global-search result (§8.4 "open note at match
-    // location"): open the note, then hand off to the Phase 7 find bar —
+    // location"): open the note, then hand off to the find bar —
     // the query seeds DocumentSearch and the clicked occurrence becomes
     // the current match through the cursor-seeding rule.
     function openSearchResult(relPath, blockIndex, displayStart) {
@@ -688,7 +688,7 @@ ApplicationWindow {
         }
     }
 
-    // §18 create a note from a template (phase11 decision 6): a new note in
+    // features.md §18 create a note from a template: a new note in
     // the current scope, titled by the template, with the template's expanded
     // body loaded and its front-matter (tags, favorite) carried through.
     function createFromTemplate(templateName) {
@@ -831,7 +831,7 @@ ApplicationWindow {
     // No Save As shortcut: StandardKey.SaveAs resolves to Ctrl+Shift+S,
     // which features.md §13 assigns to strikethrough (the spec's shortcut
     // table gives Save As no binding). Ctrl+S on an untitled document
-    // still opens the save dialog; a menu entry arrives with Phase 9.
+    // still opens the save dialog.
 
     // Find bar (features.md §7.1).
     // Application context: these work from a focused block, from the
@@ -914,7 +914,7 @@ ApplicationWindow {
                 root.followWikiLink(url.substring(10))
                 return
             }
-            // Internal document link (phase11 decision 3): #slug resolves
+            // Internal document link: #slug resolves
             // through the shared slug function to a heading and scrolls there,
             // rather than opening a browser. An unresolved slug is a
             // recoverable no-op with a status-bar note, never an error.
@@ -954,8 +954,8 @@ ApplicationWindow {
         property int mdEnd: -1
         property bool editing: false
         property bool removable: false
-        // The document's headings for the "link to heading" mode (§2.4's
-        // deferred jump-to-heading; phase11 decision 3). Refreshed on open.
+        // The document's headings for the "link to heading" mode
+        // (features.md §2.4's deferred jump-to-heading). Refreshed on open.
         property var headingTargets: []
 
         function openForInsert(index, start, end, initialText) {
@@ -1530,7 +1530,7 @@ ApplicationWindow {
             }
 
             // Ctrl+D: duplicate the selection below itself; the
-            // selection moves to the clones (§3.6; decision 11)
+            // selection moves to the clones (features.md §3.6)
             if (event.key === Qt.Key_D && ctrl) {
                 var clones = blockModel.duplicateBlocks(
                     documentSelection.selectedIndexes())
@@ -1653,7 +1653,7 @@ ApplicationWindow {
                 unsavedChangesBeforeOpenDialog.open()
             } else if (root.collectionOpen) {
                 // In collection mode, offer to import rather than only open a
-                // standalone file (closing the Phase 8 gap, decision 9).
+                // standalone file.
                 openOrImportChoiceDialog.open()
             } else {
                 documentManager.openFileDialog()
@@ -1748,8 +1748,8 @@ ApplicationWindow {
         }
     }
 
-    // Toggle Sidebar (§13.4): hides both panels for focused writing;
-    // per-panel control arrives with Phase 9's layout work.
+    // Toggle Sidebar (features.md §13.4): hides both panels for focused
+    // writing.
     Shortcut {
         sequence: "Ctrl+\\"
         context: Qt.ApplicationShortcut
@@ -1764,7 +1764,7 @@ ApplicationWindow {
         onActivated: settingsDialog.open()
     }
 
-    // Toggle the document outline (§17.1; phase11 step 1).
+    // Toggle the document outline (features.md §17.1).
     Shortcut {
         sequence: "Ctrl+Shift+O"
         context: Qt.ApplicationShortcut
@@ -1797,7 +1797,7 @@ ApplicationWindow {
         id: settingsDialog
     }
 
-    // §13 discoverable keyboard-shortcut reference (phase12 step 4).
+    // features.md §13 discoverable keyboard-shortcut reference.
     function openShortcutReference() { shortcutReference.open() }
     ShortcutReference {
         id: shortcutReference
@@ -1817,7 +1817,7 @@ ApplicationWindow {
         return (bytes / (1024 * 1024)).toFixed(1) + " MiB"
     }
 
-    // §12.1 external-change conflict (phase12 step 9): when the open note is
+    // features.md §12.1 external-change conflict: when the open note is
     // changed on disk outside the app while it is dirty here, offer keep-mine /
     // load-theirs rather than silently clobbering either side.
     property bool externalConflict: false
@@ -1852,7 +1852,7 @@ ApplicationWindow {
         root.externalConflict = false
     }
 
-    // §15 system integration: quick capture + tray + global hotkey (step 8).
+    // features.md §15 system integration: quick capture + tray + global hotkey.
     function openQuickCapture() {
         if (root.collectionOpen)
             quickCaptureWindow.openCapture()
@@ -1870,7 +1870,7 @@ ApplicationWindow {
         function onActivated() { root.openQuickCapture() }
     }
     // In-app quick-capture chord (works while the window is focused, so capture
-    // is reachable even where the system-wide grab is unavailable, spike (b)).
+    // is reachable even where the system-wide grab is unavailable).
     Shortcut {
         sequence: "Ctrl+Alt+N"
         onActivated: root.openQuickCapture()
@@ -1884,28 +1884,28 @@ ApplicationWindow {
         }
     }
 
-    // §18 template management dialog (phase11 decision 6).
+    // features.md §18 template management dialog.
     property alias templateDialog: templateDialog
     TemplateDialog {
         id: templateDialog
         appWindow: root
     }
 
-    // §12.5 export dialog (phase11 decision 8).
+    // features.md §12.5 export dialog.
     property alias exportDialog: exportDialog
     ExportDialog {
         id: exportDialog
         appWindow: root
     }
 
-    // §12.6 import dialog (phase11 decision 9).
+    // features.md §12.6 import dialog.
     property alias importDialog: importDialog
     ImportDialog {
         id: importDialog
         appWindow: root
     }
 
-    // §19.1 statistics popover (phase11 decision 7): opened from the status
+    // features.md §19.1 statistics popover: opened from the status
     // bar's counts. Parented to the window overlay so it floats above the
     // status bar.
     property alias statisticsPanel: statisticsPanel
@@ -1978,7 +1978,7 @@ ApplicationWindow {
         lightbox.open(source, alt)
     }
 
-    // Insert an image into an (empty) block by file or URL (§4.3, decision 14).
+    // Insert an image into an (empty) block by file or URL (features.md §4.3).
     function insertImageIntoBlock(idx) {
         imageInsertDialog.targetIndex = idx
         imagePathField.text = ""
@@ -2023,13 +2023,13 @@ ApplicationWindow {
         }
     }
 
-    // Insert a table via the grid-size picker (§4.2, decision 14).
+    // Insert a table via the grid-size picker (features.md §4.2).
     function insertTableIntoBlock(idx) {
         tableSizePicker.targetIndex = idx
         tableSizePicker.open()
     }
 
-    // ---- External drop ingestion (§5.3, §5.4; phase10 step 4) ----
+    // ---- External drop ingestion (features.md §5.3, §5.4) ----
     function currentNoteDir() {
         var p = documentManager.currentFilePath
         var idx = p.lastIndexOf("/")
@@ -2339,13 +2339,13 @@ ApplicationWindow {
         nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.gif *.webp *.svg *.bmp)"),
                       qsTr("All files (*)")]
         onAccepted: {
-            // Store the chosen file's path; ingestion/copy is step 4.
+            // Store the chosen file's path; ingestion/copy comes later.
             var p = selectedFile.toString().replace(/^file:\/\//, "")
             imagePathField.text = p
         }
     }
 
-    // The custom-color picker for the text context menu (phase10 decision 2).
+    // The custom-color picker for the text context menu.
     // The target block is captured when the menu opens, since the dialog is
     // asynchronous.
     ColorDialog {
@@ -2571,7 +2571,7 @@ ApplicationWindow {
         value: noteListModel.tagFilter
     }
 
-    // The crash-recovery journal follows the open note (decision 11);
+    // The crash-recovery journal follows the open note;
     // "" outside collection mode disables it.
     Binding {
         target: documentManager
@@ -2593,7 +2593,7 @@ ApplicationWindow {
         }
     }
 
-    // ---- Restore from backup (decision 10): per-note, previewed, and
+    // ---- Restore from backup: per-note, previewed, and
     // applied through the block model as ONE undo step — a wrong restore
     // costs one Ctrl+Z, which is why no extra confirmation is needed.
     property alias backupDialog: backupDialog
@@ -2961,7 +2961,7 @@ ApplicationWindow {
         }
 
         function onAboutToSave(filePath) {
-            // Backup rotation (decision 10): copy the pre-save file when
+            // Backup rotation: copy the pre-save file when
             // the newest backup is older than the floor.
             if (root.collectionOpen)
                 noteCollection.backupBeforeOverwrite(filePath)
@@ -3046,7 +3046,7 @@ ApplicationWindow {
                     .arg(noteCount === 1 ? qsTr("note") : qsTr("notes")))
         }
         function onRevisionChanged() {
-            // Metadata is owned by the collection (decision 2): any change
+            // Metadata is owned by the collection: any change
             // refreshes the open document's held front-matter, so the next
             // save writes the canonical current block instead of the one
             // captured at load.
@@ -3056,10 +3056,9 @@ ApplicationWindow {
         }
     }
 
-    // ---- The three-pane shell (decision 4): sidebar and note list on
-    // the left, the editor filling the rest. Plain fixed widths; Phase 9
-    // brings resizable panels and themes.
-    // The §9.2 toolbar spans the window above all three panes.
+    // ---- The three-pane shell: sidebar and note list on the left, the
+    // editor filling the rest.
+    // The features.md §9.2 toolbar spans the window above all three panes.
     Toolbar {
         id: appToolbar
         anchors.top: parent.top
@@ -3071,7 +3070,7 @@ ApplicationWindow {
         visible: !root.focusMode
     }
 
-    // §12.1 external-change conflict banner (phase12 step 9): the open note was
+    // features.md §12.1 external-change conflict banner: the open note was
     // changed on disk while dirty here. Keep-mine re-saves; load-theirs reloads.
     Rectangle {
         id: conflictBanner
@@ -3250,7 +3249,7 @@ ApplicationWindow {
             appWindow: root
             // Reinstated panel-collapse animation (§14.3), gated by the reduced-
             // motion source and suppressed during a seam drag so the two never
-            // fight over width (the Phase 9 conflict).
+            // fight over width.
             Behavior on width {
                 enabled: theme.motionScale > 0 && !sidebarSeam.dragging
                 NumberAnimation { duration: 160 * theme.motionScale
@@ -3473,7 +3472,7 @@ ApplicationWindow {
                 spacing: typography.paragraphSpacing
 
                 reuseItems: true
-                // Phase 5: keep a small offscreen row window warm for ordinary
+                // Keep a small offscreen row window warm for ordinary
                 // wheel/flick movement without making startup instantiate a
                 // large variable-height document through the buffer.
                 cacheBuffer: 240
@@ -3481,7 +3480,6 @@ ApplicationWindow {
                 // §16.2 typewriter mode: caret-line centering scrolls smoothly.
                 // The animation is enabled only in typewriter mode so ordinary
                 // scrolling, find-bar jumps, and drag auto-scroll are unchanged.
-                // (Honors the reduced-motion setting when Phase 12 adds it.)
                 Behavior on contentY {
                     // Typewriter scroll honors reduced motion (§14.3): 0
                     // duration stills it instantly.
@@ -3585,15 +3583,14 @@ ApplicationWindow {
                         KanbanBlock { width: blockListView.width }
                     }
                     DelegateChoice {
-                        // BlockModel::TocKind — a `toc`-tagged code fence
-                        // (phase11 decision 4): a read-only linked heading list.
+                        // BlockModel::TocKind — a `toc`-tagged code fence:
+                        // a read-only linked heading list.
                         roleValue: 101
                         TocBlock { width: blockListView.width }
                     }
                     DelegateChoice {
                         // BlockModel::EmbedKind — an ![](url) image expression
-                        // whose URL is a web/video embed (phase11 decision 11):
-                        // a preview card.
+                        // whose URL is a web/video embed: a preview card.
                         roleValue: 102
                         EmbedBlock { width: blockListView.width }
                     }
@@ -3619,7 +3616,7 @@ ApplicationWindow {
                     }
                 }
 
-                // Enable move animations (Step 7a)
+                // Enable move animations
                 displaced: Transition {
                     NumberAnimation {
                         properties: "y"
@@ -3661,7 +3658,7 @@ ApplicationWindow {
             }
         }
 
-        // Multi-block drop indicator (decision 9): a line naming the
+        // Multi-block drop indicator: a line naming the
         // insertion gap. Parented to the ListView viewport (not its
         // contentItem), so the y computation subtracts contentY.
         Rectangle {
@@ -3713,7 +3710,7 @@ ApplicationWindow {
         }
     }
 
-    // §17.1 document outline dock (phase11 step 1): a right-side pane over the
+    // features.md §17.1 document outline dock: a right-side pane over the
     // editor, toggled from the view menu. Placed after the editor Rectangle so
     // it sits above it; the editor's right margin reserves its width.
     OutlinePanel {
@@ -3798,7 +3795,7 @@ ApplicationWindow {
             anchors.rightMargin: 12
             spacing: 16
 
-            // Transient note (phase11 decision 3): internal-link resolution
+            // Transient note: internal-link resolution
             // feedback etc. Takes no space when empty.
             Text {
                 objectName: "transientStatusText"
@@ -3940,7 +3937,7 @@ ApplicationWindow {
                 color: theme.textDisabled
             }
 
-            // Block type indicator (Step 7b)
+            // Block type indicator
             Text {
                 id: blockTypeText
                 objectName: "blockTypeText"
@@ -4034,8 +4031,8 @@ ApplicationWindow {
                 color: theme.textDisabled
             }
 
-            // §9.7 word/character counts over display text, selection-
-            // aware (decision 9): a block selection, cross-block text
+            // features.md §9.7 word/character counts over display text,
+            // selection-aware: a block selection, cross-block text
             // selection, or in-block selection counts itself; otherwise
             // the whole document. The display-text rules come from the
             // collection (wordCountForMarkdown), so this bar and the

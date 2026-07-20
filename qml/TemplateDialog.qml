@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Template management dialog (features.md §18; phase11 decision 6): CRUD over
+// Template management dialog (features.md §18): CRUD over
 // the .kvit/templates/ markdown files, plus "save current note as template".
 // The pick-on-create flow lives in the toolbar's Templates menu; this dialog
 // edits the templates themselves. All state is in noteTemplates (files on

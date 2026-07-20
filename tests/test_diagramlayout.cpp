@@ -162,7 +162,7 @@ private slots:
 
     void canvasSelectionAndLinking()
     {
-        // §20.1 hit-testing and §20.5 linking through the canvas API.
+        // Hit-testing and linking through the canvas API.
         const QString src = QStringLiteral("flowchart LR\n  A[Start] --> B");
         DiagramCanvas canvas;
         canvas.setSource(src);
@@ -203,7 +203,7 @@ private slots:
         QVERIFY(!canvas.hasSelection());
 
         // Revision gating: invalid new source keeps the last-good scene but
-        // reports the scene as stale (§20.1).
+        // reports the scene as stale.
         canvas.setSource(QStringLiteral("flowchart LR\n  A --> C"));
         QVERIFY(!canvas.sceneCurrent());
         QVERIFY(canvas.textDiagram().isEmpty()); // pending source is stale too

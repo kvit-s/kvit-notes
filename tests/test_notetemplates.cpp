@@ -9,7 +9,7 @@
 #include <QDir>
 #include <QFile>
 
-// Note templates (phase11 decision 6): the variable expander (injected clock),
+// Note templates: the variable expander (injected clock),
 // CRUD over .kvit/templates/ markdown files, built-in seeding, and the
 // front-matter carry-through on instantiation.
 class TestNoteTemplates : public QObject

@@ -148,7 +148,7 @@ components:
   - name: Test media fixtures
     version: first-party, 2026-07
     spdx: MPL-2.0
-    origin: synthesized for the media-block test suite (Phase 10); not taken
+    origin: synthesized for the media-block test suite; not taken
       from any external recording or stock source
     files: tests/fixtures/sample.wav, tests/fixtures/sample.mp4,
       tests/fixtures/sample.png

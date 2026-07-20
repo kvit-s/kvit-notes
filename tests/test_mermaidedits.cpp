@@ -11,7 +11,7 @@
 using namespace Mermaid;
 using namespace Diagram;
 
-// §20.3 manual arrangement and its §20.7 gates: pos-line parsing, arranged-
+// Manual arrangement and its gates: pos-line parsing, arranged-
 // mode layout, full-snapshot writes confined to the pos line, reset, and the
 // cross-tool grammar fixtures (obsidian-mermaid-flow interop).
 class TestMermaidEdits : public QObject
@@ -30,7 +30,7 @@ class TestMermaidEdits : public QObject
         o.fontPixelSize = 14;
         return o;
     }
-    // §20.7 byte-preservation: with pos lines removed from both, the sources
+    // Byte-preservation: with pos lines removed from both, the sources
     // are identical — the diff was confined to the pos line.
     static bool differsOnlyInPosLine(const QString &before,
                                      const QString &after)
@@ -171,7 +171,7 @@ private slots:
         QVERIFY(std::hypot((m1 - m2).x(), (m1 - m2).y()) > 8.0);
     }
 
-    // ---- arrangement writes (§20.3, §20.7) ----
+    // ---- arrangement writes () ----
 
     void writeAppendsPosLineAsLastLine()
     {
@@ -270,7 +270,7 @@ private slots:
         QCOMPARE(r.source, QStringLiteral("flowchart TD\n  A --> B"));
     }
 
-    // ---- cross-tool fixtures (§20.6) ----
+    // ---- cross-tool fixtures ----
 
     void pluginWrittenLinesParse()
     {
@@ -291,10 +291,10 @@ private slots:
         QCOMPARE(qRound(b.y() - a.y()), 0);
     }
 
-    // ---- §20.4 semantic gestures / §20.7 byte preservation ----
+    // ---- Semantic gestures / byte preservation ----
 
     // A fixture with comments, odd spacing, pipes, and restricted syntax:
-    // the §20.7 corpus shape.
+    // the corpus shape.
     static QString gestureFixture()
     {
         return QStringLiteral(
@@ -357,7 +357,7 @@ private slots:
         const QString src = gestureFixture();
         const auto r = Edits::renameNode(src, "Alpha", "Omega");
         QVERIFY2(r.ok, qPrintable(r.error));
-        // The comment and the string label still say Alpha (§20.4).
+        // The comment and the string label still say Alpha.
         QVERIFY(r.source.contains("%% keep this comment about Alpha"));
         QVERIFY(r.source.contains("Omega[The Alpha node]"));
         QVERIFY(!r.source.contains("Alpha[") );
@@ -507,7 +507,7 @@ private slots:
         const int soloAt = in.source.indexOf("Solo[On its own]");
         QVERIFY(soloAt > subgraphAt);
         QVERIFY(soloAt < endAt);
-        // Membership through edges refuses (§20.2).
+        // Membership through edges refuses.
         const auto out = Edits::reparentNode(src, "A", "");
         QVERIFY(!out.ok);
     }
@@ -519,7 +519,7 @@ private slots:
         const auto r = Edits::reorderNode(src, "First", 1);
         QVERIFY2(r.ok, qPrintable(r.error));
         QVERIFY(r.source.indexOf("Second") < r.source.indexOf("First"));
-        // Arranged mode refuses reordering (§20.4: auto mode only).
+        // Arranged mode refuses reordering (auto mode only).
         const auto arranged = Edits::reorderNode(
             src + QStringLiteral("%% mermaid-flow:pos First=1,2\n"),
             "First", 1);
@@ -528,7 +528,7 @@ private slots:
 
     void gestureSequencesStayValid()
     {
-        // §20.7 fuzz shape: a deterministic pseudo-random gesture sequence;
+        // Fuzz shape: a deterministic pseudo-random gesture sequence;
         // after every step the source reparses without errors.
         QString src = gestureFixture();
         quint32 seed = 0x5eed;
@@ -580,7 +580,7 @@ private slots:
         QVERIFY(!parser.parse(src).hasErrors());
     }
 
-    // ---- Phase 5d: sequence reordering (§20.4) ----
+    // ---- Sequence reordering ----
 
     static QString sequenceFixture()
     {
@@ -620,7 +620,7 @@ private slots:
         QVERIFY(r.source.indexOf("B->>C: second")
                 < r.source.indexOf("A->>B: first"));
         // Only the two message lines changed places; everything else is
-        // byte-identical (§20.7): swapping back restores the original.
+        // byte-identical: swapping back restores the original.
         const ParseResult prAfter = parser.parse(r.source);
         const auto back = Edits::moveSequenceMessage(
             r.source, nthMessageEvent(prAfter, 0), 1);

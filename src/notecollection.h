@@ -29,14 +29,14 @@ class CollectionSearchIndex;
 // manual order, and the collection.json/index.json sidecars. View models bind to it
 // through the revision-counter contract; they never own collection state.
 //
-// Ownership contract with DocumentManager (decision 2): note BODIES flow
-// through DocumentManager (the block model); everything else — metadata,
+// Ownership contract with DocumentManager: note BODIES flow through
+// DocumentManager (the block model); everything else — metadata,
 // create/rename/move/delete, trash — flows through this object. The scan
 // writes only the performance index sidecar; front-matter is created lazily on
 // the first metadata edit.
 //
 // Destructive operations move files into <root>/.kvit/trash rather than
-// deleting (decision 3); they are not on the editor undo stack.
+// deleting; they are not on the editor undo stack.
 class NoteCollection : public QObject
 {
     Q_OBJECT
@@ -192,9 +192,9 @@ public:
                                              const QString &newName);
     Q_INVOKABLE bool deleteFolder(const QString &relPath); // recursive, to trash
 
-    // §9.5 trash management (the Phase 8 deferral): how many top-level
-    // items sit in .kvit/trash, and permanent removal of all of them.
-    // Bumps the revision so the sidebar's trash row stays current.
+    // Trash management: how many top-level items sit in .kvit/trash, and
+    // permanent removal of all of them. Bumps the revision so the sidebar's
+    // trash row stays current.
     Q_INVOKABLE int trashItemCount() const;
     Q_INVOKABLE bool emptyTrash();
     Q_INVOKABLE void setFolderExpanded(const QString &relPath, bool expanded);
@@ -208,9 +208,9 @@ public:
     Q_INVOKABLE bool removeTag(const QString &relPath, const QString &tag);
     Q_INVOKABLE bool setPinned(const QString &relPath, bool pinned);
     Q_INVOKABLE bool setFavorite(const QString &relPath, bool favorite);
-    // Per-note writing goal (phase11 decision 7): a word target stored in
-    // front-matter, byte-preserving the body and restoring mtime like every
-    // metadata write. 0 clears it. goalFor returns 0 when unset or unknown.
+    // Per-note writing goal: a word target stored in front-matter,
+    // byte-preserving the body and restoring mtime like every metadata
+    // write. 0 clears it. goalFor returns 0 when unset or unknown.
     Q_INVOKABLE bool setGoal(const QString &relPath, int goal);
     Q_INVOKABLE int goalFor(const QString &relPath) const;
 
@@ -233,7 +233,7 @@ public:
     Q_INVOKABLE QString lastOpenNote() const { return m_lastOpenNote; }
     Q_INVOKABLE void setLastOpenNote(const QString &relPath);
 
-    // --- Backups (decision 10): rotation on a time floor -----------------
+    // --- Backups: rotation on a time floor -------------------------------
     // Called just before a note file is overwritten (DocumentManager's
     // aboutToSave hook): copies the CURRENT on-disk file into
     // .kvit/backups/<relPath>/<stamp>.md when the newest backup is older
@@ -250,7 +250,7 @@ public:
     void setClockForTesting(std::function<QDateTime()> clock);
     Q_INVOKABLE void setClockOffsetForTesting(int secs);
 
-    // --- Crash recovery (decision 11) -------------------------------------
+    // --- Crash recovery ----------------------------------------------------
     // Where the open note's dirty-state journal lives (DocumentManager
     // writes/removes it; the path encodes the relPath).
     Q_INVOKABLE QString journalPathFor(const QString &relPath) const;
@@ -260,7 +260,7 @@ public:
     Q_INVOKABLE bool restoreRecovery(const QString &relPath);
     Q_INVOKABLE void discardRecovery(const QString &relPath);
 
-    // --- Open-note seams (DocumentManager wiring, step 3) ----------------
+    // --- Open-note seams (DocumentManager wiring) ------------------------
     // Refreshes one note's index entry after its file was (re)written.
     Q_INVOKABLE void noteSaved(const QString &absPath);
     Q_INVOKABLE void noteSaved(const QString &absPath,

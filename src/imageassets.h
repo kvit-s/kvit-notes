@@ -12,20 +12,18 @@ class QImage;
 
 // Image and local-media block support.
 //
-// Storage (a deliberate refinement of decision 4's "block fields"): an image
-// or media block keeps its markdown expression verbatim in the block's
-// content — ![alt|width](path "caption") — exactly as the table and kanban
-// container types keep their markdown (decisions 8, 9). The delegate parses it
+// Storage: an image or media block keeps its markdown expression verbatim in
+// the block's content — ![alt|width](path "caption") — exactly as the table
+// and kanban container types keep their markdown. The delegate parses it
 // with the pure functions here and rewrites it (resize → width, caption edit)
 // through the model as one undo step; serialization is then the identity, and
-// round-trip fidelity is inherited. Every feature of decision 4 (alt, width,
-// caption, resize, lightbox, placeholder, path resolution) is delivered; only
-// the internal storage location differs, and uniformly across the wave-2
-// container types.
+// round-trip fidelity is inherited. Alt text, width, caption, resize,
+// lightbox, placeholder and path resolution all work off that one stored
+// expression, uniformly across the wave-2 container types.
 //
 // A paragraph becomes an Image/Media block only when its ENTIRE content is one
-// image expression (decision 4): `![alt](x.png)` mid-prose stays literal this
-// wave. The category (image vs local media) is decided by the file extension.
+// image expression: `![alt](x.png)` mid-prose stays literal. The category
+// (image vs local media) is decided by the file extension.
 //
 // The class is both the QML context object (imageAssets) — Q_INVOKABLE
 // wrappers returning QVariant-friendly types — and the home of the pure static
@@ -52,7 +50,7 @@ public:
 
     // Parse one image expression anywhere in `line` at position 0. Returns
     // invalid if `line` is not exactly a single image expression (leading or
-    // trailing text fails — decision 4's whole-line rule).
+    // trailing text fails — an image block is a whole line).
     static Parsed parseLine(const QString &line);
 
     // Build the canonical markdown from parts (width 0 omits the |width
@@ -77,7 +75,7 @@ public:
     static QString resolveSource(const QString &stored, const QString &noteDir,
                                  const QString &collectionRoot);
 
-    // ---- Asset ingestion (decision 5) ----
+    // ---- Asset ingestion ----
     // The assets directory for a note: <root>/assets when a collection is
     // open, else <noteDir>/assets (beside the file in single-file mode).
     static QString assetsDir(const QString &root, const QString &noteDir);

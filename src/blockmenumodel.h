@@ -29,8 +29,8 @@ class BlockMenuModel : public QObject
 
 public:
     // §3.7 "recently used block types shown first": how many lead the
-    // empty-query menu. Persisted through the settings store since
-    // Phase 9 (recentTypes/setRecentTypes below).
+    // empty-query menu. Persisted through the settings store
+    // (recentTypes/setRecentTypes below).
     static constexpr int MaxRecent = 3;
 
     explicit BlockMenuModel(QObject *parent = nullptr);
@@ -69,8 +69,8 @@ private:
         QString icon;
         QStringList aliases;
         // A block-type qualifier seeded on insert: a callout's type or a
-        // toggle marker (phase10 step 5). Reuses the `language` field, so it
-        // rides the existing convertBlock(language) path. Empty otherwise.
+        // toggle marker. Reuses the `language` field, so it rides the
+        // existing convertBlock(language) path. Empty otherwise.
         QString defaultLanguage;
     };
 

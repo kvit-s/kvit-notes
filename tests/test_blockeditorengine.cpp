@@ -44,7 +44,7 @@ static FormatRange colorRange(int start, int len, const QString &value)
 {
     return {start, len, FormatRange::Color, value};
 }
-// A Link range carries its per-instance target url (phase11 decision 3), so
+// A Link range carries its per-instance target url, so
 // the highlighter can distinguish resolved from unresolved #slug links.
 static FormatRange linkRange(int start, int len, const QString &url)
 {
@@ -187,7 +187,7 @@ private slots:
     void testSearchMatchesPaintAndMergeFormats();
     void testSearchHighlightFollowsRevealTransition();
 
-    // --- Phase 9: sup/sub rendering, caret format flags ---
+    // --- Sup/sub rendering, caret format flags ---
     void testSupSubVerticalAlignment();
     void testFormatFlagsAtDocumentPosition();
 
@@ -211,7 +211,7 @@ void TestBlockEditorEngine::testDisplayText_data()
     QTest::newRow("sentence") << "Hello **world** end" << "Hello world end";
     QTest::newRow("multiple") << "a **b** c *d* e" << "a b c d e";
     QTest::newRow("adjacent") << "**a***b*" << "ab";
-    // Nested markers strip at every level (features.md §2.2.7; step 4).
+    // Nested markers strip at every level (features.md §2.2.7).
     QTest::newRow("nested") << "**bo *it* ld**" << "bo it ld";
     // The nested code span hides its backticks but keeps its content
     // verbatim — the asterisks inside are code text, not a bold span.
@@ -394,7 +394,7 @@ void TestBlockEditorEngine::testFormatRangesMultipleAndAdjacent()
 
 void TestBlockEditorEngine::testFormatRangesNestedAndDegenerate()
 {
-    // Nested content combines ancestor flags (step 4); hidden state shows
+    // Nested content combines ancestor flags; hidden state shows
     // "bo it ld" with the inner word bold+italic.
     QCOMPARE(BlockEditorEngine::formatRangesForState("**bo *it* ld**", -1),
              (QList<FormatRange>{bold(0, 3), boldItalic(3, 2), bold(5, 3)}));
@@ -923,7 +923,7 @@ void TestBlockEditorEngine::testSymmetricTypeLifecycle_data()
     QTest::newRow("highlight") << "==" << quint32(FormatRange::Highlight);
     QTest::newRow("underline") << "++" << quint32(FormatRange::Underline);
     QTest::newRow("code") << "`" << quint32(FormatRange::Code);
-    // "_" variants (step 3) run the same lifecycle; "Hi _word_ end" has
+    // "_" variants run the same lifecycle; "Hi _word_ end" has
     // the word boundaries the family requires.
     QTest::newRow("underscore-bold") << "__" << quint32(FormatRange::Bold);
     QTest::newRow("underscore-italic") << "_" << quint32(FormatRange::Italic);
@@ -1009,7 +1009,7 @@ void TestBlockEditorEngine::testCodeSpanContentStaysVerbatim()
     QCOMPARE(BlockEditorEngine::displayText(r.markdown), QString("a ***b** c"));
 }
 
-// Nested-span reference markdown (step 4):
+// Nested-span reference markdown:
 //   "**bo *it* ld**"  — bold [0,14), child italic md [5,9)
 //   display "bo it ld" — "bo " bold, "it" bold+italic, " ld" bold
 static const QString N = QStringLiteral("**bo *it* ld**");
@@ -1110,7 +1110,7 @@ void TestBlockEditorEngine::testNestedRevealWalkthrough()
     QCOMPARE(engine.markdown(), "A " + N + " z");
 }
 
-// Link reference markdown (step 6):
+// Link reference markdown:
 //   "go [ab](http://x) on" — link md [3,17), text "ab", display "go ab on"
 static const QString L = QStringLiteral("go [ab](http://x) on");
 

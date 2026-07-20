@@ -136,7 +136,7 @@ void DocumentSearch::setInSelectionOnly(bool on)
     recompute();
 }
 
-// ---- seeding and navigation (decision 4) ----
+// ---- seeding and navigation ----
 
 void DocumentSearch::setActiveCursor(int blockIndex, int mdPos)
 {
@@ -165,7 +165,7 @@ void DocumentSearch::setCurrent(int flatIndex)
         return;
     m_current = flatIndex;
     if (m_current >= 0 && m_current < m_matches.size()) {
-        // Navigation moves the seed with the user (decision 4).
+        // Navigation moves the seed with the user.
         const Match &m = m_matches.at(m_current);
         m_seedId = idAt(m.blockIndex);
         m_seedDisplayPos = m.start;
@@ -215,7 +215,7 @@ int DocumentSearch::markdownPosition(int blockIndex, int displayPos) const
                                                  QList<int>(), displayPos);
 }
 
-// ---- in-selection domain (decision 9) ----
+// ---- in-selection domain ----
 
 void DocumentSearch::setBlockDomain(const QVariantList &indexes)
 {
@@ -296,7 +296,7 @@ bool DocumentSearch::matchInDomain(const Match &match) const
     return true;
 }
 
-// ---- replace (decisions 8–10) ----
+// ---- replace ----
 
 QString DocumentSearch::finalReplacement(const QString &replacement,
                                          const Match &match) const
@@ -331,7 +331,7 @@ bool DocumentSearch::replaceCurrent(const QString &replacement)
     applyContentUpdates(QStringLiteral("Replace"), {{m.blockIndex, r.content}});
 
     // Seed just past the replacement so the current match advances to the
-    // next remaining one (decision 9).
+    // next remaining one.
     m_seedId = idAt(m.blockIndex);
     m_seedDisplayPos = verbatim
         ? r.mdEnd
@@ -346,7 +346,7 @@ int DocumentSearch::replaceAll(const QString &replacement)
         return 0;
 
     // One snapshot; per block right-to-left so earlier display positions
-    // stay valid as lengths change (decision 9).
+    // stay valid as lengths change.
     QList<QPair<int, QString>> updates;
     int replaced = 0;
     QList<int> blocks = m_byBlock.keys();
@@ -653,9 +653,9 @@ QString DocumentSearch::searchableText(int blockIndex) const
     Block *block = m_model ? m_model->blockAt(blockIndex) : nullptr;
     if (!block)
         return QString();
-    // Display text: what the user sees (decision 2). Code blocks are
-    // verbatim — their content IS the display. Todo metadata tails are
-    // chrome and are stripped by the block's derived display cache.
+    // Display text: what the user sees. Code blocks are verbatim —
+    // their content IS the display. Todo metadata tails are chrome and
+    // are stripped by the block's derived display cache.
     return block->displayText();
 }
 
@@ -693,9 +693,8 @@ QList<DocumentSearch::Match> DocumentSearch::scanText(
         auto it = re.globalMatch(text);
         while (it.hasNext()) {
             const QRegularExpressionMatch m = it.next();
-            // A match must cover at least one character (decision 7);
-            // zero-length matches would never terminate navigation or
-            // replace.
+            // A match must cover at least one character; zero-length
+            // matches would never terminate navigation or replace.
             if (m.capturedLength(0) == 0)
                 continue;
             Match match;
@@ -813,7 +812,7 @@ DocumentSearch::ReplaceResult DocumentSearch::replaceRange(
         result.mdEnd = displayStart + static_cast<int>(replacement.length());
         return result;
     }
-    // Select-and-type semantics (decision 8): the cut contract handles
+    // Select-and-type semantics: the cut contract handles
     // markers — partial spans keep theirs, fully covered spans go.
     const BlockEditorEngine::EditResult cut = BlockEditorEngine::cutRangeResult(
         content, QList<int>(), displayStart, displayEnd);

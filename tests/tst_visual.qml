@@ -15,11 +15,10 @@ import QtTest
 // tests capture the record; they do not by themselves prove the rendering
 // is correct.
 //
-// The frames document the hybrid editing engine (Phase 1 Stage B): blocks
+// The frames document the hybrid editing engine: blocks
 // render with markers hidden; the span under the cursor reveals its
 // markdown syntax (muted markers, content still styled) and re-hides when
-// the cursor leaves — features.md §2.2. The Phase 0 overlay-design frames
-// are preserved in docs/baseline/phase0-overlay/.
+// the cursor leaves — features.md §2.2.
 Item {
     id: root
     width: 800
@@ -575,7 +574,7 @@ Item {
             // The invariant is about focus ALONE. Every word in this line
             // is a span, so park the cursor in the autolink — its markers
             // are zero-length and its reveal changes no text. (Any other
-            // position legitimately reveals markers, and since the Phase 5
+            // position legitimately reveals markers, and since the
             // gutter widened, that longer line wraps: a text change, not a
             // focus effect — the case test_22b/test_23 cover.)
             textArea.cursorPosition = textArea.text.indexOf("nu.io") + 2
@@ -592,7 +591,7 @@ Item {
             saveScreenshot("visual_02_gap_03_unfocused_again.png")
         }
 
-        // Phase 6: block selection (features.md §3.1). Selected blocks
+        // Block selection (features.md §3.1). Selected blocks
         // carry a tinted background and border; the selection can be a
         // contiguous range, a non-contiguous Ctrl+Click set (dividers
         // included), or the whole document (Ctrl+A twice).
@@ -632,7 +631,7 @@ Item {
             wait(100)
         }
 
-        // Phase 6: operations on the block selection — duplicate (§3.6)
+        // Operations on the block selection — duplicate (features.md §3.6)
         // and move (§3.2), each a single undo step.
         function test_14_block_operations() {
             if (isHeadless) {
@@ -670,7 +669,7 @@ Item {
             wait(100)
         }
 
-        // Phase 6: cross-block text selection (§2.5, §21.3) — a mouse
+        // Cross-block text selection (features.md §2.5, §21.3) — a mouse
         // drag across blocks selects character-precise text; every
         // touched block renders its portion; cut collapses the range.
         function test_15_cross_block_selection() {
@@ -720,11 +719,11 @@ Item {
             wait(100)
         }
 
-        // Phase 6: drag-and-drop reordering (§3.2, §21.4) — the floating
+        // Drag-and-drop reordering (features.md §3.2, §21.4) — the floating
         // proxy under the pointer, the dimmed source row making room
         // live, the multi-drag drop indicator with its count badge, and
         // the document after the drop.
-        // Phase 7 find bar (features.md §7.1): the bar over a document
+        // The find bar (features.md §7.1): the bar over a document
         // with matches tinted and the current one distinct; the current
         // match inside a revealed span; a regex query with its option
         // lit; the invalid-pattern error state.
@@ -783,7 +782,7 @@ Item {
             tryCompare(bar, "visible", false, 1000)
         }
 
-        // Phase 7 replace (features.md §7.2): the bar in replace mode,
+        // Replace (features.md §7.2): the bar in replace mode,
         // the replace-all preview panel, and the document after Confirm.
         function test_18_replace() {
             if (isHeadless) {
@@ -981,7 +980,7 @@ Item {
             wait(100)
         }
 
-        // Phase 8 step 4 storyboard: the tag strip with chips and the
+        // Storyboard: the tag strip with chips and the
         // autocomplete popup; the sidebar tag list with counts and an
         // active filter; the merge confirmation dialog.
         function test_20_tags() {
@@ -1035,7 +1034,7 @@ Item {
             wait(100)
         }
 
-        // Phase 8 step 5 storyboard: the completed note list — title sort
+        // Storyboard: the completed note list — title sort
         // with pinned notes floating; a bulk selection with its action
         // bar; a manual-order drag with the insertion indicator.
         function test_21_note_list() {
@@ -1086,7 +1085,7 @@ Item {
             wait(100)
         }
 
-        // Phase 8 step 6 storyboard: global-search results grouped under
+        // Storyboard: global-search results grouped under
         // note titles with bolded matches; the editor after a result
         // click — find bar open, the clicked occurrence current.
         function test_22_global_search() {
@@ -1142,7 +1141,7 @@ Item {
             wait(100)
         }
 
-        // Phase 8 step 7 storyboard: the restore-from-backup dialog with
+        // Storyboard: the restore-from-backup dialog with
         // timestamped, previewed entries; the crash-recovery banner over
         // the note list.
         function test_23_backup_and_recovery() {
@@ -1317,7 +1316,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 4: the resizable three-panel layout — seam
+        // The resizable three-panel layout — seam
         // widths, and each panel collapsed to its expand strip.
         // ============================================================
 
@@ -1361,7 +1360,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 5: the toolbar — state-reflecting formatting
+        // The toolbar — state-reflecting formatting
         // buttons, the block dropdown, insert and customization menus —
         // and the new superscript/subscript inline types.
         // ============================================================
@@ -1411,7 +1410,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 6: the §9.7 status bar (caret position,
+        // The features.md §9.7 status bar (caret position,
         // selection-aware counts) and the §9.3 floating formatting bar.
         // ============================================================
 
@@ -1455,7 +1454,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 7: the §9.5 context menus and the trash.
+        // The features.md §9.5 context menus and the trash.
         // ============================================================
 
         function test_29_context_menus_and_trash() {
@@ -1576,7 +1575,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 1: code-block syntax highlighting and chrome.
+        // Code-block syntax highlighting and chrome.
         function test_31_code_highlighting() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1652,7 +1651,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 2: the text-color span (the HTML-subset doctrine).
+        // The text-color span (the HTML-subset doctrine).
         function test_32_text_color() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1697,7 +1696,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 3: image blocks.
+        // Image blocks.
         function test_33_image_blocks() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1732,7 +1731,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 4: image ingestion (the file-drop path end to end).
+        // Image ingestion (the file-drop path end to end).
         function test_34_image_ingestion() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1760,7 +1759,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 5: callouts and toggles.
+        // Callouts and toggles.
         function test_35_callouts() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1818,7 +1817,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 6: tables.
+        // Tables.
         function test_36_tables() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1868,7 +1867,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 7: todo metadata, quote attribution, nested quotes.
+        // Todo metadata, quote attribution, nested quotes.
         function test_37_todo_meta_and_quotes() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -1901,7 +1900,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 8: the kanban board (a `kanban`-tagged code fence).
+        // The kanban board (a `kanban`-tagged code fence).
         function test_38_kanban() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -2018,7 +2017,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 9: display-math blocks rendered through MicroTeX.
+        // Display-math blocks rendered through MicroTeX.
         function test_39_math() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -2084,7 +2083,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 10: local audio/video blocks over QtMultimedia.
+        // Local audio/video blocks over QtMultimedia.
         function test_40_media() {
             if (isHeadless) {
                 skip("Storyboard requires display")
@@ -2148,7 +2147,7 @@ Item {
             wait(100)
         }
 
-        // Phase 10 step 11 (closeout): the grown block-type catalog across the
+        // Closeout: the grown block-type catalog across the
         // slash menu and the toolbar Insert menu, including the Media group.
         function test_41_closeout_menus() {
             if (isHeadless) {
@@ -2190,7 +2189,7 @@ Item {
             wait(100)
         }
 
-        // Phase 11 step 1: the document outline and internal links.
+        // The document outline and internal links.
         function test_42_outline_and_internal_links() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2246,7 +2245,7 @@ Item {
             wait(100)
         }
 
-        // Phase 11 step 2: the table-of-contents block.
+        // The table-of-contents block.
         function test_43_toc_block() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2272,7 +2271,7 @@ Item {
             wait(100)
         }
 
-        // Phase 11 step 3: focus and typewriter modes.
+        // Focus and typewriter modes.
         function test_44_focus_and_typewriter() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2315,7 +2314,7 @@ Item {
             wait(150)
         }
 
-        // Phase 11 step 4: statistics popover and the writing-goal ring.
+        // Statistics popover and the writing-goal ring.
         function test_45_statistics_and_goal() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2366,7 +2365,7 @@ Item {
             wait(50)
         }
 
-        // Phase 11 step 5: templates.
+        // Templates.
         function test_46_templates() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2397,7 +2396,7 @@ Item {
             wait(50)
         }
 
-        // Phase 11 step 6: the export dialog.
+        // The export dialog.
         function test_47_export() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2423,7 +2422,7 @@ Item {
             wait(50)
         }
 
-        // Phase 11 step 7: the import dialog and its dry-run summary.
+        // The import dialog and its dry-run summary.
         function test_48_import() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2455,7 +2454,7 @@ Item {
             wait(50)
         }
 
-        // Phase 11 step 8: inline math.
+        // Inline math.
         function test_49_inline_math() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2486,7 +2485,7 @@ Item {
             wait(150)
         }
 
-        // Phase 11 step 9: embed preview cards.
+        // Embed preview cards.
         function test_50_embed() {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
@@ -2506,7 +2505,7 @@ Item {
             wait(150)
         }
 
-        // ---- Phase 12 Step 2: block presentation, part 1 ----
+        // ---- Block presentation, part 1 ----
         // These scenarios set presentation through the model (loading markdown
         // whose blocks carry <!--kvit ...--> tags, or calling setBlockAttributes
         // directly), so they need no keyboard focus and render reliably.
@@ -2581,7 +2580,7 @@ Item {
             saveScreenshot("visual_53_callout_reset_to_typed.png")
         }
 
-        // ---- Phase 12 Step 3: block presentation, part 2 ----
+        // ---- Block presentation, part 2 ----
 
         // §1.2.16 drop cap: an enlarged initial spanning three then five lines.
         function test_54_drop_cap() {
@@ -2640,7 +2639,7 @@ Item {
             saveScreenshot("visual_56_embed_dimensions.png")
         }
 
-        // ---- Phase 12 Step 4: the discoverable shortcut reference ----
+        // ---- The discoverable shortcut reference ----
         function test_57_shortcut_reference() {
             theme.themeId = "light"
             documentManager.newDocument()

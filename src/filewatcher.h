@@ -11,15 +11,15 @@
 #include <QString>
 #include <QStringList>
 
-// External-file watcher (§12.1, phase12 decision 7). Wraps QFileSystemWatcher
-// over the notes root and feeds NoteCollection a debounced re-scan when notes or
-// folders change on disk outside the app. The app's own writes are distinguished
-// from external ones by a short-lived own-write guard (noteOwnWrite, wired to the
-// save hook): a change to a guarded path within the guard window is the app's own
-// and does not self-trigger. A change to the open note that is not the app's own
-// raises noteChangedExternally, which the UI turns into a keep-mine/load-theirs
-// conflict when that note is also dirty. The core logic runs through feedChange,
-// so it is deterministically testable without waiting on real filesystem events.
+// External-file watcher (§12.1). Wraps QFileSystemWatcher over the notes root and
+// feeds NoteCollection a debounced re-scan when notes or folders change on disk
+// outside the app. The app's own writes are distinguished from external ones by a
+// short-lived own-write guard (noteOwnWrite, wired to the save hook): a change to
+// a guarded path within the guard window is the app's own and does not
+// self-trigger. A change to the open note that is not the app's own raises
+// noteChangedExternally, which the UI turns into a keep-mine/load-theirs conflict
+// when that note is also dirty. The core logic runs through feedChange, so it is
+// deterministically testable without waiting on real filesystem events.
 class FileWatcher : public QObject
 {
     Q_OBJECT

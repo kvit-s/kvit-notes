@@ -295,9 +295,9 @@ NoteFrontMatter::Metadata NoteFrontMatter::parse(const QString &block)
             else
                 meta.unknownLines.append(text);
         } else if (key == QLatin1String("goal")) {
-            // Per-note writing goal (phase11 decision 7): a positive integer
-            // word target. A non-integer or non-positive value is not
-            // understood, so it is preserved verbatim like any foreign value.
+            // Per-note writing goal: a positive integer word target. A
+            // non-integer or non-positive value is not understood, so it is
+            // preserved verbatim like any foreign value.
             bool ok = false;
             const int g = value.trimmed().toInt(&ok);
             if (ok && g > 0)

@@ -25,12 +25,12 @@ Item {
     required property bool checked
     required property int ordinal
     // Code-block language (empty for every other type). The engine consults
-    // it only in verbatim mode; the code chrome edits it (phase10 step 1).
+    // it only in verbatim mode; the code chrome edits it.
     required property string language
     // Callout title (empty for every other type). A callout reuses `language`
-    // for its type and `checked` for its fold state (phase10 step 5).
+    // for its type and `checked` for its fold state.
     required property string calloutTitle
-    // Per-block presentation attributes (phase12 decision 1): the payload of
+    // Per-block presentation attributes: the payload of
     // the block's <!--kvit ...--> tag. Read for text alignment (paragraph /
     // heading) and a callout's custom color; edited through setBlockAlignment.
     required property string attributes
@@ -44,7 +44,7 @@ Item {
     // block's height; the component sets its own implicitWidth.
     property Component leadingChrome: null
     // Chrome rendered BELOW the content and contributing to block height: a
-    // quote's attribution line, for example (phase10 step 7). Anchored to the
+    // quote's attribution line, for example. Anchored to the
     // content column; the delegate's component positions itself within it.
     property Component trailingChrome: null
     // The theme/typography context properties, re-exposed so the engine
@@ -74,7 +74,7 @@ Item {
     property bool showPanel: false
     property string placeholder: ""
 
-    // ---- Trailing chrome (phase10 step 7, decisions 10-11) ----
+    // ---- Trailing chrome ----
     // A suffix of `content` that is rendered as chrome, not editable text: a
     // todo's metadata tail (📅 date / priority emoji) shown as chips, or a
     // quote's attribution line. Set by the per-type delegate. The engine
@@ -87,7 +87,7 @@ Item {
                 && content.slice(content.length - t.length) === t)
             ? content.slice(0, content.length - t.length) : content
     }
-    // Phase 5 scroll slice: simple paragraph/heading rows can render from
+    // Scroll slice: simple paragraph/heading rows can render from
     // the model's cached display text until they need the editing engine.
     property bool enableLightweightReadOnly: false
     property bool editorRequested: false
@@ -116,14 +116,14 @@ Item {
     readonly property real textAreaY: delegate.codeChrome ? delegate.codeHeaderHeight
         : (delegate.calloutMode ? delegate.calloutHeaderHeight : 0)
 
-    // ---- Code-block chrome (phase10 step 1) ----
+    // ---- Code-block chrome ----
     // Set by CodeBlockDelegate. Turns on the header (language selector +
     // copy button), the optional line-number gutter, and horizontal
     // scrolling for long lines (wrap off). Off for every other block type,
     // so the whole code path is inert elsewhere.
     property bool codeChrome: false
     // Line-number gutter, toggled from the view menu and persisted under
-    // view.codeLineNumbers (phase10 step 1). The revision read re-evaluates
+    // view.codeLineNumbers. The revision read re-evaluates
     // this binding when the setting flips.
     readonly property bool codeLineNumbers: {
         var r = appSettings.revision  // dependency only
@@ -147,7 +147,7 @@ Item {
     property int codeHScroll: 0
     onCodeMaxScrollChanged: if (codeHScroll > codeMaxScroll) codeHScroll = codeMaxScroll
 
-    // Change the code language as one undo step (phase10 decision 3): a
+    // Change the code language as one undo step: a
     // convertBlock to the same type/content keeps the delegate (delegateKind
     // is unchanged) while routing through the undo stack.
     function setCodeLanguage(lang) {
@@ -155,7 +155,7 @@ Item {
                                 delegate.content, false, lang)
     }
 
-    // ---- Callout chrome (phase10 step 5, decisions 6-7) ----
+    // ---- Callout chrome ----
     // Set by CalloutBlock. The type reuses `language`, the fold state reuses
     // `checked`. The header (icon + title + fold chevron) renders above the
     // body; a folded callout shows only the header.
@@ -180,14 +180,15 @@ Item {
             : { icon: "?", accent: theme.textMuted, label: delegate.calloutType }
     }
     readonly property int calloutHeaderHeight: calloutMode ? 28 : 0
-    // A callout's custom color (phase12 §1.2.10) overrides the typed accent,
-    // recoloring the panel tint, border, bar, and header coherently. Absent
+    // A callout's custom color (features.md §1.2.10) overrides the typed
+    // accent, recoloring the panel tint, border, bar, and header
+    // coherently. Absent
     // (the common case) it falls back to the type's accent, byte-identical.
     readonly property color calloutAccent: blockAttributes.has(delegate.attributes, "color")
         ? blockAttributes.str(delegate.attributes, "color")
         : delegate.calloutInfo.accent
 
-    // ---- Text alignment (phase12 §9.2) ----
+    // ---- Text alignment (features.md §9.2) ----
     // The `align` attribute (left|center|right) maps to the TextArea's
     // horizontal alignment for paragraphs and headings. Absent = left, so an
     // unstyled block is unchanged. Lists/quotes/code never receive it.
@@ -205,12 +206,12 @@ Item {
         blockModel.setBlockAttributes(delegate.index, next)
     }
 
-    // ---- Drop cap (phase12 §1.2.16) ----
-    // A paragraph attribute, not a stored type (decision 2): dropcap=<lines>,
+    // ---- Drop cap (features.md §1.2.16) ----
+    // A paragraph attribute, not a stored type: dropcap=<lines>,
     // with an optional letter color and font. The enlarged initial replaces the
     // paragraph's first glyph (masked) while the text hangs indented beside it.
     // Because QQuickTextEdit cannot float text and the reveal engine stays free
-    // of presentation (decision 3), it renders in display (unfocused) mode and
+    // of presentation, it renders in display (unfocused) mode and
     // reflows to normal text for editing — a documented, delegate-only form.
     readonly property int dropCapLines:
         (blockType === Block.Paragraph && !calloutMode && !verbatimEditing)
@@ -235,15 +236,15 @@ Item {
         blockModel.setBlockAttributes(delegate.index, next)
     }
 
-    // Flip the fold state as one undo step (decision 7): fold reuses checked.
+    // Flip the fold state as one undo step: fold reuses checked.
     function toggleCalloutFold() {
         blockModel.setChecked(delegate.index, !delegate.checked)
     }
     function setCalloutTitleText(t) {
         blockModel.setCalloutTitle(delegate.index, t)
     }
-    // A callout's custom color (phase12 §1.2.10) as one undo step; reset removes
-    // the attribute so it falls back to the typed accent.
+    // A callout's custom color (features.md §1.2.10) as one undo step;
+    // reset removes the attribute so it falls back to the typed accent.
     function setCalloutColor(v) {
         blockModel.setBlockAttributes(delegate.index,
             blockAttributes.withValue(delegate.attributes, "color", v))
@@ -275,7 +276,7 @@ Item {
         return 1.0
     }
 
-    // Inline-math overlays (§1.2.15; phase11 decision 10): the hidden $…$
+    // Inline-math overlays (features.md §1.2.15): the hidden $…$
     // spans, whose rendered equation the overlay layer draws over the
     // renderer-width transparent TeX box. Re-read on edit and on
     // reveal/relayout (mathTick); empty in verbatim (code) blocks.
@@ -321,7 +322,7 @@ Item {
              + "&vpad=" + delegate.inlineMathVerticalPadding
     }
 
-    // Track hover state (Step 7c). The gutter has its own hover handler
+    // Track hover state. The gutter has its own hover handler
     // because its child MouseAreas occlude blockMouseArea; without this,
     // showing the buttons can make the block look un-hovered and start a
     // hide/show loop under the pointer.
@@ -496,8 +497,8 @@ Item {
             delegate.applyTextPortionLater()
     }
 
-    // Remove the coordinator's range from the model (one undo step;
-    // decision 7) and return the {index, cursor} landing spot.
+    // Remove the coordinator's range from the model (one undo step) and
+    // return the {index, cursor} landing spot.
     // Copy markdown in every clipboard flavor (§5.1). Shared by the
     // cross-block and in-block copy/cut paths.
     function copyMarkdownToClipboard(md) {
@@ -643,7 +644,7 @@ Item {
             return true
         }
         // Printable text replaces the range; the deletion and the typed
-        // character are layered undo steps (decision 7)
+        // character are layered undo steps
         if (!ctrl && event.text.length > 0 && event.text.charCodeAt(0) >= 32) {
             var repResult = crossBlockDeleteRange()
             if (repResult.index !== undefined) {
@@ -666,9 +667,9 @@ Item {
     // and visible, and ordinarily disappear only because the remove
     // transition finished fading them to opacity 0. Under churn that
     // transition can be cut short, leaving a full-opacity "ghost" row
-    // rendering over the live document (found via the Phase 6 cut
-    // storyboard). Pin the end states explicitly on both sides of the
-    // pool boundary instead of relying on transition completion.
+    // rendering over the live document. Pin the end states explicitly on
+    // both sides of the pool boundary instead of relying on transition
+    // completion.
     ListView.onPooled: {
         isPooled = true
         textArea.focus = false
@@ -702,8 +703,8 @@ Item {
             return
         textArea.toggleSpan(typeName)
     }
-    // Text color controls for the toolbar / formatting bar / context menu
-    // (phase10 decision 2). applyColor wraps or recolors the selection;
+    // Text color controls for the toolbar / formatting bar / context menu.
+    // applyColor wraps or recolors the selection;
     // removeColor unwraps. currentColor reflects the color span under the
     // caret so the controls can show it and enable "remove".
     function applyColor(value) {
@@ -739,7 +740,7 @@ Item {
         return { line: line, column: pos - lastNewline }
     }
 
-    // Formatting-bar surface (decision 7): the in-block selection in
+    // Formatting-bar surface: the in-block selection in
     // display text and document coordinates, and its bounding rectangle
     // in delegate coordinates.
     readonly property int selectionStartDoc: delegate.editorActive ? textArea.selectionStart : 0
@@ -765,7 +766,7 @@ Item {
     function pasteClipboard(plain) { textArea.pasteFromClipboard(plain) }
     function selectAllText() { textArea.selectAll() }
 
-    // Asset ingestion context for pasted/dropped images (phase10 step 4).
+    // Asset ingestion context for pasted/dropped images.
     function noteDir() {
         var p = documentManager.currentFilePath
         var idx = p.lastIndexOf("/")
@@ -1031,7 +1032,7 @@ Item {
         textArea.cursorPosition = editorEngine.toDocumentPosition(mdPos)
     }
 
-    // Convert block to a different type (Step 4b; §13.3 shortcuts). One
+    // Convert block to a different type (features.md §13.3 shortcuts). One
     // undo step through convertBlock, which also drops indentation when
     // leaving the list family. The DelegateChooser may recreate this
     // delegate, so focus is re-established by index.
@@ -1040,7 +1041,7 @@ Item {
         var idx = delegate.index
         var mdPos = editorEngine.toMarkdownPosition(textArea.cursorPosition)
         // Turning any block into a callout seeds the default "info" type so
-        // it renders as a real callout rather than an unknown one (step 5).
+        // it renders as a real callout rather than an unknown one.
         var lang = newType === Block.Callout ? "info" : ""
         // Announce before the model mutation: changing the block type replaces
         // this DelegateChooser branch and can invalidate the current QML
@@ -1078,7 +1079,7 @@ Item {
             return null
         }
         // Typing an Obsidian callout header in a quote converts it to a
-        // callout (decision 6): "> " makes the quote, then "[!type]" (as its
+        // callout: "> " makes the quote, then "[!type]" (as its
         // closing bracket lands) makes the callout. Only a single-line header
         // (no body yet) auto-converts, so an existing multi-paragraph quote
         // is left alone; the body is typed into the callout afterward.
@@ -1110,10 +1111,10 @@ Item {
             return { type: Block.Heading1, content: md.substring(2) }
         // A fence converts the moment the third backtick lands; the
         // language variant covers pasted fences (typing one is precluded
-        // by the immediate conversion — the selector UI is wave 2)
+        // by the immediate conversion)
         m = md.match(/^```([A-Za-z0-9+#-]*)$/)
         if (m) return { type: Block.CodeBlock, content: "", language: m[1] }
-        // Immediate divider conversion (decision 5): auto-save can fire
+        // Immediate divider conversion: auto-save can fire
         // at any moment, and a paragraph reading exactly --- or ***
         // would reload as a divider anyway
         if (md === "---" || md === "***")
@@ -1252,9 +1253,9 @@ Item {
                 menu.dismiss()
             // persistentSelection keeps selections visible unfocused —
             // wanted only while this block renders a cross-block
-            // portion; otherwise focus loss clears the highlight, as it
-            // did before Phase 6. A context menu targeting this block
-            // holds the selection: its Cut/Copy/formatting act on it.
+            // portion; otherwise focus loss clears the highlight. A
+            // context menu targeting this block holds the selection: its
+            // Cut/Copy/formatting act on it.
             var win2 = Window.window
             var menuHolds = win2 && win2.contextMenuHoldsSelection
                             && win2.contextMenuHoldsSelection(delegate)
@@ -1299,7 +1300,7 @@ Item {
         }
     }
 
-    // Move block up (Step 7a)
+    // Move block up
     function moveBlockUp() {
         var fromIndex = delegate.index
         var toIndex = fromIndex - 1
@@ -1319,7 +1320,7 @@ Item {
         })
     }
 
-    // Move block down (Step 7a)
+    // Move block down
     function moveBlockDown() {
         var fromIndex = delegate.index
         var toIndex = fromIndex + 1
@@ -1339,7 +1340,7 @@ Item {
         })
     }
 
-    // Full delegate mouse area for hover detection (Step 7c)
+    // Full delegate mouse area for hover detection
     MouseArea {
         id: blockMouseArea
         anchors.fill: parent
@@ -1357,7 +1358,7 @@ Item {
         color: "transparent"
         opacity: delegate.isDragSource ? 0.35 : 1
 
-        // Hover background (Step 7c)
+        // Hover background
         Rectangle {
             id: hoverBackground
             anchors.fill: parent
@@ -1385,8 +1386,8 @@ Item {
             border.width: 1
         }
 
-        // Block handle/gutter (Step 7c; widened for the Phase 5
-        // plus-button) - visible on hover
+        // Block handle/gutter (widened for the plus-button) - visible
+        // on hover
         Item {
             id: blockHandle
             width: 40
@@ -1445,7 +1446,7 @@ Item {
 
                 // Drag handle dots. Clicking selects the whole block
                 // (features.md §3.1 "click on block handle to select");
-                // step 5 adds the reorder drag on the same handle.
+                // the reorder drag lives on the same handle.
                 Item {
                     width: 14
                     height: 18
@@ -1618,7 +1619,7 @@ Item {
             }
 
             // Code blocks scroll horizontally rather than wrap; the clip
-            // keeps a long line inside the panel (phase10 step 1).
+            // keeps a long line inside the panel.
             clip: delegate.codeChrome
 
             Loader {
@@ -1628,7 +1629,7 @@ Item {
             Component {
                 id: dropCapComponent
                 Item {
-                    // ---- Drop cap (phase12 §1.2.16) ----
+                    // ---- Drop cap (features.md §1.2.16) ----
                     // Drop-cap chrome is rare; keeping it behind a Loader
                     // avoids building text metrics/masks for ordinary rows.
                     TextMetrics {
@@ -1684,7 +1685,7 @@ Item {
                 Item {
                     anchors.fill: parent
 
-                    // ---- Callout chrome (phase10 step 5) ----
+                    // ---- Callout chrome ----
                     // Tinted panel with an accent left bar; the header (icon,
                     // title, fold chevron) sits at the top and the body below.
                     Rectangle {
@@ -1792,7 +1793,7 @@ Item {
                 Item {
                     anchors.fill: parent
 
-                    // ---- Code-block chrome (phase10 step 1) ----
+                    // ---- Code-block chrome ----
                     // Plain text rows no longer instantiate this panel,
                     // language picker, gutter, or horizontal scrollbar.
                     Rectangle {
@@ -1972,8 +1973,8 @@ Item {
             // actively edited, the TextArea's QTextDocument is the only text
             // element: the engine fills it from the model and styles it with a
             // QSyntaxHighlighter, so block height derives from what is on
-            // screen. Phase 5 adds the readOnlyText item below for eligible
-            // unfocused rows so scroll paint/layout does not instantiate the
+            // screen. The readOnlyText item below covers eligible unfocused
+            // rows so scroll paint/layout does not instantiate the
             // highlighter path.
             // The document holds the display text (markers stripped); the
             // engine reveals a span's markers while the cursor touches it
@@ -1995,7 +1996,7 @@ Item {
                 // would resolve to the engine's own property, not the
                 // context property.
                 theme: delegate.appTheme
-                // The internal-link resolver (phase11 decision 3): the
+                // The internal-link resolver: the
                 // DocumentOutline, so a `[text](#slug)` whose slug matches no
                 // heading renders muted. Context property, no name clash with
                 // the engine's own `linkResolver` property.
@@ -2059,9 +2060,9 @@ Item {
                                                  md + delegate.metaTail)
                     }
 
-                    // The block-type menu (features.md §4.1; phase5-plan
-                    // decision 1). The query lives in the block content:
-                    // while the menu targets this block, every edit feeds
+                    // The block-type menu (features.md §4.1). The query
+                    // lives in the block content: while the menu targets
+                    // this block, every edit feeds
                     // it; "/" landing on a previously empty non-verbatim
                     // block opens it. This hook is the user-edit path
                     // only — programmatic changes (undo, load) rebuild
@@ -2125,7 +2126,7 @@ Item {
                 // and scroll under the clip; the left margin carries both
                 // the gutter inset and the horizontal scroll offset. For
                 // every other block the width equals the two-anchor result,
-                // so behavior is unchanged (phase10 step 1).
+                // so behavior is unchanged.
                 anchors.left: parent.left
                 anchors.leftMargin: delegate.textAreaX
                 width: delegate.textAreaWidth
@@ -2137,8 +2138,9 @@ Item {
                 // A folded callout hides its body; the header stays visible.
                 visible: !delegate.calloutFolded && delegate.editorActive
 
-                // Text alignment (phase12 §9.2). Code scrolls and stays left;
-                // every other block honors the `align` attribute (default left).
+                // Text alignment (features.md §9.2). Code scrolls and
+                // stays left; every other block honors the `align`
+                // attribute (default left).
                 horizontalAlignment: delegate.codeChrome
                     ? TextEdit.AlignLeft : delegate.alignHAlign
 
@@ -2198,7 +2200,7 @@ Item {
                 function toggleBold() { toggleSpan("bold") }
                 function toggleItalic() { toggleSpan("italic") }
 
-                // Text color (features.md §2.1; phase10 decision 2). Apply
+                // Text color (features.md §2.1). Apply
                 // wraps or recolors-in-place through the same selection→
                 // markdown→model→cursor machinery as every inline toggle, so
                 // one Ctrl+Z reverts it. The collapsed-cursor offset is the
@@ -2447,7 +2449,7 @@ Item {
                 onContentWidthChanged: delegate.mathTick++
 
                 // Cross-block portions must stay visible on unfocused
-                // blocks (decision 6); the focus-loss deselect in
+                // blocks; the focus-loss deselect in
                 // onIsFocusedChanged keeps single-block behavior as it
                 // was before this property.
                 persistentSelection: true
@@ -2964,7 +2966,7 @@ Item {
                     }
 
                     // Escape drops an in-block selection (which also
-                    // dismisses the formatting bar, decision 7).
+                    // dismisses the formatting bar).
                     if (event.key === Qt.Key_Escape
                         && textArea.selectionEnd > textArea.selectionStart) {
                         textArea.deselect()
@@ -3088,7 +3090,7 @@ Item {
                         return
                     }
 
-                    // Undo/Redo shortcuts (Step 5f) - intercept before TextArea's built-in undo
+                    // Undo/Redo shortcuts - intercept before TextArea's built-in undo
                     if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
                         if (event.modifiers & Qt.ShiftModifier) {
                             // Ctrl+Shift+Z: Redo
@@ -3114,7 +3116,7 @@ Item {
                         return
                     }
 
-                    // Block type conversion shortcuts (Step 4b)
+                    // Block type conversion shortcuts
                     // Ctrl+0: Convert to Paragraph
                     if (event.key === Qt.Key_0 && (event.modifiers & Qt.ControlModifier)) {
                         delegate.convertBlockType(0)
@@ -3429,7 +3431,7 @@ Item {
                         return
                     }
 
-                    // Ctrl+Enter flips a callout's fold state (decision 7),
+                    // Ctrl+Enter flips a callout's fold state,
                     // mirroring the todo toggle.
                     if ((event.modifiers & Qt.ControlModifier)
                         && delegate.calloutMode) {
@@ -3483,7 +3485,7 @@ Item {
             Component {
                 id: inlineMathOverlayComponent
                 Item {
-                    // The inline-math overlay layer (decision 10): one Image
+                    // The inline-math overlay layer: one Image
                     // per hidden $…$ span, created only for rows that actually
                     // contain active inline math.
                     id: mathOverlayLayer
@@ -3642,8 +3644,7 @@ Item {
             // Plain press: any document-level selection ends here; the
             // press falls through to the normal editing path. Exception:
             // the gutter of a SELECTED block keeps the selection — its
-            // handle press must be able to drag the whole selection
-            // (decision 9).
+            // handle press must be able to drag the whole selection.
             var inGutter = mouse.x < 44 + delegate.indentLevel * 24
             if ((documentSelection.hasBlockSelection
                  || documentSelection.hasTextSelection)

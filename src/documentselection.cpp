@@ -97,10 +97,10 @@ QSet<QString> DocumentSelection::effectiveIds() const
 }
 
 // Every mutator funnels through here so the revision bumps exactly when
-// the observable state changed (plan step 1's contract). The snapshot
-// compares the raw members: the model order is fixed inside one
-// mutation, so the derived effective set differs exactly when the
-// members do, at O(selection) rather than O(document) cost.
+// the observable state changed. The snapshot compares the raw members:
+// the model order is fixed inside one mutation, so the derived
+// effective set differs exactly when the members do, at O(selection)
+// rather than O(document) cost.
 DocumentSelection::Snapshot DocumentSelection::snapshot() const
 {
     Snapshot s;

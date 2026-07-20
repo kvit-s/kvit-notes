@@ -12,7 +12,7 @@
 
 class NoteCollection;
 
-// The network seam (phase11 decision 11): fetch a page's HTML. The app wires a
+// The network seam: fetch a page's HTML. The app wires a
 // QNetworkAccessManager-backed implementation; tests wire a fake that returns
 // canned HTML (or a canned failure), so the suite is hermetic and never
 // touches the network. `done(success, html)` may be called synchronously (the
@@ -25,13 +25,13 @@ public:
                        std::function<void(bool, const QString &)> done) = 0;
 };
 
-// Embed preview metadata (features.md §1.2.14; phase11 decision 11): an
-// `![](url)` whose URL is a web page or a recognized video host renders as a
-// preview card built from the target's OpenGraph tags (title, description,
-// image, favicon), fetched through an injectable seam and cached under
-// `.kvit/embedcache/` keyed by URL hash. Exposed as the `embedMetadata`
-// context property. Storage is the ordinary image expression, so an embed
-// round-trips byte-identically and a non-Kvit editor shows a plain image link.
+// Embed preview metadata (features.md §1.2.14): an `![](url)` whose URL is a
+// web page or a recognized video host renders as a preview card built from the
+// target's OpenGraph tags (title, description, image, favicon), fetched
+// through an injectable seam and cached under `.kvit/embedcache/` keyed by URL
+// hash. Exposed as the `embedMetadata` context property. Storage is the
+// ordinary image expression, so an embed round-trips byte-identically and a
+// non-Kvit editor shows a plain image link.
 class EmbedMetadata : public QObject
 {
     Q_OBJECT
@@ -54,7 +54,7 @@ public:
     // "ok" (bool — false is the fetched-but-failed fallback state).
     Q_INVOKABLE QVariantMap cachedMetadata(const QString &url) const;
 
-    // Classifier (decision 11): an http(s) URL that is not a recognized image
+    // Classifier: an http(s) URL that is not a recognized image
     // or media *file* — a web page or a video host.
     Q_INVOKABLE static bool isEmbedUrl(const QString &url);
     // A known video host (adds a play affordance to the card).

@@ -13,11 +13,10 @@
 
 class NoteCollection;
 
-// Note templates (features.md §18; phase11 decision 6): markdown files under a
-// collection-level `.kvit/templates/` directory — files-as-truth, editable by
-// hand — that seed new notes. Three built-ins (Meeting Notes, Project Plan,
-// Daily Journal) are written on first use. Exposed as the `noteTemplates`
-// context property.
+// Note templates (features.md §18): markdown files under a collection-level
+// `.kvit/templates/` directory — files-as-truth, editable by hand — that seed
+// new notes. Three built-ins (Meeting Notes, Project Plan, Daily Journal) are
+// written on first use. Exposed as the `noteTemplates` context property.
 //
 // A template is just a note, so its front-matter (tags, favorite) carries into
 // the note created from it. Instantiation expands {{date}}, {{time}},

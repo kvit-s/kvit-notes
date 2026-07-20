@@ -6,7 +6,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 
-// Export dialog (features.md §12.5; phase11 decision 8): choose a format
+// Export dialog (features.md §12.5): choose a format
 // (Markdown, HTML, PDF, plain text) and a scope (the open note, the note-list
 // selection, or the whole collection), then a destination. The actual export
 // runs through documentExporter, which builds one self-contained HTML string

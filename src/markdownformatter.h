@@ -33,10 +33,10 @@ enum Flags : quint32 {
     // (like a link's url), carried on FormattedSpan::color and painted from
     // there, not from a fixed theme token.
     Color       = 0x400,
-    // §1.2.15 inline math $x^2$ (phase11 decision 10): verbatim TeX content
-    // with the Pandoc adjacency rule. Hidden, the content renders invisibly at
-    // renderer-measured width and the delegate overlays the equation; revealed,
-    // it shows the raw $…$ source like inline code.
+    // §1.2.15 inline math $x^2$: verbatim TeX content with the Pandoc adjacency
+    // rule. Hidden, the content renders invisibly at renderer-measured width
+    // and the delegate overlays the equation; revealed, it shows the raw $…$
+    // source like inline code.
     Math        = 0x800,
     // [[wiki-link]] note references. Always set together with Link — the span
     // carries a kvit-note: url so click paths work unchanged — and lets

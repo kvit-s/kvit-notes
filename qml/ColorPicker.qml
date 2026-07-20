@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 
-// The text-color control (phase10 decision 2), shared by the toolbar, the
+// The text-color control, shared by the toolbar, the
 // formatting bar, and the text context menu. A small popup of theme-palette
 // swatches plus a custom-color picker and a "Remove color" action. It only
 // reports the choice; the caller applies it to the focused block as one undo

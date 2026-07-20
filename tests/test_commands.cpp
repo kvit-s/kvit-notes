@@ -63,7 +63,7 @@ private slots:
     void testUndoStackWithInsertBlock();
     void testTypingMerge();
 
-    // Phase 4: full-state capture and the new commands
+    // Full-state capture and the new commands
     void testRemoveBlockRestoresFullState();
     void testInsertBlockWithState();
     void testSplitBlockInheritsState();
@@ -494,7 +494,7 @@ void TestCommands::testTypingMerge()
 }
 
 // ============================================================================
-// Phase 4: full-state capture and the new commands
+// Full-state capture and the new commands
 // ============================================================================
 
 static Block::State todoState(const QString &content)

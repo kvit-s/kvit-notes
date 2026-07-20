@@ -69,7 +69,7 @@ QString stripFrontmatter(const QString &src, QString *title, int *bodyOffset)
                 *title = l.mid(6).trimmed();
         }
     }
-    // The body is a literal suffix of the source, so §20 spans recorded
+    // The body is a literal suffix of the source, so spans recorded
     // against it shift by one constant.
     int offset = 0;
     for (int i = 0; i <= close; ++i)
@@ -170,7 +170,7 @@ NodeShape shapeFromName(const QString &raw, bool *known)
 }
 
 
-// Scan the body for `%% mermaid-flow:pos …` arrangement lines (§20.3). The
+// Scan the body for `%% mermaid-flow:pos …` arrangement lines. The
 // first recognized line wins; later ones are ignored with a diagnostic.
 // Individually malformed entries are skipped; the plugin's optional
 // `,width,height` suffix parses and is dropped (node size always derives from
@@ -293,7 +293,7 @@ int FlowParser::ensureNode(const QString &id, const Token &at)
         m_ast.nodes.append(n);
         index = m_ast.nodes.size() - 1;
     }
-    // §20 source mapping: every reference span, the first one as the
+    // Source mapping: every reference span, the first one as the
     // declaration. The id may sit inside a larger token (`A:::hot`, `A,B`).
     {
         const int within = at.text.indexOf(id);

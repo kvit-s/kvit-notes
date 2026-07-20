@@ -53,7 +53,7 @@ private slots:
     void testToggleSpanTypePerType_data();
     void testToggleSpanTypePerType();
 
-    // Phase 9 sup/sub rules
+    // Sup/sub rules
     void testSupSubSpaceAndFamilyRules();
     void testToggleSpanTypeNestedDeepestWins();
     void testRemoveSpanTypeComposite();
@@ -79,7 +79,7 @@ private slots:
     void testRemoveColor();
     void testColorSpanAt();
 
-    // Inline math (phase11 decision 10)
+    // Inline math
     void testParseSpansInlineMath();
     void testInlineMathCurrencyCorpus_data();
     void testInlineMathCurrencyCorpus();
@@ -315,7 +315,7 @@ void TestMarkdownFormatter::testParseSpansNewTypes_data()
     QTest::newRow("highlight") << "==" << "highlight";
     QTest::newRow("underline") << "++" << "underline";
     QTest::newRow("code") << "`" << "code";
-    // Phase 9: Pandoc sup/sub.
+    // Pandoc sup/sub.
     QTest::newRow("superscript") << "^" << "superscript";
     QTest::newRow("subscript") << "~" << "subscript";
 }

@@ -7,7 +7,7 @@
 #include <QFile>
 #include "filewatcher.h"
 
-// Phase 12 Step 9: the external-file watcher. The debounce, the own-write guard,
+// The external-file watcher. The debounce, the own-write guard,
 // and the external/internal discriminator run through feedChange(), so they are
 // tested deterministically; one test also exercises the real QFileSystemWatcher
 // over a temp directory.

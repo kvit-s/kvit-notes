@@ -5,11 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
 
-// Quick-capture window (§15.1, phase12 step 8). A small always-on-top window the
+// Quick-capture window (features.md §15.1). A small always-on-top window the
 // global hotkey (or the tray menu) opens for jotting a note without switching to
 // the main window. Save writes the text as a new note in the collection through
 // noteCollection.captureNote and reports it; Escape cancels. Reachable regardless
-// of whether the OS delivers a system-wide hotkey (spike (b)).
+// of whether the OS delivers a system-wide hotkey.
 Window {
     id: root
     objectName: "quickCaptureWindow"

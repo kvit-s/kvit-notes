@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Document statistics popover (features.md §19.1; phase11 decision 7): the six
+// Document statistics popover (features.md §19.1): the six
 // counts and reading time for the document (and the selection when one is
 // active), plus the session word delta. Reads documentStats live behind a
 // 200 ms coalescing timer while open — off the keystroke path — mirroring the

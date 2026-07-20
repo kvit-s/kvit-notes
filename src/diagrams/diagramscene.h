@@ -67,8 +67,8 @@ struct Shape {
     // Optional explicit overrides from classDef/style; invalid => use the role.
     QColor fillOverride;
     QColor strokeOverride;
-    QString nodeId;      // for accessibility / hit-testing / selection (§20.1)
-    // §20.5 preview↔source linking: the element's defining span in the fence.
+    QString nodeId;      // for accessibility / hit-testing / selection
+    // Preview↔source linking: the element's defining span in the fence.
     int srcStart = -1;
     int srcLen = 0;
 };
@@ -84,7 +84,7 @@ struct Path {
     QPointF endPoint;
     QPointF startDir;     // unit vector pointing into the start node
     QPointF endDir;       // unit vector pointing into the end node
-    // §20.1 selection / §20.5 linking: which AST edge (family-specific index)
+    // Selection / linking: which AST edge (family-specific index)
     // this path draws, and its source span. -1 = not a selectable element.
     int edgeIndex = -1;
     int srcStart = -1;

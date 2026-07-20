@@ -6,9 +6,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 // The navigation sidebar: scopes, the folder tree, and the tag list.
-// Functional Fusion styling only; Phase 9 owns the chrome. All state
-// lives in noteCollection / noteListModel; this pane renders and
-// forwards.
+// Functional Fusion styling only. All state lives in noteCollection /
+// noteListModel; this pane renders and forwards.
 Rectangle {
     id: sidebar
     objectName: "sidebar"
@@ -312,7 +311,7 @@ Rectangle {
                         Layout.fillWidth: true
                     }
 
-                    // Hover actions; context menus are Phase 9.
+                    // Hover actions.
                     ToolButton {
                         objectName: "folderRenameButton"
                         visible: rowHover.hovered
@@ -465,8 +464,8 @@ Rectangle {
             }
         }
 
-        // ---- §9.5 trash (the Phase 8 deferral): item count and the
-        // empty action, behind a count-naming confirmation. -----------
+        // ---- Trash: item count and the empty action, behind a
+        // count-naming confirmation. --------------------------------
         Rectangle {
             objectName: "trashRow"
             Layout.fillWidth: true
@@ -633,7 +632,7 @@ Rectangle {
         property string selectedColor: ""
 
         // "" first = default gray; the rest is a small fixed palette
-        // (§8.1 folder colors; a full picker is Phase 9 chrome).
+        // (features.md §8.1 folder colors).
         readonly property var palette: [""].concat(theme.colorPalette)
 
         function openForCreate(parentPath) {
@@ -851,7 +850,7 @@ Rectangle {
         standardButtons: Dialog.Ok | Dialog.Cancel
     }
 
-    // ---- Delete-folder confirmation (decision 3: trash, confirmed) -----
+    // ---- Delete-folder confirmation (to trash, confirmed) -------------
     Dialog {
         id: deleteFolderDialog
         objectName: "deleteFolderDialog"

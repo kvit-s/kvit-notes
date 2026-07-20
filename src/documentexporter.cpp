@@ -51,7 +51,7 @@ QString esc(const QString &s)
     return out;
 }
 
-// Pinned MathJax build for HTML export (html-export.md). Pinned exactly —
+// Pinned MathJax build for HTML export. Pinned exactly —
 // exports are long-lived documents and must not change rendering when the
 // CDN publishes a new minor. tex-svg renders self-measuring SVG and prints
 // reliably; \( \) / \[ \] are MathJax 3's default delimiters, so no config

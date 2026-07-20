@@ -7,14 +7,14 @@
 #include <QObject>
 #include <QString>
 
-// The live-region announcement seam (phase12 decision 4, §14.2). Dynamic
-// changes that a sighted user sees as chrome updates — save state, search match
-// counts, mode toggles, block conversions — are spoken to assistive technology
-// through this one object. It always records the last message and emits a signal
-// (so the gate can assert an announcement fired without a live screen reader,
-// which the WSLg AT-SPI bridge does not provide — spike (c)), and, when a
-// window and the accessibility bridge are present, posts a real
-// QAccessibleAnnouncementEvent so an attached reader speaks it.
+// The live-region announcement seam (§14.2). Dynamic changes that a sighted user
+// sees as chrome updates — save state, search match counts, mode toggles, block
+// conversions — are spoken to assistive technology through this one object. It
+// always records the last message and emits a signal (so the gate can assert an
+// announcement fired without a live screen reader, which the WSLg AT-SPI bridge
+// does not provide — spike (c)), and, when a window and the accessibility bridge
+// are present, posts a real QAccessibleAnnouncementEvent so an attached reader
+// speaks it.
 class AccessibilityAnnouncer : public QObject
 {
     Q_OBJECT

@@ -29,7 +29,7 @@ BlockMenuModel::BlockMenuModel(QObject *parent)
     : QObject(parent)
 {
     // The full implemented set (features.md §4.2 minus the wave-2 types,
-    // which join the catalog with their block types in Phase 10). Names
+    // which join the catalog together with their block types). Names
     // match the status bar's; entries are grouped into Basic, Lists,
     // Advanced and Media; icons are typographic glyphs until a drawn
     // icon set lands. Aliases feed the fuzzy filter only — they are
@@ -269,10 +269,10 @@ QVariantList BlockMenuModel::itemsFor(const QString &query) const
         return rows;
     }
 
-    // "/code <language>" (decision 14): the query after the "code " prefix
-    // matches language names and aliases, and selecting one inserts a
-    // code block already tagged with that language. Only the plain query
-    // "code" (no remainder) falls through to the ordinary Code Block entry.
+    // "/code <language>": the query after the "code " prefix matches
+    // language names and aliases, and selecting one inserts a code block
+    // already tagged with that language. Only the plain query "code" (no
+    // remainder) falls through to the ordinary Code Block entry.
     if (lowered.startsWith(QStringLiteral("code")) && lowered.contains(QLatin1Char(' '))) {
         const QString remainder =
             lowered.mid(lowered.indexOf(QLatin1Char(' ')) + 1).trimmed();

@@ -13,9 +13,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-# QtSvg is deliberately absent from the build: the SVG math path was removed
-# (html-export.md step 4). The deployed Qt runtime must still ship the QtSvg
-# module — user-inserted .svg image blocks (imageassets.cpp extension list)
+# QtSvg is deliberately absent from the build: the SVG math path was removed.
+# The deployed Qt runtime must still ship the QtSvg module — user-inserted
+# .svg image blocks (imageassets.cpp extension list)
 # load through the `qsvg` imageformats plugin, which links libQt6Svg
 # internally even though the app does not.
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTest Widgets Multimedia Network Concurrent Sql)

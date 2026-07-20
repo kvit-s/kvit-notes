@@ -31,7 +31,7 @@ private slots:
     void testGetContent();
     void testSplitBlock();
     void testMergeBlocks();
-    // Phase 4: new roles and block-type operations
+    // New roles and block-type operations
     void testPhase4Roles();
     void testSetChecked();
     void testInsertBlockWithIndent();
@@ -48,7 +48,7 @@ private slots:
     void testTocBlockIndexesTrackMutations();
     void testDelegateKindRole();
     void testDocumentTotalsTrackMutations();
-    // Phase 6: multi-block operations (each one undo step)
+    // Multi-block operations (each one undo step)
     void testRemoveBlocksNonContiguous();
     void testRemoveBlocksAllLeavesEmptyParagraph();
     void testDuplicateBlocksStateAndPlacement();
@@ -61,10 +61,10 @@ private slots:
     void testDragPreviewAndCommit();
     void testMoveBlocksToGathersAtGap();
     void testMoveBlocksToEdgesAndNoop();
-    // Performance Phase 6: id->index map and single-pass group move
+    // The id->index map and single-pass group move
     void testIdIndexMatchesLinearScan();
     void testMoveBlocksToMatchesReference();
-    // Performance Phase 7 (A7): cached ordinals/equation numbers
+    // Cached ordinals/equation numbers
     void testDerivedOrderCacheMatchesRecompute();
 
 private:
@@ -80,7 +80,7 @@ private:
     }
 
     // Same, wired to a fresh undo stack (cleared after setup) so the
-    // Phase 6 single-undo-step contracts are observable.
+    // single-undo-step contracts are observable.
     BlockModel* makeModelWithStack(const QList<Row> &rows, UndoStack **stackOut)
     {
         auto *model = makeModel(rows);
@@ -573,7 +573,7 @@ void TestBlockModel::testMergeBlocks()
 }
 
 // ============================================================================
-// Phase 4: new roles and block-type operations
+// New roles and block-type operations
 // ============================================================================
 
 void TestBlockModel::testPhase4Roles()
@@ -1112,7 +1112,7 @@ void TestBlockModel::testDocumentTotalsTrackMutations()
     assertTotals();
 }
 
-// ---- Phase 6: multi-block operations ----
+// ---- Multi-block operations ----
 
 void TestBlockModel::testRemoveBlocksNonContiguous()
 {
@@ -1209,7 +1209,7 @@ void TestBlockModel::testMoveBlocksByRunsAndEdges()
     stack->undo();
     QCOMPARE(contents(model), QStringList({"a", "b", "c", "d", "e"}));
 
-    // A run against the edge stops the whole operation (decision 10)
+    // A run against the edge stops the whole operation
     model->moveBlocksBy({0, 3}, -1);
     QCOMPARE(contents(model), QStringList({"a", "b", "c", "d", "e"}));
     QCOMPARE(stack->count(), 1); // nothing pushed
@@ -1306,7 +1306,7 @@ void TestBlockModel::testRemoveTextRangeEdgeCases()
     }, &stack);
 
     // Whole first block selected (startMd 0): the first block still
-    // keeps its identity (decision 7), now holding only the remainder
+    // keeps its identity, now holding only the remainder
     model->removeTextRange(0, 0, 1, 5);
     QCOMPARE(model->count(), 1);
     QCOMPARE(model->blockAt(0)->blockType(), Block::Heading2);
@@ -1344,7 +1344,7 @@ void TestBlockModel::testRemoveTextRangeDividerFirst()
     }, &stack);
 
     // A divider holds no text, so the remainder keeps the LAST block's
-    // identity (decision 7's divider exception)
+    // identity (the divider exception)
     const QVariantMap result = model->removeTextRange(1, 0, 2, 7);
     QCOMPARE(model->count(), 2);
     QCOMPARE(model->blockAt(0)->content(), QString("before"));

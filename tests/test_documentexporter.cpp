@@ -12,7 +12,7 @@
 #include <QFileInfo>
 #include <QDir>
 
-// Document export (phase11 decision 8): the pure HTML builder asserted per
+// Document export: the pure HTML builder asserted per
 // block type, plain-text and markdown export, the PDF print seam producing a
 // non-empty file, and collection-scope writing.
 class TestDocumentExporter : public QObject
@@ -211,7 +211,7 @@ void TestDocumentExporter::testInternalLinkAnchor()
 
 void TestDocumentExporter::testDisplayMathEmitsMathJaxDelimiters()
 {
-    // Display math exports as \[ … \] inside p.math-display (html-export.md):
+    // Display math exports as \[ … \] inside p.math-display:
     // the TeX stays in the document and MathJax typesets it in the browser.
     // &, <, > in the TeX are HTML-escaped — MathJax reads the parsed DOM
     // text, so escaping is transparent to it.
@@ -258,8 +258,8 @@ void TestDocumentExporter::testLiteralDollarsStayLiteral()
 
 void TestDocumentExporter::testMathJaxReferenceCorpusArtifact()
 {
-    // The browser-review artifact for the MathJax export (html-export.md
-    // step 3): the NewTX reference corpus as display math, inline usage in
+    // The browser-review artifact for the MathJax export: the NewTX
+    // reference corpus as display math, inline usage in
     // prose, and two NewTX-specific commands MathJax does not know — those
     // are expected to show MathJax's inline error rendering with the source
     // visible, never a broken image. The assertions cover what a headless
@@ -317,7 +317,7 @@ void TestDocumentExporter::testMathExportPngModeArtifacts()
     // Format-aware math export: HTML leaves MathJax-delimited TeX in the
     // document, the PDF seam embeds PNG math, and KVIT_MATH_RENDER=png
     // force-overrides the HTML export into PNG embeds (the offline escape
-    // hatch, html-export.md).
+    // hatch).
     const QString markdown = QStringLiteral(
         "# Equations\n\n$$\nE = mc^2\n$$\n\n"
         "$$\n\\int_0^1 x^2\\, dx = \\frac{1}{3}\n$$");

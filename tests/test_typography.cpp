@@ -48,7 +48,7 @@ private:
 
 void TestTypography::testDefaultScaleIsLegacyPixelValues()
 {
-    // The Phase 4/5 sizes, now derived: defaults render pixel-identical.
+    // The legacy hard-coded sizes, now derived: defaults render pixel-identical.
     Typography t;
     QCOMPARE(t.baseSize(), 15);
     QCOMPARE(t.sizeForBlockType(Block::Heading1), 32);

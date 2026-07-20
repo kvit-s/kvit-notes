@@ -45,11 +45,11 @@ private slots:
     void outlineNonHeadingEditDoesNotRebuild();
     void bulkDelete();
     void selectionPrune();
-    // Phase 6: O(1) selection via the id->index map
+    // O(1) selection via the id->index map
     void selectionIdLookup();
     void selectAllDelete();
     void selectionDragTick();
-    // Phase 7: cached ordinals on pathological list documents
+    // Cached ordinals on pathological list documents
     void ordinalSweepList5K();
 };
 
@@ -753,7 +753,7 @@ void TestPerformanceOps::selectionPrune()
           samples.last().durationMs);
 }
 
-// Phase 6 gate: id lookups through the map stay effectively constant.
+// Gate: id lookups through the map stay effectively constant.
 // 10,000 lookups of edge and middle ids on WP-SYNTH must complete far
 // below what 10,000 linear scans would take (~6M block visits).
 void TestPerformanceOps::selectionIdLookup()
@@ -788,7 +788,7 @@ void TestPerformanceOps::selectionIdLookup()
     qInfo("PERF selection.id_lookup WP-SYNTH: %.2f ms for 30,000 lookups", ms);
 }
 
-// Phase 6 gate: select-all + delete on WP-SYNTH with a live selection
+// Gate: select-all + delete on WP-SYNTH with a live selection
 // and undo stack attached completes within 200 ms (from multi-second).
 void TestPerformanceOps::selectAllDelete()
 {
@@ -823,7 +823,7 @@ void TestPerformanceOps::selectAllDelete()
     QCOMPARE(model.count(), fixture.blocks);
 }
 
-// Phase 6 gate: a selection-drag tick — extend the text-selection head
+// Gate: a selection-drag tick — extend the text-selection head
 // and resolve the visible rows' portions — costs at most 2 ms per
 // revision bump on WP-SYNTH.
 void TestPerformanceOps::selectionDragTick()
@@ -863,7 +863,7 @@ void TestPerformanceOps::selectionDragTick()
     qInfo("PERF selection.drag_tick WP-SYNTH: worst %.3f ms per tick", worstMs);
 }
 
-// Phase 7 gate (A7): rendering every ordinal on LIST-5K after a
+// Gate: rendering every ordinal on LIST-5K after a
 // structural change costs one linear cache rebuild plus O(1) reads —
 // not a backward run scan per row (which is quadratic on one long run).
 void TestPerformanceOps::ordinalSweepList5K()

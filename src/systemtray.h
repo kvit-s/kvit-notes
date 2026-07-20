@@ -11,12 +11,12 @@ class QSystemTrayIcon;
 class QMenu;
 class SettingsStore;
 
-// System-tray seam (§15.2, phase12 decision 6). Wraps QSystemTrayIcon behind an
-// interface the app drives and the tests fake. Under WSLg there is no status-
-// notifier host, so available() is false (spike (b)); the tray icon is not shown
-// and the app behaves as today, while the menu-action signals and triggerAction()
-// still let the in-app path and the gate exercise the routing. notify() posts a
-// balloon message where a tray exists; lastNotification records it for the test.
+// System-tray seam (§15.2). Wraps QSystemTrayIcon behind an interface the app
+// drives and the tests fake. Under WSLg there is no status-notifier host, so
+// available() is false (spike (b)); the tray icon is not shown and the app
+// behaves as today, while the menu-action signals and triggerAction() still let
+// the in-app path and the gate exercise the routing. notify() posts a balloon
+// message where a tray exists; lastNotification records it for the test.
 class SystemTray : public QObject
 {
     Q_OBJECT

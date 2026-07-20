@@ -310,7 +310,7 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
 
     // The block's base markdown, then the trailing <!--kvit ...--> tag
     // re-attached (a no-op when the block has no attributes, so an unstyled
-    // block is byte-identical — phase12 decision 1).
+    // block is byte-identical).
     const QString base = [&]() -> QString {
     switch (block->blockType()) {
     case Block::Heading1:
@@ -333,7 +333,7 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
     case Block::Quote: {
         // One quote block per contiguous run at one depth; empty content
         // lines write the depth's markers with no trailing space. The depth
-        // is indentLevel + 1 (nested quotes, decision 11).
+        // is indentLevel + 1 (nested quotes).
         const int depth = block->indentLevel() + 1;
         QString prefix;
         for (int d = 0; d < depth; ++d)
@@ -353,8 +353,8 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
         return result;
     }
     case Block::MathBlock: {
-        // A $$ … $$ display-math fence (decision 12). Canonical form is
-        // multi-line; a hand-authored single-line $$x$$ normalizes to it.
+        // A $$ … $$ display-math fence. Canonical form is multi-line; a
+        // hand-authored single-line $$x$$ normalizes to it.
         QString result = QStringLiteral("$$\n");
         if (!content.isEmpty())
             result += content + QLatin1Char('\n');
@@ -364,8 +364,8 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
     case Block::Divider:
         return QStringLiteral("---");
     case Block::Table:
-        // Canonicalize on save (decision 8): a hand-authored ragged/padded
-        // table squares up, while a Kvit-written table round-trips identically.
+        // Canonicalize on save: a hand-authored ragged/padded table squares up,
+        // while a Kvit-written table round-trips identically.
         return TableData::serialize(TableData::parse(content));
     case Block::Callout: {
         // > [!type][-] Title  header, then "> " body lines. Folded writes
@@ -379,8 +379,8 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
             header += QLatin1Char(' ') + block->calloutTitle();
         QStringList out;
         // A callout is multi-line, so its attribute tag rides the header line
-        // (phase12 decision 1) rather than trailing the last body line; the
-        // outer re-attach below skips callouts for this reason.
+        // rather than trailing the last body line; the outer re-attach
+        // below skips callouts for this reason.
         out << BlockAttributes::attachTag(header, block->attributes());
         if (!content.isEmpty()) {
             for (const QString &line : content.split(QLatin1Char('\n')))
@@ -427,7 +427,7 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
     QStringList quoteRun;
     int quoteDepth = 1;   // nested-quote depth of the current run ("> " count)
     // The <!--kvit ...--> attribute payload split off a line in the current
-    // run (phase12 decision 1); last non-empty line wins, applied on flush.
+    // run; last non-empty line wins, applied on flush.
     QString paragraphAttrs;
     QString quoteAttrs;
 
@@ -463,7 +463,7 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
         } else {
             data.type = Block::Quote;
             data.content = quoteRun.join(QLatin1Char('\n'));
-            // Nested-quote depth rides indentLevel (decision 11), clamped like
+            // Nested-quote depth rides indentLevel, clamped like
             // list nesting; a callout keeps depth 0.
             data.indentLevel = qBound(0, quoteDepth - 1, 4);
         }
@@ -480,10 +480,10 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
     int i = 0;
     while (i < lines.size()) {
         // Split a trailing <!--kvit ...--> attribute tag off this line
-        // (phase12 decision 1) before classifying. A tag-free line is
-        // returned unchanged, so existing documents parse byte-identically.
-        // Verbatim regions (code/math fences, table body) read the original
-        // `lines` in their inner loops, so their content is never stripped.
+        // before classifying. A tag-free line is returned unchanged, so
+        // existing documents parse byte-identically. Verbatim regions
+        // (code/math fences, table body) read the original `lines` in their
+        // inner loops, so their content is never stripped.
         QString lineAttrs;
         const QString line = BlockAttributes::stripTag(lines.at(i), &lineAttrs);
 
@@ -632,8 +632,8 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
 
         // Quote lines: "> content", nested "> > content", or a bare ">"
         // (empty content line). Contiguous SAME-DEPTH quote lines join into
-        // one block; a depth change starts a new block (nested quotes,
-        // decision 11 — the flat model represents depth, not nesting).
+        // one block; a depth change starts a new block (nested quotes — the
+        // flat model represents depth, not nesting).
         if (line.startsWith(QStringLiteral("> ")) || line == QStringLiteral(">")
             || line.startsWith(QStringLiteral(">>"))) {
             flushParagraph();

@@ -4,7 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 
-// Image-effects popover (features.md §1.2.8, phase12 §1.2.8): toggle rounded
+// Image-effects popover (features.md §1.2.8): toggle rounded
 // corners, drop shadow, a border, and the maintain-aspect option. It reports a
 // canonical attribute payload through `applied`, computed from the CURRENT
 // attributes so unrelated keys (e.g. alignment) are preserved; the image writes

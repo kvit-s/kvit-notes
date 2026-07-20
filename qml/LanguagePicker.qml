@@ -4,7 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 
-// The code-block language selector (phase10 step 1, decision 3). A menu of
+// The code-block language selector. A menu of
 // the eleven recognized languages plus "Plain text" (no highlighting),
 // driven by the canonical `codeLanguageList` context property so the choices
 // can never drift from what the highlighter supports. Opened from the code

@@ -300,9 +300,9 @@ void BlockModel::changeIndent(int index, int delta)
     if (!block || delta == 0)
         return;
 
-    // Wave 1 indents the list family; Phase 10 adds quote nesting depth
-    // (decision 11), which has no list-parent constraint — just the 0..Max
-    // clamp. Every other type keeps whitespace out of its markdown.
+    // Wave 1 indents the list family; quote nesting depth has no
+    // list-parent constraint — just the 0..Max clamp. Every other type
+    // keeps whitespace out of its markdown.
     const bool isQuote = block->blockType() == Block::Quote;
     if (!Block::isListFamily(block->blockType()) && !isQuote)
         return;
@@ -518,7 +518,7 @@ void BlockModel::moveBlocksBy(const QVariantList &indexes, int delta)
     runs.append(qMakePair(runStart, prev));
 
     // A run against the document edge stops the whole operation —
-    // partial movement would tear the selection apart (decision 10).
+    // partial movement would tear the selection apart.
     if (delta < 0 && runs.first().first == 0)
         return;
     if (delta > 0 && runs.last().second == m_blocks.count() - 1)
@@ -602,10 +602,10 @@ void BlockModel::moveBlocksTo(const QVariantList &indexes, int targetGap)
         return;
     targetGap = qBound(0, targetGap, static_cast<int>(m_blocks.count()));
 
-    // Plan one range move per contiguous selected run (Phase 6, finding
-    // A5) instead of deriving single moves through repeated linear
-    // scans. Moves keep block identity, so ids, delegates, and any
-    // selection survive the drop; the whole drop is one undo step.
+    // Plan one range move per contiguous selected run instead of deriving
+    // single moves through repeated linear scans. Moves keep block
+    // identity, so ids, delegates, and any selection survive the drop;
+    // the whole drop is one undo step.
     const QList<RangeMove> moves = planGroupMove(sorted, targetGap);
     if (moves.isEmpty())
         return;

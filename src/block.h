@@ -42,15 +42,15 @@ public:
         Quote,
         CodeBlock,
         Divider,
-        // Appended in Phase 5 (values are persisted, so Heading4 cannot
-        // sit beside its siblings): the fourth heading level of
+        // Appended out of order (values are persisted, so Heading4
+        // cannot sit beside its siblings): the fourth heading level of
         // features.md §1.2.2, required by the §4.2 block menu.
         Heading4,
-        // Phase 10 wave-2 types, appended so persisted values never
-        // renumber. Image and Media store their markdown expression
-        // (![alt|width](path "caption")) in content, like the table/kanban
-        // container types; Callout carries its type and title as fields over
-        // the quote machinery; MathBlock holds a $$ fence verbatim.
+        // Wave-2 types, appended so persisted values never renumber. Image
+        // and Media store their markdown expression (![alt|width](path
+        // "caption")) in content, like the table/kanban container types;
+        // Callout carries its type and title as fields over the quote
+        // machinery; MathBlock holds a $$ fence verbatim.
         Image,
         Callout,
         MathBlock,

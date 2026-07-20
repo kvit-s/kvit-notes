@@ -7,7 +7,7 @@
 #include "undostack.h"
 #include "block.h"
 
-// Phase 12 Step 10: the War-and-Peace performance gate (features.md §21.7).
+// The War-and-Peace performance gate (features.md §21.7).
 // A 561,693-word document (the size of War and Peace) must load in under a
 // second, round-trip losslessly, and delete in bulk without a long main-thread
 // stall; memory is linear in the block count (one Block per block, delegates

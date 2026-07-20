@@ -10,7 +10,7 @@
 #include <QFile>
 #include <QTextStream>
 
-// Import into the collection (phase11 decision 9): the importable-file test,
+// Import into the collection: the importable-file test,
 // single/batch/folder import with structure preserved, collision suffixing,
 // front-matter survival (the Obsidian-vault case), and the dry-run counts.
 class TestDocumentImporter : public QObject
@@ -129,7 +129,7 @@ void TestDocumentImporter::testImportFolderPreservesTree()
 void TestDocumentImporter::testObsidianFrontMatterSurvives()
 {
     // A note with Obsidian-style front-matter, including a foreign key, must
-    // survive byte-for-byte (the Phase 8 tolerance rule).
+    // survive byte-for-byte (the front-matter tolerance rule).
     const QString content =
         "---\ntags: [research]\naliases: [foo, bar]\ncssclass: wide\n---\n"
         "# Vault Note\n\nContent.\n";

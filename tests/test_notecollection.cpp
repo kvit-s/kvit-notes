@@ -104,8 +104,8 @@ private slots:
     void testNoteSavedCanUseProvidedText();
     void testRevisionContract();
 
-    // Phase 8 step 8: the adopted performance target (decision 12) —
-    // opening a 500-note collection in under 1 second, measured.
+    // The adopted performance target — opening a 500-note collection
+    // in under 1 second, measured.
     void testBenchmark500NoteOpen();
 
 private:

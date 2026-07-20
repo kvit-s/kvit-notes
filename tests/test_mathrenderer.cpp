@@ -176,7 +176,7 @@ class TestMathRenderer : public QObject
     // row within [yStart, yEnd). Solid horizontal rules that MicroTeX draws — a
     // fraction bar or a radical vinculum — surface here as the widest run, which
     // lets the geometry tests assert those rules actually span their content
-    // rather than only checking the metric numbers (tex-mathdesign.md step 13).
+    // rather than only checking the metric numbers.
     int widestHorizontalInkRun(const QImage &image, int yStart = -1,
                                int yEnd = -1) const
     {
@@ -478,7 +478,7 @@ private slots:
         QVERIFY(image.save(shotDir() + QLatin1Char('/') + file));
 
         // A white-background, upscaled copy so the black-on-transparent glyphs
-        // are legible when the frames are reviewed by eye (plan step 9(2)).
+        // are legible when the frames are reviewed by eye.
         const int scale = qMax(1, 200 / qMax(1, image.height()));
         QImage review(image.width() * scale, image.height() * scale,
                       QImage::Format_ARGB32);
@@ -700,7 +700,7 @@ private slots:
                 >= qRound(contentMetrics.height * 0.85));
     }
 
-    // tex-mathdesign.md step 13: the fraction rule must be at least as wide as
+    // The fraction rule must be at least as wide as
     // the wider of numerator and denominator. The earlier metric checks compare
     // reported box sizes; this asserts the drawn bar's actual ink extent, so a
     // regression that shortens or drops the rule is caught by eye-independent
@@ -745,7 +745,7 @@ private slots:
         QVERIFY(barRun <= fracImage.width());
     }
 
-    // tex-mathdesign.md step 13: the bounding box of a radical must contain its
+    // The bounding box of a radical must contain its
     // radicand, i.e. the radical sign widens it on the left and the vinculum
     // adds a horizontal rule across the top of the radicand. Asserting the drawn
     // vinculum covers the radicand width catches a dropped/short overbar that
@@ -791,7 +791,7 @@ private slots:
                                 .arg(qRound(radicandBounds.width() * 0.9))));
     }
 
-    // tex-mathdesign.md step 11: TeX takes the math layout constants from
+    // TeX takes the math layout constants from
     // fontdimens of the symbol and extension fonts, so the generated NewTX
     // mode must use ntxexx's defaultrulethickness (0.056em) instead of
     // Computer Modern's 0.040em. The fraction bar is the most direct pixel
@@ -825,7 +825,7 @@ private slots:
                                 .arg(measured).arg(expected, 0, 'f', 2)));
     }
 
-    // tex-mathdesign.md step 6 (optical sizes): lmsntxsy.fd gives the symbols
+    // Optical sizes: lmsntxsy.fd gives the symbols
     // family real optical script masters — ntxsy7 for script and ntxsy5 for
     // scriptscript at a 10pt base. Those masters are drawn wider than a
     // linearly scaled ntxsy: \in is 0.556em in ntxsy but 0.596em in both
@@ -927,7 +927,7 @@ private slots:
                  "script-style minus leaves no ink in e^{-x^2}");
     }
 
-    // tex-mathdesign.md step 3 (scale): tracing the reference preamble shows
+    // Scale: tracing the reference preamble shows
     // every family loads at natural size — operators come from T1/XCharter-TLF
     // (rmdefaultB == rmdefault, so minxcharter's 0.98 factor is never
     // selected) and zchmi/ntxsy/ntxexx load with an empty \ntxmath@scaled. The

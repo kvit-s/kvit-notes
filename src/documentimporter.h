@@ -11,13 +11,13 @@
 
 class NoteCollection;
 
-// Import into the collection (features.md §12.6; phase11 decision 9): copy
-// markdown/text files — one, a batch, or a whole folder tree — into a target
-// folder, parsing each through the same front-matter split and serializer as a
-// native note, so an imported note is indistinguishable from one written in
-// Kvit. Whole-folder import recreates the subfolder tree; name collisions get
-// the collection's " N" suffixing; the Obsidian-vault case is free because
-// front-matter is preserved verbatim (the Phase 8 tolerance rule).
+// Import into the collection (features.md §12.6): copy markdown/text files —
+// one, a batch, or a whole folder tree — into a target folder, parsing each
+// through the same front-matter split and serializer as a native note, so an
+// imported note is indistinguishable from one written in Kvit. Whole-folder
+// import recreates the subfolder tree; name collisions get the collection's
+// " N" suffixing; the Obsidian-vault case is free because front-matter is
+// preserved verbatim.
 //
 // Import is a collection operation, not an editor undo step (the trash is the
 // safety net); a dry-run summary precedes the copy. Exposed as the

@@ -300,8 +300,8 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
         SeqHead head;
         bool bidir;
         bool self;
-        int eventIndex = -1;   // §20.1 selection identity
-        int srcStart = -1;     // §20.5 linking span
+        int eventIndex = -1;   // Selection identity
+        int srcStart = -1;     // Linking span
         int srcLen = 0;
     };
     QList<Msg> msgs;

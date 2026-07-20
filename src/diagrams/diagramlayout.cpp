@@ -374,7 +374,7 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
         lines.append(ls);
     }
 
-    // ---- coordinates: arranged mode (§20.3) or the shared layered core ----
+    // ---- coordinates: arranged mode or the shared layered core ----
     const bool horizontal = opts.direction == Direction::LR
                             || opts.direction == Direction::RL;
     QList<QPointF> center;
@@ -470,7 +470,7 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
     }
 
     // ---- route edges ----
-    // §20.3 arranged mode bows parallel edges apart; count pair multiplicity.
+    // Arranged mode bows parallel edges apart; count pair multiplicity.
     QHash<QPair<int, int>, int> pairCount;
     QHash<QPair<int, int>, int> pairSeen;
     if (arranged) {
@@ -517,7 +517,7 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
             p.endDir = QPointF(-1, 0);
             p.startDir = QPointF(-1, 0);
         } else if (arranged) {
-            // §20.3: cubic Béziers leave and enter perpendicular to the node
+            // Cubic Béziers leave and enter perpendicular to the node
             // sides along the flow axis; parallel edges bow apart.
             const QPair<int, int> key(qMin(u, v), qMax(u, v));
             const int n = pairCount.value(key, 1);

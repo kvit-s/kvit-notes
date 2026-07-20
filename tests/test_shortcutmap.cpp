@@ -4,7 +4,7 @@
 #include <QtTest/QtTest>
 #include "shortcutcatalog.h"
 
-// Phase 12 Step 4: the keyboard-shortcut audit. This corpus cross-checks the
+// The keyboard-shortcut audit. This corpus cross-checks the
 // ShortcutCatalog (the single source of truth the ShortcutReference cheat sheet
 // renders) against the features.md §13.1–§13.4 tables: every shortcut must be
 // present with its exact chord, and the three deviations must be marked

@@ -130,7 +130,7 @@ manifest, not this file.
 
 - **Version:** first-party, 2026-07
 - **License:** MPL-2.0
-- **Origin:** synthesized for the media-block test suite (Phase 10); not taken from any external recording or stock source
+- **Origin:** synthesized for the media-block test suite; not taken from any external recording or stock source
 - **Files:** tests/fixtures/sample.wav, tests/fixtures/sample.mp4, tests/fixtures/sample.png
 - **License text:** LICENSE (project license)
 - **Ships in:** source

@@ -26,7 +26,7 @@ class BlockModel;
 // agree: lowercase, spaces to hyphens, punctuation stripped, and collisions in
 // document order disambiguated with numeric suffixes (-1, -2, …). rebuild()
 // runs behind a compressed queued call so a burst of heading edits recomputes
-// once, off the keystroke path (decision 12).
+// once, off the keystroke path.
 class DocumentOutline : public QAbstractListModel
 {
     Q_OBJECT
@@ -76,16 +76,16 @@ public:
     int levelMask() const { return m_levelMask; }
     void setLevelMask(int mask);
 
-    // The shared slug function (decision 2): pure, no collision handling —
-    // lowercase, spaces/underscores to hyphens, other punctuation stripped,
-    // runs of hyphens collapsed, ends trimmed. Collision disambiguation is
-    // layered on top by the tree walk (see slugForBlockIndex).
+    // The shared slug function: pure, no collision handling — lowercase,
+    // spaces/underscores to hyphens, other punctuation stripped, runs of
+    // hyphens collapsed, ends trimmed. Collision disambiguation is layered
+    // on top by the tree walk (see slugForBlockIndex).
     static QString baseSlug(const QString &text);
 
     // Resolution shared by the outline, the TOC, and internal links. All slug
     // comparisons are over the final (disambiguated) slugs. A slug matching no
     // heading returns -1 / false — the caller renders the recoverable
-    // "unresolved" state (decision 3).
+    // "unresolved" state.
     Q_INVOKABLE int blockIndexForSlug(const QString &slug) const;
     Q_INVOKABLE bool hasSlug(const QString &slug) const;
     Q_INVOKABLE QString slugForBlockIndex(int blockIndex) const;
@@ -112,13 +112,13 @@ public:
     Q_INVOKABLE int blockIndexAt(int row) const;
 
     // Every heading as {level, text, slug, blockIndex}, document order — the
-    // Ctrl+K "link to heading" target list (decision 3). Ignores the level
-    // filter and collapse (Ctrl+K offers all headings).
+    // Ctrl+K "link to heading" target list. Ignores the level filter and
+    // collapse (Ctrl+K offers all headings).
     Q_INVOKABLE QVariantList headings() const;
 
-    // The table-of-contents body (decision 4): a nested markdown list of
-    // [text](#slug) internal links, two spaces of indent per level below the
-    // shallowest heading present. Regenerated whenever headings change.
+    // The table-of-contents body: a nested markdown list of [text](#slug)
+    // internal links, two spaces of indent per level below the shallowest
+    // heading present. Regenerated whenever headings change.
     Q_INVOKABLE QString tocMarkdown() const;
 
     // Synchronous rebuild; model signals schedule this compressed through a

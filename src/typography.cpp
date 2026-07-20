@@ -141,8 +141,8 @@ void Typography::setMonoFamily(const QString &family)
 
 int Typography::sizeForBlockType(int blockType) const
 {
-    // The frozen ratios (decision 4), expressed against the historical
-    // 15 px base so the defaults reproduce the Phase 4/5 values exactly.
+    // The frozen ratios, expressed against the historical 15 px base so
+    // the defaults reproduce the original values exactly.
     qreal numerator;
     switch (blockType) {
     case Block::Heading1: numerator = 32.0; break;

@@ -24,13 +24,13 @@ Item {
     required property bool checked
     required property int ordinal
     required property string language
-    // Per-block presentation attributes (phase12 decision 1): alignment and
-    // the Step 3 image effects (rounded/shadow/border/aspect).
+    // Per-block presentation attributes: alignment and the image effects
+    // (rounded/shadow/border/aspect).
     required property string attributes
 
-    // Image alignment (phase12 §9.2). Unlike text, an image defaults to
-    // centered — the pre-Phase-12 behavior — so an unstyled image is unchanged;
-    // only an explicit align=left|right moves it.
+    // Image alignment (features.md §9.2). Unlike text, an image defaults to
+    // centered, so an unstyled image is unchanged; only an explicit
+    // align=left|right moves it.
     readonly property string imageAlign:
         blockAttributes.str(attributes, "align", "center")
     function setBlockAlignment(value) {
@@ -40,7 +40,7 @@ Item {
         blockModel.setBlockAttributes(delegate.index, next)
     }
 
-    // ---- Image effects (phase12 §1.2.8) ----
+    // ---- Image effects (features.md §1.2.8) ----
     // rounded (radius, default 12), shadow, border (optional custom color), and
     // the maintain-aspect toggle (`aspect=stretch` drops proportion locking).
     readonly property bool imgRounded: blockAttributes.has(attributes, "rounded")
@@ -276,8 +276,9 @@ Item {
         id: contentColumn
         anchors.top: parent.top
         anchors.topMargin: 8
-        // Alignment (phase12 §9.2): centered by default, or pinned left (past
-        // the gutter) / right. Detaching the unused anchors with `undefined`.
+        // Alignment (features.md §9.2): centered by default, or pinned
+        // left (past the gutter) / right. Detaching the unused anchors
+        // with `undefined`.
         anchors.horizontalCenter: delegate.imageAlign === "center"
             ? parent.horizontalCenter : undefined
         anchors.horizontalCenterOffset: 12   // clear the gutter (center only)

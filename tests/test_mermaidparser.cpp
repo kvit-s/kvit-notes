@@ -436,7 +436,7 @@ private slots:
         QVERIFY(hasWarning(r, "linkStyle"));
     }
 
-    // ---- §20 source spans ----
+    // ---- Source spans ----
 
     void sourceSpansMapOntoSource()
     {

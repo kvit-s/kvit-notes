@@ -8,7 +8,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 
-// A fake fetcher (phase11 decision 11): returns canned HTML or a canned
+// A fake fetcher: returns canned HTML or a canned
 // failure synchronously, so the tests are hermetic.
 class CannedFetcher : public EmbedFetcher
 {

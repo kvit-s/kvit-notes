@@ -71,7 +71,7 @@ void DocumentOutline::setModel(BlockModel *model)
     rebuild();
 }
 
-// ---- the shared slug function (decision 2) ----
+// ---- the shared slug function ----
 
 QString DocumentOutline::baseSlug(const QString &text)
 {

@@ -9,10 +9,10 @@
 
 #include "mermaidast.h"
 
-// §20 gesture-to-edit engine: every on-diagram gesture becomes a targeted,
+// Gesture-to-edit engine: every on-diagram gesture becomes a targeted,
 // formatting-preserving edit of the fence source, computed from AST source
-// offsets (§20.2). The fence is never reserialized from the model; bytes
-// outside the specified span are preserved exactly, which the §20.7
+// offsets. The fence is never reserialized from the model; bytes
+// outside the specified span are preserved exactly, which the
 // byte-preservation property tests assert. Each function returns the complete
 // new source (applied through the undo-aware blockModel.updateContent as one
 // step) or an error explaining the refusal.
@@ -26,7 +26,7 @@ struct Result {
     QString newId;    // quickAddNode: the generated node id
 };
 
-// §20.3 manual arrangement: write a full pos-line snapshot. `positions` holds
+// Manual arrangement: write a full pos-line snapshot. `positions` holds
 // every live node center (source order, logical pixels); entries for deleted
 // or renamed ids disappear because the line is rewritten from live nodes
 // only. The write changes only the pos line (replaced in place, or appended
@@ -35,13 +35,13 @@ struct Result {
 Result writeArrangement(const QString &source,
                         const QList<QPair<QString, QPointF>> &positions);
 
-// §20.3 Reset layout: delete the pos line (and its newline) as one edit.
+// Reset layout: delete the pos line (and its newline) as one edit.
 // A source with no recognized pos line is returned unchanged.
 Result resetArrangement(const QString &source);
 
-// ---- §20.4 flowchart semantic gestures ----
+// ---- Flowchart semantic gestures ----
 // Every function refuses (ok = false) rather than applying approximately when
-// the edit cannot be guaranteed to reparse without new diagnostics (§20.2).
+// the edit cannot be guaranteed to reparse without new diagnostics.
 
 // Inline label edit: replace the raw text between the node's brackets;
 // quoting is added only when the new text requires it. A node without
@@ -93,7 +93,7 @@ Result reparentNode(const QString &source, const QString &nodeId,
 // declaration statement with its previous/next statement.
 Result reorderNode(const QString &source, const QString &nodeId, int delta);
 
-// ---- §20.4 sequence-diagram reordering (Phase 5d) ----
+// ---- Sequence-diagram reordering ----
 // Vertical geometry is statement order: moving a message up or down swaps its
 // line with the adjacent message's line, one-for-one. `eventIndex` addresses
 // SequenceAst::events; the event must be a Message.

@@ -23,7 +23,7 @@ struct RenderResult {
     bool unsupportedFamily = false;  // a known but not-yet-supported family
     QString familyName;
     Mermaid::DiagramType family = Mermaid::DiagramType::Unknown;
-    bool hasArrangement = false;     // a §20.3 pos line is present (flowchart)
+    bool hasArrangement = false;     // a pos line is present (flowchart)
     QList<Mermaid::Diagnostic> diagnostics;
     Mermaid::Diagnostic firstError;
     bool hasError = false;

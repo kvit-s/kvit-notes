@@ -12,17 +12,17 @@ class BlockModel;
 class NoteCollection;
 class Theme;
 
-// Document export (features.md §12.5; phase11 decision 8): one pipeline turns
-// a block list into a single self-contained HTML string — theme CSS inlined,
-// inline spans and links rendered, images and rendered math embedded as data:
-// URIs, code highlighted as styled spans, tables and kanban boards as static
-// <table>s, callouts as bordered blocks, headings carrying id anchors that the
-// TOC and internal links target. HTML export writes that string; PDF export
-// prints it through QTextDocument/QPdfWriter (the one seam that touches Qt's
-// document engine). Plain-text export is display text with structural
-// prefixes; Markdown export is the existing serializer.
+// Document export (features.md §12.5): one pipeline turns a block list into a
+// single self-contained HTML string — theme CSS inlined, inline spans and
+// links rendered, images and rendered math embedded as data: URIs, code
+// highlighted as styled spans, tables and kanban boards as static <table>s,
+// callouts as bordered blocks, headings carrying id anchors that the TOC and
+// internal links target. HTML export writes that string; PDF export prints it
+// through QTextDocument/QPdfWriter (the one seam that touches Qt's document
+// engine). Plain-text export is display text with structural prefixes;
+// Markdown export is the existing serializer.
 //
-// Math is format-aware (html-export.md): HTML export leaves the TeX in the
+// Math is format-aware: HTML export leaves the TeX in the
 // document — display math as \[ … \] in a p.math-display, inline math as
 // \( … \) — and injects one pinned MathJax CDN <script> tag when math is
 // present, so the viewer's browser typesets it. The PDF print seam embeds

@@ -255,7 +255,7 @@ Rectangle {
                 ToolTip.visible: hovered; ToolTip.text: qsTr("Link (Ctrl+K)")
                 onClicked: toolbar.targetBlock.openLinkDialog()
             }
-            // Text color (phase10 decision 2): "A" with an underline in the
+            // Text color: "A" with an underline in the
             // caret's current color; opens a swatch/custom/remove picker.
             BarButton {
                 objectName: "toolbarColorButton"
@@ -384,7 +384,7 @@ Rectangle {
 
         Item { Layout.fillWidth: true }
 
-        // §18 templates (phase11 decision 6): new-from-template and management.
+        // features.md §18 templates: new-from-template and management.
         // Only meaningful with a collection open (templates live under .kvit).
         ToolButton {
             objectName: "toolbarTemplatesButton"
@@ -506,7 +506,7 @@ Rectangle {
                     checkable: true
                     // The revision read re-evaluates this when the setting flips
                     // from anywhere; the gutter binding in EditableBlock reads
-                    // the same key (phase10 step 1).
+                    // the same key.
                     checked: {
                         var r = appSettings.revision  // dependency only
                         return appSettings.value("view.codeLineNumbers", false) === true
@@ -519,7 +519,7 @@ Rectangle {
                     text: qsTr("Equation numbers")
                     checkable: true
                     // Same reactive pattern as code line numbers; MathBlock
-                    // reads the same key (phase10 step 9, decision 12).
+                    // reads the same key.
                     checked: {
                         var r = appSettings.revision  // dependency only
                         return appSettings.value("view.equationNumbers", false) === true

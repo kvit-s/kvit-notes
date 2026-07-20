@@ -254,8 +254,8 @@ public slots:
         }
         engine->rootContext()->setContextProperty("sampleImagePath", samplePath);
 
-        // Sample audio/video on disk for the media-block storyboard/integration
-        // (phase10 step 10). Copied from the committed fixtures into the
+        // Sample audio/video on disk for the media-block storyboard/integration.
+        // Copied from the committed fixtures into the
         // collection so they resolve like any note asset.
 #ifdef KVIT_TEST_FIXTURES
         {
@@ -269,7 +269,7 @@ public slots:
             engine->rootContext()->setContextProperty("sampleAudioPath", audio);
             engine->rootContext()->setContextProperty("sampleVideoPath", video);
 
-            // A sample image for the image-effects storyboard (phase12 §1.2.8):
+            // A sample image for the image-effects storyboard (features.md §1.2.8):
             // copied into the collection so a relative ![](sample.png) resolves.
             const QString image = m_collectionDir.filePath("sample.png");
             QFile::remove(image);

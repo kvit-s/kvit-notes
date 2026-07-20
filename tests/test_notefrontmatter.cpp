@@ -53,7 +53,7 @@ private slots:
     void testSerializeIsCanonicalFixedPoint();
     void testForeignBlockSurvivesMetadataEdit();
 
-    // Writing goal (phase11 decision 7)
+    // Writing goal
     void testGoalParseSerializeRoundTrip();
     void testGoalInvalidValueStaysUnknown();
 

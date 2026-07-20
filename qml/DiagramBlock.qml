@@ -94,7 +94,7 @@ Item {
     function focusAtStart() { sourceArea.forceActiveFocus(); sourceArea.cursorPosition = 0 }
     function focusAtEnd() { sourceArea.forceActiveFocus(); sourceArea.cursorPosition = sourceArea.length }
 
-    // ---- §20.1 read-state selection ----
+    // ---- Read-state selection ----
     function selectDiagramElement(nodeId, edgeIndex) {
         if (nodeId !== "")
             readCanvas.selectedNodeId = nodeId
@@ -103,7 +103,7 @@ Item {
         selectionKeys.forceActiveFocus()
         announceSelection()
     }
-    // §20.5 read state: expose the element's source line through the status
+    // Read state: expose the element's source line through the status
     // affordance without entering the editor.
     function announceSelection() {
         if (!readCanvas.hasSelection)
@@ -125,7 +125,7 @@ Item {
         sourceArea.cursorPosition =
             off >= 0 ? Math.min(off, sourceArea.length) : sourceArea.length
     }
-    // §20.2: apply a gesture's source edit as ONE undo step, or surface the
+    // Apply a gesture's source edit as ONE undo step, or surface the
     // refusal through the status affordance and announcer.
     function applyGesture(src, doneMessage) {
         if (src !== "" && src !== root.content) {
@@ -296,9 +296,9 @@ Item {
                         width: implicitWidth
                         height: implicitHeight
 
-                        // §20.1: clicking a node or edge selects it; empty
+                        // Clicking a node or edge selects it; empty
                         // canvas enters the source editor. Dragging a node is
-                        // manual arrangement (§20.3), committed on release as
+                        // manual arrangement, committed on release as
                         // one undo step. Both are gated on the scene matching
                         // the current source revision.
                         MouseArea {
@@ -313,7 +313,7 @@ Item {
                             property int pressEdge: -1
                             onPressed: function(mouse) {
                                 if (mouse.button === Qt.RightButton) {
-                                    // §20.1 context menu on the element under
+                                    // Context menu on the element under
                                     // the cursor (or the current selection).
                                     if (readCanvas.sceneCurrent) {
                                         var nid = readCanvas.nodeAt(mouse.x, mouse.y)
@@ -340,7 +340,7 @@ Item {
                                 if (mouse.button !== Qt.LeftButton
                                     || !readCanvas.sceneCurrent)
                                     return
-                                // §20.1: double-click opens the inline label
+                                // Double-click opens the inline label
                                 // editor on the node.
                                 var nid = readCanvas.nodeAt(mouse.x, mouse.y)
                                 if (nid !== "") {
@@ -384,7 +384,7 @@ Item {
                                     pressNode = ""
                                     return
                                 }
-                                // Phase 5d drag: one position per gesture.
+                                // Drag: one position per gesture.
                                 if (readCanvas.supportsSequenceReorder) {
                                     var dx = mouse.x - pressX
                                     var dy = mouse.y - pressY
@@ -433,7 +433,7 @@ Item {
                         }
                     }
 
-                    // §20.1 keyboard path: Tab/arrows cycle nodes, Escape
+                    // Keyboard path: Tab/arrows cycle nodes, Escape
                     // clears the selection first, Enter/F2 opens the source
                     // at the element.
                     Item {
@@ -487,7 +487,7 @@ Item {
                             if (event.key === Qt.Key_Return
                                 || event.key === Qt.Key_Enter
                                 || event.key === Qt.Key_F2) {
-                                // §20.1: the label editor on a node; the
+                                // The label editor on a node; the
                                 // source editor otherwise.
                                 if (readCanvas.selectedNodeId !== "")
                                     labelEditor.openFor(false)
@@ -511,7 +511,7 @@ Item {
                         }
                     }
 
-                    // §20.1 anchor affordances on the selected node's sides:
+                    // Anchor affordances on the selected node's sides:
                     // drag one to draw a ghost edge, click to add a
                     // connected node.
                     Item {
@@ -759,7 +759,7 @@ Item {
                     }
                 }
                 onTextChanged: { if (activeFocus) debounce.restart() }
-                // §20.5 source→preview: the cursor's statement highlights in
+                // Source→preview: the cursor's statement highlights in
                 // the live preview once the debounced preview catches up.
                 onCursorPositionChanged: {
                     if (activeFocus && text === root.previewSource)
@@ -848,7 +848,7 @@ Item {
                     width: implicitWidth
                     height: implicitHeight
 
-                    // §20.5 preview→source: clicking an element moves the
+                    // Preview→source: clicking an element moves the
                     // source cursor to its defining statement; hovering
                     // highlights it. Both are gated on the preview matching
                     // the editor text.
@@ -910,7 +910,7 @@ Item {
         acceptedButtons: Qt.NoButton
     }
 
-    // §20.1 context menu over the selected element. Every action has a name
+    // Context menu over the selected element. Every action has a name
     // and a keyboard path (menu key on a selection).
     Menu {
         id: contextMenu
@@ -930,7 +930,7 @@ Item {
             enabled: readCanvas.selectedNodeId !== ""
             onTriggered: labelEditor.openFor(false)
         }
-        // Phase 5d: sequence diagrams reorder by statement order (§20.4).
+        // Sequence diagrams reorder by statement order.
         MenuItem {
             text: qsTr("Move message up")
             visible: readCanvas.supportsSequenceReorder
@@ -1067,7 +1067,7 @@ Item {
         }
     }
 
-    // §20.1 inline label editor (double-click / F2 / Enter), doubling as the
+    // Inline label editor (double-click / F2 / Enter), doubling as the
     // Rename dialog. Positioned over the selected node.
     Popup {
         id: labelEditor

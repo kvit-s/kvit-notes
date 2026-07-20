@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The document outline pane (features.md §17.1; phase11 decision 2): a
+// The document outline pane (features.md §17.1): a
 // collapsible heading tree projected by DocumentOutline. Clicking a heading
 // scrolls to it; the section containing the caret lights up live; a level
 // filter chooses which heading levels appear. All state lives in

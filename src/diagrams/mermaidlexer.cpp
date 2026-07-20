@@ -38,7 +38,7 @@ const ShapeBracket kBrackets[] = {
 MermaidLexer::MermaidLexer(const QString &source)
 {
     // The source is kept verbatim so token offsets map onto the stored fence
-    // for §20 write-back; `\r` is treated as a newline character in run()
+    // for write-back; `\r` is treated as a newline character in run()
     // rather than rewritten, which normalizes CRLF logically (§8.2) without
     // shifting offsets.
     m_src = source;

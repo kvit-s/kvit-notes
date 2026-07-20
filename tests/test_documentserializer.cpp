@@ -58,7 +58,7 @@ private slots:
     void testLoadIntoModelSimple();
     void testLoadIntoModelClearsExisting();
 
-    // Phase 4: block types wave 1
+    // Block types wave 1
     void testParseBulletList();
     void testParseNumberedList();
     void testParseTodo();
@@ -93,7 +93,7 @@ private slots:
     void testEdgeSyntaxStaysLiteral();
     void testLoadIntoModelBlockTypes();
 
-    // Phase 6: block-selection clipboard
+    // Block-selection clipboard
     void testSerializeBlocksSubset();
     void testSerializeBlocksTightness();
     void testSerializeBlocksOrdinalsFromDocument();
@@ -397,7 +397,7 @@ void TestDocumentSerializer::testParseHeadingWithoutSpace()
 
 void TestDocumentSerializer::testParseHeading4()
 {
-    // Phase 5: "#### " parses as the fourth heading level of features.md
+    // "#### " parses as the fourth heading level of features.md
     // §1.2.2 (this flips the earlier "H4+ not supported" pin — the §4.2
     // block menu lists Heading 1-4, so the type now exists).
     QString markdown = "#### Minor Heading";
@@ -543,7 +543,7 @@ void TestDocumentSerializer::testLoadIntoModelClearsExisting()
 }
 
 // ============================================================================
-// Phase 4: block types wave 1
+// Block types wave 1
 // ============================================================================
 
 void TestDocumentSerializer::testParseBulletList()
@@ -753,7 +753,7 @@ void TestDocumentSerializer::testParseImageAndMediaBlocks()
 {
     // A lone image expression on its own line becomes an Image block; a
     // media extension becomes a Media block; ![…] mid-prose stays literal
-    // in a paragraph (decision 4).
+    // in a paragraph.
     auto blocks = m_serializer->parse(
         "intro\n\n![a cat|300](cats/tom.png \"My cat\")\n\n"
         "![clip](vid.mp4)\n\nsee ![inline](x.png) here");
@@ -868,7 +868,7 @@ void TestDocumentSerializer::testTableRoundTripAndNormalize()
     m_model->insertBlockInternal(0, Block::Table, canonical);
     QCOMPARE(m_serializer->serialize(m_model), canonical + "\n");
 
-    // A padded/ragged hand-authored table squares up on save (decision 8).
+    // A padded/ragged hand-authored table squares up on save.
     m_model->clear();
     m_model->insertBlockInternal(0, Block::Table,
         "|  A  | B |\n|:----|---|\n| 1 |\n| 2 | 3 | 4 |");
@@ -922,8 +922,8 @@ void TestDocumentSerializer::testMathBlockRoundTrip()
 
 void TestDocumentSerializer::testNestedQuotes()
 {
-    // Depth rides indentLevel; a depth change starts a new quote block
-    // (decision 11). A same-depth run still joins.
+    // Depth rides indentLevel; a depth change starts a new quote block.
+    // A same-depth run still joins.
     auto blocks = m_serializer->parse("> outer\n> still outer\n> > inner\n> outer again");
     QCOMPARE(blocks.size(), 3);
     QCOMPARE(blocks[0].type, Block::Quote);
@@ -1233,7 +1233,7 @@ void TestDocumentSerializer::testLoadIntoModelBlockTypes()
     QCOMPARE(m_model->blockAt(3)->blockType(), Block::Divider);
 }
 
-// ---- Phase 6: block-selection clipboard ----
+// ---- Block-selection clipboard ----
 
 void TestDocumentSerializer::testSerializeBlocksSubset()
 {
@@ -1351,7 +1351,7 @@ void TestDocumentSerializer::testInsertPlainTextAtSingleUndoStep()
 
 void TestDocumentSerializer::testTocFenceRoundTripAndDerivedKind()
 {
-    // A `toc`-tagged code fence (phase11 decision 4) parses as a CodeBlock
+    // A `toc`-tagged code fence parses as a CodeBlock
     // whose language is "toc" — no new stored type — and its derived delegate
     // kind is TocKind, so the chooser renders the linked TOC.
     const QString md = "# Intro\n\n```toc\n- [Intro](#intro)\n```\n\n## Next";

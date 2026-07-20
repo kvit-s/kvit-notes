@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Discoverable keyboard-shortcut cheat sheet (features.md §13, phase12 Step 4).
+// Discoverable keyboard-shortcut cheat sheet (features.md §13).
 // It renders the ShortcutCatalog — the same source the test_shortcutmap audit
 // checks — grouped by section. Actions without a shortcut (the documented
 // deviations) show a dash and their reason, so nothing reads as missing.

@@ -155,7 +155,7 @@ void DiagramCanvas::applyResult(const Diagram::RenderResult &r,
         m_summary = r.scene.summary;
         m_accTitle = r.scene.accTitle;
         m_sceneSource = src;
-        // A selected element that no longer exists is deselected (§20.1).
+        // A selected element that no longer exists is deselected.
         if (!m_selectedNode.isEmpty() || m_selectedEdge >= 0) {
             bool nodeAlive = m_selectedNode.isEmpty();
             bool edgeAlive = m_selectedEdge < 0;
@@ -176,7 +176,7 @@ void DiagramCanvas::applyResult(const Diagram::RenderResult &r,
     emit resultChanged();
 }
 
-// ---- §20.1 hit-testing and selection ----
+// ---- Hit-testing and selection ----
 
 QString DiagramCanvas::nodeAt(qreal x, qreal y) const
 {
@@ -277,7 +277,7 @@ QRectF DiagramCanvas::selectionRect() const
     return QRectF();
 }
 
-// ---- §20.4 gesture wrappers ----
+// ---- Gesture wrappers ----
 
 QString DiagramCanvas::gestureResult(const Mermaid::Edits::Result &r)
 {
@@ -384,7 +384,7 @@ QString DiagramCanvas::selectedNodeLabel() const
     return i >= 0 ? pr.flowchart.nodes.at(i).label : QString();
 }
 
-// ---- Phase 5d: sequence reordering ----
+// ---- Sequence reordering ----
 
 QString DiagramCanvas::moveSelectedMessageSource(int delta)
 {
@@ -402,7 +402,7 @@ QString DiagramCanvas::moveSelectedParticipantSource(int delta)
         m_source, m_selectedNode, delta));
 }
 
-// ---- §20.1 ghost-edge drag ----
+// ---- Ghost-edge drag ----
 
 bool DiagramCanvas::startEdgeDrag(qreal x, qreal y)
 {
@@ -448,7 +448,7 @@ void DiagramCanvas::cancelEdgeDrag()
     update();
 }
 
-// ---- §20.3 node dragging ----
+// ---- Node dragging ----
 
 QRectF DiagramCanvas::dragNodeRect() const
 {
@@ -486,7 +486,7 @@ void DiagramCanvas::updateNodeDrag(qreal x, qreal y)
         return;
     const QPointF pointer = toSceneCoords(x, y);
     QPointF center = m_dragOrigin + (pointer - m_dragGrab);
-    // Snap to an 8 px grid, then to neighbour alignment guides (§20.1).
+    // Snap to an 8 px grid, then to neighbour alignment guides.
     center = QPointF(qRound(center.x() / 8.0) * 8.0,
                      qRound(center.y() / 8.0) * 8.0);
     m_guideXs.clear();
@@ -518,10 +518,10 @@ QString DiagramCanvas::finishNodeDragSource()
     const QPointF target = m_dragCenter;
     cancelNodeDrag();
     if (target == m_dragOrigin)
-        return QString();   // a no-movement write is a no-op (§20.7)
+        return QString();   // a no-movement write is a no-op
 
     // Full snapshot in scene (= source) order: every node's current center,
-    // the dragged node at its new position (§20.3).
+    // the dragged node at its new position.
     QList<QPair<QString, QPointF>> positions;
     QStringList seen;
     for (const Diagram::Shape &s : m_scene.shapes) {
@@ -558,7 +558,7 @@ QString DiagramCanvas::resetArrangementSource() const
     return r.source;
 }
 
-// ---- §20.5 preview↔source linking ----
+// ---- Preview↔source linking ----
 
 int DiagramCanvas::sourceOffsetAt(qreal x, qreal y) const
 {
@@ -664,7 +664,7 @@ void DiagramCanvas::paint(QPainter *painter)
     painter->scale(m_renderScale, m_renderScale);
     Diagram::paintScene(painter, m_scene, sceneColors(), m_fontFamily);
 
-    // §20.1 selection ring and §20.5 cursor-link highlight.
+    // Selection ring and cursor-link highlight.
     auto ringNode = [&](const QString &id, qreal width, int alpha) {
         QColor c = m_selectionRing;
         c.setAlpha(alpha);
@@ -694,7 +694,7 @@ void DiagramCanvas::paint(QPainter *painter)
     if (m_selectedEdge >= 0)
         ringEdge(m_selectedEdge, 4.5, 150);
 
-    // §20.1 ghost edge while anchor-dragging; drops on the ringed target.
+    // Ghost edge while anchor-dragging; drops on the ringed target.
     if (m_edgeDragActive) {
         QRectF fromRect;
         for (const Diagram::Shape &s : m_scene.shapes)
@@ -711,7 +711,7 @@ void DiagramCanvas::paint(QPainter *painter)
             ringNode(m_edgeDragTarget, 2.2, 220);
     }
 
-    // §20.3 drag ghost and alignment guides; the drag commits on release.
+    // Drag ghost and alignment guides; the drag commits on release.
     if (m_dragActive) {
         QColor guide = m_selectionRing;
         guide.setAlpha(110);

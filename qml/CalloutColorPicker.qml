@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 
-// Callout custom-color picker (features.md §1.2.10, phase12 §1.2.10). A small
+// Callout custom-color picker (features.md §1.2.10). A small
 // popup of accent swatches plus a custom-color dialog and a "Reset to type
 // color" action. It only reports the choice; the callout applies it as one undo
 // step through setBlockAttributes. The chosen color overrides the callout's

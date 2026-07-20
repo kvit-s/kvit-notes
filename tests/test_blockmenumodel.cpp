@@ -83,16 +83,16 @@ void TestBlockMenuModel::testCatalogComplete()
 {
     // Every implemented block type appears exactly once with non-empty
     // display fields (features.md §4.2 for the wave-1 set; wave-2 types
-    // join the catalog with their block types in Phase 10).
+    // join the catalog with their block types).
     const QList<int> implemented = {
         Block::Paragraph, Block::Heading1, Block::Heading2, Block::Heading3,
         Block::Heading4, Block::BulletList, Block::NumberedList, Block::Todo,
         Block::Quote, Block::CodeBlock, Block::Divider,
-        Block::Image,      // Phase 10 Media group
+        Block::Image,      // Media group
         Block::Callout,    // Callout + Toggle both insert a Callout block
         Block::Table,
-        Block::MathBlock,  // Phase 10 math (decision 12)
-        Block::Media,      // Phase 10 local media (decision 13)
+        Block::MathBlock,  // Math
+        Block::Media,      // Local media
     };
 
     const auto rows = entries(m_menu->itemsFor(QString()));
@@ -139,7 +139,7 @@ void TestBlockMenuModel::testEmptyQueryGroupedWithHeaders()
 {
     const QVariantList rows = m_menu->itemsFor(QString());
 
-    // Canonical group order, with Media added in Phase 10; no recency yet
+    // Canonical group order; no recency yet
     QCOMPARE(headerTexts(rows),
              QStringList({ "Basic", "Lists", "Advanced", "Media" }));
 
@@ -336,7 +336,7 @@ void TestBlockMenuModel::testRecentChangedSignalDiscipline()
 
 void TestBlockMenuModel::testCodeLanguageAliases()
 {
-    // "/code <language>" (decision 14): the remainder after "code " matches
+    // "/code <language>": the remainder after "code " matches
     // language names and aliases, and every row is a CodeBlock carrying the
     // resolved language id.
     auto rows = entries(m_menu->itemsFor(QStringLiteral("code py")));

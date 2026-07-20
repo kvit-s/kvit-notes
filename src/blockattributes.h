@@ -20,7 +20,7 @@
 // This is one pure parse/serialize pair used by DocumentSerializer for every
 // block type: the tag is split off before a block's content parses and
 // re-attached on serialize, so a block with no attributes serializes
-// byte-identically to before Phase 12. A foreign markdown editor treats the tag
+// byte-identically to plain markdown. A foreign markdown editor treats the tag
 // as an ordinary HTML comment and renders it invisibly (spike (d) — the one
 // exception is a *styled* divider, which stops being a thematic break; a bare
 // divider is unaffected).

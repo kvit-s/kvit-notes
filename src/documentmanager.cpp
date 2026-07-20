@@ -38,7 +38,7 @@ DocumentManager::DocumentManager(QObject *parent)
         m_autoSaveTimer.start();
     }
 
-    // Crash-recovery journal (decision 11): 2 s after the last change,
+    // Crash-recovery journal: 2 s after the last change,
     // off the keystroke path.
     m_journalTimer.setSingleShot(true);
     m_journalTimer.setInterval(2000);
@@ -379,7 +379,7 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
         return false;
     }
 
-    // The backup rotation's pre-overwrite hook (decision 10).
+    // The backup rotation's pre-overwrite hook.
     {
         PerfLog::ScopedTimer split(operation + QStringLiteral(".backup"),
                                    context);

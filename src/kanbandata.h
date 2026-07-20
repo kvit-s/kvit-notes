@@ -22,9 +22,9 @@
 //
 // `## ` lines open columns; `- [ ] ` / `- [x] ` lines are cards (done when
 // [x]); `#label` tokens on the card line are its labels; 📅 <date> is the due
-// date (the todo convention, decision 10); indented plain lines under a card
-// are its description. This pure component maps that to a board and back, and
-// applies every mutation as a whole-content rewrite (one undo step).
+// date (the todo convention); indented plain lines under a card are its
+// description. This pure component maps that to a board and back, and applies
+// every mutation as a whole-content rewrite (one undo step).
 namespace KanbanData {
 
 struct Card {

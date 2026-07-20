@@ -6,7 +6,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 
-// Import dialog (features.md §12.6; phase11 decision 9): bring markdown/text
+// Import dialog (features.md §12.6): bring markdown/text
 // files or a whole folder tree into the collection. A dry-run summary ("N
 // files into folder X, M collisions") precedes the copy. Import is a
 // collection operation (the trash is the safety net), not an editor undo step.

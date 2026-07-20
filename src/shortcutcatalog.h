@@ -10,10 +10,10 @@
 #include <QVariantList>
 #include <QStringList>
 
-// The §13 keyboard-shortcut catalog (phase12 Step 4): the single source of truth
-// for both the discoverable ShortcutReference cheat sheet and the test_shortcutmap
-// audit. Each entry names an action, its Windows/Linux chord (empty when the
-// action intentionally has no shortcut), where it is wired, and a note. The three
+// The §13 keyboard-shortcut catalog: the single source of truth for both the
+// discoverable ShortcutReference cheat sheet and the test_shortcutmap audit. Each
+// entry names an action, its Windows/Linux chord (empty when the action
+// intentionally has no shortcut), where it is wired, and a note. The three
 // deviations from the features.md §13 tables are recorded here as intentional,
 // with their reason, rather than left as silent gaps.
 struct ShortcutInfo {

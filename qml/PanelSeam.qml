@@ -18,7 +18,7 @@ Item {
 
     // True while the seam is being dragged. The reinstated panel-collapse
     // animation (§14.3) reads this to stay instant during a resize drag, so the
-    // width animation and seam drag never fight (the Phase 9 conflict).
+    // width animation and seam drag never fight.
     readonly property bool dragging: dragArea.pressed
 
     // The visible line; the whole 6px strip is the grab area, widened

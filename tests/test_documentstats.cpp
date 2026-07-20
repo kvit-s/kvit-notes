@@ -6,7 +6,7 @@
 #include "blockmodel.h"
 #include "block.h"
 
-// Document statistics (phase11 decision 7): the six counts and reading time
+// Document statistics: the six counts and reading time
 // over display text, for the whole document and for a selection string,
 // agreeing with the status bar's counting rules.
 class TestDocumentStats : public QObject

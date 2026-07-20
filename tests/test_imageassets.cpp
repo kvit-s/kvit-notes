@@ -62,7 +62,7 @@ private slots:
 
     void notAnImageExpression()
     {
-        // Leading/trailing text fails the whole-line rule (decision 4).
+        // Leading/trailing text fails the whole-line rule.
         QVERIFY(!ImageAssets::parseLine(QStringLiteral("see ![a](x.png)")).valid);
         QVERIFY(!ImageAssets::parseLine(QStringLiteral("![a](x.png) here")).valid);
         QVERIFY(!ImageAssets::parseLine(QStringLiteral("[a](x.png)")).valid); // link, not image
@@ -139,7 +139,7 @@ private slots:
         QVERIFY(ImageAssets::resolveSource("missing.png", noteDir, root).isEmpty());
     }
 
-    // ---- Asset ingestion (decision 5) ----
+    // ---- Asset ingestion ----
 
     void uniqueNameCollisionSuffix()
     {

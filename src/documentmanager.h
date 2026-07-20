@@ -94,8 +94,8 @@ public:
     void setMaxOpenFileSizeMiB(int mib);
 
     // The open file was renamed or moved on disk (a collection rename of
-    // the open note, Phase 8): rebind the path without reloading —
-    // content, undo history, and dirty state all continue.
+    // the open note): rebind the path without reloading — content, undo
+    // history, and dirty state all continue.
     Q_INVOKABLE void rebindFilePath(const QString &newPath);
 
     // Replace the whole document body with the given markdown as ONE

@@ -17,7 +17,7 @@ private slots:
     void testContent();
     void testIndentLevel();
     void testSignals();
-    // Phase 4: new block-type state
+    // New block-type state
     void testEnumValuesPinned();
     void testIsListFamily();
     void testCheckedProperty();
@@ -178,7 +178,7 @@ void TestBlock::testEnumValuesPinned()
     QCOMPARE(static_cast<int>(Block::Quote), 7);
     QCOMPARE(static_cast<int>(Block::CodeBlock), 8);
     QCOMPARE(static_cast<int>(Block::Divider), 9);
-    // Appended in Phase 5; heading levels 1-3 keep their historic values
+    // Appended later; heading levels 1-3 keep their historic values
     QCOMPARE(static_cast<int>(Block::Heading4), 10);
 }
 

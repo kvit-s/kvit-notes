@@ -4,9 +4,9 @@
 import QtQuick
 
 // Quote block (features.md §1.2.6): stacked accent bars (one per nesting
-// depth, decision 11), muted text, and an optional attribution line — the
-// last content line starting with "— " renders right-aligned below the body
-// as chrome (decision 11), excluded from the editable text via metaTail.
+// depth), muted text, and an optional attribution line — the last content
+// line starting with "— " renders right-aligned below the body as chrome,
+// excluded from the editable text via metaTail.
 EditableBlock {
     id: root
 

@@ -24,16 +24,16 @@
 // through QSyntaxHighlighter's block-state mechanism.
 //
 // The five token classes map one-to-one onto the five new theme tokens
-// (codeKeyword, codeType, codeString, codeComment, codeNumber — decision 3's
-// "keyword, string, comment, number, function/type"). Per-language extras
-// (C preprocessor, Python decorators, markup tags/attributes) are folded onto
+// (codeKeyword, codeType, codeString, codeComment, codeNumber — keyword,
+// string, comment, number, function/type). Per-language extras (C
+// preprocessor, Python decorators, markup tags/attributes) are folded onto
 // these five, so no sixth color is ever needed.
 namespace CodeLanguages {
 
-// Token classes. The names map to theme tokens; `Type` is decision 3's
-// "function/type" color, carrying types, builtins, function-like names,
-// decorators, and markup tag names. `Plain` ranges are never emitted (the
-// default text color already applies) — the scanners only emit non-plain runs.
+// Token classes. The names map to theme tokens; `Type` is the "function/type"
+// color, carrying types, builtins, function-like names, decorators, and markup
+// tag names. `Plain` ranges are never emitted (the default text color already
+// applies) — the scanners only emit non-plain runs.
 enum class Token : quint8 {
     Plain = 0,
     Keyword,
@@ -69,7 +69,7 @@ QStringList supportedLanguages();
 
 // Resolve a user-typed name or alias (e.g. "py", "c++", "js", "sh") to a
 // canonical id, or "" if unrecognized. Used by highlighting and by the
-// `/code <language>` menu aliases (decision 14). Case-insensitive.
+// `/code <language>` menu aliases. Case-insensitive.
 QString canonicalLanguage(const QString &nameOrAlias);
 
 // True when `language` (already canonical or an alias) has a rule table.

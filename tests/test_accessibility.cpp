@@ -5,7 +5,7 @@
 #include <QSignalSpy>
 #include "accessibilityannouncer.h"
 
-// Phase 12 Step 6: the live-region announcer seam. Deterministic unit coverage
+// The live-region announcer seam. Deterministic unit coverage
 // of the announcement logic — that each dynamic-change category produces the
 // right message and fires the signal the gate relies on (the WSLg AT-SPI bridge
 // is inactive, spike (c), so the signal, not a spoken read, is what is asserted).

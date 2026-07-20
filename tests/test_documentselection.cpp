@@ -595,7 +595,7 @@ void TestDocumentSelection::testRevisionBumpsExactlyOnChange()
     QCOMPARE(spy.count(), 5);
 }
 
-// Phase 6 range-based pruning: only ids in the removed range leave the
+// Range-based pruning: only ids in the removed range leave the
 // selection, and removing an unselected block changes nothing — no
 // revision bump, no membership churn.
 void TestDocumentSelection::testPruneTouchesOnlyRemovedRange()

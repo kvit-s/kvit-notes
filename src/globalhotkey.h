@@ -7,8 +7,8 @@
 #include <QObject>
 #include <QString>
 
-// Configurable system-wide hotkey seam (§15.1, phase12 decision 6). registering
-// a real global shortcut needs a platform mechanism (an X11 XGrabKey or the
+// Configurable system-wide hotkey seam (§15.1). Registering a real global
+// shortcut needs a platform mechanism (an X11 XGrabKey or the
 // org.freedesktop.portal.GlobalShortcuts portal) that WSLg does not grant
 // (spike (b)); this class is the seam. registerShortcut() reports whether the
 // platform accepted the grab, activated() fires when the chord is pressed

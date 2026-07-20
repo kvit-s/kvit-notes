@@ -199,9 +199,9 @@ bool NoteCollection::openRoot(const QString &path)
         return false;
     scan();
 
-    // Journal files present when a root OPENS are crash evidence
-    // (decision 11): orderly shutdown removes them, and a mid-session
-    // refresh() must not ingest the open note's live journal.
+    // Journal files present when a root OPENS are crash evidence: orderly
+    // shutdown removes them, and a mid-session refresh() must not ingest
+    // the open note's live journal.
     loadRecoveryEntries();
 
     emit rootChanged();
@@ -3260,7 +3260,7 @@ void NoteCollection::setLastOpenNote(const QString &relPath)
     // Deliberately no bump: which note is open is not collection content.
 }
 
-// ------------------------------------------------- backups (decision 10)
+// ------------------------------------------------------------- backups
 
 namespace {
 const int backupFloorSecs = 10 * 60;
@@ -3323,7 +3323,7 @@ void NoteCollection::backupBeforeOverwrite(const QString &absPath)
     const QDateTime now = m_clock ? m_clock() : QDateTime::currentDateTime();
 
     // Rotation floor: at most one backup per window, whatever the
-    // auto-save cadence (decision 10).
+    // auto-save cadence.
     QStringList existing = dir.entryList({QStringLiteral("*.md")},
                                          QDir::Files, QDir::Name);
     if (!existing.isEmpty()) {
@@ -3396,7 +3396,7 @@ QString NoteCollection::backupBody(const QString &relPath,
     return ok ? NoteFrontMatter::split(text).body : QString();
 }
 
-// ------------------------------------------ crash recovery (decision 11)
+// ------------------------------------------------------ crash recovery
 
 QString NoteCollection::journalPathFor(const QString &relPath) const
 {

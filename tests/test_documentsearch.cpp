@@ -134,7 +134,7 @@ void TestDocumentSearch::testPlainMatchAcrossBlocks()
 void TestDocumentSearch::testMatchSpansMarkerBoundary()
 {
     // Display text of block 0 is "This is bold text": the query exists
-    // only there, never in the raw markdown (decision 2).
+    // only there, never in the raw markdown.
     m_search->setQuery("is bold");
     QCOMPARE(m_search->matchCount(), 1);
     const QVariantMap m = m_search->matchesForBlock(0).first().toMap();
@@ -495,7 +495,7 @@ void TestDocumentSearch::testReplaceFullyCoveredSpanFollowsCutContract()
     m_search->setQuery("bold");
     m_search->recomputeNow();
     QVERIFY(m_search->replaceCurrent("brave"));
-    // The formatting belonged to the replaced text (decision 8).
+    // The formatting belonged to the replaced text.
     QCOMPARE(m_model->getContent(0), QString("x brave y"));
 }
 
@@ -514,7 +514,7 @@ void TestDocumentSearch::testReplaceAcrossMarkerBoundary()
     QCOMPARE(m_search->matchCount(), 1);
     QVERIFY(m_search->replaceCurrent("X"));
     // Plain part and partial span content removed, remainder keeps its
-    // formatting (decision 8's named consequence).
+    // formatting.
     QCOMPARE(m_model->getContent(0), QString("This X**ld** text"));
 }
 

@@ -917,7 +917,7 @@ Item {
         function test_26b_heading4FontSize() {
             var delegate = findBlockDelegate(1)
             var textArea = findTextArea(delegate)
-            blockModel.updateType(1, 10)  // Set to Heading4 (Phase 5)
+            blockModel.updateType(1, 10)  // Set to Heading4
             wait(50)
 
             compare(textArea.font.pixelSize, 17, "Heading4 should have 17px font")
@@ -951,7 +951,7 @@ Item {
             wait(50)
             compare(textArea.font.weight, Font.Medium, "Heading3 should be medium weight")
 
-            // Test Heading4 - Medium (Phase 5)
+            // Test Heading4 - Medium
             blockModel.updateType(1, 10)
             wait(50)
             compare(textArea.font.weight, Font.Medium, "Heading4 should be medium weight")
@@ -1277,7 +1277,7 @@ Item {
         }
 
         function test_42_fourHashesConvertToHeading4() {
-            // Flipped in Phase 5: "#### " now converts to Heading 4
+            // "#### " now converts to Heading 4
             // (features.md §1.2.2 defines four levels; the earlier pin
             // reflected the missing type, not a spec behavior).
             if (isHeadless) {
@@ -1933,7 +1933,7 @@ Item {
         }
 
         function test_69c_undoRestoresFormattingAndRendering() {
-            // Phase 1 step 4: undo of a formatting toggle restores both
+            // Undo of a formatting toggle restores both
             // the markdown and the rendering; reveal transitions are never
             // undo steps (a single Ctrl+Z reverts the whole toggle).
             if (isHeadless) {
@@ -2459,7 +2459,7 @@ Item {
 
             documentManager.newDocument()
             wait(100)
-            // All block types participate (Phase 4): ordinal recomputation
+            // All block types participate: ordinal recomputation
             // joins the per-edit path, so numbered items must be present
             // for the measurement to cover it. The typed-into block stays
             // a paragraph so the keystrokes exercise the inline parser.
@@ -2497,7 +2497,7 @@ Item {
         }
 
         function test_75b_typingLatencyWithFindBarOpen() {
-            // Phase 7 exit criterion: with the find bar open on a live
+            // Exit criterion: with the find bar open on a live
             // query, the search recompute joins the keystroke path —
             // every content change rescans the document and repaints
             // the visible engines' match tints.
@@ -2626,7 +2626,7 @@ Item {
             }
 
             // (1) Keystroke latency with a 50-heading outline live and
-            // typewriter mode on (decision 12: keeps the Phase 10 ≤16 ms).
+            // typewriter mode on (keeps the ≤16 ms budget).
             documentManager.newDocument()
             var md = ""
             for (var h = 0; h < 50; h++)
@@ -2774,8 +2774,8 @@ Item {
 
         function test_78_loadTimeMeasurement() {
             // Performance harness: measured load time for a
-            // generated document, against the §21.7 target (< 1s). The
-            // generator mixes every Phase 4 block type, so the measurement
+            // generated document, against the features.md §21.7 target
+            // (< 1s). The generator mixes every block type, so the measurement
             // covers the line scanner and per-type delegates.
             documentManager.newDocument()
             wait(100)
@@ -2809,7 +2809,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 4 step 3: per-type delegates
+        // Per-type delegates
         // ==================================================================
 
         function test_80_bulletDelegateRendersGlyphByLevel() {
@@ -3008,7 +3008,7 @@ Item {
         }
 
         function test_88_delegatePoolingWithMixedTypes() {
-            // The Phase 2 pooling guarantee extended to per-type delegates:
+            // The pooling guarantee extended to per-type delegates:
             // pooled delegates of every kind detach and reattach cleanly.
             documentManager.newDocument()
             wait(100)
@@ -3039,7 +3039,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 4 step 4: keyboard behavior
+        // Keyboard behavior
         // ==================================================================
 
         function test_90_enterContinuesListType() {
@@ -3299,7 +3299,7 @@ Item {
                       "Ctrl+Shift+T should convert to quote")
 
             // Converting an indented list item out of the family drops
-            // the indent (indentation is list nesting, decision 7)
+            // the indent (indentation is list nesting)
             blockModel.insertBlock(1, 4, "listed parent")
             blockModel.insertBlock(2, 4, "listed child", 1)
             wait(100)
@@ -3312,7 +3312,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 4 step 5: markdown prefix auto-conversion
+        // Markdown prefix auto-conversion
         // ==================================================================
 
         function typeString(s) {
@@ -3428,7 +3428,7 @@ Item {
             }
 
             // Pasted near-misses (typing '----' is precluded by the
-            // immediate conversion at the third dash, decision 5)
+            // immediate conversion at the third dash)
             var pasted = ["----", "**not a divider**", "2.5 kilometers..no"]
             for (var j = 0; j < pasted.length; j++) {
                 var pasteArea = freshParagraph()
@@ -3482,7 +3482,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 5 step 3: the slash menu (features.md §4)
+        // The slash menu (features.md §4)
         // "test_a*" sorts after every "test_<digit>*" so these run last.
         // ==================================================================
 
@@ -3822,7 +3822,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 5 step 4: the gutter plus-button (features.md §3.7)
+        // The gutter plus-button (features.md §3.7)
         // ==================================================================
 
         function hoverAndFindPlus(delegate) {
@@ -3927,7 +3927,7 @@ Item {
             keyClick(Qt.Key_Escape)
             tryCompare(menu, "visible", false, 1000)
             compare(blockModel.count, 2,
-                    "Escape keeps the inserted paragraph (decision 6)")
+                    "Escape keeps the inserted paragraph")
             compare(blockModel.blockAt(1).blockType, 0)
             compare(blockModel.getContent(1), "")
         }
@@ -3955,7 +3955,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 6 step 2: block selection (features.md §3.1, §2.5)
+        // Block selection (features.md §3.1, §2.5)
         // ==================================================================
 
         function selectionHandler() {
@@ -4223,7 +4223,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 6 step 3: operations on the block selection
+        // Operations on the block selection
         // ==================================================================
 
         // Select [first..last] and hand the keys to the selection handler
@@ -4278,7 +4278,7 @@ Item {
                     "The clone carries the full state")
             tryVerify(function() {
                 return selectedIndexesArray().toString() === "2,3"
-            }, 1000, "The selection moves to the clones (decision 11)")
+            }, 1000, "The selection moves to the clones")
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
             tryVerify(function() { return blockModel.count === 3 }, 1000,
@@ -4394,7 +4394,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 6 step 4: cross-block text selection (§2.5, §21.3)
+        // Cross-block text selection (features.md §2.5, §21.3)
         // ==================================================================
 
         // Press in block `fromIdx` at markdown pos `fromMd`, drag into
@@ -4740,7 +4740,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 6 step 5: drag-and-drop reordering (§3.2, §21.4)
+        // Drag-and-drop reordering (features.md §3.2, §21.4)
         // ==================================================================
 
         function test_q3_dragReordersOneUndoStep() {
@@ -4761,8 +4761,8 @@ Item {
             tryVerify(function() { return blockModel.getContent(2) === "a" },
                       1000, "Live make-room moves the row while dragging")
 
-            // The drag itself never touches the undo stack (decision 8's
-            // preview moves); the proxy is visible
+            // The drag itself never touches the undo stack (its moves are
+            // previews only); the proxy is visible
             compare(undoStack.count, stackBefore,
                     "No undo entries accumulate during the drag")
             var proxy = findChild(appLoader.item, "dragProxy")
@@ -4826,7 +4826,7 @@ Item {
 
             var indicator = findChild(appLoader.item, "dropIndicator")
             tryVerify(function() { return indicator && indicator.visible }, 1000,
-                      "Multi-block drag shows the drop indicator (decision 9)")
+                      "Multi-block drag shows the drop indicator")
             compare(blockModel.getContent(0), "a",
                     "No live reorder during a multi-block drag")
 
@@ -4914,7 +4914,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 7 step 3: the find bar (features.md §7.1)
+        // The find bar (features.md §7.1)
         // ==================================================================
 
         // The mixed search fixture: 7 case-insensitive "fox" matches —
@@ -5216,7 +5216,7 @@ Item {
         }
 
         // ==================================================================
-        // Phase 7 step 4: replace (features.md §7.2)
+        // Replace (features.md §7.2)
         // ==================================================================
 
         function openReplaceBar() {
@@ -5470,7 +5470,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 3: the three-pane shell
+        // The three-pane shell
         // ============================================================
 
         property int collectionSerial: 0
@@ -5751,7 +5751,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 4: tags end to end
+        // Tags end to end
         // ============================================================
 
         // Accept a modal dialog and wait out its exit transition: the
@@ -5903,7 +5903,7 @@ Item {
                        && noteCollection.tagCount("draft") === 0
             }, 1000)
 
-            // The open note's held front-matter refreshed (decision 2):
+            // The open note's held front-matter refreshed:
             // an edit + save must keep the renamed tag, not resurrect
             // the block captured at load.
             blockModel.updateContent(0, "edited after tag rename")
@@ -5950,7 +5950,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 5: the note list complete
+        // The note list complete
         // ============================================================
 
         function listOrder() {
@@ -6222,7 +6222,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 6: global search
+        // Global search
         // ============================================================
 
         function seedSearchContent() {
@@ -6372,7 +6372,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 7: backups and crash recovery
+        // Backups and crash recovery
         // ============================================================
 
         function test_x1_restoreFromBackupIsOneUndoStep() {
@@ -6443,7 +6443,7 @@ Item {
             var restoreButton = findChild(banner, "recoveryRestoreButton")
             verify(restoreButton !== null)
             // Let the banner's layout polish before clicking into it
-            // (the Phase 9 panel row added a layout pass; clicking a
+            // (the panel row adds a layout pass; clicking a
             // still-settling banner raced).
             waitForRendering(banner)
             mouseClick(restoreButton)
@@ -6521,8 +6521,8 @@ Item {
         }
 
         // ============================================================
-        // Phase 8 step 8: the adopted performance targets (decision 12),
-        // measured on the display like every §21.7 number
+        // The adopted performance targets, measured on the display like
+        // every features.md §21.7 number
         // ============================================================
 
         function test_y1_noteSwitchUnder200ms() {
@@ -6568,9 +6568,9 @@ Item {
         }
 
         function test_y2_typingLatencyWithJournalActive() {
-            // The Phase 7 measurement, now with the collection open and
+            // The typing-latency measurement, now with the collection open and
             // the crash journal armed: the keystroke path gains only a
-            // debounce-timer restart (decision 11); the write itself is
+            // debounce-timer restart; the write itself is
             // off-path. Same §21.7 budget.
             if (isHeadless) {
                 skip("Keyboard tests require display")
@@ -6609,7 +6609,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 1: the settings store and persisted session
+        // The settings store and persisted session
         // state. Write paths are exercised through the UI-facing state
         // owners; the read path through applyPersistedSessionState,
         // the function startup runs.
@@ -6722,7 +6722,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 2: theme switching restyles the live shell and
+        // Theme switching restyles the live shell and
         // persists (unit coverage of tables/overrides is test_theme).
         // ============================================================
 
@@ -6744,7 +6744,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 3: typography settings drive the live document
+        // Typography settings drive the live document
         // and the settings dialog binds them (scale/clamp/persistence
         // unit coverage is test_typography).
         // ============================================================
@@ -6836,7 +6836,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 4: resizable panels and independent collapse
+        // Resizable panels and independent collapse
         // ============================================================
 
         function test_zc_panelSeamResizesAndPersists() {
@@ -6940,7 +6940,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 5: superscript/subscript and the toolbar
+        // Superscript/subscript and the toolbar
         // ============================================================
 
         function test_ze_supSubTypeAndReveal() {
@@ -7211,7 +7211,7 @@ Item {
 
             // Sort undoability on a fresh table (its command can't merge with a
             // prior updateContent). The undo stack coalesces consecutive text
-            // edits, so exact per-op counts are not asserted (a Phase 10 trap).
+            // edits, so exact per-op counts are not asserted.
             documentManager.newDocument()
             wait(100)
             blockModel.convertBlock(0, 15,
@@ -7347,7 +7347,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 6: the status bar and the floating formatting
+        // The status bar and the floating formatting
         // bar (features.md §9.7 and §9.3).
         // ============================================================
 
@@ -7520,7 +7520,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 7: context menus (features.md §9.5) and trash
+        // Context menus (features.md §9.5) and trash
         // emptying. Menus trigger operations that are independently
         // tested; these spot-check routing.
         // ============================================================
@@ -7675,8 +7675,7 @@ Item {
         }
 
         // ============================================================
-        // Phase 9 step 8: the custom date-range filter (decision 10)
-        // and the theme-switch latency gate (decision 12).
+        // The custom date-range filter and the theme-switch latency gate.
         // ============================================================
 
         function test_zr_customDateRangeFilters() {
@@ -7758,7 +7757,7 @@ Item {
                    + "(measured " + elapsed + "ms)")
         }
 
-        // ---- Phase 11 step 1: document outline + internal links ----
+        // ---- Document outline + internal links ----
 
         function test_zt_outlineAndInternalLinks() {
             if (isHeadless) {
@@ -7852,7 +7851,7 @@ Item {
             tryCompare(dlg, "visible", false, 1000)
         }
 
-        // ---- Phase 11 step 2: the table-of-contents block ----
+        // ---- The table-of-contents block ----
 
         function test_zw_tocBlockRegenerates() {
             if (isHeadless) {
@@ -7892,7 +7891,7 @@ Item {
             compare(blockModel.blockAt(2).content, "Renamed Section")
         }
 
-        // ---- Phase 11 step 3: focus and typewriter modes ----
+        // ---- Focus and typewriter modes ----
 
         function test_zx_focusModeHidesChrome() {
             if (isHeadless) {
@@ -7968,7 +7967,7 @@ Item {
                 compare(neighbor.typewriterDim, 1.0)
         }
 
-        // ---- Phase 11 step 4: statistics and writing goals ----
+        // ---- Statistics and writing goals ----
 
         function test_zza_statisticsPanel() {
             if (isHeadless) {
@@ -8021,7 +8020,7 @@ Item {
             closeTestCollection()
         }
 
-        // ---- Phase 11 step 5: templates ----
+        // ---- Templates ----
 
         function test_zzc_templatesCreateAndManage() {
             if (isHeadless) {
@@ -8056,7 +8055,7 @@ Item {
             closeTestCollection()
         }
 
-        // ---- Phase 11 step 6: export ----
+        // ---- Export ----
 
         function test_zzd_exportHtmlPdfAndDialog() {
             if (isHeadless) {
@@ -8103,7 +8102,7 @@ Item {
             closeTestCollection()
         }
 
-        // ---- Phase 11 step 7: import ----
+        // ---- Import ----
 
         function test_zzf_importIntoCollection() {
             if (isHeadless) {
@@ -8140,7 +8139,7 @@ Item {
             closeTestCollection()
         }
 
-        // ---- Phase 11 step 8: inline math ----
+        // ---- Inline math ----
 
         function test_zzg_inlineMathOverlayAndReveal() {
             if (isHeadless) {
@@ -8181,7 +8180,7 @@ Item {
                       2000, "caret outside restores the equation overlay")
         }
 
-        // ---- Phase 11 step 9: embed blocks ----
+        // ---- Embed blocks ----
 
         function test_zzh_embedCardFromWebUrl() {
             if (isHeadless) {
@@ -8219,7 +8218,7 @@ Item {
                    "a remote image is not an embed")
         }
 
-        // Phase 12 Step 2: per-block presentation through the model. This is
+        // Per-block presentation through the model. This is
         // focus-independent — it drives the delegates' presentation methods and
         // the model directly, never the keyboard — so it does not depend on the
         // window holding focus.
@@ -8271,7 +8270,7 @@ Item {
             }, 1000, "left alignment carries no tag")
         }
 
-        // Phase 12 Step 3: image effects, drop cap, embed dimensions — the
+        // Image effects, drop cap, embed dimensions — the
         // delegate presentation methods drive the model; focus-independent.
         function test_zzj_presentationEffectsDropcapEmbed() {
             if (noteCollection.isOpen)
@@ -8326,7 +8325,7 @@ Item {
                       "embed width attribute sizes the card")
         }
 
-        // Phase 12 Step 5: keyboard accessibility. Focus-independent — it checks
+        // Keyboard accessibility. Focus-independent — it checks
         // the skip-navigation machinery, the pane focus entries, the focus-ring
         // token, and modal dialog containment without relying on the window
         // holding keyboard focus (which flakes under WSLg).
@@ -8372,7 +8371,7 @@ Item {
                       "closing the dialog returns control")
         }
 
-        // Phase 12 Step 6: screen-reader support. Reading Accessible.name/role is
+        // Screen-reader support. Reading Accessible.name/role is
         // focus-independent (attached properties), so this runs reliably; the
         // announcer wiring is checked through its lastMessage.
         function test_zzl_screenReaderNamesRolesAndAnnouncements() {
@@ -8428,7 +8427,7 @@ Item {
             documentSearch.active = false
         }
 
-        // Phase 12 Step 8: system integration. Focus-independent — drives the
+        // System integration. Focus-independent — drives the
         // seams and the quick-capture window through their APIs. The tray/hotkey
         // themselves are documented WSLg gaps (spike (b)); the routing is what is
         // asserted.
@@ -8484,7 +8483,7 @@ Item {
             compare(systemTray.lastNotification, "Test notification")
         }
 
-        // Phase 12 Step 9: external file watching. Focus-independent — it drives
+        // External file watching. Focus-independent — it drives
         // the watcher's change entry point and the banner's resolution functions
         // directly (the real QFileSystemWatcher is covered by test_filewatcher).
         function test_zzn_externalChangeConflictBanner() {
@@ -8543,7 +8542,7 @@ Item {
             appLoader.item.keepMine()
         }
 
-        // Phase 12 Step 10: view-layer scale. Focus-independent — it loads a
+        // View-layer scale. Focus-independent — it loads a
         // large document into the running app and checks that lazy loading plus
         // delegate pooling keep the live delegate set O(visible), not O(model),
         // which is what makes load and scroll stay within budget at scale. The

@@ -135,28 +135,28 @@ public:
                                  int indentLevel = 0);
     Q_INVOKABLE void removeBlock(int index);
     Q_INVOKABLE void updateContent(int index, const QString &content);
-    // Update content WITHOUT pushing an undo step (phase11 decision 4): the
-    // table-of-contents fence keeps its stored body in sync with the live
-    // outline as headings change, and that regeneration is derived state, not
-    // a user edit — so it must not spawn undo entries or interfere with the
-    // heading edit's own undo. Emits dataChanged like the internal path.
+    // Update content WITHOUT pushing an undo step: the table-of-contents
+    // fence keeps its stored body in sync with the live outline as headings
+    // change, and that regeneration is derived state, not a user edit — so it
+    // must not spawn undo entries or interfere with the heading edit's own
+    // undo. Emits dataChanged like the internal path.
     Q_INVOKABLE void updateContentSilently(int index, const QString &content);
     Q_INVOKABLE void updateType(int index, int type);
     Q_INVOKABLE void moveBlock(int fromIndex, int toIndex);
     Q_INVOKABLE Block* blockAt(int index) const;
 
-    // Phase 4 block-type operations
+    // Block-type operations
     Q_INVOKABLE void setChecked(int index, bool checked);
     Q_INVOKABLE void changeIndent(int index, int delta);
     Q_INVOKABLE void convertBlock(int index, int type, const QString &content,
                                   bool checked = false,
                                   const QString &language = QString(),
                                   const QString &calloutTitle = QString());
-    // Set a callout's title as one undo step (phase10 decision 6); reuses the
-    // full-state ConvertBlockCommand so the fold/type/body are captured too.
+    // Set a callout's title as one undo step; reuses the full-state
+    // ConvertBlockCommand so the fold/type/body are captured too.
     Q_INVOKABLE void setCalloutTitle(int index, const QString &title);
-    // Set a block's presentation attributes as one undo step (phase12
-    // decision 1). Pushes SetBlockAttributesCommand; a no-op when unchanged.
+    // Set a block's presentation attributes as one undo step. Pushes
+    // SetBlockAttributesCommand; a no-op when unchanged.
     Q_INVOKABLE void setBlockAttributes(int index, const QString &attributes);
     // Display number of a numbered-list block (1-based); 0 for any other
     // type. Computed, never stored.
@@ -173,7 +173,7 @@ public:
     // total is 0 when the todo has no children.
     Q_INVOKABLE QVariantMap todoProgress(int index) const;
 
-    // Phase 6 multi-block operations. Every one is a single undo step,
+    // Multi-block operations. Every one is a single undo step,
     // composed from the existing commands through the stack's macro.
     // Index lists arrive from DocumentSelection::selectedIndexes()
     // (possibly non-contiguous).

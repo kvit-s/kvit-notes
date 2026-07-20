@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 
-// Divider style picker (features.md §1.2.9, phase12 §1.2.9): choose the rule's
+// Divider style picker (features.md §1.2.9): choose the rule's
 // style, thickness, width, and color. It reports a canonical attribute payload
 // through `applied`; the divider writes it via setBlockAttributes (one undo
 // step per change). Defaults (solid / 2px / full / typed color) are omitted so

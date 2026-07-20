@@ -89,7 +89,7 @@ class Theme : public QObject
     Q_PROPERTY(QColor warning READ warning NOTIFY themeChanged)
     Q_PROPERTY(QColor pinColor READ pinColor NOTIFY themeChanged)
 
-    // Inline styling (read by the engine's highlighter, decision 3).
+    // Inline styling (read by the engine's highlighter).
     Q_PROPERTY(QColor marker READ marker NOTIFY themeChanged)
     Q_PROPERTY(QColor inlineCodeBackground READ inlineCodeBackground NOTIFY themeChanged)
     Q_PROPERTY(QColor highlightBackground READ highlightBackground NOTIFY themeChanged)
@@ -106,8 +106,8 @@ class Theme : public QObject
     Q_PROPERTY(QColor codeComment READ codeComment NOTIFY themeChanged)
     Q_PROPERTY(QColor codeNumber READ codeNumber NOTIFY themeChanged)
 
-    // Callout tip accent (phase10 decision 6): the five other callout types
-    // reuse accent/warning/success/danger/textMuted; tip needs its own hue.
+    // Callout tip accent: the five other callout types reuse
+    // accent/warning/success/danger/textMuted; tip needs its own hue.
     Q_PROPERTY(QColor calloutTip READ calloutTip NOTIFY themeChanged)
 
     // Portfolio-dashboard vocabulary (kvit-hub new-UI spec §2). The two effort

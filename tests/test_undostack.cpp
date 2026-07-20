@@ -105,13 +105,13 @@ private slots:
     void testMacroBasic();
     void testMacroEmpty();
 
-    // Phase 4: single-step guarantees through the model API
+    // Single-step guarantees through the model API
     void testConvertBlockIsOneUndoStep();
     void testSetCheckedThroughStack();
     void testChangeIndentThroughStack();
     void testRemoveBlockUndoRestoresFullState();
 
-    // Performance Phase 7 (A6): bounded history and diff-based text edits
+    // Bounded history and diff-based text edits
     void testLimitDropsOldest();
     void testLimitCleanIndexBehavior();
     void testDiffTextCommandRoundTrips();
@@ -483,7 +483,7 @@ void TestUndoStack::testMacroEmpty()
 }
 
 // ============================================================================
-// Phase 4: single-step guarantees through the model API
+// Single-step guarantees through the model API
 // ============================================================================
 
 void TestUndoStack::testConvertBlockIsOneUndoStep()

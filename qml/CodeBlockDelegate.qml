@@ -3,18 +3,18 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 
-// Basic code block (features.md §1.2.7 wave 1): monospace on a light
-// panel, whitespace preserved exactly, content verbatim — the engine
-// parses and reveals nothing, and formatting/link shortcuts are inert.
-// Syntax highlighting and the language selector are wave 2 (Phase 10);
-// the language tag is already stored for round-trip.
+// Basic code block (features.md §1.2.7): monospace on a light panel,
+// whitespace preserved exactly, content verbatim — the engine parses and
+// reveals nothing, and formatting/link shortcuts are inert. Syntax
+// highlighting and the language selector ride on the codeChrome flag
+// below; the language tag is stored for round-trip.
 EditableBlock {
     id: root
 
     verbatimEditing: true
     enterInsertsNewline: true
     showPanel: true
-    // Phase 10 step 1: syntax highlighting (via the engine's codeLanguage),
+    // Syntax highlighting (via the engine's codeLanguage),
     // the language selector, optional line-number gutter, copy button, and
     // horizontal scrolling for long lines all ride on this flag.
     codeChrome: true

@@ -4,7 +4,7 @@
 import QtQuick
 import QtQuick.Window
 
-// Embed preview card (features.md §1.2.14; phase11 decision 11): an image
+// Embed preview card (features.md §1.2.14): an image
 // expression ![](url) whose URL is a web page or video host, rendered as a
 // card (thumbnail, title, description, source) built from OpenGraph metadata
 // fetched off-thread and cached. Clicking opens the URL externally; a video
@@ -21,8 +21,9 @@ Item {
     required property int indentLevel
     required property bool checked
     required property int ordinal
-    // Per-block presentation attributes (phase12 §1.2.14): configurable embed
-    // card width and height. Absent = the default full-width card.
+    // Per-block presentation attributes (features.md §1.2.14):
+    // configurable embed card width and height. Absent = the default
+    // full-width card.
     required property string attributes
 
     property int blockIndex: index

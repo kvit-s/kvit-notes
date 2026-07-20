@@ -27,7 +27,7 @@ Rectangle {
     property alias queryField: queryField
     property alias replaceField: replaceField
 
-    // The replace-all snapshot (decision 10): rows computed when the
+    // The replace-all snapshot: rows computed when the
     // preview opens; any observable search change dismisses the panel,
     // so a confirm always applies exactly what was previewed.
     property var previewRows: []
@@ -89,7 +89,7 @@ Rectangle {
         scrollToCurrent()
     }
 
-    // Open seeded from a global-search result (Phase 8, §8.4): the query
+    // Open seeded from a global-search result (features.md §8.4): the query
     // is given and the cursor seeds to the clicked occurrence, which the
     // at-or-after rule makes the current match.
     function openAt(query, blockIndex, mdPos) {
@@ -107,7 +107,7 @@ Rectangle {
         scrollToCurrent()
     }
 
-    // Close and return focus to the document (decision 5): to the
+    // Close and return focus to the document: to the
     // current match's block at the match start when there is one, else
     // to the last focused block.
     function close() {
@@ -149,7 +149,7 @@ Rectangle {
         scrollToCurrent()
     }
 
-    // F3 / Shift+F3 (decision 11): navigate while open; closed, they
+    // F3 / Shift+F3: navigate while open; closed, they
     // reopen the bar with the kept query — "resume searching" — and do
     // nothing only when no query has been typed this session.
     function findNextShortcut() {
@@ -217,7 +217,7 @@ Rectangle {
             scrollToCurrent()
     }
 
-    // Replace All goes through the preview (decision 10): the panel
+    // Replace All goes through the preview: the panel
     // lists every pending replacement; Confirm applies them as one undo
     // step, Cancel leaves the document untouched.
     function requestReplaceAll() {
@@ -442,7 +442,7 @@ Rectangle {
     Binding { target: documentSearch; property: "preserveCase"; value: preserveCaseButton.checked }
     Binding { target: documentSearch; property: "inSelectionOnly"; value: inSelectionButton.checked }
 
-    // The replace-all preview (decision 10): every pending replacement
+    // The replace-all preview: every pending replacement
     // as its match line with the matched text struck through and the
     // replacement inlined after it; nothing lands until Confirm.
     Popup {

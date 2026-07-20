@@ -4,7 +4,7 @@
 import QtQuick
 import QtQuick.Window
 
-// Table-of-contents block (features.md §17.2; phase11 decision 4): a
+// Table-of-contents block (features.md §17.2): a
 // `toc`-tagged code fence rendered read-only as a clickable list of the
 // document's headings. The list is a live projection of documentOutline —
 // it regenerates as headings change — and clicking an entry scrolls to that

@@ -9,7 +9,7 @@
 #include "settingsstore.h"
 #include "notecollection.h"
 
-// Phase 12 Step 8: system integration seams. The tray and global hotkey route
+// System integration seams. The tray and global hotkey route
 // their actions through signals so the in-app path is exercised without a live
 // desktop (spike (b): WSLg grants neither a tray nor a system-wide hotkey). This
 // covers the seam contracts and the quick-capture write.

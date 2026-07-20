@@ -6,11 +6,11 @@ import QtQuick.Controls
 import Kvit 1.0
 
 // Todo / checkbox block (features.md §1.2.3): a leading checkbox toggles the
-// model's checked state; completed items render struck through. Phase 10 adds
-// the Obsidian Tasks metadata tail (decision 10) — a due-date chip and a
-// priority flag rendered as chrome (excluded from the editable text via
-// metaTail), edited through a date picker and a priority cycle — plus a
-// sub-task progress badge computed from the deeper-indented todo children.
+// model's checked state; completed items render struck through. The block also
+// carries the Obsidian Tasks metadata tail — a due-date chip and a priority
+// flag rendered as chrome (excluded from the editable text via metaTail),
+// edited through a date picker and a priority cycle — plus a sub-task
+// progress badge computed from the deeper-indented todo children.
 EditableBlock {
     id: root
 

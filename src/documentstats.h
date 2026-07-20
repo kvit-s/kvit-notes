@@ -10,10 +10,10 @@
 
 class BlockModel;
 
-// Document statistics (features.md §19.1; phase11 decision 7): word,
-// character-with-spaces, character-without-spaces, paragraph, block, and
-// reading-time counts for the whole document or a selection. Exposed as the
-// `documentStats` context property.
+// Document statistics (features.md §19.1): word, character-with-spaces,
+// character-without-spaces, paragraph, block, and reading-time counts for
+// the whole document or a selection. Exposed as the `documentStats` context
+// property.
 //
 // Counts run over DISPLAY text — markers stripped, exactly the representation
 // the status bar and the note list already count (NoteCollection's
