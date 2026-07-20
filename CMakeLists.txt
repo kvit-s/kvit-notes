@@ -252,10 +252,16 @@ target_link_libraries(kvit-core PUBLIC
     Qt6::Gui
     Qt6::Quick
     Qt6::Network
-    Qt6::Concurrent
     microtex
 )
 target_link_libraries(kvit-core PRIVATE
+    # Concurrent looks like a header dependency and is not. The headers that
+    # appear to need it include <QFutureWatcher>, which is Qt Core in Qt 6;
+    # the only QtConcurrent:: occurrences in any header are the comments at
+    # cancellationtoken.h:13, cancellationtoken.h:17 and notecollection.h:329.
+    # The namespace itself is used only from .cpp files here, and from
+    # test_asynccancellation, which names Qt6::Concurrent for itself.
+    Qt6::Concurrent
     Qt6::QuickControls2
     Qt6::Widgets
     Qt6::Multimedia
