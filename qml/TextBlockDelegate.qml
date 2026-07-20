@@ -565,7 +565,7 @@ BlockDelegateBase {
                             if (mouse.button === Qt.RightButton) {
                                 var win = Window.window
                                 if (win && win.openBlockHandleMenu)
-                                    win.openBlockHandleMenu(root)
+                                    AppActions.requestBlockHandleMenu(root)
                                 return
                             }
                             pressX = mouse.x

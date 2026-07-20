@@ -286,6 +286,26 @@ ApplicationWindow {
             ? noteListPane.selectedPaths : []
     }
     // A file:// URL to a local filesystem path.
+
+    // Delegates ask for shell-level actions through AppActions rather than
+    // reaching this window by name. Each handler forwards to the function
+    // that already implemented it, so the behaviour is the same code as
+    // before — only the route changed.
+    Connections {
+        target: AppActions
+        function onScrollToBlockRequested(index) { root.scrollToBlock(index) }
+        function onOpenNoteByPathRequested(relPath) { root.openNoteByPath(relPath) }
+        function onCenterCaretLineRequested(item) { root.centerCaretLine(item) }
+        function onTextContextMenuRequested(target) { root.openTextContextMenu(target) }
+        function onLinkContextMenuRequested(target) { root.openLinkContextMenu(target) }
+        function onBlockHandleMenuRequested(target) { root.openBlockHandleMenu(target) }
+        function onInsertImageRequested(index) { root.insertImageIntoBlock(index) }
+        function onInsertEmbedRequested(index) { root.insertEmbedIntoBlock(index) }
+        function onInsertTableRequested(index) { root.insertTableIntoBlock(index) }
+        function onLightboxRequested(source, alt) { root.openLightbox(source, alt) }
+        function onTransientStatusRequested(message) { root.showTransientStatus(message) }
+    }
+
     function urlToLocalPath(fileUrl) {
         var s = fileUrl.toString()
         if (s.indexOf("file://") === 0)

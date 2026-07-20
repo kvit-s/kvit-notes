@@ -167,7 +167,7 @@ BlockDelegateBase {
     function openRow(relPath) {
         var win = Window.window
         if (win && win.openNoteByPath)
-            win.openNoteByPath(relPath)
+            AppActions.requestOpenNoteByPath(relPath)
     }
 
     // Selection/focus catcher (declared before the card so per-row click

@@ -291,11 +291,11 @@ BlockDelegateBase {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var win = Window.window
-                            if (win)
-                                win.scrollToBlock(modelData.blockIndex)
-                        }
+                        // No window lookup any more: the request goes to
+                        // AppActions, and an unconnected signal is a no-op
+                        // exactly as the old `if (win)` guard was.
+                        onClicked: AppActions.requestScrollToBlock(
+                                       modelData.blockIndex)
                     }
                 }
             }

@@ -1500,7 +1500,7 @@ BlockDelegateBase {
                             if (mouse.button === Qt.RightButton) {
                                 var win = Window.window
                                 if (win && win.openBlockHandleMenu)
-                                    win.openBlockHandleMenu(delegate)
+                                    AppActions.requestBlockHandleMenu(delegate)
                                 return
                             }
                             pressX = mouse.x
@@ -2381,9 +2381,9 @@ BlockDelegateBase {
                         var url = delegate.verbatimEditing ? ""
                             : editorEngine.linkAtDocumentPosition(pos)
                         if (url !== "")
-                            win.openLinkContextMenu(delegate)
+                            AppActions.requestLinkContextMenu(delegate)
                         else
-                            win.openTextContextMenu(delegate)
+                            AppActions.requestTextContextMenu(delegate)
                     }
                 }
 
@@ -2440,7 +2440,7 @@ BlockDelegateBase {
                     if (win && win.typewriterMode !== undefined
                         && win.typewriterMode && textArea.activeFocus
                         && !delegate.isPooled)
-                        win.centerCaretLine(delegate)
+                        AppActions.requestCenterCaretLine(delegate)
                     // A caret move can reveal/hide a math span and shifts
                     // rectangles; reposition the inline-math overlays.
                     delegate.mathTick++

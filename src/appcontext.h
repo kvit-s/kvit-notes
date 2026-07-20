@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "accessibilityannouncer.h"
+#include "appactions.h"
 #include "blockattributes.h"
 #include "blockeditorengine.h"
 #include "blockmenumodel.h"
@@ -180,6 +181,7 @@ private:
     // Declaration order = construction order; destruction runs in reverse.
     // The registries come first: the block model resolves delegate kinds
     // against one of them, and modules claim kinds before anything renders.
+    AppActions m_appActions;
     BlockKindRegistry m_blockKinds;
     ExtensionRegistry m_extensions;
     UndoStack m_undoStack;

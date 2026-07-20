@@ -488,7 +488,7 @@ BlockDelegateBase {
                     // handing it the URL would reopen the direct-load path
                     // this delegate just closed.
                     if (win && win.openLightbox)
-                        win.openLightbox(delegate.displaySource, delegate.img.alt)
+                        AppActions.requestLightbox(delegate.displaySource, delegate.img.alt)
                 }
             }
 

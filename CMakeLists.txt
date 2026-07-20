@@ -125,6 +125,7 @@ add_subdirectory(third_party/microtex)
 add_library(kvit-core STATIC
     src/appcontext.cpp
     src/qmlservices.cpp
+    src/appactions.h
     src/qmlsingletons.h
     src/kvitapplication.cpp
     src/blockkindregistry.cpp

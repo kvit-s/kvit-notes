@@ -7,6 +7,7 @@
 #include <QtQml/qqmlregistration.h>
 
 #include "accessibilityannouncer.h"
+#include "appactions.h"
 #include "blockattributes.h"
 #include "blockmodel.h"
 #include "blockkindregistry.h"
@@ -129,7 +130,8 @@
     X(NoteCollection, NoteCollection)         \
     X(NoteListModel, NoteListModel)           \
     X(SettingsStore, AppSettings)                                    \
-    X(Theme, Theme)
+    X(Theme, Theme)                                                  \
+    X(AppActions, AppActions)
 
 #define KVIT_QML_SINGLETON_NAMED(Type, Name)                                  \
     struct Name##Foreign                                                      \

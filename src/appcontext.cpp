@@ -332,6 +332,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_blockModel);
     m_services.add(&m_documentSelection);
     m_services.add(&m_theme);
+    m_services.add(&m_appActions);
     KvitQml::attachServices(engine, &m_services);
 
     // Every property goes through one helper so the published set is

@@ -114,7 +114,7 @@ BlockDelegateBase {
                 + (line > 0 ? qsTr(" — line %1").arg(line) : "")
         var win = Window.window
         if (win && win.showTransientStatus)
-            win.showTransientStatus(msg)
+            AppActions.requestTransientStatus(msg)
         if (typeof A11y !== "undefined")
             A11y.announce(msg)
     }
@@ -133,7 +133,7 @@ BlockDelegateBase {
             var win = Window.window
             if (doneMessage !== undefined && doneMessage !== "") {
                 if (win && win.showTransientStatus)
-                    win.showTransientStatus(doneMessage)
+                    AppActions.requestTransientStatus(doneMessage)
                 if (typeof A11y !== "undefined")
                     A11y.announce(doneMessage)
             }
@@ -394,7 +394,7 @@ BlockDelegateBase {
                                         BlockModel.updateContent(root.index, newSrc)
                                         var win = Window.window
                                         if (win && win.showTransientStatus)
-                                            win.showTransientStatus(
+                                            AppActions.requestTransientStatus(
                                                 qsTr("Arranged %1").arg(pressNode))
                                         if (typeof A11y !== "undefined")
                                             A11y.announce(qsTr("Moved %1").arg(pressNode))
@@ -1157,7 +1157,7 @@ BlockDelegateBase {
             var path = win.urlToLocalPath(selectedFile)
             var ok = readCanvas.savePng(path, 2.0)
             if (win.showTransientStatus)
-                win.showTransientStatus(ok ? qsTr("Diagram saved to ") + path
+                AppActions.requestTransientStatus(ok ? qsTr("Diagram saved to ") + path
                                            : qsTr("Could not save the diagram"))
         }
     }

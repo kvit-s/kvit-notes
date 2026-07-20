@@ -681,7 +681,7 @@ BlockDelegateBase {
         onClicked: {
             var win = Window.window
             if (win && win.openBlockHandleMenu)
-                win.openBlockHandleMenu(root)
+                AppActions.requestBlockHandleMenu(root)
         }
     }
 
@@ -719,7 +719,7 @@ BlockDelegateBase {
                 if (mouse.button === Qt.RightButton) {
                     var win = Window.window
                     if (win && win.openBlockHandleMenu)
-                        win.openBlockHandleMenu(root)
+                        AppActions.requestBlockHandleMenu(root)
                     return
                 }
                 pressX = mouse.x; pressY = mouse.y; dragging = false

@@ -162,21 +162,21 @@ Popup {
         if (type === Block.Image && row.language === "embed") {
             var winE = Window.window
             if (winE && winE.insertEmbedIntoBlock)
-                winE.insertEmbedIntoBlock(idx)
+                AppActions.requestInsertEmbed(idx)
             applied(idx, type)
             return
         }
         if (type === Block.Image || type === Block.Media) {
             var win = Window.window
             if (win && win.insertImageIntoBlock)
-                win.insertImageIntoBlock(idx)
+                AppActions.requestInsertImage(idx)
             applied(idx, type)
             return
         }
         if (type === Block.Table) {
             var win2 = Window.window
             if (win2 && win2.insertTableIntoBlock)
-                win2.insertTableIntoBlock(idx)
+                AppActions.requestInsertTable(idx)
             applied(idx, type)
             return
         }
