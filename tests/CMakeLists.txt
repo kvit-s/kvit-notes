@@ -503,6 +503,15 @@ add_test(NAME SearchIndexTimingBudget
 set_tests_properties(QueryDataTimingBudget SearchIndexTimingBudget
     PROPERTIES ENVIRONMENT "KVIT_ENFORCE_TIMING_BUDGETS=1")
 
+# tools/win-sync.sh runs rsync --delete against a directory the caller names,
+# so its refusals are the safety property worth gating. A shell test drives
+# the script itself; it builds a throwaway source tree and mirrors under a
+# temporary directory, and never touches a real mount.
+if(UNIX AND NOT APPLE)
+    add_test(NAME WinSyncGuards
+             COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_win_sync.sh)
+endif()
+
 # ── CTest labels. The suite is heterogeneous, so every entry gets exactly
 #    one label and CI filters with `ctest -L <label>`:
 #      unit        deterministic, headless-safe — the merge gate on all OSes
