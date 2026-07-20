@@ -341,7 +341,11 @@ void DocumentManager::openFileDialog()
     }
 }
 
-void DocumentManager::saveFileDialog()
+// Returns whether the document actually reached disk. Callers use this to
+// decide whether it is safe to destroy the in-memory document, so cancelling
+// the dialog and failing to write must both come back as false: they are
+// different intentions but the same answer to "may I discard this now?".
+bool DocumentManager::saveFileDialog()
 {
     QFileDialog dialog(nullptr, tr("Save Document"));
     dialog.setNameFilter(tr("Markdown files (*.md);;All files (*)"));
@@ -366,12 +370,13 @@ void DocumentManager::saveFileDialog()
         dialog.move(x, y);
     }
 
-    if (dialog.exec() == QDialog::Accepted) {
-        QStringList files = dialog.selectedFiles();
-        if (!files.isEmpty()) {
-            saveAs(QUrl::fromLocalFile(files.first()));
-        }
-    }
+    if (dialog.exec() != QDialog::Accepted)
+        return false;   // the user cancelled
+
+    const QStringList files = dialog.selectedFiles();
+    if (files.isEmpty())
+        return false;
+    return saveAs(QUrl::fromLocalFile(files.first()));
 }
 
 bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)

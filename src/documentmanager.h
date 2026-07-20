@@ -127,7 +127,10 @@ public:
 
     // C++ file dialogs (more reliable than QML FileDialog)
     Q_INVOKABLE void openFileDialog();
-    Q_INVOKABLE void saveFileDialog();
+    // True only when the document reached disk. A cancelled dialog and a
+    // failed write both return false, because both mean the in-memory
+    // document is still the only copy.
+    Q_INVOKABLE bool saveFileDialog();
 
     // For QML file dialogs (backup)
     Q_INVOKABLE QString getDefaultSavePath() const;
