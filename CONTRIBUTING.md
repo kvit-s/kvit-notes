@@ -63,8 +63,21 @@ measurements behind the thresholds, and the two approaches that were tried
 and rejected are all in `tests/timingbudget.h`.
 
 Budgets that are genuinely about elapsed time - an async call returning
-promptly, a first frame - stay on the wall clock and are simply not judged on
-a busy machine, since no metric makes those load-proof.
+promptly, a first frame, a cancellation not blocking the GUI thread - stay on
+the wall clock and are simply not judged on a busy machine, since no metric
+makes those load-proof. Where one of those guards something real, the test
+also asserts it structurally: the cancellation tests check that a scan was
+genuinely in progress and that the thread pool was genuinely saturated, so
+what they prove does not rest on the timing number at all.
+
+Which label a budget sits in matters more than the mechanism. Under
+`performance` a false red costs attention. Under `unit` it is a required
+check on three platforms, and a required check that fails for reasons
+unrelated to the diff teaches reviewers to re-run rather than investigate,
+which is the habit you least want. Two budgets sit in `unit` - the 500-note
+collection open and the 500-note search query - and both are measured in CPU
+time so they can stay there rather than being demoted to an informational
+job.
 
 If you change a budget, run `tools/verify-perf-budget.sh`. It injects a
 doubled parse into a hot path and requires the budget to fail, then reverts

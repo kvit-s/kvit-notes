@@ -107,6 +107,44 @@
 // five times out of five at load average 52.
 // ─────────────────────────────────────────────────────────────────────────
 
+// Which label a budget belongs in, which matters more than the mechanism.
+//
+// A budget under the `performance` label is informational: CI runs that job
+// with continue-on-error, so a false red costs attention. A budget under
+// `unit` is a required check on three operating systems. When one of those
+// fails for a reason unrelated to the diff it does something worse than waste
+// time - it teaches reviewers that a red required check is something you
+// re-run. That habit is the actual damage, and it is why the two budgets that
+// sit in `unit` are the ones converted to CPU time here rather than moved out
+// of the gate:
+//
+//   collection.open 500-note   tests/test_notecollection.cpp
+//   search 500-note query      tests/test_searchindexdb.cpp
+//
+// Moving them to `performance` would have been the easier answer and a worse
+// one. Both guard product decisions that the performance work in this
+// codebase was driven by, and demoting them to a non-blocking job means a
+// regression in either merges and is noticed later, if at all. They are
+// robust enough to stay in the gate now, and tools/verify-perf-budget.sh
+// exists to keep proving they still catch something.
+//
+// The search gate is worth a second note, because its old form was worse than
+// flaky. It was guarded by kvitTimingBudgetsEnforced(), which skips whenever
+// CI is set - so on a hosted runner the assertion never executed at all,
+// while on a developer machine it enforced a wall-clock number and flapped.
+// It had the failure mode in the place where it hurt and no coverage in the
+// place it was written for. Measured in CPU time it holds on a shared runner,
+// so the skip is gone and the gate runs everywhere.
+//
+// Everything else that asserts on a duration was audited and deliberately
+// left alone. The War-and-Peace load and bulk-delete gates, the diagram
+// layout and classifier limits, the math renderer's refusal check, the LLM
+// normalizer's, and the big-file loads are ceilings against hangs and
+// pathological blowups, not budgets: measured at load average 68 they come in
+// at 0-38 ms against limits of 250-30000 ms. Twenty-six to five-hundred times
+// of headroom does not flake, and tightening them would invent a precision
+// they were never meant to have.
+
 // Process CPU time consumed so far, in milliseconds, summed across threads.
 // Monotonic, and unaffected by time the process spends waiting for a core.
 inline double kvitProcessCpuMs()
@@ -242,11 +280,14 @@ inline bool kvitMachineIsQuiet(double contention)
 // `tightMs` when the sample is trustworthy. When it is not, it says which
 // check was deferred and what the contention was, so a reader can tell a
 // deferred budget from a passing one.
-#define KVIT_ASSERT_CPU_BUDGET(timer, label, tightMs, ceilingMs)               \
+#define KVIT_ASSERT_CPU_BUDGET_VALUES(label, cpuMsIn, wallMsIn, contentionIn,  \
+                                      tightMs, ceilingMs)                     \
     do {                                                                       \
-        const double kvit_cpu = (timer).cpuMs();                               \
-        const double kvit_contention = (timer).contention();                   \
-        KVIT_REPORT_OP(label, timer);                                          \
+        const double kvit_cpu = double(cpuMsIn);                               \
+        const double kvit_wall = double(wallMsIn);                             \
+        const double kvit_contention = double(contentionIn);                   \
+        qInfo("PERF %s: cpu %.2f ms (wall %.2f ms, contention %.1fx)", label,   \
+              kvit_cpu, kvit_wall, kvit_contention);                           \
         QVERIFY2(kvit_cpu < (ceilingMs),                                       \
                  qPrintable(                                                   \
                      QStringLiteral(                                           \
@@ -258,10 +299,10 @@ inline bool kvitMachineIsQuiet(double contention)
                          .arg(QLatin1String(label))                            \
                          .arg(kvit_cpu, 0, 'f', 1)                             \
                          .arg(double(ceilingMs), 0, 'f', 1)                    \
-                         .arg((timer).wallMs(), 0, 'f', 1)                     \
+                         .arg(kvit_wall, 0, 'f', 1)                            \
                          .arg(kvit_contention, 0, 'f', 1)));                   \
         if (kvitMachineIsQuiet(kvit_contention)                                \
-            || kvitTimingBudgetsForced()) {                  \
+            || kvitTimingBudgetsForced()) {                                    \
             QVERIFY2(kvit_cpu < (tightMs),                                     \
                      qPrintable(                                               \
                          QStringLiteral(                                       \
@@ -282,6 +323,11 @@ inline bool kvitMachineIsQuiet(double contention)
                   kvitLoadPerCore(), double(ceilingMs));                       \
         }                                                                      \
     } while (false)
+
+// The common case: one KvitOpTimer around one operation.
+#define KVIT_ASSERT_CPU_BUDGET(timer, label, tightMs, ceilingMs)               \
+    KVIT_ASSERT_CPU_BUDGET_VALUES(label, (timer).cpuMs(), (timer).wallMs(),    \
+                                  (timer).contention(), tightMs, ceilingMs)
 
 // Assert a wall-clock budget, but only when the machine is quiet enough for
 // the number to mean anything.

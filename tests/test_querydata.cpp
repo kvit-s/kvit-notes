@@ -354,39 +354,50 @@ void TestQueryData::testEvaluate1000NoteBudget()
     QVERIFY2(parsed.ok, qPrintable(parsed.error));
 
     QueryData::evaluate(parsed.spec, *m_collection); // warm caches/allocator
-    QList<double> samples;
+    QList<double> cpuSamples;
+    double worstWall = 0.0;
+    double worstContention = 1.0;
+    double worstCpu = 0.0;
     for (int i = 0; i < 9; ++i) {
-        QElapsedTimer timer;
-        timer.start();
+        KvitOpTimer timer;
         const QueryData::Result result =
             QueryData::evaluate(parsed.spec, *m_collection);
-        const double ms = timer.nsecsElapsed() / 1000000.0;
+        const double cpu = timer.cpuMs();
         QVERIFY(!result.rows.isEmpty());
-        samples.append(ms);
+        cpuSamples.append(cpu);
+        if (cpu >= worstCpu) {
+            worstCpu = cpu;
+            worstWall = timer.wallMs();
+            worstContention = timer.contention();
+        }
     }
-    std::sort(samples.begin(), samples.end());
-    const double median = samples.at(samples.size() / 2);
-    const double maximum = samples.last();
-    // The 25/75 ms budget is calibrated on the Linux dev machine (GCC).
-    // MSVC codegen runs this path 6-8% slower (median 26.3-26.9 ms
-    // measured 2026-07-19), so Windows carries a 1.5x allowance pending
-    // calibration against the CI runners.
+    std::sort(cpuSamples.begin(), cpuSamples.end());
+    const double median = cpuSamples.at(cpuSamples.size() / 2);
+    const double maximum = cpuSamples.last();
+
+    // Budgeted in CPU time. evaluate() is synchronous and CPU-bound, so its
+    // CPU cost is the work the query does; measured here, a median of about
+    // 10 ms on an idle machine.
+    //
+    // The wall-clock form skipped itself whenever CI was set, so it never ran
+    // on a hosted runner at all, and enforced on developer machines where it
+    // flapped - failing two runs in three at load average 36. It also carried
+    // a 1.5x Windows allowance its own comment described as "pending
+    // calibration against the CI runners", which is exactly the per-platform
+    // ladder tracking runner capacity that this file's header warns about.
+    // MSVC codegen really is 6-8% slower on this path, so a small platform
+    // allowance stays; it no longer has to absorb machine noise as well, and
+    // it should be re-measured rather than inherited if it starts to matter.
 #ifdef Q_OS_WIN
-    const double medianBudgetMs = 37.5;
-    const double maxBudgetMs = 112.5;
+    const double medianBudgetMs = 22.0;
+    const double ceilingMs = 60.0;
 #else
-    const double medianBudgetMs = 25.0;
-    const double maxBudgetMs = 75.0;
+    const double medianBudgetMs = 20.0;
+    const double ceilingMs = 55.0;
 #endif
-    qInfo("QUERY 1000: median %.3f ms, max %.3f ms", median, maximum);
-    if (!kvitTimingBudgetsEnforced())
-        QSKIP(KVIT_TIMING_BUDGET_SKIP_REASON);
-    QVERIFY2(median <= medianBudgetMs,
-             qPrintable(QStringLiteral("median %1 ms exceeds %2 ms")
-                            .arg(median).arg(medianBudgetMs)));
-    QVERIFY2(maximum <= maxBudgetMs,
-             qPrintable(QStringLiteral("max %1 ms exceeds %2 ms")
-                            .arg(maximum).arg(maxBudgetMs)));
+    qInfo("QUERY 1000: median %.3f ms cpu, max %.3f ms cpu", median, maximum);
+    KVIT_ASSERT_CPU_BUDGET_VALUES("query 1000-note evaluate", median, worstWall,
+                                  worstContention, medianBudgetMs, ceilingMs);
 }
 
 QTEST_MAIN(TestQueryData)

@@ -7,94 +7,98 @@
 #
 #   tools/verify-perf-budget.sh [BUILD_DIR]
 #
-# A budget that has been made robust against machine load has to be shown to
-# still fail on genuinely slower code, otherwise "robust" just means
-# "loosened". This injects a regression into a hot path, runs the budgeted
-# test, and requires it to fail; then reverts and requires it to pass. Both
-# directions have to hold or the script exits non-zero.
+# A budget made robust against machine load has to be shown to still fail on
+# genuinely slower code, otherwise "robust" just means "loosened". For each
+# budget below this injects a plausible slowdown into the code it covers,
+# requires the test to fail, reverts, and requires it to pass. Every case must
+# behave that way or the script exits non-zero.
 #
-# The regression is a doubled per-note parse in NoteCollection::indexNote -
-# the shape of a refactor that re-derives fields by indexing a second time.
-# It roughly doubles the CPU cost of opening a collection, which is the kind
-# of change these budgets exist to catch and the kind that a wall-clock
-# assertion on a busy machine would have lost in the noise.
+# The two cases are the two CPU budgets sitting in the blocking `unit` gate:
+# a doubled per-note parse in the collection open, and extra work on the
+# search query path. Both are the shape of an ordinary refactor mistake
+# rather than an obvious sleep.
 #
-# Run it on any machine, busy or idle: the point is that the answer does not
-# depend on that. The script prints the load average it ran at.
+# Budgets are forced with KVIT_ENFORCE_TIMING_BUDGETS=1 so the answer does not
+# depend on how busy the machine running this happens to be. That is the point
+# of the exercise: the verdict should be a property of the code.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BUILD_DIR=${1:-build-linux-release}
-TARGET=src/notecollection.cpp
-TEST=$BUILD_DIR/tests/test_notecollection
-CASE=testBenchmark500NoteOpen
 
-if ! git diff --quiet -- "$TARGET"; then
-    echo "$TARGET has uncommitted changes; refusing to patch it." >&2
+# file|test binary|test function|description
+CASES=(
+    "src/notecollection.cpp|test_notecollection|testBenchmark500NoteOpen|collection open, doubled per-note parse"
+    "src/searchindexdb.cpp|test_searchindexdb|testQueryPerformanceGate|search query, verification in a nested loop"
+    "src/querydata.cpp|test_querydata|testEvaluate1000NoteBudget|query evaluate, sort keys recomputed in the comparator"
+)
+
+if ! git diff --quiet -- src/; then
+    echo "src/ has uncommitted changes; refusing to patch it." >&2
     exit 2
 fi
 [ -d "$BUILD_DIR" ] || { echo "no build directory: $BUILD_DIR" >&2; exit 2; }
 
-# Whatever happens, put the source back and rebuild it clean.
-restore() {
-    git checkout -- "$TARGET" 2>/dev/null || true
-}
+restore() { git checkout -- src/ 2>/dev/null || true; }
 trap restore EXIT
 
 build() {
-    cmake --build --preset linux-release -j "$(nproc)" --target test_notecollection \
+    cmake --build --preset linux-release -j "$(nproc)" --target "$1" \
         > /tmp/perf-budget-build.log 2>&1 \
-        || { echo "build failed; see /tmp/perf-budget-build.log" >&2; exit 1; }
+        || { echo "build of $1 failed; see /tmp/perf-budget-build.log" >&2
+             exit 1; }
 }
 
-# Runs the budgeted case and echoes pass/fail plus the measurement line.
+# Echoes PASS or FAIL, then the measurement line.
 run_case() {
-    local out
+    local binary=$1 fn=$2 out
     if out=$(QT_QPA_PLATFORM=offscreen KVIT_ENFORCE_TIMING_BUDGETS=1 \
-                "$TEST" "$CASE" 2>&1); then
+                "$BUILD_DIR/tests/$binary" "$fn" 2>&1); then
         echo "PASS"
     else
         echo "FAIL"
     fi
-    printf '%s\n' "$out" | grep -oE 'cpu [0-9.]+ ms \(wall [0-9.]+ ms, contention [0-9.]+x\)' \
-        | sed 's/^/      /' || true
+    printf '%s\n' "$out" | grep -oE 'PERF .*cpu [0-9.]+ ms' | tail -1
 }
 
 echo "Machine load at start: $(cut -d' ' -f1-3 /proc/loadavg)"
 echo
 
-echo "[1/2] unchanged code must pass its budget"
-build
-verdict_clean=$(run_case)
-printf '%s\n' "$verdict_clean" | sed 's/^/      /'
+failures=0
+for spec in "${CASES[@]}"; do
+    IFS='|' read -r file binary fn description <<< "$spec"
+    echo "-- $description"
 
-echo
-echo "[2/2] with a doubled per-note parse, the budget must fail"
-python3 - "$TARGET" <<'PY'
-import pathlib, sys
-p = pathlib.Path(sys.argv[1])
-t = p.read_text()
-old = """    indexNoteFromText(relPath, fileText, info);
-    const NoteEntry *entry = note(relPath);"""
-new = """    indexNoteFromText(relPath, fileText, info);
-    indexNoteFromText(relPath, fileText, info);   // injected regression
-    const NoteEntry *entry = note(relPath);"""
-if old not in t:
-    sys.exit("could not find the injection point in " + str(p))
-p.write_text(t.replace(old, new, 1))
-PY
-build
-verdict_regressed=$(run_case)
-printf '%s\n' "$verdict_regressed" | sed 's/^/      /'
+    build "$binary"
+    mapfile -t clean < <(run_case "$binary" "$fn")
+    echo "   unchanged:  ${clean[0]}   ${clean[1]:-}"
 
+    python3 tools/inject-perf-regression.py "$file"
+    build "$binary"
+    mapfile -t regressed < <(run_case "$binary" "$fn")
+    echo "   regressed:  ${regressed[0]}   ${regressed[1]:-}"
+
+    git checkout -- "$file"
+
+    if [[ ${clean[0]} == PASS && ${regressed[0]} == FAIL ]]; then
+        echo "   ok: passes unchanged code, fails the regression"
+    else
+        echo "   WRONG: expected unchanged=PASS regressed=FAIL" >&2
+        failures=$((failures + 1))
+    fi
+    echo
+done
+
+# Leave the tree built from unmodified sources.
 restore
-build
+for spec in "${CASES[@]}"; do
+    IFS='|' read -r _ binary _ _ <<< "$spec"
+    build "$binary"
+done
 
-echo
-if [[ $verdict_clean == PASS* && $verdict_regressed == FAIL* ]]; then
-    echo "The budget passes unchanged code and fails a doubled parse."
+if [ "$failures" -eq 0 ]; then
+    echo "Every budget under test still catches its regression."
     exit 0
 fi
-echo "VERIFICATION FAILED: expected unchanged=PASS regressed=FAIL," >&2
-echo "  got unchanged=${verdict_clean%%$'\n'*} regressed=${verdict_regressed%%$'\n'*}" >&2
+echo "$failures budget(s) did not behave as required." >&2
 exit 1
