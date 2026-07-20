@@ -8,6 +8,7 @@
 #include <QDir>
 
 #include "notecollection.h"
+#include "timingbudget.h"
 
 // Unit suite for the collection object, over real temporary
 // directories. The contracts under test: the scan reads and
@@ -1555,18 +1556,20 @@ void TestNoteCollection::testBenchmark500NoteOpen()
     }
 
     NoteCollection collection;
-    QElapsedTimer timer;
-    timer.start();
+    KvitOpTimer timer;
     QVERIFY(collection.openRoot(m_dir->path()));
-    const qint64 elapsed = timer.elapsed();
-    qInfo("COLLECTION OPEN: %lld ms for a 500-note collection", elapsed);
 
     QCOMPARE(collection.noteCount(), 500);
     QVERIFY(collection.note("Folder3/Note 3.md"));
-    QVERIFY2(elapsed < 1000,
-             qPrintable(QStringLiteral("500-note open must stay under 1 s "
-                                       "(measured %1 ms)")
-                            .arg(elapsed)));
+
+    // Budgeted in CPU time rather than wall-clock: the open is
+    // single-threaded and CPU-bound, so its CPU cost tracks the scanning and
+    // parsing work while wall-clock tracks how busy the machine is. The two
+    // thresholds and the numbers behind them are explained in
+    // tests/timingbudget.h; measured on this collection, unchanged code
+    // costs ~190 ms of CPU idle and ~450 ms under heavy load, and a doubling
+    // of the per-note parse costs ~372 ms and ~820 ms respectively.
+    KVIT_ASSERT_CPU_BUDGET(timer, "collection.open 500-note", 300.0, 650.0);
 }
 
 namespace {

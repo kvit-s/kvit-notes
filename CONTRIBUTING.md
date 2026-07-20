@@ -37,6 +37,39 @@ The suite is heterogeneous, and the labels matter:
   is correct, and window-focus failures under a loaded compositor are not
   regressions.
 
+### Performance budgets
+
+Several suites assert that an operation stays inside a budget. Those numbers
+are measured in **process CPU time**, not wall-clock, because wall-clock on a
+shared machine measures the neighbours rather than the code: the same
+unchanged 500-note collection open costs about 190 ms of CPU whether the
+machine is idle or at load average 75, while its wall-clock time goes from
+217 ms to 1191 ms. Budgets used to be asserted on the wall clock, and they
+failed on unchanged code often enough that people learned to re-run instead
+of investigate.
+
+Each CPU budget carries two thresholds, because contention still costs a real
+1.8-2.4x in CPU terms and that is the same order as a regression worth
+catching:
+
+- a **ceiling** that contention alone cannot breach, always enforced;
+- a **tight budget** that is the number actually worth holding, enforced when
+  the machine is measurably quiet.
+
+When the tight budget is deferred the test says so, with the load and
+contention that caused it, so a deferred check never reads as a passing one.
+`KVIT_ENFORCE_TIMING_BUDGETS=1` enforces it regardless. The reasoning, the
+measurements behind the thresholds, and the two approaches that were tried
+and rejected are all in `tests/timingbudget.h`.
+
+Budgets that are genuinely about elapsed time - an async call returning
+promptly, a first frame - stay on the wall clock and are simply not judged on
+a busy machine, since no metric makes those load-proof.
+
+If you change a budget, run `tools/verify-perf-budget.sh`. It injects a
+doubled parse into a hot path and requires the budget to fail, then reverts
+and requires it to pass. A budget that cannot fail is not a budget.
+
 QML is also linted statically, and that check blocks merges too:
 `tools/run-qmllint.sh` runs over `qml/`. It reads every file, including those
 no test instantiates, and rejects malformed QML, unresolvable imports and uses
