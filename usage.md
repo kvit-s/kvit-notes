@@ -416,8 +416,11 @@ with any text editor:
   last open note) lives in one `collection.json` inside a `.kvit/` directory.
 - The `.kvit/` directory also holds the **trash**, rotating **backups** (taken before each
   overwrite; restore them from the ↺ button by the tag strip), a **crash-recovery journal**
-  (which offers to restore unsaved work if the app was interrupted), the **templates**, and
-  the **embed cache**. Images ingested into notes live in an `assets/` folder.
+  (which offers to restore unsaved work if the app was interrupted), and the **templates**.
+  Images ingested into notes live in an `assets/` folder.
+- Rebuildable caches (the note-list index and the embed-metadata cache) are kept apart from
+  that state, under `.kvit/cache/`, which is tagged so backup tools skip it. Deleting
+  `.kvit/cache/` costs only rebuild time; deleting the rest loses work.
 
 Every save is atomic, so an interrupted write never truncates a note, and auto-save writes
 your changes a few seconds after you stop typing. If you edit a note in another program while

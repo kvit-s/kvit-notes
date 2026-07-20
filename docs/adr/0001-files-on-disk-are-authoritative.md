@@ -44,10 +44,10 @@ Concretely:
   notes root so it is never synced or backed up with the vault
   (`CollectionSearchIndex::databasePathForRoot`). A schema-version mismatch or a
   corrupt database is removed and rebuilt rather than repaired.
-- The note-list sidecar `<root>/.kvit/index.json` caches titles, snippets, word
-  counts and the wiki-link graph so a warm start does not reparse every note. It
-  is version-gated: a sidecar written by an older format is dropped and rebuilt
-  from the markdown rather than trusted.
+- The note-list sidecar `<root>/.kvit/cache/index.json` caches titles, snippets,
+  word counts and the wiki-link graph so a warm start does not reparse every
+  note. It is version-gated: a sidecar written by an older format is dropped and
+  rebuilt from the markdown rather than trusted.
 
 Derived state is invalidated by a file watcher over the root, by a monotonic
 collection revision counter that view models bind to, by per-query generation
@@ -88,17 +88,23 @@ is pure user intent.
 Alongside it, `.kvit/` also holds `trash/` (deleted notes awaiting an explicit
 empty), `backups/` (rotating pre-overwrite copies), `recovery/` (the crash
 journal, which is the only copy of unsaved work while a document is dirty) and
-`templates/` (user-authored templates). Only `index.json` and `embedcache/` are
-throwaway.
+`templates/` (user-authored templates). The two throwaway items are the note
+index and the embed-metadata cache.
 
-So `.kvit/` mixes one rebuildable cache with several stores of irreplaceable
-user data, and anything that treats the whole directory as disposable (a
-`.gitignore` entry, a sync exclusion, a "clear cache" button) destroys user
-data. This is why `collection.json` is written atomically and why a failed write
-surfaces to the user through `operationFailed` rather than being swallowed. It
-is also the strongest argument for eventually splitting the directory into a
-cache half and a state half; that has not been done, and until it is, the
-hazard is contained only by nobody having written the offending line.
+Because treating the whole directory as disposable (a `.gitignore` entry, a sync
+exclusion, a "clear cache" button) would destroy user data, the two rebuildable
+caches are separated from the state rather than left mixed with it. They live
+under `<root>/.kvit/cache/` (`cache/index.json` and `cache/embedcache/`), where
+nothing irreplaceable does. That subtree carries a `CACHEDIR.TAG` with the
+standard signature, so a backup tool that honours the convention (borg, restic
+and others) skips it without the user configuring anything, and a sync
+exclusion or a clear-cache action has one directory to name. The pre-split
+locations directly under `.kvit/` are cleaned up when a vault is opened.
+
+The state remains protected in its own right: `collection.json` is written
+atomically and a failed write surfaces through `operationFailed` rather than
+being swallowed. The separation makes the earlier hazard structural rather than
+a rule nobody has yet broken.
 
 ## Evidence in the tree
 

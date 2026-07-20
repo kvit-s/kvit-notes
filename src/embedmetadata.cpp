@@ -5,6 +5,7 @@
 #include "notecollection.h"
 #include "imageassets.h"
 #include "egresspolicy.h"
+#include "notefileio.h"
 
 #include <QDir>
 #include <QFile>
@@ -117,8 +118,8 @@ QVariantMap EmbedMetadata::parseOpenGraph(const QString &html, const QString &ur
 QString EmbedMetadata::cacheDir() const
 {
     if (m_collection && m_collection->isOpen())
-        return QDir(m_collection->rootPath())
-            .filePath(QStringLiteral(".kvit/embedcache"));
+        return QDir(NoteFileIo::vaultCacheDir(m_collection->rootPath()))
+            .filePath(QStringLiteral("embedcache"));
     return QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
         .filePath(QStringLiteral("embedcache"));
 }
@@ -142,6 +143,10 @@ QVariantMap EmbedMetadata::readCache(const QString &url) const
 
 void EmbedMetadata::writeCache(const QString &url, const QVariantMap &meta)
 {
+    // Tag the cache subtree even if an embed is fetched before the first scan
+    // has set it up; idempotent.
+    if (m_collection && m_collection->isOpen())
+        NoteFileIo::ensureVaultCacheDir(m_collection->rootPath());
     QDir().mkpath(cacheDir());
     QSaveFile f(cachePathFor(url));
     if (!f.open(QIODevice::WriteOnly))

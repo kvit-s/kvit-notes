@@ -29,7 +29,7 @@ public:
 // Embed preview metadata (features.md §1.2.14): an `![](url)` whose URL is a
 // web page or a recognized video host renders as a preview card built from the
 // target's OpenGraph tags (title, description, image, favicon), fetched
-// through an injectable seam and cached under `.kvit/embedcache/` keyed by URL
+// through an injectable seam and cached under `.kvit/cache/embedcache/` keyed by URL
 // hash. Exposed as the `embedMetadata` context property. Storage is the
 // ordinary image expression, so an embed round-trips byte-identically and a
 // non-Kvit editor shows a plain image link.
@@ -41,7 +41,7 @@ public:
     explicit EmbedMetadata(QObject *parent = nullptr);
 
     // The fetcher and the cache root. The collection provides the cache dir
-    // (<root>/.kvit/embedcache) when open; otherwise a per-user cache path.
+    // (<root>/.kvit/cache/embedcache) when open; otherwise a per-user cache path.
     void setFetcher(EmbedFetcher *fetcher) { m_fetcher = fetcher; }
     void setCollection(NoteCollection *collection) { m_collection = collection; }
     // The consent gate. Without one wired, no fetch happens at all: a build

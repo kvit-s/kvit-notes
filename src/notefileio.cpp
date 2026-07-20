@@ -3,11 +3,50 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "notefileio.h"
 
+#include <QDir>
 #include <QFile>
 #include <QSaveFile>
 #include <QTextStream>
 
 namespace NoteFileIo {
+
+namespace {
+const QString kCacheRel = QStringLiteral(".kvit/cache");
+// The first line is the exact magic CACHEDIR.TAG requires; tools match on it.
+const QByteArray kCacheTag =
+    "Signature: 8a477f597d28d172789f06886806bc55\n"
+    "# This file marks <vault>/.kvit/cache as a Kvit Notes cache directory.\n"
+    "# Its contents are rebuilt on demand and are safe to delete. The\n"
+    "# irreplaceable state lives in .kvit itself, not here.\n"
+    "# See https://bford.info/cachedir/\n";
+} // namespace
+
+QString vaultCacheDir(const QString &rootPath)
+{
+    if (rootPath.isEmpty())
+        return QString();
+    return QDir(rootPath).filePath(kCacheRel);
+}
+
+void ensureVaultCacheDir(const QString &rootPath)
+{
+    const QString dir = vaultCacheDir(rootPath);
+    if (dir.isEmpty())
+        return;
+    QDir().mkpath(dir);
+    const QString tag = QDir(dir).filePath(QStringLiteral("CACHEDIR.TAG"));
+    if (!QFile::exists(tag))
+        writeFileBytesAtomic(tag, kCacheTag);
+}
+
+void removeLegacyVaultCache(const QString &rootPath)
+{
+    if (rootPath.isEmpty())
+        return;
+    QDir kvit(QDir(rootPath).filePath(QStringLiteral(".kvit")));
+    QFile::remove(kvit.filePath(QStringLiteral("index.json")));
+    QDir(kvit.filePath(QStringLiteral("embedcache"))).removeRecursively();
+}
 
 QString readTextFile(const QString &path, bool *ok)
 {

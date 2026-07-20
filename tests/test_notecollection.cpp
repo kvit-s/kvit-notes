@@ -43,6 +43,7 @@ private slots:
     void testIndexFields();
     void testPersistentIndexWarmStartSkipsUnchangedParse();
     void testCorruptPersistentIndexFallsBackToFullParse();
+    void testRebuildableCacheIsSeparatedFromState();
     void testRefreshPathsReindexesOnlyChangedNote();
     void testRefreshPathsDirectoryScopesToSubtree();
     void testRefreshPathsDeletedDirectoryRemovesSubtree();
@@ -224,7 +225,7 @@ void TestNoteCollection::testScanNeverWrites()
     QCOMPARE(readNote("Plain.md"), QStringLiteral("No metadata at all\n"));
     // Opening may write only the performance index sidecar; user collection
     // state and note files remain untouched until state changes.
-    QVERIFY(QFileInfo::exists(abs(".kvit/index.json")));
+    QVERIFY(QFileInfo::exists(abs(".kvit/cache/index.json")));
     QVERIFY(!QFileInfo::exists(abs(".kvit/collection.json")));
 }
 
@@ -481,7 +482,7 @@ void TestNoteCollection::testPersistentIndexWarmStartSkipsUnchangedParse()
         [&firstParseCount](const QString &) { ++firstParseCount; });
     QVERIFY(first.openRoot(m_dir->path()));
     QCOMPARE(firstParseCount, 2);
-    QVERIFY(QFileInfo::exists(abs(".kvit/index.json")));
+    QVERIFY(QFileInfo::exists(abs(".kvit/cache/index.json")));
 
     int warmParseCount = 0;
     NoteCollection warm;
@@ -511,7 +512,7 @@ void TestNoteCollection::testCorruptPersistentIndexFallsBackToFullParse()
 
     NoteCollection first;
     QVERIFY(first.openRoot(m_dir->path()));
-    writeNote(".kvit/index.json", "{not json");
+    writeNote(".kvit/cache/index.json", "{not json");
 
     QStringList parsed;
     NoteCollection reopened;
@@ -522,6 +523,40 @@ void TestNoteCollection::testCorruptPersistentIndexFallsBackToFullParse()
     QCOMPARE(parsed, (QStringList() << "A.md" << "B.md"));
     QCOMPARE(reopened.noteCount(), 2);
     QCOMPARE(reopened.note("A.md")->wordCount, 2);
+}
+
+// The .kvit control directory holds irreplaceable state (trash, backups,
+// collection.json, templates, the crash-recovery journals) alongside caches
+// that are rebuilt on demand. The caches live under .kvit/cache so a backup
+// tool, a sync exclusion or a "clear cache" action can drop the disposable
+// half without taking state with it, and that subtree carries the standard
+// CACHEDIR.TAG so tools recognise it without configuration. A cache left at
+// the pre-split location is cleaned up on open.
+void TestNoteCollection::testRebuildableCacheIsSeparatedFromState()
+{
+    writeNote("A.md", "one two\n");
+
+    // A vault from before the split: the index sat directly in .kvit.
+    writeNote(".kvit/index.json", "{\"version\":2,\"notes\":[]}");
+    writeNote(".kvit/embedcache/old.json", "{}");
+
+    NoteCollection col;
+    QVERIFY(col.openRoot(m_dir->path()));
+
+    // The cache moved under .kvit/cache, and the disposable subtree is tagged.
+    QVERIFY(QFileInfo::exists(abs(".kvit/cache/index.json")));
+    QVERIFY(QFileInfo::exists(abs(".kvit/cache/CACHEDIR.TAG")));
+    const QByteArray tag = [&] {
+        QFile f(abs(".kvit/cache/CACHEDIR.TAG"));
+        return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    }();
+    QVERIFY2(tag.startsWith("Signature: 8a477f597d28d172789f06886806bc55"),
+             "the cache tag must carry the standard CACHEDIR.TAG signature");
+
+    // The pre-split copies are gone, so nothing disposable is left mixed in
+    // with state at the .kvit top level.
+    QVERIFY(!QFileInfo::exists(abs(".kvit/index.json")));
+    QVERIFY(!QFileInfo::exists(abs(".kvit/embedcache")));
 }
 
 void TestNoteCollection::testRefreshPathsReindexesOnlyChangedNote()
@@ -630,7 +665,7 @@ void TestNoteCollection::testAsyncOpenRootReturnsBeforeBodyParse()
     const NoteCollection::NoteEntry *indexed = collection.note("Huge.md");
     QVERIFY(indexed);
     QVERIFY(indexed->wordCount > 0);
-    QVERIFY(QFileInfo::exists(abs(".kvit/index.json")));
+    QVERIFY(QFileInfo::exists(abs(".kvit/cache/index.json")));
 }
 
 void TestNoteCollection::testCreatedPrefersFrontMatter()
@@ -1646,12 +1681,14 @@ void TestNoteCollection::testFailedIndexWriteKeepsIndexDirty()
 {
     writeNote("A.md", "alpha\n");
     QVERIFY(m_collection->openRoot(m_dir->path()));
-    const QString kvitDir = m_dir->filePath(".kvit");
-    QVERIFY(QDir().mkpath(kvitDir));
+    // The index sidecar lives under .kvit/cache; deny writes there so the
+    // sidecar write fails while the note itself still saves.
+    const QString cacheDir = m_dir->filePath(".kvit/cache");
+    QVERIFY(QDir().mkpath(cacheDir));
 
     bool stillDirty = false;
     {
-        FaultInjection::DeniedWrites denied(kvitDir);
+        FaultInjection::DeniedWrites denied(cacheDir);
         if (!denied.supported())
             QSKIP(qPrintable(denied.skipReason()));
         // The note itself is written; only the index sidecar fails.

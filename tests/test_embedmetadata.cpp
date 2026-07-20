@@ -121,8 +121,8 @@ void TestEmbedMetadata::testRequestFetchesParsesAndCaches()
     QCOMPARE(fetcher.calls, 1);
     const QVariantMap m = em.cachedMetadata(url);
     QCOMPARE(m.value("title").toString(), QString("Cached Title"));
-    // The cache file exists under .kvit/embedcache.
-    QVERIFY(QDir(dir.path()).exists(".kvit/embedcache"));
+    // The cache file exists under .kvit/cache/embedcache.
+    QVERIFY(QDir(dir.path()).exists(".kvit/cache/embedcache"));
 }
 
 void TestEmbedMetadata::testCacheHitDoesNotRefetch()

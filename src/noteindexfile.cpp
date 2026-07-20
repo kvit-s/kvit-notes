@@ -17,7 +17,6 @@
 
 namespace {
 
-const QString kvitDirName = QStringLiteral(".kvit");
 const QString indexFileName = QStringLiteral("index.json");
 const QString mdSuffix = QStringLiteral(".md");
 
@@ -43,6 +42,13 @@ QStringList stringListFromJson(const QJsonArray &array)
 void NoteIndexFile::setRootPath(const QString &rootPath)
 {
     m_rootPath = rootPath;
+    if (!rootPath.isEmpty()) {
+        // The index lives under .kvit/cache now. Establish the tagged cache
+        // directory and drop any copy left at the pre-split .kvit/index.json,
+        // which is rebuilt from this scan anyway.
+        NoteFileIo::ensureVaultCacheDir(rootPath);
+        NoteFileIo::removeLegacyVaultCache(rootPath);
+    }
 }
 
 bool NoteIndexFile::writeBytes(const QString &path, const QByteArray &bytes)
@@ -54,7 +60,7 @@ QString NoteIndexFile::path() const
 {
     if (m_rootPath.isEmpty())
         return QString();
-    return m_rootPath + QLatin1Char('/') + kvitDirName
+    return NoteFileIo::vaultCacheDir(m_rootPath)
         + QLatin1Char('/') + indexFileName;
 }
 
@@ -178,8 +184,7 @@ bool NoteIndexFile::save(const QHash<QString, NoteEntry> &notes) const
         return true; // nothing to write is not a failure
     }
 
-    const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
-    QDir().mkpath(dir);
+    NoteFileIo::ensureVaultCacheDir(m_rootPath);
     const QByteArray bytes = buildBytes(notes);
     perf.addContext(QStringLiteral("bytes"), bytes.size());
     const bool ok = writeBytes(filePath, bytes);

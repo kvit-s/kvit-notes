@@ -100,7 +100,7 @@ void TestStartupController::deferredStartOpensLastNoteAsynchronously()
     QTRY_COMPARE_WITH_TIMEOUT(scanFinishedSpy.count(), 1, 5000);
     QTRY_VERIFY_WITH_TIMEOUT(!collection.scanInProgress(), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(parsed.size() == 2, 5000);
-    QVERIFY(QFileInfo::exists(dir.filePath(QStringLiteral(".kvit/index.json"))));
+    QVERIFY(QFileInfo::exists(dir.filePath(QStringLiteral(".kvit/cache/index.json"))));
 }
 
 // A first run on an empty folder seeds a welcome note and opens it. That
