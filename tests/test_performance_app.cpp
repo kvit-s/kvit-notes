@@ -24,6 +24,8 @@
 
 #include <algorithm>
 
+#include "timingbudget.h"
+
 class TestPerformanceApp : public QObject
 {
     Q_OBJECT
@@ -309,11 +311,7 @@ void TestPerformanceApp::guiCollectionStartupDeferredVault10K()
                          {QStringLiteral("fixture"),
                           QStringLiteral("VAULT-10K")}});
 
-    const QByteArray message =
-        QStringLiteral("GUI first frame before VAULT-10K scan took %1 ms")
-            .arg(firstFrameMs)
-            .toUtf8();
-    QVERIFY2(firstFrameMs <= 1000.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(firstFrameMs, "gui.first_frame before VAULT-10K scan", 1000.0);
 
     QMetaObject::invokeMethod(controller, "start", Qt::QueuedConnection);
     QTRY_VERIFY_WITH_TIMEOUT(controller->finished(), 5000);
@@ -420,11 +418,7 @@ void TestPerformanceApp::guiCollectionStartupDeferredSmallVaultHugeNote()
                          {QStringLiteral("fixture"),
                           QStringLiteral("SMALL-HUGE")}});
 
-    const QByteArray message =
-        QStringLiteral("GUI first frame before small-vault/huge-note scan took %1 ms")
-            .arg(firstFrameMs)
-            .toUtf8();
-    QVERIFY2(firstFrameMs <= 1000.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(firstFrameMs, "gui.first_frame before small-vault/huge-note scan", 1000.0);
 
     QMetaObject::invokeMethod(controller, "start", Qt::QueuedConnection);
     QTRY_VERIFY_WITH_TIMEOUT(controller->finished(), 5000);

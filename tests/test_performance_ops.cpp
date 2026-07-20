@@ -15,6 +15,7 @@
 #include "startupcontroller.h"
 #include "undostack.h"
 #include "perf/corpus.h"
+#include "timingbudget.h"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -133,9 +134,7 @@ void TestPerformanceOps::fullDocumentCount()
     QCOMPARE(samples.size(), 1);
     QCOMPARE(result.value(QStringLiteral("words")).toInt(), fixture.words);
     const double ms = samples.first().durationMs;
-    const QByteArray message =
-        QStringLiteral("statusbar.count WP took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 50.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "statusbar.count WP", 50.0);
     qInfo("PERF statusbar.count WP: %.2f ms", samples.first().durationMs);
 }
 
@@ -154,9 +153,7 @@ void TestPerformanceOps::incrementalTotalUpdate()
     const double ms = timer.nsecsElapsed() / 1000000.0;
 
     QCOMPARE(model.documentWordCount(), fixture.words + 1);
-    const QByteArray message =
-        QStringLiteral("incremental total update took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 2.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "block.incremental_count_update WP", 2.0);
     qInfo("PERF block.incremental_count_update WP: %.2f ms", ms);
 }
 
@@ -172,9 +169,7 @@ void TestPerformanceOps::mixed100KeystrokeLatency()
     model.updateContent(0, model.getContent(0) + QStringLiteral(" typed"));
     const double ms = timer.nsecsElapsed() / 1000000.0;
 
-    const QByteArray message =
-        QStringLiteral("MIXED-100 content update took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 16.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "keystroke MIXED-100", 16.0);
     qInfo("PERF keystroke MIXED-100: %.2f ms", ms);
 }
 
@@ -228,11 +223,7 @@ void TestPerformanceOps::collectionAsyncOpenVault10K()
     QCOMPARE(entry->wordCount, 0);
     QCOMPARE(entry->fileSize, qint64(-1));
 
-    const QByteArray message =
-        QStringLiteral("openRootAsync cold VAULT-10K returned in %1 ms")
-            .arg(ms)
-            .toUtf8();
-    QVERIFY2(ms <= 1000.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "startup.scan VAULT-10K async return", 1000.0);
     qInfo("PERF startup.scan VAULT-10K async return: %.2f ms", ms);
 }
 
@@ -266,11 +257,7 @@ void TestPerformanceOps::collectionWarmStartVault10K()
         PerfLog::instance().samples(QStringLiteral("startup.scan"));
     QVERIFY(!samples.isEmpty());
     const double loggedMs = samples.last().durationMs;
-    const QByteArray message =
-        QStringLiteral("warm startup.scan VAULT-10K took %1 ms")
-            .arg(loggedMs)
-            .toUtf8();
-    QVERIFY2(loggedMs <= 300.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(loggedMs, "startup.scan VAULT-10K warm", 300.0);
     qInfo("PERF startup.scan VAULT-10K warm: %.2f ms (wall %.2f ms)",
           loggedMs, elapsedMs);
 }
@@ -319,11 +306,7 @@ void TestPerformanceOps::collectionAsyncOpenSmallVaultHugeNote()
     QCOMPARE(hugeEntry->wordCount, 0);
     QCOMPARE(hugeEntry->fileSize, qint64(-1));
 
-    const QByteArray message =
-        QStringLiteral("openRootAsync small vault/huge note returned in %1 ms")
-            .arg(ms)
-            .toUtf8();
-    QVERIFY2(ms <= 300.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "startup.scan small-vault-huge-note async return", 300.0);
     qInfo("PERF startup.scan small-vault-huge-note async return: %.2f ms",
           ms);
 }
@@ -368,11 +351,7 @@ void TestPerformanceOps::collectionAsyncRefreshDirectoryHugeNote()
 
     QCOMPARE(parsed.size(), 0);
     QCOMPARE(revisionSpy.count(), 0);
-    const QByteArray message =
-        QStringLiteral("directory refresh with huge note returned in %1 ms")
-            .arg(ms)
-            .toUtf8();
-    QVERIFY2(ms <= 50.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "collection.refresh directory huge-note async return", 50.0);
 
     QVERIFY(revisionSpy.wait(10000));
     QTRY_VERIFY_WITH_TIMEOUT(parsed.contains(QStringLiteral("Big/Huge.md")),
@@ -431,11 +410,7 @@ void TestPerformanceOps::startupControllerRememberedHugeNoteStartsAsync()
     QVERIFY(collection.scanInProgress());
     QCOMPARE(parsed.size(), 0);
 
-    const QByteArray message =
-        QStringLiteral("StartupController::start remembered huge note took %1 ms")
-            .arg(startMs)
-            .toUtf8();
-    QVERIFY2(startMs <= 50.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(startMs, "startup.controller remembered huge-note start return", 50.0);
 
     QTRY_VERIFY_WITH_TIMEOUT(controller.finished(), 10000);
     QCOMPARE(documentManager.currentFilePath(),
@@ -508,7 +483,7 @@ void TestPerformanceOps::persistenceTimingSplits()
     QVERIFY(!saveWrite.isEmpty());
     QVERIFY(!saveFlush.isEmpty());
     QVERIFY(!saveCommit.isEmpty());
-    QVERIFY(saveMain.last().durationMs <= 5.0);
+    KVIT_ASSERT_WALL_BUDGET(saveMain.last().durationMs, "note.save main-thread WP", 5.0);
     QVERIFY(saveCommit.last().context.value(QStringLiteral("ok")).toBool());
     qInfo("PERF note.save main-thread WP: %.2f ms",
           saveMain.last().durationMs);
@@ -548,7 +523,7 @@ void TestPerformanceOps::persistenceTimingSplits()
     QVERIFY(!autosaveWrite.isEmpty());
     QVERIFY(!autosaveFlush.isEmpty());
     QVERIFY(!autosaveCommit.isEmpty());
-    QVERIFY(autosaveMain.last().durationMs <= 5.0);
+    KVIT_ASSERT_WALL_BUDGET(autosaveMain.last().durationMs, "note.autosave main-thread WP", 5.0);
     QVERIFY(autosaveCommit.last().context.value(QStringLiteral("ok")).toBool());
     qInfo("PERF note.autosave main-thread WP: %.2f ms",
           autosaveMain.last().durationMs);
@@ -590,7 +565,7 @@ void TestPerformanceOps::persistenceTimingSplits()
     QVERIFY(!journalWrite.isEmpty());
     QVERIFY(!journalFlush.isEmpty());
     QVERIFY(!journalCommit.isEmpty());
-    QVERIFY(journalMain.last().durationMs <= 2.0);
+    KVIT_ASSERT_WALL_BUDGET(journalMain.last().durationMs, "note.journal_write main-thread WP", 2.0);
     QVERIFY(journalCommit.last().context.value(QStringLiteral("ok")).toBool());
     qInfo("PERF note.journal_write main-thread WP: %.2f ms",
           journalMain.last().durationMs);
@@ -622,9 +597,7 @@ void TestPerformanceOps::documentSearchRecompute()
     QVERIFY(!samples.isEmpty());
     QVERIFY(search.matchCount() > 0);
     const double ms = samples.last().durationMs;
-    const QByteArray message =
-        QStringLiteral("search.doc_recompute WP took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 16.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "search.doc_recompute WP", 16.0);
     qInfo("PERF search.doc_recompute WP: %.2f ms, matches=%d",
           ms, search.matchCount());
 }
@@ -647,12 +620,7 @@ void TestPerformanceOps::documentSearchHighMatchRecompute()
     QVERIFY(!samples.isEmpty());
     QVERIFY(search.matchCount() > 100000);
     const double ms = samples.last().durationMs;
-    const QByteArray message =
-        QStringLiteral("high-match search.doc_recompute WP took %1 ms with %2 matches")
-            .arg(ms)
-            .arg(search.matchCount())
-            .toUtf8();
-    QVERIFY2(ms <= 100.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "search.doc_recompute WP high-match", 100.0);
     qInfo("PERF search.doc_recompute WP high-match: %.2f ms, matches=%d",
           ms, search.matchCount());
 }
@@ -700,9 +668,7 @@ void TestPerformanceOps::outlineNonHeadingEditDoesNotRebuild()
     const QList<PerfLog::Sample> samples =
         PerfLog::instance().samples(QStringLiteral("outline.rebuild"));
     QCOMPARE(samples.size(), 0);
-    const QByteArray message =
-        QStringLiteral("HEADINGS-2K non-heading edit took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 16.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "outline.rebuild HEADINGS-2K non-heading edit", 16.0);
     qInfo("PERF outline.non_heading_edit HEADINGS-2K: %.2f ms, rebuilds=%d",
           ms, int(samples.size()));
 }
@@ -782,9 +748,7 @@ void TestPerformanceOps::selectionIdLookup()
 
     QCOMPARE(checksum,
              10000 * (0 + model.count() / 2 + model.count() - 1));
-    const QByteArray message =
-        QStringLiteral("30,000 id lookups took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 50.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "blockmodel id lookups x30000", 50.0);
     qInfo("PERF selection.id_lookup WP-SYNTH: %.2f ms for 30,000 lookups", ms);
 }
 
@@ -812,9 +776,7 @@ void TestPerformanceOps::selectAllDelete()
     QCOMPARE(indexes.size(), fixture.blocks);
     QCOMPARE(model.count(), 1);
     QVERIFY(!selection.hasBlockSelection());
-    const QByteArray message =
-        QStringLiteral("select-all + delete took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 200.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "select-all + delete", 200.0);
     qInfo("PERF selection.select_all_delete WP-SYNTH: %.2f ms for %d blocks",
           ms, int(indexes.size()));
 
@@ -857,9 +819,7 @@ void TestPerformanceOps::selectionDragTick()
         QCOMPARE(selectedCount, visibleRows);
     }
 
-    const QByteArray message =
-        QStringLiteral("worst drag tick took %1 ms").arg(worstMs).toUtf8();
-    QVERIFY2(worstMs <= 2.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(worstMs, "worst drag tick", 2.0);
     qInfo("PERF selection.drag_tick WP-SYNTH: worst %.3f ms per tick", worstMs);
 }
 
@@ -885,9 +845,7 @@ void TestPerformanceOps::ordinalSweepList5K()
     const double ms = timer.nsecsElapsed() / 1000000.0;
 
     QVERIFY(checksum > 0);
-    const QByteArray message =
-        QStringLiteral("LIST-5K ordinal sweep took %1 ms").arg(ms).toUtf8();
-    QVERIFY2(ms <= 16.0, message.constData());
+    KVIT_ASSERT_WALL_BUDGET(ms, "ordinal sweep LIST-5K", 16.0);
     qInfo("PERF block.ordinal_sweep LIST-5K: %.2f ms for %d rows",
           ms, int(model.count()));
 }
