@@ -33,16 +33,23 @@ Trigger: a P0/P1 confirmed against the latest published release.
 2. **Publish the fix as a new version.** Branch from the previous good tag,
    apply the fix (cherry-pick if it already landed on main), tag
    `vX.Y.(Z+1)`, and let CI produce and publish the artifacts.
-3. **Propagate the supersede** to every channel that mirrors releases:
-   - Flathub: run `tools/update-flatpak-commit.sh <version>` so the
-     manifest pins the tag's commit, not just the mutable tag, then
-     push it. `--check` verifies before submitting;
-   - winget: submit the updated manifest PR;
+3. **Propagate the supersede** to every channel that is actually live.
+   Today that is the GitHub release itself (where the AppImage lives) and
+   the AUR package:
    - AUR `-bin`: run `tools/update-aur-digest.sh <version>`, which bumps
      pkgver and pins `sha256sums` to the digest in the release's
      SHA256SUMS.txt. Never publish a PKGBUILD carrying the placeholder
-     digest or `SKIP`; `--check` verifies before publishing;
-   - Homebrew tap: bump the cask.
+     digest or `SKIP`; `--check` verifies before publishing.
+
+   The channels below are not live yet (see README's install section) and
+   only become rollback steps once their packaging job or submission
+   exists. Listed here so the runbook is complete when they do:
+   - Flathub, once the Flatpak submission is accepted: run
+     `tools/update-flatpak-commit.sh <version>` so the manifest pins the
+     tag's commit rather than the mutable tag, then push it (`--check`
+     verifies first);
+   - winget, once a manifest exists: submit the updated manifest PR;
+   - Homebrew tap, once a cask exists: bump the cask.
 4. **The in-app update check follows automatically**: it reads the GitHub
    `latest` release, which is now the fixed version.
 5. Post-mortem line in CHANGELOG.md under the fixed version: what broke,

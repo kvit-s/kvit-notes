@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 # SemVer: the product launches as 1.0.0 (0.x would
 # undersell a feature-complete editor). PROJECT_VERSION carries the three
 # numeric components only, because CMake rejects a prerelease suffix here.
