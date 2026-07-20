@@ -1,6 +1,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#include <QRandomGenerator>
 #include <QtTest>
 
 #include "kanbandata.h"
@@ -96,6 +97,223 @@ private slots:
 
         // Move a column.
         QCOMPARE(parse(moveColumn(md, 0, 1)).columns[0].name, QString("B"));
+    }
+
+    void unmodelledContentSurvivesMutation()
+    {
+        const QString md =
+            "An introductory paragraph about this board.\n"
+            "\n"
+            "<!-- a note the parser does not model -->\n"
+            "## To do\n"
+            "- [ ] one\n"
+            "- [ ] two\n";
+        // Only the toggled checkbox differs; everything else, including the
+        // trailing newline, comes back byte for byte.
+        const QString expected =
+            "An introductory paragraph about this board.\n"
+            "\n"
+            "<!-- a note the parser does not model -->\n"
+            "## To do\n"
+            "- [x] one\n"
+            "- [ ] two\n";
+        QCOMPARE(toggleCardDone(md, 0, 0), expected);
+    }
+
+    void triviaInsideAColumnSurvivesEveryMutation()
+    {
+        const QString md =
+            "Intro prose.\n"
+            "## To do\n"
+            "<!-- why this column exists -->\n"
+            "- [ ] one\n"
+            "\n"
+            "> a quoted aside\n"
+            "- [ ] two\n"
+            "## Done\n"
+            "- [x] shipped\n";
+        const QStringList marks{ "Intro prose.", "<!-- why this column exists -->",
+                                 "> a quoted aside" };
+        struct { const char *what; QString out; } cases[] = {
+            { "toggle",       toggleCardDone(md, 0, 0) },
+            { "removeCard",   removeCard(md, 0, 0) },
+            { "addCard",      addCard(md, 0, "new") },
+            { "moveCard",     moveCard(md, 0, 0, 1, 0) },
+            { "setCard",      setCard(md, 0, 1, "t", true, {}, "", "") },
+            { "addColumn",    addColumn(md, "C") },
+            { "renameColumn", renameColumn(md, 0, "Backlog") },
+            { "removeColumn", removeColumn(md, 0) },
+            { "moveColumn",   moveColumn(md, 0, 1) },
+        };
+        for (const auto &c : cases) {
+            for (const QString &mark : marks) {
+                QVERIFY2(c.out.contains(mark),
+                         qPrintable(QString("%1 dropped %2:\n%3")
+                                        .arg(c.what, mark, c.out)));
+            }
+        }
+    }
+
+    // The mutation an untouched card sees is no mutation at all: its source
+    // line is re-emitted verbatim rather than re-rendered from the model.
+    void untouchedCardsKeepTheirSourceLine()
+    {
+        const QString md = "## A\n* [ ]  odd   spacing #a #b\n- [ ] plain";
+        QCOMPARE(toggleCardDone(md, 0, 1),
+                 QString("## A\n* [ ]  odd   spacing #a #b\n- [x] plain"));
+        // Toggling the odd one edits only its checkbox.
+        QCOMPARE(toggleCardDone(md, 0, 0),
+                 QString("## A\n* [x]  odd   spacing #a #b\n- [ ] plain"));
+    }
+
+    void urlFragmentIsNotALabel()
+    {
+        const QString md = "## A\n- [ ] Read https://example.com/#intro";
+        const Board b = parse(md);
+        QCOMPARE(b.columns[0].cards[0].title,
+                 QString("Read https://example.com/#intro"));
+        QVERIFY(b.columns[0].cards[0].labels.isEmpty());
+        QCOMPARE(serialize(b), md);
+        // Rewriting the card through the editor keeps the fragment too.
+        const QString out = setCard(md, 0, 0, "Read https://example.com/#intro",
+                                    false, {}, "", "");
+        QCOMPARE(out, md);
+    }
+
+    void labelsAreRecognizedOnlyAtTokenBoundaries()
+    {
+        const Board b = parse("## A\n- [ ] #lead mid #tag C#sharp a#b end");
+        const Card &c = b.columns[0].cards[0];
+        QCOMPARE(c.labels, QStringList({ "lead", "tag" }));
+        QCOMPARE(c.title, QString("mid C#sharp a#b end"));
+    }
+
+    void literalHashesRoundTripThroughTheEscape()
+    {
+        const QStringList titles{
+            "#hashtag as text",
+            "\\#already escaped",
+            "\\\\#two slashes",
+            "issue #42 and #43",
+            "trailing hash #",
+            "Read https://example.com/#intro",
+        };
+        for (const QString &title : titles) {
+            const QString md = setCard("## A\n- [ ] x", 0, 0, title, false,
+                                       QStringList({ "real" }), "", "");
+            const Card &c = parse(md).columns[0].cards[0];
+            QVERIFY2(c.title == title,
+                     qPrintable(QString("title %1 came back as %2 (source %3)")
+                                    .arg(title, c.title, md)));
+            QCOMPARE(c.labels, QStringList({ "real" }));
+        }
+    }
+
+    // serialize(parse(x)) == x for arbitrary content, and every unmodelled
+    // line survives any single mutation byte for byte. This is the fuzz gate
+    // the H8 fix rests on.
+    void mutationPreservationProperty()
+    {
+        QRandomGenerator rng(0x4b616e62u); // fixed seed: failures reproduce
+        const QStringList triviaShapes{
+            QStringLiteral("<!-- note %1 -->"),
+            QStringLiteral("Prose paragraph %1."),
+            QStringLiteral("> quoted aside %1"),
+            QStringLiteral("1. an ordinary list item %1"),
+            QStringLiteral("| a | table %1 |"),
+            QStringLiteral(""),
+        };
+        int nextMark = 0;
+
+        for (int iter = 0; iter < 300; ++iter) {
+            QStringList lines;
+            QStringList marks; // the identifiable trivia, in document order
+            auto sprinkle = [&] {
+                const int n = rng.bounded(3);
+                for (int i = 0; i < n; ++i) {
+                    const QString shape = triviaShapes[rng.bounded(triviaShapes.size())];
+                    const QString line = shape.contains(QLatin1String("%1"))
+                        ? shape.arg(nextMark++) : shape;
+                    lines << line;
+                    if (!line.isEmpty())
+                        marks << line;
+                }
+            };
+
+            sprinkle(); // preamble
+            const int cols = rng.bounded(4);
+            QList<int> cardCounts;
+            for (int c = 0; c < cols; ++c) {
+                lines << QStringLiteral("## Column %1").arg(c);
+                sprinkle();
+                const int cards = rng.bounded(4);
+                cardCounts << cards;
+                for (int k = 0; k < cards; ++k) {
+                    lines << QStringLiteral("- [%1] card %2-%3 #tag%3")
+                                 .arg(rng.bounded(2) ? "x" : " ").arg(c).arg(k);
+                    if (rng.bounded(2))
+                        lines << QStringLiteral("  description of %1-%2").arg(c).arg(k);
+                    sprinkle();
+                }
+            }
+            const QString md = lines.join(QLatin1Char('\n'));
+
+            QCOMPARE(serialize(parse(md)), md);
+
+            QStringList outs;
+            if (cols > 0) {
+                const int c = rng.bounded(cols);
+                const int other = rng.bounded(cols);
+                outs << addCard(md, c, "added")
+                     << addColumn(md, "Added")
+                     << renameColumn(md, c, "Renamed")
+                     << removeColumn(md, c)
+                     << moveColumn(md, c, other);
+                if (cardCounts[c] > 0) {
+                    const int k = rng.bounded(cardCounts[c]);
+                    outs << toggleCardDone(md, c, k)
+                         << removeCard(md, c, k)
+                         << setCard(md, c, k, "rewritten", true,
+                                    QStringList({ "l" }), "2026-01-01", "d")
+                         << moveCard(md, c, k, other,
+                                     rng.bounded(cardCounts[other] + 1));
+                }
+            } else {
+                outs << addColumn(md, "Added");
+            }
+
+            for (const QString &out : outs) {
+                QStringList seen;
+                for (const QString &line : out.split(QLatin1Char('\n')))
+                    if (marks.contains(line))
+                        seen << line;
+                QStringList sortedSeen = seen;
+                QStringList sortedMarks = marks;
+                sortedSeen.sort();
+                sortedMarks.sort();
+                QVERIFY2(sortedSeen == sortedMarks,
+                         qPrintable(QString("iteration %1: trivia lost\n"
+                                            "--- in ---\n%2\n--- out ---\n%3")
+                                        .arg(iter).arg(md, out)));
+                // Blank lines are unmodelled too; a mutation may relocate the
+                // run at an insertion point but must not consume it.
+                const auto blanks = [](const QString &s) {
+                    if (s.isEmpty())
+                        return 0; // no lines at all, not one empty line
+                    int n = 0;
+                    for (const QString &l : s.split(QLatin1Char('\n')))
+                        if (l.isEmpty()) ++n;
+                    return n;
+                };
+                // A board that a removal emptied out has nothing left to hang
+                // a blank line on, so exempt that degenerate case.
+                QVERIFY2(out.isEmpty() || blanks(out) == blanks(md),
+                         qPrintable(QString("iteration %1: blank lines %2 -> %3\n"
+                                            "--- in ---\n%4\n--- out ---\n%5")
+                                        .arg(iter).arg(blanks(md))
+                                        .arg(blanks(out)).arg(md, out)));
+            }
+        }
     }
 
     void setCardOverwritesFields()
