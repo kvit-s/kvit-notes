@@ -140,6 +140,7 @@ STRICT_CLEAN=(
     qml/SettingsDialog.qml
     qml/CodeBlockDelegate.qml
     qml/DateRangePicker.qml
+    qml/DividerStylePicker.qml
     qml/ExportDialog.qml
     qml/FindBar.qml
     qml/FormattingBar.qml
@@ -149,6 +150,7 @@ STRICT_CLEAN=(
     qml/StatisticsPanel.qml
     qml/ImportDialog.qml
     qml/LanguagePicker.qml
+    qml/OutlinePanel.qml
     qml/Lightbox.qml
     qml/PanelSeam.qml
     qml/QuickCaptureWindow.qml
@@ -159,6 +161,8 @@ STRICT_CLEAN=(
     qml/TableSizePicker.qml
     qml/TodoDelegate.qml
     qml/TemplateDialog.qml
+    qml/TagStrip.qml
+    qml/Toolbar.qml
     qml/WikiLinkMenu.qml
 )
 

@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The tag chips are a Repeater delegate whose Row and handlers are
+// separate scopes, so the chip is named and its role declared rather
+// than injected.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
@@ -46,13 +51,14 @@ Item {
         return out
     }
 
+    // Looked up by position in the model rather than by reading a property
+    // off the item: itemAt() is typed QQuickItem, so `item.tagName` cannot be
+    // resolved statically. The repeater's items correspond to noteTags
+    // one-for-one and each chip's tagName IS its modelData, so the index is
+    // the same answer by a route that types.
     function chipFor(name) {
-        for (var i = 0; i < chipRepeater.count; i++) {
-            var item = chipRepeater.itemAt(i)
-            if (item && item.tagName === name)
-                return item
-        }
-        return null
+        var idx = tagStrip.noteTags.indexOf(name)
+        return idx < 0 ? null : chipRepeater.itemAt(idx)
     }
 
     function colorOf(name) {
@@ -85,20 +91,21 @@ Item {
             Rectangle {
                 id: chip
                 objectName: "tagChip"
-                property string tagName: modelData
+                required property string modelData
+                property string tagName: chip.modelData
 
                 width: chipRow.width + 16
                 height: 22
                 radius: 11
-                color: Qt.alpha(tagStrip.colorOf(modelData), 0.18)
-                border.color: Qt.alpha(tagStrip.colorOf(modelData), 0.5)
+                color: Qt.alpha(tagStrip.colorOf(chip.modelData), 0.18)
+                border.color: Qt.alpha(tagStrip.colorOf(chip.modelData), 0.5)
 
                 Row {
                     id: chipRow
                     anchors.centerIn: parent
                     spacing: 4
                     Text {
-                        text: modelData
+                        text: chip.modelData
                         font.pixelSize: 11
                         color: Theme.textPrimary
                         anchors.verticalCenter: parent.verticalCenter
@@ -187,9 +194,12 @@ Item {
                     clip: true
                     model: tagStrip.suggestions
                     delegate: Rectangle {
+                        id: suggestionRow
+                        required property string modelData
+                        required property int index
                         width: suggestionList.width
                         height: 22
-                        color: index === addField.highlighted
+                        color: suggestionRow.index === addField.highlighted
                                ? Theme.selectionTint
                                : (suggestionHover.hovered ? Theme.hoverTint
                                                           : "transparent")
@@ -203,15 +213,15 @@ Item {
                                 height: 8
                                 radius: 4
                                 anchors.verticalCenter: parent.verticalCenter
-                                color: tagStrip.colorOf(modelData)
+                                color: tagStrip.colorOf(suggestionRow.modelData)
                             }
                             Text {
-                                text: modelData
+                                text: suggestionRow.modelData
                                 font.pixelSize: 11
                             }
                         }
                         TapHandler {
-                            onTapped: tagStrip.applyTag(modelData)
+                            onTapped: tagStrip.applyTag(suggestionRow.modelData)
                         }
                     }
                 }

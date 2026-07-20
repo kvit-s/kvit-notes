@@ -1,6 +1,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The style swatches are a Repeater delegate whose Text and TapHandler
+// are separate scopes, so the swatch is named and addressed by id.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -64,23 +68,24 @@ Popup {
                 Repeater {
                     model: root.styles
                     delegate: Rectangle {
+                        id: styleSwatch
                         required property string modelData
                         width: 62; height: 26; radius: 4
-                        color: root.currentStyle === modelData
+                        color: root.currentStyle === styleSwatch.modelData
                             ? Theme.selectionTint
                             : (styleHover.hovered ? Theme.hoverTint : "transparent")
                         border.width: 1
-                        border.color: root.currentStyle === modelData
+                        border.color: root.currentStyle === styleSwatch.modelData
                             ? Theme.accent : Theme.border
                         Text {
                             anchors.centerIn: parent
-                            text: modelData
+                            text: styleSwatch.modelData
                             font.pixelSize: 10
                             color: Theme.textPrimary
                         }
                         HoverHandler { id: styleHover }
                         TapHandler {
-                            onTapped: { root.currentStyle = modelData; root.emitPayload() }
+                            onTapped: { root.currentStyle = styleSwatch.modelData; root.emitPayload() }
                         }
                     }
                 }
@@ -120,23 +125,24 @@ Popup {
                 Repeater {
                     model: root.widths
                     delegate: Rectangle {
+                        id: widthSwatch
                         required property string modelData
                         width: 48; height: 24; radius: 4
-                        color: root.currentWidth === modelData
+                        color: root.currentWidth === widthSwatch.modelData
                             ? Theme.selectionTint
                             : (widthHover.hovered ? Theme.hoverTint : "transparent")
                         border.width: 1
-                        border.color: root.currentWidth === modelData
+                        border.color: root.currentWidth === widthSwatch.modelData
                             ? Theme.accent : Theme.border
                         Text {
                             anchors.centerIn: parent
-                            text: modelData === "full" ? qsTr("Full") : modelData
+                            text: widthSwatch.modelData === "full" ? qsTr("Full") : widthSwatch.modelData
                             font.pixelSize: 10
                             color: Theme.textPrimary
                         }
                         HoverHandler { id: widthHover }
                         TapHandler {
-                            onTapped: { root.currentWidth = modelData; root.emitPayload() }
+                            onTapped: { root.currentWidth = widthSwatch.modelData; root.emitPayload() }
                         }
                     }
                 }
@@ -152,20 +158,21 @@ Popup {
                 Repeater {
                     model: root.colorSwatches
                     delegate: Rectangle {
+                        id: colorSwatch
                         required property string modelData
                         width: 20; height: 20; radius: 4
                         // The "" swatch is the default rule color.
-                        color: modelData === "" ? "transparent" : modelData
-                        border.width: root.currentColor === modelData ? 2 : 1
-                        border.color: root.currentColor === modelData
+                        color: colorSwatch.modelData === "" ? "transparent" : colorSwatch.modelData
+                        border.width: root.currentColor === colorSwatch.modelData ? 2 : 1
+                        border.color: root.currentColor === colorSwatch.modelData
                             ? Theme.accent : Theme.border
                         Text {
                             anchors.centerIn: parent
-                            visible: modelData === ""
+                            visible: colorSwatch.modelData === ""
                             text: "∅"; font.pixelSize: 12; color: Theme.textMuted
                         }
                         TapHandler {
-                            onTapped: { root.currentColor = modelData; root.emitPayload() }
+                            onTapped: { root.currentColor = colorSwatch.modelData; root.emitPayload() }
                         }
                     }
                 }

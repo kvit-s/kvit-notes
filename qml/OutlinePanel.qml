@@ -1,6 +1,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// The outline rows nest a RowLayout and buttons, each its own scope,
+// reading model roles that arrive by injection. Binding the scopes
+// means the roles are declared on the row and addressed through it.
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -105,7 +110,7 @@ Rectangle {
                     implicitWidth: 26
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("Hide outline")
-                    onClicked: if (appWindow) appWindow.outlineVisible = false
+                    onClicked: if (outline.appWindow) outline.appWindow.outlineVisible = false
                 }
             }
         }
@@ -135,15 +140,26 @@ Rectangle {
 
             delegate: Rectangle {
                 id: row
+                // The roles DocumentOutline exposes, declared rather than
+                // injected, so the nested RowLayout and its buttons can read
+                // them through the row's id.
+                required property int index
+                required property int level
+                required property string text
+                required property int blockIndex
+                required property int depth
+                required property bool collapsed
+                required property bool hasChildren
+                required property bool isCurrent
                 width: outlineList.width
                 height: 26
-                color: isCurrent ? Theme.selectionTint
+                color: row.isCurrent ? Theme.selectionTint
                                  : (hover.hovered ? Theme.hoverTint
                                                   : "transparent")
 
                 // Current-section accent bar.
                 Rectangle {
-                    visible: isCurrent
+                    visible: row.isCurrent
                     anchors.left: parent.left
                     width: 2; height: parent.height
                     color: Theme.accent
@@ -151,43 +167,43 @@ Rectangle {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 8 + depth * 14
+                    anchors.leftMargin: 8 + row.depth * 14
                     anchors.rightMargin: 6
                     spacing: 2
 
                     // Collapse chevron (only for headings with a subtree).
                     ToolButton {
                         objectName: "outlineChevron"
-                        visible: hasChildren
+                        visible: row.hasChildren
                         implicitWidth: 16
                         implicitHeight: 16
                         focusPolicy: Qt.NoFocus
-                        text: collapsed ? "▸" : "▾"
+                        text: row.collapsed ? "▸" : "▾"
                         font.pixelSize: 10
-                        onClicked: DocumentOutline.toggleCollapsed(index)
+                        onClicked: DocumentOutline.toggleCollapsed(row.index)
                     }
                     // Indent placeholder when there is no chevron, so text
                     // aligns with siblings that have one.
                     Item {
-                        visible: !hasChildren
+                        visible: !row.hasChildren
                         implicitWidth: 16; implicitHeight: 16
                     }
 
                     Text {
                         Layout.fillWidth: true
-                        text: model.text
+                        text: row.text
                         elide: Text.ElideRight
-                        font.pixelSize: level === 1 ? 12 : 11
-                        font.bold: level === 1
-                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
+                        font.pixelSize: row.level === 1 ? 12 : 11
+                        font.bold: row.level === 1
+                        color: row.isCurrent ? Theme.textPrimary : Theme.textSecondary
                     }
                 }
 
                 HoverHandler { id: hover }
                 TapHandler {
                     onTapped: {
-                        if (appWindow)
-                            appWindow.scrollToBlock(blockIndex)
+                        if (outline.appWindow)
+                            outline.appWindow.scrollToBlock(row.blockIndex)
                     }
                 }
             }
