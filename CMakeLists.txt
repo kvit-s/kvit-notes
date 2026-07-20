@@ -200,6 +200,13 @@ add_library(kvit-core STATIC
     src/notefrontmatter.cpp
     src/wikilinkscanner.cpp
     src/notecollection.cpp
+    src/noteindexfile.cpp
+    src/wikilinkindex.cpp
+    src/searchindexfeed.cpp
+    src/recoveryjournalstore.cpp
+    src/notefileio.cpp
+    src/notebackupstore.cpp
+    src/notetrashstore.cpp
     src/navigationhistory.cpp
     src/quickswitchermodel.cpp
     src/querydata.cpp

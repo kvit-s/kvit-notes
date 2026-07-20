@@ -19,7 +19,14 @@
 #include <functional>
 
 #include "cancellationtoken.h"
+#include "notebackupstore.h"
+#include "noteentry.h"
+#include "noteindexfile.h"
 #include "notefrontmatter.h"
+#include "notetrashstore.h"
+#include "recoveryjournalstore.h"
+#include "searchindexfeed.h"
+#include "wikilinkindex.h"
 #include "vaultlock.h"
 
 class QFileInfo;
@@ -49,33 +56,12 @@ class NoteCollection : public QObject
     Q_PROPERTY(bool scanInProgress READ scanInProgress NOTIFY scanInProgressChanged)
 
 public:
-    struct NoteEntry {
-        QString relPath;  // "Ideas/Reading list.md", '/'-separated
-        QString folder;   // "Ideas"; "" at the root
-        QString title;    // file name without ".md"
-        QDateTime created;
-        QDateTime modified;
-        qint64 fileSize = -1;
-        int wordCount = 0;
-        QString snippet;  // body display text, markers stripped
-        NoteFrontMatter::Metadata meta; // tags/pinned/favorite + foreign keys
-        // Outgoing [[wiki-link]] targets, raw (heading anchors kept, aliases
-        // stripped), in document order with duplicates — backlink counts come
-        // from here. Extracted from the file on every
-        // (re)index and persisted in the sidecar so warm startup keeps the
-        // backlink graph without reading every note.
-        QStringList links;
-        // Note bodies and per-block display text are NOT held resident: global
-        // search reads them from the SQLite index, and features that need one
-        // note's text read that file on demand.
-    };
-
-    struct FolderEntry {
-        QString relPath;  // "Ideas/Projects"
-        QString name;     // "Projects"
-        QString color;    // "" = default
-        bool expanded = true;
-    };
+    // The indexed-note and indexed-folder records, defined in noteentry.h so
+    // the layers above the repository can name them without depending on this
+    // class. Re-exported here because `NoteCollection::NoteEntry` is how the
+    // view models, the query engine and the tests refer to them.
+    using NoteEntry = ::NoteEntry;
+    using FolderEntry = ::FolderEntry;
 
     explicit NoteCollection(QObject *parent = nullptr);
     ~NoteCollection() override;
@@ -411,6 +397,7 @@ private:
     };
 
     bool prepareRootPath(const QString &path);
+    void attachStoresToRoot();
     void loadRecoveryEntries();
     void scan();
     // `visitedDirs` carries the canonical directories already walked, so a
@@ -443,8 +430,6 @@ private:
         const AsyncRefreshRequest &request);
     static AsyncIndexResult parseSavedNoteTask(
         const AsyncSavedNoteTask &task);
-    static QByteArray buildIndexFileBytes(
-        const QHash<QString, NoteEntry> &notes);
     static AsyncIndexSaveResult writeIndexFileSnapshot(
         const AsyncIndexSaveRequest &request);
     void setScanInProgress(bool inProgress);
@@ -481,11 +466,10 @@ private:
     // note's text — headings, backlink contexts — read it on demand.
     QString readNoteBody(const QString &relPath) const;
 
-    QString indexFilePath() const;
-    QHash<QString, NoteEntry> loadIndexFile(bool *ok) const;
-    // False when the sidecar could not be written, so the caller keeps the
-    // dirty flag set and the change is retried rather than forgotten.
-    bool saveIndexFile() const;
+    // The sidecar's format and file are NoteIndexFile's; the dirty flag and
+    // the decision of when to write are this class's, because a failed write
+    // has to leave the collection still owing one.
+    NoteIndexFile m_indexFile;
     void saveIndexFileIfDirty();
     void markIndexDirty();
 
@@ -508,6 +492,12 @@ private:
     void bump();
 
     // --- Search-index feed -------------------------------------------------
+    // Thin forwards onto SearchIndexFeed, which owns the channel and the
+    // root-matching guard. They stay as named methods because the call sites
+    // that need them are scattered across scanning, CRUD and metadata writes,
+    // and each one reads as a statement about this collection rather than
+    // about the index.
+    //
     // Open the index for the current root (if needed) and reconcile it against
     // the on-disk listing: the cold build and warm-startup sync. Called at each
     // scan/refresh settle point.
@@ -515,9 +505,10 @@ private:
     // Reparse one note into the index (save, create, tag write, rename target).
     void reindexNoteInSearch(const QString &relPath);
     void dropNoteInSearch(const QString &relPath);
+    // Every indexed note as the freshness check sees it.
+    QList<ReconcileEntry> searchReconcileListing() const;
 
-    CollectionSearchIndex *m_searchIndex = nullptr;
-    QString m_searchIndexRoot; // the root the index is currently open for
+    SearchIndexFeed m_searchFeed;
 
     QString m_rootPath;
     // m_rootPath with every symbolic link resolved. Containment is decided
@@ -527,22 +518,23 @@ private:
     // Held for as long as this collection has the vault open, so no second
     // process can load the same state and save over this session's writes.
     VaultLock m_vaultLock;
+    // <root>/.kvit/trash: where deleted notes and folders land.
+    NoteTrashStore m_trash;
+    // <root>/.kvit/backups: rotated copies taken before an overwrite.
+    NoteBackupStore m_backups;
+    // <root>/.kvit/recovery: dirty-state journals, and the pending list a
+    // crash leaves behind.
+    RecoveryJournalStore m_recoveryJournals;
     int m_revision = 0;
 
     QHash<QString, NoteEntry> m_notes;    // by relPath
     QMap<QString, FolderEntry> m_folders; // by relPath, sorted
 
-    // Rename-safe links (§3.3): referrer relPath → the lowercased
-    // note-part keys in it that resolve to `relPath` right now. Snapshot
-    // BEFORE a rename/move, applied after.
-    QHash<QString, QSet<QString>> collectWikiReferrers(
-        const QString &relPath) const;
-    struct RewriteSnapshot {
-        QSet<QString> keys;
-        QByteArray hash;
-        QDateTime modified;
-        int linkCount = 0;
-    };
+    // Rename-safe links (§3.3). The graph itself — resolution, referrers,
+    // backlinks — lives in WikiLinkIndex; what stays here is the two-phase
+    // plan built on top of it, because applying one writes files, emits the
+    // toast signals and refreshes the index entries.
+    using RewriteSnapshot = WikiLinkIndex::RewriteSnapshot;
     struct RenamePlan {
         QString id;
         QString kind; // noteRename, noteMove, folderRename
@@ -563,14 +555,10 @@ private:
                                       const QString &openBody);
     RenamePlan m_pendingRenamePlan;
 
-    // Lazy wiki-resolution cache (§3.2): lowercased basename → relPaths,
-    // rebuilt when the revision or note count moves. Mutable because
-    // resolveWikiTarget is a const query.
-    void ensureWikiIndex() const;
-    void invalidateWikiIndex() const { m_wikiIndexRevision = -1; }
-    mutable QHash<QString, QStringList> m_wikiBasenames;
-    mutable int m_wikiIndexRevision = -1;
-    mutable int m_wikiIndexNoteCount = -1;
+    // The [[wiki-link]] graph over m_notes (§3.2/§3.3): target resolution,
+    // referrers, backlinks and heading lists. Reads m_notes and never writes
+    // it, so it is rebuildable and holds nothing this class does not.
+    WikiLinkIndex m_wikiLinks;
     QHash<QString, int> m_folderOwnNoteCounts;
     QHash<QString, int> m_folderRecursiveNoteCounts;
 
@@ -578,8 +566,6 @@ private:
     QHash<QString, QStringList> m_manualOrder; // folder -> file names
     QString m_lastOpenNote;
 
-    QStringList m_pendingRecovery; // relPaths with startup journals
-    std::function<QDateTime()> m_clock; // null = QDateTime::currentDateTime
     std::function<void(const QString &)> m_indexParseObserver;
     bool m_indexDirty = false;
     bool m_scanInProgress = false;
