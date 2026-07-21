@@ -9,6 +9,7 @@
 #include "accessibilityannouncer.h"
 #include "appactions.h"
 #include "block.h"
+#include "assetstore.h"
 #include "blockattributes.h"
 #include "blockmodel.h"
 #include "blockkindregistry.h"
@@ -123,6 +124,7 @@
     X(RemoteMediaCache, RemoteMediaCache)     \
     X(Typography, Typography)                 \
     X(ImageAssets, ImageAssets)               \
+    X(AssetStore, AssetStore)                 \
     X(BlockAttributes, BlockAttributes)       \
     X(ClipboardHelper, Clipboard)             \
     X(AccessibilityAnnouncer, A11y)           \

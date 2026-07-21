@@ -348,6 +348,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_remoteMediaCache);
     m_services.add(&m_typography);
     m_services.add(&m_imageAssets);
+    m_services.add(&m_assetStore);
     m_services.add(&m_blockAttributes);
     m_services.add(&m_clipboardHelper);
     m_services.add(&m_a11y);

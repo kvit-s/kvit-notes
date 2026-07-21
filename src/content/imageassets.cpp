@@ -3,14 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "imageassets.h"
 
-#include <QClipboard>
-#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QGuiApplication>
-#include <QImage>
-#include <QMimeData>
 #include <QRegularExpression>
 #include <QSet>
 #include <QUrl>
@@ -238,140 +233,7 @@ QString ImageAssets::resolveSource(const QString &stored, const QString &noteDir
     return QString();   // unresolved → broken-path placeholder
 }
 
-// ---- Asset ingestion ----
-
-QString ImageAssets::assetsDir(const QString &root, const QString &noteDir)
-{
-    const QString base = !root.isEmpty() ? root : noteDir;
-    if (base.isEmpty())
-        return QString();
-    return QDir(base).filePath(QStringLiteral("assets"));
-}
-
-QString ImageAssets::uniqueAssetName(const QString &dir, const QString &slug,
-                                     const QString &stamp, const QString &ext)
-{
-    const QString cleanSlug = slug.isEmpty() ? QStringLiteral("image") : slug;
-    const QString baseName = cleanSlug + QLatin1Char('-') + stamp;
-    QDir d(dir);
-    QString name = baseName + QLatin1Char('.') + ext;
-    int n = 1;
-    while (d.exists(name)) {
-        name = baseName + QLatin1Char('-') + QString::number(n)
-             + QLatin1Char('.') + ext;
-        ++n;
-    }
-    return name;
-}
-
-// The stored path to write into the markdown: relative to the collection root
-// when one is open (so a note move never breaks it), else relative to the
-// note's own folder (single-file mode).
-static QString storedPathFor(const QString &absFile, const QString &root,
-                             const QString &noteDir)
-{
-    const QString base = !root.isEmpty() ? root : noteDir;
-    if (base.isEmpty())
-        return absFile;
-    const QString rel = QDir(base).relativeFilePath(absFile);
-    // If the file is outside `base`, relativeFilePath yields ../ segments;
-    // fall back to the absolute path so the source still resolves.
-    return rel.startsWith(QStringLiteral("..")) ? absFile : rel;
-}
-
-QString ImageAssets::ingestImage(const QImage &image, const QString &noteSlug,
-                                 const QString &root, const QString &noteDir) const
-{
-    if (image.isNull())
-        return QString();
-    const QString dir = assetsDir(root, noteDir);
-    if (dir.isEmpty())
-        return QString();
-    if (!QDir().mkpath(dir))
-        return QString();
-    const QString stamp =
-        QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-    const QString name = uniqueAssetName(dir, noteSlug, stamp,
-                                         QStringLiteral("png"));
-    const QString abs = QDir(dir).filePath(name);
-    if (!image.save(abs, "PNG"))
-        return QString();
-    return storedPathFor(abs, root, noteDir);
-}
-
-QString ImageAssets::ingestFile(const QString &sourcePath, const QString &noteSlug,
-                                const QString &root, const QString &noteDir) const
-{
-    const QFileInfo src(sourcePath);
-    if (!src.exists() || !src.isFile())
-        return QString();
-    const QString absSrc = src.absoluteFilePath();
-
-    // Link in place when the file already lives under the collection root:
-    // no copy, just store its root-relative path.
-    if (!root.isEmpty()) {
-        const QString rootAbs = QDir(root).absolutePath();
-        if (absSrc.startsWith(rootAbs + QLatin1Char('/')))
-            return storedPathFor(absSrc, root, noteDir);
-    }
-
-    // Otherwise copy into assets/.
-    const QString dir = assetsDir(root, noteDir);
-    if (dir.isEmpty())
-        return QString();
-    if (!QDir().mkpath(dir))
-        return QString();
-    const QString stamp =
-        QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-    const QString ext = src.suffix().isEmpty() ? QStringLiteral("bin")
-                                               : src.suffix().toLower();
-    const QString name = uniqueAssetName(dir, noteSlug, stamp, ext);
-    const QString abs = QDir(dir).filePath(name);
-    if (!QFile::copy(absSrc, abs))
-        return QString();
-    return storedPathFor(abs, root, noteDir);
-}
-
 // ---- QML wrappers ----
-
-bool ImageAssets::clipboardHasImage() const
-{
-    const QClipboard *cb = QGuiApplication::clipboard();
-    return cb && cb->mimeData() && cb->mimeData()->hasImage();
-}
-
-QString ImageAssets::ingestClipboardImage(const QString &noteSlug,
-                                          const QString &root,
-                                          const QString &noteDir) const
-{
-    const QClipboard *cb = QGuiApplication::clipboard();
-    if (!cb)
-        return QString();
-    const QImage image = cb->image();
-    return ingestImage(image, noteSlug, root, noteDir);
-}
-
-QString ImageAssets::ingestImageBytes(const QByteArray &bytes,
-                                      const QString &noteSlug,
-                                      const QString &root,
-                                      const QString &noteDir) const
-{
-    QImage image;
-    if (!image.loadFromData(bytes))
-        return QString();
-    return ingestImage(image, noteSlug, root, noteDir);
-}
-
-QString ImageAssets::ingestLocalFile(const QString &sourcePath,
-                                     const QString &noteSlug,
-                                     const QString &root,
-                                     const QString &noteDir) const
-{
-    QString path = sourcePath;
-    if (path.startsWith(QStringLiteral("file://")))
-        path = QUrl(path).toLocalFile();
-    return ingestFile(path, noteSlug, root, noteDir);
-}
 
 QVariantMap ImageAssets::parse(const QString &content) const
 {

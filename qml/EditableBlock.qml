@@ -806,9 +806,9 @@ BlockDelegateBase {
     // (or converting the current empty block). Returns true if it handled an
     // image, so the text-paste path can be skipped.
     function handleImagePaste() {
-        if (!ImageAssets.clipboardHasImage())
+        if (!AssetStore.clipboardHasImage())
             return false
-        var stored = ImageAssets.ingestClipboardImage(
+        var stored = AssetStore.ingestClipboardImage(
             noteSlug(), assetRoot(), noteDir())
         if (stored === "")
             return false

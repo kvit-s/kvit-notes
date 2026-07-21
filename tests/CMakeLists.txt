@@ -153,6 +153,15 @@ qt_add_executable(test_imageassets test_imageassets.cpp)
 target_link_libraries(test_imageassets PRIVATE kvit-core Qt6::Test)
 add_test(NAME ImageAssetsTests COMMAND test_imageassets)
 
+# Asset ingestion: where a pasted, dropped or chosen file lands in the vault,
+# and that a caller-supplied slug or extension cannot steer it elsewhere.
+# Needs a GUI context for QGuiApplication::clipboard(), so Qt6::Gui.
+qt_add_executable(test_assetstore test_assetstore.cpp)
+target_link_libraries(test_assetstore PRIVATE kvit-core Qt6::Test Qt6::Gui)
+add_test(NAME AssetStoreTests COMMAND test_assetstore)
+set_tests_properties(AssetStoreTests
+    PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # TableData tests (pipe-table parse/serialize/mutate)
 qt_add_executable(test_tabledata test_tabledata.cpp)
 target_link_libraries(test_tabledata PRIVATE kvit-core Qt6::Test)
@@ -550,6 +559,15 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME QrcSyncGuard
              COMMAND ${Python3_EXECUTABLE}
                      ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-qrc-sync.py)
+
+    # The module boundary. CMake already makes an upward include a compile
+    # error, but it cannot catch a target_link_libraries line that widens a
+    # module's reach, and it cannot express the two rules about what a module
+    # does rather than what it includes: Qt networking only in kvit-platform,
+    # and filesystem mutation only where the checker's list says so.
+    add_test(NAME LayeringGuard
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-layering.py)
 endif()
 
 # ── CTest labels. The suite is heterogeneous, so every entry gets exactly

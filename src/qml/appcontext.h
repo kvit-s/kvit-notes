@@ -14,6 +14,7 @@
 #include "appactions.h"
 #include "blockattributes.h"
 #include "blockeditorengine.h"
+#include "assetstore.h"
 #include "blockmenumodel.h"
 #include "blockkindregistry.h"
 #include "blockmodel.h"
@@ -223,6 +224,7 @@ private:
     EmbedMetadata m_embedMetadata;
     StartupController m_startupController;
     ImageAssets m_imageAssets;
+    AssetStore m_assetStore;
     BlockAttributes m_blockAttributes;
     ShortcutCatalog m_shortcutCatalog;
     AccessibilityAnnouncer m_a11y;

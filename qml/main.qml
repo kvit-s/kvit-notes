@@ -2176,7 +2176,7 @@ KvitShell {
                 || fmts[f].indexOf("image/") === 0) {
                 var buf = drop.getDataAsArrayBuffer(fmts[f])
                 if (buf) {
-                    var storedB = ImageAssets.ingestImageBytes(buf, slug, root2, nd)
+                    var storedB = AssetStore.ingestImageBytes(buf, slug, root2, nd)
                     if (storedB !== "") {
                         blocks.push({ type: Block.Image,
                             content: ImageAssets.build(storedB, "", "", 0) })
@@ -2199,7 +2199,7 @@ KvitShell {
                     // silently ignored.
                     if (ImageAssets.kindOf(url) === "none")
                         continue  // not an image/media file
-                    var stored = ImageAssets.ingestLocalFile(url, slug, root2, nd)
+                    var stored = AssetStore.ingestLocalFile(url, slug, root2, nd)
                     if (stored !== "")
                         blocks.push(blockForPath(stored))
                 } else if (url.indexOf("http") === 0) {

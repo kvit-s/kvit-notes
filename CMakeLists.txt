@@ -298,6 +298,7 @@ target_include_directories(kvit-platform PUBLIC src/platform)
 # repository reaches that session through the OpenDocumentSession interface
 # and never through the class that implements it.
 add_library(kvit-repository STATIC
+    src/repository/assetstore.cpp
     src/repository/documentimporter.cpp
     src/repository/notebackupstore.cpp
     src/repository/notecollection.cpp

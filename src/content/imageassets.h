@@ -8,7 +8,6 @@
 #include <QString>
 #include <QVariantMap>
 
-class QImage;
 
 // Image and local-media block support.
 //
@@ -82,49 +81,12 @@ public:
     static QString resolveSource(const QString &stored, const QString &noteDir,
                                  const QString &collectionRoot);
 
-    // ---- Asset ingestion ----
-    // The assets directory for a note: <root>/assets when a collection is
-    // open, else <noteDir>/assets (beside the file in single-file mode).
-    static QString assetsDir(const QString &root, const QString &noteDir);
-
-    // A unique file name in `dir`: <slug>-<stamp>.<ext>, with a numeric
-    // collision suffix if that name is taken. `stamp` is passed in so callers
-    // (and tests) control it; the QML wrappers use the current time.
-    static QString uniqueAssetName(const QString &dir, const QString &slug,
-                                   const QString &stamp, const QString &ext);
-
-    // Save `image` under the assets directory, returning the stored path to
-    // put in the markdown — relative to the collection root (or to the note
-    // in single-file mode), so moving a note never breaks it. "" on failure.
-    QString ingestImage(const QImage &image, const QString &noteSlug,
-                        const QString &root, const QString &noteDir) const;
-
-    // Ingest a local file (drop or file dialog): a file already under the
-    // collection root is linked in place (its root-relative path is returned,
-    // no copy); any other file is copied into assets/. "" on failure.
-    QString ingestFile(const QString &sourcePath, const QString &noteSlug,
-                       const QString &root, const QString &noteDir) const;
+    // Ingestion — saving a pasted, dropped or chosen file into the vault's
+    // assets directory — is AssetStore (repository/assetstore.h). It writes,
+    // and writing into the vault belongs to the repository; everything here
+    // is a pure transform of an expression's text.
 
     // ---- QML wrappers ----
-
-    // True when the system clipboard carries an image (§5.3 paste arm).
-    Q_INVOKABLE bool clipboardHasImage() const;
-    // Save the clipboard image as an asset, returning the stored path or "".
-    Q_INVOKABLE QString ingestClipboardImage(const QString &noteSlug,
-                                             const QString &root,
-                                             const QString &noteDir) const;
-    // Save raw image bytes (a browser/OS drop that delivered pixels rather
-    // than a file — spike b's bytes arm) as an asset. "" if not an image.
-    Q_INVOKABLE QString ingestImageBytes(const QByteArray &bytes,
-                                         const QString &noteSlug,
-                                         const QString &root,
-                                         const QString &noteDir) const;
-    // QML wrappers for the ingest methods above (return the stored path).
-    Q_INVOKABLE QString ingestLocalFile(const QString &sourcePath,
-                                        const QString &noteSlug,
-                                        const QString &root,
-                                        const QString &noteDir) const;
-
 
     // {valid, alt, path, caption, width, kind:"image"|"media"|"none"}.
     Q_INVOKABLE QVariantMap parse(const QString &content) const;

@@ -1746,7 +1746,7 @@ Item {
 
             // Simulate an OS file drop: ingest a file outside the vault, which
             // copies it into assets/ and returns a root-relative path.
-            var stored = imageAssets.ingestLocalFile(sampleImagePath, "ingested-images",
+            var stored = AssetStore.ingestLocalFile(sampleImagePath, "ingested-images",
                                                      root, root)
             verify(stored.indexOf("assets/") === 0)
             blockModel.updateContent(0, "Dropped image, ingested into assets/:")

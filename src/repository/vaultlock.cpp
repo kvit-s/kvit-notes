@@ -8,7 +8,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
-#include <QHostInfo>
+#include <QSysInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
@@ -57,7 +57,7 @@ QString lockFilePath(const QString &vaultRoot)
 QByteArray describeThisProcess()
 {
     QJsonObject object;
-    object.insert(QStringLiteral("host"), QHostInfo::localHostName());
+    object.insert(QStringLiteral("host"), QSysInfo::machineHostName());
     object.insert(QStringLiteral("application"),
                   QCoreApplication::applicationName().isEmpty()
                       ? QStringLiteral("Kvit Notes")
