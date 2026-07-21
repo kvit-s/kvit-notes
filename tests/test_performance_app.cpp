@@ -13,7 +13,6 @@
 #include "undostack.h"
 
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -70,10 +69,7 @@ void TestPerformanceApp::guiStartupSamples()
     Setup setup;
     setup.qmlEngineAvailable(&engine);
 
-    QObject *managerObj =
-        engine.rootContext()->contextProperty(QStringLiteral("documentManager"))
-            .value<QObject *>();
-    DocumentManager *manager = qobject_cast<DocumentManager *>(managerObj);
+    DocumentManager *manager = setup.context()->documentManager();
     QVERIFY(manager);
 
     QTemporaryDir dir;
@@ -132,10 +128,7 @@ void TestPerformanceApp::guiScrollWarAndPeaceFrameSample()
     Setup setup;
     setup.qmlEngineAvailable(&engine);
 
-    QObject *managerObj =
-        engine.rootContext()->contextProperty(QStringLiteral("documentManager"))
-            .value<QObject *>();
-    DocumentManager *manager = qobject_cast<DocumentManager *>(managerObj);
+    DocumentManager *manager = setup.context()->documentManager();
     QVERIFY(manager);
 
     const PerfCorpus::DocumentFixture fixture = PerfCorpus::warAndPeace();
@@ -251,28 +244,16 @@ void TestPerformanceApp::guiCollectionStartupDeferredVault10K()
     Setup setup;
     setup.qmlEngineAvailable(&engine);
 
-    QObject *managerObj =
-        engine.rootContext()->contextProperty(QStringLiteral("documentManager"))
-            .value<QObject *>();
-    DocumentManager *manager = qobject_cast<DocumentManager *>(managerObj);
+    DocumentManager *manager = setup.context()->documentManager();
     QVERIFY(manager);
 
-    QObject *modelObj =
-        engine.rootContext()->contextProperty(QStringLiteral("blockModel"))
-            .value<QObject *>();
-    BlockModel *model = qobject_cast<BlockModel *>(modelObj);
+    BlockModel *model = setup.context()->blockModel();
     QVERIFY(model);
 
-    QObject *stackObj =
-        engine.rootContext()->contextProperty(QStringLiteral("undoStack"))
-            .value<QObject *>();
-    UndoStack *undoStack = qobject_cast<UndoStack *>(stackObj);
+    UndoStack *undoStack = setup.context()->undoStack();
     QVERIFY(undoStack);
 
-    QObject *collectionObj =
-        engine.rootContext()->contextProperty(QStringLiteral("noteCollection"))
-            .value<QObject *>();
-    NoteCollection *collection = qobject_cast<NoteCollection *>(collectionObj);
+    NoteCollection *collection = setup.context()->noteCollection();
     QVERIFY(collection);
 
     QStringList parsed;
@@ -358,28 +339,16 @@ void TestPerformanceApp::guiCollectionStartupDeferredSmallVaultHugeNote()
     Setup setup;
     setup.qmlEngineAvailable(&engine);
 
-    QObject *managerObj =
-        engine.rootContext()->contextProperty(QStringLiteral("documentManager"))
-            .value<QObject *>();
-    DocumentManager *manager = qobject_cast<DocumentManager *>(managerObj);
+    DocumentManager *manager = setup.context()->documentManager();
     QVERIFY(manager);
 
-    QObject *modelObj =
-        engine.rootContext()->contextProperty(QStringLiteral("blockModel"))
-            .value<QObject *>();
-    BlockModel *model = qobject_cast<BlockModel *>(modelObj);
+    BlockModel *model = setup.context()->blockModel();
     QVERIFY(model);
 
-    QObject *stackObj =
-        engine.rootContext()->contextProperty(QStringLiteral("undoStack"))
-            .value<QObject *>();
-    UndoStack *undoStack = qobject_cast<UndoStack *>(stackObj);
+    UndoStack *undoStack = setup.context()->undoStack();
     QVERIFY(undoStack);
 
-    QObject *collectionObj =
-        engine.rootContext()->contextProperty(QStringLiteral("noteCollection"))
-            .value<QObject *>();
-    NoteCollection *collection = qobject_cast<NoteCollection *>(collectionObj);
+    NoteCollection *collection = setup.context()->noteCollection();
     QVERIFY(collection);
 
     QStringList parsed;
@@ -462,28 +431,16 @@ void TestPerformanceApp::guiCollectionPersistenceLiveSizedNote()
     Setup setup;
     setup.qmlEngineAvailable(&engine);
 
-    QObject *managerObj =
-        engine.rootContext()->contextProperty(QStringLiteral("documentManager"))
-            .value<QObject *>();
-    DocumentManager *manager = qobject_cast<DocumentManager *>(managerObj);
+    DocumentManager *manager = setup.context()->documentManager();
     QVERIFY(manager);
 
-    QObject *modelObj =
-        engine.rootContext()->contextProperty(QStringLiteral("blockModel"))
-            .value<QObject *>();
-    BlockModel *model = qobject_cast<BlockModel *>(modelObj);
+    BlockModel *model = setup.context()->blockModel();
     QVERIFY(model);
 
-    QObject *stackObj =
-        engine.rootContext()->contextProperty(QStringLiteral("undoStack"))
-            .value<QObject *>();
-    UndoStack *undoStack = qobject_cast<UndoStack *>(stackObj);
+    UndoStack *undoStack = setup.context()->undoStack();
     QVERIFY(undoStack);
 
-    QObject *collectionObj =
-        engine.rootContext()->contextProperty(QStringLiteral("noteCollection"))
-            .value<QObject *>();
-    NoteCollection *collection = qobject_cast<NoteCollection *>(collectionObj);
+    NoteCollection *collection = setup.context()->noteCollection();
     QVERIFY(collection);
 
     // The composed context already owns a StartupController, wired to this
