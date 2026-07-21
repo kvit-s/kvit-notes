@@ -30,6 +30,9 @@ private slots:
     void watchingASecondFileDropsTheFirst();
     void failedRegistrationIsReported();
     void ownWriteToANonCurrentNoteIsNotAnExternalChange();
+    void anAppMoveBetweenFoldersIsNotAnExternalChange();
+    void anAppDeleteIsNotAnExternalChange();
+    void aThirdPartyMoveOrDeleteIsStillReported();
     void unusedGuardsExpireInsteadOfAccumulating();
     void aLargeTreeIsDiscoveredWithoutBlockingTheEventLoop();
     void aMissingRootReportsDegradedCoverage();
@@ -281,6 +284,146 @@ void TestFileWatcher::ownWriteToANonCurrentNoteIsNotAnExternalChange()
     added.close();
     QVERIFY2(rescan.wait(3000),
              "the directory guard outlived its window and hid a real change");
+}
+
+// Renaming, moving and deleting a note change a folder's listing without
+// writing a file, so nothing calls noteOwnWrite for them and the watcher sees
+// only a directoryChanged. AppContext therefore guards the affected folders
+// directly (src/qml/appcontext.cpp, NoteCollection::noteMoved and
+// ::noteRemoved -> FileWatcher::noteOwnDirectoryChange). These three tests
+// drive that arrangement against the real QFileSystemWatcher.
+//
+// Ordering matters and is reproduced here rather than tidied away: both
+// signals are emitted after the operation has already happened, so the guard
+// is installed after the kernel has queued its event. What makes it work is
+// that the guard call and the operation share one turn of the event loop --
+// the notification cannot be delivered, and the debounce cannot elapse, until
+// control returns to the loop. A caller that let the loop run between the two
+// would defeat the guard, which is why the app's own signal handler is the
+// right place for it.
+namespace {
+
+// Builds a vault with two folders and one note in the first, and a watcher
+// over it. `from`/`to` come back as absolute paths.
+void makeTwoFolderVault(const QTemporaryDir &dir, QString *from, QString *to,
+                        QString *note)
+{
+    QDir root(dir.path());
+    QVERIFY(root.mkpath(QStringLiteral("from")));
+    QVERIFY(root.mkpath(QStringLiteral("to")));
+    *from = root.filePath(QStringLiteral("from"));
+    *to = root.filePath(QStringLiteral("to"));
+    *note = QDir(*from).filePath(QStringLiteral("note.md"));
+    QFile f(*note);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("body");
+}
+
+} // namespace
+
+void TestFileWatcher::anAppMoveBetweenFoldersIsNotAnExternalChange()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString from, to, note;
+    makeTwoFolderVault(dir, &from, &to, &note);
+
+    FileWatcher w;
+    w.setDebounceMs(30);
+    w.watchRoot(dir.path());
+    QVERIFY(w.watching());
+    QSignalSpy rescan(&w, &FileWatcher::externalChange);
+    QSignalSpy paths(&w, &FileWatcher::externalChangePaths);
+
+    // Exactly what AppContext does when NoteCollection reports the move: the
+    // rename has already happened, and both parent directories are guarded.
+    const QString moved = QDir(to).filePath(QStringLiteral("note.md"));
+    QVERIFY(QFile::rename(note, moved));
+    w.noteOwnDirectoryChange(QFileInfo(note).absolutePath());
+    w.noteOwnDirectoryChange(QFileInfo(moved).absolutePath());
+
+    QTest::qWait(700);
+    QCOMPARE(rescan.count(), 0);
+    QCOMPARE(paths.count(), 0);
+    QVERIFY(QFileInfo::exists(moved));
+}
+
+void TestFileWatcher::anAppDeleteIsNotAnExternalChange()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString from, to, note;
+    makeTwoFolderVault(dir, &from, &to, &note);
+
+    FileWatcher w;
+    w.setDebounceMs(30);
+    w.watchRoot(dir.path());
+    QSignalSpy rescan(&w, &FileWatcher::externalChange);
+
+    // The NoteCollection::noteRemoved handler's shape: delete, then guard the
+    // folder the note was in.
+    QVERIFY(QFile::remove(note));
+    w.noteOwnDirectoryChange(QFileInfo(note).absolutePath());
+
+    QTest::qWait(700);
+    QCOMPARE(rescan.count(), 0);
+}
+
+// The other half of the contract: guarding a folder must not blind the
+// watcher to what somebody else does, either in an unguarded folder at the
+// same time or in the guarded one once its window has passed.
+void TestFileWatcher::aThirdPartyMoveOrDeleteIsStillReported()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString from, to, note;
+    makeTwoFolderVault(dir, &from, &to, &note);
+    const QString neighbour = QDir(to).filePath(QStringLiteral("theirs.md"));
+    {
+        QFile f(neighbour);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("not ours");
+    }
+
+    FileWatcher w;
+    w.setDebounceMs(30);
+    w.setGuardMs(300);
+    w.watchRoot(dir.path());
+
+    // A move nobody guarded is an outside edit, and it is announced with the
+    // folder it happened in.
+    {
+        QSignalSpy rescan(&w, &FileWatcher::externalChange);
+        QSignalSpy paths(&w, &FileWatcher::externalChangePaths);
+        QVERIFY(QFile::rename(note, QDir(to).filePath(QStringLiteral("note.md"))));
+        QVERIFY2(rescan.wait(3000),
+                 "a move made outside the app went unreported");
+        QVERIFY(!paths.isEmpty());
+        QVERIFY(paths.at(0).at(0).toStringList().contains(from)
+                || paths.at(0).at(0).toStringList().contains(to));
+    }
+
+    // A guard is scoped to the folder it names: guarding one folder leaves a
+    // simultaneous change in another as visible as it ever was.
+    {
+        w.noteOwnDirectoryChange(from);
+        QSignalSpy rescan(&w, &FileWatcher::externalChange);
+        QVERIFY(QFile::remove(neighbour));
+        QVERIFY2(rescan.wait(3000),
+                 "guarding one folder hid a change in a different one");
+    }
+
+    // And once the guarded folder's window has passed, it is watched again.
+    QTest::qWait(400);
+    {
+        QSignalSpy rescan(&w, &FileWatcher::externalChange);
+        QFile added(QDir(from).filePath(QStringLiteral("theirs-too.md")));
+        QVERIFY(added.open(QIODevice::WriteOnly));
+        added.write("outside");
+        added.close();
+        QVERIFY2(rescan.wait(3000),
+                 "the folder guard outlived its window");
+    }
 }
 
 // A guard that never matched used to stay forever, one entry per path the app
