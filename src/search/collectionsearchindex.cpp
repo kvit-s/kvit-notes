@@ -9,8 +9,10 @@
 #include "perflog.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QThread>
 
@@ -51,6 +53,9 @@ public:
             QFile::remove(dbPath);
             QFile::remove(dbPath + QStringLiteral("-wal"));
             QFile::remove(dbPath + QStringLiteral("-shm"));
+            // The close above certified the file that is being deleted; the
+            // replacement inherits nothing from it.
+            QFile::remove(SearchIndexDb::cleanMarkerPath(dbPath));
         }
         return openDb(dbPath);
     }
@@ -87,19 +92,37 @@ public:
         const int total = listing.size();
         int reindexed = 0;
         int unreadable = 0;
+        int skipped = 0;
         for (const ReconcileEntry &e : listing) {
             // Between notes: reading and parsing one body is the unit of
             // work, so this is the finest granularity available without
             // leaving the index half-written mid-note.
             if (m_cancel.load())
                 break;
-            // Freshness is decided on the file's content, not on its size and
-            // timestamp. Those two miss an equal-size rewrite that kept the
-            // mtime — which the app itself performs, and which used to leave
-            // the indexed text stale for as long as the vault stayed open.
-            // The read is the cost paid for that; the expensive part, parsing
-            // the note and rewriting its FTS postings, still happens only when
-            // the content differs.
+            // Three tiers, cheapest first.
+            //
+            // One stat. When the file's size, modification time and change
+            // token are all exactly what they were when this note was
+            // indexed, the file has not been written since and there is
+            // nothing to learn from reading it. On a platform with no change
+            // token this never fires and the pass falls through to the read
+            // below, which is where every platform used to start.
+            const CollectionSearchIndex::FileStamp stamp =
+                CollectionSearchIndex::stampOf(e.absPath);
+            if (stamp.exists
+                && m_db.hasNoteStamp(e.relPath, stamp.fileSize,
+                                     stamp.modifiedMs, stamp.changeToken)) {
+                ++skipped;
+                ++done;
+                if ((done % 32) == 0 || done == total)
+                    emit reconcileProgress(done, total);
+                continue;
+            }
+            // One read and one hash. Freshness is decided on the file's
+            // content, because size and modification time miss an equal-size
+            // rewrite that kept the mtime — which the app itself performs, and
+            // which used to leave the indexed text stale for as long as the
+            // vault stayed open.
             const CollectionSearchIndex::NoteSnapshot snapshot =
                 CollectionSearchIndex::readNoteSnapshot(e.absPath);
             if (!snapshot.ok) {
@@ -113,17 +136,29 @@ public:
                 SearchIndexDb::contentFingerprint(snapshot.text);
             if (m_db.hasNoteFresh(e.relPath, snapshot.fileSize,
                                   snapshot.modifiedMs, hash)) {
-                // Same content; only refresh the metadata if it drifted.
-                if (!m_db.hasNoteFresh(e.relPath, snapshot.fileSize,
-                                       snapshot.modifiedMs)) {
+                // Same content, so nothing is reparsed. Recording the stamp
+                // costs one UPDATE and is what lets the next reconcile take
+                // the stat-only path: a note saved inside the app is stored
+                // with no change token, so without this it would be read on
+                // every pass for the life of the index. Where there is no
+                // token to record, the row is left alone unless its metadata
+                // actually drifted.
+                const bool worthRecording =
+                    snapshot.changeToken != 0
+                    || !m_db.hasNoteFresh(e.relPath, snapshot.fileSize,
+                                          snapshot.modifiedMs);
+                if (worthRecording) {
                     ok = m_db.touchNote(e.relPath, snapshot.fileSize,
-                                        snapshot.modifiedMs, hash)
+                                        snapshot.modifiedMs, hash,
+                                        snapshot.changeToken)
                         && ok;
                 }
             } else {
-                const IndexedNote note = CollectionSearchIndex::parseNote(
+                // The full cost: parse the note and rewrite its FTS postings.
+                IndexedNote note = CollectionSearchIndex::parseNote(
                     e.relPath, snapshot.text, snapshot.fileSize,
                     snapshot.modifiedMs);
+                note.changeToken = snapshot.changeToken;
                 if (m_db.replaceNote(note))
                     ++reindexed;
                 else
@@ -135,6 +170,7 @@ public:
         }
         perf.addContext(QStringLiteral("reindexed"), reindexed);
         perf.addContext(QStringLiteral("unreadable"), unreadable);
+        perf.addContext(QStringLiteral("unread"), skipped);
         emit reconcileFinished(ok);
     }
 
@@ -161,8 +197,9 @@ public:
             CollectionSearchIndex::readNoteSnapshot(absPath);
         if (!snapshot.ok)
             return;
-        const IndexedNote note = CollectionSearchIndex::parseNote(
+        IndexedNote note = CollectionSearchIndex::parseNote(
             relPath, snapshot.text, snapshot.fileSize, snapshot.modifiedMs);
+        note.changeToken = snapshot.changeToken;
         if (m_db.replaceNote(note))
             emit noteReplaced();
         else
@@ -484,6 +521,78 @@ bool CollectionSearchIndex::rebuildIndex()
     return writeOk && readOk;
 }
 
+// ----------------------------------------------------------------------
+// The change token, and what each platform's version of it is worth.
+//
+// The reconcile pass wants to answer "has this file changed since I indexed
+// it?" without reading it. Size and modification time cannot answer it: both
+// are writable from userspace, and this application itself rewrites a note to
+// the same length and restores its timestamp when a tag rename does not change
+// the byte count. That is exactly how stale text used to stay indexed.
+//
+// POSIX (Linux, macOS, the BSDs) has a third value that does answer it. The
+// status-change time, st_ctime, is set by the kernel on every write and on
+// every metadata change including a utimes() call, and there is no system call
+// that sets it to a chosen value — not even for root. So if a file's size,
+// modification time and status-change time are all exactly what they were when
+// the note was indexed, the file has not been written since. Qt exposes it as
+// QFileInfo::metadataChangeTime().
+//
+// Windows has no equivalent that Qt can reach. QFileInfo::metadataChangeTime()
+// there is filled from ftLastWriteTime (Qt 6.10,
+// qfilesystemmetadata_p.h: `changeTime_ = lastWriteTime_ = ...` in both
+// fillFromFindData() and fillFromFindInfo()), so it is a second copy of the
+// modification time and carries none of the guarantee above; older Qt filled
+// it from the creation time, which does not move on writes at all. NTFS does
+// maintain a real change time, reachable through GetFileInformationByHandleEx
+// with FileBasicInfo, and SetFileTime cannot forge it — but reading it means a
+// direct Win32 call, which nothing else in this module makes, and behaviour
+// that cannot be verified from the machine this was written on. So Windows
+// gets no token, and every reconcile there reads and hashes every note, which
+// is what all three platforms did before.
+//
+// The guarantee, stated per platform:
+//   Linux, macOS, other Unix — a matching (size, mtime, ctime) tuple means the
+//     file has not been written since it was indexed, subject only to the
+//     millisecond resolution Qt reports: a rewrite landing inside the same
+//     millisecond as the previous one, with the size and modification time
+//     restored, is invisible. That is a race window, where the (size, mtime)
+//     pair alone was an open door that any rewrite walked through.
+//   Windows — no token, no fast path, freshness decided by reading the file
+//     and comparing its fingerprint, exactly as before.
+// Either way the stored fingerprint stays the authority: the tuple only ever
+// decides whether computing the fingerprint can be skipped.
+// ----------------------------------------------------------------------
+
+bool CollectionSearchIndex::changeTokenIsTrustworthy()
+{
+#if defined(Q_OS_UNIX)
+    return true;
+#else
+    return false;
+#endif
+}
+
+CollectionSearchIndex::FileStamp
+CollectionSearchIndex::stampOf(const QString &absPath)
+{
+    FileStamp stamp;
+    const QFileInfo info(absPath);
+    if (!info.exists() || !info.isFile())
+        return stamp;
+    stamp.exists = true;
+    stamp.fileSize = info.size();
+    stamp.modifiedMs = info.lastModified().toMSecsSinceEpoch();
+    if (changeTokenIsTrustworthy()) {
+        const QDateTime changed = info.metadataChangeTime();
+        // 0 doubles as "no token", so a genuine epoch-zero timestamp is
+        // reported as no token and costs a read rather than a wrong answer.
+        stamp.changeToken =
+            changed.isValid() ? changed.toMSecsSinceEpoch() : 0;
+    }
+    return stamp;
+}
+
 CollectionSearchIndex::NoteSnapshot
 CollectionSearchIndex::readNoteSnapshot(const QString &absPath, int maxAttempts)
 {
@@ -495,11 +604,9 @@ CollectionSearchIndex::readNoteSnapshot(const QString &absPath, int maxAttempts)
     // reads the note again.
     NoteSnapshot snapshot;
     for (int attempt = 0; attempt < qMax(1, maxAttempts); ++attempt) {
-        QFileInfo before(absPath);
-        if (!before.exists())
+        const FileStamp before = stampOf(absPath);
+        if (!before.exists)
             return NoteSnapshot();
-        const qint64 sizeBefore = before.size();
-        const qint64 modifiedBefore = before.lastModified().toMSecsSinceEpoch();
 
         // Binary, so the bytes read can be compared against the size the two
         // stats report. Timestamps are only accurate to the millisecond, and
@@ -509,16 +616,23 @@ CollectionSearchIndex::readNoteSnapshot(const QString &absPath, int maxAttempts)
         QFile file(absPath);
         if (!file.open(QIODevice::ReadOnly))
             return NoteSnapshot();
+        SearchIndexOps::recordFileRead();
         const QByteArray bytes = file.readAll();
         if (file.error() != QFileDevice::NoError)
             return NoteSnapshot();
         file.close();
 
-        QFileInfo after(absPath);
-        if (!after.exists())
+        const FileStamp after = stampOf(absPath);
+        if (!after.exists)
             return NoteSnapshot();
-        if (bytes.size() != sizeBefore || after.size() != sizeBefore
-            || after.lastModified().toMSecsSinceEpoch() != modifiedBefore) {
+        // The change token is compared here too, and that is what makes it
+        // safe to store: the token this snapshot reports describes the same
+        // revision of the file as its text. Taking it from a separate stat
+        // afterwards could pair the old text with a newer token, and the
+        // reconcile would then skip the file forever.
+        if (bytes.size() != before.fileSize || after.fileSize != before.fileSize
+            || after.modifiedMs != before.modifiedMs
+            || after.changeToken != before.changeToken) {
             continue; // the file moved under the read; take it again
         }
 
@@ -527,8 +641,9 @@ CollectionSearchIndex::readNoteSnapshot(const QString &absPath, int maxAttempts)
         QString text = QString::fromUtf8(bytes);
         text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
         snapshot.text = text;
-        snapshot.fileSize = sizeBefore;
-        snapshot.modifiedMs = modifiedBefore;
+        snapshot.fileSize = before.fileSize;
+        snapshot.modifiedMs = before.modifiedMs;
+        snapshot.changeToken = before.changeToken;
         snapshot.ok = true;
         return snapshot;
     }

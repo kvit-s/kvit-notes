@@ -93,18 +93,41 @@ public:
     static IndexedNote parseNote(const QString &relPath, const QString &fileText,
                                  qint64 fileSize, qint64 modifiedMs);
 
+    // What one stat says about a note file: the whole basis of the reconcile
+    // fast path.
+    struct FileStamp {
+        qint64 fileSize = 0;
+        qint64 modifiedMs = 0;
+        // A change token — a value the kernel moves on every write and that
+        // userspace cannot move back. 0 means this platform offers no such
+        // value, and then the tuple proves nothing and the file must be read.
+        qint64 changeToken = 0;
+        bool exists = false;
+    };
+
+    // Stat one note file. See the implementation for what the change token is
+    // on each platform and what it is worth there; on a platform without one
+    // this still returns size and modification time, with changeToken 0.
+    static FileStamp stampOf(const QString &absPath);
+
+    // Whether this platform supplies a change token that a reconcile may act
+    // on. False means every reconcile reads and hashes every note, which is
+    // correct but costs one read per note.
+    static bool changeTokenIsTrustworthy();
+
     // One note's text together with the metadata that describes *that* text.
     struct NoteSnapshot {
         QString text;
         qint64 fileSize = 0;
         qint64 modifiedMs = 0;
+        qint64 changeToken = 0;
         bool ok = false;
     };
 
     // Read a note's text and metadata as one consistent snapshot: the file is
     // stated before and after the read and re-read while the two disagree, so
     // a rewrite that lands mid-read cannot store the old text under the new
-    // file's size and timestamp. `ok` is false when the file is unreadable, or
+    // file's stamp. `ok` is false when the file is unreadable, or
     // still changing after `maxAttempts` tries; the caller then leaves the
     // index alone rather than recording a mixture.
     static NoteSnapshot readNoteSnapshot(const QString &absPath,

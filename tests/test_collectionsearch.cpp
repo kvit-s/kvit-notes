@@ -16,6 +16,34 @@
 #include "collectionsearchindex.h"
 
 #include <QElapsedTimer>
+#include <QtSql/QSqlDatabase>
+#include <QtSql/QSqlQuery>
+
+namespace {
+
+// Reach the index database the way a second process would: a connection of the
+// test's own, outside everything the coordinator owns.
+bool runRawSqlOn(const QString &dbPath, const QString &statement)
+{
+    static int counter = 0;
+    const QString name =
+        QStringLiteral("kvit_collectionsearch_raw_%1").arg(counter++);
+    bool ok = false;
+    {
+        QSqlDatabase db =
+            QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
+        db.setDatabaseName(dbPath);
+        if (db.open()) {
+            QSqlQuery query(db);
+            ok = query.exec(statement);
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    return ok;
+}
+
+} // namespace
 
 // Facade suite for global search. The query engine and its semantics are
 // covered exhaustively by test_searchindexdb; this suite checks the
@@ -56,6 +84,10 @@ private slots:
     void testTwoIndexesOnTwoRootsStayApart();
     // SEARCH-4: an equal-size rewrite that kept its timestamp is reindexed.
     void testEqualSizeSameMtimeRewriteIsReindexed();
+    // SEARCH-4, cost: a warm reconcile must not read a vault it has already
+    // indexed, and must still catch the rewrite above.
+    void testUnchangedNotesAreNotReadOnReconcile();
+    void testWarmReconcileCostWithAndWithoutTheStamp();
     // SEARCH-5: a write the database refused is reported, not swallowed.
     void testFailedWriteMarksTheIndexDegraded();
     // SEARCH-7: the indexing flag describes the queue, not the worker's echo.
@@ -74,6 +106,10 @@ private slots:
 private:
     void writeNote(const QString &relPath, const QString &content);
     QList<ReconcileEntry> listingFor(const QString &rootPath) const;
+    // Reconcile the whole vault and return how long the pass took, measured
+    // from the signal the coordinator emits when the last queued job finishes
+    // rather than from a polling loop.
+    qint64 timedReconcileUs(const QList<ReconcileEntry> &listing);
     // Wait until a query for `q` settles to the expected note count.
     void expectNoteCount(const QString &q, int expected);
 
@@ -156,6 +192,26 @@ QList<ReconcileEntry> TestCollectionSearch::listingFor(
         listing.append(entry);
     }
     return listing;
+}
+
+qint64 TestCollectionSearch::timedReconcileUs(
+    const QList<ReconcileEntry> &listing)
+{
+    QElapsedTimer timer;
+    qint64 elapsedUs = -1;
+    const auto connection =
+        connect(m_index, &CollectionSearchIndex::indexingChanged, this,
+                [this, &timer, &elapsedUs]() {
+                    if (!m_index->isIndexing() && elapsedUs < 0)
+                        elapsedUs = timer.nsecsElapsed() / 1000;
+                });
+    timer.start();
+    m_index->reconcile(listing);
+    QTest::qWait(0);
+    while (m_index->isIndexing())
+        QTest::qWait(1);
+    disconnect(connection);
+    return elapsedUs;
 }
 
 void TestCollectionSearch::expectNoteCount(const QString &q, int expected)
@@ -617,6 +673,136 @@ void TestCollectionSearch::testEqualSizeSameMtimeRewriteIsReindexed()
     m_search->setQuery(QStringLiteral("mechanics"));
     QTest::qWait(200);
     QCOMPARE(m_search->noteCount(), 0);
+}
+
+// Deciding freshness on the file's content means reading the file, and a
+// reconcile runs over the whole vault at every warm start. The stat-only tier
+// exists so that reading is confined to notes that a cheap and trustworthy
+// test says may have changed; these two cases fix that it skips what it should
+// and reads what it must.
+void TestCollectionSearch::testUnchangedNotesAreNotReadOnReconcile()
+{
+    const QList<ReconcileEntry> listing = listingFor(m_dir->path());
+    // One settling pass. A note the application saved through the live feed
+    // has no change token stored — the feed is handed text, not a path — so
+    // the first reconcile after it reads it once and records one.
+    m_index->reconcile(listing);
+    QTRY_VERIFY(!m_index->isIndexing());
+
+    SearchIndexOps::reset();
+    m_index->reconcile(listing);
+    QTRY_VERIFY(!m_index->isIndexing());
+    if (CollectionSearchIndex::changeTokenIsTrustworthy()) {
+        QCOMPARE(SearchIndexOps::fileReads(), quint64(0));
+        QCOMPARE(SearchIndexOps::fingerprints(), quint64(0));
+    } else {
+        // No change token on this platform: correctness is unchanged and every
+        // note is read, which is what the fingerprint costs where nothing
+        // cheaper can be trusted.
+        QCOMPARE(SearchIndexOps::fileReads(), quint64(listing.size()));
+    }
+
+    // The hole this must not reopen. Same length, same modification time,
+    // different bytes: the pair the index used to trust says nothing moved.
+    const QString before = QStringLiteral("orbital mechanics notes\n");
+    const QString after = QStringLiteral("orbital zarfblats notes\n");
+    QCOMPARE(before.toUtf8().size(), after.toUtf8().size());
+    writeNote(QStringLiteral("Stale.md"), before);
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+
+    const QString path = m_dir->filePath(QStringLiteral("Stale.md"));
+    const QDateTime originalMtime = QFileInfo(path).lastModified();
+    writeNote(QStringLiteral("Stale.md"), after);
+    {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadWrite));
+        QVERIFY(file.setFileTime(originalMtime,
+                                 QFileDevice::FileModificationTime));
+    }
+    QCOMPARE(QFileInfo(path).size(), qint64(before.toUtf8().size()));
+    QCOMPARE(QFileInfo(path).lastModified(), originalMtime);
+
+    SearchIndexOps::reset();
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+    QVERIFY2(SearchIndexOps::fileReads() >= quint64(1),
+             "the rewritten note was skipped on its metadata, which is the "
+             "defect the fingerprint was introduced to close");
+    m_search->setQuery(QStringLiteral("zarfblats"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+    m_search->setQuery(QStringLiteral("mechanics"));
+    QTest::qWait(200);
+    QCOMPARE(m_search->noteCount(), 0);
+
+    // And the notes that did not change were still left unread.
+    if (CollectionSearchIndex::changeTokenIsTrustworthy())
+        QCOMPARE(SearchIndexOps::fileReads(), quint64(1));
+}
+
+void TestCollectionSearch::testWarmReconcileCostWithAndWithoutTheStamp()
+{
+    // A vault large enough for the per-note cost to be what the measurement
+    // sees. Each note is roughly a kilobyte of ordinary prose.
+    static const int kNotes = 2000;
+    for (int i = 0; i < kNotes; ++i) {
+        QString body;
+        for (int line = 0; line < 8; ++line) {
+            body += QStringLiteral(
+                        "Paragraph %1 of note %2 with enough prose in it to "
+                        "cost something to read and hash\n\n")
+                        .arg(line)
+                        .arg(i);
+        }
+        writeNote(QStringLiteral("Bench/Note %1.md").arg(i), body);
+    }
+    const QList<ReconcileEntry> listing = listingFor(m_dir->path());
+    QCOMPARE(listing.size(), kNotes + 4); // the fixture's four notes as well
+
+    // Cold build, then one settling pass, so what follows measures a warm
+    // start over a vault the index already holds.
+    m_index->reconcile(listing);
+    QTRY_VERIFY(!m_index->isIndexing());
+    m_index->reconcile(listing);
+    QTRY_VERIFY(!m_index->isIndexing());
+
+    SearchIndexOps::reset();
+    const qint64 withStampUs = timedReconcileUs(listing);
+    const quint64 readsWithStamp = SearchIndexOps::fileReads();
+    if (CollectionSearchIndex::changeTokenIsTrustworthy())
+        QCOMPARE(readsWithStamp, quint64(0));
+
+    // The same pass with the stored change tokens erased, which is how every
+    // platform behaved before there was one and how Windows still behaves:
+    // every note read, every note hashed, nothing reparsed. It also does one
+    // UPDATE per note to record the token it just learned, which the earlier
+    // code did not, so this figure is a slight overestimate of that code.
+    QVERIFY(runRawSqlOn(CollectionSearchIndex::databasePathForRoot(
+                            m_dir->path()),
+                        QStringLiteral(
+                            "UPDATE search_notes SET change_token=0")));
+    SearchIndexOps::reset();
+    const qint64 withoutStampUs = timedReconcileUs(listing);
+    const quint64 readsWithoutStamp = SearchIndexOps::fileReads();
+    QCOMPARE(readsWithoutStamp, quint64(listing.size()));
+    QCOMPARE(SearchIndexOps::fingerprints(), quint64(listing.size()));
+
+    // The read and the hash on their own, over the same files, so the saving
+    // can be read without the database work either pass also does.
+    QElapsedTimer readTimer;
+    readTimer.start();
+    for (const ReconcileEntry &entry : listing) {
+        const CollectionSearchIndex::NoteSnapshot snapshot =
+            CollectionSearchIndex::readNoteSnapshot(entry.absPath);
+        QVERIFY(snapshot.ok);
+        SearchIndexDb::contentFingerprint(snapshot.text);
+    }
+    const qint64 readHashUs = readTimer.nsecsElapsed() / 1000;
+
+    qInfo("RECONCILE %lld notes warm: %.0f ms reading %llu files, %.0f ms "
+          "reading %llu files; the reads and hashes alone are %.0f ms",
+          qint64(listing.size()), withStampUs / 1000.0, readsWithStamp,
+          withoutStampUs / 1000.0, readsWithoutStamp, readHashUs / 1000.0);
 }
 
 void TestCollectionSearch::testFailedWriteMarksTheIndexDegraded()

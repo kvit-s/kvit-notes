@@ -140,6 +140,13 @@ struct IndexedNote {
     // rename restores the mtime deliberately), so freshness is decided on the
     // fingerprint.
     QString contentHash;
+    // The file's change token at the moment its text was read: a value the
+    // kernel moves on every write and that userspace cannot move back. Stored
+    // so a later reconcile can decide freshness from a stat alone. 0 means
+    // "no token" — either this platform has none (see
+    // CollectionSearchIndex::stampOf) or the text did not come from a file —
+    // and a row carrying 0 never takes the stat-only fast path.
+    qint64 changeToken = 0;
     QStringList tags;
     QList<IndexedBlock> blocks;
 };
@@ -191,6 +198,28 @@ struct SearchResults {
     bool cancelled = false;
 };
 
+// Counters for the work the fast paths exist to avoid.
+//
+// The two expensive things in this engine are reading and hashing every note
+// on a reconcile and re-tokenizing the whole content table on an open. Both
+// are now skipped when a cheaper test proves they cannot tell us anything new,
+// and "was it skipped?" is not a question a wall clock can answer on a loaded
+// machine. These counters answer it directly. They are process-wide, count
+// monotonically until reset(), and exist for tests and diagnostics only.
+namespace SearchIndexOps {
+
+// Note files read from disk in full, counting each attempt of a snapshot read.
+quint64 fileReads();
+// Content fingerprints computed.
+quint64 fingerprints();
+// Runs of the FTS5 external-content integrity check over a whole database.
+quint64 deepIntegrityChecks();
+void reset();
+// Called by the reconcile path, which is where the file reads happen.
+void recordFileRead();
+
+} // namespace SearchIndexOps
+
 class SearchIndexDb
 {
 public:
@@ -217,6 +246,23 @@ public:
         RequireUsable,
     };
 
+    // When the expensive half of the integrity check runs.
+    //
+    // The FTS5 external-content check re-tokenizes every row of
+    // search_blocks — about 16 ms per megabyte of indexed text, so roughly 1.6
+    // seconds on a 100 MB vault — and it runs on the write worker while the
+    // vault is opening. It is a safety net against a database that changed
+    // outside SQLite's transaction guarantees, not something an ordinary open
+    // has any reason to repeat.
+    enum class DeepCheck {
+        // The default: run it only when this process cannot show that it
+        // closed the database cleanly and nothing has opened it since. See
+        // cleanMarkerPath().
+        WhenUnverified,
+        // Run it regardless. For explicit "check this database" callers.
+        Always,
+    };
+
     // The FTS5 trigram capability probe: create a temporary
     // trigram FTS table on a throwaway in-memory connection. A packaged build
     // that fails this has a broken SQLite driver.
@@ -231,7 +277,8 @@ public:
     // and create the schema when the file is new. Returns false when no usable
     // database is available, leaving isUsable() false.
     bool open(const QString &dbPath,
-              OpenMode mode = OpenMode::RebuildIfUnusable);
+              OpenMode mode = OpenMode::RebuildIfUnusable,
+              DeepCheck deep = DeepCheck::WhenUnverified);
     void close();
     bool isUsable() const { return m_usable; }
     QString dbPath() const { return m_dbPath; }
@@ -245,10 +292,10 @@ public:
     bool replaceNote(const IndexedNote &note, qint64 *outRevision = nullptr);
     bool removeNote(const QString &relPath);
     // Update only the freshness columns of an existing note, for a file whose
-    // content fingerprint still matches but whose size or timestamp moved.
+    // content fingerprint still matches but whose stat metadata moved.
     // Nothing is reparsed and no FTS posting is touched.
     bool touchNote(const QString &relPath, qint64 fileSize, qint64 modifiedMs,
-                   const QString &contentHash);
+                   const QString &contentHash, qint64 changeToken = 0);
 
     // True when the note row exists and is unchanged. A non-empty
     // `contentHash` must match the stored fingerprint, which is the only check
@@ -257,6 +304,17 @@ public:
     bool hasNoteFresh(const QString &relPath, qint64 fileSize,
                       qint64 modifiedMs,
                       const QString &contentHash = QString()) const;
+
+    // True when the stored row was built from a file with exactly this size,
+    // modification time *and* change token — the test that lets a reconcile
+    // decide freshness without reading the file at all.
+    //
+    // Always false when either token is 0, because a zero token means nothing
+    // is known about writes to the file and the tuple would then be the
+    // (size, mtime) pair an equal-size rewrite defeats. The fingerprint
+    // remains the authority: this only says when computing it is pointless.
+    bool hasNoteStamp(const QString &relPath, qint64 fileSize,
+                      qint64 modifiedMs, qint64 changeToken) const;
     QStringList allRelPaths() const;
     qint64 revisionOf(const QString &relPath) const;
     int noteRowCount() const;
@@ -276,15 +334,32 @@ public:
     // and declared the way this version expects, and user_version matches.
     bool schemaValid() const;
 
+    // The clean-shutdown marker for a database file, exposed so tests can
+    // stage an unclean exit by deleting it.
+    //
+    // The marker is what gates the deep FTS check. It is written by the
+    // writer's close() and by nothing else, and it is deleted at the start of
+    // every writer open() before any decision is taken. A process that is
+    // killed therefore leaves none behind: whatever marker existed when it
+    // started was removed as it opened, and the only code that writes one runs
+    // during an orderly close. Empty for an in-memory database, which has no
+    // file and no shutdown to be clean about.
+    static QString cleanMarkerPath(const QString &dbPath);
+
 private:
     bool applyPragmas();
     bool ensureSchema();
     bool schemaObjectsPresent() const;
     bool structuralIntegrityOk() const;
     bool ftsIntegrityOk() const;
+    // Reads the marker and removes it in one step, so the answer can only be
+    // given once per open.
+    bool consumeCleanMarker();
+    void writeCleanMarker();
 
     QString m_connectionName;
     QString m_dbPath;
+    OpenMode m_mode = OpenMode::RequireUsable;
     bool m_open = false;
     bool m_usable = false;
 };

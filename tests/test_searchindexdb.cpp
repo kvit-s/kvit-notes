@@ -62,12 +62,18 @@ private slots:
     // SEARCH-2: what "the database is usable" has to mean.
     void testTamperedFtsPostingsFailIntegrity();
     void testMissingSchemaObjectIsRebuilt();
+    // SEARCH-2, cost: the deep half of that check runs when the database was
+    // not left verified, and not on every open.
+    void testCleanShutdownGatesTheDeepCheck();
+    void testDeepCheckCostWithAndWithoutTheMarker();
     // SEARCH-3: tokenization agrees with the candidate index.
     void testAstralAndPrivateUseWordBoundaries();
     void testTokenizationDifferentialOracle();
     // SEARCH-4: freshness that survives an equal-size, equal-mtime rewrite.
     void testContentFingerprintDecidesFreshness();
     void testSnapshotReadIsSelfConsistentUnderRewrite();
+    // SEARCH-4, cost: when the fingerprint does not have to be computed.
+    void testChangeTokenStampDecidesWhenToRead();
     // SEARCH-5: failures are reported as failures.
     void testQueryFailureIsNotAnEmptyResult();
     void testFailedCommitLeavesTheConnectionUsable();
@@ -837,6 +843,27 @@ void TestSearchIndexDb::testTamperedFtsPostingsFailIntegrity()
         db.close();
     }
 
+    // What the gate costs, stated openly. The writer above closed cleanly, so
+    // a marker says this file was left verified, and an ordinary open takes
+    // that at its word and does not re-tokenize the content table. Editing the
+    // database behind the application's back between a clean close and the
+    // next open is outside what the marker claims, and this is the case it
+    // does not catch.
+    {
+        SearchIndexDb trusting(QStringLiteral("write"));
+        QVERIFY(trusting.open(path, SearchIndexDb::OpenMode::RebuildIfUnusable));
+        QCOMPARE(trusting.noteRowCount(), 1);
+        // Asked directly, it still gives the right answer: the gate decides
+        // when the check runs, not what it concludes.
+        QVERIFY(!trusting.integrityOk());
+        trusting.close();
+    }
+
+    // Anything that reaches the file the way real corruption does — a crash, a
+    // kill, a process that never ran its close path — leaves no marker, and
+    // then the deep check runs. Deleting the marker is that state.
+    QVERIFY(QFile::remove(SearchIndexDb::cleanMarkerPath(path)));
+
     // The writer notices at open and rebuilds, so the vault comes back empty
     // and correct rather than usable and lying.
     SearchIndexDb writer(QStringLiteral("write"));
@@ -873,6 +900,167 @@ void TestSearchIndexDb::testMissingSchemaObjectIsRebuilt()
     QVERIFY(writer.replaceNote(CollectionSearchIndex::parseNote(
         QStringLiteral("N.md"), QStringLiteral("alpha beta\n"), 11, 0)));
     QCOMPARE(writer.noteRowCount(), 1);
+}
+
+// The deep half of the integrity check re-tokenizes every row of the content
+// table and compares it against both FTS indexes. It is the only thing that
+// can see an external-content index that has parted company with the text it
+// describes, and it costs about 16 ms per megabyte of indexed text on the
+// write worker while a vault is opening. Running it on every open spends that
+// re-proving a database this process itself closed a moment ago; these two
+// cases fix when it runs and measure what the gate saves.
+void TestSearchIndexDb::testCleanShutdownGatesTheDeepCheck()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    const QString marker = SearchIndexDb::cleanMarkerPath(path);
+    QVERIFY(!marker.isEmpty());
+
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        SearchIndexOps::reset();
+        QVERIFY(db.open(path));
+        // Nothing has ever certified this file, so the first open pays.
+        QCOMPARE(SearchIndexOps::deepIntegrityChecks(), quint64(1));
+        // The invariant that stops the marker lying: while a session is open
+        // there is no marker on disk, so a process killed at any point during
+        // one leaves nothing behind that claims the index was verified.
+        QVERIFY2(!QFileInfo::exists(marker),
+                 "a marker survived into an open session");
+        QVERIFY(db.replaceNote(CollectionSearchIndex::parseNote(
+            QStringLiteral("N.md"), QStringLiteral("alpha beta gamma\n"), 17,
+            0)));
+        db.close();
+        QVERIFY2(QFileInfo::exists(marker), "an orderly close left no marker");
+    }
+
+    // Clean close, clean open: there is nothing to re-verify.
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        SearchIndexOps::reset();
+        QVERIFY(db.open(path));
+        QCOMPARE(SearchIndexOps::deepIntegrityChecks(), quint64(0));
+        QCOMPARE(db.noteRowCount(), 1);
+        db.close();
+    }
+
+    // A caller that asks for the check gets it regardless of the marker.
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        SearchIndexOps::reset();
+        QVERIFY(db.open(path, SearchIndexDb::OpenMode::RebuildIfUnusable,
+                        SearchIndexDb::DeepCheck::Always));
+        QCOMPARE(SearchIndexOps::deepIntegrityChecks(), quint64(1));
+        db.close();
+    }
+
+    // And so does an exit that never reached close(). Removing the marker is
+    // exactly the state a crash or a kill leaves behind.
+    QVERIFY(QFile::remove(marker));
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        SearchIndexOps::reset();
+        QVERIFY(db.open(path));
+        QCOMPARE(SearchIndexOps::deepIntegrityChecks(), quint64(1));
+        db.close();
+    }
+
+    // The reader has no part in this: it never runs the deep check, and it
+    // must not be able to consume or issue a certificate the writer relies on.
+    QVERIFY(QFileInfo::exists(marker));
+    {
+        SearchIndexDb reader(QStringLiteral("read"));
+        SearchIndexOps::reset();
+        QVERIFY(reader.open(path, SearchIndexDb::OpenMode::RequireUsable));
+        QCOMPARE(SearchIndexOps::deepIntegrityChecks(), quint64(0));
+        reader.close();
+    }
+    QVERIFY2(QFileInfo::exists(marker),
+             "a read-side open consumed the writer's marker");
+}
+
+void TestSearchIndexDb::testDeepCheckCostWithAndWithoutTheMarker()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    const QString marker = SearchIndexDb::cleanMarkerPath(path);
+
+    // A few megabytes of indexed text: enough for the per-megabyte cost to
+    // dominate the fixed cost of opening a file, small enough to build inside
+    // a unit test.
+    qint64 indexedBytes = 0;
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        QVERIFY(db.open(path));
+        for (int i = 0; i < 1200; ++i) {
+            QString body;
+            for (int line = 0; line < 24; ++line) {
+                body += QStringLiteral(
+                            "Paragraph %1 of note %2 carrying enough ordinary "
+                            "prose to make the tokenizer work for its living\n\n")
+                            .arg(line)
+                            .arg(i);
+            }
+            indexedBytes += body.toUtf8().size();
+            QVERIFY(db.replaceNote(CollectionSearchIndex::parseNote(
+                QStringLiteral("Bench %1.md").arg(i), body,
+                body.toUtf8().size(), 0)));
+        }
+        db.close();
+    }
+    const double megabytes = double(indexedBytes) / (1024.0 * 1024.0);
+
+    QElapsedTimer timer;
+    SearchIndexOps::reset();
+    timer.start();
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        QVERIFY(db.open(path));
+        db.close();
+    }
+    const qint64 verifiedUs = timer.nsecsElapsed() / 1000;
+    QCOMPARE(SearchIndexOps::deepIntegrityChecks(), quint64(0));
+
+    QVERIFY(QFile::remove(marker));
+    SearchIndexOps::reset();
+    timer.restart();
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        QVERIFY(db.open(path));
+        db.close();
+    }
+    const qint64 uncheckedUs = timer.nsecsElapsed() / 1000;
+    QCOMPARE(SearchIndexOps::deepIntegrityChecks(), quint64(1));
+
+    // What the open still pays once the deep check is gated away. Both halves
+    // of integrityOk() walk the whole database, and only the FTS half is
+    // gated: PRAGMA integrity_check is what decides whether the file can be
+    // opened at all, and it now dominates what a clean open costs.
+    qint64 bothChecksUs = 0;
+    qint64 schemaUs = 0;
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        QVERIFY(db.open(path));
+        timer.restart();
+        QVERIFY(db.integrityOk());
+        bothChecksUs = timer.nsecsElapsed() / 1000;
+        timer.restart();
+        QVERIFY(db.schemaValid());
+        schemaUs = timer.nsecsElapsed() / 1000;
+        db.close();
+    }
+    const qint64 deepUs = uncheckedUs - verifiedUs;
+
+    // Reported, never asserted on: this is a shared machine and the numbers
+    // move with it. The assertions above are on the operation counts.
+    qInfo("OPEN %.2f MB indexed: %.1f ms after a clean close, %.1f ms after an "
+          "unclean one; deep FTS check %.1f ms (%.1f ms/MB), structural check "
+          "%.1f ms, schema check %.1f ms",
+          megabytes, verifiedUs / 1000.0, uncheckedUs / 1000.0, deepUs / 1000.0,
+          megabytes > 0 ? deepUs / 1000.0 / megabytes : 0.0,
+          (bothChecksUs - deepUs) / 1000.0, schemaUs / 1000.0);
 }
 
 // ======================================================================
@@ -988,6 +1176,57 @@ void TestSearchIndexDb::testContentFingerprintDecidesFreshness()
                                note.contentHash));
     QCOMPARE(m_db->revisionOf(QStringLiteral("F.md")), qint64(1));
     QVERIFY(m_db->integrityOk());
+}
+
+// The stat-only tier of freshness. The fingerprint remains the authority on
+// whether a note changed; the stamp only decides whether computing it can be
+// skipped, so every way the stamp can be wrong has to fail closed.
+void TestSearchIndexDb::testChangeTokenStampDecidesWhenToRead()
+{
+    IndexedNote note = CollectionSearchIndex::parseNote(
+        QStringLiteral("S.md"), QStringLiteral("alpha alpha\n"), 12, 1000);
+    note.changeToken = 5000;
+    QVERIFY(m_db->replaceNote(note));
+
+    QVERIFY(m_db->hasNoteStamp(QStringLiteral("S.md"), 12, 1000, 5000));
+    // Any component of the tuple moving means the file may have been written,
+    // and the caller has to read it.
+    QVERIFY(!m_db->hasNoteStamp(QStringLiteral("S.md"), 13, 1000, 5000));
+    QVERIFY(!m_db->hasNoteStamp(QStringLiteral("S.md"), 12, 1001, 5000));
+    QVERIFY2(!m_db->hasNoteStamp(QStringLiteral("S.md"), 12, 1000, 5001),
+             "a file written with its size and timestamp restored was called "
+             "unchanged");
+    QVERIFY(!m_db->hasNoteStamp(QStringLiteral("Missing.md"), 12, 1000, 5000));
+
+    // Zero means "this platform has no change token" — Windows, today. The
+    // remaining pair is the (size, mtime) test an equal-size rewrite defeats,
+    // so it must never be enough on its own.
+    QVERIFY2(!m_db->hasNoteStamp(QStringLiteral("S.md"), 12, 1000, 0),
+             "a missing change token was treated as a matching one");
+    IndexedNote untokened = CollectionSearchIndex::parseNote(
+        QStringLiteral("T.md"), QStringLiteral("alpha alpha\n"), 12, 1000);
+    QCOMPARE(untokened.changeToken, qint64(0));
+    QVERIFY(m_db->replaceNote(untokened));
+    QVERIFY2(!m_db->hasNoteStamp(QStringLiteral("T.md"), 12, 1000, 7000),
+             "a row stored without a change token was skipped on a stat");
+
+    // Recording a stamp is what lets the next pass skip the read. It costs one
+    // UPDATE, changes no posting, and leaves the revision alone.
+    QVERIFY(m_db->touchNote(QStringLiteral("T.md"), 12, 1000,
+                            untokened.contentHash, 7000));
+    QVERIFY(m_db->hasNoteStamp(QStringLiteral("T.md"), 12, 1000, 7000));
+    QCOMPARE(m_db->revisionOf(QStringLiteral("T.md")), qint64(1));
+    QVERIFY(m_db->integrityOk());
+
+    // What the platform actually offers, as a statement rather than an
+    // assumption. On Unix the change token is st_ctime, which the kernel moves
+    // on every write and no system call can move back; on Windows Qt has no
+    // equivalent, so there is no token and every reconcile reads every note.
+#if defined(Q_OS_UNIX)
+    QVERIFY(CollectionSearchIndex::changeTokenIsTrustworthy());
+#else
+    QVERIFY(!CollectionSearchIndex::changeTokenIsTrustworthy());
+#endif
 }
 
 void TestSearchIndexDb::testSnapshotReadIsSelfConsistentUnderRewrite()

@@ -20,7 +20,9 @@
 // Current on-disk schema version: every schema change bumps
 // PRAGMA user_version; an unsupported version is rebuilt.
 // v2 added search_notes.content_hash, the freshness fingerprint.
-static constexpr int kSchemaVersion = 2;
+// v3 added search_notes.change_token, which lets a reconcile decide freshness
+// from a stat instead of reading and hashing the file.
+static constexpr int kSchemaVersion = 3;
 
 namespace SearchMatching {
 
@@ -274,6 +276,27 @@ QString uniqueConnectionName(const QString &role)
 
 } // namespace
 
+namespace SearchIndexOps {
+namespace {
+std::atomic<quint64> g_fileReads{0};
+std::atomic<quint64> g_fingerprints{0};
+std::atomic<quint64> g_deepChecks{0};
+} // namespace
+
+quint64 fileReads() { return g_fileReads.load(); }
+quint64 fingerprints() { return g_fingerprints.load(); }
+quint64 deepIntegrityChecks() { return g_deepChecks.load(); }
+void recordFileRead() { g_fileReads.fetch_add(1); }
+
+void reset()
+{
+    g_fileReads.store(0);
+    g_fingerprints.store(0);
+    g_deepChecks.store(0);
+}
+
+} // namespace SearchIndexOps
+
 SearchCancel::~SearchCancel() = default;
 
 SearchIndexDb::SearchIndexDb(const QString &role)
@@ -288,6 +311,7 @@ SearchIndexDb::~SearchIndexDb()
 
 QString SearchIndexDb::contentFingerprint(const QString &fileText)
 {
+    SearchIndexOps::g_fingerprints.fetch_add(1);
     return QString::fromLatin1(
         QCryptographicHash::hash(fileText.toUtf8(), QCryptographicHash::Sha1)
             .toHex());
@@ -312,10 +336,21 @@ bool SearchIndexDb::probeCapability()
     return ok;
 }
 
-bool SearchIndexDb::open(const QString &dbPath, OpenMode mode)
+bool SearchIndexDb::open(const QString &dbPath, OpenMode mode, DeepCheck deep)
 {
-    close();
+    close(); // still under the previous path: a clean close is stamped there
     m_dbPath = dbPath;
+    m_mode = mode;
+
+    // Consume the marker before anything else looks at the file. Reading and
+    // deleting it in one step is what stops it lying: from here until an
+    // orderly close there is no marker on disk, so a process that dies in
+    // between leaves the next open with nothing to trust. Only the writer
+    // takes part — the reader never runs the deep check, and must not be able
+    // to spend or issue a certificate the writer relies on.
+    const bool marked =
+        mode == OpenMode::RebuildIfUnusable && consumeCleanMarker();
+    const bool verified = marked && deep == DeepCheck::WhenUnverified;
 
     auto tryOpen = [&]() -> bool {
         QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"),
@@ -331,10 +366,12 @@ bool SearchIndexDb::open(const QString &dbPath, OpenMode mode)
         // re-tokenizes the whole content table, so only the writer — which is
         // also the only side that can act on the answer by rebuilding — pays
         // for it; the reader opens after the writer has already vetted the
-        // file.
+        // file. The cheap checks run every time; the deep one is skipped when
+        // the marker showed this process left the database verified and
+        // closed.
         if (!structuralIntegrityOk())
             return false;
-        if (mode == OpenMode::RebuildIfUnusable && !ftsIntegrityOk())
+        if (mode == OpenMode::RebuildIfUnusable && !verified && !ftsIntegrityOk())
             return false;
         return ensureSchema() && schemaValid();
     };
@@ -371,6 +408,9 @@ bool SearchIndexDb::open(const QString &dbPath, OpenMode mode)
 
 void SearchIndexDb::close()
 {
+    // Only a writer that reached a usable state has anything to certify, and
+    // only this line ever creates a marker.
+    const bool certify = m_usable && m_mode == OpenMode::RebuildIfUnusable;
     if (QSqlDatabase::contains(m_connectionName)) {
         {
             QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
@@ -386,6 +426,56 @@ void SearchIndexDb::close()
     // there sent the retry to Qt's *default* connection — shared with anything
     // else in the process, and never removed afterwards, because the following
     // close() no longer had a name to remove.
+    if (certify)
+        writeCleanMarker();
+}
+
+QString SearchIndexDb::cleanMarkerPath(const QString &dbPath)
+{
+    if (dbPath.isEmpty() || dbPath == QStringLiteral(":memory:"))
+        return QString();
+    return dbPath + QStringLiteral(".clean");
+}
+
+// What a marker says. The schema version is part of it because a marker left
+// by a build with a different on-disk layout certifies nothing about this one,
+// and a database that has been rebuilt under a new version must be checked
+// once before it is trusted again.
+static QByteArray cleanMarkerContent()
+{
+    return QByteArrayLiteral("kvit-search-clean v")
+        + QByteArray::number(kSchemaVersion) + '\n';
+}
+
+bool SearchIndexDb::consumeCleanMarker()
+{
+    const QString path = cleanMarkerPath(m_dbPath);
+    if (path.isEmpty())
+        return false; // an in-memory database is never pre-verified
+    QFile marker(path);
+    if (!marker.exists())
+        return false;
+    bool valid = false;
+    if (marker.open(QIODevice::ReadOnly)) {
+        valid = marker.read(64) == cleanMarkerContent();
+        marker.close();
+    }
+    // Removed whether or not it was readable: the point of consuming it is
+    // that the next open of this file cannot inherit this one's verdict.
+    QFile::remove(path);
+    return valid;
+}
+
+void SearchIndexDb::writeCleanMarker()
+{
+    const QString path = cleanMarkerPath(m_dbPath);
+    if (path.isEmpty())
+        return;
+    QFile marker(path);
+    if (!marker.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return;
+    marker.write(cleanMarkerContent());
+    marker.close();
 }
 
 bool SearchIndexDb::applyPragmas()
@@ -434,6 +524,7 @@ bool SearchIndexDb::schemaObjectsPresent() const
     };
     static const Required required[] = {
         {"table", "search_notes", "content_hash"},
+        {"table", "search_notes", "change_token"},
         {"table", "search_note_tags", nullptr},
         {"table", "search_blocks", "folded_text"},
         {"index", "idx_blocks_note", nullptr},
@@ -485,6 +576,7 @@ bool SearchIndexDb::ensureSchema()
         "  modified_ms INTEGER NOT NULL,"
         "  file_size INTEGER NOT NULL,"
         "  content_hash TEXT NOT NULL DEFAULT '',"
+        "  change_token INTEGER NOT NULL DEFAULT 0,"
         "  index_revision INTEGER NOT NULL)",
         "CREATE TABLE search_note_tags ("
         "  note_id INTEGER NOT NULL REFERENCES search_notes(id) ON DELETE CASCADE,"
@@ -542,6 +634,7 @@ bool SearchIndexDb::ftsIntegrityOk() const
 {
     if (!m_open)
         return false;
+    SearchIndexOps::g_deepChecks.fetch_add(1);
     // PRAGMA integrity_check verifies SQLite's own b-trees. It cannot see that
     // an external-content FTS index disagrees with search_blocks, which is the
     // corruption that matters here: postings that no longer match the stored
@@ -732,12 +825,14 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
         QSqlQuery upd(db);
         upd.prepare(QStringLiteral(
             "UPDATE search_notes SET folder=?, title=?, modified_ms=?, "
-            "file_size=?, content_hash=?, index_revision=? WHERE id=?"));
+            "file_size=?, content_hash=?, change_token=?, index_revision=? "
+            "WHERE id=?"));
         upd.addBindValue(note.folder);
         upd.addBindValue(note.title);
         upd.addBindValue(note.modifiedMs);
         upd.addBindValue(note.fileSize);
         upd.addBindValue(contentHash);
+        upd.addBindValue(note.changeToken);
         upd.addBindValue(nextRevision);
         upd.addBindValue(noteId);
         if (!upd.exec()) {
@@ -748,13 +843,15 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
         QSqlQuery ins(db);
         ins.prepare(QStringLiteral(
             "INSERT INTO search_notes(rel_path, folder, title, modified_ms, "
-            "file_size, content_hash, index_revision) VALUES(?,?,?,?,?,?,?)"));
+            "file_size, content_hash, change_token, index_revision) "
+            "VALUES(?,?,?,?,?,?,?,?)"));
         ins.addBindValue(note.relPath);
         ins.addBindValue(note.folder);
         ins.addBindValue(note.title);
         ins.addBindValue(note.modifiedMs);
         ins.addBindValue(note.fileSize);
         ins.addBindValue(contentHash);
+        ins.addBindValue(note.changeToken);
         ins.addBindValue(nextRevision);
         if (!ins.exec()) {
             db.rollback();
@@ -840,19 +937,21 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
 }
 
 bool SearchIndexDb::touchNote(const QString &relPath, qint64 fileSize,
-                              qint64 modifiedMs, const QString &contentHash)
+                              qint64 modifiedMs, const QString &contentHash,
+                              qint64 changeToken)
 {
     if (!m_usable)
         return false;
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral(
-        "UPDATE search_notes SET file_size=?, modified_ms=?, content_hash=? "
-        "WHERE rel_path=?"));
+        "UPDATE search_notes SET file_size=?, modified_ms=?, content_hash=?, "
+        "change_token=? WHERE rel_path=?"));
     q.addBindValue(fileSize);
     q.addBindValue(modifiedMs);
     q.addBindValue(contentHash.isNull() ? QString::fromLatin1("")
                                         : contentHash);
+    q.addBindValue(changeToken);
     q.addBindValue(relPath);
     return q.exec() && q.numRowsAffected() != 0;
 }
@@ -873,6 +972,23 @@ bool SearchIndexDb::hasNoteFresh(const QString &relPath, qint64 fileSize,
     if (!contentHash.isEmpty())
         return q.value(2).toString() == contentHash;
     return q.value(0).toLongLong() == fileSize
+        && q.value(1).toLongLong() == modifiedMs;
+}
+
+bool SearchIndexDb::hasNoteStamp(const QString &relPath, qint64 fileSize,
+                                 qint64 modifiedMs, qint64 changeToken) const
+{
+    if (!m_usable || changeToken == 0)
+        return false;
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("SELECT file_size, modified_ms, change_token "
+                             "FROM search_notes WHERE rel_path=?"));
+    q.addBindValue(relPath);
+    if (!q.exec() || !q.next())
+        return false;
+    return q.value(2).toLongLong() == changeToken
+        && q.value(0).toLongLong() == fileSize
         && q.value(1).toLongLong() == modifiedMs;
 }
 
