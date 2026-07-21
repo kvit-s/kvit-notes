@@ -93,12 +93,12 @@ Item {
             var startTime = Date.now()
             var timeout = 1000
 
-            while (blockModel.blockAt(0).blockType !== expectedType && (Date.now() - startTime) < timeout) {
+            while (BlockModel.blockAt(0).blockType !== expectedType && (Date.now() - startTime) < timeout) {
                 keyClick(key, modifier)
                 wait(100)
             }
 
-            return blockModel.blockAt(0).blockType === expectedType
+            return BlockModel.blockAt(0).blockType === expectedType
         }
 
         function test_01_windowLoads() {
@@ -179,8 +179,8 @@ Item {
 
             compare(delegate.isFocused, true,
                     "Focused delegate should expose its keyboard focus state")
-            compare(focusIndicator.color.toString(), theme.focusRing.toString(),
-                    "Focus indicator should use the theme focus-ring color")
+            compare(focusIndicator.color.toString(), Theme.focusRing.toString(),
+                    "Focus indicator should use the Theme focus-ring color")
         }
 
         function test_07_headingStylesApplied() {
@@ -571,7 +571,7 @@ Item {
             var readOnlyText = findReadOnlyText(delegate)
             verify(readOnlyText !== null, "Read-only text item should exist")
 
-            blockModel.updateContent(0, "Plain paragraph for engine attach")
+            BlockModel.updateContent(0, "Plain paragraph for engine attach")
             wait(50)
             readOnlyText = findReadOnlyText(delegate)
             verify(readOnlyText !== null, "Read-only text item should still exist")
@@ -598,7 +598,7 @@ Item {
                     "Promoted text blocks should paint the editor TextArea")
             verify(delegate.editorEngine.document !== null,
                    "Engine should attach to the TextArea document after promotion")
-            compare(delegate.editorEngine.markdown, blockModel.getContent(0),
+            compare(delegate.editorEngine.markdown, BlockModel.getContent(0),
                     "Engine markdown should mirror the model content")
 
             if (isHeadless) {
@@ -624,7 +624,7 @@ Item {
             // Set test content through the model (single source of truth);
             // an imperative textArea.text write would break the
             // text <- delegate.content binding for the rest of the suite
-            blockModel.updateContent(0, "test")
+            BlockModel.updateContent(0, "test")
             wait(50)
 
             // Select all and apply bold with retry
@@ -655,7 +655,7 @@ Item {
             // Set test content through the model (single source of truth);
             // an imperative textArea.text write would break the
             // text <- delegate.content binding for the rest of the suite
-            blockModel.updateContent(0, "test")
+            BlockModel.updateContent(0, "test")
             wait(50)
 
             // Select all and apply italic with retry
@@ -677,7 +677,7 @@ Item {
             // renders with no markers visible; storage stays markdown.
             var delegate = findBlockDelegate(0)
 
-            blockModel.updateContent(0, "Hello **world**")
+            BlockModel.updateContent(0, "Hello **world**")
             wait(100)
             var textArea = findTextAreaRaw(delegate)
             verify(textArea !== null,
@@ -707,7 +707,7 @@ Item {
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
-            blockModel.updateContent(0, "This is **important** *information* here")
+            BlockModel.updateContent(0, "This is **important** *information* here")
             wait(100)
 
             ensureFocus(textArea)
@@ -737,7 +737,7 @@ Item {
             wait(80)
             compare(textArea.text, "This is important information here",
                     "Cursor elsewhere: everything rendered")
-            compare(blockModel.getContent(0),
+            compare(BlockModel.getContent(0),
                     "This is **important** *information* here",
                     "Walkthrough must never alter the model")
         }
@@ -768,7 +768,7 @@ Item {
                     textArea.focus = false
                     tryCompare(textArea, "activeFocus", false, 1000)
                 }
-                blockModel.updateContent(0, c.md)
+                BlockModel.updateContent(0, c.md)
                 wait(100)
                 compare(textArea.text, c.hidden,
                         c.md + ": rendered with markers hidden")
@@ -785,7 +785,7 @@ Item {
                 wait(100)
                 compare(textArea.text, c.hidden,
                         c.md + ": cursor out re-hides the syntax")
-                compare(blockModel.getContent(0), c.md,
+                compare(BlockModel.getContent(0), c.md,
                         c.md + ": walkthrough must never alter the model")
             }
 
@@ -812,7 +812,7 @@ Item {
                 textArea.focus = false
                 tryCompare(textArea, "activeFocus", false, 1000)
             }
-            blockModel.updateContent(0, "go [ab](http://x) on")
+            BlockModel.updateContent(0, "go [ab](http://x) on")
             wait(100)
             compare(textArea.text, "go ab on",
                     "Link renders as its text, no brackets or URL")
@@ -828,11 +828,11 @@ Item {
             keyClick(Qt.Key_Home)
             wait(100)
             compare(textArea.text, "go ab on", "Cursor out re-hides the syntax")
-            compare(blockModel.getContent(0), "go [ab](http://x) on",
+            compare(BlockModel.getContent(0), "go [ab](http://x) on",
                     "Reveal cycle must never alter the model")
 
             // Autolink: the display IS the URL; nothing hides or reveals.
-            blockModel.updateContent(0, "see http://a.com now")
+            BlockModel.updateContent(0, "see http://a.com now")
             wait(100)
             compare(textArea.text, "see http://a.com now",
                     "Bare URL displays as-is")
@@ -858,7 +858,7 @@ Item {
 
             // Every inline type participates: the geometry invariants
             // hold for the full registry, not just bold/italic.
-            blockModel.updateContent(0,
+            BlockModel.updateContent(0,
                 "Hi **b** ~~s~~ ==h== ++u++ `c` [l](http://x) https://y.io")
             wait(100)
 
@@ -890,7 +890,7 @@ Item {
             // First block should be Heading1 with 32px font
             var h1Delegate = findBlockDelegate(0)
             var h1TextArea = findTextArea(h1Delegate)
-            blockModel.updateType(0, 1)  // Ensure it's Heading1
+            BlockModel.updateType(0, 1)  // Ensure it's Heading1
             wait(50)
 
             compare(h1TextArea.font.pixelSize, 32, "Heading1 should have 32px font")
@@ -899,7 +899,7 @@ Item {
         function test_25_heading2FontSize() {
             var delegate = findBlockDelegate(1)
             var textArea = findTextArea(delegate)
-            blockModel.updateType(1, 2)  // Set to Heading2
+            BlockModel.updateType(1, 2)  // Set to Heading2
             wait(50)
 
             compare(textArea.font.pixelSize, 24, "Heading2 should have 24px font")
@@ -908,7 +908,7 @@ Item {
         function test_26_heading3FontSize() {
             var delegate = findBlockDelegate(1)
             var textArea = findTextArea(delegate)
-            blockModel.updateType(1, 3)  // Set to Heading3
+            BlockModel.updateType(1, 3)  // Set to Heading3
             wait(50)
 
             compare(textArea.font.pixelSize, 20, "Heading3 should have 20px font")
@@ -917,7 +917,7 @@ Item {
         function test_26b_heading4FontSize() {
             var delegate = findBlockDelegate(1)
             var textArea = findTextArea(delegate)
-            blockModel.updateType(1, 10)  // Set to Heading4
+            BlockModel.updateType(1, 10)  // Set to Heading4
             wait(50)
 
             compare(textArea.font.pixelSize, 17, "Heading4 should have 17px font")
@@ -926,7 +926,7 @@ Item {
         function test_27_paragraphFontSize() {
             var delegate = findBlockDelegate(1)
             var textArea = findTextArea(delegate)
-            blockModel.updateType(1, 0)  // Set to Paragraph
+            BlockModel.updateType(1, 0)  // Set to Paragraph
             wait(50)
 
             compare(textArea.font.pixelSize, 15, "Paragraph should have 15px font")
@@ -937,27 +937,27 @@ Item {
             var textArea = findTextArea(delegate)
 
             // Test Heading1 - Bold
-            blockModel.updateType(1, 1)
+            BlockModel.updateType(1, 1)
             wait(50)
             compare(textArea.font.weight, Font.Bold, "Heading1 should be bold")
 
             // Test Heading2 - DemiBold
-            blockModel.updateType(1, 2)
+            BlockModel.updateType(1, 2)
             wait(50)
             compare(textArea.font.weight, Font.DemiBold, "Heading2 should be semi-bold")
 
             // Test Heading3 - Medium
-            blockModel.updateType(1, 3)
+            BlockModel.updateType(1, 3)
             wait(50)
             compare(textArea.font.weight, Font.Medium, "Heading3 should be medium weight")
 
             // Test Heading4 - Medium
-            blockModel.updateType(1, 10)
+            BlockModel.updateType(1, 10)
             wait(50)
             compare(textArea.font.weight, Font.Medium, "Heading4 should be medium weight")
 
             // Test Paragraph - Normal
-            blockModel.updateType(1, 0)
+            BlockModel.updateType(1, 0)
             wait(50)
             compare(textArea.font.weight, Font.Normal, "Paragraph should be normal weight")
         }
@@ -968,10 +968,10 @@ Item {
             // same height as a one-line plain block. Under the old overlay
             // design, height followed a hidden second text and formatted
             // blocks reserved too much space.
-            blockModel.updateType(0, 0)
-            blockModel.updateContent(0, "plain text line")
-            blockModel.updateType(1, 0)
-            blockModel.updateContent(1, "**bold** and *italic* line")
+            BlockModel.updateType(0, 0)
+            BlockModel.updateContent(0, "plain text line")
+            BlockModel.updateType(1, 0)
+            BlockModel.updateContent(1, "**bold** and *italic* line")
             wait(100)
 
             var plainDelegate = findBlockDelegate(0)
@@ -988,7 +988,7 @@ Item {
             }
 
             // Start with Heading1
-            blockModel.updateType(0, 1)
+            BlockModel.updateType(0, 1)
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
@@ -1005,7 +1005,7 @@ Item {
             }
 
             // Start with Paragraph
-            blockModel.updateType(0, 0)
+            BlockModel.updateType(0, 0)
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
@@ -1022,7 +1022,7 @@ Item {
             }
 
             // Start with Paragraph
-            blockModel.updateType(0, 0)
+            BlockModel.updateType(0, 0)
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
@@ -1039,7 +1039,7 @@ Item {
             }
 
             // Start with Paragraph
-            blockModel.updateType(0, 0)
+            BlockModel.updateType(0, 0)
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
@@ -1056,8 +1056,8 @@ Item {
             }
 
             var testContent = "Test content with **bold** text"
-            blockModel.updateContent(0, testContent)
-            blockModel.updateType(0, 0)  // Start as paragraph
+            BlockModel.updateContent(0, testContent)
+            BlockModel.updateType(0, 0)  // Start as paragraph
             wait(50)
 
             var delegate = findBlockDelegate(0)
@@ -1070,7 +1070,7 @@ Item {
             keyClick(Qt.Key_1, Qt.ControlModifier)
             wait(50)
 
-            compare(blockModel.blockAt(0).content, testContent,
+            compare(BlockModel.blockAt(0).content, testContent,
                     "Content should be preserved after type conversion")
         }
 
@@ -1079,7 +1079,7 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            blockModel.updateType(0, 0)  // Paragraph
+            BlockModel.updateType(0, 0)  // Paragraph
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
@@ -1103,7 +1103,7 @@ Item {
             }
 
             // Start as Heading1
-            blockModel.updateType(0, 1)
+            BlockModel.updateType(0, 1)
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
 
@@ -1115,14 +1115,14 @@ Item {
             wait(50)
 
             // Should still be Heading1
-            compare(blockModel.blockAt(0).blockType, 1, "Same type conversion should be no-op")
+            compare(BlockModel.blockAt(0).blockType, 1, "Same type conversion should be no-op")
         }
 
         // Step 4c: Markdown Prefix Auto-Conversion Tests
         // Helper function to reset block for prefix tests
         function resetBlockForPrefixTest(blockType, content) {
-            blockModel.updateType(0, blockType)
-            blockModel.updateContent(0, content)
+            BlockModel.updateType(0, blockType)
+            BlockModel.updateContent(0, content)
             wait(50)
 
             var delegate = findBlockDelegate(0)
@@ -1145,8 +1145,8 @@ Item {
             // Type "# Hello" with retry for type conversion
             var startTime = Date.now()
             var timeout = 1000
-            while (blockModel.blockAt(0).blockType !== 1 && (Date.now() - startTime) < timeout) {
-                blockModel.updateContent(0, "")
+            while (BlockModel.blockAt(0).blockType !== 1 && (Date.now() - startTime) < timeout) {
+                BlockModel.updateContent(0, "")
                 wait(50)
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
                 keyClick(Qt.Key_Space)
@@ -1158,8 +1158,8 @@ Item {
                 wait(150)
             }
 
-            compare(blockModel.blockAt(0).blockType, 1, "# prefix should convert to Heading1")
-            compare(blockModel.blockAt(0).content, "hello", "Prefix should be stripped")
+            compare(BlockModel.blockAt(0).blockType, 1, "# prefix should convert to Heading1")
+            compare(BlockModel.blockAt(0).content, "hello", "Prefix should be stripped")
         }
 
         function test_38_doubleHashSpaceConvertsToHeading2() {
@@ -1176,8 +1176,8 @@ Item {
             // Type "## Section" with retry
             var startTime = Date.now()
             var timeout = 1000
-            while (blockModel.blockAt(0).blockType !== 2 && (Date.now() - startTime) < timeout) {
-                blockModel.updateContent(0, "")
+            while (BlockModel.blockAt(0).blockType !== 2 && (Date.now() - startTime) < timeout) {
+                BlockModel.updateContent(0, "")
                 wait(50)
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
@@ -1186,8 +1186,8 @@ Item {
                 wait(150)
             }
 
-            compare(blockModel.blockAt(0).blockType, 2, "## prefix should convert to Heading2")
-            compare(blockModel.blockAt(0).content, "s", "Prefix should be stripped")
+            compare(BlockModel.blockAt(0).blockType, 2, "## prefix should convert to Heading2")
+            compare(BlockModel.blockAt(0).content, "s", "Prefix should be stripped")
         }
 
         function test_39_tripleHashSpaceConvertsToHeading3() {
@@ -1204,8 +1204,8 @@ Item {
             // Type "### Sub" with retry
             var startTime = Date.now()
             var timeout = 1000
-            while (blockModel.blockAt(0).blockType !== 3 && (Date.now() - startTime) < timeout) {
-                blockModel.updateContent(0, "")
+            while (BlockModel.blockAt(0).blockType !== 3 && (Date.now() - startTime) < timeout) {
+                BlockModel.updateContent(0, "")
                 wait(50)
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
@@ -1215,8 +1215,8 @@ Item {
                 wait(150)
             }
 
-            compare(blockModel.blockAt(0).blockType, 3, "### prefix should convert to Heading3")
-            compare(blockModel.blockAt(0).content, "s", "Prefix should be stripped")
+            compare(BlockModel.blockAt(0).blockType, 3, "### prefix should convert to Heading3")
+            compare(BlockModel.blockAt(0).content, "s", "Prefix should be stripped")
         }
 
         function test_40_hashWithoutSpaceDoesNotConvert() {
@@ -1234,7 +1234,7 @@ Item {
             var startTime = Date.now()
             var timeout = 1000
             while (textArea.text.length < 3 && (Date.now() - startTime) < timeout) {
-                blockModel.updateContent(0, "")
+                BlockModel.updateContent(0, "")
                 wait(50)
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
                 keyClick(Qt.Key_N)
@@ -1242,8 +1242,8 @@ Item {
                 wait(150)
             }
 
-            compare(blockModel.blockAt(0).blockType, 0, "# without space should remain Paragraph")
-            compare(blockModel.blockAt(0).content, "#no", "Content should contain the hash")
+            compare(BlockModel.blockAt(0).blockType, 0, "# without space should remain Paragraph")
+            compare(BlockModel.blockAt(0).content, "#no", "Content should contain the hash")
         }
 
         function test_41_existingHeadingDoesNotReconvert() {
@@ -1264,7 +1264,7 @@ Item {
             // Type "# " at start with retry until content changes
             var startTime = Date.now()
             var timeout = 1000
-            while (!blockModel.blockAt(0).content.startsWith("# ") && (Date.now() - startTime) < timeout) {
+            while (!BlockModel.blockAt(0).content.startsWith("# ") && (Date.now() - startTime) < timeout) {
                 textArea.cursorPosition = 0
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
                 keyClick(Qt.Key_Space)
@@ -1272,8 +1272,8 @@ Item {
             }
 
             // Should remain Heading1 with prefix in content
-            compare(blockModel.blockAt(0).blockType, 1, "Existing heading should not reconvert")
-            compare(blockModel.blockAt(0).content, "# Existing Heading", "Content should include typed prefix")
+            compare(BlockModel.blockAt(0).blockType, 1, "Existing heading should not reconvert")
+            compare(BlockModel.blockAt(0).content, "# Existing Heading", "Content should include typed prefix")
         }
 
         function test_42_fourHashesConvertToHeading4() {
@@ -1293,8 +1293,8 @@ Item {
             // Type "#### X" with retry until the conversion lands
             var startTime = Date.now()
             var timeout = 1000
-            while (blockModel.blockAt(0).blockType !== 10 && (Date.now() - startTime) < timeout) {
-                blockModel.updateContent(0, "")
+            while (BlockModel.blockAt(0).blockType !== 10 && (Date.now() - startTime) < timeout) {
+                BlockModel.updateContent(0, "")
                 wait(50)
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
                 keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)  // #
@@ -1305,20 +1305,20 @@ Item {
                 wait(150)
             }
 
-            compare(blockModel.blockAt(0).blockType, 10, "#### should convert to Heading4")
-            compare(blockModel.blockAt(0).content, "x", "Prefix should be stripped")
+            compare(BlockModel.blockAt(0).blockType, 10, "#### should convert to Heading4")
+            compare(BlockModel.blockAt(0).content, "x", "Prefix should be stripped")
 
             // The conversion fired when the space landed, before the "x"
             // was typed into the heading: the first undo removes that
             // character, the second reverts the conversion itself and
             // restores the literal typed prefix as a paragraph.
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
-            compare(blockModel.blockAt(0).blockType, 10, "First undo only removes the typed character")
-            undoStack.undo()
+            compare(BlockModel.blockAt(0).blockType, 10, "First undo only removes the typed character")
+            UndoStack.undo()
             wait(100)
-            compare(blockModel.blockAt(0).blockType, 0, "Second undo should restore the paragraph")
-            compare(blockModel.blockAt(0).content, "#### ", "Undo should restore the typed prefix")
+            compare(BlockModel.blockAt(0).blockType, 0, "Second undo should restore the paragraph")
+            compare(BlockModel.blockAt(0).content, "#### ", "Undo should restore the typed prefix")
         }
 
         function test_42b_fiveHashesDoNotConvert() {
@@ -1335,7 +1335,7 @@ Item {
             var startTime = Date.now()
             var timeout = 1000
             while (textArea.text.length < 6 && (Date.now() - startTime) < timeout) {
-                blockModel.updateContent(0, "")
+                BlockModel.updateContent(0, "")
                 wait(50)
                 for (var i = 0; i < 5; i++)
                     keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)
@@ -1345,21 +1345,21 @@ Item {
             }
 
             // Five hashes stay literal (the spec defines four levels)
-            compare(blockModel.blockAt(0).blockType, 0, "##### should remain Paragraph")
+            compare(BlockModel.blockAt(0).blockType, 0, "##### should remain Paragraph")
         }
 
         // ========== Milestone 5 Tests: Undo/Redo ==========
 
         function test_43_undoStackExistsInQml() {
-            verify(typeof undoStack !== "undefined", "undoStack should be exposed to QML")
-            verify(undoStack !== null, "undoStack should not be null")
+            verify(typeof UndoStack !== "undefined", "UndoStack should be exposed to QML")
+            verify(UndoStack !== null, "UndoStack should not be null")
         }
 
         function test_44_undoStackPropertiesExposed() {
             // Test that all expected properties are accessible
-            verify(typeof undoStack.canUndo === "boolean", "canUndo should be boolean")
-            verify(typeof undoStack.canRedo === "boolean", "canRedo should be boolean")
-            verify(typeof undoStack.isClean === "boolean", "isClean should be boolean")
+            verify(typeof UndoStack.canUndo === "boolean", "canUndo should be boolean")
+            verify(typeof UndoStack.canRedo === "boolean", "canRedo should be boolean")
+            verify(typeof UndoStack.isClean === "boolean", "isClean should be boolean")
         }
 
         function test_45_statusBarShowsSavedState() {
@@ -1374,224 +1374,224 @@ Item {
 
         function test_46_ctrlZCallsUndo() {
             // Break merge to ensure our change doesn't merge with previous tests
-            undoStack.breakMerge()
+            UndoStack.breakMerge()
 
             // Make a change via the model API to ensure it works
-            var originalContent = blockModel.getContent(1)
+            var originalContent = BlockModel.getContent(1)
             var modifiedContent = originalContent + "X"
 
             // Make change via model
-            blockModel.updateContent(1, modifiedContent)
+            BlockModel.updateContent(1, modifiedContent)
             wait(100)
 
             // Verify change was made
-            compare(blockModel.getContent(1), modifiedContent, "Content should have changed")
-            verify(undoStack.canUndo, "Should be able to undo")
+            compare(BlockModel.getContent(1), modifiedContent, "Content should have changed")
+            verify(UndoStack.canUndo, "Should be able to undo")
 
             // Undo via direct API call (keyboard tested in other tests)
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
 
             // Content should be restored
-            compare(blockModel.getContent(1), originalContent, "Undo should restore the change")
+            compare(BlockModel.getContent(1), originalContent, "Undo should restore the change")
         }
 
         function test_47_ctrlYCallsRedo() {
             // Break merge to ensure our change doesn't merge with previous tests
-            undoStack.breakMerge()
+            UndoStack.breakMerge()
 
             // Make a change via the model API to ensure it works
-            var originalContent = blockModel.getContent(1)
+            var originalContent = BlockModel.getContent(1)
             var modifiedContent = originalContent + "Y"
 
             // Make change via model
-            blockModel.updateContent(1, modifiedContent)
+            BlockModel.updateContent(1, modifiedContent)
             wait(100)
 
-            verify(undoStack.canUndo, "Should be able to undo")
+            verify(UndoStack.canUndo, "Should be able to undo")
 
-            // Undo via undoStack
-            undoStack.undo()
+            // Undo via UndoStack
+            UndoStack.undo()
             wait(100)
 
-            compare(blockModel.getContent(1), originalContent, "Undo should restore original content")
-            verify(undoStack.canRedo, "Should be able to redo")
+            compare(BlockModel.getContent(1), originalContent, "Undo should restore original content")
+            verify(UndoStack.canRedo, "Should be able to redo")
 
             // Redo via direct API call
-            undoStack.redo()
+            UndoStack.redo()
             wait(100)
 
             // Content should be restored to modified version
-            compare(blockModel.getContent(1), modifiedContent, "Redo should restore the change")
+            compare(BlockModel.getContent(1), modifiedContent, "Redo should restore the change")
         }
 
         function test_48_ctrlShiftZCallsRedo() {
             // Break merge to ensure our change doesn't merge with previous tests
-            undoStack.breakMerge()
+            UndoStack.breakMerge()
 
             // Make a change via the model API
-            var originalContent = blockModel.getContent(1)
+            var originalContent = BlockModel.getContent(1)
             var modifiedContent = originalContent + "A"
 
-            blockModel.updateContent(1, modifiedContent)
+            BlockModel.updateContent(1, modifiedContent)
             wait(100)
 
-            verify(undoStack.canUndo, "Should be able to undo")
+            verify(UndoStack.canUndo, "Should be able to undo")
 
-            // Undo via undoStack
-            undoStack.undo()
+            // Undo via UndoStack
+            UndoStack.undo()
             wait(100)
 
-            compare(blockModel.getContent(1), originalContent, "Undo should restore original")
-            verify(undoStack.canRedo, "Should be able to redo")
+            compare(BlockModel.getContent(1), originalContent, "Undo should restore original")
+            verify(UndoStack.canRedo, "Should be able to redo")
 
             // Redo via direct API call (Ctrl+Shift+Z keyboard shortcut tested in real app)
-            undoStack.redo()
+            UndoStack.redo()
             wait(100)
 
-            compare(blockModel.getContent(1), modifiedContent, "Redo should restore the change")
+            compare(BlockModel.getContent(1), modifiedContent, "Redo should restore the change")
         }
 
         function test_49_undoBlockCreation() {
-            var initialCount = blockModel.count
+            var initialCount = BlockModel.count
 
             // Create a new block via the model API
-            blockModel.insertBlock(1, 0, "New block for undo test")
+            BlockModel.insertBlock(1, 0, "New block for undo test")
             wait(100)
 
-            compare(blockModel.count, initialCount + 1, "New block should be created")
-            verify(undoStack.canUndo, "Should be able to undo block creation")
+            compare(BlockModel.count, initialCount + 1, "New block should be created")
+            verify(UndoStack.canUndo, "Should be able to undo block creation")
 
             // Undo should remove the block
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
 
-            compare(blockModel.count, initialCount, "Undo should remove the created block")
+            compare(BlockModel.count, initialCount, "Undo should remove the created block")
         }
 
         function test_50_undoBlockDeletion() {
-            var initialCount = blockModel.count
+            var initialCount = BlockModel.count
 
             // First create a block to delete
-            blockModel.insertBlock(1, 0, "Block to delete")
+            BlockModel.insertBlock(1, 0, "Block to delete")
             wait(100)
 
-            var countAfterCreate = blockModel.count
+            var countAfterCreate = BlockModel.count
             compare(countAfterCreate, initialCount + 1, "Block should be created")
 
             // Delete the block via model
-            blockModel.removeBlock(1)
+            BlockModel.removeBlock(1)
             wait(100)
 
-            compare(blockModel.count, initialCount, "Block should be deleted")
-            verify(undoStack.canUndo, "Should be able to undo deletion")
+            compare(BlockModel.count, initialCount, "Block should be deleted")
+            verify(UndoStack.canUndo, "Should be able to undo deletion")
 
             // Undo should restore the block
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
 
-            compare(blockModel.count, countAfterCreate, "Undo should restore deleted block")
-            compare(blockModel.getContent(1), "Block to delete", "Restored block should have correct content")
+            compare(BlockModel.count, countAfterCreate, "Undo should restore deleted block")
+            compare(BlockModel.getContent(1), "Block to delete", "Restored block should have correct content")
         }
 
         function test_51_modifiedStateAfterChange() {
             // Break merge to ensure our change doesn't merge with previous tests
-            undoStack.breakMerge()
+            UndoStack.breakMerge()
 
             // Make sure we start clean
-            undoStack.setClean()
+            UndoStack.setClean()
             wait(50)
 
             var statusText = findChild(appLoader.item, "saveStateText")
             compare(statusText.text, "Saved", "Should show Saved when clean")
-            verify(undoStack.isClean, "UndoStack should be clean")
+            verify(UndoStack.isClean, "UndoStack should be clean")
 
             // Make a change via the model API
-            var originalContent = blockModel.getContent(1)
-            blockModel.updateContent(1, originalContent + "M")
+            var originalContent = BlockModel.getContent(1)
+            BlockModel.updateContent(1, originalContent + "M")
             wait(100)
 
             // Status should show Unsaved
-            verify(!undoStack.isClean, "UndoStack should not be clean after change")
+            verify(!UndoStack.isClean, "UndoStack should not be clean after change")
             compare(statusText.text, "Unsaved", "Should show Unsaved after change")
         }
 
         function test_52_undoResetsToCleanState() {
             // Clear the undo stack to start fresh, avoiding merge with previous tests
-            undoStack.clear()
+            UndoStack.clear()
             wait(50)
 
             // Set clean state
-            undoStack.setClean()
+            UndoStack.setClean()
             wait(50)
 
             var statusText = findChild(appLoader.item, "saveStateText")
             compare(statusText.text, "Saved", "Should show Saved when clean")
-            verify(undoStack.isClean, "Should start clean")
+            verify(UndoStack.isClean, "Should start clean")
 
             // Break merge chain to ensure new command doesn't merge
-            undoStack.breakMerge()
+            UndoStack.breakMerge()
 
             // Make a change via model API
-            var originalContent = blockModel.getContent(1)
-            blockModel.updateContent(1, originalContent + "N")
+            var originalContent = BlockModel.getContent(1)
+            BlockModel.updateContent(1, originalContent + "N")
             wait(100)
 
             compare(statusText.text, "Unsaved", "Should show Unsaved after change")
-            verify(!undoStack.isClean, "UndoStack should not be clean")
+            verify(!UndoStack.isClean, "UndoStack should not be clean")
 
             // Undo should return to clean state
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
 
-            verify(undoStack.isClean, "UndoStack should be clean after undo")
+            verify(UndoStack.isClean, "UndoStack should be clean after undo")
             compare(statusText.text, "Saved", "Should show Saved after undoing all changes")
         }
 
         // ========== Milestone 6 Tests: Persistence ==========
 
         function test_53_documentManagerExistsInQml() {
-            verify(typeof documentManager !== "undefined", "documentManager should be exposed to QML")
-            verify(documentManager !== null, "documentManager should not be null")
+            verify(typeof DocumentManager !== "undefined", "DocumentManager should be exposed to QML")
+            verify(DocumentManager !== null, "DocumentManager should not be null")
         }
 
         function test_54_documentManagerPropertiesExposed() {
             // Test that all expected properties are accessible
-            verify(typeof documentManager.currentFilePath === "string", "currentFilePath should be string")
-            verify(typeof documentManager.currentFileName === "string", "currentFileName should be string")
-            verify(typeof documentManager.isDirty === "boolean", "isDirty should be boolean")
-            verify(typeof documentManager.hasFile === "boolean", "hasFile should be boolean")
-            verify(typeof documentManager.autoSaveEnabled === "boolean", "autoSaveEnabled should be boolean")
-            verify(typeof documentManager.autoSaveInterval === "number", "autoSaveInterval should be number")
+            verify(typeof DocumentManager.currentFilePath === "string", "currentFilePath should be string")
+            verify(typeof DocumentManager.currentFileName === "string", "currentFileName should be string")
+            verify(typeof DocumentManager.isDirty === "boolean", "isDirty should be boolean")
+            verify(typeof DocumentManager.hasFile === "boolean", "hasFile should be boolean")
+            verify(typeof DocumentManager.autoSaveEnabled === "boolean", "autoSaveEnabled should be boolean")
+            verify(typeof DocumentManager.autoSaveInterval === "number", "autoSaveInterval should be number")
         }
 
         function test_55_initialDocumentState() {
             // After loading sample data, should be "Untitled" with no file
-            compare(documentManager.currentFileName, "Untitled", "Initial document should be 'Untitled'")
-            verify(!documentManager.hasFile, "Initial document should not have a file")
-            compare(documentManager.currentFilePath, "", "Initial file path should be empty")
+            compare(DocumentManager.currentFileName, "Untitled", "Initial document should be 'Untitled'")
+            verify(!DocumentManager.hasFile, "Initial document should not have a file")
+            compare(DocumentManager.currentFilePath, "", "Initial file path should be empty")
         }
 
         function test_56_dirtyStateTracking() {
             // Reset to clean state
-            undoStack.setClean()
+            UndoStack.setClean()
             wait(50)
 
-            verify(!documentManager.isDirty, "Should start clean")
+            verify(!DocumentManager.isDirty, "Should start clean")
 
             // Make a change
-            undoStack.breakMerge()
-            var originalContent = blockModel.getContent(0)
-            blockModel.updateContent(0, originalContent + "TEST")
+            UndoStack.breakMerge()
+            var originalContent = BlockModel.getContent(0)
+            BlockModel.updateContent(0, originalContent + "TEST")
             wait(100)
 
-            verify(documentManager.isDirty, "Should be dirty after change")
+            verify(DocumentManager.isDirty, "Should be dirty after change")
 
             // Undo the change
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
 
-            verify(!documentManager.isDirty, "Should be clean after undo")
+            verify(!DocumentManager.isDirty, "Should be clean after undo")
         }
 
         function test_57_statusBarShowsFilePath() {
@@ -1612,44 +1612,44 @@ Item {
 
         function test_59_windowTitleShowsDirtyState() {
             // Reset to clean state
-            undoStack.setClean()
+            UndoStack.setClean()
             wait(50)
 
             var windowTitle = appLoader.item.title
             verify(windowTitle.indexOf("*") === -1, "Clean document should not have * in title")
 
             // Make a change
-            undoStack.breakMerge()
-            var originalContent = blockModel.getContent(0)
-            blockModel.updateContent(0, originalContent + "DIRTY")
+            UndoStack.breakMerge()
+            var originalContent = BlockModel.getContent(0)
+            BlockModel.updateContent(0, originalContent + "DIRTY")
             wait(100)
 
             windowTitle = appLoader.item.title
             verify(windowTitle.indexOf("*") === 0, "Dirty document should start with * in title")
 
             // Clean up
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
         }
 
         function test_60_newDocumentClears() {
             // Add some content
-            blockModel.insertBlock(0, 0, "Test block for new document")
-            var countBefore = blockModel.count
+            BlockModel.insertBlock(0, 0, "Test block for new document")
+            var countBefore = BlockModel.count
             wait(50)
 
             // Create new document
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
             // Should have single empty paragraph
-            compare(blockModel.count, 1, "New document should have 1 block")
-            compare(blockModel.getContent(0), "", "New document block should be empty")
-            compare(blockModel.blockAt(0).blockType, 0, "New document block should be paragraph")
+            compare(BlockModel.count, 1, "New document should have 1 block")
+            compare(BlockModel.getContent(0), "", "New document block should be empty")
+            compare(BlockModel.blockAt(0).blockType, 0, "New document block should be paragraph")
 
             // Should be clean
-            verify(!documentManager.isDirty, "New document should be clean")
-            verify(!documentManager.hasFile, "New document should not have file")
+            verify(!DocumentManager.isDirty, "New document should be clean")
+            verify(!DocumentManager.hasFile, "New document should not have file")
         }
 
         // ========== Milestone 7 Tests: Polish ==========
@@ -1661,15 +1661,15 @@ Item {
             }
 
             // Setup: Create fresh document with 3 blocks
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            blockModel.updateContent(0, "First")
-            blockModel.insertBlock(1, 0, "Second")
-            blockModel.insertBlock(2, 0, "Third")
+            BlockModel.updateContent(0, "First")
+            BlockModel.insertBlock(1, 0, "Second")
+            BlockModel.insertBlock(2, 0, "Third")
             wait(100)
 
-            compare(blockModel.count, 3, "Should have 3 blocks")
+            compare(BlockModel.count, 3, "Should have 3 blocks")
 
             // Focus second block
             var delegate = findBlockDelegate(1)
@@ -1677,16 +1677,16 @@ Item {
             ensureFocus(textArea)
 
             // Verify initial state
-            compare(blockModel.getContent(0), "First", "Block 0 should be 'First'")
-            compare(blockModel.getContent(1), "Second", "Block 1 should be 'Second'")
+            compare(BlockModel.getContent(0), "First", "Block 0 should be 'First'")
+            compare(BlockModel.getContent(1), "Second", "Block 1 should be 'Second'")
 
             // Press Alt+Up to move block up
             keyClick(Qt.Key_Up, Qt.AltModifier)
             wait(200)
 
             // Verify order changed
-            compare(blockModel.getContent(0), "Second", "Second block should now be first")
-            compare(blockModel.getContent(1), "First", "First block should now be second")
+            compare(BlockModel.getContent(0), "Second", "Second block should now be first")
+            compare(BlockModel.getContent(1), "First", "First block should now be second")
         }
 
         function test_62_altDownMovesBlockDown() {
@@ -1695,12 +1695,12 @@ Item {
             }
 
             // Setup: Create fresh document with 3 blocks
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            blockModel.updateContent(0, "First")
-            blockModel.insertBlock(1, 0, "Second")
-            blockModel.insertBlock(2, 0, "Third")
+            BlockModel.updateContent(0, "First")
+            BlockModel.insertBlock(1, 0, "Second")
+            BlockModel.insertBlock(2, 0, "Third")
             wait(100)
 
             // Focus first block
@@ -1713,8 +1713,8 @@ Item {
             wait(200)
 
             // Verify order changed
-            compare(blockModel.getContent(0), "Second", "Second block should now be first")
-            compare(blockModel.getContent(1), "First", "First block should now be second")
+            compare(BlockModel.getContent(0), "Second", "Second block should now be first")
+            compare(BlockModel.getContent(1), "First", "First block should now be second")
         }
 
         function test_63_altUpAtTopDoesNothing() {
@@ -1723,11 +1723,11 @@ Item {
             }
 
             // Setup: Create fresh document with 2 blocks
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            blockModel.updateContent(0, "First")
-            blockModel.insertBlock(1, 0, "Second")
+            BlockModel.updateContent(0, "First")
+            BlockModel.insertBlock(1, 0, "Second")
             wait(100)
 
             // Focus first block (at top)
@@ -1740,8 +1740,8 @@ Item {
             wait(200)
 
             // Verify order unchanged
-            compare(blockModel.getContent(0), "First", "First block should stay first")
-            compare(blockModel.getContent(1), "Second", "Second block should stay second")
+            compare(BlockModel.getContent(0), "First", "First block should stay first")
+            compare(BlockModel.getContent(1), "Second", "Second block should stay second")
         }
 
         function test_64_altDownAtBottomDoesNothing() {
@@ -1750,11 +1750,11 @@ Item {
             }
 
             // Setup: Create fresh document with 2 blocks
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            blockModel.updateContent(0, "First")
-            blockModel.insertBlock(1, 0, "Second")
+            BlockModel.updateContent(0, "First")
+            BlockModel.insertBlock(1, 0, "Second")
             wait(100)
 
             // Focus last block (at bottom)
@@ -1767,8 +1767,8 @@ Item {
             wait(200)
 
             // Verify order unchanged
-            compare(blockModel.getContent(0), "First", "First block should stay first")
-            compare(blockModel.getContent(1), "Second", "Second block should stay second")
+            compare(BlockModel.getContent(0), "First", "First block should stay first")
+            compare(BlockModel.getContent(1), "Second", "Second block should stay second")
         }
 
         function test_65_moveBlockIsUndoable() {
@@ -1777,16 +1777,16 @@ Item {
             }
 
             // Setup: Create fresh document with 2 blocks
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            blockModel.updateContent(0, "First")
-            blockModel.insertBlock(1, 0, "Second")
+            BlockModel.updateContent(0, "First")
+            BlockModel.insertBlock(1, 0, "Second")
             wait(100)
 
             // Clear undo stack
-            undoStack.clear()
-            undoStack.setClean()
+            UndoStack.clear()
+            UndoStack.setClean()
             wait(50)
 
             // Focus first block and move down
@@ -1797,14 +1797,14 @@ Item {
             keyClick(Qt.Key_Down, Qt.AltModifier)
             wait(200)
 
-            compare(blockModel.getContent(0), "Second", "Move should have happened")
-            verify(undoStack.canUndo, "Should be able to undo move")
+            compare(BlockModel.getContent(0), "Second", "Move should have happened")
+            verify(UndoStack.canUndo, "Should be able to undo move")
 
             // Undo
-            undoStack.undo()
+            UndoStack.undo()
             wait(200)
 
-            compare(blockModel.getContent(0), "First", "Move should be undone")
+            compare(BlockModel.getContent(0), "First", "Move should be undone")
         }
 
         function test_66_moveMaintainsFocus() {
@@ -1813,12 +1813,12 @@ Item {
             }
 
             // Setup: Create fresh document with 3 blocks
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            blockModel.updateContent(0, "First")
-            blockModel.insertBlock(1, 0, "Second")
-            blockModel.insertBlock(2, 0, "Third")
+            BlockModel.updateContent(0, "First")
+            BlockModel.insertBlock(1, 0, "Second")
+            BlockModel.insertBlock(2, 0, "Third")
             wait(100)
 
             // Focus middle block
@@ -1842,15 +1842,15 @@ Item {
         // Step 7b: Status Bar Tests
         function test_67_statusBarShowsBlockType() {
             // Setup: Create fresh document
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)  // Allow time for all updates
 
             var blockTypeText = findChild(appLoader.item, "blockTypeText")
             verify(blockTypeText !== null, "Block type indicator should exist in status bar")
 
             // Verify model state first
-            compare(blockModel.count, 1, "New document should have 1 block")
-            compare(blockModel.blockAt(0).blockType, 0, "Block should be Paragraph type (0)")
+            compare(BlockModel.count, 1, "New document should have 1 block")
+            compare(BlockModel.blockAt(0).blockType, 0, "Block should be Paragraph type (0)")
             var listView = findChild(appLoader.item, "blockListView")
             listView.currentIndex = 0
 
@@ -1860,7 +1860,7 @@ Item {
             tryCompare(blockTypeText, "text", "Paragraph", 1000)
 
             // Change to Heading1
-            blockModel.updateType(0, 1)
+            BlockModel.updateType(0, 1)
             tryCompare(blockTypeText, "text", "Heading 1", 1000)
         }
 
@@ -1882,9 +1882,9 @@ Item {
             var textArea = findTextArea(delegate)
             ensureFocus(textArea)
 
-            // Put known text on the real system clipboard via the C++ helper
-            clipboard.text = "pasted-plain"
-            verify(clipboard.hasText, "Clipboard should report text after setText")
+            // Put known text on the real system Clipboard via the C++ helper
+            Clipboard.text = "pasted-plain"
+            verify(Clipboard.hasText, "Clipboard should report text after setText")
 
             keyClick(Qt.Key_End, Qt.ControlModifier)
             var before = textArea.text
@@ -1892,8 +1892,8 @@ Item {
             wait(100)
 
             compare(textArea.text, before + "pasted-plain",
-                    "Ctrl+Shift+V should insert clipboard text at the cursor")
-            compare(blockModel.getContent(0), before + "pasted-plain",
+                    "Ctrl+Shift+V should insert Clipboard text at the cursor")
+            compare(BlockModel.getContent(0), before + "pasted-plain",
                     "Pasted text should reach the model")
             compare(textArea.cursorPosition, (before + "pasted-plain").length,
                     "Cursor should sit after the pasted text")
@@ -1909,7 +1909,7 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            blockModel.updateContent(0, "bind check")
+            BlockModel.updateContent(0, "bind check")
             wait(50)
 
             var delegate = findBlockDelegate(0)
@@ -1920,13 +1920,13 @@ Item {
             textArea.select(0, 4)
             keyClick(Qt.Key_B, Qt.ControlModifier)
             wait(50)
-            compare(blockModel.getContent(0), "**bind** check",
+            compare(BlockModel.getContent(0), "**bind** check",
                     "Ctrl+B should bold the selection in the model")
             compare(textArea.text, "**bind** check",
                     "Display should follow the model after Ctrl+B")
 
             // A later model-driven change must still refresh the display
-            blockModel.updateContent(0, "refreshed from model")
+            BlockModel.updateContent(0, "refreshed from model")
             wait(50)
             compare(textArea.text, "refreshed from model",
                     "Model-driven change must still refresh the display (binding intact)")
@@ -1940,9 +1940,9 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            blockModel.updateContent(0, "bind check")
+            BlockModel.updateContent(0, "bind check")
             wait(100)
-            undoStack.breakMerge()
+            UndoStack.breakMerge()
 
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
@@ -1951,19 +1951,19 @@ Item {
             textArea.select(0, 4)
             keyClick(Qt.Key_B, Qt.ControlModifier)
             wait(100)
-            compare(blockModel.getContent(0), "**bind** check",
+            compare(BlockModel.getContent(0), "**bind** check",
                     "Ctrl+B should bold the selection in the model")
 
-            undoStack.undo()
+            UndoStack.undo()
             wait(100)
-            compare(blockModel.getContent(0), "bind check",
+            compare(BlockModel.getContent(0), "bind check",
                     "One undo should revert the whole formatting toggle")
             compare(textArea.text, "bind check",
                     "Undo should restore the rendering too")
 
-            undoStack.redo()
+            UndoStack.redo()
             wait(100)
-            compare(blockModel.getContent(0), "**bind** check",
+            compare(BlockModel.getContent(0), "**bind** check",
                     "Redo should re-apply the formatting")
         }
 
@@ -1974,7 +1974,7 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            blockModel.updateContent(0, "This is **important** *information* here")
+            BlockModel.updateContent(0, "This is **important** *information* here")
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -1994,19 +1994,19 @@ Item {
                    "Bold span touched by selection should reveal its syntax")
             verify(textArea.text.indexOf("*information*") !== -1,
                    "Italic span touched by selection should reveal its syntax")
-            compare(blockModel.getContent(0),
+            compare(BlockModel.getContent(0),
                     "This is **important** *information* here",
                     "Selection reveal must never alter the model")
         }
 
         function test_69e_ctrlCCopiesSelectionAsMarkdown() {
-            // Copy puts markdown on the clipboard — selecting the
+            // Copy puts markdown on the Clipboard — selecting the
             // rendered bold word copies "**world**".
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
 
-            blockModel.updateContent(0, "Hello **world** end")
+            BlockModel.updateContent(0, "Hello **world** end")
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2020,12 +2020,12 @@ Item {
             textArea.select(6, 11)
             wait(150)
 
-            clipboard.text = ""
+            Clipboard.text = ""
             keyClick(Qt.Key_C, Qt.ControlModifier)
             wait(100)
-            compare(clipboard.text, "**world**",
+            compare(Clipboard.text, "**world**",
                     "Copy should capture the selection as markdown")
-            compare(blockModel.getContent(0), "Hello **world** end",
+            compare(BlockModel.getContent(0), "Hello **world** end",
                     "Copy must not alter the model")
         }
 
@@ -2036,7 +2036,7 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            blockModel.updateContent(0, "Hello **world** end")
+            BlockModel.updateContent(0, "Hello **world** end")
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2048,12 +2048,12 @@ Item {
             textArea.select(6, 11)
             wait(150)
 
-            clipboard.text = ""
+            Clipboard.text = ""
             keyClick(Qt.Key_X, Qt.ControlModifier)
             wait(100)
-            compare(clipboard.text, "**world**",
+            compare(Clipboard.text, "**world**",
                     "Cut should capture the selection as markdown")
-            compare(blockModel.getContent(0), "Hello  end",
+            compare(BlockModel.getContent(0), "Hello  end",
                     "Cut should remove the span including its markers")
 
             // Paste it back: cut+paste round-trips
@@ -2062,7 +2062,7 @@ Item {
             textArea.cursorPosition = 6
             keyClick(Qt.Key_V, Qt.ControlModifier)
             wait(100)
-            compare(blockModel.getContent(0), "Hello **world** end",
+            compare(BlockModel.getContent(0), "Hello **world** end",
                     "Cut followed by paste should restore the markdown")
         }
 
@@ -2072,7 +2072,7 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            blockModel.updateContent(0, "start ")
+            BlockModel.updateContent(0, "start ")
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2081,11 +2081,11 @@ Item {
             keyClick(Qt.Key_End, Qt.ControlModifier)
             wait(80)
 
-            clipboard.text = "**pasted**"
+            Clipboard.text = "**pasted**"
             keyClick(Qt.Key_V, Qt.ControlModifier)
             wait(150)
 
-            compare(blockModel.getContent(0), "start **pasted**",
+            compare(BlockModel.getContent(0), "start **pasted**",
                     "Pasted markdown should reach the model verbatim")
 
             // Cursor sits at the end of the pasted span, so it is revealed;
@@ -2101,9 +2101,9 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "headtail")
+            BlockModel.updateContent(0, "headtail")
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2112,14 +2112,14 @@ Item {
             textArea.cursorPosition = 4 // between "head" and "tail"
             wait(80)
 
-            clipboard.text = "one\r\ntwo\nthree"
+            Clipboard.text = "one\r\ntwo\nthree"
             keyClick(Qt.Key_V, Qt.ControlModifier)
             wait(200)
 
-            compare(blockModel.count, 3, "Multi-line paste should split into blocks")
-            compare(blockModel.getContent(0), "headone", "First line joins text before cursor")
-            compare(blockModel.getContent(1), "two", "Middle line becomes its own block")
-            compare(blockModel.getContent(2), "threetail", "Last line joins text after cursor")
+            compare(BlockModel.count, 3, "Multi-line paste should split into blocks")
+            compare(BlockModel.getContent(0), "headone", "First line joins text before cursor")
+            compare(BlockModel.getContent(1), "two", "Middle line becomes its own block")
+            compare(BlockModel.getContent(2), "threetail", "Last line joins text after cursor")
         }
 
         function test_69i_pastePlainStripsFormatting() {
@@ -2128,18 +2128,18 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
             ensureFocus(textArea)
 
-            clipboard.text = "**bold** and *italic*"
+            Clipboard.text = "**bold** and *italic*"
             keyClick(Qt.Key_V, Qt.ControlModifier | Qt.ShiftModifier)
             wait(150)
 
-            compare(blockModel.getContent(0), "bold and italic",
+            compare(BlockModel.getContent(0), "bold and italic",
                     "Paste-plain should strip markdown markers")
         }
 
@@ -2164,7 +2164,7 @@ Item {
             ]
             for (var i = 0; i < cases.length; i++) {
                 var c = cases[i]
-                blockModel.updateContent(0, "word")
+                BlockModel.updateContent(0, "word")
                 wait(100)
                 delegate = findBlockDelegate(0)
                 textArea = findTextArea(delegate)
@@ -2173,14 +2173,14 @@ Item {
                 wait(50)
                 keyClick(c.key, c.mods)
                 wait(100)
-                compare(blockModel.getContent(0), c.expected,
+                compare(BlockModel.getContent(0), c.expected,
                         c.label + " should toggle markers in the model")
             }
 
             // Collapsed cursor: the toggle inserts an empty marker pair
             // and typing lands between the markers (format-then-type,
             // features.md §2.2.7).
-            blockModel.updateContent(0, "pre ")
+            BlockModel.updateContent(0, "pre ")
             wait(100)
             delegate = findBlockDelegate(0)
             textArea = findTextArea(delegate)
@@ -2189,11 +2189,11 @@ Item {
             wait(50)
             keyClick(Qt.Key_E, Qt.ControlModifier)
             wait(100)
-            compare(blockModel.getContent(0), "pre ``",
+            compare(BlockModel.getContent(0), "pre ``",
                     "Collapsed Ctrl+E should insert an empty marker pair")
             keyClick(Qt.Key_X)
             wait(100)
-            compare(blockModel.getContent(0), "pre `x`",
+            compare(BlockModel.getContent(0), "pre `x`",
                     "Typing should land between the inserted markers")
 
             textArea.focus = false
@@ -2211,7 +2211,7 @@ Item {
             var textArea = findTextArea(delegate)
             var dialog = appLoader.item.linkDialog
 
-            blockModel.updateContent(0, "word")
+            BlockModel.updateContent(0, "word")
             wait(100)
             ensureFocus(textArea)
             textArea.selectAll()
@@ -2225,7 +2225,7 @@ Item {
             dialog.urlField.text = "https://qt.io"
             dialog.accept()
             wait(150)
-            compare(blockModel.getContent(0), "[word](https://qt.io)",
+            compare(BlockModel.getContent(0), "[word](https://qt.io)",
                     "Accepting the dialog writes the link through the model")
 
             textArea.focus = false
@@ -2241,7 +2241,7 @@ Item {
             var textArea = findTextArea(delegate)
             var dialog = appLoader.item.linkDialog
 
-            blockModel.updateContent(0, "go [ab](http://x) on")
+            BlockModel.updateContent(0, "go [ab](http://x) on")
             wait(100)
             ensureFocus(textArea)
             textArea.cursorPosition = 4 // inside the link text
@@ -2256,7 +2256,7 @@ Item {
             dialog.textField.text = "cd"
             dialog.accept()
             wait(150)
-            compare(blockModel.getContent(0), "go [cd](https://y.io) on",
+            compare(BlockModel.getContent(0), "go [cd](https://y.io) on",
                     "Accepting rewrites the existing link in place")
 
             textArea.focus = false
@@ -2272,7 +2272,7 @@ Item {
             var textArea = findTextArea(delegate)
             var dialog = appLoader.item.linkDialog
 
-            blockModel.updateContent(0, "go [ab](http://x) on")
+            BlockModel.updateContent(0, "go [ab](http://x) on")
             wait(100)
             ensureFocus(textArea)
             textArea.cursorPosition = 4
@@ -2283,7 +2283,7 @@ Item {
 
             dialog.removeLink()
             wait(150)
-            compare(blockModel.getContent(0), "go ab on",
+            compare(BlockModel.getContent(0), "go ab on",
                     "Remove link keeps the text (features.md §2.4)")
 
             textArea.focus = false
@@ -2299,7 +2299,7 @@ Item {
             var textArea = findTextArea(delegate)
             var opener = appLoader.item.linkOpener
 
-            blockModel.updateContent(0, "go [ab](http://x) on")
+            BlockModel.updateContent(0, "go [ab](http://x) on")
             wait(100)
             ensureFocus(textArea)
             keyClick(Qt.Key_End)
@@ -2338,7 +2338,7 @@ Item {
                 textArea.focus = false
                 tryCompare(textArea, "activeFocus", false, 1000)
             }
-            blockModel.updateContent(0, "go [ab](http://x) on")
+            BlockModel.updateContent(0, "go [ab](http://x) on")
             wait(100)
 
             opener.openExternally = false
@@ -2371,7 +2371,7 @@ Item {
         }
 
         function test_70_emptyDocumentShowsPlaceholder() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2386,10 +2386,10 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            compare(blockModel.count, 1, "Should have exactly 1 block")
+            compare(BlockModel.count, 1, "Should have exactly 1 block")
 
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
@@ -2400,7 +2400,7 @@ Item {
             keyClick(Qt.Key_Backspace)
             wait(100)
 
-            verify(blockModel.count >= 1, "Should maintain at least one block")
+            verify(BlockModel.count >= 1, "Should maintain at least one block")
         }
 
         function test_72_rapidBlockCreation() {
@@ -2408,7 +2408,7 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2422,29 +2422,29 @@ Item {
             }
             wait(200)
 
-            compare(blockModel.count, 11, "Should have 11 blocks after 10 Enter presses")
+            compare(BlockModel.count, 11, "Should have 11 blocks after 10 Enter presses")
         }
 
         function test_73_specialCharactersPreserved() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
             var testContent = "Unicode: émojis 🎉 and symbols ™ €"
-            blockModel.updateContent(0, testContent)
+            BlockModel.updateContent(0, testContent)
             wait(100)
 
-            compare(blockModel.getContent(0), testContent, "Unicode content should be preserved")
+            compare(BlockModel.getContent(0), testContent, "Unicode content should be preserved")
         }
 
         function test_74_markdownSyntaxPreserved() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
             var testContent = "Text with **bold** and *italic* and ***both***"
-            blockModel.updateContent(0, testContent)
+            BlockModel.updateContent(0, testContent)
             wait(100)
 
-            compare(blockModel.getContent(0), testContent, "Markdown syntax should be preserved")
+            compare(BlockModel.getContent(0), testContent, "Markdown syntax should be preserved")
         }
 
         function test_75_typingLatencyIn100BlockDocument() {
@@ -2457,23 +2457,23 @@ Item {
                 skip("Keyboard tests require display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             // All block types participate: ordinal recomputation
             // joins the per-edit path, so numbered items must be present
             // for the measurement to cover it. The typed-into block stays
             // a paragraph so the keystrokes exercise the inline parser.
-            blockModel.insertBlock(0, 0,
+            BlockModel.insertBlock(0, 0,
                 "Block 0 with **bold** and *italic* text content")
             for (var i = 1; i < 99; i++) {
                 var type = [0, 4, 5, 6, 7, 8, 9][i % 7]
-                blockModel.insertBlock(i, type,
+                BlockModel.insertBlock(i, type,
                     type === 9 ? ""
                                : "Block " + i + " with **bold** and *italic* text",
                     type >= 4 && type <= 6 ? i % 3 : 0)
             }
             wait(300)
-            compare(blockModel.count, 100, "Should have 100 blocks")
+            compare(BlockModel.count, 100, "Should have 100 blocks")
 
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
@@ -2507,25 +2507,25 @@ Item {
             }
 
             resetFindBar()
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 0,
+            BlockModel.insertBlock(0, 0,
                 "Block 0 with **bold** and *italic* text content")
             for (var i = 1; i < 99; i++) {
                 var type = [0, 4, 5, 6, 7, 8, 9][i % 7]
-                blockModel.insertBlock(i, type,
+                BlockModel.insertBlock(i, type,
                     type === 9 ? ""
                                : "Block " + i + " with **bold** and *italic* text",
                     type >= 4 && type <= 6 ? i % 3 : 0)
             }
             wait(300)
-            compare(blockModel.count, 100)
+            compare(BlockModel.count, 100)
 
             // "block" matches once per non-divider block: close to the
             // worst realistic match density.
             openFindBar()
             typeString("block")
-            tryVerify(function() { return documentSearch.matchCount > 80 },
+            tryVerify(function() { return DocumentSearch.matchCount > 80 },
                       2000)
 
             var delegate = findBlockDelegate(0)
@@ -2543,7 +2543,7 @@ Item {
             var perKey = (Date.now() - t0) / keystrokes
             console.log("TYPING LATENCY (find bar open): " + perKey.toFixed(2)
                         + " ms/keystroke over " + keystrokes
-                        + " keystrokes, " + documentSearch.matchCount
+                        + " keystrokes, " + DocumentSearch.matchCount
                         + " live matches in a 100-block document")
 
             verify(perKey < 16,
@@ -2562,12 +2562,12 @@ Item {
             }
 
             // (1) Keystroke latency in a 200-line highlighted code block.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             var code = ""
             for (var l = 0; l < 200; l++)
                 code += "def f" + l + "(x): return x * " + l + "  # comment " + l + "\n"
-            blockModel.convertBlock(0, Block.CodeBlock, code, false, "python")
+            BlockModel.convertBlock(0, Block.CodeBlock, code, false, "python")
             wait(300)
             var codeArea = findTextArea(findBlockDelegate(0))
             ensureFocus(codeArea)
@@ -2584,13 +2584,13 @@ Item {
                    + perKey.toFixed(2) + "ms)")
 
             // (2) A 100-image document opens under the 1-second budget.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             var tOpen = Date.now()
             for (var i = 0; i < 100; i++)
-                blockModel.insertBlock(i, Block.Image,
-                    imageAssets.build(sampleImagePath, "img " + i, "", 0))
-            tryVerify(function() { return blockModel.count >= 100 }, 3000,
+                BlockModel.insertBlock(i, Block.Image,
+                    ImageAssets.build(sampleImagePath, "img " + i, "", 0))
+            tryVerify(function() { return BlockModel.count >= 100 }, 3000,
                       "the 100-image document is built")
             var openMs = Date.now() - tOpen
             console.log("100-IMAGE OPEN: " + openMs + " ms (layout, not decoding)")
@@ -2599,9 +2599,9 @@ Item {
                    + openMs + "ms)")
 
             // (3) Table cell navigation per Tab.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, Block.Table,
+            BlockModel.convertBlock(0, Block.Table,
                 "| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |")
             wait(300)
             var tbl = findBlockDelegate(0)
@@ -2627,12 +2627,12 @@ Item {
 
             // (1) Keystroke latency with a 50-heading outline live and
             // typewriter mode on (keeps the ≤16 ms budget).
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             var md = ""
             for (var h = 0; h < 50; h++)
                 md += "## Section " + h + "\n\nBody paragraph " + h + " here.\n\n"
-            documentSerializer.loadIntoModel(blockModel, md)
-            documentOutline.rebuildNow()
+            DocumentSerializer.loadIntoModel(BlockModel, md)
+            DocumentOutline.rebuildNow()
             appLoader.item.outlineVisible = true
             appLoader.item.typewriterMode = true
             wait(300)
@@ -2653,27 +2653,27 @@ Item {
             appLoader.item.typewriterMode = false
 
             // (2) Building the outline over a 200-heading document under 100ms.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             var big = ""
             for (var i = 0; i < 200; i++)
                 big += "# Heading " + i + "\n\ntext\n\n"
-            documentSerializer.loadIntoModel(blockModel, big)
+            DocumentSerializer.loadIntoModel(BlockModel, big)
             var tO = Date.now()
-            documentOutline.rebuildNow()
+            DocumentOutline.rebuildNow()
             var outlineMs = Date.now() - tO
             console.log("OUTLINE BUILD (200 headings): " + outlineMs + " ms")
-            compare(documentOutline.count, 200)
+            compare(DocumentOutline.count, 200)
             verify(outlineMs < 100, "a 200-heading outline must build under "
                    + "100ms (measured " + outlineMs + "ms)")
 
             // (3) Exporting a 100-block note to HTML under 200ms.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             var doc = ""
             for (var b = 0; b < 100; b++)
                 doc += "Block " + b + " with **bold** and a [link](http://x).\n\n"
-            documentSerializer.loadIntoModel(blockModel, doc)
+            DocumentSerializer.loadIntoModel(BlockModel, doc)
             var tE = Date.now()
-            var html = documentExporter.htmlForModel(blockModel, "Perf")
+            var html = DocumentExporter.htmlForModel(BlockModel, "Perf")
             var exportMs = Date.now() - tE
             console.log("HTML EXPORT (100 blocks): " + exportMs + " ms")
             verify(html.length > 0)
@@ -2681,11 +2681,11 @@ Item {
                    + "200ms (measured " + exportMs + "ms)")
 
             // (4) An inline-math-dense paragraph (10 equations) keystroke.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             var mathPara = "Math"
             for (var e = 0; e < 10; e++)
                 mathPara += " $x_" + e + "^2$"
-            blockModel.updateContent(0, mathPara)
+            BlockModel.updateContent(0, mathPara)
             wait(200)
             var mta = findTextArea(findBlockDelegate(0))
             ensureFocus(mta)
@@ -2706,39 +2706,39 @@ Item {
             // Save -> close -> reopen -> identical content, including
             // markdown that never parsed to spans (edge syntax preserved
             // verbatim).
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
-            blockModel.updateType(0, 1)
-            blockModel.updateContent(0, "Title with **bold**")
-            blockModel.insertBlock(1, 0, "plain paragraph text")
-            blockModel.insertBlock(2, 0, "edge **unclosed and a*b and ****")
-            blockModel.insertBlock(3, 0, "***both*** with *it* and **bo**")
-            blockModel.insertBlock(4, 2, "Section heading content")
+            BlockModel.updateType(0, 1)
+            BlockModel.updateContent(0, "Title with **bold**")
+            BlockModel.insertBlock(1, 0, "plain paragraph text")
+            BlockModel.insertBlock(2, 0, "edge **unclosed and a*b and ****")
+            BlockModel.insertBlock(3, 0, "***both*** with *it* and **bo**")
+            BlockModel.insertBlock(4, 2, "Section heading content")
             wait(100)
 
             var expected = []
-            for (var i = 0; i < blockModel.count; i++) {
-                expected.push({ t: blockModel.blockAt(i).blockType,
-                                c: blockModel.getContent(i) })
+            for (var i = 0; i < BlockModel.count; i++) {
+                expected.push({ t: BlockModel.blockAt(i).blockType,
+                                c: BlockModel.getContent(i) })
             }
 
-            var url = documentManager.toLocalFileUrl("/tmp/kvit_roundtrip_test.md")
-            verify(documentManager.saveAs(url), "Save should succeed")
+            var url = DocumentManager.toLocalFileUrl("/tmp/kvit_roundtrip_test.md")
+            verify(DocumentManager.saveAs(url), "Save should succeed")
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            compare(blockModel.count, 1, "New document should reset the model")
+            compare(BlockModel.count, 1, "New document should reset the model")
 
-            verify(documentManager.open(url), "Open should succeed")
+            verify(DocumentManager.open(url), "Open should succeed")
             wait(100)
 
-            compare(blockModel.count, expected.length,
+            compare(BlockModel.count, expected.length,
                     "Reopened document should have the same block count")
             for (var j = 0; j < expected.length; j++) {
-                compare(blockModel.blockAt(j).blockType, expected[j].t,
+                compare(BlockModel.blockAt(j).blockType, expected[j].t,
                         "Block " + j + " type should round-trip")
-                compare(blockModel.getContent(j), expected[j].c,
+                compare(BlockModel.getContent(j), expected[j].c,
                         "Block " + j + " content should round-trip verbatim")
             }
         }
@@ -2746,13 +2746,13 @@ Item {
         function test_77_delegatePoolingWithEngine() {
             // Delegate pooling (reuseItems) safe with the
             // engine attached — pooled delegates detach/reattach cleanly.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             for (var i = 0; i < 99; i++) {
-                blockModel.insertBlock(i, 0, "Pool block " + i + " **b" + i + "**")
+                BlockModel.insertBlock(i, 0, "Pool block " + i + " **b" + i + "**")
             }
             wait(200)
-            compare(blockModel.count, 100)
+            compare(BlockModel.count, 100)
 
             var listView = findChild(appLoader.item, "blockListView")
             for (var pass = 0; pass < 3; pass++) {
@@ -2766,9 +2766,9 @@ Item {
             var textArea = findTextArea(delegate)
             compare(textArea.text, "Pool block 0 b0",
                     "Reused delegate should display its block's display text")
-            compare(delegate.editorEngine.markdown, blockModel.getContent(0),
+            compare(delegate.editorEngine.markdown, BlockModel.getContent(0),
                     "Reused delegate's engine should mirror its block's markdown")
-            compare(blockModel.getContent(98), "Pool block 98 **b98**",
+            compare(BlockModel.getContent(98), "Pool block 98 **b98**",
                     "Model content must survive pooling passes")
         }
 
@@ -2777,11 +2777,11 @@ Item {
             // generated document, against the features.md §21.7 target
             // (< 1s). The generator mixes every block type, so the measurement
             // covers the line scanner and per-type delegates.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             for (var i = 0; i < 199; i++) {
                 var type = [0, 4, 5, 6, 7, 8, 9][i % 7]
-                blockModel.insertBlock(i, type,
+                BlockModel.insertBlock(i, type,
                     type === 9 ? ""
                                : "Load test block " + i + " with **bold** text",
                     type >= 4 && type <= 6 ? i % 3 : 0)
@@ -2789,21 +2789,21 @@ Item {
             // The initial empty block became index 199; empty blocks are
             // unrepresentable in blank-line-separated markdown, so give it
             // content to make all 200 blocks round-trip.
-            blockModel.updateContent(199, "Final load test block")
+            BlockModel.updateContent(199, "Final load test block")
             wait(100)
-            var url = documentManager.toLocalFileUrl("/tmp/kvit_loadtime_test.md")
-            verify(documentManager.saveAs(url), "Save should succeed")
+            var url = DocumentManager.toLocalFileUrl("/tmp/kvit_loadtime_test.md")
+            verify(DocumentManager.saveAs(url), "Save should succeed")
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
 
             var t0 = Date.now()
-            verify(documentManager.open(url), "Open should succeed")
+            verify(DocumentManager.open(url), "Open should succeed")
             var elapsed = Date.now() - t0
             console.log("LOAD TIME: " + elapsed
                         + " ms for a 200-block mixed-type document")
 
-            compare(blockModel.count, 200, "All blocks should load")
+            compare(BlockModel.count, 200, "All blocks should load")
             verify(elapsed < 1000, "200-block load must stay under 1s (measured "
                    + elapsed + "ms)")
         }
@@ -2813,11 +2813,11 @@ Item {
         // ==================================================================
 
         function test_80_bulletDelegateRendersGlyphByLevel() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 4, "level zero")
-            blockModel.insertBlock(1, 4, "level one", 1)
-            blockModel.insertBlock(2, 4, "level two", 2)
+            BlockModel.insertBlock(0, 4, "level zero")
+            BlockModel.insertBlock(1, 4, "level one", 1)
+            BlockModel.insertBlock(2, 4, "level two", 2)
             wait(100)
 
             var expected = ["•", "◦", "▪"]
@@ -2835,12 +2835,12 @@ Item {
         }
 
         function test_81_numberedDelegateShowsComputedOrdinals() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 5, "one")
-            blockModel.insertBlock(1, 5, "two")
-            blockModel.insertBlock(2, 0, "interruption")
-            blockModel.insertBlock(3, 5, "restart")
+            BlockModel.insertBlock(0, 5, "one")
+            BlockModel.insertBlock(1, 5, "two")
+            BlockModel.insertBlock(2, 0, "interruption")
+            BlockModel.insertBlock(3, 5, "restart")
             wait(100)
 
             compare(findChild(findBlockDelegate(0), "ordinalLabel").text, "1.")
@@ -2849,7 +2849,7 @@ Item {
                     "A paragraph interrupts the run, numbering restarts")
 
             // Insertion renumbers automatically (§1.2.5)
-            blockModel.insertBlock(1, 5, "inserted")
+            BlockModel.insertBlock(1, 5, "inserted")
             wait(100)
             compare(findChild(findBlockDelegate(1), "ordinalLabel").text, "2.")
             compare(findChild(findBlockDelegate(2), "ordinalLabel").text, "3.",
@@ -2857,41 +2857,41 @@ Item {
         }
 
         function test_82_todoCheckboxTogglesAndStyles() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 6, "buy milk")
+            BlockModel.insertBlock(0, 6, "buy milk")
             wait(100)
 
             var delegate = findBlockDelegate(0)
             var textArea = findTextArea(delegate)
             var checkbox = findChild(delegate, "todoCheckbox")
             verify(checkbox !== null, "Todo checkbox should exist")
-            compare(blockModel.blockAt(0).checked, false)
+            compare(BlockModel.blockAt(0).checked, false)
             compare(textArea.font.strikeout, false)
 
             // Clicking the checkbox checks the todo and strikes the text
             mouseClick(checkbox)
-            tryVerify(function() { return blockModel.blockAt(0).checked }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).checked }, 1000,
                       "Checkbox click should check the todo")
             tryVerify(function() { return textArea.font.strikeout === true }, 1000,
                       "Completed todo should render struck through")
 
             // The toggle is one undoable step
-            undoStack.undo()
-            tryVerify(function() { return !blockModel.blockAt(0).checked }, 1000,
+            UndoStack.undo()
+            tryVerify(function() { return !BlockModel.blockAt(0).checked }, 1000,
                       "Undo should uncheck the todo")
             tryVerify(function() { return textArea.font.strikeout === false }, 1000,
                       "Unchecked todo should lose the strikethrough")
 
             // Clicking again from unchecked checks it once more
             mouseClick(checkbox)
-            tryVerify(function() { return blockModel.blockAt(0).checked }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(0).checked }, 1000)
         }
 
         function test_83_quoteDelegateRendersBar() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 7, "wise words\nsecond line")
+            BlockModel.insertBlock(0, 7, "wise words\nsecond line")
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2904,10 +2904,10 @@ Item {
         }
 
         function test_84_codeBlockIsVerbatim() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             var code = "def f():\n    return \"**not bold** `not code`\""
-            blockModel.insertBlock(0, 8, code)
+            BlockModel.insertBlock(0, 8, code)
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -2926,7 +2926,7 @@ Item {
                 // Formatting shortcuts are inert (markers would be literal)
                 keyClick(Qt.Key_B, Qt.ControlModifier)
                 wait(100)
-                compare(blockModel.getContent(0), code,
+                compare(BlockModel.getContent(0), code,
                         "Ctrl+B must not edit code block content")
             }
         }
@@ -2935,11 +2935,11 @@ Item {
             if (isHeadless) {
                 skip("Focus traversal requires display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 0, "above")
-            blockModel.insertBlock(1, 9, "")
-            blockModel.insertBlock(2, 0, "below")
+            BlockModel.insertBlock(0, 0, "above")
+            BlockModel.insertBlock(1, 9, "")
+            BlockModel.insertBlock(2, 0, "below")
             wait(100)
 
             var above = findBlockDelegate(0)
@@ -2969,11 +2969,11 @@ Item {
             }
             // Focus alone never resizes a block (a block-geometry
             // invariant) — now also for the structural types.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 4, "bullet **bold** *italic*")
-            blockModel.insertBlock(1, 6, "todo with ==mark== text")
-            blockModel.insertBlock(2, 7, "quote `code` text")
+            BlockModel.insertBlock(0, 4, "bullet **bold** *italic*")
+            BlockModel.insertBlock(1, 6, "todo with ==mark== text")
+            BlockModel.insertBlock(2, 7, "quote `code` text")
             wait(150)
 
             for (var i = 0; i < 3; i++) {
@@ -2992,10 +2992,10 @@ Item {
         }
 
         function test_87_statusBarNamesNewTypes() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 4, "a bullet")
-            blockModel.insertBlock(1, 8, "code")
+            BlockModel.insertBlock(0, 4, "a bullet")
+            BlockModel.insertBlock(1, 8, "code")
             wait(100)
 
             var listView = findChild(appLoader.item, "blockListView")
@@ -3010,11 +3010,11 @@ Item {
         function test_88_delegatePoolingWithMixedTypes() {
             // The pooling guarantee extended to per-type delegates:
             // pooled delegates of every kind detach and reattach cleanly.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             for (var i = 0; i < 60; i++) {
                 var type = [0, 4, 5, 6, 7, 8, 9][i % 7]
-                blockModel.insertBlock(i, type,
+                BlockModel.insertBlock(i, type,
                     type === 9 ? "" : "Mixed pool block " + i)
             }
             wait(200)
@@ -3034,7 +3034,7 @@ Item {
             compare(findTextArea(bulletDelegate).text, "Mixed pool block 1")
             verify(findChild(findBlockDelegate(6), "dividerLine") !== null,
                    "Divider delegate should survive pooling")
-            compare(blockModel.getContent(57), "Mixed pool block 57",
+            compare(BlockModel.getContent(57), "Mixed pool block 57",
                     "Model content must survive pooling passes")
         }
 
@@ -3046,23 +3046,23 @@ Item {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 6, "checked task", 1)
-            blockModel.setChecked(0, true)
+            BlockModel.insertBlock(0, 6, "checked task", 1)
+            BlockModel.setChecked(0, true)
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(0))
             ensureFocus(textArea)
             keyClick(Qt.Key_End)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.count === 3 }, 1000)
+            tryVerify(function() { return BlockModel.count === 3 }, 1000)
 
             // The new item continues the type at the same indent, unchecked
-            compare(blockModel.blockAt(1).blockType, 6, "Enter continues the todo type")
-            compare(blockModel.blockAt(1).indentLevel, 1, "Continuation keeps the indent")
-            compare(blockModel.blockAt(1).checked, false, "A new todo starts unchecked")
-            compare(blockModel.blockAt(0).checked, true, "The first item keeps its state")
+            compare(BlockModel.blockAt(1).blockType, 6, "Enter continues the todo type")
+            compare(BlockModel.blockAt(1).indentLevel, 1, "Continuation keeps the indent")
+            compare(BlockModel.blockAt(1).checked, false, "A new todo starts unchecked")
+            compare(BlockModel.blockAt(0).checked, true, "The first item keeps its state")
 
             // Focus and cursor land in the new item
             var newTextArea = findTextArea(findBlockDelegate(1))
@@ -3071,14 +3071,14 @@ Item {
             compare(newTextArea.cursorPosition, 0)
 
             // Enter at the end of a heading still makes a paragraph (§1.2.2)
-            blockModel.convertBlock(0, 1, "A heading")
+            BlockModel.convertBlock(0, 1, "A heading")
             wait(100)
             var headingArea = findTextArea(findBlockDelegate(0))
             ensureFocus(headingArea)
             keyClick(Qt.Key_End)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.count === 4 }, 1000)
-            compare(blockModel.blockAt(1).blockType, 0,
+            tryVerify(function() { return BlockModel.count === 4 }, 1000)
+            compare(BlockModel.blockAt(1).blockType, 0,
                     "Enter after a heading creates a paragraph")
         }
 
@@ -3086,10 +3086,10 @@ Item {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 4, "an item")
-            blockModel.insertBlock(1, 4, "", 0)
+            BlockModel.insertBlock(0, 4, "an item")
+            BlockModel.insertBlock(1, 4, "", 0)
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(1))
@@ -3097,13 +3097,13 @@ Item {
             keyClick(Qt.Key_Return)
 
             // The empty item becomes a paragraph in place — no new block
-            tryVerify(function() { return blockModel.blockAt(1).blockType === 0 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(1).blockType === 0 }, 1000,
                       "Enter on an empty list item should exit list mode")
-            compare(blockModel.count, 3)
+            compare(BlockModel.count, 3)
 
             // The exit is one undo step
-            undoStack.undo()
-            tryVerify(function() { return blockModel.blockAt(1).blockType === 4 }, 1000,
+            UndoStack.undo()
+            tryVerify(function() { return BlockModel.blockAt(1).blockType === 4 }, 1000,
                       "One undo should restore the list item")
         }
 
@@ -3111,10 +3111,10 @@ Item {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 0, "above")
-            blockModel.insertBlock(1, 6, "a task", 2)
+            BlockModel.insertBlock(0, 0, "above")
+            BlockModel.insertBlock(1, 6, "a task", 2)
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(1))
@@ -3123,36 +3123,36 @@ Item {
 
             // Indented: Backspace outdents one level at a time
             keyClick(Qt.Key_Backspace)
-            tryVerify(function() { return blockModel.blockAt(1).indentLevel === 1 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(1).indentLevel === 1 }, 1000)
             keyClick(Qt.Key_Backspace)
-            tryVerify(function() { return blockModel.blockAt(1).indentLevel === 0 }, 1000)
-            compare(blockModel.blockAt(1).blockType, 6, "Still a todo while outdenting")
+            tryVerify(function() { return BlockModel.blockAt(1).indentLevel === 0 }, 1000)
+            compare(BlockModel.blockAt(1).blockType, 6, "Still a todo while outdenting")
 
             // At the margin: Backspace converts to a paragraph, content kept
             keyClick(Qt.Key_Backspace)
-            tryVerify(function() { return blockModel.blockAt(1).blockType === 0 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(1).blockType === 0 }, 1000,
                       "Backspace at the margin should un-structure the block")
-            compare(blockModel.getContent(1), "a task", "Content survives the conversion")
-            compare(blockModel.count, 3)
+            compare(BlockModel.getContent(1), "a task", "Content survives the conversion")
+            compare(BlockModel.count, 3)
 
             // As a paragraph, the old behavior returns: merge into previous
             var paragraphArea = findTextArea(findBlockDelegate(1))
             ensureFocus(paragraphArea)
             keyClick(Qt.Key_Home)
             keyClick(Qt.Key_Backspace)
-            tryVerify(function() { return blockModel.count === 2 }, 1000,
+            tryVerify(function() { return BlockModel.count === 2 }, 1000,
                       "A paragraph at cursor 0 merges into the previous block")
-            compare(blockModel.getContent(0), "abovea task")
+            compare(BlockModel.getContent(0), "abovea task")
         }
 
         function test_93_tabNestingWithClamps() {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 4, "parent")
-            blockModel.insertBlock(1, 4, "child")
+            BlockModel.insertBlock(0, 4, "parent")
+            BlockModel.insertBlock(1, 4, "child")
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(1))
@@ -3161,10 +3161,10 @@ Item {
 
             // Tab indents; a second Tab is clamped (parent is level 0)
             keyClick(Qt.Key_Tab)
-            tryVerify(function() { return blockModel.blockAt(1).indentLevel === 1 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(1).indentLevel === 1 }, 1000)
             keyClick(Qt.Key_Tab)
             wait(100)
-            compare(blockModel.blockAt(1).indentLevel, 1,
+            compare(BlockModel.blockAt(1).indentLevel, 1,
                     "Indent clamps to one level below the previous list block")
 
             // Focus and cursor survive (no delegate recreation on indent)
@@ -3173,17 +3173,17 @@ Item {
 
             // Shift+Tab outdents and floors at zero
             keyClick(Qt.Key_Backtab, Qt.ShiftModifier)
-            tryVerify(function() { return blockModel.blockAt(1).indentLevel === 0 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(1).indentLevel === 0 }, 1000)
             keyClick(Qt.Key_Backtab, Qt.ShiftModifier)
             wait(100)
-            compare(blockModel.blockAt(1).indentLevel, 0, "Outdent floors at zero")
+            compare(BlockModel.blockAt(1).indentLevel, 0, "Outdent floors at zero")
 
             // The first list item cannot indent (no parent above)
             var firstArea = findTextArea(findBlockDelegate(0))
             ensureFocus(firstArea)
             keyClick(Qt.Key_Tab)
             wait(100)
-            compare(blockModel.blockAt(0).indentLevel, 0,
+            compare(BlockModel.blockAt(0).indentLevel, 0,
                     "The first list item has no parent to nest under")
         }
 
@@ -3191,9 +3191,9 @@ Item {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 8, "line one")
+            BlockModel.insertBlock(0, 8, "line one")
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(0))
@@ -3202,18 +3202,18 @@ Item {
 
             // Enter inserts a newline INTO the block
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.getContent(0) === "line one\n" }, 1000,
+            tryVerify(function() { return BlockModel.getContent(0) === "line one\n" }, 1000,
                       "Enter in a code block should insert a newline")
-            compare(blockModel.count, 2, "No new block yet")
+            compare(BlockModel.count, 2, "No new block yet")
 
             // Enter on the trailing empty line exits: the empty line goes,
             // a paragraph appears below
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.count === 3 }, 1000,
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
                       "Enter on a trailing empty line should exit the code block")
-            compare(blockModel.getContent(0), "line one",
+            compare(BlockModel.getContent(0), "line one",
                     "The trailing empty line is removed on exit")
-            compare(blockModel.blockAt(1).blockType, 0, "The exit block is a paragraph")
+            compare(BlockModel.blockAt(1).blockType, 0, "The exit block is a paragraph")
             var newArea = findTextArea(findBlockDelegate(1))
             tryVerify(function() { return newArea.activeFocus }, 1000)
         }
@@ -3222,10 +3222,10 @@ Item {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 0, "above")
-            blockModel.insertBlock(1, 9, "")
+            BlockModel.insertBlock(0, 0, "above")
+            BlockModel.insertBlock(1, 9, "")
             wait(100)
 
             // Enter on a focused divider writes below it
@@ -3233,39 +3233,39 @@ Item {
             divider.focusAtStart()
             tryCompare(divider, "isFocused", true, 1000)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.count === 4 }, 1000,
+            tryVerify(function() { return BlockModel.count === 4 }, 1000,
                       "Enter on a divider should create a paragraph below")
-            compare(blockModel.blockAt(2).blockType, 0)
+            compare(BlockModel.blockAt(2).blockType, 0)
 
             // Backspace removes the divider itself
             divider = findBlockDelegate(1)
             divider.focusAtStart()
             tryCompare(divider, "isFocused", true, 1000)
             keyClick(Qt.Key_Backspace)
-            tryVerify(function() { return blockModel.count === 3 }, 1000,
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
                       "Backspace should delete the focused divider")
-            verify(blockModel.blockAt(1).blockType !== 9, "The divider is gone")
+            verify(BlockModel.blockAt(1).blockType !== 9, "The divider is gone")
         }
 
         function test_96_ctrlEnterTogglesTodo() {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 6, "toggle me")
+            BlockModel.insertBlock(0, 6, "toggle me")
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(0))
             ensureFocus(textArea)
 
             keyClick(Qt.Key_Return, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).checked }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).checked }, 1000,
                       "Ctrl+Enter should check the todo")
-            compare(blockModel.count, 2, "Ctrl+Enter must not create a block")
+            compare(BlockModel.count, 2, "Ctrl+Enter must not create a block")
 
             keyClick(Qt.Key_Return, Qt.ControlModifier)
-            tryVerify(function() { return !blockModel.blockAt(0).checked }, 1000,
+            tryVerify(function() { return !BlockModel.blockAt(0).checked }, 1000,
                       "Ctrl+Enter should uncheck on the second press")
         }
 
@@ -3273,9 +3273,9 @@ Item {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "convert me")
+            BlockModel.updateContent(0, "convert me")
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(0))
@@ -3284,9 +3284,9 @@ Item {
 
             // Ctrl+T converts to todo, keeping content, focus, and cursor
             keyClick(Qt.Key_T, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 6 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 6 }, 1000,
                       "Ctrl+T should convert to todo")
-            compare(blockModel.getContent(0), "convert me")
+            compare(BlockModel.getContent(0), "convert me")
             var todoArea = findTextArea(findBlockDelegate(0))
             tryVerify(function() { return todoArea.activeFocus }, 1000,
                       "Conversion should keep the block focused")
@@ -3295,19 +3295,19 @@ Item {
 
             // Ctrl+Shift+T converts to quote
             keyClick(Qt.Key_T, Qt.ControlModifier | Qt.ShiftModifier)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 7 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 7 }, 1000,
                       "Ctrl+Shift+T should convert to quote")
 
             // Converting an indented list item out of the family drops
             // the indent (indentation is list nesting)
-            blockModel.insertBlock(1, 4, "listed parent")
-            blockModel.insertBlock(2, 4, "listed child", 1)
+            BlockModel.insertBlock(1, 4, "listed parent")
+            BlockModel.insertBlock(2, 4, "listed child", 1)
             wait(100)
             var childArea = findTextArea(findBlockDelegate(2))
             ensureFocus(childArea)
             keyClick(Qt.Key_T, Qt.ControlModifier | Qt.ShiftModifier)
-            tryVerify(function() { return blockModel.blockAt(2).blockType === 7 }, 1000)
-            compare(blockModel.blockAt(2).indentLevel, 0,
+            tryVerify(function() { return BlockModel.blockAt(2).blockType === 7 }, 1000)
+            compare(BlockModel.blockAt(2).indentLevel, 0,
                     "Leaving the list family drops the indent")
         }
 
@@ -3324,7 +3324,7 @@ Item {
 
         // A fresh single empty focused paragraph at index 0
         function freshParagraph() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             var textArea = findTextArea(findBlockDelegate(0))
             ensureFocus(textArea)
@@ -3350,9 +3350,9 @@ Item {
                 var c = cases[i]
                 freshParagraph()
                 typeString(c.prefix)
-                tryVerify(function() { return blockModel.blockAt(0).blockType === c.type },
+                tryVerify(function() { return BlockModel.blockAt(0).blockType === c.type },
                           1000, "'" + c.prefix + "' should convert to type " + c.type)
-                compare(blockModel.getContent(0), "", "Prefix is stripped from content")
+                compare(BlockModel.getContent(0), "", "Prefix is stripped from content")
                 if (c.type !== 9) {
                     var textArea = findTextArea(findBlockDelegate(0))
                     tryVerify(function() { return textArea.activeFocus }, 1000,
@@ -3364,11 +3364,11 @@ Item {
             // The full todo prefix converts through the bullet on the way
             freshParagraph()
             typeString("- [ ] ")
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 6 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 6 }, 1000,
                       "'- [ ] ' should end as a todo")
-            compare(blockModel.blockAt(0).checked, false)
+            compare(BlockModel.blockAt(0).checked, false)
             typeString("task")
-            tryCompare(blockModel.blockAt(0), "content", "task", 1000)
+            tryCompare(BlockModel.blockAt(0), "content", "task", 1000)
         }
 
         function test_99_conversionIsOneUndoStep() {
@@ -3377,18 +3377,18 @@ Item {
             }
             freshParagraph()
             typeString("- ")
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 4 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 4 }, 1000)
 
             // One Ctrl+Z restores the literal typed text as a paragraph
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 0 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 0 }, 1000,
                       "Undo should revert the conversion")
-            compare(blockModel.getContent(0), "- ",
+            compare(BlockModel.getContent(0), "- ",
                     "Undo restores the literal typed prefix")
 
             // A second undo removes the typed text as usual
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.getContent(0) === "" }, 1000)
+            tryVerify(function() { return BlockModel.getContent(0) === "" }, 1000)
         }
 
         function test_99b_pastedPrefixConverts() {
@@ -3396,20 +3396,20 @@ Item {
                 skip("Keyboard tests require display")
             }
             var textArea = freshParagraph()
-            clipboard.text = "- [x] pasted done task"
+            Clipboard.text = "- [x] pasted done task"
             keyClick(Qt.Key_V, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 6 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 6 }, 1000,
                       "A pasted todo line should convert")
-            compare(blockModel.blockAt(0).checked, true)
-            compare(blockModel.getContent(0), "pasted done task")
+            compare(BlockModel.blockAt(0).checked, true)
+            compare(BlockModel.getContent(0), "pasted done task")
 
             // Pasted fence with a language tag
             freshParagraph()
-            clipboard.text = "```python"
+            Clipboard.text = "```python"
             keyClick(Qt.Key_V, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 8 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 8 }, 1000,
                       "A pasted fence should convert")
-            compare(blockModel.blockAt(0).language, "python",
+            compare(BlockModel.blockAt(0).language, "python",
                     "The fence's language tag is preserved")
         }
 
@@ -3422,9 +3422,9 @@ Item {
                 freshParagraph()
                 typeString(cases[i])
                 wait(150)
-                compare(blockModel.blockAt(0).blockType, 0,
+                compare(BlockModel.blockAt(0).blockType, 0,
                         "'" + cases[i] + "' must stay a paragraph")
-                compare(blockModel.getContent(0), cases[i])
+                compare(BlockModel.getContent(0), cases[i])
             }
 
             // Pasted near-misses (typing '----' is precluded by the
@@ -3432,12 +3432,12 @@ Item {
             var pasted = ["----", "**not a divider**", "2.5 kilometers..no"]
             for (var j = 0; j < pasted.length; j++) {
                 var pasteArea = freshParagraph()
-                clipboard.text = pasted[j]
+                Clipboard.text = pasted[j]
                 pasteArea.pasteFromClipboard(false)
                 wait(150)
-                compare(blockModel.blockAt(0).blockType, 0,
+                compare(BlockModel.blockAt(0).blockType, 0,
                         "'" + pasted[j] + "' must stay a paragraph")
-                compare(blockModel.getContent(0), pasted[j])
+                compare(BlockModel.getContent(0), pasted[j])
             }
         }
 
@@ -3445,10 +3445,10 @@ Item {
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(0, 4, "parent")
-            blockModel.insertBlock(1, 4, "child task", 1)
+            BlockModel.insertBlock(0, 4, "parent")
+            BlockModel.insertBlock(1, 4, "child task", 1)
             wait(100)
 
             var textArea = findTextArea(findBlockDelegate(1))
@@ -3456,11 +3456,11 @@ Item {
             keyClick(Qt.Key_Home)
             typeString("[x] ")
 
-            tryVerify(function() { return blockModel.blockAt(1).blockType === 6 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(1).blockType === 6 }, 1000,
                       "'[x] ' at a bullet's start should upgrade it to a todo")
-            compare(blockModel.blockAt(1).checked, true)
-            compare(blockModel.blockAt(1).indentLevel, 1, "The upgrade keeps the indent")
-            compare(blockModel.getContent(1), "child task")
+            compare(BlockModel.blockAt(1).checked, true)
+            compare(BlockModel.blockAt(1).indentLevel, 1, "The upgrade keeps the indent")
+            compare(BlockModel.getContent(1), "child task")
         }
 
         function test_99e_headingConversionSingleUndo() {
@@ -3473,11 +3473,11 @@ Item {
             keyClick(Qt.Key_NumberSign, Qt.ShiftModifier)
             wait(20)
             keyClick(Qt.Key_Space)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 1 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 1 }, 1000)
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 0 }, 1000)
-            compare(blockModel.getContent(0), "# ",
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 0 }, 1000)
+            compare(BlockModel.getContent(0), "# ",
                     "Undo restores the literal typed hash prefix")
         }
 
@@ -3520,7 +3520,7 @@ Item {
             tryCompare(menu, "visible", true, 1000)
             compare(menu.targetIndex, 0, "Menu targets the slash block")
             compare(menu.mode, "slash")
-            compare(blockModel.getContent(0), "/",
+            compare(BlockModel.getContent(0), "/",
                     "The slash lands in the model like any typing")
 
             // Focus never leaves the block
@@ -3551,12 +3551,12 @@ Item {
             typeString("/")
             wait(150)
             verify(!menu.visible, "'/' after text must not open the menu")
-            compare(blockModel.getContent(0), "hello/")
+            compare(BlockModel.getContent(0), "hello/")
 
             // Code blocks are verbatim: "/" is content
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 8, "")
+            BlockModel.convertBlock(0, 8, "")
             wait(100)
             var codeArea = findTextArea(findBlockDelegate(0))
             ensureFocus(codeArea)
@@ -3566,16 +3566,16 @@ Item {
 
             // Pasting more than a bare slash does not open it either
             freshParagraph()
-            clipboard.text = "/usr/bin"
+            Clipboard.text = "/usr/bin"
             keyClick(Qt.Key_V, Qt.ControlModifier)
             wait(150)
             verify(!menu.visible, "A pasted path must not open the menu")
-            compare(blockModel.getContent(0), "/usr/bin")
+            compare(BlockModel.getContent(0), "/usr/bin")
 
             // A programmatic change to "/" (undo, load) must not either:
             // the trigger lives on the user-edit path only
             freshParagraph()
-            blockModel.updateContent(0, "/")
+            BlockModel.updateContent(0, "/")
             wait(150)
             verify(!menu.visible, "Programmatic '/' must not open the menu")
         }
@@ -3592,7 +3592,7 @@ Item {
 
             typeString("h1")
             tryCompare(menu, "query", "h1", 1000)
-            compare(blockModel.getContent(0), "/h1",
+            compare(BlockModel.getContent(0), "/h1",
                     "The filter text lives in the block content")
             var names = menuEntryNames()
             verify(names.length > 0 && names.length < unfiltered,
@@ -3638,10 +3638,10 @@ Item {
             wait(50)
 
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 2 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 2 }, 1000,
                       "Enter converts to the highlighted type")
             tryCompare(menu, "visible", false, 1000)
-            compare(blockModel.getContent(0), "",
+            compare(BlockModel.getContent(0), "",
                     "The '/query' text is cleared by the conversion")
 
             // Focus and cursor land in the converted block
@@ -3652,9 +3652,9 @@ Item {
 
             // The conversion is one undo step: the typed '/h' returns
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 0 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 0 }, 1000,
                       "One undo reverts the menu conversion")
-            compare(blockModel.getContent(0), "/h",
+            compare(BlockModel.getContent(0), "/h",
                     "Undo restores the literal typed query")
             verify(!menu.visible, "Undo must not reopen the menu")
         }
@@ -3670,9 +3670,9 @@ Item {
 
             keyClick(Qt.Key_Escape)
             tryCompare(menu, "visible", false, 1000)
-            compare(blockModel.getContent(0), "/qu",
+            compare(BlockModel.getContent(0), "/qu",
                     "Escape closes without selection, text stays (§4.1)")
-            compare(blockModel.blockAt(0).blockType, 0, "No conversion happened")
+            compare(BlockModel.blockAt(0).blockType, 0, "No conversion happened")
             verify(textArea.activeFocus, "Focus stays in the block")
 
             // Escape ended the session: more typing must not reopen it
@@ -3696,7 +3696,7 @@ Item {
 
             keyClick(Qt.Key_Backspace)
             tryCompare(menu, "visible", false, 1000)
-            compare(blockModel.getContent(0), "",
+            compare(BlockModel.getContent(0), "",
                     "Deleting the slash closes the menu")
         }
 
@@ -3715,7 +3715,7 @@ Item {
             var row = list.itemAtIndex(0)
             verify(row !== null, "First menu row should exist")
             mouseClick(row)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 9 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 9 }, 1000,
                       "Clicking the entry converts the block")
             tryCompare(menu, "visible", false, 1000)
         }
@@ -3724,9 +3724,9 @@ Item {
             if (isHeadless) {
                 skip("Mouse tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.insertBlock(1, 0, "another block")
+            BlockModel.insertBlock(1, 0, "another block")
             wait(100)
             var firstArea = findTextArea(findBlockDelegate(0))
             ensureFocus(firstArea)
@@ -3740,7 +3740,7 @@ Item {
             mouseClick(otherArea)
             tryCompare(menu, "visible", false, 1000)
             tryVerify(function() { return otherArea.activeFocus }, 1000)
-            compare(blockModel.getContent(0), "/", "The typed slash stays")
+            compare(BlockModel.getContent(0), "/", "The typed slash stays")
         }
 
         function test_a9_menuStaysInsideViewport() {
@@ -3749,11 +3749,11 @@ Item {
             }
             // A block near the window bottom: the menu flips above the
             // cursor instead of clipping (§4.3)
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             for (var i = 1; i <= 12; i++)
-                blockModel.insertBlock(i, 0, "filler " + i)
-            blockModel.insertBlock(13, 0, "")
+                BlockModel.insertBlock(i, 0, "filler " + i)
+            BlockModel.insertBlock(13, 0, "")
             wait(150)
             var listView = findChild(appLoader.item, "blockListView")
             listView.positionViewAtEnd()
@@ -3781,9 +3781,9 @@ Item {
                 skip("Keyboard tests require display")
             }
             // An empty bullet: "/" opens the menu, selection converts
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 4, "")
+            BlockModel.convertBlock(0, 4, "")
             wait(100)
             var bulletArea = findTextArea(findBlockDelegate(0))
             ensureFocus(bulletArea)
@@ -3792,9 +3792,9 @@ Item {
             tryCompare(menu, "visible", true, 1000)
             compare(menuEntryNames()[0], "Quote")
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 7 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 7 }, 1000,
                       "The bullet converts to a quote via the menu")
-            compare(blockModel.getContent(0), "")
+            compare(BlockModel.getContent(0), "")
         }
 
         function test_ab_recentlyUsedLeadsTheMenu() {
@@ -3808,7 +3808,7 @@ Item {
             typeString("/todo")
             tryCompare(menu, "visible", true, 1000)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 6 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 6 }, 1000)
 
             freshParagraph()
             typeString("/")
@@ -3839,9 +3839,9 @@ Item {
             if (isHeadless) {
                 skip("Mouse tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "first block")
+            BlockModel.updateContent(0, "first block")
             wait(100)
 
             var delegate = findBlockDelegate(0)
@@ -3863,9 +3863,9 @@ Item {
             if (isHeadless) {
                 skip("Mouse tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "first block")
+            BlockModel.updateContent(0, "first block")
             wait(100)
 
             var plus = hoverAndFindPlus(findBlockDelegate(0))
@@ -3873,10 +3873,10 @@ Item {
 
             // A new empty paragraph below, focused, with the menu open
             // in insert mode targeting it
-            tryVerify(function() { return blockModel.count === 2 }, 1000,
+            tryVerify(function() { return BlockModel.count === 2 }, 1000,
                       "Plus inserts a block below")
-            compare(blockModel.blockAt(1).blockType, 0)
-            compare(blockModel.getContent(1), "")
+            compare(BlockModel.blockAt(1).blockType, 0)
+            compare(BlockModel.getContent(1), "")
             // The delegate materializes a frame after the model row does
             tryVerify(function() {
                 var d = findBlockDelegate(1)
@@ -3891,22 +3891,22 @@ Item {
             // Typing filters on the whole content (no slash involved)
             typeString("tod")
             tryCompare(menu, "query", "tod", 1000)
-            compare(blockModel.getContent(1), "tod")
+            compare(BlockModel.getContent(1), "tod")
             compare(menuEntryNames()[0], "To-do")
 
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.blockAt(1).blockType === 6 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(1).blockType === 6 }, 1000,
                       "Enter converts the new block")
-            compare(blockModel.blockAt(1).checked, false)
-            compare(blockModel.getContent(1), "", "The filter text is cleared")
+            compare(BlockModel.blockAt(1).checked, false)
+            compare(BlockModel.getContent(1), "", "The filter text is cleared")
             tryCompare(menu, "visible", false, 1000)
 
             // The conversion is its own single undo step (the insert
             // was a separate user gesture and undoes separately)
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(1).blockType === 0 }, 1000,
+            tryVerify(function() { return BlockModel.blockAt(1).blockType === 0 }, 1000,
                       "One undo reverts the conversion")
-            compare(blockModel.getContent(1), "tod",
+            compare(BlockModel.getContent(1), "tod",
                     "Undo restores the typed filter text")
         }
 
@@ -3914,9 +3914,9 @@ Item {
             if (isHeadless) {
                 skip("Mouse tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "only block")
+            BlockModel.updateContent(0, "only block")
             wait(100)
 
             var plus = hoverAndFindPlus(findBlockDelegate(0))
@@ -3926,27 +3926,27 @@ Item {
 
             keyClick(Qt.Key_Escape)
             tryCompare(menu, "visible", false, 1000)
-            compare(blockModel.count, 2,
+            compare(BlockModel.count, 2,
                     "Escape keeps the inserted paragraph")
-            compare(blockModel.blockAt(1).blockType, 0)
-            compare(blockModel.getContent(1), "")
+            compare(BlockModel.blockAt(1).blockType, 0)
+            compare(BlockModel.getContent(1), "")
         }
 
         function test_ae_plusButtonWorksOnDividers() {
             if (isHeadless) {
                 skip("Mouse tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 9, "")
+            BlockModel.convertBlock(0, 9, "")
             wait(100)
 
             var plus = hoverAndFindPlus(findBlockDelegate(0))
             mouseClick(plus)
 
-            tryVerify(function() { return blockModel.count === 2 }, 1000,
+            tryVerify(function() { return BlockModel.count === 2 }, 1000,
                       "Plus on a divider inserts a block below")
-            compare(blockModel.blockAt(1).blockType, 0)
+            compare(BlockModel.blockAt(1).blockType, 0)
             var menu = theBlockMenu()
             tryCompare(menu, "visible", true, 1000)
             compare(menu.targetIndex, 1)
@@ -3963,7 +3963,7 @@ Item {
         }
 
         function selectedIndexesArray() {
-            var list = documentSelection.selectedIndexes()
+            var list = DocumentSelection.selectedIndexes()
             var result = []
             for (var i = 0; i < list.length; i++)
                 result.push(Number(list[i]))
@@ -3972,12 +3972,12 @@ Item {
 
         // A fresh document holding the given block contents (paragraphs)
         function docWithBlocks(contents) {
-            documentSelection.clear()
-            documentManager.newDocument()
+            DocumentSelection.clear()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, contents[0])
+            BlockModel.updateContent(0, contents[0])
             for (var i = 1; i < contents.length; i++)
-                blockModel.insertBlock(i, 0, contents[i])
+                BlockModel.insertBlock(i, 0, contents[i])
             wait(100)
         }
 
@@ -4001,7 +4001,7 @@ Item {
             var handle = hoverAndFindHandle(delegate)
             mouseClick(handle)
 
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
             compare(selectedIndexesArray(), [1])
             compare(delegate.blockSelected, true)
             var background = findChild(delegate, "selectionBackground")
@@ -4028,7 +4028,7 @@ Item {
             mouseClick(target, 10, target.height / 2,
                        Qt.LeftButton, Qt.ShiftModifier)
 
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
             compare(selectedIndexesArray(), [0, 1, 2])
             compare(findBlockDelegate(1).blockSelected, true,
                     "Blocks between the anchor and the click are selected")
@@ -4042,7 +4042,7 @@ Item {
 
             var handle = hoverAndFindHandle(findBlockDelegate(0))
             mouseClick(handle)
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
 
             var third = findTextArea(findBlockDelegate(2))
             mouseClick(third, 10, third.height / 2,
@@ -4080,7 +4080,7 @@ Item {
             compare(captured.length, 1,
                     "Ctrl+Click over a link opens it (§2.4 wins by specificity)")
             compare(captured[0], "http://x")
-            compare(documentSelection.hasBlockSelection, false,
+            compare(DocumentSelection.hasBlockSelection, false,
                     "The link click selects no block")
 
             opener.activated.disconnect(onActivated)
@@ -4095,7 +4095,7 @@ Item {
             ensureFocus(findTextArea(findBlockDelegate(0)))
 
             keyClick(Qt.Key_Down, Qt.ControlModifier | Qt.ShiftModifier)
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
             compare(selectedIndexesArray(), [0],
                     "First Ctrl+Shift+Down selects the current block (§3.1)")
 
@@ -4121,11 +4121,11 @@ Item {
 
             keyClick(Qt.Key_A, Qt.ControlModifier)
             tryCompare(textArea, "selectedText", "hello world", 1000)
-            compare(documentSelection.hasBlockSelection, false,
+            compare(DocumentSelection.hasBlockSelection, false,
                     "First Ctrl+A selects only the block's text (§2.5)")
 
             keyClick(Qt.Key_A, Qt.ControlModifier)
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
             compare(selectedIndexesArray(), [0, 1],
                     "Second Ctrl+A selects all blocks")
         }
@@ -4138,7 +4138,7 @@ Item {
             ensureFocus(findTextArea(findBlockDelegate(0)))
 
             keyClick(Qt.Key_A, Qt.ControlModifier)
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
             compare(selectedIndexesArray(), [0, 1])
         }
 
@@ -4155,7 +4155,7 @@ Item {
 
             var handle = hoverAndFindHandle(findBlockDelegate(1))
             mouseClick(handle)
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
             tryCompare(menu, "visible", false, 1000)
         }
 
@@ -4170,7 +4170,7 @@ Item {
             tryCompare(selectionHandler(), "activeFocus", true, 1000)
 
             keyClick(Qt.Key_Escape)
-            tryCompare(documentSelection, "hasBlockSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", false, 1000)
             tryVerify(function() {
                 var ta = findTextArea(findBlockDelegate(1))
                 return ta && ta.activeFocus
@@ -4179,7 +4179,7 @@ Item {
             mouseClick(hoverAndFindHandle(findBlockDelegate(2)))
             tryCompare(selectionHandler(), "activeFocus", true, 1000)
             keyClick(Qt.Key_Return)
-            tryCompare(documentSelection, "hasBlockSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", false, 1000)
             tryVerify(function() {
                 var ta = findTextArea(findBlockDelegate(2))
                 return ta && ta.activeFocus
@@ -4214,11 +4214,11 @@ Item {
             docWithBlocks(["one", "two"])
 
             mouseClick(hoverAndFindHandle(findBlockDelegate(0)))
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
 
             var textArea = findTextArea(findBlockDelegate(1))
             mouseClick(textArea, 10, textArea.height / 2)
-            tryCompare(documentSelection, "hasBlockSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", false, 1000)
             tryCompare(textArea, "activeFocus", true, 1000)
         }
 
@@ -4228,9 +4228,9 @@ Item {
 
         // Select [first..last] and hand the keys to the selection handler
         function selectBlocks(first, last) {
-            documentSelection.selectBlock(first)
+            DocumentSelection.selectBlock(first)
             if (last !== undefined && last > first)
-                documentSelection.extendBlockSelectionTo(last)
+                DocumentSelection.extendBlockSelectionTo(last)
             var handler = selectionHandler()
             handler.forceActiveFocus()
             tryCompare(handler, "activeFocus", true, 1000)
@@ -4244,19 +4244,19 @@ Item {
             selectBlocks(1, 3)
 
             keyClick(Qt.Key_Delete)
-            tryVerify(function() { return blockModel.count === 1 }, 1000,
+            tryVerify(function() { return BlockModel.count === 1 }, 1000,
                       "Delete removes the selected blocks (§3.5)")
-            compare(blockModel.getContent(0), "one")
-            compare(documentSelection.hasBlockSelection, false)
+            compare(BlockModel.getContent(0), "one")
+            compare(DocumentSelection.hasBlockSelection, false)
             tryVerify(function() {
                 var ta = findTextArea(findBlockDelegate(0))
                 return ta && ta.activeFocus
             }, 1000, "The cursor lands on the block before the removed run")
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 4 }, 1000,
+            tryVerify(function() { return BlockModel.count === 4 }, 1000,
                       "One undo restores all removed blocks")
-            compare(blockModel.getContent(2), "three")
+            compare(BlockModel.getContent(2), "three")
         }
 
         function test_pn_ctrlDDuplicatesSelection() {
@@ -4264,24 +4264,24 @@ Item {
                 skip("Keyboard tests require display")
             }
             docWithBlocks(["a", "b", "c"])
-            blockModel.convertBlock(1, 6, "b", true) // checked todo
+            BlockModel.convertBlock(1, 6, "b", true) // checked todo
             wait(100)
             selectBlocks(0, 1)
 
             keyClick(Qt.Key_D, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 5 }, 1000,
+            tryVerify(function() { return BlockModel.count === 5 }, 1000,
                       "Ctrl+D duplicates the selection below itself (§3.6)")
-            compare(blockModel.getContent(2), "a")
-            compare(blockModel.getContent(3), "b")
-            compare(blockModel.blockAt(3).blockType, 6)
-            compare(blockModel.blockAt(3).checked, true,
+            compare(BlockModel.getContent(2), "a")
+            compare(BlockModel.getContent(3), "b")
+            compare(BlockModel.blockAt(3).blockType, 6)
+            compare(BlockModel.blockAt(3).checked, true,
                     "The clone carries the full state")
             tryVerify(function() {
                 return selectedIndexesArray().toString() === "2,3"
             }, 1000, "The selection moves to the clones")
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 3 }, 1000,
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
                       "One undo removes all clones")
         }
 
@@ -4294,9 +4294,9 @@ Item {
             ensureFocus(textArea)
 
             keyClick(Qt.Key_D, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 3 }, 1000,
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
                       "Ctrl+D duplicates the current block")
-            compare(blockModel.getContent(1), "hello")
+            compare(BlockModel.getContent(1), "hello")
             tryVerify(function() {
                 var ta = findTextArea(findBlockDelegate(1))
                 return ta && ta.activeFocus
@@ -4311,9 +4311,9 @@ Item {
             ensureFocus(findTextArea(findBlockDelegate(0)))
 
             keyClick(Qt.Key_D, Qt.ControlModifier | Qt.ShiftModifier)
-            tryVerify(function() { return blockModel.count === 1 }, 1000,
+            tryVerify(function() { return BlockModel.count === 1 }, 1000,
                       "Ctrl+Shift+D deletes the current block (§13.3)")
-            compare(blockModel.getContent(0), "two")
+            compare(BlockModel.getContent(0), "two")
             tryVerify(function() {
                 var ta = findTextArea(findBlockDelegate(0))
                 return ta && ta.activeFocus
@@ -4328,15 +4328,15 @@ Item {
             selectBlocks(0, 1)
 
             keyClick(Qt.Key_Down, Qt.AltModifier)
-            tryVerify(function() { return blockModel.getContent(0) === "c" }, 1000,
+            tryVerify(function() { return BlockModel.getContent(0) === "c" }, 1000,
                       "Alt+Down moves the selection as a unit (§3.2)")
-            compare(blockModel.getContent(1), "a")
-            compare(blockModel.getContent(2), "b")
+            compare(BlockModel.getContent(1), "a")
+            compare(BlockModel.getContent(2), "b")
             compare(selectedIndexesArray(), [1, 2],
                     "The selection follows the moved blocks")
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.getContent(0) === "a" }, 1000,
+            tryVerify(function() { return BlockModel.getContent(0) === "a" }, 1000,
                       "One undo restores the order")
         }
 
@@ -4345,22 +4345,22 @@ Item {
                 skip("Keyboard tests require display")
             }
             docWithBlocks(["parent", "c1", "c2"])
-            blockModel.convertBlock(0, 4, "parent")
-            blockModel.convertBlock(1, 4, "c1")
-            blockModel.convertBlock(2, 4, "c2")
+            BlockModel.convertBlock(0, 4, "parent")
+            BlockModel.convertBlock(1, 4, "c1")
+            BlockModel.convertBlock(2, 4, "c2")
             wait(100)
             selectBlocks(1, 2)
 
             keyClick(Qt.Key_Tab)
             tryVerify(function() {
-                return blockModel.blockAt(1).indentLevel === 1
-                    && blockModel.blockAt(2).indentLevel === 1
+                return BlockModel.blockAt(1).indentLevel === 1
+                    && BlockModel.blockAt(2).indentLevel === 1
             }, 1000, "Tab indents every selected list item together (§3.3)")
 
             keyClick(Qt.Key_Backtab)
             tryVerify(function() {
-                return blockModel.blockAt(1).indentLevel === 0
-                    && blockModel.blockAt(2).indentLevel === 0
+                return BlockModel.blockAt(1).indentLevel === 0
+                    && BlockModel.blockAt(2).indentLevel === 0
             }, 1000, "Shift+Tab outdents them together")
         }
 
@@ -4369,28 +4369,28 @@ Item {
                 skip("Keyboard tests require display")
             }
             docWithBlocks(["text", "item"])
-            blockModel.convertBlock(1, 6, "item", true)
+            BlockModel.convertBlock(1, 6, "item", true)
             wait(100)
             selectBlocks(0, 1)
 
             keyClick(Qt.Key_C, Qt.ControlModifier)
-            tryCompare(clipboard, "text", "text\n\n- [x] item", 1000)
+            tryCompare(Clipboard, "text", "text\n\n- [x] item", 1000)
 
             keyClick(Qt.Key_V, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 4 }, 1000,
+            tryVerify(function() { return BlockModel.count === 4 }, 1000,
                       "Ctrl+V pastes after the selection (§5.3)")
-            compare(blockModel.getContent(2), "text")
-            compare(blockModel.blockAt(3).blockType, 6,
+            compare(BlockModel.getContent(2), "text")
+            compare(BlockModel.blockAt(3).blockType, 6,
                     "The pasted blocks keep their types")
-            compare(blockModel.blockAt(3).checked, true)
+            compare(BlockModel.blockAt(3).checked, true)
             tryVerify(function() {
                 return selectedIndexesArray().toString() === "2,3"
             }, 1000, "The pasted blocks become the selection")
 
             keyClick(Qt.Key_X, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 2 }, 1000,
+            tryVerify(function() { return BlockModel.count === 2 }, 1000,
                       "Ctrl+X cuts the selected blocks (§5.2)")
-            compare(clipboard.text, "text\n\n- [x] item")
+            compare(Clipboard.text, "text\n\n- [x] item")
         }
 
         // ==================================================================
@@ -4423,7 +4423,7 @@ Item {
             // while the pressed TextArea holds the exclusive grab, and
             // unfocused TextAreas must hold programmatic selections.
             dragSelect(0, 6, 2, 5)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
 
             // Tail of block 0 (native, still focused), all of block 1,
             // head of block 2 (both applied portions)
@@ -4438,7 +4438,7 @@ Item {
 
             // Releasing kept the selection; a plain click clears it
             mouseClick(ta1, 5, ta1.height / 2)
-            tryCompare(documentSelection, "hasTextSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", false, 1000)
             tryVerify(function() { return ta0.selectedText === "" }, 1000,
                       "Clearing the range deselects every block")
             tryVerify(function() { return ta2.selectedText === "" }, 1000)
@@ -4451,7 +4451,7 @@ Item {
             docWithBlocks(["alpha beta", "second block", "third words"])
 
             dragSelect(2, 5, 0, 6)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             var ta0 = findTextArea(findBlockDelegate(0))
             var ta1 = findTextArea(findBlockDelegate(1))
             var ta2 = findTextArea(findBlockDelegate(2))
@@ -4461,10 +4461,10 @@ Item {
             verify(ta2.activeFocus, "The anchor (press) block keeps focus")
 
             keyClick(Qt.Key_Escape)
-            tryCompare(documentSelection, "hasTextSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", false, 1000)
             tryVerify(function() { return ta1.selectedText === "" }, 1000,
                       "Escape drops the selection, text intact")
-            compare(blockModel.getContent(1), "second block")
+            compare(BlockModel.getContent(1), "second block")
         }
 
         function test_pv_dragOverDividerTintsIt() {
@@ -4472,11 +4472,11 @@ Item {
                 skip("Mouse tests require display")
             }
             docWithBlocks(["first text", "x", "last text"])
-            blockModel.convertBlock(1, 9, "")
+            BlockModel.convertBlock(1, 9, "")
             wait(100)
 
             dragSelect(0, 2, 2, 4)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             var divider = findBlockDelegate(1)
             tryCompare(divider, "blockSelected", true, 1000)
 
@@ -4513,12 +4513,12 @@ Item {
             mouseMove(ta1, r2.x, r2.y + r2.height / 2)
             mouseRelease(ta1, r2.x, r2.y + r2.height / 2)
 
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             // The head snaps outward to the word end (§21.3 word drag)
             tryCompare(ta1, "selectedText", "delta", 1000)
             // The anchor extent snaps back to the word start — the
             // range the copy path uses
-            var p0 = documentSelection.portionForBlock(0)
+            var p0 = DocumentSelection.portionForBlock(0)
             compare(p0.start, 6, "The anchor snaps to the start of 'beta'")
             compare(p0.end, 16, "...and runs to the block end")
         }
@@ -4543,9 +4543,9 @@ Item {
             mouseMove(ta1, r2.x, r2.y + r2.height / 2)
             mouseRelease(ta1, r2.x, r2.y + r2.height / 2)
 
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             tryCompare(ta1, "selectedText", "delta epsilon", 1000)
-            var p0 = documentSelection.portionForBlock(0)
+            var p0 = DocumentSelection.portionForBlock(0)
             compare(p0.full, true, "The anchor block is covered whole")
         }
 
@@ -4560,22 +4560,22 @@ Item {
 
             // Shift+Down on the last (only) line crosses into block 1
             keyClick(Qt.Key_Down, Qt.ShiftModifier)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
-            compare(documentSelection.textAnchorIndex(), 0)
-            compare(documentSelection.textHeadIndex(), 1)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
+            compare(DocumentSelection.textAnchorIndex(), 0)
+            compare(DocumentSelection.textHeadIndex(), 1)
             verify(ta0.activeFocus, "Focus stays on the anchor block")
 
             // Shift+Right moves the head; at a block end it crosses
             keyClick(Qt.Key_Right, Qt.ShiftModifier)
             tryVerify(function() {
-                return documentSelection.textHeadPosition() > 0
-                    || documentSelection.textHeadIndex() === 2
+                return DocumentSelection.textHeadPosition() > 0
+                    || DocumentSelection.textHeadIndex() === 2
             }, 1000)
 
             // Shift+Down again reaches block 2
             keyClick(Qt.Key_Down, Qt.ShiftModifier)
             tryVerify(function() {
-                return documentSelection.textHeadIndex() === 2
+                return DocumentSelection.textHeadIndex() === 2
             }, 1000)
             var ta1 = findTextArea(findBlockDelegate(1))
             tryCompare(ta1, "selectedText", "second", 1000)
@@ -4584,7 +4584,7 @@ Item {
             // collapses to a native in-block selection
             keyClick(Qt.Key_Up, Qt.ShiftModifier)
             keyClick(Qt.Key_Up, Qt.ShiftModifier)
-            tryCompare(documentSelection, "hasTextSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", false, 1000)
             tryVerify(function() { return ta0.selectedText.length > 0 }, 1000,
                       "Back in the anchor block the selection is native")
         }
@@ -4594,25 +4594,25 @@ Item {
                 skip("Keyboard tests require display")
             }
             docWithBlocks(["alpha beta", "item", "tail words"])
-            blockModel.convertBlock(1, 4, "item")
+            BlockModel.convertBlock(1, 4, "item")
             wait(100)
             var ta0 = findTextArea(findBlockDelegate(0))
             ensureFocus(ta0)
-            documentSelection.beginTextSelection(0, 6, 0)
-            documentSelection.updateTextSelectionHead(2, 4)
+            DocumentSelection.beginTextSelection(0, 6, 0)
+            DocumentSelection.updateTextSelectionHead(2, 4)
 
             keyClick(Qt.Key_C, Qt.ControlModifier)
-            tryCompare(clipboard, "text", "beta\n\n- item\n\ntail", 1000)
-            compare(blockModel.count, 3, "Copy leaves the document alone")
+            tryCompare(Clipboard, "text", "beta\n\n- item\n\ntail", 1000)
+            compare(BlockModel.count, 3, "Copy leaves the document alone")
 
             keyClick(Qt.Key_X, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 1 }, 1000,
+            tryVerify(function() { return BlockModel.count === 1 }, 1000,
                       "Cut removes the range")
-            compare(blockModel.getContent(0), "alpha  words")
-            compare(clipboard.text, "beta\n\n- item\n\ntail")
+            compare(BlockModel.getContent(0), "alpha  words")
+            compare(Clipboard.text, "beta\n\n- item\n\ntail")
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 3 }, 1000,
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
                       "One undo restores the cut range")
         }
 
@@ -4627,15 +4627,15 @@ Item {
             docWithBlocks(["alpha beta", "middle", "tail words"])
             var ta0 = findTextArea(findBlockDelegate(0))
             ensureFocus(ta0)
-            documentSelection.beginTextSelection(0, 6, 0)
-            documentSelection.updateTextSelectionHead(2, 5)
+            DocumentSelection.beginTextSelection(0, 6, 0)
+            DocumentSelection.updateTextSelectionHead(2, 5)
 
-            clipboard.text = "X"
+            Clipboard.text = "X"
             keyClick(Qt.Key_V, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 1 }, 1000,
+            tryVerify(function() { return BlockModel.count === 1 }, 1000,
                       "Paste collapses the whole cross-block range")
             tryVerify(function() {
-                return blockModel.getContent(0) === "alpha Xwords"
+                return BlockModel.getContent(0) === "alpha Xwords"
             }, 1000, "The pasted text lands at the collapse point")
 
             // Decision 7's layering, the same as typing over a range
@@ -4644,12 +4644,12 @@ Item {
             // second restores the range.
             keyClick(Qt.Key_Z, Qt.ControlModifier)
             tryVerify(function() {
-                return blockModel.getContent(0) === "alpha words"
+                return BlockModel.getContent(0) === "alpha words"
             }, 1000, "First undo takes back the pasted text")
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 3 }, 1000,
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
                       "Second undo restores the replaced range")
-            compare(blockModel.getContent(0), "alpha beta")
+            compare(BlockModel.getContent(0), "alpha beta")
         }
 
         function test_pz3_crossBlockPastePlainStripsFormatting() {
@@ -4660,13 +4660,13 @@ Item {
             docWithBlocks(["alpha beta", "middle", "tail words"])
             var ta0 = findTextArea(findBlockDelegate(0))
             ensureFocus(ta0)
-            documentSelection.beginTextSelection(0, 6, 0)
-            documentSelection.updateTextSelectionHead(2, 5)
+            DocumentSelection.beginTextSelection(0, 6, 0)
+            DocumentSelection.updateTextSelectionHead(2, 5)
 
-            clipboard.text = "**bold**"
+            Clipboard.text = "**bold**"
             keyClick(Qt.Key_V, Qt.ControlModifier | Qt.ShiftModifier)
             tryVerify(function() {
-                return blockModel.getContent(0) === "alpha boldwords"
+                return BlockModel.getContent(0) === "alpha boldwords"
             }, 1000, "Paste-plain drops the markdown markers")
         }
 
@@ -4677,36 +4677,36 @@ Item {
             docWithBlocks(["alpha beta", "middle", "tail words"])
             var ta0 = findTextArea(findBlockDelegate(0))
             ensureFocus(ta0)
-            documentSelection.beginTextSelection(0, 6, 0)
-            documentSelection.updateTextSelectionHead(2, 5)
+            DocumentSelection.beginTextSelection(0, 6, 0)
+            DocumentSelection.updateTextSelectionHead(2, 5)
 
             typeString("z")
-            tryVerify(function() { return blockModel.count === 1 }, 1000,
+            tryVerify(function() { return BlockModel.count === 1 }, 1000,
                       "Typing collapses the range")
-            tryCompare(documentSelection, "hasTextSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", false, 1000)
             tryVerify(function() {
-                return blockModel.getContent(0) === "alpha zwords"
+                return BlockModel.getContent(0) === "alpha zwords"
             }, 1000, "The typed character lands at the collapse point")
 
             // Decision 7's layering: first undo removes the character,
             // second restores the range
             keyClick(Qt.Key_Z, Qt.ControlModifier)
             tryVerify(function() {
-                return blockModel.getContent(0) === "alpha words"
+                return BlockModel.getContent(0) === "alpha words"
             }, 1000, "First undo removes the typed character")
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 3 }, 1000,
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
                       "Second undo restores the removed range")
-            compare(blockModel.getContent(0), "alpha beta")
+            compare(BlockModel.getContent(0), "alpha beta")
 
             // Delete collapses without inserting
             ensureFocus(findTextArea(findBlockDelegate(0)))
-            documentSelection.beginTextSelection(0, 6, 0)
-            documentSelection.updateTextSelectionHead(2, 5)
+            DocumentSelection.beginTextSelection(0, 6, 0)
+            DocumentSelection.updateTextSelectionHead(2, 5)
             keyClick(Qt.Key_Delete)
             tryVerify(function() {
-                return blockModel.count === 1
-                    && blockModel.getContent(0) === "alpha words"
+                return BlockModel.count === 1
+                    && BlockModel.getContent(0) === "alpha words"
             }, 1000, "Delete removes the range in one step")
         }
 
@@ -4714,12 +4714,12 @@ Item {
             if (isHeadless) {
                 skip("Mouse tests require display")
             }
-            documentSelection.clear()
-            documentManager.newDocument()
+            DocumentSelection.clear()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "block 0")
+            BlockModel.updateContent(0, "block 0")
             for (var i = 1; i < 30; i++)
-                blockModel.insertBlock(i, 0, "block " + i)
+                BlockModel.insertBlock(i, 0, "block " + i)
             wait(200)
 
             var listView = findChild(appLoader.item, "blockListView")
@@ -4732,11 +4732,11 @@ Item {
             mousePress(ta0, 5, ta0.height / 2)
             mouseMove(ta0, 20, ta0.height / 2)
             mouseMove(listView, listView.width / 2, listView.height - 8)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             tryVerify(function() { return listView.contentY > 40 }, 3000,
                       "Holding the drag at the edge auto-scrolls")
             mouseRelease(listView, listView.width / 2, listView.height - 8)
-            documentSelection.clear()
+            DocumentSelection.clear()
         }
 
         // ==================================================================
@@ -4750,7 +4750,7 @@ Item {
             docWithBlocks(["a", "b", "c", "d"])
             var listView = findChild(appLoader.item, "blockListView")
             var draggedItem = findBlockDelegate(0)
-            var stackBefore = undoStack.count
+            var stackBefore = UndoStack.count
 
             var handle = hoverAndFindHandle(draggedItem)
             mousePress(handle, 4, 4)
@@ -4758,21 +4758,21 @@ Item {
             mouseMove(handle, 6, 30)
             mouseMove(listView, 100, 110)
             mouseMove(listView, 100, 140)
-            tryVerify(function() { return blockModel.getContent(2) === "a" },
+            tryVerify(function() { return BlockModel.getContent(2) === "a" },
                       1000, "Live make-room moves the row while dragging")
 
             // The drag itself never touches the undo stack (its moves are
             // previews only); the proxy is visible
-            compare(undoStack.count, stackBefore,
+            compare(UndoStack.count, stackBefore,
                     "No undo entries accumulate during the drag")
             var proxy = findChild(appLoader.item, "dragProxy")
             verify(proxy !== null && proxy.visible,
                    "The floating proxy follows the drag")
 
             mouseRelease(listView, 100, 140)
-            compare(blockModel.getContent(0), "b")
-            compare(blockModel.getContent(2), "a")
-            compare(undoStack.count, stackBefore + 1,
+            compare(BlockModel.getContent(0), "b")
+            compare(BlockModel.getContent(2), "a")
+            compare(UndoStack.count, stackBefore + 1,
                     "The drop is one undo step")
 
             // §21.4's guarantee: the dragged delegate survived the drag
@@ -4780,7 +4780,7 @@ Item {
                    "The dragged delegate is the same instance after the drop")
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.getContent(0) === "a" },
+            tryVerify(function() { return BlockModel.getContent(0) === "a" },
                       1000, "One undo restores the original order")
         }
 
@@ -4790,21 +4790,21 @@ Item {
             }
             docWithBlocks(["a", "b", "c"])
             var listView = findChild(appLoader.item, "blockListView")
-            var stackBefore = undoStack.count
+            var stackBefore = UndoStack.count
 
             var handle = hoverAndFindHandle(findBlockDelegate(0))
             mousePress(handle, 4, 4)
             mouseMove(handle, 6, 30)
             mouseMove(listView, 100, 140)
-            tryVerify(function() { return blockModel.getContent(0) !== "a" },
+            tryVerify(function() { return BlockModel.getContent(0) !== "a" },
                       1000, "The row moved during the drag")
 
             keyClick(Qt.Key_Escape)
-            tryVerify(function() { return blockModel.getContent(0) === "a" },
+            tryVerify(function() { return BlockModel.getContent(0) === "a" },
                       1000, "Escape restores the original order (§5.4)")
             mouseRelease(listView, 100, 140)
-            compare(blockModel.getContent(0), "a")
-            compare(undoStack.count, stackBefore,
+            compare(BlockModel.getContent(0), "a")
+            compare(UndoStack.count, stackBefore,
                     "A cancelled drag pushes nothing")
         }
 
@@ -4815,7 +4815,7 @@ Item {
             docWithBlocks(["a", "b", "c", "d", "e"])
             var listView = findChild(appLoader.item, "blockListView")
             selectBlocks(0, 1)
-            var stackBefore = undoStack.count
+            var stackBefore = UndoStack.count
 
             var handle = hoverAndFindHandle(findBlockDelegate(0))
             mousePress(handle, 4, 4)
@@ -4827,21 +4827,21 @@ Item {
             var indicator = findChild(appLoader.item, "dropIndicator")
             tryVerify(function() { return indicator && indicator.visible }, 1000,
                       "Multi-block drag shows the drop indicator")
-            compare(blockModel.getContent(0), "a",
+            compare(BlockModel.getContent(0), "a",
                     "No live reorder during a multi-block drag")
 
             mouseRelease(listView, 100, dropY)
             tryVerify(function() {
-                return blockModel.getContent(1) === "d"
-                    && blockModel.getContent(2) === "a"
-                    && blockModel.getContent(3) === "b"
+                return BlockModel.getContent(1) === "d"
+                    && BlockModel.getContent(2) === "a"
+                    && BlockModel.getContent(3) === "b"
             }, 1000, "The selection moved contiguously to the drop gap")
-            compare(undoStack.count, stackBefore + 1, "One undo step")
+            compare(UndoStack.count, stackBefore + 1, "One undo step")
             compare(selectedIndexesArray(), [2, 3],
                     "The selection follows the moved blocks")
 
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.getContent(1) === "b" },
+            tryVerify(function() { return BlockModel.getContent(1) === "b" },
                       1000, "One undo restores the order")
         }
 
@@ -4854,21 +4854,21 @@ Item {
             mousePress(handle, 4, 4)
             mouseMove(handle, 5, 5) // below the threshold
             mouseRelease(handle, 5, 5)
-            tryCompare(documentSelection, "hasBlockSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", true, 1000)
             compare(selectedIndexesArray(), [1])
-            compare(blockModel.getContent(0), "a", "Nothing moved")
+            compare(BlockModel.getContent(0), "a", "Nothing moved")
         }
 
         function test_q8_dragAutoScrollsAtEdge() {
             if (isHeadless) {
                 skip("Mouse tests require display")
             }
-            documentSelection.clear()
-            documentManager.newDocument()
+            DocumentSelection.clear()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "block 0")
+            BlockModel.updateContent(0, "block 0")
             for (var i = 1; i < 30; i++)
-                blockModel.insertBlock(i, 0, "block " + i)
+                BlockModel.insertBlock(i, 0, "block " + i)
             wait(200)
             var listView = findChild(appLoader.item, "blockListView")
             listView.contentY = 0
@@ -4882,7 +4882,7 @@ Item {
                       "Holding the block drag at the edge auto-scrolls")
             keyClick(Qt.Key_Escape)
             mouseRelease(listView, 100, listView.height - 8)
-            documentSelection.clear()
+            DocumentSelection.clear()
         }
 
         function test_pl_dividerJoinsBlockSelection() {
@@ -4890,7 +4890,7 @@ Item {
                 skip("Mouse tests require display")
             }
             docWithBlocks(["one", "two", "three"])
-            blockModel.convertBlock(1, 9, "")
+            BlockModel.convertBlock(1, 9, "")
             wait(100)
 
             // Ctrl+Click the divider row
@@ -4903,7 +4903,7 @@ Item {
             compare(divider.blockSelected, true)
 
             // Shift+Click from block 0 spans the divider
-            documentSelection.clear()
+            DocumentSelection.clear()
             ensureFocus(findTextArea(findBlockDelegate(0)))
             var third = findTextArea(findBlockDelegate(2))
             mouseClick(third, 10, third.height / 2,
@@ -4927,9 +4927,9 @@ Item {
                            "fox item",
                            "let fox = code",
                            "quote foxes line"])
-            blockModel.convertBlock(2, 4, "fox item")
-            blockModel.convertBlock(3, 8, "let fox = code\nfox()")
-            blockModel.convertBlock(4, 7, "quote foxes line")
+            BlockModel.convertBlock(2, 4, "fox item")
+            BlockModel.convertBlock(3, 8, "let fox = code\nfox()")
+            BlockModel.convertBlock(4, 7, "quote foxes line")
             wait(100)
         }
 
@@ -4982,7 +4982,7 @@ Item {
             searchDoc()
             openFindBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             compare(countLabelText(), "1 of 7")
 
             // The delegates carry the tints through their engines; the
@@ -5005,7 +5005,7 @@ Item {
             searchDoc()
             var bar = openFindBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
 
             keyClick(Qt.Key_Return)
             compare(countLabelText(), "2 of 7", "Enter steps forward")
@@ -5039,7 +5039,7 @@ Item {
             listView.contentY = 0
             openFindBar()
             typeString("needle")
-            tryCompare(documentSearch, "matchCount", 1, 1000)
+            tryCompare(DocumentSearch, "matchCount", 1, 1000)
             tryVerify(function() { return listView.contentY > 0 }, 1000,
                       "The view scrolls to the off-screen match")
             tryVerify(function() {
@@ -5061,19 +5061,19 @@ Item {
                 lines.push("line " + i)
             lines.push("needle()")
             docWithBlocks(["intro"])
-            blockModel.insertBlock(1, 8, lines.join("\n"))
+            BlockModel.insertBlock(1, 8, lines.join("\n"))
             wait(100)
 
             var listView = findChild(appLoader.item, "blockListView")
             listView.contentY = 0
             openFindBar()
             typeString("needle")
-            tryCompare(documentSearch, "matchCount", 1, 1000)
+            tryCompare(DocumentSearch, "matchCount", 1, 1000)
             tryVerify(function() {
                 var item = listView.itemAtIndex(1)
                 if (!item || !item.rectForMarkdownPosition)
                     return false
-                var info = documentSearch.currentMatchInfo()
+                var info = DocumentSearch.currentMatchInfo()
                 var rect = item.rectForMarkdownPosition(info.mdStart)
                 var top = item.y + rect.y - listView.contentY
                 return top >= 0 && top + rect.height <= listView.height
@@ -5087,25 +5087,25 @@ Item {
             searchDoc()
             var bar = openFindBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
 
             var caseButton = findChild(bar, "findCaseButton")
             mouseClick(caseButton)
-            tryCompare(documentSearch, "matchCount", 5, 1000,
+            tryCompare(DocumentSearch, "matchCount", 5, 1000,
                        "Case-sensitive drops Fox and FOX")
             mouseClick(caseButton)
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
 
             var wordButton = findChild(bar, "findWordButton")
             mouseClick(wordButton)
-            tryCompare(documentSearch, "matchCount", 6, 1000,
+            tryCompare(DocumentSearch, "matchCount", 6, 1000,
                        "Whole word drops the match inside 'foxes'")
             mouseClick(wordButton)
 
             var regexButton = findChild(bar, "findRegexButton")
             mouseClick(regexButton)
             bar.queryField.text = "fox\\(\\)"
-            tryCompare(documentSearch, "matchCount", 1, 1000,
+            tryCompare(DocumentSearch, "matchCount", 1, 1000,
                        "The regex finds only the code call")
             compare(countLabelText(), "1 of 1")
         }
@@ -5118,13 +5118,13 @@ Item {
             var bar = openFindBar()
             mouseClick(findChild(bar, "findRegexButton"))
             bar.queryField.text = "(unclosed"
-            tryCompare(documentSearch, "patternError", true, 1000)
+            tryCompare(DocumentSearch, "patternError", true, 1000)
             compare(countLabelText(), "Invalid pattern")
-            compare(documentSearch.matchCount, 0)
+            compare(DocumentSearch.matchCount, 0)
 
             bar.queryField.text = "(fox)"
-            tryCompare(documentSearch, "patternError", false, 1000)
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "patternError", false, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
         }
 
         function test_r8_ctrlFSeedsQueryFromInBlockSelection() {
@@ -5142,7 +5142,7 @@ Item {
                     "The selection seeds the query")
             // Seeded from the cursor at the selection: find starts at
             // the next match, not the document top.
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             compare(countLabelText(), "2 of 7")
         }
 
@@ -5153,7 +5153,7 @@ Item {
             searchDoc()
             openFindBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
 
             // Click back into a block and add another match: the bar
             // stays open and the count follows the document.
@@ -5163,7 +5163,7 @@ Item {
             compare(appLoader.item.findBar.visible, true)
             keyClick(Qt.Key_Home)
             typeString("fox ")
-            tryCompare(documentSearch, "matchCount", 8, 2000)
+            tryCompare(DocumentSearch, "matchCount", 8, 2000)
         }
 
         function test_ra_escapeClosesAndFocusesCurrentMatch() {
@@ -5173,11 +5173,11 @@ Item {
             searchDoc()
             var bar = openFindBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             // Current match: block 1's "Fox" at display 7.
             keyClick(Qt.Key_Escape)
             tryCompare(bar, "visible", false, 1000)
-            compare(documentSearch.matchCount, 0, "Closing clears matches")
+            compare(DocumentSearch.matchCount, 0, "Closing clears matches")
             var textArea = findTextArea(findBlockDelegate(1))
             tryCompare(textArea, "activeFocus", true, 1000,
                        "Focus lands on the match's block")
@@ -5191,7 +5191,7 @@ Item {
             searchDoc()
             var bar = openFindBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             keyClick(Qt.Key_Escape)
             tryCompare(bar, "visible", false, 1000)
 
@@ -5199,7 +5199,7 @@ Item {
             tryCompare(bar, "visible", true, 1000,
                        "F3 reopens the bar with the kept query")
             compare(bar.queryField.text, "fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
         }
 
         function test_rc_noResultsState() {
@@ -5209,7 +5209,7 @@ Item {
             searchDoc()
             var bar = openFindBar()
             typeString("zebra")
-            tryCompare(documentSearch, "matchCount", 0, 1000)
+            tryCompare(DocumentSearch, "matchCount", 0, 1000)
             compare(countLabelText(), "No results")
             compare(findChild(bar, "findNextButton").enabled, false)
             compare(findChild(bar, "findPrevButton").enabled, false)
@@ -5251,20 +5251,20 @@ Item {
             searchDoc()
             var bar = openReplaceBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
 
             bar.replaceField.text = "cat"
-            var undoCountBefore = undoStack.count
+            var undoCountBefore = UndoStack.count
             mouseClick(findChild(bar, "replaceOneButton"))
-            tryCompare(documentSearch, "matchCount", 6, 1000)
-            compare(blockModel.getContent(1), "second cat block fox FOX")
-            compare(documentSearch.currentMatchInfo().start, 17,
+            tryCompare(DocumentSearch, "matchCount", 6, 1000)
+            compare(BlockModel.getContent(1), "second cat block fox FOX")
+            compare(DocumentSearch.currentMatchInfo().start, 17,
                     "The current match advanced to the next remaining one")
-            compare(undoStack.count, undoCountBefore + 1)
+            compare(UndoStack.count, undoCountBefore + 1)
 
-            undoStack.undo()
+            UndoStack.undo()
             tryVerify(function() {
-                return blockModel.getContent(1) === "second Fox block fox FOX"
+                return BlockModel.getContent(1) === "second Fox block fox FOX"
             }, 1000, "One Ctrl+Z restores the replaced text")
         }
 
@@ -5276,11 +5276,11 @@ Item {
             docWithBlocks(["x **bold** y", "plain"])
             var bar = openReplaceBar()
             typeString("bold")
-            tryCompare(documentSearch, "matchCount", 1, 1000)
+            tryCompare(DocumentSearch, "matchCount", 1, 1000)
             bar.replaceField.text = "brave"
             mouseClick(findChild(bar, "replaceOneButton"))
             tryVerify(function() {
-                return blockModel.getContent(0) === "x brave y"
+                return BlockModel.getContent(0) === "x brave y"
             }, 1000, "Replacing a fully covered span drops its markers")
         }
 
@@ -5291,7 +5291,7 @@ Item {
             searchDoc()
             var bar = openReplaceBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             bar.replaceField.text = "cat"
 
             // The preview lists every match; Cancel changes nothing.
@@ -5304,24 +5304,24 @@ Item {
             verify(summary.text.indexOf("4") >= 0, "7 matches in 4 blocks")
             mouseClick(findChild(bar, "previewCancelButton"))
             tryCompare(panel, "visible", false, 1000)
-            compare(blockModel.getContent(1), "second Fox block fox FOX",
+            compare(BlockModel.getContent(1), "second Fox block fox FOX",
                     "Cancel leaves the document untouched")
 
             // Confirm applies everything as one undo step.
             mouseClick(findChild(bar, "replaceAllButton"))
             tryCompare(panel, "visible", true, 1000)
-            var undoCountBefore = undoStack.count
+            var undoCountBefore = UndoStack.count
             mouseClick(findChild(bar, "previewConfirmButton"))
             tryCompare(panel, "visible", false, 1000)
-            tryCompare(documentSearch, "matchCount", 0, 2000)
-            compare(blockModel.getContent(1), "second cat block cat cat")
-            compare(blockModel.getContent(3), "let cat = code\ncat()")
-            compare(undoStack.count, undoCountBefore + 1)
+            tryCompare(DocumentSearch, "matchCount", 0, 2000)
+            compare(BlockModel.getContent(1), "second cat block cat cat")
+            compare(BlockModel.getContent(3), "let cat = code\ncat()")
+            compare(UndoStack.count, undoCountBefore + 1)
 
-            undoStack.undo()
+            UndoStack.undo()
             tryVerify(function() {
-                return blockModel.getContent(1) === "second Fox block fox FOX"
-                    && blockModel.getContent(3) === "let fox = code\nfox()"
+                return BlockModel.getContent(1) === "second Fox block fox FOX"
+                    && BlockModel.getContent(3) === "let fox = code\nfox()"
             }, 1000, "One Ctrl+Z restores every replaced block")
         }
 
@@ -5332,7 +5332,7 @@ Item {
             searchDoc()
             var bar = openReplaceBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             bar.replaceField.text = "cat"
             mouseClick(findChild(bar, "replaceAllButton"))
             var panel = findChild(bar, "replacePreviewPanel")
@@ -5340,7 +5340,7 @@ Item {
 
             // An edit invalidates the snapshot: the panel dismisses
             // rather than applying a stale preview.
-            blockModel.updateContent(2, "no more match here")
+            BlockModel.updateContent(2, "no more match here")
             tryCompare(panel, "visible", false, 2000)
         }
 
@@ -5353,11 +5353,11 @@ Item {
             var bar = openReplaceBar()
             mouseClick(findChild(bar, "findRegexButton"))
             bar.queryField.text = "(\\w+): (\\w+)"
-            tryCompare(documentSearch, "matchCount", 1, 1000)
+            tryCompare(DocumentSearch, "matchCount", 1, 1000)
             bar.replaceField.text = "$2 = $1"
             mouseClick(findChild(bar, "replaceOneButton"))
             tryVerify(function() {
-                return blockModel.getContent(0) === "value = name"
+                return BlockModel.getContent(0) === "value = name"
             }, 1000, "Capture groups substitute into the replacement")
         }
 
@@ -5368,14 +5368,14 @@ Item {
             searchDoc()
             var bar = openReplaceBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             mouseClick(findChild(bar, "preserveCaseButton"))
             bar.replaceField.text = "cat"
             mouseClick(findChild(bar, "replaceAllButton"))
             tryCompare(findChild(bar, "replacePreviewPanel"), "visible", true, 1000)
             mouseClick(findChild(bar, "previewConfirmButton"))
             tryVerify(function() {
-                return blockModel.getContent(1) === "second Cat block cat CAT"
+                return BlockModel.getContent(1) === "second Cat block cat CAT"
             }, 2000, "Each match's casing carries onto its replacement")
         }
 
@@ -5386,32 +5386,32 @@ Item {
             searchDoc()
             // Select the bullet block, then open replace: the domain
             // arms and Replace All touches only the selection.
-            documentSelection.selectBlock(2)
+            DocumentSelection.selectBlock(2)
             appLoader.item.selectionKeyHandler.forceActiveFocus()
             keyClick(Qt.Key_H, Qt.ControlModifier)
             var bar = appLoader.item.findBar
             tryCompare(bar, "visible", true, 1000)
-            verify(documentSearch.hasDomain, "The selection armed a domain")
+            verify(DocumentSearch.hasDomain, "The selection armed a domain")
             var inSelection = findChild(bar, "inSelectionButton")
             verify(inSelection.visible)
             verify(inSelection.checked)
 
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 1, 1000,
+            tryCompare(DocumentSearch, "matchCount", 1, 1000,
                        "Only the selected block's match counts")
             bar.replaceField.text = "cat"
             mouseClick(findChild(bar, "replaceAllButton"))
             tryCompare(findChild(bar, "replacePreviewPanel"), "visible", true, 1000)
             mouseClick(findChild(bar, "previewConfirmButton"))
             tryVerify(function() {
-                return blockModel.getContent(2) === "cat item"
+                return BlockModel.getContent(2) === "cat item"
             }, 2000)
-            compare(blockModel.getContent(1), "second Fox block fox FOX",
+            compare(BlockModel.getContent(1), "second Fox block fox FOX",
                     "Unselected blocks are untouched")
 
             // Turning the toggle off restores whole-document scope.
             mouseClick(inSelection)
-            tryCompare(documentSearch, "matchCount", 6, 1000)
+            tryCompare(DocumentSearch, "matchCount", 6, 1000)
         }
 
         function test_s9_textSelectionDomainFiltersEdges() {
@@ -5421,17 +5421,17 @@ Item {
             searchDoc()
             // A cross-block text range from inside block 1 (after "Fox")
             // through block 2: only matches inside it count.
-            documentSelection.beginTextSelection(1, 10, 0)
-            documentSelection.updateTextSelectionHead(2, 8)
+            DocumentSelection.beginTextSelection(1, 10, 0)
+            DocumentSelection.updateTextSelectionHead(2, 8)
             keyClick(Qt.Key_H, Qt.ControlModifier)
             var bar = appLoader.item.findBar
             tryCompare(bar, "visible", true, 1000)
-            verify(documentSearch.hasDomain)
+            verify(DocumentSearch.hasDomain)
 
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 3, 1000,
+            tryCompare(DocumentSearch, "matchCount", 3, 1000,
                        "Block 1's later two matches plus the bullet's")
-            documentSelection.clear()
+            DocumentSelection.clear()
         }
 
         function test_sa_replacementTextIsMarkdown() {
@@ -5442,11 +5442,11 @@ Item {
             docWithBlocks(["make this loud", "plain"])
             var bar = openReplaceBar()
             typeString("loud")
-            tryCompare(documentSearch, "matchCount", 1, 1000)
+            tryCompare(DocumentSearch, "matchCount", 1, 1000)
             bar.replaceField.text = "**loud**"
             mouseClick(findChild(bar, "replaceOneButton"))
             tryVerify(function() {
-                return blockModel.getContent(0) === "make this **loud**"
+                return BlockModel.getContent(0) === "make this **loud**"
             }, 1000)
             // The delegate renders it as a hidden-marker bold span.
             var textArea = findTextArea(findBlockDelegate(0))
@@ -5460,13 +5460,13 @@ Item {
             searchDoc()
             var bar = openReplaceBar()
             typeString("fox")
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             bar.replaceField.forceActiveFocus()
             tryCompare(bar.replaceField, "activeFocus", true, 1000)
             typeString("cat")
             keyClick(Qt.Key_Return)
-            tryCompare(documentSearch, "matchCount", 6, 1000)
-            compare(blockModel.getContent(1), "second cat block fox FOX")
+            tryCompare(DocumentSearch, "matchCount", 6, 1000)
+            compare(BlockModel.getContent(1), "second cat block fox FOX")
         }
 
         // ============================================================
@@ -5479,28 +5479,28 @@ Item {
         function openTestCollection() {
             collectionSerial++
             var root = testCollectionDir + "/col" + collectionSerial
-            verify(noteCollection.openRoot(root), "collection root opens")
-            verify(noteCollection.createFolder("", "Ideas") !== "")
-            verify(noteCollection.createFolder("Ideas", "Projects") !== "")
-            verify(noteCollection.createNote("", "Welcome") !== "")
-            verify(noteCollection.createNote("Ideas", "Reading") !== "")
-            verify(noteCollection.createNote("Ideas/Projects", "Kvit") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root), "collection root opens")
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createFolder("Ideas", "Projects") !== "")
+            verify(NoteCollection.createNote("", "Welcome") !== "")
+            verify(NoteCollection.createNote("Ideas", "Reading") !== "")
+            verify(NoteCollection.createNote("Ideas/Projects", "Kvit") !== "")
+            NoteListModel.scope = "all"
             wait(20)
             return root
         }
 
         function closeTestCollection() {
-            noteListModel.scope = "all"
-            noteListModel.folderPath = ""
-            noteCollection.closeRoot()
+            NoteListModel.scope = "all"
+            NoteListModel.folderPath = ""
+            NoteCollection.closeRoot()
             wait(20)
         }
 
         function noteRowFor(relPath) {
             var listView = findChild(appLoader.item, "noteListView")
             verify(listView !== null, "note list exists")
-            var row = noteListModel.rowOf(relPath)
+            var row = NoteListModel.rowOf(relPath)
             verify(row >= 0, "note " + relPath + " is listed")
             listView.positionViewAtIndex(row, ListView.Contain)
             waitForRendering(listView)
@@ -5512,7 +5512,7 @@ Item {
         function folderRowFor(relPath) {
             var treeView = findChild(appLoader.item, "folderTreeView")
             verify(treeView !== null, "folder tree exists")
-            var row = folderTreeModel.rowOf(relPath)
+            var row = FolderTreeModel.rowOf(relPath)
             verify(row >= 0, "folder " + relPath + " is a visible row")
             var item = treeView.itemAtIndex(row)
             verify(item !== null, "folder row instantiated")
@@ -5525,7 +5525,7 @@ Item {
 
             // Unopened collection: the pre-Phase-8 geometry (this whole
             // suite ran above in exactly this state).
-            verify(!noteCollection.isOpen)
+            verify(!NoteCollection.isOpen)
             verify(!panels.visible, "panels hidden without a collection")
             compare(panels.width, 0)
 
@@ -5550,25 +5550,25 @@ Item {
             tryCompare(appLoader.item, "currentNoteRelPath", "Welcome.md", 1000)
 
             // Type into the open note, leaving it dirty.
-            blockModel.updateContent(0, "welcome text here")
-            verify(documentManager.isDirty)
+            BlockModel.updateContent(0, "welcome text here")
+            verify(DocumentManager.isDirty)
 
             // Click another note: save-on-blur, switch, undo clears.
             mouseClick(noteRowFor("Ideas/Reading.md"))
             tryCompare(appLoader.item, "currentNoteRelPath",
                        "Ideas/Reading.md", 1000)
-            verify(!undoStack.canUndo, "undo history clears on switch")
+            verify(!UndoStack.canUndo, "undo history clears on switch")
             verify(appLoader.item.title.indexOf("Reading") !== -1,
                    "window title tracks the open note")
 
             // The edit reached the disk (the index refreshed from the
             // saved file via the noteSaved hook).
-            var info = noteCollection.noteInfo("Welcome.md")
+            var info = NoteCollection.noteInfo("Welcome.md")
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").body
+                return NoteCollection.noteInfo("Welcome.md").body
                     === "welcome text here\n"
             }, 2000, "saved note is reindexed after switching")
-            verify(!documentManager.isDirty, "switched note starts clean")
+            verify(!DocumentManager.isDirty, "switched note starts clean")
 
             closeTestCollection()
         }
@@ -5580,11 +5580,11 @@ Item {
             openTestCollection()
 
             // Folder scope: the new note lands in that folder.
-            noteListModel.folderPath = "Ideas"
-            noteListModel.scope = "folder"
+            NoteListModel.folderPath = "Ideas"
+            NoteListModel.scope = "folder"
             keyClick(Qt.Key_N, Qt.ControlModifier)
             tryVerify(function() {
-                return noteCollection.noteInfo("Ideas/Untitled.md").title
+                return NoteCollection.noteInfo("Ideas/Untitled.md").title
                        === "Untitled"
             }, 1000)
             tryCompare(appLoader.item, "currentNoteRelPath",
@@ -5619,10 +5619,10 @@ Item {
 
             // The file moved and the open document followed it.
             tryVerify(function() {
-                return noteCollection.noteInfo("Ideas/Bookshelf.md").title
+                return NoteCollection.noteInfo("Ideas/Bookshelf.md").title
                        === "Bookshelf"
             }, 1000)
-            verify(!noteCollection.noteInfo("Ideas/Reading.md").title,
+            verify(!NoteCollection.noteInfo("Ideas/Reading.md").title,
                    "old path gone")
             tryCompare(appLoader.item, "currentNoteRelPath",
                        "Ideas/Bookshelf.md", 1000)
@@ -5642,7 +5642,7 @@ Item {
             dialog.selectedColor = "#e05c5c"
             dialog.accept()
             wait(50)
-            compare(folderTreeModel.rowOf("Archive") >= 0, true,
+            compare(FolderTreeModel.rowOf("Archive") >= 0, true,
                     "created folder is a row")
             verify(folderRowFor("Archive") !== null)
 
@@ -5651,15 +5651,15 @@ Item {
             nameField.text = "Vault"
             dialog.accept()
             wait(50)
-            verify(folderTreeModel.rowOf("Vault") >= 0, "renamed row exists")
-            compare(folderTreeModel.rowOf("Archive"), -1)
+            verify(FolderTreeModel.rowOf("Vault") >= 0, "renamed row exists")
+            compare(FolderTreeModel.rowOf("Archive"), -1)
 
             // Delete (confirmed) moves it to trash and drops the row.
             var deleteDialog = findChild(appLoader.item, "deleteFolderDialog")
             deleteDialog.openFor("Vault", "Vault", 0)
             deleteDialog.accept()
             wait(50)
-            compare(folderTreeModel.rowOf("Vault"), -1)
+            compare(FolderTreeModel.rowOf("Vault"), -1)
 
             closeTestCollection()
         }
@@ -5668,23 +5668,23 @@ Item {
             var root = openTestCollection()
 
             // Collapse "Ideas": its child row disappears.
-            verify(folderTreeModel.rowOf("Ideas/Projects") >= 0)
-            folderTreeModel.toggleExpanded(folderTreeModel.rowOf("Ideas"))
+            verify(FolderTreeModel.rowOf("Ideas/Projects") >= 0)
+            FolderTreeModel.toggleExpanded(FolderTreeModel.rowOf("Ideas"))
             tryVerify(function() {
-                return folderTreeModel.rowOf("Ideas/Projects") === -1
+                return FolderTreeModel.rowOf("Ideas/Projects") === -1
             }, 1000)
 
             // The state survives a close/reopen of the same root.
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(20)
-            verify(noteCollection.openRoot(root))
+            verify(NoteCollection.openRoot(root))
             tryVerify(function() {
-                return folderTreeModel.rowOf("Ideas") >= 0
-                       && folderTreeModel.rowOf("Ideas/Projects") === -1
+                return FolderTreeModel.rowOf("Ideas") >= 0
+                       && FolderTreeModel.rowOf("Ideas/Projects") === -1
             }, 1000)
-            folderTreeModel.toggleExpanded(folderTreeModel.rowOf("Ideas"))
+            FolderTreeModel.toggleExpanded(FolderTreeModel.rowOf("Ideas"))
             tryVerify(function() {
-                return folderTreeModel.rowOf("Ideas/Projects") >= 0
+                return FolderTreeModel.rowOf("Ideas/Projects") >= 0
             }, 1000)
 
             closeTestCollection()
@@ -5709,10 +5709,10 @@ Item {
             mouseRelease(folderRow, folderRow.width / 2, folderRow.height / 2)
 
             tryVerify(function() {
-                return noteCollection.noteInfo("Ideas/Welcome.md").title
+                return NoteCollection.noteInfo("Ideas/Welcome.md").title
                        === "Welcome"
             }, 1000)
-            verify(!noteCollection.noteInfo("Welcome.md").title,
+            verify(!NoteCollection.noteInfo("Welcome.md").title,
                    "note left the root")
 
             closeTestCollection()
@@ -5740,12 +5740,12 @@ Item {
             var root = openTestCollection()
 
             verify(appLoader.item.openNoteByPath("Ideas/Reading.md"))
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(20)
 
             // The startup restore (main.cpp) reads exactly this value.
-            verify(noteCollection.openRoot(root))
-            compare(noteCollection.lastOpenNote(), "Ideas/Reading.md")
+            verify(NoteCollection.openRoot(root))
+            compare(NoteCollection.lastOpenNote(), "Ideas/Reading.md")
 
             closeTestCollection()
         }
@@ -5774,7 +5774,7 @@ Item {
             }
             openTestCollection()
             // Seed the registry from another note.
-            verify(noteCollection.addTag("Ideas/Reading.md", "shared"))
+            verify(NoteCollection.addTag("Ideas/Reading.md", "shared"))
 
             verify(appLoader.item.openNoteByPath("Welcome.md"))
             var strip = tagStripItem()
@@ -5794,7 +5794,7 @@ Item {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md")
+                return NoteCollection.noteInfo("Welcome.md")
                            .tags.indexOf("shared") !== -1
             }, 1000)
             tryVerify(function() { return strip.chipFor("shared") !== null },
@@ -5804,11 +5804,11 @@ Item {
             typeString("brandnew")
             keyClick(Qt.Key_Return)
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md")
+                return NoteCollection.noteInfo("Welcome.md")
                            .tags.indexOf("brandnew") !== -1
             }, 1000)
-            compare(noteCollection.tagCount("brandnew"), 1)
-            verify(noteCollection.tagColor("brandnew") !== "",
+            compare(NoteCollection.tagCount("brandnew"), 1)
+            verify(NoteCollection.tagColor("brandnew") !== "",
                    "new tag received a palette color")
 
             closeTestCollection()
@@ -5819,7 +5819,7 @@ Item {
                 skip("Mouse tests require display")
             }
             openTestCollection()
-            verify(noteCollection.addTag("Welcome.md", "temp"))
+            verify(NoteCollection.addTag("Welcome.md", "temp"))
             verify(appLoader.item.openNoteByPath("Welcome.md"))
 
             var strip = tagStripItem()
@@ -5836,10 +5836,10 @@ Item {
             mouseClick(removeGlyph)
 
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md")
+                return NoteCollection.noteInfo("Welcome.md")
                            .tags.indexOf("temp") === -1
             }, 1000)
-            compare(noteCollection.tagCount("temp"), 0)
+            compare(NoteCollection.tagCount("temp"), 0)
 
             closeTestCollection()
         }
@@ -5849,9 +5849,9 @@ Item {
                 skip("Mouse tests require display")
             }
             openTestCollection()
-            verify(noteCollection.addTag("Welcome.md", "work"))
-            verify(noteCollection.addTag("Ideas/Reading.md", "work"))
-            verify(noteCollection.addTag("Ideas/Projects/Kvit.md", "other"))
+            verify(NoteCollection.addTag("Welcome.md", "work"))
+            verify(NoteCollection.addTag("Ideas/Reading.md", "work"))
+            verify(NoteCollection.addTag("Ideas/Projects/Kvit.md", "other"))
 
             var tagList = findChild(appLoader.item, "tagListView")
             verify(tagList !== null)
@@ -5865,20 +5865,20 @@ Item {
             waitForRendering(tagList)
             mouseClick(workRow)
 
-            tryCompare(noteListModel, "tagFilter", "work", 1000)
-            compare(noteListModel.count, 2)
+            tryCompare(NoteListModel, "tagFilter", "work", 1000)
+            compare(NoteListModel.count, 2)
 
             // Compose with a folder scope: only the Ideas note remains.
-            noteListModel.folderPath = "Ideas"
-            noteListModel.scope = "folder"
-            tryCompare(noteListModel, "count", 1, 1000)
-            compare(noteListModel.relPathAt(0), "Ideas/Reading.md")
+            NoteListModel.folderPath = "Ideas"
+            NoteListModel.scope = "folder"
+            tryCompare(NoteListModel, "count", 1, 1000)
+            compare(NoteListModel.relPathAt(0), "Ideas/Reading.md")
 
             // Clicking the active tag clears the filter.
-            noteListModel.scope = "all"
+            NoteListModel.scope = "all"
             mouseClick(workRow)
-            tryCompare(noteListModel, "tagFilter", "", 1000)
-            compare(noteListModel.count, 3)
+            tryCompare(NoteListModel, "tagFilter", "", 1000)
+            compare(NoteListModel.count, 3)
 
             closeTestCollection()
         }
@@ -5888,27 +5888,27 @@ Item {
                 skip("Keyboard tests require display")
             }
             openTestCollection()
-            verify(noteCollection.addTag("Welcome.md", "draft"))
-            verify(noteCollection.addTag("Ideas/Reading.md", "draft"))
+            verify(NoteCollection.addTag("Welcome.md", "draft"))
+            verify(NoteCollection.addTag("Ideas/Reading.md", "draft"))
             verify(appLoader.item.openNoteByPath("Welcome.md"))
 
             var dialog = findChild(appLoader.item, "tagDialog")
-            dialog.openFor("draft", noteCollection.tagColor("draft"))
+            dialog.openFor("draft", NoteCollection.tagColor("draft"))
             var nameField = findChild(appLoader.item, "tagDialogNameField")
             nameField.text = "wip"
             dialog.accept()
 
             tryVerify(function() {
-                return noteCollection.tagCount("wip") === 2
-                       && noteCollection.tagCount("draft") === 0
+                return NoteCollection.tagCount("wip") === 2
+                       && NoteCollection.tagCount("draft") === 0
             }, 1000)
 
             // The open note's held front-matter refreshed:
             // an edit + save must keep the renamed tag, not resurrect
             // the block captured at load.
-            blockModel.updateContent(0, "edited after tag rename")
-            verify(documentManager.save())
-            var tags = noteCollection.noteInfo("Welcome.md").tags
+            BlockModel.updateContent(0, "edited after tag rename")
+            verify(DocumentManager.save())
+            var tags = NoteCollection.noteInfo("Welcome.md").tags
             compare(tags.length, 1)
             compare(tags[0], "wip")
 
@@ -5917,9 +5917,9 @@ Item {
 
         function test_u5_mergeAndDeleteTag() {
             openTestCollection()
-            verify(noteCollection.addTag("Welcome.md", "alpha"))
-            verify(noteCollection.addTag("Ideas/Reading.md", "beta"))
-            verify(noteCollection.addTag("Ideas/Projects/Kvit.md", "beta"))
+            verify(NoteCollection.addTag("Welcome.md", "alpha"))
+            verify(NoteCollection.addTag("Ideas/Reading.md", "beta"))
+            verify(NoteCollection.addTag("Ideas/Projects/Kvit.md", "beta"))
 
             // Renaming onto an existing tag routes through the merge
             // confirmation with the blast radius.
@@ -5933,8 +5933,8 @@ Item {
             mergeDialog.accept()
 
             tryVerify(function() {
-                return noteCollection.tagCount("beta") === 3
-                       && noteCollection.tagCount("alpha") === 0
+                return NoteCollection.tagCount("beta") === 3
+                       && NoteCollection.tagCount("alpha") === 0
             }, 1000)
 
             // Delete strips the tag from every carrier, confirmed.
@@ -5942,9 +5942,9 @@ Item {
             deleteDialog.openFor("beta", 3)
             deleteDialog.accept()
             tryVerify(function() {
-                return noteCollection.tagCount("beta") === 0
+                return NoteCollection.tagCount("beta") === 0
             }, 1000)
-            compare(noteCollection.noteInfo("Welcome.md").tags.length, 0)
+            compare(NoteCollection.noteInfo("Welcome.md").tags.length, 0)
 
             closeTestCollection()
         }
@@ -5955,8 +5955,8 @@ Item {
 
         function listOrder() {
             var out = []
-            for (var i = 0; i < noteListModel.count; i++)
-                out.push(noteListModel.relPathAt(i))
+            for (var i = 0; i < NoteListModel.count; i++)
+                out.push(NoteListModel.relPathAt(i))
             return out
         }
 
@@ -5973,22 +5973,22 @@ Item {
             // Title ascending: Kvit < Reading < Welcome.
             combo.currentIndex = 2
             combo.activated(2)
-            tryCompare(noteListModel, "sortMode", "title", 1000)
+            tryCompare(NoteListModel, "sortMode", "title", 1000)
             direction.clicked() // default descending → ascending
-            tryCompare(noteListModel, "ascending", true, 1000)
+            tryCompare(NoteListModel, "ascending", true, 1000)
             compare(listOrder(),
                     ["Ideas/Projects/Kvit.md", "Ideas/Reading.md",
                      "Welcome.md"])
 
             direction.clicked()
-            tryCompare(noteListModel, "ascending", false, 1000)
+            tryCompare(NoteListModel, "ascending", false, 1000)
             compare(listOrder()[0], "Welcome.md")
 
             // Picking manual snaps to the stored (ascending) order.
             combo.currentIndex = 3
             combo.activated(3)
-            tryCompare(noteListModel, "sortMode", "manual", 1000)
-            compare(noteListModel.ascending, true)
+            tryCompare(NoteListModel, "sortMode", "manual", 1000)
+            compare(NoteListModel.ascending, true)
 
             closeTestCollection()
         }
@@ -5998,8 +5998,8 @@ Item {
                 skip("Mouse tests require display")
             }
             openTestCollection()
-            noteListModel.sortMode = "title"
-            noteListModel.ascending = true
+            NoteListModel.sortMode = "title"
+            NoteListModel.ascending = true
 
             // Hover the Welcome row: the toggles appear (and get their
             // layout positions on the next rendered frame).
@@ -6011,7 +6011,7 @@ Item {
             mouseClick(pinButton)
 
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").pinned === true
+                return NoteCollection.noteInfo("Welcome.md").pinned === true
             }, 1000)
             // Pinned floats to the top despite sorting last by title.
             tryVerify(function() {
@@ -6026,11 +6026,11 @@ Item {
             waitForRendering(row)
             mouseClick(favoriteButton)
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").favorite === true
+                return NoteCollection.noteInfo("Welcome.md").favorite === true
             }, 1000)
-            noteListModel.scope = "favorites"
-            tryCompare(noteListModel, "count", 1, 1000)
-            compare(noteListModel.relPathAt(0), "Welcome.md")
+            NoteListModel.scope = "favorites"
+            tryCompare(NoteListModel, "count", 1, 1000)
+            compare(NoteListModel.relPathAt(0), "Welcome.md")
 
             closeTestCollection()
         }
@@ -6041,8 +6041,8 @@ Item {
             }
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            blockModel.updateContent(0, "five words of body text")
-            verify(documentManager.save())
+            BlockModel.updateContent(0, "five words of body text")
+            verify(DocumentManager.save())
 
             var row = noteRowFor("Welcome.md")
             var details = findChild(row, "noteDetailsLabel")
@@ -6059,8 +6059,8 @@ Item {
                 skip("Mouse tests require display")
             }
             openTestCollection()
-            noteListModel.sortMode = "title"
-            noteListModel.ascending = true
+            NoteListModel.sortMode = "title"
+            NoteListModel.ascending = true
             var pane = findChild(appLoader.item, "noteListPane")
 
             // Plain click selects one (and opens); Ctrl+Click adds.
@@ -6080,8 +6080,8 @@ Item {
             // Bulk favorite.
             mouseClick(findChild(appLoader.item, "bulkFavoriteButton"))
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").favorite
-                    && noteCollection.noteInfo("Ideas/Projects/Kvit.md").favorite
+                return NoteCollection.noteInfo("Welcome.md").favorite
+                    && NoteCollection.noteInfo("Ideas/Projects/Kvit.md").favorite
             }, 1000)
 
             // Bulk tag through the dialog.
@@ -6092,9 +6092,9 @@ Item {
             field.text = "batch"
             acceptDialogAndSettle(tagDialog)
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md")
+                return NoteCollection.noteInfo("Welcome.md")
                            .tags.indexOf("batch") !== -1
-                    && noteCollection.noteInfo("Ideas/Projects/Kvit.md")
+                    && NoteCollection.noteInfo("Ideas/Projects/Kvit.md")
                            .tags.indexOf("batch") !== -1
             }, 1000)
 
@@ -6104,7 +6104,7 @@ Item {
             tryCompare(deleteDialog, "visible", true, 1000)
             acceptDialogAndSettle(deleteDialog)
             tryVerify(function() {
-                return noteListModel.count === 1
+                return NoteListModel.count === 1
             }, 1000)
             compare(pane.selectedPaths.length, 0)
 
@@ -6116,8 +6116,8 @@ Item {
                 skip("Mouse tests require display")
             }
             openTestCollection()
-            noteListModel.sortMode = "title"
-            noteListModel.ascending = true
+            NoteListModel.sortMode = "title"
+            NoteListModel.ascending = true
             var pane = findChild(appLoader.item, "noteListPane")
 
             mouseClick(noteRowFor("Ideas/Projects/Kvit.md")) // row 0
@@ -6138,15 +6138,15 @@ Item {
             }
             openTestCollection()
             // A second note beside Reading: manual reorder needs a pair.
-            verify(noteCollection.createNote("Ideas", "Alpha") !== "")
-            noteListModel.scope = "folder"
-            noteListModel.folderPath = "Ideas"
-            noteListModel.sortMode = "manual"
-            noteListModel.ascending = true
+            verify(NoteCollection.createNote("Ideas", "Alpha") !== "")
+            NoteListModel.scope = "folder"
+            NoteListModel.folderPath = "Ideas"
+            NoteListModel.sortMode = "manual"
+            NoteListModel.ascending = true
 
-            tryCompare(noteListModel, "count", 2, 1000)
-            var first = noteListModel.relPathAt(0)
-            var second = noteListModel.relPathAt(1)
+            tryCompare(NoteListModel, "count", 2, 1000)
+            var first = NoteListModel.relPathAt(0)
+            var second = NoteListModel.relPathAt(1)
 
             // Drag the first row below the second row's midpoint.
             var row0 = noteRowFor(first)
@@ -6159,11 +6159,11 @@ Item {
             mouseRelease(row1, row1.width / 2, row1.height - 5)
 
             tryVerify(function() {
-                return noteListModel.relPathAt(0) === second
-                       && noteListModel.relPathAt(1) === first
+                return NoteListModel.relPathAt(0) === second
+                       && NoteListModel.relPathAt(1) === first
             }, 1000)
             // Persisted: the collection's manual order agrees.
-            compare(noteCollection.notesInFolder("Ideas")[0], second)
+            compare(NoteCollection.notesInFolder("Ideas")[0], second)
 
             closeTestCollection()
         }
@@ -6173,8 +6173,8 @@ Item {
                 skip("Mouse tests require display")
             }
             openTestCollection()
-            noteListModel.sortMode = "title"
-            noteListModel.ascending = true
+            NoteListModel.sortMode = "title"
+            NoteListModel.ascending = true
             var pane = findChild(appLoader.item, "noteListPane")
 
             // Select Kvit + Welcome, then drag one of them onto Ideas.
@@ -6191,9 +6191,9 @@ Item {
             mouseRelease(folderRow, folderRow.width / 2, folderRow.height / 2)
 
             tryVerify(function() {
-                return noteCollection.noteInfo("Ideas/Welcome.md").title
+                return NoteCollection.noteInfo("Ideas/Welcome.md").title
                            === "Welcome"
-                    && noteCollection.noteInfo("Ideas/Kvit.md").title
+                    && NoteCollection.noteInfo("Ideas/Kvit.md").title
                            === "Kvit"
             }, 1000)
 
@@ -6204,7 +6204,7 @@ Item {
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Welcome.md"))
 
-            verify(noteCollection.deleteNote("Welcome.md"))
+            verify(NoteCollection.deleteNote("Welcome.md"))
 
             // The editor moves to a surviving note — never back onto the
             // trashed path (the fallback must read the REBUILT list), and
@@ -6215,7 +6215,7 @@ Item {
             }, 1000)
             var errorDialog = findChild(appLoader.item, "errorDialog")
             verify(!errorDialog.visible, "no failed-open error dialog")
-            verify(!noteCollection.noteInfo("Welcome.md").title,
+            verify(!NoteCollection.noteInfo("Welcome.md").title,
                    "the deleted note stays deleted")
 
             closeTestCollection()
@@ -6228,22 +6228,22 @@ Item {
         function seedSearchContent() {
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "The quick **brown fox** jumps\n\nno match here\n")
-            verify(documentManager.save())
+            verify(DocumentManager.save())
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").body
+                return NoteCollection.noteInfo("Welcome.md").body
                     .indexOf("brown fox") !== -1
             }, 2000, "Welcome note is indexed before the next save")
             verify(appLoader.item.openNoteByPath("Ideas/Reading.md"))
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "A fox appears twice: fox\n")
-            verify(documentManager.save())
+            verify(DocumentManager.save())
             tryVerify(function() {
-                return noteCollection.noteInfo("Ideas/Reading.md").body
+                return NoteCollection.noteInfo("Ideas/Reading.md").body
                     .indexOf("fox appears twice") !== -1
             }, 2000, "Reading note is indexed before metadata changes")
-            verify(noteCollection.addTag("Ideas/Reading.md", "animals"))
+            verify(NoteCollection.addTag("Ideas/Reading.md", "animals"))
         }
 
         function test_w1_liveResultsReplaceTheNoteList() {
@@ -6264,13 +6264,13 @@ Item {
 
             // 1 match in Welcome (display text, markers stripped) + 2 in
             // Reading; Reading has no title match, Welcome none either.
-            tryCompare(collectionSearch, "matchCount", 3, 1000)
+            tryCompare(CollectionSearch, "matchCount", 3, 1000)
             var summary = findChild(appLoader.item, "searchResultSummary")
             compare(summary.text, "3 match(es) in 2 note(s)")
 
             // Escape clears and the note list returns.
             keyClick(Qt.Key_Escape)
-            tryCompare(collectionSearch, "query", "", 1000)
+            tryCompare(CollectionSearch, "query", "", 1000)
             tryCompare(noteList, "visible", true, 1000)
             verify(!results.visible)
 
@@ -6282,7 +6282,7 @@ Item {
                 skip("Mouse tests require display")
             }
             seedSearchContent()
-            collectionSearch.query = "fox"
+            CollectionSearch.query = "fox"
 
             // Click the SECOND match of the never-reopened Reading note
             // ("fox" at display position 21).
@@ -6294,39 +6294,39 @@ Item {
                        "Ideas/Reading.md", 1000)
             var bar = findChild(appLoader.item, "findBar")
             tryCompare(bar, "visible", true, 1000)
-            compare(documentSearch.query, "fox")
-            tryCompare(documentSearch, "matchCount", 2, 1000)
+            compare(DocumentSearch.query, "fox")
+            tryCompare(DocumentSearch, "matchCount", 2, 1000)
             // The clicked occurrence is the current match.
-            var info = documentSearch.currentMatchInfo()
+            var info = DocumentSearch.currentMatchInfo()
             compare(info.found, true)
             compare(info.blockIndex, 0)
-            compare(documentSearch.currentNumber, 2)
+            compare(DocumentSearch.currentNumber, 2)
 
             bar.close()
-            collectionSearch.query = ""
+            CollectionSearch.query = ""
             closeTestCollection()
         }
 
         function test_w3_searchFiltersFollowSidebarScope() {
             seedSearchContent()
-            collectionSearch.query = "fox"
-            tryCompare(collectionSearch, "matchCount", 3, 1000)
+            CollectionSearch.query = "fox"
+            tryCompare(CollectionSearch, "matchCount", 3, 1000)
 
             // Folder scope narrows the corpus (recursive folder search).
-            noteListModel.folderPath = "Ideas"
-            noteListModel.scope = "folder"
-            tryCompare(collectionSearch, "folderScope", "Ideas", 1000)
-            tryCompare(collectionSearch, "matchCount", 2, 1000)
+            NoteListModel.folderPath = "Ideas"
+            NoteListModel.scope = "folder"
+            tryCompare(CollectionSearch, "folderScope", "Ideas", 1000)
+            tryCompare(CollectionSearch, "matchCount", 2, 1000)
 
             // Tag filter composes.
-            noteListModel.scope = "all"
-            noteListModel.tagFilter = "animals"
-            tryCompare(collectionSearch, "tagFilter", "animals", 1000)
-            tryCompare(collectionSearch, "matchCount", 2, 1000)
-            tryCompare(collectionSearch, "noteCount", 1, 1000)
+            NoteListModel.scope = "all"
+            NoteListModel.tagFilter = "animals"
+            tryCompare(CollectionSearch, "tagFilter", "animals", 1000)
+            tryCompare(CollectionSearch, "matchCount", 2, 1000)
+            tryCompare(CollectionSearch, "noteCount", 1, 1000)
 
-            noteListModel.tagFilter = ""
-            collectionSearch.query = ""
+            NoteListModel.tagFilter = ""
+            CollectionSearch.query = ""
             closeTestCollection()
         }
 
@@ -6344,7 +6344,7 @@ Item {
             keyClick(Qt.Key_Return) // commits to the session history
 
             keyClick(Qt.Key_Escape) // clears the query
-            tryCompare(collectionSearch, "query", "", 1000)
+            tryCompare(CollectionSearch, "query", "", 1000)
             var recent = findChild(appLoader.item, "recentSearchesColumn")
             tryCompare(recent, "visible", true, 1000)
             compare(sidebarItem.recentSearches[0], "fox")
@@ -6357,17 +6357,17 @@ Item {
                 skip("Focus tests require display")
             }
             seedSearchContent()
-            collectionSearch.query = "fox"
-            tryCompare(collectionSearch, "matchCount", 3, 1000)
+            CollectionSearch.query = "fox"
+            tryCompare(CollectionSearch, "matchCount", 3, 1000)
 
             // Edit the open note so a match disappears, save: the cache
             // refreshes through the noteSaved hook.
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            documentSerializer.loadIntoModel(blockModel, "no animals left\n")
-            verify(documentManager.save())
-            tryCompare(collectionSearch, "matchCount", 2, 1000)
+            DocumentSerializer.loadIntoModel(BlockModel, "no animals left\n")
+            verify(DocumentManager.save())
+            tryCompare(CollectionSearch, "matchCount", 2, 1000)
 
-            collectionSearch.query = ""
+            CollectionSearch.query = ""
             closeTestCollection()
         }
 
@@ -6383,17 +6383,17 @@ Item {
             verify(appLoader.item.openNoteByPath("Welcome.md"))
             // The first save's pre-overwrite hook backs up the (empty)
             // just-created file and consumes the rotation window...
-            documentSerializer.loadIntoModel(blockModel, "Original body\n")
-            verify(documentManager.save())
+            DocumentSerializer.loadIntoModel(BlockModel, "Original body\n")
+            verify(DocumentManager.save())
             // ...so step past the floor before the next save, whose hook
             // then backs up "Original body".
-            noteCollection.setClockOffsetForTesting(11 * 60)
-            documentSerializer.loadIntoModel(blockModel, "Newer body\n")
-            verify(documentManager.save())
-            noteCollection.setClockOffsetForTesting(0)
+            NoteCollection.setClockOffsetForTesting(11 * 60)
+            DocumentSerializer.loadIntoModel(BlockModel, "Newer body\n")
+            verify(DocumentManager.save())
+            NoteCollection.setClockOffsetForTesting(0)
 
             tryVerify(function() {
-                return noteCollection.backupsFor("Welcome.md").length === 2
+                return NoteCollection.backupsFor("Welcome.md").length === 2
             }, 2000, "both asynchronous backup snapshots are complete")
 
             var dialog = findChild(appLoader.item, "backupDialog")
@@ -6404,17 +6404,17 @@ Item {
 
             acceptDialogAndSettle(dialog)
             tryVerify(function() {
-                return blockModel.getContent(0) === "Original body"
+                return BlockModel.getContent(0) === "Original body"
             }, 1000)
             // The restore saved: the disk agrees.
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").body
+                return NoteCollection.noteInfo("Welcome.md").body
                     === "Original body\n"
             }, 2000, "restored disk body is reindexed")
 
             // ONE undo returns the pre-restore document.
-            undoStack.undo()
-            compare(blockModel.getContent(0), "Newer body")
+            UndoStack.undo()
+            compare(BlockModel.getContent(0), "Newer body")
 
             closeTestCollection()
         }
@@ -6424,19 +6424,19 @@ Item {
                 skip("Focus tests require display")
             }
             var root = openTestCollection()
-            documentManager.setJournalDebounceMs(30)
+            DocumentManager.setJournalDebounceMs(30)
             verify(appLoader.item.openNoteByPath("Welcome.md"))
 
             // Unsaved edits; the journal snapshot lands after the
             // debounce and no save follows — then the "crash".
-            blockModel.updateContent(0, "text from the crashed session")
-            verify(documentManager.isDirty)
+            BlockModel.updateContent(0, "text from the crashed session")
+            verify(DocumentManager.isDirty)
             wait(300)
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(20)
 
             // Reopening finds the evidence: the banner offers the note.
-            verify(noteCollection.openRoot(root))
+            verify(NoteCollection.openRoot(root))
             var banner = findChild(appLoader.item, "recoveryBanner")
             tryCompare(banner, "visible", true, 1000)
 
@@ -6449,18 +6449,18 @@ Item {
             mouseClick(restoreButton)
 
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").body
+                return NoteCollection.noteInfo("Welcome.md").body
                        === "text from the crashed session\n"
             }, 1000)
             // The (still-open) note reloaded to the restored content.
             tryVerify(function() {
-                return blockModel.getContent(0)
+                return BlockModel.getContent(0)
                        === "text from the crashed session"
             }, 1000)
-            verify(!documentManager.isDirty)
+            verify(!DocumentManager.isDirty)
             tryCompare(banner, "visible", false, 1000)
 
-            documentManager.setJournalDebounceMs(2000)
+            DocumentManager.setJournalDebounceMs(2000)
             closeTestCollection()
         }
 
@@ -6469,18 +6469,18 @@ Item {
                 skip("Focus tests require display")
             }
             var root = openTestCollection()
-            documentManager.setJournalDebounceMs(30)
+            DocumentManager.setJournalDebounceMs(30)
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            documentSerializer.loadIntoModel(blockModel, "Saved truth\n")
-            verify(documentManager.save())
+            DocumentSerializer.loadIntoModel(BlockModel, "Saved truth\n")
+            verify(DocumentManager.save())
 
-            blockModel.updateContent(0, "abandoned edits")
-            verify(documentManager.isDirty)
+            BlockModel.updateContent(0, "abandoned edits")
+            verify(DocumentManager.isDirty)
             wait(300)
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(20)
 
-            verify(noteCollection.openRoot(root))
+            verify(NoteCollection.openRoot(root))
             var banner = findChild(appLoader.item, "recoveryBanner")
             tryCompare(banner, "visible", true, 1000)
             var discardButton = findChild(banner, "recoveryDiscardButton")
@@ -6488,13 +6488,13 @@ Item {
             mouseClick(discardButton)
 
             tryVerify(function() {
-                return noteCollection.recoveryEntries().length === 0
+                return NoteCollection.recoveryEntries().length === 0
             }, 2000, "discard removes the recovery entry")
             tryCompare(banner, "visible", false, 1000)
-            compare(noteCollection.noteInfo("Welcome.md").body,
+            compare(NoteCollection.noteInfo("Welcome.md").body,
                     "Saved truth\n")
 
-            documentManager.setJournalDebounceMs(2000)
+            DocumentManager.setJournalDebounceMs(2000)
             closeTestCollection()
         }
 
@@ -6503,20 +6503,20 @@ Item {
                 skip("Focus tests require display")
             }
             var root = openTestCollection()
-            documentManager.setJournalDebounceMs(30)
+            DocumentManager.setJournalDebounceMs(30)
             verify(appLoader.item.openNoteByPath("Welcome.md"))
 
-            blockModel.updateContent(0, "typed and saved")
+            BlockModel.updateContent(0, "typed and saved")
             wait(300) // the journal exists now...
-            verify(documentManager.save()) // ...and the clean save removes it
+            verify(DocumentManager.save()) // ...and the clean save removes it
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(20)
-            verify(noteCollection.openRoot(root))
+            verify(NoteCollection.openRoot(root))
             var banner = findChild(appLoader.item, "recoveryBanner")
             verify(!banner.visible, "no crash evidence after a clean save")
 
-            documentManager.setJournalDebounceMs(2000)
+            DocumentManager.setJournalDebounceMs(2000)
             closeTestCollection()
         }
 
@@ -6543,8 +6543,8 @@ Item {
                         markdown += "Paragraph " + i
                                     + " with **bold** and *italic*\n\n"
                 }
-                documentSerializer.loadIntoModel(blockModel, markdown)
-                verify(documentManager.save())
+                DocumentSerializer.loadIntoModel(BlockModel, markdown)
+                verify(DocumentManager.save())
             }
             fill("Welcome.md")
             fill("Ideas/Reading.md")
@@ -6553,7 +6553,7 @@ Item {
             var worst = 0
             var notes = ["Welcome.md", "Ideas/Reading.md"]
             for (var k = 0; k < 6; k++) {
-                blockModel.updateContent(0, "dirty edit " + k) // save-on-blur
+                BlockModel.updateContent(0, "dirty edit " + k) // save-on-blur
                 var t0 = Date.now()
                 verify(appLoader.item.openNoteByPath(notes[k % 2]))
                 wait(0) // let the frame settle like a real switch
@@ -6577,14 +6577,14 @@ Item {
             }
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            verify(documentManager.journalPath !== "",
+            verify(DocumentManager.journalPath !== "",
                    "journal armed in collection mode")
 
             var markdown = ""
             for (var i = 0; i < 100; i++)
                 markdown += "Block " + i + " with **bold** and *italic*\n\n"
-            documentSerializer.loadIntoModel(blockModel, markdown)
-            compare(blockModel.count, 100)
+            DocumentSerializer.loadIntoModel(BlockModel, markdown)
+            compare(BlockModel.count, 100)
             var listView = findChild(appLoader.item, "blockListView")
             listView.positionViewAtBeginning()
             wait(200) // let the delegates instantiate
@@ -6622,14 +6622,14 @@ Item {
             var first = Qt.createQmlObject(
                 'import Kvit 1.0; SettingsStore {}', testCase)
             verify(first.open(path))
-            first.setValue("theme", "dark")
+            first.setValue("Theme", "dark")
             first.setValue("recent", ["alpha", "beta"])
             first.flush()
 
             var second = Qt.createQmlObject(
                 'import Kvit 1.0; SettingsStore {}', testCase)
             verify(second.open(path))
-            compare(second.value("theme", ""), "dark")
+            compare(second.value("Theme", ""), "dark")
             compare(second.value("recent", []).length, 2)
             compare(second.value("recent", [])[0], "alpha")
             first.destroy()
@@ -6640,63 +6640,63 @@ Item {
             var appWin = appLoader.item
             verify(appWin.panelsVisible)
             appWin.panelsVisible = false
-            compare(appSettings.value("panels.visible", true), false)
+            compare(AppSettings.value("panels.visible", true), false)
 
-            appSettings.setValue("panels.visible", true)
+            AppSettings.setValue("panels.visible", true)
             appWin.applyPersistedSessionState()
             verify(appWin.panelsVisible)
         }
 
         function test_z3_noteListSortPersists() {
-            noteListModel.sortMode = "title"
-            noteListModel.ascending = true
-            compare(appSettings.value("noteList.sortMode", ""), "title")
-            compare(appSettings.value("noteList.ascending", false), true)
+            NoteListModel.sortMode = "title"
+            NoteListModel.ascending = true
+            compare(AppSettings.value("noteList.sortMode", ""), "title")
+            compare(AppSettings.value("noteList.ascending", false), true)
 
             // The read path lands a stored preference on the model.
-            appSettings.setValue("noteList.sortMode", "created")
-            appSettings.setValue("noteList.ascending", false)
+            AppSettings.setValue("noteList.sortMode", "created")
+            AppSettings.setValue("noteList.ascending", false)
             appLoader.item.applyPersistedSessionState()
-            compare(noteListModel.sortMode, "created")
-            compare(noteListModel.ascending, false)
+            compare(NoteListModel.sortMode, "created")
+            compare(NoteListModel.ascending, false)
 
-            noteListModel.sortMode = "modified"  // the app default
+            NoteListModel.sortMode = "modified"  // the app default
         }
 
         function test_z4_blockMenuRecencyPersists() {
-            blockMenuModel.setRecentTypes([])
-            blockMenuModel.noteUsed(Block.Quote)
-            var saved = appSettings.value("blockMenu.recent", [])
+            BlockMenuModel.setRecentTypes([])
+            BlockMenuModel.noteUsed(Block.Quote)
+            var saved = AppSettings.value("blockMenu.recent", [])
             compare(saved.length, 1)
             compare(Number(saved[0]), Block.Quote)
 
-            appSettings.setValue("blockMenu.recent",
+            AppSettings.setValue("blockMenu.recent",
                                  [Block.Todo, Block.Divider])
             appLoader.item.applyPersistedSessionState()
-            var loaded = blockMenuModel.recentTypes()
+            var loaded = BlockMenuModel.recentTypes()
             compare(loaded.length, 2)
             compare(Number(loaded[0]), Block.Todo)
             compare(Number(loaded[1]), Block.Divider)
 
             // Reset so menu-shape tests stay order-independent.
-            blockMenuModel.setRecentTypes([])
-            appSettings.setValue("blockMenu.recent", [])
+            BlockMenuModel.setRecentTypes([])
+            AppSettings.setValue("blockMenu.recent", [])
         }
 
         function test_z5_recentSearchesPersist() {
             var sidebar = findChild(appLoader.item, "sidebar")
             verify(sidebar !== null)
             sidebar.commitRecentSearch("badger")
-            var saved = appSettings.value("search.recent", [])
+            var saved = AppSettings.value("search.recent", [])
             compare(saved.length > 0, true)
             compare(saved[0], "badger")
 
-            appSettings.setValue("search.recent", ["stoat", "weasel"])
+            AppSettings.setValue("search.recent", ["stoat", "weasel"])
             sidebar.applyPersistedSearchHistory()
             compare(sidebar.recentSearches.length, 2)
             compare(sidebar.recentSearches[0], "stoat")
 
-            appSettings.setValue("search.recent", [])
+            AppSettings.setValue("search.recent", [])
             sidebar.applyPersistedSearchHistory()
         }
 
@@ -6706,19 +6706,19 @@ Item {
             verify(caseBtn !== null && wordBtn !== null)
 
             caseBtn.checked = true
-            compare(appSettings.value("find.caseSensitive", false), true)
-            compare(documentSearch.caseSensitive, true)
+            compare(AppSettings.value("find.caseSensitive", false), true)
+            compare(DocumentSearch.caseSensitive, true)
 
-            appSettings.setValue("find.caseSensitive", false)
-            appSettings.setValue("find.wholeWord", true)
+            AppSettings.setValue("find.caseSensitive", false)
+            AppSettings.setValue("find.wholeWord", true)
             appLoader.item.applyPersistedSessionState()
             compare(caseBtn.checked, false)
             compare(wordBtn.checked, true)
-            compare(documentSearch.wholeWord, true)
+            compare(DocumentSearch.wholeWord, true)
 
-            appSettings.setValue("find.wholeWord", false)
+            AppSettings.setValue("find.wholeWord", false)
             appLoader.item.applyPersistedSessionState()
-            compare(documentSearch.wholeWord, false)
+            compare(DocumentSearch.wholeWord, false)
         }
 
         // ============================================================
@@ -6727,19 +6727,19 @@ Item {
         // ============================================================
 
         function test_z7_themePersistsAndRestylesShell() {
-            compare(theme.themeId, "light")
+            compare(Theme.themeId, "light")
             // toString(): a bare `var x = item.color` keeps a LIVE
             // value-type reference that re-reads the property later.
             var lightBackground = appLoader.item.color.toString()
 
-            theme.themeId = "dark"
-            compare(appSettings.value("theme.id", ""), "dark")
+            Theme.themeId = "dark"
+            compare(AppSettings.value("Theme.id", ""), "dark")
             verify(Qt.colorEqual(appLoader.item.color,
-                                 theme.windowBackground))
+                                 Theme.windowBackground))
             verify(!Qt.colorEqual(appLoader.item.color, lightBackground))
 
-            theme.themeId = "light"
-            compare(appSettings.value("theme.id", ""), "light")
+            Theme.themeId = "light"
+            compare(AppSettings.value("Theme.id", ""), "light")
             verify(Qt.colorEqual(appLoader.item.color, lightBackground))
         }
 
@@ -6750,10 +6750,10 @@ Item {
         // ============================================================
 
         function test_z8_typographyScalesLiveDelegates() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "body text")
-            blockModel.insertBlock(1, 1, "a heading")
+            BlockModel.updateContent(0, "body text")
+            BlockModel.insertBlock(1, 1, "a heading")
             wait(150)
 
             var body = findBlockDelegate(0)
@@ -6761,18 +6761,18 @@ Item {
             compare(body.contentFontSize, 15)
             compare(heading.contentFontSize, 32)
 
-            typography.baseSize = 20
+            Typography.baseSize = 20
             compare(body.contentFontSize, 20)
             compare(heading.contentFontSize, 43)  // qRound(20 * 32/15)
-            compare(appSettings.value("typography.fontSize", 0), 20)
+            compare(AppSettings.value("Typography.fontSize", 0), 20)
 
-            typography.baseSize = 15
+            Typography.baseSize = 15
         }
 
         function test_z9_maxContentWidthCentersColumn() {
             // Geometry assertions are for single-file mode. A failed earlier
             // collection test must not leave the side panels consuming width.
-            if (noteCollection.isOpen)
+            if (NoteCollection.isOpen)
                 closeTestCollection()
             var listView = findChild(appLoader.item, "blockListView")
             var scroll = findChild(appLoader.item, "editorScrollView")
@@ -6780,7 +6780,7 @@ Item {
             var fullWidth = listView.width
             verify(fullWidth > 550)
 
-            typography.maxContentWidth = 500
+            Typography.maxContentWidth = 500
             tryVerify(function() {
                 return Math.abs(listView.width - 500) <= 1
             }, 1000)
@@ -6791,7 +6791,7 @@ Item {
             compare(scroll.anchors.leftMargin, 20 + scroll.centeringMargin)
             compare(scroll.anchors.rightMargin, scroll.anchors.leftMargin)
 
-            typography.maxContentWidth = 0
+            Typography.maxContentWidth = 0
             tryVerify(function() {
                 return listView.width === fullWidth
             }, 1000)
@@ -6801,9 +6801,9 @@ Item {
         function test_za_paragraphSpacingDrivesList() {
             var listView = findChild(appLoader.item, "blockListView")
             compare(listView.spacing, 8)
-            typography.paragraphSpacing = 20
+            Typography.paragraphSpacing = 20
             compare(listView.spacing, 20)
-            typography.paragraphSpacing = 8
+            Typography.paragraphSpacing = 8
         }
 
         function test_zb_settingsDialogBindsLive() {
@@ -6812,14 +6812,14 @@ Item {
             dialog.open()
             tryCompare(dialog, "opened", true, 1000)
 
-            // The theme cards switch the live theme...
+            // The Theme cards switch the live Theme...
             var darkCard = findChild(dialog.contentItem, "themeCard_dark")
             verify(darkCard !== null)
             mouseClick(darkCard)
-            compare(theme.themeId, "dark")
-            theme.themeId = "light"
+            compare(Theme.themeId, "dark")
+            Theme.themeId = "light"
 
-            // ...and the typography spin drives the setting.
+            // ...and the Typography spin drives the setting.
             var typographyTab = findChild(appLoader.item, "typographyTab")
             verify(typographyTab !== null)
             mouseClick(typographyTab)
@@ -6828,9 +6828,9 @@ Item {
             verify(sizeSpin !== null)
             sizeSpin.value = 18
             sizeSpin.valueModified()
-            compare(typography.baseSize, 18)
+            compare(Typography.baseSize, 18)
 
-            typography.resetToDefaults()
+            Typography.resetToDefaults()
             dialog.close()
             tryCompare(dialog, "visible", false, 1000)
         }
@@ -6854,7 +6854,7 @@ Item {
             mouseMove(seam, 63, 100)
             mouseRelease(seam, 63, 100)
             tryVerify(function() { return sb.width === 260 }, 1000)
-            compare(appSettings.value("panels.sidebarWidth", 0), 260)
+            compare(AppSettings.value("panels.sidebarWidth", 0), 260)
 
             // ...and far left: the clamp holds.
             mousePress(seam, 3, 100)
@@ -6897,7 +6897,7 @@ Item {
             wait(100)
             mouseClick(collapse)
             tryCompare(appWin, "sidebarCollapsed", true, 1000)
-            compare(appSettings.value("panels.sidebarCollapsed", false),
+            compare(AppSettings.value("panels.sidebarCollapsed", false),
                     true)
             var strip = findChild(appWin, "sidebarStrip")
             tryCompare(strip, "visible", true, 1000)
@@ -6924,7 +6924,7 @@ Item {
             mouseClick(findChild(appWin, "noteListExpandButton"))
             tryCompare(appWin, "noteListCollapsed", false, 1000)
 
-            appSettings.setValue("panels.noteListCollapsed", true)
+            AppSettings.setValue("panels.noteListCollapsed", true)
             appWin.applyPersistedSessionState()
             compare(appWin.noteListCollapsed, true)
             appWin.noteListCollapsed = false
@@ -6947,9 +6947,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "E=mc^2^ done")
+            BlockModel.updateContent(0, "E=mc^2^ done")
             wait(150)
             var ta = findTextArea(findBlockDelegate(0))
             // Hidden markers: display text drops the carets.
@@ -6965,9 +6965,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "plain **bold** text")
+            BlockModel.updateContent(0, "plain **bold** text")
             wait(150)
             var ta = findTextArea(findBlockDelegate(0))
             ensureFocus(ta)
@@ -6986,12 +6986,12 @@ Item {
                                    "toolbarSuperscriptButton")
             mouseClick(supBtn)
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf("^text^") !== -1
+                return BlockModel.getContent(0).indexOf("^text^") !== -1
             }, 1000)
             verify(ta.activeFocus)
 
             // Verbatim code block: formatting disables.
-            blockModel.insertBlock(1, 8, "code()")
+            BlockModel.insertBlock(1, 8, "code()")
             wait(150)
             var codeTa = findTextArea(findBlockDelegate(1))
             ensureFocus(codeTa)
@@ -7002,9 +7002,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "make this red")
+            BlockModel.updateContent(0, "make this red")
             wait(150)
             var para = findBlockDelegate(0)
             var ta = findTextArea(para)
@@ -7025,10 +7025,10 @@ Item {
 
             // Apply color to the selected word, through the model.
             selectRed()
-            var stackBefore = undoStack.count
+            var stackBefore = UndoStack.count
             para.applyColor("#e05c5c")
             tryVerify(function() {
-                return blockModel.getContent(0)
+                return BlockModel.getContent(0)
                     === "make this <span style=\"color:#e05c5c\">red</span>"
             }, 1000, "applyColor wraps the selection")
 
@@ -7036,7 +7036,7 @@ Item {
             selectRed()
             para.applyColor("#4a90d9")
             tryVerify(function() {
-                return blockModel.getContent(0)
+                return BlockModel.getContent(0)
                     === "make this <span style=\"color:#4a90d9\">red</span>"
             }, 1000, "re-color rewrites in place, no nesting")
 
@@ -7044,17 +7044,17 @@ Item {
             selectRed()
             para.removeColor()
             tryVerify(function() {
-                return blockModel.getContent(0) === "make this red"
+                return BlockModel.getContent(0) === "make this red"
             }, 1000, "removeColor unwraps")
 
             // The color edits are undoable (each is a model content update;
             // consecutive ones may coalesce under the undo stack's existing
             // text-change merge policy, exactly like consecutive typing).
-            verify(undoStack.count > stackBefore,
+            verify(UndoStack.count > stackBefore,
                    "the color edits pushed undo entries")
-            undoStack.undo()
+            UndoStack.undo()
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf("<span style=\"color:") !== -1
+                return BlockModel.getContent(0).indexOf("<span style=\"color:") !== -1
             }, 1000, "one undo restores a color span")
         }
 
@@ -7062,9 +7062,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "")
+            BlockModel.updateContent(0, "")
             wait(100)
 
             // Menu-insert flow: the window function opens the dialog; filling
@@ -7076,10 +7076,10 @@ Item {
             field.text = sampleImagePath
             dlg.accept()
             tryVerify(function() {
-                return blockModel.blockAt(0).blockType === 11  // Block.Image
+                return BlockModel.blockAt(0).blockType === 11  // Block.Image
             }, 1000, "the block becomes an Image")
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf(sampleImagePath) !== -1
+                return BlockModel.getContent(0).indexOf(sampleImagePath) !== -1
             }, 1000, "content holds the chosen path")
 
             // Edit through the delegate (the resize/caption write path).
@@ -7089,23 +7089,23 @@ Item {
                 return d !== null && d.writeImage !== undefined
             }, 1000, "the Image delegate is created")
             var img = findBlockDelegate(0)
-            var stackBefore = undoStack.count
+            var stackBefore = UndoStack.count
             img.writeImage(sampleImagePath, "alt text", "a caption", 175)
             tryVerify(function() {
-                var c = blockModel.getContent(0)
+                var c = BlockModel.getContent(0)
                 return c.indexOf("|175") !== -1 && c.indexOf("a caption") !== -1
                     && c.indexOf("alt text") !== -1
             }, 1000, "writeImage rebuilds the markdown with width, alt, caption")
-            verify(undoStack.count > stackBefore, "the edit is undoable")
+            verify(UndoStack.count > stackBefore, "the edit is undoable")
         }
 
         function test_zv_imageDropAndPasteWiring() {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "para")
+            BlockModel.updateContent(0, "para")
             wait(100)
 
             // Paste-path wiring: insertImageBlock (used by handleImagePaste)
@@ -7115,9 +7115,9 @@ Item {
             verify(typeof d.insertImageBlock === "function")
             d.insertImageBlock("assets/pic.png")
             tryVerify(function() {
-                return blockModel.count === 2
-                    && blockModel.blockAt(1).blockType === 11  // Image
-                    && blockModel.getContent(1) === "![](assets/pic.png)"
+                return BlockModel.count === 2
+                    && BlockModel.blockAt(1).blockType === 11  // Image
+                    && BlockModel.getContent(1) === "![](assets/pic.png)"
             }, 1000, "insertImageBlock adds an Image block")
 
             // Drop-path wiring: blockForPath routes by extension.
@@ -7129,8 +7129,8 @@ Item {
             w.insertBlocksAt(0, [{ type: 0, content: "dropped one" },
                                  { type: 0, content: "dropped two" }])
             tryVerify(function() {
-                return blockModel.getContent(1) === "dropped one"
-                    && blockModel.getContent(2) === "dropped two"
+                return BlockModel.getContent(1) === "dropped one"
+                    && BlockModel.getContent(2) === "dropped two"
             }, 1000, "insertBlocksAt inserts text-drop paragraphs")
         }
 
@@ -7138,35 +7138,35 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             // Create a callout (type/title/fold via convertBlock).
-            blockModel.convertBlock(0, 12, "callout body", false, "warning", "Careful")
+            BlockModel.convertBlock(0, 12, "callout body", false, "warning", "Careful")
             wait(150)
-            compare(blockModel.blockAt(0).blockType, 12)         // Callout
-            compare(blockModel.blockAt(0).language, "warning")   // type
-            compare(blockModel.blockAt(0).calloutTitle, "Careful")
+            compare(BlockModel.blockAt(0).blockType, 12)         // Callout
+            compare(BlockModel.blockAt(0).language, "warning")   // type
+            compare(BlockModel.blockAt(0).calloutTitle, "Careful")
 
             // It serializes as an Obsidian callout, byte-identical.
-            compare(documentSerializer.serialize(blockModel),
+            compare(DocumentSerializer.serialize(BlockModel),
                     "> [!warning] Careful\n> callout body\n")
 
             // Fold toggle is one undo step.
-            var stackBefore = undoStack.count
-            blockModel.setChecked(0, true)
-            compare(blockModel.blockAt(0).checked, true)         // folded
-            compare(documentSerializer.serialize(blockModel),
+            var stackBefore = UndoStack.count
+            BlockModel.setChecked(0, true)
+            compare(BlockModel.blockAt(0).checked, true)         // folded
+            compare(DocumentSerializer.serialize(BlockModel),
                     "> [!warning]- Careful\n> callout body\n")
             keyClick(Qt.Key_Z, Qt.ControlModifier)
-            tryVerify(function() { return !blockModel.blockAt(0).checked },
+            tryVerify(function() { return !BlockModel.blockAt(0).checked },
                       1000, "one undo unfolds")
 
             // Title edit is undoable and round-trips.
-            blockModel.setCalloutTitle(0, "Watch out")
-            compare(blockModel.blockAt(0).calloutTitle, "Watch out")
+            BlockModel.setCalloutTitle(0, "Watch out")
+            compare(BlockModel.blockAt(0).calloutTitle, "Watch out")
             keyClick(Qt.Key_Z, Qt.ControlModifier)
             tryVerify(function() {
-                return blockModel.blockAt(0).calloutTitle === "Careful"
+                return BlockModel.blockAt(0).calloutTitle === "Careful"
             }, 1000, "one undo restores the title")
 
             // Ctrl+Enter in the callout body flips the fold state.
@@ -7174,7 +7174,7 @@ Item {
             var ta = findTextArea(cd)
             ensureFocus(ta)
             keyClick(Qt.Key_Return, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.blockAt(0).checked },
+            tryVerify(function() { return BlockModel.blockAt(0).checked },
                       1000, "Ctrl+Enter folds the callout")
         }
 
@@ -7182,9 +7182,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 15,   // Block.Table
+            BlockModel.convertBlock(0, 15,   // Block.Table
                 "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |")
             wait(150)
             tryVerify(function() {
@@ -7196,15 +7196,15 @@ Item {
             // Cell edit through the model.
             tbl.commitCell(0, 0, "hello")
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf("hello") !== -1
+                return BlockModel.getContent(0).indexOf("hello") !== -1
             }, 1000, "commitCell rewrites the cell")
 
             // Append a column, then a row.
-            tbl.writeTable(tableTools.insertColumn(blockModel.getContent(0),
+            tbl.writeTable(TableTools.insertColumn(BlockModel.getContent(0),
                                                    tbl.columns - 1))
             tryVerify(function() { return findBlockDelegate(0).columns === 3 },
                       1000, "insertColumn adds a column")
-            tbl.writeTable(tableTools.insertRow(blockModel.getContent(0),
+            tbl.writeTable(TableTools.insertRow(BlockModel.getContent(0),
                                                 findBlockDelegate(0).dataRows - 1))
             tryVerify(function() { return findBlockDelegate(0).dataRows === 3 },
                       1000, "insertRow adds a row")
@@ -7212,20 +7212,20 @@ Item {
             // Sort undoability on a fresh table (its command can't merge with a
             // prior updateContent). The undo stack coalesces consecutive text
             // edits, so exact per-op counts are not asserted.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 15,
+            BlockModel.convertBlock(0, 15,
                 "| N | V |\n| --- | --- |\n| b | 3 |\n| a | 1 |")
             wait(150)
             var tbl2 = findBlockDelegate(0)
-            var before = blockModel.getContent(0)
+            var before = BlockModel.getContent(0)
             tbl2.sortBy(0)   // ascending by column 0 → a, b
             tryVerify(function() {
-                return blockModel.getContent(0) !== before
-                    && blockModel.getContent(0).indexOf("| a |") < blockModel.getContent(0).indexOf("| b |")
+                return BlockModel.getContent(0) !== before
+                    && BlockModel.getContent(0).indexOf("| a |") < BlockModel.getContent(0).indexOf("| b |")
             }, 1000, "sortBy reorders rows")
-            undoStack.undo()
-            tryVerify(function() { return blockModel.getContent(0) === before },
+            UndoStack.undo()
+            tryVerify(function() { return BlockModel.getContent(0) === before },
                       1000, "one undo reverts the sort")
         }
 
@@ -7233,52 +7233,52 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             // A todo; apply a due date and cycle priority through the delegate.
-            blockModel.convertBlock(0, 6, "ship it")   // Todo
+            BlockModel.convertBlock(0, 6, "ship it")   // Todo
             wait(150)
             var todo = findBlockDelegate(0)
             verify(todo !== null && todo.setDue !== undefined)
             todo.setDue("2026-07-15")
             tryVerify(function() {
-                return todoMeta.parse(blockModel.getContent(0)).due === "2026-07-15"
+                return TodoMeta.parse(BlockModel.getContent(0)).due === "2026-07-15"
             }, 1000, "setDue writes the date token")
             todo.cyclePriority()   // none → low
             tryVerify(function() {
-                return todoMeta.parse(blockModel.getContent(0)).priority === -1
+                return TodoMeta.parse(BlockModel.getContent(0)).priority === -1
             }, 1000, "cyclePriority sets low")
             // The metadata tail is excluded from the editable text.
             compare(todo.editableMarkdown, "ship it")
             // …and from search: searching the emoji finds nothing, the text does.
-            documentSearch.active = true
-            documentSearch.query = "ship"
-            tryVerify(function() { return documentSearch.matchCount > 0 }, 1000)
-            documentSearch.query = "📅"
-            tryCompare(documentSearch, "matchCount", 0, 1000)
-            documentSearch.active = false
+            DocumentSearch.active = true
+            DocumentSearch.query = "ship"
+            tryVerify(function() { return DocumentSearch.matchCount > 0 }, 1000)
+            DocumentSearch.query = "📅"
+            tryCompare(DocumentSearch, "matchCount", 0, 1000)
+            DocumentSearch.active = false
 
             // Sub-task progress from deeper todo children.
-            blockModel.insertBlock(1, 6, "step one", 1)
-            blockModel.setChecked(1, true)
-            blockModel.insertBlock(2, 6, "step two", 1)
+            BlockModel.insertBlock(1, 6, "step one", 1)
+            BlockModel.setChecked(1, true)
+            BlockModel.insertBlock(2, 6, "step two", 1)
             wait(150)
-            var prog = blockModel.todoProgress(0)
+            var prog = BlockModel.todoProgress(0)
             compare(prog.done, 1)
             compare(prog.total, 2)
 
             // Quote nesting: Tab increases the quote's depth (indentLevel).
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 7, "a quote")   // Quote
+            BlockModel.convertBlock(0, 7, "a quote")   // Quote
             wait(150)
             var q = findTextArea(findBlockDelegate(0))
             ensureFocus(q)
             keyClick(Qt.Key_Tab)
-            tryVerify(function() { return blockModel.blockAt(0).indentLevel === 1 },
+            tryVerify(function() { return BlockModel.blockAt(0).indentLevel === 1 },
                       1000, "Tab nests the quote to depth 2")
             keyClick(Qt.Key_Backtab)
-            tryVerify(function() { return blockModel.blockAt(0).indentLevel === 0 },
+            tryVerify(function() { return BlockModel.blockAt(0).indentLevel === 0 },
                       1000, "Shift+Tab un-nests")
         }
 
@@ -7286,9 +7286,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "future heading")
+            BlockModel.updateContent(0, "future heading")
             wait(150)
             ensureFocus(findTextArea(findBlockDelegate(0)))
 
@@ -7298,14 +7298,14 @@ Item {
 
             combo.activated(1)  // Heading 1
             tryVerify(function() {
-                return blockModel.blockAt(0).blockType === 1
+                return BlockModel.blockAt(0).blockType === 1
             }, 1000)
             tryCompare(combo, "currentIndex", 1, 1000)
-            compare(blockModel.getContent(0), "future heading")
+            compare(BlockModel.getContent(0), "future heading")
 
             combo.activated(0)
             tryVerify(function() {
-                return blockModel.blockAt(0).blockType === 0
+                return BlockModel.blockAt(0).blockType === 0
             }, 1000)
         }
 
@@ -7313,21 +7313,21 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             ensureFocus(findTextArea(findBlockDelegate(0)))
             var toolbar = findChild(appLoader.item, "toolbar")
             toolbar.insertBlockOfType(7)  // Quote below the block
             tryVerify(function() {
-                return blockModel.count === 2
-                       && blockModel.blockAt(1).blockType === 7
+                return BlockModel.count === 2
+                       && BlockModel.blockAt(1).blockType === 7
             }, 1000)
 
             var statusBar = findChild(appLoader.item, "statusBar")
             verify(statusBar.visible)
             appLoader.item.statusBarVisible = false
             tryCompare(statusBar, "visible", false, 1000)
-            compare(appSettings.value("view.statusBar", true), false)
+            compare(AppSettings.value("view.statusBar", true), false)
             appLoader.item.statusBarVisible = true
             tryCompare(statusBar, "visible", true, 1000)
         }
@@ -7337,11 +7337,11 @@ Item {
             toolbar.setGroupVisible("toolbar.showFormatting",
                                     "showFormatGroup", false)
             compare(toolbar.showFormatGroup, false)
-            compare(appSettings.value("toolbar.showFormatting", true),
+            compare(AppSettings.value("toolbar.showFormatting", true),
                     false)
 
             // The read path restores it.
-            appSettings.setValue("toolbar.showFormatting", true)
+            AppSettings.setValue("toolbar.showFormatting", true)
             toolbar.applyPersistedCustomization()
             compare(toolbar.showFormatGroup, true)
         }
@@ -7355,10 +7355,10 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "hello world")
-            blockModel.insertBlock(1, 8, "first\nsecond")   // code block
+            BlockModel.updateContent(0, "hello world")
+            BlockModel.insertBlock(1, 8, "first\nsecond")   // code block
             wait(150)
 
             var posText = findChild(appLoader.item, "cursorPositionText")
@@ -7382,10 +7382,10 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "one two three")
-            blockModel.insertBlock(1, 0, "four **five**")
+            BlockModel.updateContent(0, "one two three")
+            BlockModel.insertBlock(1, 0, "four **five**")
             wait(150)
 
             var wordText = findChild(appLoader.item, "wordCountText")
@@ -7400,12 +7400,12 @@ Item {
             // A block selection counts its blocks' display text
             // (markers stripped: "four five" = 2 words, 9 chars).
             ta.deselect()
-            documentSelection.selectBlock(1)
+            DocumentSelection.selectBlock(1)
             tryCompare(wordText, "text", "2 words selected", 1500)
             var charText = findChild(appLoader.item, "charCountText")
             tryCompare(charText, "text", "9 chars", 1500)
 
-            documentSelection.clear()
+            DocumentSelection.clear()
             tryCompare(wordText, "text", "5 words", 1500)
         }
 
@@ -7431,12 +7431,12 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "top line here")
-            blockModel.insertBlock(1, 0, "hello brave world")
+            BlockModel.updateContent(0, "top line here")
+            BlockModel.insertBlock(1, 0, "hello brave world")
             for (var filler = 0; filler < 12; ++filler)
-                blockModel.insertBlock(2 + filler, 0,
+                BlockModel.insertBlock(2 + filler, 0,
                     "filler line " + filler + " for scrolling")
             wait(150)
 
@@ -7467,7 +7467,7 @@ Item {
             var boldBtn = findChild(appLoader.item, "fbBoldButton")
             mouseClick(boldBtn)
             tryVerify(function() {
-                return blockModel.getContent(1) === "hello **brave** world"
+                return BlockModel.getContent(1) === "hello **brave** world"
             }, 1000)
 
             // Escape drops the selection and the bar with it.
@@ -7494,9 +7494,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "very first line of the document")
+            BlockModel.updateContent(0, "very first line of the document")
             wait(150)
 
             var bar = findChild(appLoader.item, "formattingBar")
@@ -7529,9 +7529,9 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0,
+            BlockModel.updateContent(0,
                 "plain words and a [link](https://x.example) here")
             wait(150)
             var ta = findTextArea(findBlockDelegate(0))
@@ -7555,9 +7555,9 @@ Item {
             cut.triggered()
             textMenu.close()
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf("plain") === -1
+                return BlockModel.getContent(0).indexOf("plain") === -1
             }, 1000)
-            compare(clipboard.text, "plain")
+            compare(Clipboard.text, "plain")
 
             // Right-click ON the link: the link menu wins; Remove link
             // keeps the text.
@@ -7569,7 +7569,7 @@ Item {
             findChild(appLoader.item, "ctxRemoveLink").triggered()
             linkMenu.close()
             tryVerify(function() {
-                var md = blockModel.getContent(0)
+                var md = BlockModel.getContent(0)
                 return md.indexOf("[link]") === -1
                        && md.indexOf("link") !== -1
             }, 1000)
@@ -7579,10 +7579,10 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "block zero")
-            blockModel.insertBlock(1, 0, "block one")
+            BlockModel.updateContent(0, "block zero")
+            BlockModel.insertBlock(1, 0, "block one")
             wait(150)
 
             // Hover to raise the gutter, then right-click the handle.
@@ -7599,13 +7599,13 @@ Item {
             tryCompare(blockMenu2, "visible", true, 1000)
             findChild(appLoader.item, "ctxBlockDuplicate").triggered()
             blockMenu2.close()
-            tryVerify(function() { return blockModel.count === 3 }, 1000)
-            compare(blockModel.getContent(1), "block zero")
+            tryVerify(function() { return BlockModel.count === 3 }, 1000)
+            compare(BlockModel.getContent(1), "block zero")
 
             // A selected block routes to the selection menu; Delete
             // removes the whole selection.
-            documentSelection.selectBlock(0)
-            documentSelection.extendBlockSelectionTo(1)
+            DocumentSelection.selectBlock(0)
+            DocumentSelection.extendBlockSelectionTo(1)
             mouseMove(delegateItem, 30, delegateItem.height / 2)
             tryCompare(delegateItem, "isHovered", true, 1000)
             tryCompare(handle, "visible", true, 1000)
@@ -7615,8 +7615,8 @@ Item {
             findChild(appLoader.item, "ctxSelDelete").triggered()
             selMenu.close()
             tryVerify(function() {
-                return blockModel.count === 1
-                       && blockModel.getContent(0) === "block one"
+                return BlockModel.count === 1
+                       && BlockModel.getContent(0) === "block one"
             }, 1000)
         }
 
@@ -7634,7 +7634,7 @@ Item {
             findChild(appLoader.item, "ctxNotePin").triggered()
             noteMenu.close()
             tryVerify(function() {
-                return noteCollection.noteInfo("Welcome.md").pinned === true
+                return NoteCollection.noteInfo("Welcome.md").pinned === true
             }, 1000)
 
             // Folder row: right-click opens the folder menu.
@@ -7654,10 +7654,10 @@ Item {
                 skip("Focus tests require display")
             }
             openTestCollection()
-            compare(noteCollection.trashItemCount(), 0)
+            compare(NoteCollection.trashItemCount(), 0)
 
-            verify(noteCollection.deleteNote("Welcome.md"))
-            compare(noteCollection.trashItemCount(), 1)
+            verify(NoteCollection.deleteNote("Welcome.md"))
+            compare(NoteCollection.trashItemCount(), 1)
             var label = findChild(appLoader.item, "trashCountLabel")
             tryCompare(label, "text", "1", 1000)
 
@@ -7667,7 +7667,7 @@ Item {
             tryCompare(dialog, "opened", true, 1000)
             dialog.accept()
             tryVerify(function() {
-                return noteCollection.trashItemCount() === 0
+                return NoteCollection.trashItemCount() === 0
             }, 1000)
             tryCompare(label, "text", "0", 1000)
 
@@ -7675,7 +7675,7 @@ Item {
         }
 
         // ============================================================
-        // The custom date-range filter and the theme-switch latency gate.
+        // The custom date-range filter and the Theme-switch latency gate.
         // ============================================================
 
         function test_zr_customDateRangeFilters() {
@@ -7684,12 +7684,12 @@ Item {
             }
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            blockModel.updateContent(0, "unmistakable content")
-            verify(documentManager.save())
+            BlockModel.updateContent(0, "unmistakable content")
+            verify(DocumentManager.save())
 
-            collectionSearch.query = "unmistakable"
+            CollectionSearch.query = "unmistakable"
             tryVerify(function() {
-                return collectionSearch.noteCount === 1
+                return CollectionSearch.noteCount === 1
             }, 1000)
 
             // The picker's two-click flow: start day, then end day.
@@ -7705,11 +7705,11 @@ Item {
                                  today.getDate() - 20)
             picker.pickDay(old)
             picker.pickDay(older)
-            compare(collectionSearch.datePreset, "custom")
+            compare(CollectionSearch.datePreset, "custom")
 
             // A month-old window excludes the note written just now...
             tryVerify(function() {
-                return collectionSearch.noteCount === 0
+                return CollectionSearch.noteCount === 0
             }, 1000)
 
             // ...and a window covering today includes it; out-of-order
@@ -7718,17 +7718,17 @@ Item {
             picker.pickDay(new Date(today.getFullYear(), today.getMonth(),
                                     today.getDate() - 2))
             tryVerify(function() {
-                return collectionSearch.noteCount === 1
+                return CollectionSearch.noteCount === 1
             }, 1000)
 
             // Clear returns to the preset path.
             var clearButton = findChild(appLoader.item,
                                         "pickerClearButton")
             mouseClick(clearButton)
-            compare(collectionSearch.datePreset, "any")
+            compare(CollectionSearch.datePreset, "any")
             tryCompare(picker, "visible", false, 1000)
 
-            collectionSearch.query = ""
+            CollectionSearch.query = ""
             closeTestCollection()
         }
 
@@ -7739,21 +7739,21 @@ Item {
             var markdown = ""
             for (var i = 0; i < 100; i++)
                 markdown += "Block " + i + " with **bold** and *italic*\n\n"
-            documentSerializer.loadIntoModel(blockModel, markdown)
-            compare(blockModel.count, 100)
+            DocumentSerializer.loadIntoModel(BlockModel, markdown)
+            compare(BlockModel.count, 100)
             var listView = findChild(appLoader.item, "blockListView")
             listView.positionViewAtBeginning()
             wait(200)
 
             var t0 = Date.now()
-            theme.themeId = "dark"
+            Theme.themeId = "dark"
             waitForRendering(listView)
             var elapsed = Date.now() - t0
             console.log("THEME SWITCH: " + elapsed
                         + " ms on a 100-block document")
-            theme.themeId = "light"
+            Theme.themeId = "light"
             waitForRendering(listView)
-            verify(elapsed < 250, "theme switch must stay under 250 ms "
+            verify(elapsed < 250, "Theme switch must stay under 250 ms "
                    + "(measured " + elapsed + "ms)")
         }
 
@@ -7763,17 +7763,17 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Introduction\n\nSee the [details](#details) section.\n\n"
                 + "## Details\n\nBody of details.\n\n## Summary")
-            documentOutline.rebuildNow()
+            DocumentOutline.rebuildNow()
             wait(100)
 
             // The outline lists the three headings and resolves their slugs.
-            compare(documentOutline.count, 3)
-            compare(documentOutline.blockIndexForSlug("details"), 2)
-            compare(documentOutline.blockIndexForSlug("summary"), 4)
+            compare(DocumentOutline.count, 3)
+            compare(DocumentOutline.blockIndexForSlug("details"), 2)
+            compare(DocumentOutline.blockIndexForSlug("summary"), 4)
 
             // Toggle the outline pane on; it renders the heading rows.
             appLoader.item.outlineVisible = true
@@ -7791,7 +7791,7 @@ Item {
             var lv = findChild(appLoader.item, "blockListView")
             compare(lv.currentIndex, 2)
             // The caret's section ("Details", outline row 1) lights up live.
-            compare(documentOutline.currentRow, 1)
+            compare(DocumentOutline.currentRow, 1)
 
             // An unresolved internal link is a no-op with a status note.
             var before = lv.currentIndex
@@ -7810,34 +7810,34 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Parent\n\n## Child A\n\n## Child B\n\n# Sibling")
-            documentOutline.rebuildNow()
+            DocumentOutline.rebuildNow()
             wait(50)
-            compare(documentOutline.count, 4)
+            compare(DocumentOutline.count, 4)
 
             // Collapsing the first heading hides its two children.
-            documentOutline.toggleCollapsed(0)
-            compare(documentOutline.count, 2)
-            documentOutline.toggleCollapsed(0)
-            compare(documentOutline.count, 4)
+            DocumentOutline.toggleCollapsed(0)
+            compare(DocumentOutline.count, 2)
+            DocumentOutline.toggleCollapsed(0)
+            compare(DocumentOutline.count, 4)
 
             // The level filter drops H2 rows.
-            documentOutline.levelMask = 0x1  // level 1 only
-            compare(documentOutline.count, 2)
-            documentOutline.levelMask = 0xF  // restore
-            compare(documentOutline.count, 4)
+            DocumentOutline.levelMask = 0x1  // level 1 only
+            compare(DocumentOutline.count, 2)
+            DocumentOutline.levelMask = 0xF  // restore
+            compare(DocumentOutline.count, 4)
         }
 
         function test_zv_linkDialogHeadingMode() {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Alpha\n\nsome text\n\n## Beta")
-            documentOutline.rebuildNow()
+            DocumentOutline.rebuildNow()
             wait(50)
 
             var dlg = appLoader.item.linkDialog
@@ -7857,38 +7857,38 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# First\n\n```toc\n```\n\n## Second\n\nbody")
-            documentOutline.rebuildNow()
+            DocumentOutline.rebuildNow()
             wait(200)   // outline rebuild + toc sync timer
 
             // Block 1 is a toc fence: a CodeBlock (8) tagged "toc", rendered by
             // the TocKind delegate (its card is present).
-            compare(blockModel.blockAt(1).blockType, 8)
-            compare(blockModel.blockAt(1).language, "toc")
+            compare(BlockModel.blockAt(1).blockType, 8)
+            compare(BlockModel.blockAt(1).language, "toc")
             var tocDelegate = findBlockDelegate(1)
             verify(tocDelegate !== null, "toc delegate exists")
             var card = findChild(tocDelegate, "tocCard")
             verify(card !== null, "toc card renders")
 
             // The stored body was regenerated from the headings.
-            var expected = documentOutline.tocMarkdown()
+            var expected = DocumentOutline.tocMarkdown()
             verify(expected.indexOf("First") !== -1
                    && expected.indexOf("Second") !== -1,
                    "toc lists both headings")
-            compare(blockModel.getContent(1), expected)
+            compare(BlockModel.getContent(1), expected)
 
             // Renaming a heading regenerates the TOC (stored body follows).
-            blockModel.updateContent(2, "Renamed Section")
+            BlockModel.updateContent(2, "Renamed Section")
             wait(250)   // queued outline rebuild + sync
-            verify(documentOutline.tocMarkdown().indexOf("Renamed Section") !== -1,
+            verify(DocumentOutline.tocMarkdown().indexOf("Renamed Section") !== -1,
                    "toc reflects the rename")
-            compare(blockModel.getContent(1), documentOutline.tocMarkdown())
+            compare(BlockModel.getContent(1), DocumentOutline.tocMarkdown())
 
             // Regeneration bypasses the undo stack: the heading edit is the
             // undoable step, not the derived TOC body.
-            compare(blockModel.blockAt(2).content, "Renamed Section")
+            compare(BlockModel.blockAt(2).content, "Renamed Section")
         }
 
         // ---- Focus and typewriter modes ----
@@ -7897,7 +7897,7 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
             var toolbar = findChild(appLoader.item, "toolbar")
             var statusBar = findChild(appLoader.item, "statusBar")
@@ -7924,12 +7924,12 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             var md = ""
             for (var i = 0; i < 30; i++)
                 md += "Block " + i + " content on a line\n\n"
-            documentSerializer.loadIntoModel(blockModel, md)
-            compare(blockModel.count, 30)
+            DocumentSerializer.loadIntoModel(BlockModel, md)
+            compare(BlockModel.count, 30)
             var lv = findChild(appLoader.item, "blockListView")
             lv.positionViewAtBeginning()
             wait(150)
@@ -7973,12 +7973,12 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Title\n\none two three four five")
             wait(150)
-            // documentStats agrees with the visible text (Title = 1, body = 5).
-            compare(documentStats.documentStats().words, 6)
+            // DocumentStats agrees with the visible text (Title = 1, body = 5).
+            compare(DocumentStats.documentStats().words, 6)
 
             // Clicking the word count opens the statistics popover.
             var wc = findChild(appLoader.item, "wordCountText")
@@ -8007,13 +8007,13 @@ Item {
             verify(ring.visible, "goal ring visible in collection mode")
             compare(ring.goal, 0)
 
-            noteCollection.setGoal("Welcome.md", 12)
+            NoteCollection.setGoal("Welcome.md", 12)
             wait(100)
             compare(ring.goal, 12)
-            verify(noteCollection.goalFor("Welcome.md") === 12, "goal persisted")
+            verify(NoteCollection.goalFor("Welcome.md") === 12, "goal persisted")
 
             // Clearing it removes the target.
-            noteCollection.setGoal("Welcome.md", 0)
+            NoteCollection.setGoal("Welcome.md", 0)
             wait(100)
             compare(ring.goal, 0)
 
@@ -8027,30 +8027,30 @@ Item {
                 skip("Focus tests require display")
             }
             openTestCollection()
-            noteTemplates.seedBuiltinsIfEmpty()
-            verify(noteTemplates.templateNames().length >= 3,
+            NoteTemplates.seedBuiltinsIfEmpty()
+            verify(NoteTemplates.templateNames().length >= 3,
                    "three built-in templates seeded")
-            verify(noteTemplates.templateNames().indexOf("Daily Journal") !== -1)
+            verify(NoteTemplates.templateNames().indexOf("Daily Journal") !== -1)
 
             // Create a note from the Daily Journal template (tags carry over,
             // the body is expanded).
             var rel = appLoader.item.createFromTemplate("Daily Journal")
             verify(rel !== "", "note created from template")
             wait(250)
-            verify(blockModel.count > 0, "template body loaded into the note")
-            var info = noteCollection.noteInfo(rel)
+            verify(BlockModel.count > 0, "template body loaded into the note")
+            var info = NoteCollection.noteInfo(rel)
             verify(info.tags.indexOf("journal") !== -1,
                    "template front-matter tags carried through")
 
             // Manage CRUD: write, list, delete.
-            verify(noteTemplates.writeTemplate("Custom", "# {{title}}\n\nhi"))
-            verify(noteTemplates.templateNames().indexOf("Custom") !== -1)
-            verify(noteTemplates.deleteTemplate("Custom"))
-            compare(noteTemplates.templateNames().indexOf("Custom"), -1)
+            verify(NoteTemplates.writeTemplate("Custom", "# {{title}}\n\nhi"))
+            verify(NoteTemplates.templateNames().indexOf("Custom") !== -1)
+            verify(NoteTemplates.deleteTemplate("Custom"))
+            compare(NoteTemplates.templateNames().indexOf("Custom"), -1)
 
             // Save the current note as a template.
             verify(appLoader.item.saveCurrentNoteAsTemplate("From Note"))
-            verify(noteTemplates.templateNames().indexOf("From Note") !== -1)
+            verify(NoteTemplates.templateNames().indexOf("From Note") !== -1)
 
             closeTestCollection()
         }
@@ -8061,22 +8061,22 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Report\n\nSome **bold** text.\n\n- one\n- two")
             wait(100)
 
             // The HTML builder (the dialog wires the same call) renders blocks.
-            var html = documentExporter.htmlForModel(blockModel, "Report")
+            var html = DocumentExporter.htmlForModel(BlockModel, "Report")
             verify(html.indexOf("<h1 id=\"report\">Report</h1>") !== -1)
             verify(html.indexOf("<strong>bold</strong>") !== -1)
             verify(html.indexOf("<ul><li>one</li><li>two</li></ul>") !== -1)
 
             // Writing HTML and PDF files succeeds.
             var htmlPath = testCollectionDir + "/export_out.html"
-            verify(documentExporter.writeModel(blockModel, "Report", "html", htmlPath))
+            verify(DocumentExporter.writeModel(BlockModel, "Report", "html", htmlPath))
             var pdfPath = testCollectionDir + "/export_out.pdf"
-            verify(documentExporter.writeModel(blockModel, "Report", "pdf", pdfPath))
+            verify(DocumentExporter.writeModel(BlockModel, "Report", "pdf", pdfPath))
 
             // The export dialog offers the four formats.
             appLoader.item.exportDialog.openDialog()
@@ -8096,8 +8096,8 @@ Item {
             openTestCollection()
             // Export the whole collection as markdown, one file per note.
             var dest = testCollectionDir + "/exp_collection"
-            var n = documentExporter.exportCollection(
-                noteCollection, dest, "markdown", false)
+            var n = DocumentExporter.exportCollection(
+                NoteCollection, dest, "markdown", false)
             verify(n >= 3, "each note exported")
             closeTestCollection()
         }
@@ -8110,21 +8110,21 @@ Item {
             }
             openTestCollection()
             // Import an existing note file (a real .md on disk) into a folder.
-            var src = noteCollection.absolutePath("Welcome.md")
+            var src = NoteCollection.absolutePath("Welcome.md")
 
-            var dry = documentImporter.dryRunFiles([src], "Ideas")
+            var dry = DocumentImporter.dryRunFiles([src], "Ideas")
             compare(dry.files, 1)
             compare(dry.collisions, 0)
 
-            var n = documentImporter.importFiles([src], "Ideas")
+            var n = DocumentImporter.importFiles([src], "Ideas")
             compare(n, 1)
-            verify(noteCollection.noteRelPaths().indexOf("Ideas/Welcome.md") !== -1,
+            verify(NoteCollection.noteRelPaths().indexOf("Ideas/Welcome.md") !== -1,
                    "note imported into the target folder")
 
             // Re-importing the same file collides and suffixes.
-            var n2 = documentImporter.importFiles([src], "Ideas")
+            var n2 = DocumentImporter.importFiles([src], "Ideas")
             compare(n2, 1)
-            verify(noteCollection.noteRelPaths().indexOf("Ideas/Welcome 2.md") !== -1,
+            verify(NoteCollection.noteRelPaths().indexOf("Ideas/Welcome 2.md") !== -1,
                    "collision suffixed")
 
             // The import dialog loads with its pickers.
@@ -8145,8 +8145,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "The relation $E=mc^2$ holds. It costs $5 and $6 though.")
             wait(300)
 
@@ -8186,14 +8186,14 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Links\n\n![](https://example.com/article)")
             wait(300)
 
             // The web URL is stored as an Image block (11) but renders as an
             // embed card (the content classifier → EmbedKind delegate).
-            compare(blockModel.blockAt(1).blockType, 11)
+            compare(BlockModel.blockAt(1).blockType, 11)
             var deleg = findBlockDelegate(1)
             verify(deleg !== null, "embed delegate exists")
             var card = findChild(deleg, "embedCard")
@@ -8202,7 +8202,7 @@ Item {
             // The card is inert until the reader asks for it: opening a note
             // must not contact the host the note names. The title shows the
             // URL and a Load button is offered.
-            egressPolicy.forgetAllOrigins()
+            EgressPolicy.forgetAllOrigins()
             var title = findChild(deleg, "embedTitle")
             verify(title.text.indexOf("Example Page Title") === -1,
                    "an unapproved embed shows no fetched metadata")
@@ -8215,14 +8215,14 @@ Item {
             tryVerify(function() {
                 return title.text.indexOf("Example Page Title") !== -1
             }, 2000, "embed title from OpenGraph after the reader loads it")
-            verify(egressPolicy.isAllowed("https://example.com/article"),
+            verify(EgressPolicy.isAllowed("https://example.com/article"),
                    "loading a preview approves its origin")
 
             // Round-trips byte-identically as an image expression.
-            compare(blockModel.getContent(1), "![](https://example.com/article)")
+            compare(BlockModel.getContent(1), "![](https://example.com/article)")
 
             // A remote image URL stays a regular image block (not an embed).
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "![](https://x.com/pic.png)")
             wait(150)
             var d2 = findBlockDelegate(0)
@@ -8236,8 +8236,8 @@ Item {
         // the model directly, never the keyboard — so it does not depend on the
         // window holding focus.
         function test_zzi_blockPresentationAlignmentDividerCallout() {
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Heading  <!--kvit align=center-->\n\n"
                 + "A paragraph.\n\n"
                 + "---  <!--kvit style=dashed width=50%-->\n\n"
@@ -8245,11 +8245,11 @@ Item {
             wait(250)
 
             // Tags parsed into model attributes.
-            compare(blockModel.blockAt(0).attributes, "align=center")
-            compare(blockModel.blockAt(2).blockType, 9)   // Divider
-            compare(blockModel.blockAt(2).attributes, "style=dashed width=50%")
-            compare(blockModel.blockAt(3).blockType, 12)  // Callout
-            compare(blockModel.blockAt(3).attributes, "color=#1f9e8b")
+            compare(BlockModel.blockAt(0).attributes, "align=center")
+            compare(BlockModel.blockAt(2).blockType, 9)   // Divider
+            compare(BlockModel.blockAt(2).attributes, "style=dashed width=50%")
+            compare(BlockModel.blockAt(3).blockType, 12)  // Callout
+            compare(BlockModel.blockAt(3).attributes, "color=#1f9e8b")
 
             // The divider delegate renders its styled rule (the Canvas).
             var divDeleg = findBlockDelegate(2)
@@ -8261,44 +8261,44 @@ Item {
             var paraDeleg = findBlockDelegate(1)
             verify(paraDeleg !== null && paraDeleg.setBlockAlignment !== undefined,
                    "paragraph exposes setBlockAlignment")
-            compare(blockModel.blockAt(1).attributes, "")
+            compare(BlockModel.blockAt(1).attributes, "")
             paraDeleg.setBlockAlignment("right")
             tryVerify(function() {
-                return blockModel.blockAt(1).attributes === "align=right"
+                return BlockModel.blockAt(1).attributes === "align=right"
             }, 1000, "alignment written to the model")
-            undoStack.undo()
+            UndoStack.undo()
             tryVerify(function() {
-                return blockModel.blockAt(1).attributes === ""
+                return BlockModel.blockAt(1).attributes === ""
             }, 1000, "one undo reverts the alignment")
 
             // Setting alignment back to left (the default) clears the attribute
             // rather than storing align=left.
             paraDeleg.setBlockAlignment("center")
             tryVerify(function() {
-                return blockModel.blockAt(1).attributes === "align=center"
+                return BlockModel.blockAt(1).attributes === "align=center"
             }, 1000)
             paraDeleg.setBlockAlignment("left")
             tryVerify(function() {
-                return blockModel.blockAt(1).attributes === ""
+                return BlockModel.blockAt(1).attributes === ""
             }, 1000, "left alignment carries no tag")
         }
 
         // Image effects, drop cap, embed dimensions — the
         // delegate presentation methods drive the model; focus-independent.
         function test_zzj_presentationEffectsDropcapEmbed() {
-            if (noteCollection.isOpen)
+            if (NoteCollection.isOpen)
                 closeTestCollection()
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "A short opener paragraph for the drop cap to enlarge.  "
                 + "<!--kvit dropcap=3-->\n\n"
                 + "![p|200](x.png)  <!--kvit rounded shadow-->")
             wait(250)
 
             // Attributes parsed (canonical/sorted).
-            compare(blockModel.blockAt(0).attributes, "dropcap=3")
-            compare(blockModel.blockAt(1).blockType, 11)   // Image
-            compare(blockModel.blockAt(1).attributes, "rounded shadow")
+            compare(BlockModel.blockAt(0).attributes, "dropcap=3")
+            compare(BlockModel.blockAt(1).blockType, 11)   // Image
+            compare(BlockModel.blockAt(1).attributes, "rounded shadow")
 
             // A drop-cap paragraph renders its enlarged letter when unfocused.
             var para = findBlockDelegate(0)
@@ -8314,19 +8314,19 @@ Item {
             // Changing the drop cap through the delegate is one undo step.
             para.setDropCap(5)
             tryVerify(function() {
-                return blockModel.blockAt(0).attributes === "dropcap=5"
+                return BlockModel.blockAt(0).attributes === "dropcap=5"
             }, 1000, "drop cap written to the model")
-            undoStack.undo()
+            UndoStack.undo()
             tryVerify(function() {
-                return blockModel.blockAt(0).attributes === "dropcap=3"
+                return BlockModel.blockAt(0).attributes === "dropcap=3"
             }, 1000, "one undo reverts the drop cap")
             para.setDropCap(0)   // None removes the attribute
             tryVerify(function() {
-                return blockModel.blockAt(0).attributes === ""
+                return BlockModel.blockAt(0).attributes === ""
             }, 1000, "drop cap None carries no tag")
 
             // An embed carries configurable width/height that size its card.
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "![](https://example.com/article)  <!--kvit width=320 height=100-->")
             wait(300)
             var embed = findBlockDelegate(0)
@@ -8343,10 +8343,10 @@ Item {
         // token, and modal dialog containment without relying on the window
         // holding keyboard focus (which flakes under WSLg).
         function test_zzk_focusAccessibilityMachinery() {
-            documentManager.newDocument()
-            blockModel.insertBlock(0, 1, "A heading")
-            blockModel.insertBlock(1, 0, "A paragraph")
-            blockModel.insertBlock(2, 0, "Another paragraph")
+            DocumentManager.newDocument()
+            BlockModel.insertBlock(0, 1, "A heading")
+            BlockModel.insertBlock(1, 0, "A paragraph")
+            BlockModel.insertBlock(2, 0, "Another paragraph")
             wait(200)
 
             // Skip-navigation exists and moves the editor's current index to a
@@ -8361,8 +8361,8 @@ Item {
                       "focusEditor lands on a block")
 
             // The focus-ring token is exposed and valid.
-            verify(theme.focusRing !== undefined, "focus ring token exposed")
-            verify(String(theme.focusRing) !== "", "focus ring token is set")
+            verify(Theme.focusRing !== undefined, "focus ring token exposed")
+            verify(String(Theme.focusRing) !== "", "focus ring token is set")
 
             // A focused block's indicator uses the focus-ring color (the binding
             // holds regardless of whether the window has OS focus).
@@ -8388,8 +8388,8 @@ Item {
         // focus-independent (attached properties), so this runs reliably; the
         // announcer wiring is checked through its lastMessage.
         function test_zzl_screenReaderNamesRolesAndAnnouncements() {
-            documentManager.newDocument()
-            blockModel.insertBlock(0, 0, "A paragraph block")
+            DocumentManager.newDocument()
+            BlockModel.insertBlock(0, 0, "A paragraph block")
             wait(200)
 
             // A glyph toolbar button carries its tooltip as the accessible name
@@ -8409,7 +8409,7 @@ Item {
                    "block accessible name is labelled")
 
             // An image surfaces its alt text as the accessible name.
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "![A lighthouse at dusk|200](x.png)")
             wait(200)
             var imgDeleg = findBlockDelegate(0)
@@ -8418,26 +8418,26 @@ Item {
             compare(frame.Accessible.name, "A lighthouse at dusk")
 
             // Announcements: a block conversion speaks through the announcer.
-            documentManager.newDocument()
-            blockModel.insertBlock(0, 0, "convert me")
+            DocumentManager.newDocument()
+            BlockModel.insertBlock(0, 0, "convert me")
             wait(150)
             var para = findBlockDelegate(0)
             para.convertBlockType(1)   // Heading 1
             tryVerify(function() {
-                return a11y.lastMessage === "Converted to Heading 1"
+                return A11y.lastMessage === "Converted to Heading 1"
             }, 1000, "conversion announced")
 
             // Announcements: the search match count speaks while searching.
-            documentManager.newDocument()
-            blockModel.insertBlock(0, 0, "the quick brown fox the lazy dog")
+            DocumentManager.newDocument()
+            BlockModel.insertBlock(0, 0, "the quick brown fox the lazy dog")
             wait(150)
-            documentSearch.active = true   // the find bar activates the search
-            documentSearch.query = "the"
+            DocumentSearch.active = true   // the find bar activates the search
+            DocumentSearch.query = "the"
             tryVerify(function() {
-                return a11y.lastMessage.indexOf("match") !== -1
+                return A11y.lastMessage.indexOf("match") !== -1
             }, 1000, "match count announced")
-            documentSearch.query = ""
-            documentSearch.active = false
+            DocumentSearch.query = ""
+            DocumentSearch.active = false
         }
 
         // System integration. Focus-independent — drives the
@@ -8449,7 +8449,7 @@ Item {
             wait(100)
             verify(appLoader.item.collectionOpen,
                    "a collection is open for capture")
-            var before = noteCollection.noteRelPaths().length
+            var before = NoteCollection.noteRelPaths().length
 
             // Quick capture writes a note through the window.
             appLoader.item.openQuickCapture()
@@ -8461,7 +8461,7 @@ Item {
             ta.text = "Captured by the seam test\nwith a second body line"
             qc.save()
             wait(250)
-            var paths = noteCollection.noteRelPaths()
+            var paths = NoteCollection.noteRelPaths()
             compare(paths.length, before + 1, "capture created one note")
             var found = false
             for (var i = 0; i < paths.length; i++)
@@ -8471,29 +8471,29 @@ Item {
 
             // The tray "quick capture" action re-opens the window.
             qc.close(); wait(100)
-            systemTray.triggerAction("quickCapture")
+            SystemTray.triggerAction("quickCapture")
             wait(200)
             tryVerify(function() { return qc.visible }, 1000,
                       "tray quick-capture action opens the window")
             qc.close(); wait(100)
 
             // The global hotkey activation opens it too.
-            globalHotkey.trigger()
+            GlobalHotkey.trigger()
             wait(200)
             tryVerify(function() { return qc.visible }, 1000,
                       "hotkey activation opens quick capture")
             qc.close()
 
             // The tray "new note" action creates a note in the collection.
-            var n2 = noteCollection.noteRelPaths().length
-            systemTray.triggerAction("newNote")
+            var n2 = NoteCollection.noteRelPaths().length
+            SystemTray.triggerAction("newNote")
             wait(250)
-            verify(noteCollection.noteRelPaths().length >= n2,
+            verify(NoteCollection.noteRelPaths().length >= n2,
                    "tray new-note routes to note creation")
 
             // The notifier records what it posts.
-            systemTray.notify("Kvit", "Test notification")
-            compare(systemTray.lastNotification, "Test notification")
+            SystemTray.notify("Kvit", "Test notification")
+            compare(SystemTray.lastNotification, "Test notification")
         }
 
         // External file watching. Focus-independent — it drives
@@ -8505,7 +8505,7 @@ Item {
             verify(appLoader.item.openNoteByPath("Welcome.md"),
                    "open the welcome note")
             wait(150)
-            var absPath = documentManager.currentFilePath
+            var absPath = DocumentManager.currentFilePath
             verify(absPath !== "")
 
             var banner = findChild(appLoader.item, "conflictBanner")
@@ -8513,10 +8513,10 @@ Item {
 
             // Edit so the open note is dirty, then an external change to it raises
             // the keep-mine / load-theirs banner.
-            blockModel.updateContent(0, "a local edit")
+            BlockModel.updateContent(0, "a local edit")
             wait(50)
-            verify(documentManager.isDirty, "note is dirty")
-            fileWatcher.noteChangedExternally(absPath)
+            verify(DocumentManager.isDirty, "note is dirty")
+            FileWatcher.noteChangedExternally(absPath)
             wait(100)
             verify(banner.visible, "external change on a dirty note shows the banner")
 
@@ -8524,32 +8524,32 @@ Item {
             appLoader.item.loadTheirs()
             wait(200)
             verify(!banner.visible, "banner clears after load-theirs")
-            tryVerify(function() { return !documentManager.isDirty }, 1000,
+            tryVerify(function() { return !DocumentManager.isDirty }, 1000,
                       "reload cleared the dirty state")
 
             // Keep-mine re-saves the editor's version.
-            blockModel.updateContent(0, "another local edit")
+            BlockModel.updateContent(0, "another local edit")
             wait(50)
-            verify(documentManager.isDirty)
-            fileWatcher.noteChangedExternally(absPath)
+            verify(DocumentManager.isDirty)
+            FileWatcher.noteChangedExternally(absPath)
             wait(100)
             verify(banner.visible)
             appLoader.item.keepMine()
             wait(200)
             verify(!banner.visible, "banner clears after keep-mine")
-            tryVerify(function() { return !documentManager.isDirty }, 1000,
+            tryVerify(function() { return !DocumentManager.isDirty }, 1000,
                       "keep-mine saved the editor version")
 
             // Own-write guard: a guarded change (the app's own save) is not a
             // conflict. Drive feedChange through the guard then unguarded.
-            blockModel.updateContent(0, "dirty again")
+            BlockModel.updateContent(0, "dirty again")
             wait(50)
-            verify(documentManager.isDirty)
-            fileWatcher.noteOwnWrite(absPath)
-            fileWatcher.feedChange(absPath, true)   // consumed by the guard
+            verify(DocumentManager.isDirty)
+            FileWatcher.noteOwnWrite(absPath)
+            FileWatcher.feedChange(absPath, true)   // consumed by the guard
             wait(100)
             verify(!banner.visible, "own write does not raise the banner")
-            fileWatcher.feedChange(absPath, true)   // now unguarded → conflict
+            FileWatcher.feedChange(absPath, true)   // now unguarded → conflict
             wait(100)
             verify(banner.visible, "a later external change does raise it")
             appLoader.item.keepMine()
@@ -8562,16 +8562,16 @@ Item {
         // full 561,693-word data-path budgets are pinned in
         // test_performance_warandpeace.
         function test_zzo_largeDocumentViewStaysBounded() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             var lines = []
             for (var i = 0; i < 3000; i++)
                 lines.push("Paragraph number " + i
                            + " with a little prose to give it width and body.")
             var t0 = Date.now()
-            documentSerializer.loadIntoModel(blockModel, lines.join("\n\n"))
+            DocumentSerializer.loadIntoModel(BlockModel, lines.join("\n\n"))
             wait(50)
             var loadMs = Date.now() - t0
-            compare(blockModel.count, 3000)
+            compare(BlockModel.count, 3000)
             verify(loadMs < 2000, "a 3000-block document loads in under 2s (was "
                    + loadMs + "ms)")
 
@@ -8583,13 +8583,13 @@ Item {
             // Only a bounded window of delegates is instantiated, not all 3000.
             function liveCount() {
                 var n = 0
-                for (var i = 0; i < blockModel.count; i++)
+                for (var i = 0; i < BlockModel.count; i++)
                     if (lv.itemAtIndex(i) !== null) n++
                 return n
             }
             function liveTextAreaCount() {
                 var n = 0
-                for (var i = 0; i < blockModel.count; i++) {
+                for (var i = 0; i < BlockModel.count; i++) {
                     var item = lv.itemAtIndex(i)
                     if (item !== null && findTextAreaRaw(item) !== null)
                         n++
@@ -8616,42 +8616,42 @@ Item {
         }
 
         function test_zzp_oversizedPasteConfirmAndPlaceholder() {
-            // Oversized-payload guard: a clipboard payload over the
+            // Oversized-payload guard: a Clipboard payload over the
             // open-size cap gets a confirm dialog before insertMarkdownAt
             // runs, instead of a silent multi-second stall.
             if (isHeadless) {
                 skip("Keyboard tests require display")
             }
             docWithBlocks(["one", "two"])
-            var oldCap = documentManager.maxOpenFileSizeMiB
-            documentManager.maxOpenFileSizeMiB = 1
+            var oldCap = DocumentManager.maxOpenFileSizeMiB
+            DocumentManager.maxOpenFileSizeMiB = 1
 
             var chunk = "0123456789abcdef"
             var big = chunk.repeat((1024 * 1024) / chunk.length + 4096)
-            clipboard.text = big
+            Clipboard.text = big
             verify(big.length > 1024 * 1024)
 
             selectBlocks(0, 0)
-            var countBefore = blockModel.count
+            var countBefore = BlockModel.count
             keyClick(Qt.Key_V, Qt.ControlModifier)
 
             var dialog = findChild(appLoader.item, "largePasteConfirmDialog")
             verify(dialog !== null)
             tryCompare(dialog, "opened", true, 1000)
-            compare(blockModel.count, countBefore,
+            compare(BlockModel.count, countBefore,
                     "nothing pastes before the user confirms")
 
             dialog.reject()
             wait(50)
-            compare(blockModel.count, countBefore,
+            compare(BlockModel.count, countBefore,
                     "cancel pastes nothing")
 
             // Under the cap the paste is immediate, no dialog.
-            clipboard.text = "small paste"
+            Clipboard.text = "small paste"
             selectBlocks(0, 0)
             keyClick(Qt.Key_V, Qt.ControlModifier)
             tryVerify(function() {
-                return blockModel.count === countBefore + 1
+                return BlockModel.count === countBefore + 1
             }, 1000, "a small payload pastes straight through")
 
             // The oversized-file placeholder plumbing: banner appears with
@@ -8671,7 +8671,7 @@ Item {
             mouseClick(dismiss)
             tryCompare(banner, "visible", false, 1000)
 
-            documentManager.maxOpenFileSizeMiB = oldCap
+            DocumentManager.maxOpenFileSizeMiB = oldCap
         }
 
         // ---- Math command menu + $ auto-pair ----
@@ -8724,12 +8724,12 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "above\n\n$$\nx+1\n$$\n\nbelow")
             wait(300)
 
-            compare(blockModel.count, 3)
+            compare(BlockModel.count, 3)
             var above = findBlockDelegate(0)
             var mathBlock = findBlockDelegate(1)
             var below = findBlockDelegate(2)
@@ -8765,8 +8765,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel, "$$\nx+1\n$$")
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel, "$$\nx+1\n$$")
             wait(300)
 
             var mathBlock = findBlockDelegate(0)
@@ -8822,8 +8822,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel, "note")
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel, "note")
             wait(300)
 
             var para = findBlockDelegate(0)
@@ -8869,7 +8869,7 @@ Item {
             keyClick(Qt.Key_Return)
             tryCompare(menu, "visible", false, 1000)
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf("$\\alpha$") !== -1
+                return BlockModel.getContent(0).indexOf("$\\alpha$") !== -1
             }, 2000, "the span holds the inserted command")
 
             // A second $ types over the auto-closer instead of adding a
@@ -8894,8 +8894,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel, "note")
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel, "note")
             wait(300)
 
             var ta = findTextArea(findBlockDelegate(0))
@@ -8921,7 +8921,7 @@ Item {
             keyClick(Qt.Key_Return)
             tryCompare(menu, "visible", false, 1000)
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf("$\\cdot$") !== -1
+                return BlockModel.getContent(0).indexOf("$\\cdot$") !== -1
             }, 2000, "accepting the completion inserts \\cdot")
         }
 
@@ -8929,8 +8929,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel, "note")
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel, "note")
             wait(300)
 
             var ta = findTextArea(findBlockDelegate(0))
@@ -8950,7 +8950,7 @@ Item {
             keyClick(Qt.Key_Return)
             tryCompare(menu, "visible", false, 1000)
             tryVerify(function() {
-                return blockModel.getContent(0).indexOf("$\\|$") !== -1
+                return BlockModel.getContent(0).indexOf("$\\|$") !== -1
             }, 2000, "accepting the completion inserts \\|")
         }
 
@@ -8958,8 +8958,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel, "$$\nx\n$$")
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel, "$$\nx\n$$")
             wait(300)
 
             var src = findChild(findBlockDelegate(0), "mathSourceArea")
@@ -8984,8 +8984,8 @@ Item {
             if (isHeadless) {
                 skip("Focus tests require display")
             }
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "$$\nx^2 + 75=36 \\alpha\n$$")
             wait(300)
 
@@ -9034,12 +9034,12 @@ Item {
         // The reverse direction (diagram → "Treat as code") worked. Focus-free,
         // so it runs headless.
         function test_zzx_languagePickerPlainFenceToTextDiagram() {
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "```plain\n┌──┐\n│ok│\n└──┘\n```")
             wait(300)
 
-            compare(blockModel.blockAt(0).language, "plain")
+            compare(BlockModel.blockAt(0).language, "plain")
             var d = findBlockDelegate(0)
             verify(d !== null, "delegate exists")
             verify(typeof d.setCodeLanguage === "function",
@@ -9047,13 +9047,13 @@ Item {
 
             d.setCodeLanguage("diagram")
             tryVerify(function() {
-                return blockModel.blockAt(0).language === "diagram"
+                return BlockModel.blockAt(0).language === "diagram"
             }, 1000, "picker conversion must set language=diagram; still "
-                     + blockModel.blockAt(0).language)
+                     + BlockModel.blockAt(0).language)
             // The reported failure was a silent revert; let any deferred
             // delegate-teardown writes land, then re-check.
             wait(400)
-            compare(blockModel.blockAt(0).language, "diagram",
+            compare(BlockModel.blockAt(0).language, "diagram",
                     "conversion must survive delegate teardown")
             // A `diagram` fence stays on the code delegate: the tag only
             // marks it for ingest straightening.
@@ -9065,12 +9065,12 @@ Item {
         // Same report, full round trip: diagram → plain → diagram through
         // the picker path. The revert reportedly failed only in this sequence.
         function test_zzy_treatAsCodeThenBackToTextDiagram() {
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "```diagram\n┌──┐\n│ok│\n└──┘\n```")
             wait(300)
 
-            compare(blockModel.blockAt(0).language, "diagram")
+            compare(BlockModel.blockAt(0).language, "diagram")
             var d = findBlockDelegate(0)
             verify(d !== null && typeof d.setCodeLanguage === "function",
                    "diagram fence renders through the code delegate")
@@ -9078,7 +9078,7 @@ Item {
             d.setCodeLanguage("plain")
             tryVerify(function() {
                 var cd = findBlockDelegate(0)
-                return blockModel.blockAt(0).language === "plain"
+                return BlockModel.blockAt(0).language === "plain"
                     && cd && typeof cd.setCodeLanguage === "function"
             }, 1000, "plain opt-out stays on the code delegate")
 
@@ -9093,11 +9093,11 @@ Item {
             }
             cd.setCodeLanguage("diagram")
             tryVerify(function() {
-                return blockModel.blockAt(0).language === "diagram"
+                return BlockModel.blockAt(0).language === "diagram"
             }, 1000, "picker must promote plain back to diagram; still "
-                     + blockModel.blockAt(0).language)
+                     + BlockModel.blockAt(0).language)
             wait(400)
-            compare(blockModel.blockAt(0).language, "diagram",
+            compare(BlockModel.blockAt(0).language, "diagram",
                     "promotion must survive delegate teardown")
         }
 
@@ -9105,8 +9105,8 @@ Item {
         // fit mode (fit satisfies BOTH dimensions, not just width), and the
         // effective zoom level must show in the bottom-right indicator.
         function test_zzy2_diagramFitFitsTallFlowchartAndShowsZoom() {
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "```mermaid\nflowchart TD\n  A[a] --> B[b]\n  B --> C[c]\n"
                 + "%% mermaid-flow:pos A=100,40 B=100,900 C=100,1760\n```")
             wait(300)
@@ -9145,8 +9145,8 @@ Item {
         // and fire its "Text diagram" MenuItem, instead of calling
         // setCodeLanguage directly.
         function test_zzz_languagePickerMenuItemPromotesToDiagram() {
-            documentManager.newDocument()
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "```plain\n┌──┐\n│ok│\n└──┘\n```")
             wait(300)
 
@@ -9171,11 +9171,11 @@ Item {
             picker.close()
 
             tryVerify(function() {
-                return blockModel.blockAt(0).language === "diagram"
+                return BlockModel.blockAt(0).language === "diagram"
             }, 1000, "menu item must promote plain to diagram; still "
-                     + blockModel.blockAt(0).language)
+                     + BlockModel.blockAt(0).language)
             wait(400)
-            compare(blockModel.blockAt(0).language, "diagram",
+            compare(BlockModel.blockAt(0).language, "diagram",
                     "promotion must survive menu close and delegate teardown")
         }
 
@@ -9187,8 +9187,8 @@ Item {
         // Write the open note's first block and save, so the collection
         // index (and thus resolution/backlinks) reflects it.
         function setOpenNoteBody(text) {
-            blockModel.updateContent(0, text)
-            documentManager.save()
+            BlockModel.updateContent(0, text)
+            DocumentManager.save()
             wait(50)
         }
 
@@ -9213,16 +9213,16 @@ Item {
 
             // Duplicate suffixes are ambiguous: following one neither opens
             // an arbitrary candidate nor creates a third note.
-            verify(noteCollection.createFolder("", "Archive") !== "")
+            verify(NoteCollection.createFolder("", "Archive") !== "")
             verify(testFiles.writeFile(
-                noteCollection.absolutePath("Archive/Welcome.md"), "duplicate\n"))
-            noteCollection.refresh()
+                NoteCollection.absolutePath("Archive/Welcome.md"), "duplicate\n"))
+            NoteCollection.refresh()
             var before = appLoader.item.currentNoteRelPath
-            var countBefore = noteCollection.noteRelPaths().length
+            var countBefore = NoteCollection.noteRelPaths().length
             appLoader.item.linkOpener.activate("kvit-note:Welcome")
             wait(100)
             compare(appLoader.item.currentNoteRelPath, before)
-            compare(noteCollection.noteRelPaths().length, countBefore)
+            compare(NoteCollection.noteRelPaths().length, countBefore)
             verify(appLoader.item.transientStatus.indexOf("Ambiguous") === 0)
 
             closeTestCollection()
@@ -9247,14 +9247,14 @@ Item {
 
             // Exact external-editor path: write another note and feed the
             // watcher while the target stays open and the panel stays visible.
-            var plansAbs = noteCollection.absolutePath("Ideas/Plans.md")
+            var plansAbs = NoteCollection.absolutePath("Ideas/Plans.md")
             verify(testFiles.writeFile(plansAbs, "Also [[Welcome]].\n"))
-            fileWatcher.feedChange(plansAbs, true)
+            FileWatcher.feedChange(plansAbs, true)
             tryVerify(function() { return panel.rows.length === 2 },
                       2000, "external watcher adds the second referrer")
 
             verify(testFiles.writeFile(plansAbs, "No link now.\n"))
-            fileWatcher.feedChange(plansAbs, true)
+            FileWatcher.feedChange(plansAbs, true)
             tryVerify(function() { return panel.rows.length === 1 },
                       2000, "external watcher removes the referrer")
 
@@ -9288,12 +9288,12 @@ Item {
 
         function test_wiki4_historyBackAndForward() {
             openTestCollection()
-            navigationHistory.clear()
+            NavigationHistory.clear()
             verify(appLoader.item.openNoteByPath("Welcome.md"))
             verify(appLoader.item.openNoteByPath("Ideas/Reading.md"))
             verify(appLoader.item.openNoteByPath("Ideas/Projects/Kvit.md"))
 
-            verify(navigationHistory.canGoBack)
+            verify(NavigationHistory.canGoBack)
             appLoader.item.navigateBack()
             tryVerify(function() {
                 return appLoader.item.currentNoteRelPath
@@ -9303,7 +9303,7 @@ Item {
             tryVerify(function() {
                 return appLoader.item.currentNoteRelPath === "Welcome.md"
             }, 2000, "back again reaches the first note")
-            verify(navigationHistory.canGoForward)
+            verify(NavigationHistory.canGoForward)
             appLoader.item.navigateForward()
             tryVerify(function() {
                 return appLoader.item.currentNoteRelPath
@@ -9319,16 +9319,16 @@ Item {
             setOpenNoteBody("Points at [[Kvit]] here.")
             verify(appLoader.item.openNoteByPath("Welcome.md"))
 
-            var plan = noteCollection.planNoteRename(
+            var plan = NoteCollection.planNoteRename(
                 "Ideas/Projects/Kvit.md", "Editor")
             verify(plan.ok && plan.linkCount === 1)
-            var result = noteCollection.applyRenamePlan(plan.id, true)
+            var result = NoteCollection.applyRenamePlan(plan.id, true)
             verify(result.ok)
             tryVerify(function() {
                 return appLoader.item.transientStatus.indexOf("Updated") === 0
             }, 2000, "rename shows the updated-links toast")
             tryVerify(function() {
-                return noteCollection.linksFrom("Ideas/Reading.md")
+                return NoteCollection.linksFrom("Ideas/Reading.md")
                            .indexOf("Editor") >= 0
             }, 2000, "referrer reindexed with the new target")
 
@@ -9339,8 +9339,8 @@ Item {
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Ideas/Reading.md"))
             setOpenNoteBody("Points at [[Kvit]] here.")
-            blockModel.updateContent(0, "Dirty points at [[Kvit]] here.")
-            verify(documentManager.isDirty)
+            BlockModel.updateContent(0, "Dirty points at [[Kvit]] here.")
+            verify(DocumentManager.isDirty)
 
             appLoader.item.requestNoteRename("Ideas/Projects/Kvit.md", "Editor")
             var dialog = findChild(appLoader.item, "renameLinksDialog")
@@ -9350,11 +9350,11 @@ Item {
             dialog.close()
 
             tryVerify(function() {
-                return blockModel.blockAt(0).content.indexOf("[[Editor]]") >= 0
+                return BlockModel.blockAt(0).content.indexOf("[[Editor]]") >= 0
             }, 1000, "dirty open referrer is rewritten in memory")
-            verify(documentManager.isDirty)
-            undoStack.undo()
-            compare(blockModel.blockAt(0).content,
+            verify(DocumentManager.isDirty)
+            UndoStack.undo()
+            compare(BlockModel.blockAt(0).content,
                     "Dirty points at [[Kvit]] here.")
 
             closeTestCollection()
@@ -9366,7 +9366,7 @@ Item {
             }
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            blockModel.updateContent(0, "")
+            BlockModel.updateContent(0, "")
             wait(100)
 
             var d = findBlockDelegate(0)
@@ -9391,27 +9391,27 @@ Item {
             keyClick(Qt.Key_Return)
             tryCompare(menu, "visible", false, 1000)
             tryVerify(function() {
-                return blockModel.getContent(0) === "[[Kvit]]"
+                return BlockModel.getContent(0) === "[[Kvit]]"
             }, 2000, "completion inserts the closed wiki-link; got "
-                     + blockModel.getContent(0))
+                     + BlockModel.getContent(0))
 
             // Escape closes without touching the text.
-            blockModel.updateContent(0, "")
+            BlockModel.updateContent(0, "")
             wait(100)
             ensureFocus(textArea)
             typeString("[[We")
             tryCompare(menu, "visible", true, 2000)
             keyClick(Qt.Key_Escape)
             tryCompare(menu, "visible", false, 1000)
-            compare(blockModel.getContent(0), "[[We")
+            compare(BlockModel.getContent(0), "[[We")
 
             // Inside a code block the trigger never fires.
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(50)
             verify(appLoader.item.openNoteByPath("Ideas/Reading.md"))
-            blockModel.updateContent(0, "")
+            BlockModel.updateContent(0, "")
             wait(50)
-            blockModel.convertBlock(0, Block.CodeBlock, "", false, "")
+            BlockModel.convertBlock(0, Block.CodeBlock, "", false, "")
             wait(100)
             var cd = findBlockDelegate(0)
             var codeArea = findTextArea(cd)
@@ -9434,17 +9434,17 @@ Item {
 
             // Front-matter fixtures, written as an external tool would.
             verify(testFiles.writeFile(
-                noteCollection.absolutePath("Ideas/Reading.md"),
+                NoteCollection.absolutePath("Ideas/Reading.md"),
                 "---\nstatus: active\ndue: 2026-08-01\n---\nReading body\n"))
             verify(testFiles.writeFile(
-                noteCollection.absolutePath("Ideas/Projects/Kvit.md"),
+                NoteCollection.absolutePath("Ideas/Projects/Kvit.md"),
                 "---\nstatus: done\n---\nKvit body\n"))
-            noteCollection.refresh()
+            NoteCollection.refresh()
             wait(100)
 
             // A query fence in the open note renders the matching rows.
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            blockModel.convertBlock(0, Block.CodeBlock,
+            BlockModel.convertBlock(0, Block.CodeBlock,
                 "where: status = active\ncolumns: title, due\n"
                 + "sort: title asc", false, "query")
             wait(200)
@@ -9463,37 +9463,37 @@ Item {
 
             // Two visible identical blocks share QueryTools' underlying
             // evaluation rather than reparsing independently.
-            blockModel.insertBlock(1, Block.Paragraph, "")
-            blockModel.convertBlock(1, Block.CodeBlock,
-                blockModel.blockAt(0).content, false, "query")
+            BlockModel.insertBlock(1, Block.Paragraph, "")
+            BlockModel.convertBlock(1, Block.CodeBlock,
+                BlockModel.blockAt(0).content, false, "query")
             wait(250)
             var d2 = findBlockDelegate(1)
             verify(d2 !== null, "second query delegate exists")
-            queryTools.clearCache()
+            QueryTools.clearCache()
             d.refresh()
             d2.refresh()
-            compare(queryTools.evaluationCount(), 1,
+            compare(QueryTools.evaluationCount(), 1,
                     "identical visible blocks share one evaluation")
 
             // Live update through the FileWatcher: an external edit flips
             // another note's status and the block re-evaluates without
             // being touched (the launch-demo claim).
-            var abs = noteCollection.absolutePath("Ideas/Projects/Kvit.md")
+            var abs = NoteCollection.absolutePath("Ideas/Projects/Kvit.md")
             verify(testFiles.writeFile(abs,
                 "---\nstatus: active\ndue: 2026-07-15\n---\nKvit body\n"))
-            var evaluationsBeforeBurst = queryTools.evaluationCount()
+            var evaluationsBeforeBurst = QueryTools.evaluationCount()
             for (var burst = 0; burst < 10; ++burst)
-                fileWatcher.feedChange(abs, true)
+                FileWatcher.feedChange(abs, true)
             tryVerify(function() {
                 return d.queryResult.rows.length === 2
             }, 3000, "external front-matter edit re-evaluates the block")
             wait(200)
-            compare(queryTools.evaluationCount() - evaluationsBeforeBurst, 1,
+            compare(QueryTools.evaluationCount() - evaluationsBeforeBurst, 1,
                     "ten rapid revisions coalesce into one evaluation")
             compare(d.queryResult.rows[0].cells[0], "Kvit")
 
             // A parse error surfaces in the read view instead of rows.
-            blockModel.updateContent(0, "wat: no")
+            BlockModel.updateContent(0, "wat: no")
             wait(100)
             tryVerify(function() { return !d.queryResult.ok }, 1000,
                       "unknown key is an error")
@@ -9505,16 +9505,16 @@ Item {
         function test_wiki8_queryBoardGroupsAndClickOpens() {
             openTestCollection()
             verify(testFiles.writeFile(
-                noteCollection.absolutePath("Ideas/Reading.md"),
+                NoteCollection.absolutePath("Ideas/Reading.md"),
                 "---\nstatus: active\n---\nReading body\n"))
             verify(testFiles.writeFile(
-                noteCollection.absolutePath("Ideas/Projects/Kvit.md"),
+                NoteCollection.absolutePath("Ideas/Projects/Kvit.md"),
                 "---\nstatus: done\n---\nKvit body\n"))
-            noteCollection.refresh()
+            NoteCollection.refresh()
             wait(100)
 
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            blockModel.convertBlock(0, Block.CodeBlock,
+            BlockModel.convertBlock(0, Block.CodeBlock,
                 "from: Ideas\ngroup-by: status\ncolumns: title", false,
                 "query")
             wait(200)

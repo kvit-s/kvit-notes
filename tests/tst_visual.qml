@@ -147,7 +147,7 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            blockModel.updateContent(1, "The quick **brown** fox has *seven* cubs.")
+            BlockModel.updateContent(1, "The quick **brown** fox has *seven* cubs.")
             wait(200)
 
             var delegate = findBlockDelegate(1)
@@ -187,7 +187,7 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            blockModel.updateContent(1,
+            BlockModel.updateContent(1,
                 "Strike ~~gone~~ code `x = 1` mark ==note== under ++line++.")
             wait(200)
 
@@ -227,7 +227,7 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            blockModel.updateContent(1, "Nested: **bold *and italic* inside** here.")
+            BlockModel.updateContent(1, "Nested: **bold *and italic* inside** here.")
             wait(200)
 
             var delegate = findBlockDelegate(1)
@@ -253,7 +253,7 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            blockModel.updateContent(1,
+            BlockModel.updateContent(1,
                 "Docs at [Qt site](https://qt.io) and bare https://kde.org too.")
             wait(200)
 
@@ -280,7 +280,7 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            blockModel.updateContent(1, "Visit [the Qt site](https://qt.io) today.")
+            BlockModel.updateContent(1, "Visit [the Qt site](https://qt.io) today.")
             wait(200)
 
             var delegate = findBlockDelegate(1)
@@ -312,22 +312,22 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Block types")
-            blockModel.insertBlock(1, 4, "bullet at level zero")
-            blockModel.insertBlock(2, 4, "level one goes deeper", 1)
-            blockModel.insertBlock(3, 4, "level two deeper still", 2)
-            blockModel.insertBlock(4, 5, "first numbered item")
-            blockModel.insertBlock(5, 5, "second with **bold** text")
-            blockModel.insertBlock(6, 5, "nested child restarts", 1)
-            blockModel.insertBlock(7, 6, "an open task")
-            blockModel.insertBlock(8, 6, "a completed task")
-            blockModel.setChecked(8, true)
-            blockModel.insertBlock(9, 9, "")
-            blockModel.insertBlock(10, 7, "a quotation\nwith a second line")
-            blockModel.insertBlock(11, 8, "def area(r):\n    return 3.14 * r * r")
-            blockModel.insertBlock(12, 10, "A level-four heading (Phase 5)")
+            BlockModel.insertBlock(0, 1, "Block types")
+            BlockModel.insertBlock(1, 4, "bullet at level zero")
+            BlockModel.insertBlock(2, 4, "level one goes deeper", 1)
+            BlockModel.insertBlock(3, 4, "level two deeper still", 2)
+            BlockModel.insertBlock(4, 5, "first numbered item")
+            BlockModel.insertBlock(5, 5, "second with **bold** text")
+            BlockModel.insertBlock(6, 5, "nested child restarts", 1)
+            BlockModel.insertBlock(7, 6, "an open task")
+            BlockModel.insertBlock(8, 6, "a completed task")
+            BlockModel.setChecked(8, true)
+            BlockModel.insertBlock(9, 9, "")
+            BlockModel.insertBlock(10, 7, "a quotation\nwith a second line")
+            BlockModel.insertBlock(11, 8, "def area(r):\n    return 3.14 * r * r")
+            BlockModel.insertBlock(12, 10, "A level-four heading (Phase 5)")
             wait(300)
 
             clearFocus()
@@ -347,7 +347,7 @@ Item {
             var checkbox = findChild(todoDelegate, "todoCheckbox")
             verify(checkbox !== null, "Todo checkbox should exist")
             mouseClick(checkbox)
-            tryVerify(function() { return blockModel.blockAt(7).checked }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(7).checked }, 1000)
             wait(150)
             saveScreenshot("visual_07_types_02_todo_toggled.png")
 
@@ -372,9 +372,9 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 4, "the first item")
+            BlockModel.insertBlock(0, 4, "the first item")
             wait(200)
 
             var textArea = findTextArea(findBlockDelegate(0))
@@ -398,7 +398,7 @@ Item {
             wait(200)
             saveScreenshot("visual_08_listflow_04_empty_item_exited.png")
 
-            verify(blockModel.blockAt(2).blockType === 0,
+            verify(BlockModel.blockAt(2).blockType === 0,
                    "The empty item should have exited to a paragraph")
         }
 
@@ -414,7 +414,7 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)
             var textArea = findTextArea(findBlockDelegate(0))
             ensureFocus(textArea)
@@ -424,12 +424,12 @@ Item {
             saveScreenshot("visual_09_prefix_01_dash_still_paragraph.png")
 
             typeText(" ")
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 4 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 4 }, 1000)
             wait(150)
             saveScreenshot("visual_09_prefix_02_bullet_converted.png")
 
             typeText("[ ] ")
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 6 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 6 }, 1000)
             wait(150)
             saveScreenshot("visual_09_prefix_03_todo_converted.png")
 
@@ -437,7 +437,7 @@ Item {
             wait(150)
             saveScreenshot("visual_09_prefix_04_task_typed.png")
 
-            compare(blockModel.getContent(0), "write the report")
+            compare(BlockModel.getContent(0), "write the report")
         }
 
         // Storyboard: the slash menu. Typing "/" opens the grouped catalog
@@ -448,7 +448,7 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)
             var textArea = findTextArea(findBlockDelegate(0))
             ensureFocus(textArea)
@@ -474,7 +474,7 @@ Item {
             typeText("quote")
             wait(150)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.blockAt(0).blockType === 7 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(0).blockType === 7 }, 1000)
             wait(200)
             saveScreenshot("visual_10_menu_04_converted_quote.png")
         }
@@ -486,11 +486,11 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)
             for (var i = 1; i <= 12; i++)
-                blockModel.insertBlock(i, 0, "filler line " + i)
-            blockModel.insertBlock(13, 0, "")
+                BlockModel.insertBlock(i, 0, "filler line " + i)
+            BlockModel.insertBlock(13, 0, "")
             wait(200)
             var listView = findChild(appLoader.item, "blockListView")
             listView.positionViewAtEnd()
@@ -516,9 +516,9 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.updateContent(0, "An existing block of text")
+            BlockModel.updateContent(0, "An existing block of text")
             wait(200)
 
             var delegate = findBlockDelegate(0)
@@ -537,7 +537,7 @@ Item {
             typeText("tod")
             wait(200)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return blockModel.blockAt(1).blockType === 6 }, 1000)
+            tryVerify(function() { return BlockModel.blockAt(1).blockType === 6 }, 1000)
             wait(200)
             saveScreenshot("visual_12_plus_03_new_todo_created.png")
         }
@@ -554,7 +554,7 @@ Item {
 
             // Every inline type participates so the geometry invariants
             // (focus never resizes a block) hold for the full registry.
-            blockModel.updateContent(1,
+            BlockModel.updateContent(1,
                 "**Alpha** *beta* ~~gamma~~ ==delta== ++epsilon++ `zeta` " +
                 "[eta](http://e) __theta__ _iota_ **kappa *nested* mu** " +
                 "https://nu.io **xi**")
@@ -600,34 +600,34 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 1, "Project notes")
-            blockModel.insertBlock(1, 0, "First paragraph with **bold** text")
-            blockModel.insertBlock(2, 4, "bullet one")
-            blockModel.insertBlock(3, 4, "bullet two")
-            blockModel.insertBlock(4, 9, "")
-            blockModel.insertBlock(5, 0, "Closing paragraph")
+            BlockModel.convertBlock(0, 1, "Project notes")
+            BlockModel.insertBlock(1, 0, "First paragraph with **bold** text")
+            BlockModel.insertBlock(2, 4, "bullet one")
+            BlockModel.insertBlock(3, 4, "bullet two")
+            BlockModel.insertBlock(4, 9, "")
+            BlockModel.insertBlock(5, 0, "Closing paragraph")
             wait(200)
 
-            documentSelection.selectBlock(1)
-            documentSelection.extendBlockSelectionTo(3)
+            DocumentSelection.selectBlock(1)
+            DocumentSelection.extendBlockSelectionTo(3)
             appLoader.item.selectionKeyHandler.forceActiveFocus()
             wait(200)
             saveScreenshot("visual_13_select_01_contiguous_range.png")
 
-            documentSelection.clear()
-            documentSelection.toggleBlock(0)
-            documentSelection.toggleBlock(2)
-            documentSelection.toggleBlock(4)
+            DocumentSelection.clear()
+            DocumentSelection.toggleBlock(0)
+            DocumentSelection.toggleBlock(2)
+            DocumentSelection.toggleBlock(4)
             wait(200)
             saveScreenshot("visual_13_select_02_non_contiguous_with_divider.png")
 
-            documentSelection.selectAllBlocks()
+            DocumentSelection.selectAllBlocks()
             wait(200)
             saveScreenshot("visual_13_select_03_select_all.png")
 
-            documentSelection.clear()
+            DocumentSelection.clear()
             wait(100)
         }
 
@@ -638,34 +638,34 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 1, "Meeting agenda")
-            blockModel.insertBlock(1, 6, "prepare slides")
-            blockModel.insertBlock(2, 6, "book the room")
-            blockModel.insertBlock(3, 0, "Notes go here afterwards")
+            BlockModel.convertBlock(0, 1, "Meeting agenda")
+            BlockModel.insertBlock(1, 6, "prepare slides")
+            BlockModel.insertBlock(2, 6, "book the room")
+            BlockModel.insertBlock(3, 0, "Notes go here afterwards")
             wait(200)
 
             // Two todos selected, ready to duplicate
-            documentSelection.selectBlock(1)
-            documentSelection.extendBlockSelectionTo(2)
+            DocumentSelection.selectBlock(1)
+            DocumentSelection.extendBlockSelectionTo(2)
             appLoader.item.selectionKeyHandler.forceActiveFocus()
             wait(200)
             saveScreenshot("visual_14_ops_01_selection_before_duplicate.png")
 
             keyClick(Qt.Key_D, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 6 }, 1000)
+            tryVerify(function() { return BlockModel.count === 6 }, 1000)
             wait(200)
             saveScreenshot("visual_14_ops_02_clones_selected_below.png")
 
             keyClick(Qt.Key_Down, Qt.AltModifier)
             tryVerify(function() {
-                return blockModel.getContent(3) === "Notes go here afterwards"
+                return BlockModel.getContent(3) === "Notes go here afterwards"
             }, 1000)
             wait(200)
             saveScreenshot("visual_14_ops_03_selection_moved_down.png")
 
-            documentSelection.clear()
+            DocumentSelection.clear()
             wait(100)
         }
 
@@ -677,11 +677,11 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "The first paragraph has **bold** text inside")
-            blockModel.insertBlock(1, 4, "a bulleted item in between")
-            blockModel.insertBlock(2, 0, "and the closing paragraph ends here")
+            BlockModel.updateContent(0, "The first paragraph has **bold** text inside")
+            BlockModel.insertBlock(1, 4, "a bulleted item in between")
+            BlockModel.insertBlock(2, 0, "and the closing paragraph ends here")
             wait(200)
 
             function dragAcross(fromIdx, fromPos, toIdx, toPos) {
@@ -696,26 +696,26 @@ Item {
             }
 
             dragAcross(0, 4, 2, 15)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             wait(200)
             saveScreenshot("visual_15_xsel_01_forward_range.png")
 
             keyClick(Qt.Key_Escape)
-            tryCompare(documentSelection, "hasTextSelection", false, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", false, 1000)
             dragAcross(2, 15, 0, 4)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             wait(200)
             saveScreenshot("visual_15_xsel_02_backward_range.png")
 
             keyClick(Qt.Key_Escape)
             dragAcross(0, 4, 2, 15)
-            tryCompare(documentSelection, "hasTextSelection", true, 1000)
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
             keyClick(Qt.Key_X, Qt.ControlModifier)
-            tryVerify(function() { return blockModel.count === 1 }, 1000)
+            tryVerify(function() { return BlockModel.count === 1 }, 1000)
             wait(200)
             saveScreenshot("visual_15_xsel_03_after_cut.png")
 
-            documentSelection.clear()
+            DocumentSelection.clear()
             wait(100)
         }
 
@@ -732,12 +732,12 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "The quick **brown** fox jumps")
-            blockModel.insertBlock(1, 0, "One fox, two foxes, one Fox")
-            blockModel.insertBlock(2, 4, "fox item in a list")
-            blockModel.insertBlock(3, 8, "let fox = hunt()\nfox()")
+            BlockModel.updateContent(0, "The quick **brown** fox jumps")
+            BlockModel.insertBlock(1, 0, "One fox, two foxes, one Fox")
+            BlockModel.insertBlock(2, 4, "fox item in a list")
+            BlockModel.insertBlock(3, 8, "let fox = hunt()\nfox()")
             wait(200)
 
             var bar = appLoader.item.findBar
@@ -748,14 +748,14 @@ Item {
             tryCompare(bar, "visible", true, 1000)
             for (var i = 0; i < 3; i++)
                 keyClick("fox".charAt(i))
-            tryCompare(documentSearch, "matchCount", 7, 1000)
+            tryCompare(DocumentSearch, "matchCount", 7, 1000)
             wait(250)
             saveScreenshot("visual_17_find_01_matches_and_count.png")
 
             // Click into the bold word while the bar stays open: the
             // span reveals and the match tint follows its content.
             bar.queryField.text = "brown"
-            tryCompare(documentSearch, "matchCount", 1, 1000)
+            tryCompare(DocumentSearch, "matchCount", 1, 1000)
             var pos = textArea.positionToRectangle(12)
             mouseClick(textArea, pos.x, pos.y + 5)
             tryCompare(textArea, "activeFocus", true, 1000)
@@ -766,13 +766,13 @@ Item {
             var regexButton = findChild(bar, "findRegexButton")
             mouseClick(regexButton)
             bar.queryField.text = "f.x\\(\\)"
-            tryCompare(documentSearch, "matchCount", 1, 1000)
+            tryCompare(DocumentSearch, "matchCount", 1, 1000)
             wait(250)
             saveScreenshot("visual_17_find_03_regex_option.png")
 
             // The invalid-pattern error state.
             bar.queryField.text = "(unclosed"
-            tryCompare(documentSearch, "patternError", true, 1000)
+            tryCompare(DocumentSearch, "patternError", true, 1000)
             wait(250)
             saveScreenshot("visual_17_find_04_invalid_pattern.png")
 
@@ -789,11 +789,11 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "The old fox and the old hound")
-            blockModel.insertBlock(1, 4, "old bullet entry")
-            blockModel.insertBlock(2, 0, "Nothing to replace here")
+            BlockModel.updateContent(0, "The old fox and the old hound")
+            BlockModel.insertBlock(1, 4, "old bullet entry")
+            BlockModel.insertBlock(2, 0, "Nothing to replace here")
             wait(200)
 
             var bar = appLoader.item.findBar
@@ -805,7 +805,7 @@ Item {
             tryCompare(bar, "replaceMode", true, 1000)
             for (var i = 0; i < 3; i++)
                 keyClick("old".charAt(i))
-            tryCompare(documentSearch, "matchCount", 3, 1000)
+            tryCompare(DocumentSearch, "matchCount", 3, 1000)
             bar.replaceField.text = "new"
             wait(250)
             saveScreenshot("visual_18_replace_01_replace_mode.png")
@@ -817,7 +817,7 @@ Item {
             saveScreenshot("visual_18_replace_02_preview_panel.png")
 
             mouseClick(findChild(bar, "previewConfirmButton"))
-            tryCompare(documentSearch, "matchCount", 0, 2000)
+            tryCompare(DocumentSearch, "matchCount", 0, 2000)
             wait(250)
             saveScreenshot("visual_18_replace_03_after_confirm.png")
 
@@ -832,13 +832,13 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.convertBlock(0, 1, "Shopping list")
-            blockModel.insertBlock(1, 4, "apples")
-            blockModel.insertBlock(2, 4, "bread")
-            blockModel.insertBlock(3, 4, "cheese")
-            blockModel.insertBlock(4, 0, "Everything else goes below")
+            BlockModel.convertBlock(0, 1, "Shopping list")
+            BlockModel.insertBlock(1, 4, "apples")
+            BlockModel.insertBlock(2, 4, "bread")
+            BlockModel.insertBlock(3, 4, "cheese")
+            BlockModel.insertBlock(4, 0, "Everything else goes below")
             wait(200)
 
             var listView = findChild(appLoader.item, "blockListView")
@@ -855,7 +855,7 @@ Item {
             var cheese = findBlockDelegate(3)
             var pastCheese = cheese.y - listView.contentY + cheese.height * 0.8
             mouseMove(listView, 100, pastCheese)
-            tryVerify(function() { return blockModel.getContent(3) === "apples" },
+            tryVerify(function() { return BlockModel.getContent(3) === "apples" },
                       1000)
             wait(250)
             saveScreenshot("visual_16_drag_01_live_make_room.png")
@@ -866,8 +866,8 @@ Item {
 
             // Multi drag: select the two bullets now at 1..2 and drag
             // them below the closing paragraph — indicator + badge
-            documentSelection.selectBlock(1)
-            documentSelection.extendBlockSelectionTo(2)
+            DocumentSelection.selectBlock(1)
+            DocumentSelection.extendBlockSelectionTo(2)
             appLoader.item.selectionKeyHandler.forceActiveFocus()
             wait(100)
             var first = findBlockDelegate(1)
@@ -887,13 +887,13 @@ Item {
 
             mouseRelease(listView, 100, dropY)
             tryVerify(function() {
-                return blockModel.getContent(3) === "bread"
-                    && blockModel.getContent(4) === "cheese"
+                return BlockModel.getContent(3) === "bread"
+                    && BlockModel.getContent(4) === "cheese"
             }, 1000)
             wait(250)
             saveScreenshot("visual_16_drag_04_multi_dropped.png")
 
-            documentSelection.clear()
+            DocumentSelection.clear()
             wait(100)
         }
 
@@ -908,20 +908,20 @@ Item {
             }
 
             var root = testCollectionDir + "/visual"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createFolder("", "Ideas") !== "")
-            verify(noteCollection.createFolder("Ideas", "Projects") !== "")
-            verify(noteCollection.createFolder("", "Journal") !== "")
-            verify(noteCollection.createNote("", "Welcome") !== "")
-            verify(noteCollection.createNote("Ideas", "Reading list") !== "")
-            verify(noteCollection.createNote("Ideas/Projects", "Kvit editor") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createFolder("Ideas", "Projects") !== "")
+            verify(NoteCollection.createFolder("", "Journal") !== "")
+            verify(NoteCollection.createNote("", "Welcome") !== "")
+            verify(NoteCollection.createNote("Ideas", "Reading list") !== "")
+            verify(NoteCollection.createNote("Ideas/Projects", "Kvit editor") !== "")
+            NoteListModel.scope = "all"
 
             // Give the notes real content so snippets and dates render.
             function fill(relPath, text) {
                 verify(appLoader.item.openNoteByPath(relPath))
-                blockModel.updateContent(0, text)
-                verify(documentManager.save())
+                BlockModel.updateContent(0, text)
+                verify(DocumentManager.save())
             }
             fill("Ideas/Reading list.md",
                  "Books to read this **summer**, in order")
@@ -934,10 +934,10 @@ Item {
 
             // Mid-drag: the floating proxy and the highlighted target.
             var listView = findChild(appLoader.item, "noteListView")
-            var row = listView.itemAtIndex(noteListModel.rowOf("Welcome.md"))
+            var row = listView.itemAtIndex(NoteListModel.rowOf("Welcome.md"))
             verify(row !== null)
             var treeView = findChild(appLoader.item, "folderTreeView")
-            var folderRow = treeView.itemAtIndex(folderTreeModel.rowOf("Journal"))
+            var folderRow = treeView.itemAtIndex(FolderTreeModel.rowOf("Journal"))
             verify(folderRow !== null)
             mousePress(row, row.width / 2, row.height / 2)
             mouseMove(row, row.width / 2 - 20, row.height / 2)
@@ -946,20 +946,20 @@ Item {
             saveScreenshot("visual_19_shell_02_drag_note_to_folder.png")
             mouseRelease(folderRow, folderRow.width / 2, folderRow.height / 2)
             tryVerify(function() {
-                return noteCollection.noteInfo("Journal/Welcome.md").title
+                return NoteCollection.noteInfo("Journal/Welcome.md").title
                        === "Welcome"
             }, 1000)
 
             // The moved note in its folder, list scoped to it.
-            noteListModel.folderPath = "Journal"
-            noteListModel.scope = "folder"
+            NoteListModel.folderPath = "Journal"
+            NoteListModel.scope = "folder"
             wait(250)
             saveScreenshot("visual_19_shell_03_moved_into_folder.png")
 
             // Inline rename editor.
             var pane = findChild(appLoader.item, "noteListPane")
             var renameRow = listView.itemAtIndex(
-                noteListModel.rowOf("Journal/Welcome.md"))
+                NoteListModel.rowOf("Journal/Welcome.md"))
             verify(renameRow !== null)
             pane.startRename("Journal/Welcome.md")
             var field = findChild(renameRow, "noteRenameField")
@@ -976,7 +976,7 @@ Item {
             saveScreenshot("visual_19_shell_05_panels_collapsed.png")
             keyClick(Qt.Key_Backslash, Qt.ControlModifier)
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -989,21 +989,21 @@ Item {
             }
 
             var root = testCollectionDir + "/visual-tags"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createFolder("", "Ideas") !== "")
-            verify(noteCollection.createNote("", "Welcome") !== "")
-            verify(noteCollection.createNote("Ideas", "Reading list") !== "")
-            verify(noteCollection.createNote("Ideas", "Plans") !== "")
-            verify(noteCollection.addTag("Welcome.md", "work"))
-            verify(noteCollection.addTag("Welcome.md", "ideas"))
-            verify(noteCollection.addTag("Ideas/Reading list.md", "work"))
-            verify(noteCollection.addTag("Ideas/Reading list.md", "books"))
-            verify(noteCollection.addTag("Ideas/Plans.md", "someday"))
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createNote("", "Welcome") !== "")
+            verify(NoteCollection.createNote("Ideas", "Reading list") !== "")
+            verify(NoteCollection.createNote("Ideas", "Plans") !== "")
+            verify(NoteCollection.addTag("Welcome.md", "work"))
+            verify(NoteCollection.addTag("Welcome.md", "ideas"))
+            verify(NoteCollection.addTag("Ideas/Reading list.md", "work"))
+            verify(NoteCollection.addTag("Ideas/Reading list.md", "books"))
+            verify(NoteCollection.addTag("Ideas/Plans.md", "someday"))
+            NoteListModel.scope = "all"
 
             verify(appLoader.item.openNoteByPath("Welcome.md"))
-            documentSerializer.loadIntoModel(blockModel, "# Welcome to Kvit\n")
-            verify(documentManager.save())
+            DocumentSerializer.loadIntoModel(BlockModel, "# Welcome to Kvit\n")
+            verify(DocumentManager.save())
 
             // Chips + autocomplete open over the editor.
             var strip = findChild(appLoader.item, "tagStrip")
@@ -1018,10 +1018,10 @@ Item {
             keyClick(Qt.Key_Escape)
 
             // Sidebar tag list with counts; "work" filter active.
-            noteListModel.tagFilter = "work"
+            NoteListModel.tagFilter = "work"
             wait(250)
             saveScreenshot("visual_20_tags_02_sidebar_filter_active.png")
-            noteListModel.tagFilter = ""
+            NoteListModel.tagFilter = ""
 
             // The merge confirmation with its blast radius.
             var mergeDialog = findChild(appLoader.item, "mergeTagDialog")
@@ -1030,7 +1030,7 @@ Item {
             saveScreenshot("visual_20_tags_03_merge_confirmation.png")
             mergeDialog.reject()
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -1043,15 +1043,15 @@ Item {
             }
 
             var root = testCollectionDir + "/visual-list"
-            verify(noteCollection.openRoot(root))
+            verify(NoteCollection.openRoot(root))
             var names = ["Apricot", "Blueberry", "Citrus", "Damson"]
             for (var i = 0; i < names.length; i++)
-                verify(noteCollection.createNote("", names[i]) !== "")
-            verify(noteCollection.setPinned("Damson.md", true))
-            verify(noteCollection.setFavorite("Blueberry.md", true))
-            noteListModel.scope = "all"
-            noteListModel.sortMode = "title"
-            noteListModel.ascending = true
+                verify(NoteCollection.createNote("", names[i]) !== "")
+            verify(NoteCollection.setPinned("Damson.md", true))
+            verify(NoteCollection.setFavorite("Blueberry.md", true))
+            NoteListModel.scope = "all"
+            NoteListModel.sortMode = "title"
+            NoteListModel.ascending = true
             wait(250)
             saveScreenshot("visual_21_list_01_title_sort_pinned_floats.png")
 
@@ -1064,10 +1064,10 @@ Item {
 
             // Manual-order drag, mid-flight with the indicator (manual
             // reorder lives inside a folder scope; "" is the root).
-            noteListModel.scope = "folder"
-            noteListModel.folderPath = ""
-            noteListModel.sortMode = "manual"
-            noteListModel.ascending = true
+            NoteListModel.scope = "folder"
+            NoteListModel.folderPath = ""
+            NoteListModel.sortMode = "manual"
+            NoteListModel.ascending = true
             var listView = findChild(appLoader.item, "noteListView")
             var row0 = listView.itemAtIndex(0)
             var row2 = listView.itemAtIndex(2)
@@ -1081,7 +1081,7 @@ Item {
             saveScreenshot("visual_21_list_03_manual_reorder_indicator.png")
             mouseRelease(row2, row2.width / 2, row2.height - 5)
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -1094,17 +1094,17 @@ Item {
             }
 
             var root = testCollectionDir + "/visual-search"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createFolder("", "Ideas") !== "")
-            verify(noteCollection.createNote("", "Foxes") !== "")
-            verify(noteCollection.createNote("Ideas", "Field notes") !== "")
-            verify(noteCollection.createNote("Ideas", "Recipes") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createNote("", "Foxes") !== "")
+            verify(NoteCollection.createNote("Ideas", "Field notes") !== "")
+            verify(NoteCollection.createNote("Ideas", "Recipes") !== "")
+            NoteListModel.scope = "all"
 
             function fill(relPath, markdown) {
                 verify(appLoader.item.openNoteByPath(relPath))
-                documentSerializer.loadIntoModel(blockModel, markdown)
-                verify(documentManager.save())
+                DocumentSerializer.loadIntoModel(BlockModel, markdown)
+                verify(DocumentManager.save())
             }
             fill("Foxes.md",
                  "# Foxes\n\nThe quick **brown fox** jumps over the lazy dog\n")
@@ -1120,7 +1120,7 @@ Item {
             keyClick(Qt.Key_X)
             // 2 in Foxes.md (the heading text "Foxes" matches too) and
             // 2 in Field notes.
-            tryVerify(function() { return collectionSearch.matchCount === 4 },
+            tryVerify(function() { return CollectionSearch.matchCount === 4 },
                       1000)
             wait(250)
             saveScreenshot("visual_22_search_01_grouped_results.png")
@@ -1129,15 +1129,15 @@ Item {
             appLoader.item.openSearchResult("Ideas/Field notes.md", 1, 4)
             var bar = findChild(appLoader.item, "findBar")
             tryCompare(bar, "visible", true, 1000)
-            tryVerify(function() { return documentSearch.matchCount === 2 },
+            tryVerify(function() { return DocumentSearch.matchCount === 2 },
                       1000)
             wait(250)
             saveScreenshot("visual_22_search_02_opened_at_match.png")
             bar.close()
 
-            collectionSearch.query = ""
+            CollectionSearch.query = ""
             searchField.text = ""
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -1150,21 +1150,21 @@ Item {
             }
 
             var root = testCollectionDir + "/visual-backup"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createNote("", "Journal") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createNote("", "Journal") !== "")
+            NoteListModel.scope = "all"
 
             verify(appLoader.item.openNoteByPath("Journal.md"))
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "First draft of the journal entry\n")
-            verify(documentManager.save())
+            verify(DocumentManager.save())
             // Step past the rotation floor so the next save's hook backs
             // up the first draft.
-            noteCollection.setClockOffsetForTesting(11 * 60)
-            documentSerializer.loadIntoModel(blockModel,
+            NoteCollection.setClockOffsetForTesting(11 * 60)
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "A much better second draft\n")
-            verify(documentManager.save())
-            noteCollection.setClockOffsetForTesting(0)
+            verify(DocumentManager.save())
+            NoteCollection.setClockOffsetForTesting(0)
 
             var dialog = findChild(appLoader.item, "backupDialog")
             dialog.openForCurrentNote()
@@ -1175,12 +1175,12 @@ Item {
             tryCompare(dialog, "visible", false, 1000)
 
             // A crashed session's journal → the banner.
-            documentManager.setJournalDebounceMs(30)
-            blockModel.updateContent(0, "unsaved words typed before a crash")
+            DocumentManager.setJournalDebounceMs(30)
+            BlockModel.updateContent(0, "unsaved words typed before a crash")
             wait(300)
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(20)
-            verify(noteCollection.openRoot(root))
+            verify(NoteCollection.openRoot(root))
             var banner = findChild(appLoader.item, "recoveryBanner")
             tryCompare(banner, "visible", true, 1000)
             wait(250)
@@ -1188,15 +1188,15 @@ Item {
 
             var discardButton = findChild(banner, "recoveryDiscardButton")
             mouseClick(discardButton)
-            documentManager.setJournalDebounceMs(2000)
-            noteCollection.closeRoot()
+            DocumentManager.setJournalDebounceMs(2000)
+            NoteCollection.closeRoot()
             wait(100)
         }
 
         // ============================================================
         // The four themes over the full shell and a formatted document.
         // Every token-driven surface — panels, note list, editor chrome,
-        // the engine's inline styles, search tints — re-renders per theme.
+        // the engine's inline styles, search tints — re-renders per Theme.
         // ============================================================
 
         function test_24_themes() {
@@ -1205,26 +1205,26 @@ Item {
             }
 
             var root = testCollectionDir + "/visual-themes"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createFolder("", "Ideas") !== "")
-            verify(noteCollection.createNote("", "Style sample") !== "")
-            verify(noteCollection.createNote("Ideas", "Second note") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createNote("", "Style sample") !== "")
+            verify(NoteCollection.createNote("Ideas", "Second note") !== "")
+            NoteListModel.scope = "all"
             verify(appLoader.item.openNoteByPath("Style sample.md"))
             wait(100)
-            blockModel.updateContent(0, "Theme sample")
-            blockModel.updateType(0, 1)  // Heading 1
-            blockModel.insertBlock(1, 0, "Mixing **bold**, *italic*, "
+            BlockModel.updateContent(0, "Theme sample")
+            BlockModel.updateType(0, 1)  // Heading 1
+            BlockModel.insertBlock(1, 0, "Mixing **bold**, *italic*, "
                 + "==highlight==, `code`, and a [link](https://kvit.example) "
                 + "in one paragraph")
-            blockModel.insertBlock(2, 7, "A quote block keeps its accent bar")
-            blockModel.insertBlock(3, 6, "a todo item")
-            blockModel.insertBlock(4, 8, "let fox = hunt()")
+            BlockModel.insertBlock(2, 7, "A quote block keeps its accent bar")
+            BlockModel.insertBlock(3, 6, "a todo item")
+            BlockModel.insertBlock(4, 8, "let fox = hunt()")
             wait(200)
 
             var themes = ["light", "dark", "sepia"]
             for (var i = 0; i < themes.length; i++) {
-                theme.themeId = themes[i]
+                Theme.themeId = themes[i]
                 wait(250)
                 saveScreenshot("visual_24_theme_0" + (i + 1) + "_"
                                + themes[i] + ".png")
@@ -1232,14 +1232,14 @@ Item {
 
             // "system" resolves to the OS scheme live; the frame proves
             // the mode renders as one of the two schemes above.
-            theme.themeId = "system"
+            Theme.themeId = "system"
             wait(250)
             saveScreenshot("visual_24_theme_04_system_"
-                           + theme.resolvedTheme + ".png")
+                           + Theme.resolvedTheme + ".png")
 
             // Search tints on the dark editor surface: matches must
             // stay visible, the current match distinct.
-            theme.themeId = "dark"
+            Theme.themeId = "dark"
             var bar = appLoader.item.findBar
             var textArea = findTextArea(findBlockDelegate(1))
             ensureFocus(textArea)
@@ -1248,20 +1248,20 @@ Item {
             tryCompare(bar, "visible", true, 1000)
             keyClick(Qt.Key_I)
             keyClick(Qt.Key_N)
-            tryVerify(function() { return documentSearch.matchCount > 0 },
+            tryVerify(function() { return DocumentSearch.matchCount > 0 },
                       1000)
             wait(250)
             saveScreenshot("visual_24_theme_05_dark_search_tints.png")
             bar.close()
 
             // Reset for whatever runs after this storyboard.
-            theme.themeId = "light"
-            noteCollection.closeRoot()
+            Theme.themeId = "light"
+            NoteCollection.closeRoot()
             wait(100)
         }
 
         // ============================================================
-        // The settings dialog and the typography settings applied to a
+        // The settings dialog and the Typography settings applied to a
         // live document.
         // ============================================================
 
@@ -1270,15 +1270,15 @@ Item {
                 skip("Storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "Typography sample")
-            blockModel.updateType(0, 1)
-            blockModel.insertBlock(1, 0, "Body text with **bold**, "
+            BlockModel.updateContent(0, "Typography sample")
+            BlockModel.updateType(0, 1)
+            BlockModel.insertBlock(1, 0, "Body text with **bold**, "
                 + "==highlight==, `inline code`, and a "
                 + "[link](https://kvit.example) to preview the scale")
-            blockModel.insertBlock(2, 2, "A section heading")
-            blockModel.insertBlock(3, 8, "monospace = code()")
+            BlockModel.insertBlock(2, 2, "A section heading")
+            BlockModel.insertBlock(3, 8, "monospace = code()")
             wait(200)
 
             var dialog = findChild(appLoader.item, "settingsDialog")
@@ -1295,23 +1295,23 @@ Item {
             tryCompare(dialog, "visible", false, 1000)
 
             // A larger base size scales the whole scale coherently...
-            typography.baseSize = 20
+            Typography.baseSize = 20
             wait(250)
             saveScreenshot("visual_25_settings_03_base_size_20.png")
 
             // ...a capped content width centers the column...
-            typography.maxContentWidth = 500
+            Typography.maxContentWidth = 500
             wait(250)
             saveScreenshot("visual_25_settings_04_max_width_500.png")
 
             // ...and an accent override recolors links and selection
             // chrome through the same tokens.
-            typography.resetToDefaults()
-            theme.accentOverride = "#c2543c"
+            Typography.resetToDefaults()
+            Theme.accentOverride = "#c2543c"
             wait(250)
             saveScreenshot("visual_25_settings_05_custom_accent.png")
 
-            theme.accentOverride = ""
+            Theme.accentOverride = ""
             wait(100)
         }
 
@@ -1326,14 +1326,14 @@ Item {
             }
 
             var root = testCollectionDir + "/visual-panels"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createFolder("", "Ideas") !== "")
-            verify(noteCollection.createNote("", "Layout sample") !== "")
-            verify(noteCollection.createNote("Ideas", "Second") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createNote("", "Layout sample") !== "")
+            verify(NoteCollection.createNote("Ideas", "Second") !== "")
+            NoteListModel.scope = "all"
             verify(appLoader.item.openNoteByPath("Layout sample.md"))
             wait(100)
-            blockModel.updateContent(0,
+            BlockModel.updateContent(0,
                 "Wide editor content with **formatting**")
             wait(200)
 
@@ -1355,7 +1355,7 @@ Item {
             appLoader.item.noteListCollapsed = false
             appLoader.item.sidebarWidth = 200
             appLoader.item.noteListWidth = 260
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -1370,11 +1370,11 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0,
+            BlockModel.updateContent(0,
                 "Water is H~2~O and energy is E=mc^2^")
-            blockModel.insertBlock(1, 0,
+            BlockModel.insertBlock(1, 0,
                 "Some **bold with *italic* inside** for button states")
             wait(200)
 
@@ -1419,12 +1419,12 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0, "A first paragraph up top")
-            blockModel.insertBlock(1, 0,
+            BlockModel.updateContent(0, "A first paragraph up top")
+            BlockModel.insertBlock(1, 0,
                 "Select **a few** of these words to summon the bar")
-            blockModel.insertBlock(2, 0, "And one more block below")
+            BlockModel.insertBlock(2, 0, "And one more block below")
             wait(200)
 
             // Caret position and document counts in the status bar.
@@ -1462,11 +1462,11 @@ Item {
                 skip("Focus-dependent storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(100)
-            blockModel.updateContent(0,
+            BlockModel.updateContent(0,
                 "Right-click text with a [link](https://x) inside")
-            blockModel.insertBlock(1, 0, "A second block for the handle")
+            BlockModel.insertBlock(1, 0, "A second block for the handle")
             wait(200)
 
             // The text menu over a selection.
@@ -1508,16 +1508,16 @@ Item {
 
             // Collection menus: a note row and the trash confirmation.
             var root = testCollectionDir + "/visual-menus"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createFolder("", "Ideas") !== "")
-            verify(noteCollection.createNote("", "Menu sample") !== "")
-            verify(noteCollection.createNote("", "Another note") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createNote("", "Menu sample") !== "")
+            verify(NoteCollection.createNote("", "Another note") !== "")
+            NoteListModel.scope = "all"
             wait(200)
 
             var listView = findChild(appLoader.item, "noteListView")
             var row = listView.itemAtIndex(
-                noteListModel.rowOf("Menu sample.md"))
+                NoteListModel.rowOf("Menu sample.md"))
             mouseClick(row, row.width / 2, row.height / 2, Qt.RightButton)
             var noteMenu = findChild(appLoader.item, "noteContextMenu")
             tryCompare(noteMenu, "visible", true, 1000)
@@ -1526,14 +1526,14 @@ Item {
             noteMenu.close()
             wait(100)
 
-            verify(noteCollection.deleteNote("Another note.md"))
+            verify(NoteCollection.deleteNote("Another note.md"))
             var dialog = findChild(appLoader.item, "emptyTrashDialog")
-            dialog.openFor(noteCollection.trashItemCount())
+            dialog.openFor(NoteCollection.trashItemCount())
             tryCompare(dialog, "opened", true, 1000)
             wait(250)
             saveScreenshot("visual_29_menus_05_empty_trash_confirm.png")
             dialog.reject()
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -1547,15 +1547,15 @@ Item {
             }
 
             var root = testCollectionDir + "/visual-dates"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createNote("", "Meeting notes") !== "")
-            verify(noteCollection.createNote("", "Meeting agenda") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createNote("", "Meeting notes") !== "")
+            verify(NoteCollection.createNote("", "Meeting agenda") !== "")
+            NoteListModel.scope = "all"
             verify(appLoader.item.openNoteByPath("Meeting notes.md"))
             wait(100)
-            blockModel.updateContent(0, "meeting outcomes captured here")
-            verify(documentManager.save())
-            collectionSearch.query = "meeting"
+            BlockModel.updateContent(0, "meeting outcomes captured here")
+            verify(DocumentManager.save())
+            CollectionSearch.query = "meeting"
             wait(200)
 
             var picker = findChild(appLoader.item, "dateRangePicker")
@@ -1569,9 +1569,9 @@ Item {
             saveScreenshot("visual_30_dates_01_picker_with_range.png")
 
             picker.close()
-            collectionSearch.query = ""
-            collectionSearch.datePreset = "any"
-            noteCollection.closeRoot()
+            CollectionSearch.query = ""
+            CollectionSearch.datePreset = "any"
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -1581,39 +1581,39 @@ Item {
                 skip("Storyboard requires display")
             }
 
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Code highlighting")
-            blockModel.insertBlock(1, 8,
+            BlockModel.insertBlock(0, 1, "Code highlighting")
+            BlockModel.insertBlock(1, 8,
                 "def greet(name):  # say hello\n"
                 + "    msg = f\"Hi {name}\"\n"
                 + "    return msg  # 42 done")
-            blockModel.convertBlock(1, 8, blockModel.getContent(1), false, "python")
-            blockModel.insertBlock(2, 8,
+            BlockModel.convertBlock(1, 8, BlockModel.getContent(1), false, "python")
+            BlockModel.insertBlock(2, 8,
                 "const nums = [1, 2, 3];  // a list\n"
                 + "function total(xs) { return xs.reduce((a, b) => a + b, 0); }")
-            blockModel.convertBlock(2, 8, blockModel.getContent(2), false, "javascript")
-            blockModel.insertBlock(3, 8,
+            BlockModel.convertBlock(2, 8, BlockModel.getContent(2), false, "javascript")
+            BlockModel.insertBlock(3, 8,
                 "#include <vector>\n"
                 + "int main() {\n"
                 + "    std::vector<int> v = {1, 2};  /* init */\n"
                 + "    return 0;\n}")
-            blockModel.convertBlock(3, 8, blockModel.getContent(3), false, "cpp")
+            BlockModel.convertBlock(3, 8, BlockModel.getContent(3), false, "cpp")
             wait(300)
             clearFocus()
 
-            // Each theme's highlighted Python / JS / C++ sample.
+            // Each Theme's highlighted Python / JS / C++ sample.
             var themes = ["light", "dark", "sepia"]
             for (var i = 0; i < themes.length; ++i) {
-                theme.themeId = themes[i]
+                Theme.themeId = themes[i]
                 wait(200)
                 saveScreenshot("visual_31_code_01_" + themes[i] + ".png")
             }
-            theme.themeId = "light"
+            Theme.themeId = "light"
             wait(150)
 
             // Line numbers on (view-menu toggle, persisted).
-            appSettings.setValue("view.codeLineNumbers", true)
+            AppSettings.setValue("view.codeLineNumbers", true)
             wait(200)
             // The gutter must actually create a row per code line (the
             // Repeater holds one Text per line, plus the Repeater itself) —
@@ -1634,11 +1634,11 @@ Item {
             // Dismiss the menu.
             keyClick(Qt.Key_Escape)
             wait(100)
-            appSettings.setValue("view.codeLineNumbers", false)
+            AppSettings.setValue("view.codeLineNumbers", false)
 
             // A long line scrolls horizontally (wrap off): the caret follows
             // to the end of a line wider than the panel.
-            blockModel.updateContent(1,
+            BlockModel.updateContent(1,
                 "result = compute(alpha, beta, gamma, delta, epsilon, zeta, eta, theta)  "
                 + "# a deliberately long single line that exceeds the panel width")
             var textArea = findTextArea(codeDelegate)
@@ -1656,15 +1656,15 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Text color")
-            blockModel.insertBlock(1, 0,
+            BlockModel.insertBlock(0, 1, "Text color")
+            BlockModel.insertBlock(1, 0,
                 "Some <span style=\"color:#e05c5c\">red text</span> and "
                 + "<span style=\"color:#4a90d9\">blue</span> together.")
             // A near-miss (extra attribute) stays literal text — the doctrine.
-            blockModel.insertBlock(2, 0,
+            BlockModel.insertBlock(2, 0,
                 "<span style=\"color:red\" class=\"x\">this stays literal</span>")
             wait(300)
             clearFocus()
@@ -1701,15 +1701,15 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Images")
+            BlockModel.insertBlock(0, 1, "Images")
             // A real image on disk (from the harness), with a caption.
-            blockModel.insertBlock(1, 11,
+            BlockModel.insertBlock(1, 11,
                 "![A yellow circle|220](" + sampleImagePath + " \"A sample image\")")
             // A broken path → the placeholder.
-            blockModel.insertBlock(2, 11, "![missing](does/not/exist.png)")
+            BlockModel.insertBlock(2, 11, "![missing](does/not/exist.png)")
             wait(600)   // async image load
             clearFocus()
             saveScreenshot("visual_33_image_01_rendered_and_placeholder.png")
@@ -1736,11 +1736,11 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
+            Theme.themeId = "light"
             var root = testCollectionDir + "/visual-ingest"
-            verify(noteCollection.openRoot(root))
-            verify(noteCollection.createNote("", "Ingested images") !== "")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createNote("", "Ingested images") !== "")
+            NoteListModel.scope = "all"
             verify(appLoader.item.openNoteByPath("Ingested images.md"))
             wait(150)
 
@@ -1749,13 +1749,13 @@ Item {
             var stored = AssetStore.ingestLocalFile(sampleImagePath, "ingested-images",
                                                      root, root)
             verify(stored.indexOf("assets/") === 0)
-            blockModel.updateContent(0, "Dropped image, ingested into assets/:")
-            blockModel.insertBlock(1, 11, imageAssets.build(stored, "", "", 0))
+            BlockModel.updateContent(0, "Dropped image, ingested into assets/:")
+            BlockModel.insertBlock(1, 11, ImageAssets.build(stored, "", "", 0))
             wait(500)
             clearFocus()
             saveScreenshot("visual_34_ingest_01_dropped_image.png")
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(100)
         }
 
@@ -1764,37 +1764,37 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Callouts")
-            blockModel.insertBlock(1, 0, "")
-            blockModel.convertBlock(1, 12, "This is an info callout with **bold** text.",
+            BlockModel.insertBlock(0, 1, "Callouts")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, 12, "This is an info callout with **bold** text.",
                                     false, "info", "Information")
-            blockModel.insertBlock(2, 0, "")
-            blockModel.convertBlock(2, 12, "Be careful here.", false, "warning", "Warning")
-            blockModel.insertBlock(3, 0, "")
-            blockModel.convertBlock(3, 12, "It worked.", false, "success", "")
-            blockModel.insertBlock(4, 0, "")
-            blockModel.convertBlock(4, 12, "Something broke.", false, "error", "Error")
-            blockModel.insertBlock(5, 0, "")
-            blockModel.convertBlock(5, 12, "Pro tip inside.", false, "tip", "Tip")
-            blockModel.insertBlock(6, 0, "")
+            BlockModel.insertBlock(2, 0, "")
+            BlockModel.convertBlock(2, 12, "Be careful here.", false, "warning", "Warning")
+            BlockModel.insertBlock(3, 0, "")
+            BlockModel.convertBlock(3, 12, "It worked.", false, "success", "")
+            BlockModel.insertBlock(4, 0, "")
+            BlockModel.convertBlock(4, 12, "Something broke.", false, "error", "Error")
+            BlockModel.insertBlock(5, 0, "")
+            BlockModel.convertBlock(5, 12, "Pro tip inside.", false, "tip", "Tip")
+            BlockModel.insertBlock(6, 0, "")
             // A foreign/unknown type degrades to note styling with its label.
-            blockModel.convertBlock(6, 12, "Foreign callout body.", false, "question", "")
+            BlockModel.convertBlock(6, 12, "Foreign callout body.", false, "question", "")
             wait(300)
             clearFocus()
             saveScreenshot("visual_35_callouts_01_types_light.png")
 
-            theme.themeId = "dark"
+            Theme.themeId = "dark"
             wait(200)
             saveScreenshot("visual_35_callouts_02_types_dark.png")
-            theme.themeId = "light"
+            Theme.themeId = "light"
             wait(150)
 
             // A toggle: collapsed then expanded.
-            blockModel.insertBlock(7, 0, "")
-            blockModel.convertBlock(7, 12, "Hidden content revealed when expanded.",
+            BlockModel.insertBlock(7, 0, "")
+            BlockModel.convertBlock(7, 12, "Hidden content revealed when expanded.",
                                     true, "toggle", "Click to expand")
             wait(250)
             var lv = findChild(appLoader.item, "blockListView")
@@ -1809,7 +1809,7 @@ Item {
             var chevron = findChild(toggle, "calloutFoldChevron")
             verify(chevron !== null, "fold chevron should exist")
             mouseClick(chevron)
-            tryVerify(function() { return !blockModel.blockAt(7).checked }, 1000)
+            tryVerify(function() { return !BlockModel.blockAt(7).checked }, 1000)
             wait(200)
             saveScreenshot("visual_35_callouts_04_toggle_expanded.png")
 
@@ -1822,12 +1822,12 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Tables")
-            blockModel.insertBlock(1, 0, "")
-            blockModel.convertBlock(1, 15,   // Block.Table
+            BlockModel.insertBlock(0, 1, "Tables")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, 15,   // Block.Table
                 "| Name | Role | Age |\n| :--- | :--- | ---: |\n"
                 + "| Alice | **Lead** | 30 |\n| Bob | Dev | 25 |\n| Carol | Design | 41 |")
             wait(300)
@@ -1846,18 +1846,18 @@ Item {
             wait(100)
 
             // Sort by the Age column (double-click its header).
-            var stackBefore = undoStack.count
-            var contentBefore = blockModel.getContent(1)
+            var stackBefore = UndoStack.count
+            var contentBefore = BlockModel.getContent(1)
             tbl.sortBy(2)   // sort by column 2 (Age), one undo step
-            tryVerify(function() { return blockModel.getContent(1) !== contentBefore },
+            tryVerify(function() { return BlockModel.getContent(1) !== contentBefore },
                       1000, "sort rewrites the table")
-            compare(undoStack.count, stackBefore + 1)
+            compare(UndoStack.count, stackBefore + 1)
             wait(150)
             clearFocus()
             saveScreenshot("visual_36_tables_03_sorted.png")
 
             // The grid-size picker.
-            blockModel.insertBlock(2, 0, "")
+            BlockModel.insertBlock(2, 0, "")
             appLoader.item.insertTableIntoBlock(2)
             wait(250)
             saveScreenshot("visual_36_tables_04_grid_picker.png")
@@ -1872,26 +1872,26 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Todos and quotes")
+            BlockModel.insertBlock(0, 1, "Todos and quotes")
             // Parent todo with two sub-todos → progress 1/2.
-            blockModel.insertBlock(1, 6, "Ship the release")
-            blockModel.insertBlock(2, 6, "write the code", 1)
-            blockModel.setChecked(2, true)
-            blockModel.insertBlock(3, 6, "run the tests", 1)
+            BlockModel.insertBlock(1, 6, "Ship the release")
+            BlockModel.insertBlock(2, 6, "write the code", 1)
+            BlockModel.setChecked(2, true)
+            BlockModel.insertBlock(3, 6, "run the tests", 1)
             // A todo with an overdue due date and high priority.
-            blockModel.insertBlock(4, 6, "review the PR")
-            blockModel.updateContent(4, todoMeta.build("review the PR", "2020-01-05", 2))
+            BlockModel.insertBlock(4, 6, "review the PR")
+            BlockModel.updateContent(4, TodoMeta.build("review the PR", "2020-01-05", 2))
             // A todo with a future due date and medium priority.
-            blockModel.insertBlock(5, 6, "plan next sprint")
-            blockModel.updateContent(5, todoMeta.build("plan next sprint", "2030-12-01", 1))
+            BlockModel.insertBlock(5, 6, "plan next sprint")
+            BlockModel.updateContent(5, TodoMeta.build("plan next sprint", "2030-12-01", 1))
             // A nested quote (depth 2) after an outer quote.
-            blockModel.insertBlock(6, 7, "An outer quotation.")
-            blockModel.insertBlock(7, 7, "A deeper, nested reply.", 1)
+            BlockModel.insertBlock(6, 7, "An outer quotation.")
+            BlockModel.insertBlock(7, 7, "A deeper, nested reply.", 1)
             // A quote with an attribution line.
-            blockModel.insertBlock(8, 7, "To be or not to be.\n— Shakespeare")
+            BlockModel.insertBlock(8, 7, "To be or not to be.\n— Shakespeare")
             wait(300)
             clearFocus()
             saveScreenshot("visual_37_todo_meta_and_quotes.png")
@@ -1905,11 +1905,11 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Project board")
-            blockModel.insertBlock(1, 0, "")
+            BlockModel.insertBlock(0, 1, "Project board")
+            BlockModel.insertBlock(1, 0, "")
             // A populated board: three columns, cards with labels, a due
             // date, a description, and a done card. The 📅 marks the due date.
             var board =
@@ -1921,7 +1921,7 @@ Item {
                 + "- [ ] Build the parser #backend #urgent\n"
                 + "## Done\n"
                 + "- [x] Set up CI #infra"
-            blockModel.convertBlock(1, 8, board, false, "kanban")  // Block.CodeBlock=8
+            BlockModel.convertBlock(1, 8, board, false, "kanban")  // Block.CodeBlock=8
             wait(350)
             clearFocus()
 
@@ -1933,18 +1933,18 @@ Item {
             saveScreenshot("visual_38_kanban_01_board.png")
 
             // Add a card to "To do" as one undo step through the fence content.
-            var stackBefore = undoStack.count
-            var before = blockModel.getContent(1)
-            kb.writeBoard(kanbanTools.addCard(kb.content, 0, "Triage bugs"))
-            tryVerify(function() { return blockModel.getContent(1) !== before },
+            var stackBefore = UndoStack.count
+            var before = BlockModel.getContent(1)
+            kb.writeBoard(KanbanTools.addCard(kb.content, 0, "Triage bugs"))
+            tryVerify(function() { return BlockModel.getContent(1) !== before },
                       1000, "adding a card rewrites the board")
-            compare(undoStack.count, stackBefore + 1)
+            compare(UndoStack.count, stackBefore + 1)
             wait(200)
             clearFocus()
             saveScreenshot("visual_38_kanban_02_card_added.png")
 
             // Toggle a card done — the title gains a strikethrough.
-            kb.writeBoard(kanbanTools.toggleCardDone(kb.content, 0, 0))
+            kb.writeBoard(KanbanTools.toggleCardDone(kb.content, 0, 0))
             wait(200)
             clearFocus()
             saveScreenshot("visual_38_kanban_03_card_done.png")
@@ -1964,13 +1964,13 @@ Item {
             var kb2 = findBlockDelegate(1)
             var right = findChild(kb2, "kanbanColRight")
             verify(right !== null, "column move-right control exists")
-            var colStack = undoStack.count
-            var colBefore = blockModel.getContent(1)
+            var colStack = UndoStack.count
+            var colBefore = BlockModel.getContent(1)
             mouseClick(right, right.width / 2, right.height / 2)
-            tryVerify(function() { return blockModel.getContent(1) !== colBefore },
+            tryVerify(function() { return BlockModel.getContent(1) !== colBefore },
                       1000, "moving a column right rewrites the board")
-            compare(undoStack.count, colStack + 1)
-            compare(kanbanTools.parse(blockModel.getContent(1)).columns[0].name,
+            compare(UndoStack.count, colStack + 1)
+            compare(KanbanTools.parse(BlockModel.getContent(1)).columns[0].name,
                     "In progress")
             wait(150)
             clearFocus()
@@ -1984,7 +1984,7 @@ Item {
             // card (col 0) to "Done" (col 2).
             var kb3 = findBlockDelegate(1)
             var editor2 = findChild(kb3, "kanbanCardEditor")
-            var boardBefore = kanbanTools.parse(blockModel.getContent(1))
+            var boardBefore = KanbanTools.parse(BlockModel.getContent(1))
             var col0Before = boardBefore.columns[0].cards.length
             var doneBefore = boardBefore.columns[2].cards.length
             editor2.openFor(0, 0)
@@ -1993,7 +1993,7 @@ Item {
             // The move-to buttons carry the column names; index 2 is "Done".
             editor2.moveToColumn(2)
             tryVerify(function() {
-                var b = kanbanTools.parse(blockModel.getContent(1))
+                var b = KanbanTools.parse(BlockModel.getContent(1))
                 return b.columns[0].cards.length === col0Before - 1
                     && b.columns[2].cards.length === doneBefore + 1
             }, 1000, "moving a card between columns rewrites the board")
@@ -2005,12 +2005,12 @@ Item {
             // asserted: successive updateContent edits to one block coalesce
             // under the text-change merge window, so the count
             // depends on timing, while undo/redo round-tripping does not.)
-            var movedContent = blockModel.getContent(1)
-            undoStack.undo()
-            tryVerify(function() { return blockModel.getContent(1) !== movedContent },
+            var movedContent = BlockModel.getContent(1)
+            UndoStack.undo()
+            tryVerify(function() { return BlockModel.getContent(1) !== movedContent },
                       1000, "undo reverses the card move")
-            undoStack.redo()
-            tryVerify(function() { return blockModel.getContent(1) === movedContent },
+            UndoStack.redo()
+            tryVerify(function() { return BlockModel.getContent(1) === movedContent },
                       1000, "redo re-applies the card move")
 
             clearFocus()
@@ -2022,15 +2022,15 @@ Item {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Equations")
+            BlockModel.insertBlock(0, 1, "Equations")
             // Two rendered display-math blocks (Block.MathBlock == 13).
-            blockModel.insertBlock(1, 0, "")
-            blockModel.convertBlock(1, 13, "E = mc^2")
-            blockModel.insertBlock(2, 0, "")
-            blockModel.convertBlock(2, 13, "\\int_0^1 x^2\\,dx = \\frac{1}{3}")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, 13, "E = mc^2")
+            BlockModel.insertBlock(2, 0, "")
+            BlockModel.convertBlock(2, 13, "\\int_0^1 x^2\\,dx = \\frac{1}{3}")
             wait(500)   // the image://math provider renders asynchronously
             clearFocus()
             saveScreenshot("visual_39_math_01_rendered.png")
@@ -2057,7 +2057,7 @@ Item {
             // a named message, not a blank.
             src.text = "a & b"
             wait(500)
-            verify(mathRenderer.errorFor("a & b") !== "",
+            verify(MathRenderer.errorFor("a & b") !== "",
                    "the invalid expression should report an error")
             saveScreenshot("visual_39_math_03_error.png")
             src.text = "E = mc^2"
@@ -2071,13 +2071,13 @@ Item {
             wait(200)
 
             // Equation numbering (a setting): numbered (1), (2) by position.
-            compare(blockModel.mathNumber(1), 1)
-            compare(blockModel.mathNumber(2), 2)
-            appSettings.setValue("view.equationNumbers", true)
+            compare(BlockModel.mathNumber(1), 1)
+            compare(BlockModel.mathNumber(2), 2)
+            AppSettings.setValue("view.equationNumbers", true)
             wait(400)
             clearFocus()
             saveScreenshot("visual_39_math_04_numbered.png")
-            appSettings.setValue("view.equationNumbers", false)
+            AppSettings.setValue("view.equationNumbers", false)
 
             clearFocus()
             wait(100)
@@ -2091,16 +2091,16 @@ Item {
             if (typeof sampleAudioPath === "undefined") {
                 skip("media fixtures unavailable")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
-            blockModel.insertBlock(0, 1, "Media")
+            BlockModel.insertBlock(0, 1, "Media")
             // Audio, video, and a missing file (Block.Media == 14).
-            blockModel.insertBlock(1, 14,
-                imageAssets.build(sampleAudioPath, "Sample tone", "", 0))
-            blockModel.insertBlock(2, 14,
-                imageAssets.build(sampleVideoPath, "Test pattern", "", 320))
-            blockModel.insertBlock(3, 14, "![missing clip](does-not-exist.mp3)")
+            BlockModel.insertBlock(1, 14,
+                ImageAssets.build(sampleAudioPath, "Sample tone", "", 0))
+            BlockModel.insertBlock(2, 14,
+                ImageAssets.build(sampleVideoPath, "Test pattern", "", 320))
+            BlockModel.insertBlock(3, 14, "![missing clip](does-not-exist.mp3)")
             wait(800)   // the FFmpeg backend opens the files and reports duration
 
             // Nudge the video so a frame decodes (VideoOutput is blank until
@@ -2153,8 +2153,8 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(200)
             var textArea = findTextArea(findBlockDelegate(0))
             ensureFocus(textArea)
@@ -2194,15 +2194,15 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Project Plan\n\nJump to the [risks](#risks) section, or a "
                 + "[missing](#nowhere) target.\n\n## Overview\n\nContext here.\n\n"
                 + "## Milestones\n\n### Phase One\n\nWork.\n\n### Phase Two\n\n"
                 + "More work.\n\n## Risks\n\nThe risk table.")
-            documentOutline.rebuildNow()
+            DocumentOutline.rebuildNow()
             wait(150)
 
             // The outline pane beside a multi-heading document.
@@ -2218,11 +2218,11 @@ Item {
             saveScreenshot("visual_42_outline_02_current_section.png")
 
             // Collapse the "Milestones" subtree (row 2).
-            documentOutline.toggleCollapsed(2)
+            DocumentOutline.toggleCollapsed(2)
             wait(150)
             clearFocus()
             saveScreenshot("visual_42_outline_03_collapsed.png")
-            documentOutline.toggleCollapsed(2)
+            DocumentOutline.toggleCollapsed(2)
             wait(100)
 
             // Internal-link jump: activating #overview scrolls there.
@@ -2250,19 +2250,19 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# User Guide\n\n```toc\n```\n\n## Installation\n\nSteps.\n\n"
                 + "## Configuration\n\n### Settings\n\nDetails.\n\n## Troubleshooting\n\nHelp.")
-            documentOutline.rebuildNow()
+            DocumentOutline.rebuildNow()
             wait(250)
             clearFocus()
             saveScreenshot("visual_43_toc_01_rendered.png")
 
             // Rename the "Configuration" heading (block 4); the TOC regenerates.
-            blockModel.updateContent(4, "Advanced Configuration")
+            BlockModel.updateContent(4, "Advanced Configuration")
             wait(300)
             clearFocus()
             saveScreenshot("visual_43_toc_02_after_rename.png")
@@ -2276,14 +2276,14 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
             var md = "# Chapter One\n\n"
             for (var i = 0; i < 24; i++)
                 md += "This is paragraph " + i
                     + " with enough prose to fill the line comfortably.\n\n"
-            documentSerializer.loadIntoModel(blockModel, md)
+            DocumentSerializer.loadIntoModel(BlockModel, md)
             wait(200)
             clearFocus()
 
@@ -2319,10 +2319,10 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Field Notes\n\nThe morning was cold and the light was thin. "
                 + "We walked the ridge line until the valley opened below us.\n\n"
                 + "## Observations\n\nThree hawks circled the far treeline. "
@@ -2342,26 +2342,26 @@ Item {
 
             // A writing goal: open a collection, set a target partway met.
             var root = testCollectionDir + "/statsgoal"
-            verify(noteCollection.openRoot(root))
-            var rel = noteCollection.createNote("", "Draft")
+            verify(NoteCollection.openRoot(root))
+            var rel = NoteCollection.createNote("", "Draft")
             verify(rel !== "")
             verify(appLoader.item.openNoteByPath(rel))
             wait(200)
-            blockModel.updateContent(0,
+            BlockModel.updateContent(0,
                 "This draft has a handful of words toward its target.")
             wait(250)
-            noteCollection.setGoal(rel, 20)
+            NoteCollection.setGoal(rel, 20)
             wait(200)
             clearFocus()
             saveScreenshot("visual_45_stats_02_goal_partial.png")
 
             // Meet the goal.
-            noteCollection.setGoal(rel, 5)
+            NoteCollection.setGoal(rel, 5)
             wait(200)
             clearFocus()
             saveScreenshot("visual_45_stats_03_goal_met.png")
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(50)
         }
 
@@ -2370,12 +2370,12 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
+            Theme.themeId = "light"
             var root = testCollectionDir + "/templates"
-            verify(noteCollection.openRoot(root))
-            noteCollection.createNote("", "Welcome")
-            noteListModel.scope = "all"
-            noteTemplates.seedBuiltinsIfEmpty()
+            verify(NoteCollection.openRoot(root))
+            NoteCollection.createNote("", "Welcome")
+            NoteListModel.scope = "all"
+            NoteTemplates.seedBuiltinsIfEmpty()
             wait(150)
 
             // The management dialog with the built-in templates.
@@ -2392,7 +2392,7 @@ Item {
             clearFocus()
             saveScreenshot("visual_46_templates_02_created.png")
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(50)
         }
 
@@ -2401,13 +2401,13 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
+            Theme.themeId = "light"
             var root = testCollectionDir + "/exportvault"
-            verify(noteCollection.openRoot(root))
-            noteCollection.createNote("", "Report")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            NoteCollection.createNote("", "Report")
+            NoteListModel.scope = "all"
             verify(appLoader.item.openNoteByPath("Report.md"))
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Quarterly Report\n\nRevenue rose **12%** this quarter.\n\n"
                 + "## Highlights\n\n- Shipped the new editor\n- Grew the team")
             wait(200)
@@ -2418,7 +2418,7 @@ Item {
             appLoader.item.exportDialog.close()
             wait(100)
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(50)
         }
 
@@ -2427,11 +2427,11 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
+            Theme.themeId = "light"
             var root = testCollectionDir + "/importvault"
-            verify(noteCollection.openRoot(root))
-            noteCollection.createNote("", "Existing")
-            noteListModel.scope = "all"
+            verify(NoteCollection.openRoot(root))
+            NoteCollection.createNote("", "Existing")
+            NoteListModel.scope = "all"
             wait(150)
 
             appLoader.item.importDialog.openDialog()
@@ -2441,7 +2441,7 @@ Item {
             // Drive a dry-run summary with a real file (the note we created).
             var dlg = appLoader.item.importDialog
             dlg.pendingKind = "files"
-            dlg.pendingPaths = [noteCollection.absolutePath("Existing.md")]
+            dlg.pendingPaths = [NoteCollection.absolutePath("Existing.md")]
             dlg.showSummary()
             wait(250)
             saveScreenshot("visual_48_import_02_summary.png")
@@ -2450,7 +2450,7 @@ Item {
             wait(100)
             dlg.close()
 
-            noteCollection.closeRoot()
+            NoteCollection.closeRoot()
             wait(50)
         }
 
@@ -2459,10 +2459,10 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Inline math\n\nThe relation $E = mc^2$ ties mass to energy, "
                 + "and $\\frac{a}{b}$ is a fraction, with $\\sum_{i=1}^{n} i$ too.\n\n"
                 + "It costs $5 and $6, so the dollars stay literal.")
@@ -2490,10 +2490,10 @@ Item {
             if (isHeadless) {
                 skip("Focus-dependent storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Reading list\n\nAn article worth a look:\n\n"
                 + "![](https://example.com/great-article)\n\n"
                 + "And a talk:\n\n![](https://youtube.com/watch?v=demo)")
@@ -2513,10 +2513,10 @@ Item {
         // §9.2 alignment: a centered heading, a right-aligned paragraph, and a
         // right-aligned image, next to a left-aligned paragraph for contrast.
         function test_51_alignment() {
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Centered heading  <!--kvit align=center-->\n\n"
                 + "This paragraph is pinned to the right margin, so its ragged "
                 + "edge sits on the left.  <!--kvit align=right-->\n\n"
@@ -2524,10 +2524,10 @@ Item {
                 + "![Sample|220](sample.png)  <!--kvit align=right-->")
             wait(300)
             // The tags parsed into model attributes.
-            compare(blockModel.blockAt(0).attributes, "align=center")
-            compare(blockModel.blockAt(1).attributes, "align=right")
-            compare(blockModel.blockAt(2).attributes, "")
-            compare(blockModel.blockAt(3).attributes, "align=right")
+            compare(BlockModel.blockAt(0).attributes, "align=center")
+            compare(BlockModel.blockAt(1).attributes, "align=right")
+            compare(BlockModel.blockAt(2).attributes, "")
+            compare(BlockModel.blockAt(3).attributes, "align=right")
             clearFocus()
             saveScreenshot("visual_51_align_01_heading_paragraph_image.png")
         }
@@ -2535,10 +2535,10 @@ Item {
         // §1.2.9 divider styles: the four styles, two of them at partial width
         // and varied thickness, in one document.
         function test_52_divider_styles() {
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "Solid, full width\n\n"
                 + "---  <!--kvit thickness=2-->\n\n"
                 + "Dashed, half width\n\n"
@@ -2548,9 +2548,9 @@ Item {
                 + "Decorative, three-quarter width\n\n"
                 + "---  <!--kvit style=decorative width=75%-->")
             wait(300)
-            compare(blockModel.blockAt(3).attributes, "style=dashed width=50%")
-            compare(blockModel.blockAt(5).attributes, "style=dotted thickness=4")
-            compare(blockModel.blockAt(7).attributes, "style=decorative width=75%")
+            compare(BlockModel.blockAt(3).attributes, "style=dashed width=50%")
+            compare(BlockModel.blockAt(5).attributes, "style=dotted thickness=4")
+            compare(BlockModel.blockAt(7).attributes, "style=decorative width=75%")
             clearFocus()
             saveScreenshot("visual_52_divider_styles.png")
         }
@@ -2558,25 +2558,25 @@ Item {
         // §1.2.10 callout custom color: a callout recolored over its typed
         // accent, beside a default-colored callout for contrast.
         function test_53_callout_color() {
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "> [!info] Custom teal callout  <!--kvit color=#1f9e8b-->\n"
                 + "> This callout is recolored over its typed accent.\n\n"
                 + "> [!warning] Default warning\n"
                 + "> This one keeps the typed accent for contrast.")
             wait(300)
-            compare(blockModel.blockAt(0).blockType, 12)   // Block.Callout
-            compare(blockModel.blockAt(0).attributes, "color=#1f9e8b")
-            compare(blockModel.blockAt(1).attributes, "")
+            compare(BlockModel.blockAt(0).blockType, 12)   // Block.Callout
+            compare(BlockModel.blockAt(0).attributes, "color=#1f9e8b")
+            compare(BlockModel.blockAt(1).attributes, "")
             clearFocus()
             saveScreenshot("visual_53_callout_custom_color.png")
 
             // Reset the custom color through the model; it falls back to accent.
-            blockModel.setBlockAttributes(0, "")
+            BlockModel.setBlockAttributes(0, "")
             wait(150)
-            compare(blockModel.blockAt(0).attributes, "")
+            compare(BlockModel.blockAt(0).attributes, "")
             saveScreenshot("visual_53_callout_reset_to_typed.png")
         }
 
@@ -2584,10 +2584,10 @@ Item {
 
         // §1.2.16 drop cap: an enlarged initial spanning three then five lines.
         function test_54_drop_cap() {
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "Once upon a time, in a land far beyond the reach of the "
                 + "morning light, there lived a small fox who loved nothing "
                 + "more than to read old books beside the slow green river.  "
@@ -2597,8 +2597,8 @@ Item {
                 + "counsel on matters both large and small and in between.  "
                 + "<!--kvit dropcap=5 dropcapcolor=#a371f7-->")
             wait(300)
-            compare(blockModel.blockAt(0).attributes, "dropcap=3")
-            compare(blockModel.blockAt(1).attributes, "dropcap=5 dropcapcolor=#a371f7")
+            compare(BlockModel.blockAt(0).attributes, "dropcap=3")
+            compare(BlockModel.blockAt(1).attributes, "dropcap=5 dropcapcolor=#a371f7")
             clearFocus()
             wait(100)
             saveScreenshot("visual_54_drop_cap.png")
@@ -2610,15 +2610,15 @@ Item {
             if (typeof sampleImagePath === "undefined" || sampleImagePath === "") {
                 skip("sample image fixture not available")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "![Kvit|240](" + sampleImagePath + ")  <!--kvit rounded shadow border-->\n\n"
                 + "![Kvit|240](" + sampleImagePath + ")")
             wait(500)   // let both images load
-            compare(blockModel.blockAt(0).attributes, "border rounded shadow")
-            compare(blockModel.blockAt(1).attributes, "")
+            compare(BlockModel.blockAt(0).attributes, "border rounded shadow")
+            compare(BlockModel.blockAt(1).attributes, "")
             clearFocus()
             saveScreenshot("visual_55_image_effects.png")
         }
@@ -2626,23 +2626,23 @@ Item {
         // §1.2.14 configurable embed dimensions: a card sized down via width and
         // height attributes, beside a default full-width card.
         function test_56_embed_dimensions() {
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "![](https://example.com/article)  <!--kvit width=360 height=110-->\n\n"
                 + "![](https://example.com/article)")
             wait(600)   // fake fetcher metadata + thumbnails
-            compare(blockModel.blockAt(0).blockType, 11)   // Image → embed by content
-            compare(blockModel.blockAt(0).attributes, "height=110 width=360")
+            compare(BlockModel.blockAt(0).blockType, 11)   // Image → embed by content
+            compare(BlockModel.blockAt(0).attributes, "height=110 width=360")
             clearFocus()
             saveScreenshot("visual_56_embed_dimensions.png")
         }
 
         // ---- The discoverable shortcut reference ----
         function test_57_shortcut_reference() {
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
             appLoader.item.openShortcutReference()
             wait(300)
@@ -2659,13 +2659,13 @@ Item {
         // indicator. Best-effort capture (focus may not establish under WSLg);
         // the indicator's existence is asserted focus-independently.
         function test_58_focus_ring() {
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
-            blockModel.insertBlock(0, 1, "Keyboard focus")
-            blockModel.insertBlock(1, 0,
+            BlockModel.insertBlock(0, 1, "Keyboard focus")
+            BlockModel.insertBlock(1, 0,
                 "This paragraph shows the focus-ring indicator when focused.")
-            blockModel.insertBlock(2, 0, "A neighbouring block for contrast.")
+            BlockModel.insertBlock(2, 0, "A neighbouring block for contrast.")
             wait(200)
             var d = findBlockDelegate(1)
             verify(d !== null)
@@ -2677,12 +2677,12 @@ Item {
             saveScreenshot("visual_58_focus_ring.png")
         }
 
-        // §14.3 high-contrast theme: the shell rendered in the high-contrast
+        // §14.3 high-contrast Theme: the shell rendered in the high-contrast
         // token table (black ground, white text, bright accents, strong edges).
         function test_59_high_contrast() {
-            documentManager.newDocument()
+            DocumentManager.newDocument()
             wait(150)
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# High contrast\n\n"
                 + "Body text stays **white on black** for the AAA contrast floor.\n\n"
                 + "- A bulleted item\n- Another item\n\n"
@@ -2691,23 +2691,23 @@ Item {
                 + "---  <!--kvit style=dashed-->\n\n"
                 + "`inline code` and a [link](https://example.com) stay legible.")
             wait(250)
-            theme.themeId = "highContrast"
+            Theme.themeId = "highContrast"
             wait(250)
-            compare(theme.resolvedTheme, "highContrast")
+            compare(Theme.resolvedTheme, "highContrast")
             clearFocus()
             saveScreenshot("visual_59_high_contrast.png")
-            theme.themeId = "light"   // restore for later scenarios
+            Theme.themeId = "light"   // restore for later scenarios
             wait(100)
         }
 
         // §15.1 quick capture: the capture window with jotted text, then the
         // captured note landing in the collection.
         function test_60_quick_capture() {
-            theme.themeId = "light"
+            Theme.themeId = "light"
             var root = testCollectionDir + "/capshots"
-            noteCollection.openRoot(root)
-            noteCollection.createNote("", "Existing")
-            noteListModel.scope = "all"
+            NoteCollection.openRoot(root)
+            NoteCollection.createNote("", "Existing")
+            NoteListModel.scope = "all"
             wait(150)
             appLoader.item.openQuickCapture()
             wait(250)
@@ -2725,7 +2725,7 @@ Item {
             wait(300)
             // The captured note now sits in the collection.
             var found = false
-            var paths = noteCollection.noteRelPaths()
+            var paths = NoteCollection.noteRelPaths()
             for (var i = 0; i < paths.length; i++)
                 if (paths[i].indexOf("Buy milk and eggs") !== -1) found = true
             verify(found, "captured note landed in the collection")
@@ -2735,19 +2735,19 @@ Item {
         // §12.1 external-change conflict banner: the open dirty note changed on
         // disk, offering keep-mine / load-theirs.
         function test_61_conflict_banner() {
-            theme.themeId = "light"
+            Theme.themeId = "light"
             var root = testCollectionDir + "/conflictshots"
-            noteCollection.openRoot(root)
-            noteCollection.createNote("", "Shared")
-            noteListModel.scope = "all"
+            NoteCollection.openRoot(root)
+            NoteCollection.createNote("", "Shared")
+            NoteListModel.scope = "all"
             wait(150)
             verify(appLoader.item.openNoteByPath("Shared.md"))
             wait(150)
-            blockModel.updateContent(0,
+            BlockModel.updateContent(0,
                 "My in-progress edit that has not been saved yet.")
             wait(80)
-            verify(documentManager.isDirty)
-            fileWatcher.noteChangedExternally(documentManager.currentFilePath)
+            verify(DocumentManager.isDirty)
+            FileWatcher.noteChangedExternally(DocumentManager.currentFilePath)
             wait(150)
             var banner = findChild(appLoader.item, "conflictBanner")
             verify(banner !== null && banner.visible, "conflict banner shown")
@@ -2758,20 +2758,20 @@ Item {
         }
 
         // Math render experiment canaries: exact inline baseline case, an
-        // inline-dense paragraph, display math, and light/dark theme captures.
+        // inline-dense paragraph, display math, and light/dark Theme captures.
         function test_62_math_render_canaries() {
             if (isHeadless) {
                 skip("Storyboard requires display")
             }
-            theme.themeId = "light"
-            documentManager.newDocument()
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
             wait(150)
 
             var stress = "Inline stress"
             for (var i = 0; i < 10; i++)
                 stress += " $x_" + i + "^2$"
 
-            documentSerializer.loadIntoModel(blockModel,
+            DocumentSerializer.loadIntoModel(BlockModel,
                 "# Math render canaries\n\n"
                 + "Text before $x^2$ text after\n\n"
                 + stress + "\n\n"
@@ -2789,7 +2789,7 @@ Item {
             var box = para.inlineMathBoxes[0]
             var r1 = ta.positionToRectangle(box.docStart)
             var r2 = ta.positionToRectangle(box.docEnd)
-            var metrics = mathRenderer.measure(box.tex, para.inlineMathPixelSize)
+            var metrics = MathRenderer.measure(box.tex, para.inlineMathPixelSize)
             var reservedWidth = Math.abs(r2.x - r1.x)
             verify(Math.abs(reservedWidth - metrics.width) <= 3,
                    "inline math reservation should match renderer width: "
@@ -2807,11 +2807,11 @@ Item {
             verifyInlineMathNativeBaseline(findBlockDelegate(4), "sum")
 
             saveScreenshot("visual_62_math_canary_01_light.png")
-            theme.themeId = "dark"
+            Theme.themeId = "dark"
             wait(250)
             clearFocus()
             saveScreenshot("visual_62_math_canary_02_dark.png")
-            theme.themeId = "light"
+            Theme.themeId = "light"
             wait(100)
         }
     }
