@@ -134,6 +134,16 @@ public:
             }
             const QString hash =
                 SearchIndexDb::contentFingerprint(snapshot.text);
+            // Monotonicity: a token that has not moved past the stored one
+            // says nothing about whether this file was written, so it is not
+            // recorded. On a filesystem whose change time does not move on a
+            // write this leaves every note on the fingerprint path forever,
+            // which is the correct answer and the one the fast path must not
+            // be able to talk itself out of.
+            const qint64 token =
+                snapshot.changeToken > m_db.changeTokenOf(e.relPath)
+                    ? snapshot.changeToken
+                    : 0;
             if (m_db.hasNoteFresh(e.relPath, snapshot.fileSize,
                                   snapshot.modifiedMs, hash)) {
                 // Same content, so nothing is reparsed. Recording the stamp
@@ -144,13 +154,12 @@ public:
                 // token to record, the row is left alone unless its metadata
                 // actually drifted.
                 const bool worthRecording =
-                    snapshot.changeToken != 0
+                    token != 0
                     || !m_db.hasNoteFresh(e.relPath, snapshot.fileSize,
                                           snapshot.modifiedMs);
                 if (worthRecording) {
                     ok = m_db.touchNote(e.relPath, snapshot.fileSize,
-                                        snapshot.modifiedMs, hash,
-                                        snapshot.changeToken)
+                                        snapshot.modifiedMs, hash, token)
                         && ok;
                 }
             } else {
@@ -158,7 +167,7 @@ public:
                 IndexedNote note = CollectionSearchIndex::parseNote(
                     e.relPath, snapshot.text, snapshot.fileSize,
                     snapshot.modifiedMs);
-                note.changeToken = snapshot.changeToken;
+                note.changeToken = token;
                 if (m_db.replaceNote(note))
                     ++reindexed;
                 else
@@ -199,7 +208,12 @@ public:
             return;
         IndexedNote note = CollectionSearchIndex::parseNote(
             relPath, snapshot.text, snapshot.fileSize, snapshot.modifiedMs);
-        note.changeToken = snapshot.changeToken;
+        // Same two rules as the reconcile path: the snapshot has already
+        // applied settling, and a token that has not moved past the stored one
+        // is not recorded.
+        note.changeToken = snapshot.changeToken > m_db.changeTokenOf(relPath)
+                               ? snapshot.changeToken
+                               : 0;
         if (m_db.replaceNote(note))
             emit noteReplaced();
         else
@@ -551,13 +565,30 @@ bool CollectionSearchIndex::rebuildIndex()
 // gets no token, and every reconcile there reads and hashes every note, which
 // is what all three platforms did before.
 //
+// A timestamp is only as good as its resolution, and that is where the first
+// version of this went wrong: two writes 40 microseconds apart carry the same
+// status-change time once it is truncated to a millisecond, so an equal-size
+// rewrite that restored the modification time was called unchanged and its new
+// text never reached the index. Measured on ext4 under Linux 6.18, the kernel
+// separates consecutive writes by 40 to 130 microseconds, and Qt reports the
+// pair as identical. Two rules close it, and neither trusts the filesystem to
+// behave:
+//
+//   Settling — a token is recorded only once the file has been quiet for
+//     changeTokenSettleMs(). Any write after that lands in a later granule and
+//     produces a strictly greater token. See settledChangeToken().
+//   Monotonicity — a token is recorded only when it is strictly greater than
+//     the one already stored for that note. A filesystem whose change time
+//     does not move on a write (FAT and exFAT report the creation time) then
+//     never gets a token recorded at all, and every reconcile decides those
+//     notes on their fingerprint. This is a check rather than an assumption:
+//     nothing here needs to know which filesystem it is on.
+//
 // The guarantee, stated per platform:
 //   Linux, macOS, other Unix — a matching (size, mtime, ctime) tuple means the
-//     file has not been written since it was indexed, subject only to the
-//     millisecond resolution Qt reports: a rewrite landing inside the same
-//     millisecond as the previous one, with the size and modification time
-//     restored, is invisible. That is a race window, where the (size, mtime)
-//     pair alone was an open door that any rewrite walked through.
+//     file has not been written since it was indexed, on any filesystem whose
+//     timestamp granularity is a second or finer, and on coarser ones the
+//     token is simply never recorded and the fingerprint decides.
 //   Windows — no token, no fast path, freshness decided by reading the file
 //     and comparing its fingerprint, exactly as before.
 // Either way the stored fingerprint stays the authority: the tuple only ever
@@ -571,6 +602,25 @@ bool CollectionSearchIndex::changeTokenIsTrustworthy()
 #else
     return false;
 #endif
+}
+
+qint64 CollectionSearchIndex::changeTokenSettleMs()
+{
+    return 1000;
+}
+
+qint64 CollectionSearchIndex::settledChangeToken(const FileStamp &stamp,
+                                                 qint64 nowMs)
+{
+    if (!stamp.exists || stamp.changeToken == 0)
+        return 0;
+    // A token exactly `settle` old is still refused: the comparison has to
+    // leave no room at all for a later write to land in the same granule. A
+    // clock that has stepped backwards makes the difference negative, and then
+    // nothing is recorded, which is the safe direction.
+    if (nowMs - stamp.changeToken <= changeTokenSettleMs())
+        return 0;
+    return stamp.changeToken;
 }
 
 CollectionSearchIndex::FileStamp
@@ -643,7 +693,14 @@ CollectionSearchIndex::readNoteSnapshot(const QString &absPath, int maxAttempts)
         snapshot.text = text;
         snapshot.fileSize = before.fileSize;
         snapshot.modifiedMs = before.modifiedMs;
-        snapshot.changeToken = before.changeToken;
+        // The settling rule is applied here, at the one point where a token
+        // becomes something a caller might store, and the clock is read after
+        // the file has been proven quiet across the whole read. A token still
+        // inside its granule is reported as 0 — do not record one — and the
+        // note is decided on its fingerprint until it has been quiet long
+        // enough for a token to mean something.
+        snapshot.changeToken =
+            settledChangeToken(before, QDateTime::currentMSecsSinceEpoch());
         snapshot.ok = true;
         return snapshot;
     }

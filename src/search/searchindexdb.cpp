@@ -992,6 +992,20 @@ bool SearchIndexDb::hasNoteStamp(const QString &relPath, qint64 fileSize,
         && q.value(1).toLongLong() == modifiedMs;
 }
 
+qint64 SearchIndexDb::changeTokenOf(const QString &relPath) const
+{
+    if (!m_usable)
+        return 0;
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral(
+        "SELECT change_token FROM search_notes WHERE rel_path=?"));
+    q.addBindValue(relPath);
+    if (!q.exec() || !q.next())
+        return 0;
+    return q.value(0).toLongLong();
+}
+
 QStringList SearchIndexDb::allRelPaths() const
 {
     QStringList paths;

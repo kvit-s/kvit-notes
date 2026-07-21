@@ -115,11 +115,39 @@ public:
     // correct but costs one read per note.
     static bool changeTokenIsTrustworthy();
 
+    // How long a file must have been quiet before its change token may be
+    // recorded, in milliseconds.
+    //
+    // A change token is a timestamp, and every timestamp is truncated to some
+    // granularity — the filesystem's, and then Qt's millisecond. A write that
+    // lands inside the same granule as the write we recorded produces the same
+    // token, and a reconcile comparing the two sees a file that has not
+    // changed. That is not hypothetical: on ext4 under Linux 6.18 the kernel
+    // moves the status-change time by 40 to 130 microseconds between two
+    // consecutive writes, which Qt reports as no change at all.
+    //
+    // Waiting closes it. If a file's token reads `C` and the wall clock
+    // already reads `C + settle` when we record it, then every later write
+    // happens at a time past `C + settle`, and its token — truncated to any
+    // granularity up to `settle` — is strictly greater than `C`. One second
+    // covers the coarsest granularity in practice: a second is what NFS, ext3
+    // and HFS+ record, and the kernel's own coarse clock is finer than that by
+    // three orders of magnitude.
+    static qint64 changeTokenSettleMs();
+
+    // The change token from `stamp` if it may be recorded, or 0 if it may not.
+    // Pure, so the rule above can be checked without a filesystem. `nowMs` is
+    // the wall clock at the moment of recording.
+    static qint64 settledChangeToken(const FileStamp &stamp, qint64 nowMs);
+
     // One note's text together with the metadata that describes *that* text.
     struct NoteSnapshot {
         QString text;
         qint64 fileSize = 0;
         qint64 modifiedMs = 0;
+        // Already passed through settledChangeToken(), so this is a token the
+        // caller may store: 0 means "do not record one", never "the file has
+        // no change time".
         qint64 changeToken = 0;
         bool ok = false;
     };

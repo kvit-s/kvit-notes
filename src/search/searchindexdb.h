@@ -315,6 +315,12 @@ public:
     // remains the authority: this only says when computing it is pointless.
     bool hasNoteStamp(const QString &relPath, qint64 fileSize,
                       qint64 modifiedMs, qint64 changeToken) const;
+
+    // The change token currently stored for a note, or 0 when there is none or
+    // no such note. Callers compare against it before recording a new one: a
+    // token that did not move while the content did is not a change token, and
+    // recording it would let a later rewrite hide behind it.
+    qint64 changeTokenOf(const QString &relPath) const;
     QStringList allRelPaths() const;
     qint64 revisionOf(const QString &relPath) const;
     int noteRowCount() const;

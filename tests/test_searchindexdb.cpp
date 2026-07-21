@@ -74,6 +74,7 @@ private slots:
     void testSnapshotReadIsSelfConsistentUnderRewrite();
     // SEARCH-4, cost: when the fingerprint does not have to be computed.
     void testChangeTokenStampDecidesWhenToRead();
+    void testChangeTokenIsNotRecordedUntilTheFileHasSettled();
     // SEARCH-5: failures are reported as failures.
     void testQueryFailureIsNotAnEmptyResult();
     void testFailedCommitLeavesTheConnectionUsable();
@@ -1227,6 +1228,74 @@ void TestSearchIndexDb::testChangeTokenStampDecidesWhenToRead()
 #else
     QVERIFY(!CollectionSearchIndex::changeTokenIsTrustworthy());
 #endif
+}
+
+// A change token is a timestamp, and a timestamp is truncated. Two writes
+// inside one granule carry the same token, and the first version of this code
+// read that as "the file has not changed" and left the old text indexed — on
+// ext4 under Linux 6.18 the kernel separates consecutive writes by 40 to 130
+// microseconds, which Qt reports as no separation at all, so the collision was
+// not rare but usual. The rule that closes it is arithmetic on the clock and
+// needs no filesystem, which is what this checks.
+void TestSearchIndexDb::testChangeTokenIsNotRecordedUntilTheFileHasSettled()
+{
+    const qint64 settle = CollectionSearchIndex::changeTokenSettleMs();
+    QVERIFY(settle > 0);
+
+    CollectionSearchIndex::FileStamp stamp;
+    stamp.exists = true;
+    stamp.fileSize = 24;
+    stamp.modifiedMs = 1'000'000;
+    stamp.changeToken = 1'000'000;
+
+    // Recorded a moment after the write, the token is worthless: a second
+    // write is still free to land inside the same granule and report the same
+    // value. This is the case that shipped broken.
+    QCOMPARE(CollectionSearchIndex::settledChangeToken(stamp, 1'000'000), 0);
+    QCOMPARE(CollectionSearchIndex::settledChangeToken(stamp, 1'000'001), 0);
+    QCOMPARE(
+        CollectionSearchIndex::settledChangeToken(stamp, 1'000'000 + settle),
+        0);
+    // Once the file has been quiet for longer than the window, every later
+    // write must produce a strictly greater token, so this one can be stored.
+    QCOMPARE(CollectionSearchIndex::settledChangeToken(stamp,
+                                                       1'000'001 + settle),
+             qint64(1'000'000));
+
+    // A clock that has stepped backwards leaves the difference negative, and
+    // nothing is recorded — the safe direction.
+    QCOMPARE(CollectionSearchIndex::settledChangeToken(stamp, 999'000), 0);
+
+    // Nothing to record for a file that is not there, or on a platform with no
+    // change time at all.
+    CollectionSearchIndex::FileStamp missing;
+    QCOMPARE(CollectionSearchIndex::settledChangeToken(missing, 9'000'000), 0);
+    CollectionSearchIndex::FileStamp untokened = stamp;
+    untokened.changeToken = 0;
+    QCOMPARE(CollectionSearchIndex::settledChangeToken(untokened, 9'000'000),
+             0);
+
+    // And what the rule is for, end to end on a real file: write, wait out the
+    // window, and the token the snapshot offers is the one the kernel reports.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("settle.md"));
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("body\n");
+    }
+    if (!CollectionSearchIndex::changeTokenIsTrustworthy())
+        return; // no token on this platform; the reads-everything path applies
+    QCOMPARE(CollectionSearchIndex::readNoteSnapshot(path).changeToken,
+             qint64(0));
+    QTest::qWait(int(settle) + 150);
+    const CollectionSearchIndex::NoteSnapshot settled =
+        CollectionSearchIndex::readNoteSnapshot(path);
+    QVERIFY(settled.ok);
+    QCOMPARE(settled.changeToken,
+             CollectionSearchIndex::stampOf(path).changeToken);
+    QVERIFY(settled.changeToken != 0);
 }
 
 void TestSearchIndexDb::testSnapshotReadIsSelfConsistentUnderRewrite()

@@ -43,6 +43,32 @@ bool runRawSqlOn(const QString &dbPath, const QString &statement)
     return ok;
 }
 
+// The change token the index has stored for one note, read the same way.
+// -1 when the row is missing or the database cannot be opened.
+qint64 storedChangeToken(const QString &dbPath, const QString &relPath)
+{
+    static int counter = 0;
+    const QString name =
+        QStringLiteral("kvit_collectionsearch_token_%1").arg(counter++);
+    qint64 token = -1;
+    {
+        QSqlDatabase db =
+            QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
+        db.setDatabaseName(dbPath);
+        if (db.open()) {
+            QSqlQuery query(db);
+            query.prepare(QStringLiteral(
+                "SELECT change_token FROM search_notes WHERE rel_path=?"));
+            query.addBindValue(relPath);
+            if (query.exec() && query.next())
+                token = query.value(0).toLongLong();
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    return token;
+}
+
 } // namespace
 
 // Facade suite for global search. The query engine and its semantics are
@@ -87,6 +113,8 @@ private slots:
     // SEARCH-4, cost: a warm reconcile must not read a vault it has already
     // indexed, and must still catch the rewrite above.
     void testUnchangedNotesAreNotReadOnReconcile();
+    void testRewriteImmediatelyAfterIndexingIsStillSeen();
+    void testChangeTokenThatDoesNotMoveIsNotRecorded();
     void testWarmReconcileCostWithAndWithoutTheStamp();
     // SEARCH-5: a write the database refused is reported, not swallowed.
     void testFailedWriteMarksTheIndexDegraded();
@@ -683,9 +711,14 @@ void TestCollectionSearch::testEqualSizeSameMtimeRewriteIsReindexed()
 void TestCollectionSearch::testUnchangedNotesAreNotReadOnReconcile()
 {
     const QList<ReconcileEntry> listing = listingFor(m_dir->path());
-    // One settling pass. A note the application saved through the live feed
-    // has no change token stored — the feed is handed text, not a path — so
-    // the first reconcile after it reads it once and records one.
+    // Two things have to happen before a note is on the stat-only path. Its
+    // change token has to be recorded, which takes one pass that reads it — a
+    // note the application saved through the live feed has none, because that
+    // path is handed text rather than a path. And the file has to have been
+    // quiet for longer than the settling window, or the token is deliberately
+    // not recorded at all. The fixture wrote these notes a moment ago, so the
+    // wait is what makes the pass after it record anything.
+    QTest::qWait(int(CollectionSearchIndex::changeTokenSettleMs()) + 150);
     m_index->reconcile(listing);
     QTRY_VERIFY(!m_index->isIndexing());
 
@@ -708,8 +741,22 @@ void TestCollectionSearch::testUnchangedNotesAreNotReadOnReconcile()
     const QString after = QStringLiteral("orbital zarfblats notes\n");
     QCOMPARE(before.toUtf8().size(), after.toUtf8().size());
     writeNote(QStringLiteral("Stale.md"), before);
+    QTest::qWait(int(CollectionSearchIndex::changeTokenSettleMs()) + 150);
     m_index->reconcile(listingFor(m_dir->path()));
     QTRY_VERIFY(!m_index->isIndexing());
+
+    // The note has to be genuinely on the fast path before the rewrite, or
+    // what follows proves nothing: a note with no recorded token is read
+    // whatever happens to it, and the test would pass without the fast path
+    // ever having had the chance to skip a changed file.
+    SearchIndexOps::reset();
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+    if (CollectionSearchIndex::changeTokenIsTrustworthy()) {
+        QVERIFY2(SearchIndexOps::fileReads() == quint64(0),
+                 "the note under test never reached the stat-only path, so "
+                 "the rewrite below would not exercise it");
+    }
 
     const QString path = m_dir->filePath(QStringLiteral("Stale.md"));
     const QDateTime originalMtime = QFileInfo(path).lastModified();
@@ -740,6 +787,110 @@ void TestCollectionSearch::testUnchangedNotesAreNotReadOnReconcile()
         QCOMPARE(SearchIndexOps::fileReads(), quint64(1));
 }
 
+// The regression that shipped, and what the settling window is for.
+//
+// A change token is a timestamp truncated to some granularity, and the first
+// version of this recorded one the instant it read it. Two writes inside one
+// granule then carry the same token, so an equal-size rewrite that restored the
+// modification time looked identical to the file that had been indexed and its
+// new text never reached the index. It was not a narrow race: measured on ext4
+// under Linux 6.18, consecutive writes are separated by 40 to 130 microseconds,
+// which Qt reports to the millisecond as no separation at all, and a tight loop
+// of this sequence left stale text indexed in 283 rounds out of 300.
+//
+// The rule that closes it is about what may be *recorded*, so that is what this
+// checks, and it holds whatever the machine is doing: a note that was written a
+// moment ago must leave the index with no change token at all, because any
+// token read that soon is one a second write can still reproduce. The code this
+// replaces stored the file's change time here unconditionally, so the first
+// assertion below fails against it on every run rather than one in six.
+void TestCollectionSearch::testRewriteImmediatelyAfterIndexingIsStillSeen()
+{
+    const QString dbPath =
+        CollectionSearchIndex::databasePathForRoot(m_dir->path());
+    const QString path = m_dir->filePath(QStringLiteral("Churn.md"));
+    const QString before = QStringLiteral("zzalpha orbital notes\n");
+    const QString after = QStringLiteral("zzbetaa orbital notes\n");
+    QCOMPARE(before.toUtf8().size(), after.toUtf8().size());
+
+    writeNote(QStringLiteral("Churn.md"), before);
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+    QVERIFY(storedChangeToken(dbPath, QStringLiteral("Churn.md")) >= 0);
+    QCOMPARE(storedChangeToken(dbPath, QStringLiteral("Churn.md")), qint64(0));
+
+    // With no token recorded there is nothing for the stat-only path to match,
+    // so the rewrite is seen however close behind the first write it lands.
+    const QDateTime originalMtime = QFileInfo(path).lastModified();
+    writeNote(QStringLiteral("Churn.md"), after);
+    {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadWrite));
+        QVERIFY(file.setFileTime(originalMtime,
+                                 QFileDevice::FileModificationTime));
+    }
+    QCOMPARE(QFileInfo(path).size(), qint64(before.toUtf8().size()));
+    QCOMPARE(QFileInfo(path).lastModified(), originalMtime);
+
+    SearchIndexOps::reset();
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+    QVERIFY2(SearchIndexOps::fileReads() >= quint64(1),
+             "a note rewritten immediately after it was indexed was skipped on "
+             "a change token that had not had time to become one");
+    m_search->setQuery(QStringLiteral("zzbetaa"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+}
+
+// The fast path has to survive a filesystem whose change time is not a change
+// time. FAT and exFAT report the file's creation time there, so it does not
+// move when the file is written, and a token that does not move is one an
+// equal-size rewrite can hide behind forever. Nothing here needs to know which
+// filesystem it is on: a token is recorded only when it is strictly greater
+// than the one already stored, so a change time that stands still is never
+// recorded and those notes stay on the fingerprint path.
+//
+// A stored token far in the future is the same situation from the index's
+// side, and it is the one that can be staged without a FAT volume.
+void TestCollectionSearch::testChangeTokenThatDoesNotMoveIsNotRecorded()
+{
+    const QString dbPath =
+        CollectionSearchIndex::databasePathForRoot(m_dir->path());
+    writeNote(QStringLiteral("Frozen.md"),
+              QStringLiteral("earlier body of the zzfrozen note\n"));
+    QTest::qWait(int(CollectionSearchIndex::changeTokenSettleMs()) + 150);
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+
+    // Every token this note can ever report is now smaller than what the index
+    // holds, which is exactly what a change time that never advances looks
+    // like from here.
+    QVERIFY(runRawSqlOn(dbPath,
+                        QStringLiteral("UPDATE search_notes SET "
+                                       "change_token=4102444800000 "
+                                       "WHERE rel_path='Frozen.md'")));
+
+    writeNote(QStringLiteral("Frozen.md"),
+              QStringLiteral("later body of the zzthawed note\n"));
+    QTest::qWait(int(CollectionSearchIndex::changeTokenSettleMs()) + 150);
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+
+    // The new text is indexed, and the index refused to write down a token it
+    // could not show had moved.
+    m_search->setQuery(QStringLiteral("zzthawed"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+    QCOMPARE(storedChangeToken(dbPath, QStringLiteral("Frozen.md")),
+             qint64(0));
+
+    // So the note stays on the fingerprint path: the next pass reads it rather
+    // than trusting a stamp that proved nothing.
+    SearchIndexOps::reset();
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+    QVERIFY(SearchIndexOps::fileReads() >= quint64(1));
+}
+
 void TestCollectionSearch::testWarmReconcileCostWithAndWithoutTheStamp()
 {
     // A vault large enough for the per-note cost to be what the measurement
@@ -759,10 +910,12 @@ void TestCollectionSearch::testWarmReconcileCostWithAndWithoutTheStamp()
     const QList<ReconcileEntry> listing = listingFor(m_dir->path());
     QCOMPARE(listing.size(), kNotes + 4); // the fixture's four notes as well
 
-    // Cold build, then one settling pass, so what follows measures a warm
+    // Cold build, then one settling pass once the files are old enough for
+    // their change tokens to be recorded, so what follows measures a warm
     // start over a vault the index already holds.
     m_index->reconcile(listing);
     QTRY_VERIFY(!m_index->isIndexing());
+    QTest::qWait(int(CollectionSearchIndex::changeTokenSettleMs()) + 150);
     m_index->reconcile(listing);
     QTRY_VERIFY(!m_index->isIndexing());
 
