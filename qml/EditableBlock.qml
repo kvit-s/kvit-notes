@@ -319,30 +319,22 @@ BlockDelegateBase {
         var dep2 = mathTick
         return editorEngine.inlineMathBoxes()
     }
-    function inlineMathSource(tex) {
-        if (!tex || tex.trim().length === 0)
-            return ""
-        function h(x) { return ("0" + Math.round(x * 255).toString(16)).slice(-2) }
-        var c = delegate.appTheme ? delegate.appTheme.textPrimary : Qt.rgba(0, 0, 0, 1)
-        var fg = h(c.a) + h(c.r) + h(c.g) + h(c.b)
-        var sz = delegate.inlineMathPixelSize
-        var dpr = 1
+    // The ratio the equation bitmaps are rendered at, so they are sharp on a
+    // scaled display.
+    readonly property real screenDevicePixelRatio: {
         // Qt's type description for ApplicationWindow omits devicePixelRatio,
         // which is documented QML API, so the linter cannot see it. Same gap
         // as Qt.application.screens in main.qml, and scoped the same way.
         // qmllint disable missing-property
         if (delegate.shell && delegate.shell.devicePixelRatio !== undefined && delegate.shell.devicePixelRatio > 0)
-            dpr = delegate.shell.devicePixelRatio
+            return delegate.shell.devicePixelRatio
         // qmllint enable missing-property
         // The window's own screen is this item's screen, so the attached
         // Screen below answers what delegate.shell.screen used to — typed, and
         // still correct when the cast yields null.
-        else if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
-            dpr = Screen.devicePixelRatio
-        dpr = Math.round(dpr * 100) / 100
-        return "image://math/" + MathRenderer.encode(tex)
-             + "?fg=" + fg + "&size=" + sz + "&dpr=" + dpr.toFixed(2)
-             + "&vpad=" + delegate.inlineMathVerticalPadding
+        if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
+            return Screen.devicePixelRatio
+        return 1
     }
 
     // Track hover state. The gutter has its own hover handler
@@ -1623,39 +1615,19 @@ BlockDelegateBase {
             }
             Component {
                 id: dropCapComponent
-                Item {
-                    // ---- Drop cap (features.md §1.2.16) ----
-                    // Drop-cap chrome is rare; keeping it behind a Loader
-                    // avoids building text metrics/masks for ordinary rows.
-                    TextMetrics {
-                        id: dropCapMetrics
-                        font.family: textArea.font.family
-                        font.pixelSize: delegate.contentFontSize
-                        text: delegate.content.charAt(0)
-                    }
-                    Rectangle {
-                        objectName: "dropCapMask"
-                        visible: delegate.dropCapActive
-                        x: textArea.x + textArea.leftPadding - 1
-                        y: textArea.y + textArea.topPadding
-                        width: dropCapMetrics.advanceWidth + 3
-                        height: dropCapMetrics.height
-                        color: Theme.windowBackground
-                        z: 4
-                    }
-                    Text {
-                        objectName: "dropCapLetter"
-                        visible: delegate.dropCapActive
-                        text: delegate.content.charAt(0)
-                        color: delegate.dropCapColor
-                        font.bold: true
-                        font.pixelSize: delegate.dropCapPixelSize
-                        font.family: delegate.dropCapFontAttr !== ""
-                            ? delegate.dropCapFontAttr : textArea.font.family
-                        x: 2
-                        y: textArea.y + textArea.topPadding
-                        z: 5
-                    }
+                // Drop-cap chrome is rare; keeping it behind a Loader avoids
+                // building text metrics and masks for ordinary rows.
+                DropCapOverlay {
+                    letter: delegate.content.charAt(0)
+                    active: delegate.dropCapActive
+                    bodyFontFamily: textArea.font.family
+                    bodyFontPixelSize: delegate.contentFontSize
+                    textOriginX: textArea.x + textArea.leftPadding
+                    textOriginY: textArea.y + textArea.topPadding
+                    letterColor: delegate.dropCapColor
+                    letterPixelSize: delegate.dropCapPixelSize
+                    letterFontFamily: delegate.dropCapFontAttr !== ""
+                        ? delegate.dropCapFontAttr : textArea.font.family
                 }
             }
 
@@ -1677,116 +1649,27 @@ BlockDelegateBase {
             }
             Component {
                 id: calloutChromeComponent
-                Item {
+                CalloutBlockChrome {
+                    id: calloutChrome
                     anchors.fill: parent
-
-                    // ---- Callout chrome ----
-                    // Tinted panel with an accent left bar; the header (icon,
-                    // title, fold chevron) sits at the top and the body below.
-                    Rectangle {
-                        id: calloutPanel
-                        objectName: "calloutPanel"
-                        anchors.fill: parent
-                        radius: 5
-                        color: Qt.alpha(delegate.calloutAccent, 0.10)
-                        border.width: 1
-                        border.color: Qt.alpha(delegate.calloutAccent, 0.35)
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: 4
-                            radius: 2
-                            color: delegate.calloutAccent
-                        }
-                    }
-                    Item {
-                        id: calloutHeader
-                        objectName: "calloutHeader"
-                        x: 10
-                        y: 0
-                        z: 3
-                        width: parent.width - 14
-                        height: delegate.calloutHeaderHeight
-
-                        Text {
-                            id: calloutChevron
-                            objectName: "calloutFoldChevron"
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: delegate.calloutFolded ? "▸" : "▾"
-                            color: delegate.calloutAccent
-                            font.pixelSize: 12
-                            TapHandler { onTapped: delegate.toggleCalloutFold() }
-                        }
-                        Text {
-                            id: calloutIcon
-                            anchors.left: calloutChevron.right
-                            anchors.leftMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: delegate.calloutInfo.icon !== ""
-                            text: delegate.calloutInfo.icon
-                            color: delegate.calloutAccent
-                            font.pixelSize: 13
-                            font.bold: true
-                        }
-                        TextField {
-                            id: calloutTitleField
-                            objectName: "calloutTitleField"
-                            anchors.left: calloutIcon.visible ? calloutIcon.right : calloutChevron.right
-                            anchors.leftMargin: 6
-                            anchors.right: calloutColorDot.left
-                            anchors.rightMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: delegate.calloutTitle
-                            placeholderText: delegate.calloutInfo.label
-                            color: delegate.calloutAccent
-                            font.pixelSize: 13
-                            font.bold: true
-                            background: null
-                            padding: 0
-                            function commitPendingTitle() {
-                                if (text !== delegate.calloutTitle)
-                                    delegate.setCalloutTitleText(text)
-                            }
-                            Connections {
-                                target: DocumentManager
-                                function onPendingEditsRequested() {
-                                    calloutTitleField.commitPendingTitle()
-                                }
-                            }
-                            Connections {
-                                target: delegate
-                                function onCommitCalloutTitleRequested() {
-                                    calloutTitleField.commitPendingTitle()
-                                }
-                            }
-                            onEditingFinished: {
-                                calloutTitleField.commitPendingTitle()
-                            }
-                        }
-                        Rectangle {
-                            id: calloutColorDot
-                            objectName: "calloutColorDot"
-                            anchors.right: parent.right
-                            anchors.rightMargin: 2
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 14; height: 14; radius: 7
-                            color: delegate.calloutAccent
-                            border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.4)
-                            opacity: delegate.isHovered || calloutColorPicker.visible ? 1 : 0.35
-                            Behavior on opacity { NumberAnimation { duration: 150 } }
-                            TapHandler { onTapped: calloutColorPicker.open() }
-
-                            CalloutColorPicker {
-                                id: calloutColorPicker
-                                x: parent ? parent.width - width : 0
-                                y: parent ? parent.height + 4 : 0
-                                currentColor: BlockAttributes.str(delegate.attributes, "color", "")
-                                onColorPicked: function(v) { delegate.setCalloutColor(v) }
-                                onResetRequested: delegate.resetCalloutColor()
-                            }
+                    accent: delegate.calloutAccent
+                    folded: delegate.calloutFolded
+                    icon: delegate.calloutInfo.icon
+                    typeLabel: delegate.calloutInfo.label
+                    title: delegate.calloutTitle
+                    headerHeight: delegate.calloutHeaderHeight
+                    customColor: BlockAttributes.str(delegate.attributes, "color", "")
+                    rowHovered: delegate.isHovered
+                    onFoldToggled: delegate.toggleCalloutFold()
+                    onTitleCommitted: function(t) { delegate.setCalloutTitleText(t) }
+                    onColorPicked: function(v) { delegate.setCalloutColor(v) }
+                    onColorResetRequested: delegate.resetCalloutColor()
+                    // The row is about to be recycled, so a title the user
+                    // typed but has not left yet would be lost with it.
+                    Connections {
+                        target: delegate
+                        function onCommitCalloutTitleRequested() {
+                            calloutChrome.commitPendingTitle()
                         }
                     }
                 }
@@ -1800,182 +1683,27 @@ BlockDelegateBase {
             }
             Component {
                 id: codeChromeComponent
-                Item {
+                // Plain text rows never instantiate the panel, language
+                // picker, gutter, or horizontal scrollbar.
+                CodeBlockChrome {
                     anchors.fill: parent
-
-                    // ---- Code-block chrome ----
-                    // Plain text rows no longer instantiate this panel,
-                    // language picker, gutter, or horizontal scrollbar.
-                    Rectangle {
-                        id: codePanel
-                        objectName: "codePanel"
-                        anchors.fill: parent
-                        color: Theme.codePanelBackground
-                        radius: 4
-                        border.width: 1
-                        border.color: Theme.border
-                    }
-
-                    Column {
-                        id: codeGutter
-                        objectName: "codeGutter"
-                        visible: delegate.codeLineNumbers
-                        width: delegate.codeGutterWidth
-                        x: 0
-                        y: textArea.y + textArea.topPadding
-                        z: 2
-                        // On the Repeater below a bare `delegate` is its own
-                        // delegate component, not the block (outer ids rank
-                        // below scope properties inside this inline
-                        // component) — alias here, where Column has no
-                        // `delegate` property.
-                        readonly property int gutterLineCount:
-                            delegate.codeLineNumbers ? textArea.lineCount : 0
-                        Repeater {
-                            model: codeGutter.gutterLineCount
-                            delegate: Text {
-                                required property int index
-                                width: delegate.codeGutterWidth - 8
-                                height: textArea.lineCount > 0
-                                    ? textArea.contentHeight / textArea.lineCount : 0
-                                horizontalAlignment: Text.AlignRight
-                                verticalAlignment: Text.AlignVCenter
-                                text: index + 1
-                                color: Theme.textFaint
-                                font.family: delegate.contentFontFamily
-                                font.pixelSize: delegate.contentFontSize
-                            }
-                        }
-                    }
-                    Rectangle {
-                        visible: delegate.codeLineNumbers
-                        x: 0
-                        y: 0
-                        width: delegate.codeGutterWidth
-                        height: parent.height
-                        color: Theme.codePanelBackground
-                        z: 1
-                    }
-
-                    Item {
-                        id: codeHeader
-                        objectName: "codeHeader"
-                        x: 0
-                        y: 0
-                        z: 3
-                        width: parent.width
-                        height: delegate.codeHeaderHeight
-
-                        Rectangle {
-                            id: langButton
-                            objectName: "codeLanguageButton"
-                            height: 20
-                            anchors.left: parent.left
-                            anchors.leftMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: langLabel.implicitWidth + 20
-                            radius: 3
-                            color: langHover.hovered ? Theme.hoverTint : "transparent"
-                            Text {
-                                id: langLabel
-                                anchors.left: parent.left
-                                anchors.leftMargin: 6
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: (delegate.language && delegate.language.length > 0)
-                                      ? delegate.language : "plain text"
-                                color: Theme.textMuted
-                                font.pixelSize: Math.max(10, delegate.contentFontSize - 3)
-                            }
-                            Text {
-                                anchors.right: parent.right
-                                anchors.rightMargin: 5
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "▾"
-                                color: Theme.textFaint
-                                font.pixelSize: 9
-                            }
-                            HoverHandler { id: langHover }
-                            TapHandler { onTapped: languagePicker.open() }
-                        }
-
-                        Rectangle {
-                            id: copyButton
-                            objectName: "codeCopyButton"
-                            height: 20
-                            width: copyLabel.implicitWidth + 14
-                            anchors.right: parent.right
-                            anchors.rightMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            radius: 3
-                            color: copyHover.hovered ? Theme.hoverTint : "transparent"
-                            Text {
-                                id: copyLabel
-                                anchors.centerIn: parent
-                                text: copyButton.copied ? "Copied" : "Copy"
-                                color: Theme.textMuted
-                                font.pixelSize: Math.max(10, delegate.contentFontSize - 3)
-                            }
-                            property bool copied: false
-                            HoverHandler { id: copyHover }
-                            TapHandler {
-                                onTapped: {
-                                    Clipboard.text = delegate.content
-                                    copyButton.copied = true
-                                    copyResetTimer.restart()
-                                }
-                            }
-                            Timer {
-                                id: copyResetTimer
-                                interval: 1200
-                                onTriggered: copyButton.copied = false
-                            }
-                        }
-                    }
-
-                    // Menu has its own `delegate` property (the item chrome
-                    // component), and scope-object attributes shadow document
-                    // ids — so inside the Menu's instantiation an unqualified
-                    // `delegate` is that Component, not the block root. Bind
-                    // and connect from sibling scope, where the id resolves.
-                    LanguagePicker {
-                        id: languagePicker
-                        objectName: "languagePicker"
-                    }
-                    Binding {
-                        target: languagePicker
-                        property: "currentLanguage"
-                        value: delegate.language || ""
-                    }
-                    Connections {
-                        target: languagePicker
-                        function onLanguageChosen(lang) {
-                            delegate.setCodeLanguage(lang)
-                        }
-                    }
-
-                    ScrollBar {
-                        id: codeHScrollBar
-                        objectName: "codeHScrollBar"
-                        visible: delegate.codeMaxScroll > 0
-                        orientation: Qt.Horizontal
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: delegate.codeContentLeft
-                        height: 8
-                        z: 2
-                        size: delegate.codeViewportWidth
-                              / Math.max(1, textArea.contentWidth)
-                        position: delegate.codeMaxScroll > 0
-                            ? delegate.codeHScroll / (delegate.codeMaxScroll + delegate.codeViewportWidth)
-                            : 0
-                        onPositionChanged: {
-                            if (pressed) {
-                                delegate.codeHScroll = Math.round(
-                                    position * (delegate.codeMaxScroll + delegate.codeViewportWidth))
-                            }
-                        }
-                    }
+                    language: delegate.language
+                    copyText: delegate.content
+                    lineNumbers: delegate.codeLineNumbers
+                    gutterWidth: delegate.codeGutterWidth
+                    headerHeight: delegate.codeHeaderHeight
+                    contentLeft: delegate.codeContentLeft
+                    viewportWidth: delegate.codeViewportWidth
+                    maxScroll: delegate.codeMaxScroll
+                    hScroll: delegate.codeHScroll
+                    fontFamily: delegate.contentFontFamily
+                    fontPixelSize: delegate.contentFontSize
+                    textTop: textArea.y + textArea.topPadding
+                    lineCount: textArea.lineCount
+                    textContentHeight: textArea.contentHeight
+                    textContentWidth: textArea.contentWidth
+                    onLanguageChosen: function(lang) { delegate.setCodeLanguage(lang) }
+                    onHScrollRequested: function(offset) { delegate.codeHScroll = offset }
                 }
             }
 
@@ -3490,103 +3218,17 @@ BlockDelegateBase {
             }
             Component {
                 id: inlineMathOverlayComponent
-                Item {
-                    // The inline-math overlay layer: one Image
-                    // per hidden $…$ span, created only for rows that actually
-                    // contain active inline math.
-                    id: mathOverlayLayer
-                    objectName: "mathOverlayLayer"
+                InlineMathOverlay {
                     anchors.fill: parent
-                    z: 3
-
-                    // Inside this inline component the outer id `delegate`
-                    // reaches bindings only through the creation context,
-                    // AFTER the scope object's own properties — so on the
-                    // Repeater below, a bare `delegate` is the Repeater's
-                    // delegate component, not the block. Alias the boxes here
-                    // (Item has no `delegate` property) and bind to the alias.
-                    readonly property var overlayBoxes: delegate.inlineMathBoxes
-
-                    FontMetrics {
-                        id: inlineMathFontMetrics
-                        font: textArea.font
-                    }
-
-                    Repeater {
-                        model: mathOverlayLayer.overlayBoxes
-                        Image {
-                            id: mathImg
-                            objectName: "inlineMathImage"
-                            required property var modelData
-                            function boxFor(entry) {
-                                var r1 = textArea.positionToRectangle(entry.docStart)
-                                var r2 = textArea.positionToRectangle(entry.docEnd)
-                                var sameLine = Math.abs(r2.y - r1.y) < 2
-                                var w = sameLine ? Math.max(2, r2.x - r1.x)
-                                                 : Math.max(2, r1.width)
-                                return Qt.rect(r1.x, r1.y, w, r1.height)
-                            }
-                            function reservationAscentFor(entry) {
-                                return entry.reservationValid
-                                    && entry.reservationAscent > 0
-                                    && entry.reservationHeight > 0
-                                    ? entry.reservationAscent
-                                    : inlineMathFontMetrics.ascent
-                            }
-                            function lineBaselineY() {
-                                var t = delegate.mathTick  // reposition on change
-                                var lineStart = modelData.lineStart !== undefined
-                                    ? modelData.lineStart : modelData.docStart
-                                var baseline = box.y + reservationAscentFor(modelData)
-                                for (var i = 0; i < delegate.inlineMathBoxes.length; ++i) {
-                                    var entry = delegate.inlineMathBoxes[i]
-                                    var entryLineStart = entry.lineStart !== undefined
-                                        ? entry.lineStart : entry.docStart
-                                    if (entryLineStart !== lineStart)
-                                        continue
-                                    var r = boxFor(entry)
-                                    baseline = Math.max(baseline,
-                                                        r.y + reservationAscentFor(entry))
-                                }
-                                return baseline
-                            }
-                            property rect box: {
-                                var t = delegate.mathTick  // reposition on change
-                                return boxFor(modelData)
-                            }
-                            property bool metricsValid: modelData.valid
-                                && modelData.width > 0
-                                && modelData.height > 0
-                                && modelData.baseline > 0
-                            property bool reservationValid: modelData.reservationValid
-                                && modelData.reservationAscent > 0
-                                && modelData.reservationHeight > 0
-                            property real mathVerticalPadding:
-                                modelData.inlineVerticalPadding !== undefined
-                                ? modelData.inlineVerticalPadding
-                                : delegate.inlineMathVerticalPadding
-                            property real measuredWidth: metricsValid
-                                ? modelData.width : box.width
-                            property real measuredHeight: metricsValid
-                                ? modelData.height
-                                  + 2 * mathVerticalPadding
-                                : box.height
-                            property real mathBaseline: metricsValid
-                                ? modelData.baseline
-                                  + mathVerticalPadding
-                                : measuredHeight
-                            property real lineBaseline: textArea.y + lineBaselineY()
-                            x: textArea.x + box.x
-                            y: lineBaseline - mathBaseline
-                            width: measuredWidth
-                            height: measuredHeight
-                            fillMode: Image.PreserveAspectFit
-                            horizontalAlignment: Image.AlignLeft
-                            verticalAlignment: Image.AlignTop
-                            smooth: true
-                            source: delegate.inlineMathSource(modelData.tex)
-                        }
-                    }
+                    editor: textArea
+                    editorFont: textArea.font
+                    boxes: delegate.inlineMathBoxes
+                    tick: delegate.mathTick
+                    textColor: delegate.appTheme ? delegate.appTheme.textPrimary
+                                                 : Qt.rgba(0, 0, 0, 1)
+                    pixelSize: delegate.inlineMathPixelSize
+                    verticalPadding: delegate.inlineMathVerticalPadding
+                    devicePixelRatio: delegate.screenDevicePixelRatio
                 }
             }
         }
