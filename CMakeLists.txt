@@ -117,178 +117,259 @@ endif()
 # behind the MathRenderer seam. Built as a static `microtex` target.
 add_subdirectory(third_party/microtex)
 
-# The core library: the whole editor except its entry point.
-# The stock executable below is a thin main() linking it, and a superset build
-# that adds a premium module links the same library and supplies its own main().
-# `kvit-core` is the CMake target name; `kvit_core` is the same library under
-# the naming the split document uses.
-add_library(kvit-core STATIC
-    src/appcontext.cpp
-    src/qmlservices.cpp
-    src/appactions.h
-    src/qmlsingletons.h
-    src/kvitapplication.cpp
-    src/blockkindregistry.cpp
-    src/extensionregistry.cpp
-    src/block.cpp
-    src/perflog.cpp
-    src/persistencepool.cpp
-    src/blockattributes.cpp
-    src/shortcutcatalog.cpp
-    src/accessibilityannouncer.cpp
-    src/globalhotkey.cpp
-    src/systemtray.cpp
-    src/filewatcher.cpp
-    src/blockmodel.cpp
-    src/markdownformatter.cpp
-    src/undocommand.cpp
-    src/undostack.cpp
-    src/compoundcommand.cpp
-    src/textchangecommand.cpp
-    src/insertblockcommand.cpp
-    src/removeblockcommand.cpp
-    src/moveblockcommand.cpp
-    src/moveblockscommand.cpp
-    src/changetypecommand.cpp
-    src/splitblockcommand.cpp
-    src/mergeblockscommand.cpp
-    src/setcheckedcommand.cpp
-    src/setblockattributescommand.cpp
-    src/changeindentcommand.cpp
-    src/convertblockcommand.cpp
-    src/documentserializer.cpp
-    src/llmnormalizer.cpp
-    src/diagrams/diagramclassifier.cpp
-    src/diagrams/diagramrepair.cpp
-    src/diagrams/mermaidlexer.cpp
-    src/diagrams/mermaidparser.cpp
-    src/diagrams/mermaidsequence.cpp
-    src/diagrams/mermaidclass.cpp
-    src/diagrams/mermaidstate.cpp
-    src/diagrams/mermaider.cpp
-    src/diagrams/mermaidedits.cpp
-    src/diagrams/diagramlayout.cpp
-    src/diagrams/sequencelayout.cpp
-    src/diagrams/classlayout.cpp
-    src/diagrams/statelayout.cpp
-    src/diagrams/erlayout.cpp
-    src/diagrams/diagrampainter.cpp
-    src/diagrams/textcanvas.cpp
-    src/diagrams/textdiagram.cpp
-    src/diagrams/mermaidrenderer.cpp
-    src/diagrams/diagramcanvas.cpp
-    src/opendocumentsession.h
-    src/embedfetcher.h
-    src/documentmanager.cpp
-    src/blockmenumodel.cpp
-    src/mathcommandmodel.cpp
-    src/codelanguages.cpp
-    src/imageassets.cpp
-    src/tabledata.cpp
-    src/todometa.cpp
-    src/kanbandata.cpp
-    src/mathrenderer.cpp
-    src/clipboardhelper.cpp
-    src/htmltomarkdown.cpp
-    src/inlinemarkdown.cpp
-    src/blockeditorengine.cpp
-    src/documentselection.cpp
-    src/documentsearch.cpp
-    src/documentoutline.cpp
-    src/documentstats.cpp
-    src/documentexporter.cpp
-    src/documentimporter.cpp
-    src/egressfetcher.cpp
-    src/egresspolicy.cpp
-    src/remotemediacache.cpp
-    src/embedmetadata.cpp
-    src/remoteimageprovider.cpp
-    src/notetemplates.cpp
-    src/notefrontmatter.cpp
-    src/wikilinkscanner.cpp
-    src/notecollection.cpp
-    src/noteindexfile.cpp
-    src/wikilinkindex.cpp
-    src/searchindexfeed.cpp
-    src/recoveryjournalstore.cpp
-    src/notefileio.cpp
-    src/notebackupstore.cpp
-    src/notetrashstore.cpp
-    src/navigationhistory.cpp
-    src/quickswitchermodel.cpp
-    src/querydata.cpp
-    src/querytools.cpp
-    src/foldertreemodel.cpp
-    src/notelistmodel.cpp
-    src/searchindexdb.cpp
-    src/collectionsearchindex.cpp
-    src/collectionsearch.cpp
-    src/settingsstore.cpp
-    src/startupcontroller.cpp
-    src/theme.cpp
-    src/typography.cpp
-    src/updatechecker.cpp
-    src/vaultlock.cpp
+# ── The module boundary (code-plan.md §6.1)
+#
+# Seven static libraries, one directory under src/ each, linked in one
+# direction only:
+#
+#   kvit-content      pure format transforms: markdown value parsers, the
+#                     inline-markdown transition tables, diagrams, math,
+#                     HTML→markdown. Depends on no other module.
+#         ↑
+#   kvit-domain       the block document itself: model, serializer, undo
+#                     stack and commands, selection, in-document search,
+#                     outline, statistics.
+#         ↑
+#   kvit-search  kvit-platform
+#                     the rebuildable note index (SQLite FTS5), and the
+#                     machine the app runs on: settings, file watching,
+#                     network policy, tray, hotkeys, appearance tokens.
+#         ↑
+#   kvit-repository   the vault: containment, note filesystem access,
+#                     atomic persistence, trash, backups, recovery,
+#                     templates, import.
+#         ↑
+#   kvit-application  use-case orchestration: the document session, startup,
+#                     the list/tree/switcher models, queries, export.
+#         ↑
+#   kvit-qml          the presentation surface — the editor engine that
+#                     drives a QML TextArea, the `Kvit` module's type and
+#                     singleton registrations — and the composition root
+#                     (AppContext, KvitApplication) that wires the whole
+#                     object graph and hands it to a QQmlEngine. A
+#                     composition root depends on everything by definition,
+#                     which is why it sits at the top rather than in
+#                     kvit-application.
+#
+# The direction is enforced, not documented: each target publishes only its
+# own directory as an include path, and inherits the directories of the
+# modules it links. A domain source that writes #include "notecollection.h"
+# does not find the header and does not compile. tools/check-layering.py
+# checks the same rule over the sources, plus the two ownership rules the
+# include graph alone cannot express — Qt Network only inside kvit-platform,
+# filesystem mutation only where a module is meant to perform it.
+#
+# kvit-core remains as an interface target that pulls in all seven, so the
+# test suite and an external consumer that links "the editor" are unchanged.
+
+# ── kvit-content — format transforms, and nothing else.
+#
+# Every file here is a pure function of its input: markdown in, markdown or
+# a parsed value out. Nothing reads a setting, opens a file or knows a block
+# model exists, which is what lets the layers above all share it.
+add_library(kvit-content STATIC
+    src/content/blockattributes.cpp
+    src/content/codelanguages.cpp
+    src/content/htmltomarkdown.cpp
+    src/content/imageassets.cpp
+    src/content/inlinemarkdown.cpp
+    src/content/kanbandata.cpp
+    src/content/llmnormalizer.cpp
+    src/content/markdownformatter.cpp
+    src/content/mathcommandmodel.cpp
+    src/content/mathrenderer.cpp
+    src/content/notefrontmatter.cpp
+    src/content/tabledata.cpp
+    src/content/todometa.cpp
+    src/content/wikilinkscanner.cpp
+    src/content/fuzzymatch.h
+    src/content/diagrams/classlayout.cpp
+    src/content/diagrams/diagramcanvas.cpp
+    src/content/diagrams/diagramclassifier.cpp
+    src/content/diagrams/diagramlayout.cpp
+    src/content/diagrams/diagrampainter.cpp
+    src/content/diagrams/diagramrepair.cpp
+    src/content/diagrams/erlayout.cpp
+    src/content/diagrams/mermaidclass.cpp
+    src/content/diagrams/mermaidedits.cpp
+    src/content/diagrams/mermaider.cpp
+    src/content/diagrams/mermaidlexer.cpp
+    src/content/diagrams/mermaidparser.cpp
+    src/content/diagrams/mermaidrenderer.cpp
+    src/content/diagrams/mermaidsequence.cpp
+    src/content/diagrams/mermaidstate.cpp
+    src/content/diagrams/sequencelayout.cpp
+    src/content/diagrams/statelayout.cpp
+    src/content/diagrams/textcanvas.cpp
+    src/content/diagrams/textdiagram.cpp
 )
-
-# The version the running app reports (About, update check comparison).
-target_compile_definitions(kvit-core PRIVATE
-    KVIT_VERSION="${KVIT_VERSION_FULL}")
-
-# Every module the composed application needs is linked into the library, not
-# into the executable, so any binary linking kvit-core gets a complete editor:
-# QuickControls2 for the shell's style, Network for the embed fetcher, and
-# Multimedia for the media block's QML imports.
-# PUBLIC only where kvit-core's own headers expose the module, so a consumer
-# that includes them compiles. Everything else is an implementation detail and
-# is PRIVATE: it still links into the final binary, but it no longer becomes
-# part of the contract every consumer inherits.
-#
-#   Gui, Quick   - QImage/QColor/QTextDocument and QQuickItem/QQmlEngine appear
-#                  in headers.
-#   Network      - the egress fetcher and update checker expose types.
-#   Concurrent   - QFuture appears in the async persistence and collection
-#                  headers.
-#   microtex     - the math renderer's headers use it.
-#
-# Widgets is only forward-declared (kvitapplication.h) or unused in headers;
-# Sql appears in one comment; QuickControls2 and Multimedia are used by a
-# single .cpp and by QML imports at runtime, not by any header.
-target_link_libraries(kvit-core PUBLIC
+# Quick because DiagramCanvas is a QQuickPaintedItem; microtex because the
+# math renderer's headers use it.
+target_link_libraries(kvit-content PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Quick
-    Qt6::Network
     microtex
 )
-target_link_libraries(kvit-core PRIVATE
-    # Concurrent looks like a header dependency and is not. The headers that
-    # appear to need it include <QFutureWatcher>, which is Qt Core in Qt 6;
-    # the only QtConcurrent:: occurrences in any header are the comments at
-    # cancellationtoken.h:13, cancellationtoken.h:17 and notecollection.h:329.
-    # The namespace itself is used only from .cpp files here, and from
-    # test_asynccancellation, which names Qt6::Concurrent for itself.
-    Qt6::Concurrent
+target_link_libraries(kvit-content PRIVATE Qt6::Concurrent)
+target_include_directories(kvit-content PUBLIC src/content)
+
+# ── kvit-domain — the block document.
+add_library(kvit-domain STATIC
+    src/domain/block.cpp
+    src/domain/blockkindregistry.cpp
+    src/domain/blockmodel.cpp
+    src/domain/changeindentcommand.cpp
+    src/domain/changetypecommand.cpp
+    src/domain/compoundcommand.cpp
+    src/domain/convertblockcommand.cpp
+    src/domain/documentoutline.cpp
+    src/domain/documentsearch.cpp
+    src/domain/documentselection.cpp
+    src/domain/documentserializer.cpp
+    src/domain/documentstats.cpp
+    src/domain/insertblockcommand.cpp
+    src/domain/mergeblockscommand.cpp
+    src/domain/moveblockcommand.cpp
+    src/domain/moveblockscommand.cpp
+    src/domain/perflog.cpp
+    src/domain/persistencepool.cpp
+    src/domain/removeblockcommand.cpp
+    src/domain/setblockattributescommand.cpp
+    src/domain/setcheckedcommand.cpp
+    src/domain/splitblockcommand.cpp
+    src/domain/textchangecommand.cpp
+    src/domain/undocommand.cpp
+    src/domain/undostack.cpp
+    src/domain/cancellationtoken.h
+    src/domain/noteentry.h
+)
+target_link_libraries(kvit-domain PUBLIC kvit-content)
+target_link_libraries(kvit-domain PRIVATE Qt6::Concurrent)
+target_include_directories(kvit-domain PUBLIC src/domain)
+
+# ── kvit-search — the rebuildable note index.
+#
+# Sql is PRIVATE and named nowhere else: the FTS5 database is this module's
+# implementation detail, and a caller asks it questions rather than issuing
+# queries of its own.
+add_library(kvit-search STATIC
+    src/search/collectionsearchindex.cpp
+    src/search/searchindexdb.cpp
+    src/search/searchindexfeed.cpp
+)
+target_link_libraries(kvit-search PUBLIC kvit-domain)
+target_link_libraries(kvit-search PRIVATE Qt6::Sql Qt6::Concurrent)
+target_include_directories(kvit-search PUBLIC src/search)
+
+# ── kvit-platform — the machine the app runs on.
+#
+# Qt6::Network is linked here and by no other module. That is the network
+# ownership rule in build form: every remote access the app makes goes
+# through EgressFetcher, which applies EgressPolicy, and a module above this
+# one cannot open a connection because it has nothing to open one with.
+# PUBLIC only because egressfetcher.h holds a QNetworkAccessManager member
+# and names QHostAddress in its resolver seam.
+add_library(kvit-platform STATIC
+    src/platform/accessibilityannouncer.cpp
+    src/platform/clipboardhelper.cpp
+    src/platform/egressfetcher.cpp
+    src/platform/egresspolicy.cpp
+    src/platform/filewatcher.cpp
+    src/platform/globalhotkey.cpp
+    src/platform/remoteimageprovider.cpp
+    src/platform/remotemediacache.cpp
+    src/platform/settingsstore.cpp
+    src/platform/shortcutcatalog.cpp
+    src/platform/systemtray.cpp
+    src/platform/theme.cpp
+    src/platform/typography.cpp
+    src/platform/updatechecker.cpp
+    src/platform/embedfetcher.h
+)
+target_link_libraries(kvit-platform PUBLIC kvit-domain Qt6::Network)
+target_link_libraries(kvit-platform PRIVATE Qt6::Widgets)
+target_include_directories(kvit-platform PUBLIC src/platform)
+
+# ── kvit-repository — the vault.
+#
+# The only module that reads and writes notes. The one exception is the note
+# currently open, whose in-memory body the document session owns; the
+# repository reaches that session through the OpenDocumentSession interface
+# and never through the class that implements it.
+add_library(kvit-repository STATIC
+    src/repository/documentimporter.cpp
+    src/repository/notebackupstore.cpp
+    src/repository/notecollection.cpp
+    src/repository/notefileio.cpp
+    src/repository/noteindexfile.cpp
+    src/repository/notetemplates.cpp
+    src/repository/notetrashstore.cpp
+    src/repository/recoveryjournalstore.cpp
+    src/repository/vaultlock.cpp
+    src/repository/wikilinkindex.cpp
+    src/repository/opendocumentsession.h
+)
+target_link_libraries(kvit-repository PUBLIC kvit-domain kvit-search)
+target_link_libraries(kvit-repository PRIVATE Qt6::Concurrent)
+target_include_directories(kvit-repository PUBLIC src/repository)
+
+# ── kvit-application — use-case orchestration.
+add_library(kvit-application STATIC
+    src/application/blockmenumodel.cpp
+    src/application/collectionsearch.cpp
+    src/application/documentexporter.cpp
+    src/application/documentmanager.cpp
+    src/application/embedmetadata.cpp
+    src/application/extensionregistry.cpp
+    src/application/foldertreemodel.cpp
+    src/application/navigationhistory.cpp
+    src/application/notelistmodel.cpp
+    src/application/querydata.cpp
+    src/application/querytools.cpp
+    src/application/quickswitchermodel.cpp
+    src/application/startupcontroller.cpp
+    src/application/appactions.h
+)
+target_link_libraries(kvit-application PUBLIC kvit-repository kvit-platform)
+target_link_libraries(kvit-application PRIVATE Qt6::Concurrent Qt6::Widgets)
+target_include_directories(kvit-application PUBLIC src/application)
+
+# ── kvit-qml — the presentation surface and the composition root.
+add_library(kvit-qml STATIC
+    src/qml/appcontext.cpp
+    src/qml/blockeditorengine.cpp
+    src/qml/kvitapplication.cpp
+    src/qml/qmlservices.cpp
+    src/qml/qmlsingletons.h
+)
+target_link_libraries(kvit-qml PUBLIC kvit-application)
+# QuickControls2 for the shell's style, Multimedia for the media block's QML
+# imports, Widgets because KvitApplication is a QApplication.
+target_link_libraries(kvit-qml PRIVATE
     Qt6::QuickControls2
     Qt6::Widgets
     Qt6::Multimedia
-    Qt6::Sql
 )
-
-target_include_directories(kvit-core PUBLIC src)
+target_include_directories(kvit-qml PUBLIC src/qml)
 
 # qmltyperegistrar writes `#include <diagramcanvas.h>` — the basename, with no
-# directory — for every type carrying QML_ELEMENT, and guards each one with
-# __has_include. The rest of the tree reaches that header as
-# "diagrams/diagramcanvas.h", so with only src on the path the guard silently
-# skips the include and the generated file then fails to compile on the
-# undeclared type. PRIVATE because only the generated translation unit, which
-# is compiled into this library, needs the shorter spelling.
-target_include_directories(kvit-core PRIVATE src/diagrams)
+# directory — for every type carrying a QML registration macro, and guards each
+# one with __has_include. The rest of the tree reaches that header as
+# "diagrams/diagramcanvas.h", so without the shorter spelling on the path the
+# guard silently skips the include and the generated file then fails to
+# compile on the undeclared type.
+target_include_directories(kvit-qml PRIVATE src/content/diagrams)
 
-# The `Kvit` QML module. Its types are declared by the QML_ELEMENT macros on
-# the C++ classes, and qmltyperegistrar writes the .qmltypes description of
-# them at build time.
+# The version the running app reports (About, update check comparison).
+target_compile_definitions(kvit-qml PRIVATE
+    KVIT_VERSION="${KVIT_VERSION_FULL}")
+
+# The `Kvit` QML module. Its types are declared by the registration macros in
+# src/qml/qmlsingletons.h — as QML_FOREIGN wrappers, so a class in any of the
+# seven modules can reach QML while only this one links the registration
+# machinery — and qmltyperegistrar writes the .qmltypes description of them at
+# build time.
 #
 # The point of generating that file is qmllint. It previously read a
 # hand-written stub (tools/qmllint/Kvit) that named the types but described
@@ -297,19 +378,49 @@ target_include_directories(kvit-core PRIVATE src/diagrams)
 # signal — so qmllint can check uses, not just imports, and cannot fall out of
 # date with the C++.
 #
-# NO_PLUGIN: kvit-core is linked directly into every binary that uses it, so
+# NO_PLUGIN: kvit-qml is linked directly into every binary that uses it, so
 # there is nothing for a plugin to load. See AppContext::registerQmlTypes()
 # for the consequence that has, which is not obvious.
 #
 # The QML files themselves still ship in resources.qrc rather than through
 # QML_FILES here. Moving them is a larger change and is not needed for the
 # type checking this enables.
-qt_add_qml_module(kvit-core
+# DEPENDENCIES is stated rather than derived. Qt writes the qmldir's
+# `depends` line from the QML modules the target links DIRECTLY, and kvit-qml
+# reaches Qt6::Quick transitively through kvit-application now. Without the
+# line qmllint cannot resolve a value type like QColor in a Kvit type's
+# property and reports several hundred unresolved-type findings on files that
+# are in fact correct.
+qt_add_qml_module(kvit-qml
     URI Kvit
     VERSION 1.0
     NO_PLUGIN
+    DEPENDENCIES QtQuick
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/qmlmodules/Kvit
 )
+
+# The `Kvit` module registers types that are compiled into the modules below
+# this one — Block's enum, the fence-kind numbering, the code-language
+# singleton, the diagram canvas, the settings store. qmltyperegistrar resolves
+# a QML_FOREIGN wrapper against the metatype description of the class it names,
+# and it reads those descriptions from the metatypes.json files that reach
+# kvit-qml through its link interface. Extracting them is not automatic for a
+# plain add_library, so each module asks for it here. Without this the
+# registrar cannot tell that BlockKinds is a namespace rather than a type and
+# emits a QMetaType::fromType<BlockKinds>() that does not compile.
+foreach(_module content domain search platform repository application)
+    qt_extract_metatypes(kvit-${_module})
+endforeach()
+
+# ── kvit-core — "the editor", as one name.
+#
+# The stock executable below is a thin main() linking it; a superset build
+# that adds a premium module links the same thing and supplies its own main();
+# the test suite links it rather than naming the module a given test happens
+# to exercise. It is an interface target, so it contributes no objects of its
+# own — it is the seven modules under one label.
+add_library(kvit-core INTERFACE)
+target_link_libraries(kvit-core INTERFACE kvit-qml)
 
 # The premium module, built as its own library so the open build never
 # compiles a line of it. It links the core and is linked BY the executable —

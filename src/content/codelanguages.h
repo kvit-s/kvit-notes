@@ -8,7 +8,6 @@
 #include <QString>
 #include <QStringList>
 #include <QObject>
-#include <QtQml/qqmlregistration.h>
 
 // Code-block syntax highlighting. An in-house, data-driven rule-table pass —
 // NOT a third-party framework: KSyntaxHighlighting was rejected because it
@@ -104,8 +103,6 @@ LineResult highlightLine(const QString &language, const QString &line, int start
 class CodeLanguagesApi : public QObject
 {
     Q_OBJECT
-    QML_NAMED_ELEMENT(CodeLanguages)
-    QML_SINGLETON
 
     // The language ids the highlighter recognises: the single source the
     // picker and the /code aliases both read, so the UI cannot offer a

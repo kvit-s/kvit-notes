@@ -9,7 +9,6 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
-#include <QtQml/qqmlregistration.h>
 
 // The built-in delegate kinds for code fences whose language selects a
 // renderer of its own. They live here rather than in BlockModel so the
@@ -23,7 +22,6 @@
 // which is a pairing nothing checked.
 namespace BlockKinds {
 Q_NAMESPACE
-QML_ELEMENT
 
 enum Kind {
     // A `kanban`-tagged fence renders as a board.

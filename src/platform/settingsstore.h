@@ -8,7 +8,6 @@
 #include <QJsonObject>
 #include <QTimer>
 #include <QVariant>
-#include <QtQml/qqmlregistration.h>
 
 // Per-user application settings: one flat
 // JSON object in settings.json under the app config location, written
@@ -23,9 +22,6 @@
 class SettingsStore : public QObject
 {
     Q_OBJECT
-    // Creatable so tests can open a second store on a path; the app itself
-    // uses the appSettings context property.
-    QML_ELEMENT
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
 
 public:

@@ -8,12 +8,15 @@
 
 #include "accessibilityannouncer.h"
 #include "appactions.h"
+#include "block.h"
 #include "blockattributes.h"
 #include "blockmodel.h"
 #include "blockkindregistry.h"
 #include "blockmenumodel.h"
 #include "clipboardhelper.h"
+#include "codelanguages.h"
 #include "collectionsearch.h"
+#include "diagrams/diagramcanvas.h"
 #include "documentexporter.h"
 #include "documentimporter.h"
 #include "documentmanager.h"
@@ -187,6 +190,64 @@ public:
         QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
         return instance;
     }
+};
+
+// ---------------------------------------------------------------- elements
+//
+// The types QML instantiates or reads enum values off, as foreign wrappers
+// for the same reason the singletons above are: the classes themselves stay
+// free of QML registration, and one file says what the `Kvit` module offers.
+//
+// It is also what the module split needs. qmltyperegistrar builds a module's
+// type list from the metatypes of ONE target's own sources, and these five
+// classes are compiled into four different module libraries. Declared here,
+// in the target that owns the `Kvit` module, they all reach QML — and
+// kvit-domain, kvit-content and kvit-platform need no QML registration
+// machinery at all.
+
+// The block-type enum: `Block.Heading1`, `Block.Callout`. Model data, never
+// constructed from QML.
+struct BlockForeign
+{
+    Q_GADGET
+    QML_FOREIGN(Block)
+    QML_NAMED_ELEMENT(Block)
+    QML_UNCREATABLE("Block is model data; the enum is what QML needs")
+};
+
+// The fence-kind numbering, read as `BlockKinds.Kanban` where the delegate
+// chooser used to carry bare integers.
+namespace BlockKindsForeign {
+Q_NAMESPACE
+QML_NAMED_ELEMENT(BlockKinds)
+QML_FOREIGN_NAMESPACE(BlockKinds)
+}
+
+// The recognised code languages, as a stateless per-engine singleton: it
+// forwards to a free function and holds nothing, so it needs no factory.
+struct CodeLanguagesForeign
+{
+    Q_GADGET
+    QML_FOREIGN(CodeLanguagesApi)
+    QML_NAMED_ELEMENT(CodeLanguages)
+    QML_SINGLETON
+};
+
+// The Mermaid preview item a diagram block instantiates.
+struct DiagramCanvasForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DiagramCanvas)
+    QML_NAMED_ELEMENT(DiagramCanvas)
+};
+
+// Creatable so a test can open a second settings store on a path of its own;
+// the application's one store is the `AppSettings` singleton above.
+struct SettingsStoreForeign
+{
+    Q_GADGET
+    QML_FOREIGN(SettingsStore)
+    QML_NAMED_ELEMENT(SettingsStore)
 };
 
 #endif // QMLSINGLETONS_H

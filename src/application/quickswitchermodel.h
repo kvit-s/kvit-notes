@@ -8,7 +8,9 @@
 #include <QString>
 #include <QVariantList>
 
-class NoteCollection;
+// Full include (not a forward declaration): moc requires pointer
+// Q_PROPERTY types to be complete when it registers their meta types.
+#include "notecollection.h"
 
 // The quick switcher's filter: a GUI-free object
 // ranking the collection's notes against a typed query with the shared

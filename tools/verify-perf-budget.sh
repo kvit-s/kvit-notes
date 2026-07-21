@@ -28,9 +28,9 @@ BUILD_DIR=${1:-build-linux-release}
 
 # file|test binary|test function|description
 CASES=(
-    "src/notecollection.cpp|test_notecollection|testBenchmark500NoteOpen|collection open, doubled per-note parse"
-    "src/searchindexdb.cpp|test_searchindexdb|testQueryPerformanceGate|search query, verification in a nested loop"
-    "src/querydata.cpp|test_querydata|testEvaluate1000NoteBudget|query evaluate, sort keys recomputed in the comparator"
+    "src/repository/notecollection.cpp|test_notecollection|testBenchmark500NoteOpen|collection open, doubled per-note parse"
+    "src/search/searchindexdb.cpp|test_searchindexdb|testQueryPerformanceGate|search query, verification in a nested loop"
+    "src/application/querydata.cpp|test_querydata|testEvaluate1000NoteBudget|query evaluate, sort keys recomputed in the comparator"
 )
 
 if ! git diff --quiet -- src/; then

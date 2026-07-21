@@ -81,16 +81,16 @@ fi
 # bare checkout — it has to be generated first. Generating it does not need a
 # full build:
 #
-#   cmake -S . -B build && cmake --build build --target kvit-core_qmltyperegistration
+#   cmake -S . -B build && cmake --build build --target kvit-qml_qmltyperegistration
 #
 # KVIT_BUILD_DIR overrides the location for an out-of-tree build directory.
 BUILD_DIR="${KVIT_BUILD_DIR:-build}"
 MODULE_DIR="$BUILD_DIR/qmlmodules"
 
-if [ ! -f "$MODULE_DIR/Kvit/kvit-core.qmltypes" ]; then
+if [ ! -f "$MODULE_DIR/Kvit/kvit-qml.qmltypes" ]; then
     echo "The Kvit module description is missing from $MODULE_DIR." >&2
     echo "Generate it with:" >&2
-    echo "  cmake -S . -B $BUILD_DIR && cmake --build $BUILD_DIR --target kvit-core_qmltyperegistration" >&2
+    echo "  cmake -S . -B $BUILD_DIR && cmake --build $BUILD_DIR --target kvit-qml_qmltyperegistration" >&2
     echo "or set KVIT_BUILD_DIR to a build directory that has one." >&2
     exit 2
 fi
