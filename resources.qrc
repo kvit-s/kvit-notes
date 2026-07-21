@@ -60,5 +60,6 @@
         <file>qml/CrossBlockTextSelection.qml</file>
         <file>qml/BlockDragController.qml</file>
         <file>qml/BlockDragLayer.qml</file>
+        <file>qml/BlockSelectionKeys.qml</file>
     </qresource>
 </RCC>

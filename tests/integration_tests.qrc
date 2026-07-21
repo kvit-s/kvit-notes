@@ -62,5 +62,6 @@
         <file alias="qml/CrossBlockTextSelection.qml">../qml/CrossBlockTextSelection.qml</file>
         <file alias="qml/BlockDragController.qml">../qml/BlockDragController.qml</file>
         <file alias="qml/BlockDragLayer.qml">../qml/BlockDragLayer.qml</file>
+        <file alias="qml/BlockSelectionKeys.qml">../qml/BlockSelectionKeys.qml</file>
     </qresource>
 </RCC>
