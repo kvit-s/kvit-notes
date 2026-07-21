@@ -67,5 +67,7 @@
         <file alias="qml/BlockInsertDialogs.qml">../qml/BlockInsertDialogs.qml</file>
         <file alias="qml/LinkDialog.qml">../qml/LinkDialog.qml</file>
         <file alias="qml/EditorDropArea.qml">../qml/EditorDropArea.qml</file>
+        <file alias="qml/SystemIntegration.qml">../qml/SystemIntegration.qml</file>
+        <file alias="qml/AppShortcuts.qml">../qml/AppShortcuts.qml</file>
     </qresource>
 </RCC>

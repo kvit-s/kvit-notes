@@ -223,11 +223,6 @@ KvitShell {
         var cur = order.indexOf(root.focusedPane)
         focusPane(order[(cur + 1) % order.length])
     }
-    Shortcut {
-        sequence: "F6"
-        onActivated: root.cyclePane()
-    }
-
     // Live-region announcements for dynamic changes (§14.2). Save state speaks
     // only the meaningful "Saved" transition (not every keystroke's dirtying);
     // the search match count speaks while the find bar is active.
@@ -492,6 +487,20 @@ KvitShell {
         collectionOpen && DocumentManager.hasFile
             ? NoteCollection.relativePath(DocumentManager.currentFilePath) : ""
 
+    // ---- The keyboard map ----------------------------------------------
+    // Every window-level shortcut is in AppShortcuts.qml, along with the
+    // mouse back/forward buttons, which are the same two navigation commands
+    // arriving from a different device. Shortcuts that belong to one
+    // workflow — Ctrl+O and Ctrl+N, Escape during a drag, quick capture —
+    // stay with the component that answers them.
+    AppShortcuts {
+        anchors.fill: parent
+        appWindow: root
+        findBar: root.findBar
+        quickSwitcher: root.quickSwitcher
+        sidebarPanel: sidebar
+    }
+
     // ---- The open note -------------------------------------------------
     // Which note is open, and every transition into another one, is in
     // NoteSession.qml. The calls below are the names its callers already use:
@@ -580,106 +589,10 @@ KvitShell {
         toolTipText: Theme.textPrimary
     }
 
-    // Global keyboard shortcuts for undo/redo
-    // Note: These are backup shortcuts when no TextArea has focus.
-    // When a TextArea is focused, BlockDelegate handles Ctrl+Z/Y/Shift+Z directly.
-    Shortcut {
-        sequences: [StandardKey.Undo]  // Ctrl+Z (and platform variants)
-        onActivated: {
-            if (UndoStack && UndoStack.canUndo) {
-                UndoStack.undo()
-            }
-        }
-    }
-
-    Shortcut {
-        sequences: [StandardKey.Redo]  // Ctrl+Y or Ctrl+Shift+Z depending on platform
-        onActivated: {
-            if (UndoStack && UndoStack.canRedo) {
-                UndoStack.redo()
-            }
-        }
-    }
-
-    // File shortcuts
-    Shortcut {
-        sequences: [StandardKey.Save]  // Ctrl+S
-        onActivated: {
-            if (DocumentManager.hasFile) {
-                DocumentManager.saveAsync()
-            } else {
-                DocumentManager.saveFileDialog()
-            }
-        }
-    }
-
     // No Save As shortcut: StandardKey.SaveAs resolves to Ctrl+Shift+S,
     // which features.md §13 assigns to strikethrough (the spec's shortcut
     // table gives Save As no binding). Ctrl+S on an untitled document
     // still opens the save dialog.
-
-    // Find bar (features.md §7.1).
-    // Application context: these work from a focused block, from the
-    // bar's own fields, and from block-selection mode alike.
-    Shortcut {
-        sequences: [StandardKey.Find] // Ctrl+F
-        context: Qt.ApplicationShortcut
-        onActivated: findBar.open(false)
-    }
-    Shortcut {
-        // Explicit, not StandardKey.Replace: the platform theme maps
-        // that to Ctrl+R or nothing on some Linux desktops, and §7.2
-        // names Ctrl+H on Windows/Linux and Cmd+Option+F on macOS.
-        sequence: Qt.platform.os === "osx" ? "Meta+Alt+F" : "Ctrl+H"
-        context: Qt.ApplicationShortcut
-        onActivated: findBar.open(true)
-    }
-    Shortcut {
-        sequences: [StandardKey.FindNext] // F3
-        context: Qt.ApplicationShortcut
-        onActivated: findBar.findNextShortcut()
-    }
-    Shortcut {
-        sequences: [StandardKey.FindPrevious] // Shift+F3
-        context: Qt.ApplicationShortcut
-        onActivated: findBar.findPreviousShortcut()
-    }
-
-    // Wiki-link navigation: history and the quick switcher, collection
-    // mode only.
-    Shortcut {
-        sequence: "Alt+Left"
-        context: Qt.ApplicationShortcut
-        enabled: root.collectionOpen
-        onActivated: root.navigateBack()
-    }
-    Shortcut {
-        sequence: "Alt+Right"
-        context: Qt.ApplicationShortcut
-        enabled: root.collectionOpen
-        onActivated: root.navigateForward()
-    }
-    Shortcut {
-        sequence: "Ctrl+P"
-        context: Qt.ApplicationShortcut
-        enabled: root.collectionOpen
-        onActivated: quickSwitcher.toggle()
-    }
-    // Mouse back/forward buttons navigate too. The area accepts ONLY
-    // those buttons, so ordinary clicks pass straight through to the UI
-    // beneath it.
-    MouseArea {
-        anchors.fill: parent
-        z: 10000
-        acceptedButtons: Qt.BackButton | Qt.ForwardButton
-        enabled: root.collectionOpen
-        onClicked: function(mouse) {
-            if (mouse.button === Qt.BackButton)
-                root.navigateBack()
-            else if (mouse.button === Qt.ForwardButton)
-                root.navigateForward()
-        }
-    }
 
     // Opens link targets (features.md §2.4). Routed through one object so
     // tests can observe activations without launching a browser.
@@ -854,52 +767,6 @@ KvitShell {
         onImportRequested: importDialog.openDialog()
     }
 
-    // Toggle Sidebar (features.md §13.4): hides both panels for focused
-    // writing.
-    Shortcut {
-        sequence: "Ctrl+\\"
-        context: Qt.ApplicationShortcut
-        onActivated: root.panelsVisible = !root.panelsVisible
-    }
-
-    // Settings (the platform convention — the shortcut table in
-    // features.md §13 assigns no key).
-    Shortcut {
-        sequence: "Ctrl+,"
-        context: Qt.ApplicationShortcut
-        onActivated: settingsDialog.open()
-    }
-
-    // Toggle the document outline (features.md §17.1).
-    Shortcut {
-        sequence: "Ctrl+Shift+O"
-        context: Qt.ApplicationShortcut
-        onActivated: root.outlineVisible = !root.outlineVisible
-    }
-
-    // Toggle the backlinks pane.
-    Shortcut {
-        sequence: "Ctrl+Shift+B"
-        context: Qt.ApplicationShortcut
-        enabled: root.collectionOpen
-        onActivated: root.backlinksVisible = !root.backlinksVisible
-    }
-
-    // Focus mode (§16.1): F11 toggles on Windows/Linux; Cmd+Ctrl+F does so on
-    // macOS. Escape exits when active (a single-key
-    // exit, as the plan requires). Typewriter mode has no default shortcut.
-    Shortcut {
-        sequence: Qt.platform.os === "osx" ? "Meta+Ctrl+F" : "F11"
-        context: Qt.ApplicationShortcut
-        onActivated: root.focusMode = !root.focusMode
-    }
-    Shortcut {
-        sequence: "Esc"
-        context: Qt.ApplicationShortcut
-        enabled: root.focusMode
-        onActivated: root.focusMode = false
-    }
-
     SettingsDialog {
         id: settingsDialog
     }
@@ -908,10 +775,6 @@ KvitShell {
     function openShortcutReference() { shortcutReference.open() }
     ShortcutReference {
         id: shortcutReference
-    }
-    Shortcut {
-        sequence: "F1"
-        onActivated: shortcutReference.open()
     }
 
     // Oversized-file guard: a file over the size cap is refused before any
@@ -930,43 +793,15 @@ KvitShell {
     property bool externalConflict: false
     property string conflictPath: ""
 
-    // features.md §15 system integration: quick capture + tray + global hotkey.
-    function openQuickCapture() {
-        if (root.collectionOpen)
-            quickCaptureWindow.openCapture()
+    // features.md §15 system integration: the tray icon, the system-wide
+    // hotkey and the quick-capture window, in SystemIntegration.qml. The
+    // integration suite opens capture directly, so the name stays here.
+    SystemIntegration {
+        id: systemIntegration
+        appWindow: root
     }
-    QuickCaptureWindow {
-        id: quickCaptureWindow
-        onCaptured: function(relPath) {
-            // Surface the captured note in the running window.
-            if (root.collectionOpen)
-                root.openNoteByPath(relPath)
-        }
-    }
-    Connections {
-        target: GlobalHotkey
-        function onActivated() { root.openQuickCapture() }
-    }
-    // In-app quick-capture chord (works while the window is focused, so capture
-    // is reachable even where the system-wide grab is unavailable). It reads
-    // the same setting the system-wide registration uses, so changing the chord
-    // moves both; hard-coding it here left the setting appearing to do nothing
-    // on every platform without a working grab, which is all of them today.
-    Shortcut {
-        sequence: {
-            var r = AppSettings.revision // re-evaluate when a setting changes
-            return AppSettings.value("hotkey.quickCapture", "Ctrl+Alt+N")
-        }
-        onActivated: root.openQuickCapture()
-    }
-    Connections {
-        target: SystemTray
-        function onQuickCaptureRequested() { root.openQuickCapture() }
-        function onNewNoteRequested() { root.createNoteInCurrentScope() }
-        function onShowWindowRequested() {
-            root.show(); root.raise(); root.requestActivate()
-        }
-    }
+
+    function openQuickCapture() { systemIntegration.openQuickCapture() }
 
     // features.md §18 template management dialog.
     property alias templateDialog: templateDialog
@@ -1110,18 +945,6 @@ KvitShell {
     Lightbox {
         id: lightbox
         objectName: "lightbox"
-    }
-
-    // Global search (§8.4; the Obsidian/VSCode convention — the spec
-    // assigns no key).
-    Shortcut {
-        sequence: "Ctrl+Shift+F"
-        context: Qt.ApplicationShortcut
-        enabled: root.collectionOpen
-        onActivated: {
-            root.panelsVisible = true
-            sidebar.focusSearch()
-        }
     }
 
     // Global-search filters follow the sidebar's active scope, so
