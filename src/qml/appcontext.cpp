@@ -175,6 +175,23 @@ void AppContext::wire()
             &m_fileWatcher, [this](const QString &path) {
                 m_fileWatcher.noteOwnWrite(path);
             });
+    // Directory mutations the app performs that never go through a file
+    // write, so aboutToWrite above never sees them: moving a note between
+    // folders, and deleting one. Both change the parent directory's listing,
+    // which the watcher would otherwise report as an outside edit and answer
+    // with a full collection refresh.
+    connect(&m_noteCollection, &NoteCollection::noteMoved, &m_fileWatcher,
+            [this](const QString &oldRel, const QString &newRel) {
+                m_fileWatcher.noteOwnDirectoryChange(
+                    QFileInfo(m_noteCollection.absolutePath(oldRel)).absolutePath());
+                m_fileWatcher.noteOwnDirectoryChange(
+                    QFileInfo(m_noteCollection.absolutePath(newRel)).absolutePath());
+            });
+    connect(&m_noteCollection, &NoteCollection::noteRemoved, &m_fileWatcher,
+            [this](const QString &relPath) {
+                m_fileWatcher.noteOwnDirectoryChange(
+                    QFileInfo(m_noteCollection.absolutePath(relPath)).absolutePath());
+            });
     connect(&m_noteCollection, &NoteCollection::rootChanged,
             &m_fileWatcher, [this]() {
                 m_fileWatcher.watchRoot(m_noteCollection.rootPath());
@@ -196,13 +213,39 @@ void AppContext::wire()
     // Collection metadata is reflected into the live document session in
     // C++, alongside the exclusive open-note writer. QML no longer orders
     // repository revisions and document snapshots itself.
+    //
+    // The gate is hasParsedMetadata(), not frontMatterFor().isEmpty(). Opening
+    // or upgrading a cold vault publishes a placeholder entry for a note the
+    // background scan has not read yet, and frontMatterFor() answers "" for
+    // that placeholder exactly as it does for a note that genuinely has no
+    // metadata. Projecting the first case replaced the live document's real
+    // front matter — tags, favourite state, foreign keys — with nothing, and
+    // marked it dirty, so a save, an autosave or a shutdown before the scan
+    // caught up wrote the note back without its metadata. A missing or
+    // placeholder entry means "not authoritative yet"; the block loaded with
+    // the document stays until the same note has actually been parsed.
+    const auto projectFrontMatter = [this](const QString &relPath) {
+        if (relPath.isEmpty())
+            return;
+        if (m_noteCollection.relativePath(m_documentManager.currentFilePath())
+            != relPath)
+            return;
+        if (!m_noteCollection.hasParsedMetadata(relPath))
+            return;
+        m_documentManager.setFrontMatter(
+            m_noteCollection.frontMatterFor(relPath));
+    };
+    // The targeted trigger: this note's entry now holds metadata read from
+    // its file. One path comparison and nothing else, as the signal asks.
+    connect(&m_noteCollection, &NoteCollection::noteMetadataReady,
+            &m_documentManager, projectFrontMatter);
+    // Metadata the user edits from outside the document — a tag added from the
+    // note list, a favourite toggled — moves the revision without a scan, so
+    // that path still needs the generic signal. It is gated identically.
     connect(&m_noteCollection, &NoteCollection::revisionChanged,
-            &m_documentManager, [this]() {
-                const QString relPath = m_noteCollection.relativePath(
-                    m_documentManager.currentFilePath());
-                if (!relPath.isEmpty())
-                    m_documentManager.setFrontMatter(
-                        m_noteCollection.frontMatterFor(relPath));
+            &m_documentManager, [this, projectFrontMatter]() {
+                projectFrontMatter(m_noteCollection.relativePath(
+                    m_documentManager.currentFilePath()));
             });
 
     // Wiki-link navigation: back/forward history and the quick switcher's
@@ -219,6 +262,69 @@ void AppContext::wire()
     // Collection query block: the QML seam over the pure QueryData
     // parse/evaluate module.
     m_queryTools.setCollection(&m_noteCollection);
+
+    connect(&m_appActions, &AppActions::openVaultRequested, this,
+            [this](const QString &path) { openVaultRoot(path); });
+
+    // Repository conditions that the user has to hear about. Each was raised
+    // by the repository and heard by nothing, so the only record was the log.
+    // They arrive as transient status because that is the channel the shell
+    // already renders; the external-change one deserves the persistent
+    // conflict surface instead, which lives in QML.
+    connect(&m_noteCollection, &NoteCollection::vaultUnprotected,
+            &m_appActions, [this](const QString &path, const QString &detail) {
+                const QString where = QFileInfo(path).fileName();
+                m_appActions.requestTransientStatus(
+                    detail.isEmpty()
+                        ? tr("\"%1\" is open without a lock: this filesystem "
+                             "does not support one, so another session could "
+                             "write to it at the same time.").arg(where)
+                        : tr("\"%1\" is open without a lock (%2), so another "
+                             "session could write to it at the same time.")
+                              .arg(where, detail));
+            });
+    connect(&m_noteCollection, &NoteCollection::noteChangedExternally,
+            &m_appActions, [this](const QString &relPath) {
+                m_appActions.requestTransientStatus(
+                    tr("\"%1\" changed outside Kvit, so the change being "
+                       "written was abandoned rather than discarding it.")
+                        .arg(relPath));
+                // The abandoned write already registered itself as an own
+                // write with the watcher, so the change that caused it to be
+                // abandoned may be swallowed as ours. Re-read the note here
+                // rather than waiting for a watcher event that has been
+                // spoken for.
+                m_noteCollection.refreshPaths(
+                    QStringList{m_noteCollection.absolutePath(relPath)});
+            });
+    connect(&m_noteCollection, &NoteCollection::operationIncomplete,
+            &m_appActions, [this](const QStringList &relPaths) {
+                if (relPaths.isEmpty())
+                    return;
+                m_appActions.requestTransientStatus(
+                    tr("An operation interrupted by the last session could not "
+                       "be finished. These notes may still hold their earlier "
+                       "text: %1").arg(relPaths.join(QStringLiteral(", "))));
+            });
+}
+
+bool AppContext::openVaultRoot(const QString &path)
+{
+    // Release the index for the vault being left before the repository
+    // reaches for the next one's. requestClose() returns immediately: it tells
+    // both database workers to abandon their reconcile and query work, posts
+    // the two closes rather than waiting on them, and forgets the root
+    // synchronously — so the collection's own prologue (flushing workspace
+    // state, taking the vault lock, cancelling scans) overlaps the workers
+    // unwinding, and the blocking open that follows is not queued behind a
+    // full-vault reconcile. The next openForRoot() is delivered after the
+    // posted closes, so reopening straight away is safe.
+    //
+    // Without this, switching vaults reached those blocking opens with the old
+    // vault's work still running and stalled the GUI thread behind it.
+    if (m_noteCollection.isOpen() && m_noteCollection.rootPath() != path)
+        m_searchIndex.requestClose();
+    return m_noteCollection.openRootAsync(path);
 }
 
 void AppContext::openSettings(const QString &settingsPath)

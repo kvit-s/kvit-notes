@@ -4,9 +4,12 @@
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QDir>
+#include <QDirIterator>
 #include <QFile>
 
 #include "documentmanager.h"
+#include "notecollection.h"
 
 #include "faultinjection.h"
 #include "documentserializer.h"
@@ -95,7 +98,20 @@ private slots:
     void testJournalTimingSplitsRecorded();
     void testJournalSkipsUnchangedSnapshot();
     void testAboutToSaveEmittedWithPath();
+    void testToLocalPathHandlesEncodedAndUncUrls();
     void testRestoreBodyIsOneUndoStep();
+
+    // OpenDocumentSession: what the repository asks before it trashes a file
+    void testHasUnsavedChangesTracksTheLiveDocument();
+    void testPersistCurrentRevisionWritesBeforeItReturns();
+    void testPersistCurrentRevisionReportsAFailedWrite();
+    void testDeletingADirtyOpenNoteTrashesTheNewestText();
+    void testDeletingAFolderHoldingADirtyOpenNoteTrashesTheNewestText();
+
+    // Whole-document replacement (template instantiation and friends)
+    void testWholeModelReplacementIsDirtyAndJournaled();
+    void testReplacementDuringAnInFlightSaveIsStillUnsaved();
+    void testBaselineLoadIsNotAUserReplacement();
 
 private:
     QString readFile(const QString &path);
@@ -1361,6 +1377,323 @@ void TestDocumentManager::testRestoreBodyIsOneUndoStep()
     QCOMPARE(m_model->count(), 1);
     QCOMPARE(m_model->blockAt(0)->blockType(), Block::Paragraph);
     QCOMPARE(m_model->blockAt(0)->content(), QString());
+}
+
+// REPO-4. Deleting a note moves its file to the trash and then closes the
+// document. The repository asks these two questions first, through
+// OpenDocumentSession, because only the session knows whether the file it is
+// about to trash is the newest revision. The tests call them through the
+// interface, which is how the repository reaches them.
+void TestDocumentManager::testHasUnsavedChangesTracksTheLiveDocument()
+{
+    OpenDocumentSession *session = m_manager;
+
+    m_model->insertBlockInternal(0, Block::Paragraph, "Saved");
+    const QString path = m_tempDir->filePath("unsaved_changes.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+    QVERIFY(!session->hasUnsavedChanges());
+
+    m_model->updateContent(0, QStringLiteral("Typed since the last save"));
+    QVERIFY(session->hasUnsavedChanges());
+
+    QVERIFY(m_manager->save());
+    QVERIFY(!session->hasUnsavedChanges());
+
+    // Metadata is unsaved work too, and it does not pass through the undo
+    // stack — the repository must not be told the file is current.
+    m_manager->setFrontMatter(QStringLiteral("---\ntags: [late]\n---\n"));
+    QVERIFY(session->hasUnsavedChanges());
+}
+
+void TestDocumentManager::testPersistCurrentRevisionWritesBeforeItReturns()
+{
+    OpenDocumentSession *session = m_manager;
+
+    m_model->insertBlockInternal(0, Block::Paragraph, "First revision");
+    const QString path = m_tempDir->filePath("persist_revision.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+
+    // A slow asynchronous save is in flight, and a newer edit is on top of it.
+    // Persisting must wait that writer out rather than leave it racing the
+    // rename the repository performs next.
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Second revision"));
+    QVERIFY(m_manager->saveAsync());
+    m_model->updateContent(0, QStringLiteral("Third revision"));
+
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QVERIFY(session->hasUnsavedChanges());
+    QVERIFY2(session->persistCurrentRevision(),
+             "the session must be able to put the current document on disk");
+
+    // No event loop is spun here on purpose: the file must already hold the
+    // document by the time the call returns.
+    QCOMPARE(readFile(path), QStringLiteral("Third revision\n"));
+    QVERIFY(!session->hasUnsavedChanges());
+
+    // A clean document is already on disk, so there is nothing to write and
+    // the answer is still yes.
+    QVERIFY(session->persistCurrentRevision());
+    QCOMPARE(readFile(path), QStringLiteral("Third revision\n"));
+
+    // With no file there is nowhere to persist to, and the repository must
+    // not read that as success.
+    m_manager->newDocument();
+    QVERIFY(!session->persistCurrentRevision());
+}
+
+// A write that fails must come back as false, so the repository abandons the
+// deletion instead of trashing a file that is not the newest revision.
+void TestDocumentManager::testPersistCurrentRevisionReportsAFailedWrite()
+{
+    OpenDocumentSession *session = m_manager;
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("readonly_note.md"));
+    m_model->insertBlockInternal(0, Block::Paragraph, "Saved body");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(path)));
+
+    m_model->updateContent(0, QStringLiteral("Body that cannot be written"));
+    QVERIFY(session->hasUnsavedChanges());
+
+    FaultInjection::DeniedWrites denied(dir.path());
+    if (!denied.supported())
+        QSKIP(qPrintable(denied.skipReason()));
+
+    QVERIFY2(!session->persistCurrentRevision(),
+             "a failed write must not be reported as a persisted revision");
+    QVERIFY2(session->hasUnsavedChanges(),
+             "the document still holds the only copy of the newer body");
+}
+
+namespace {
+
+// The deleted note, wherever the trash put it. Trashed items are timestamped
+// on the way in and a deleted folder keeps its tree, so this matches on the
+// name's tail and asserts on the contents rather than on the layout.
+QString findInTrash(const QString &rootPath, const QString &fileName)
+{
+    const QString trashDir =
+        QDir(rootPath).filePath(QStringLiteral(".kvit/trash"));
+    QDirIterator it(trashDir, QStringList{QLatin1Char('*') + fileName},
+                    QDir::Files, QDirIterator::Subdirectories);
+    return it.hasNext() ? it.next() : QString();
+}
+
+} // namespace
+
+// The end of the same story, through the real repository rather than the
+// interface: deleting a note moves its file to the trash and then closes the
+// document. With autosave off and no journal written yet, the file being
+// trashed was the last SAVED revision, and everything typed since lived only
+// in the block model — so the trash held a copy that was already out of date
+// and the newer text went with the closed document.
+void TestDocumentManager::testDeletingADirtyOpenNoteTrashesTheNewestText()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    NoteCollection collection;
+    QVERIFY(collection.openRoot(root.path()));
+    collection.createFolder(QString(), QStringLiteral("Project"));
+
+    const QString rel = QStringLiteral("Project/Draft.md");
+    {
+        QFile file(collection.absolutePath(rel));
+        QVERIFY(QDir().mkpath(QFileInfo(file.fileName()).absolutePath()));
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("Saved text\n");
+    }
+    collection.refresh();
+
+    collection.setOpenDocument(m_manager);
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(collection.absolutePath(rel))));
+    QVERIFY(!m_manager->isDirty());
+
+    // Typed, and nothing has written it anywhere: no autosave, no journal.
+    m_model->updateContent(0, QStringLiteral("Text typed but never saved"));
+    QVERIFY(m_manager->isDirty());
+
+    QVERIFY(collection.deleteNote(rel));
+
+    const QString trashed = findInTrash(root.path(), QStringLiteral("Draft.md"));
+    QVERIFY2(!trashed.isEmpty(), "the deleted note did not reach the trash");
+    QVERIFY2(readFile(trashed).contains(
+                 QStringLiteral("Text typed but never saved")),
+             "the trashed copy is the last saved revision, so the reader's "
+             "most recent text was destroyed by deleting the note");
+}
+
+// Deleting the folder around it is the same hazard reached a different way.
+void TestDocumentManager::testDeletingAFolderHoldingADirtyOpenNoteTrashesTheNewestText()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    NoteCollection collection;
+    QVERIFY(collection.openRoot(root.path()));
+    collection.createFolder(QString(), QStringLiteral("Archive"));
+
+    const QString rel = QStringLiteral("Archive/Inside.md");
+    {
+        QFile file(collection.absolutePath(rel));
+        QVERIFY(QDir().mkpath(QFileInfo(file.fileName()).absolutePath()));
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("Saved text\n");
+    }
+    collection.refresh();
+
+    collection.setOpenDocument(m_manager);
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(collection.absolutePath(rel))));
+    m_model->updateContent(0, QStringLiteral("Folder text never saved"));
+    QVERIFY(m_manager->isDirty());
+
+    QVERIFY(collection.deleteFolder(QStringLiteral("Archive")));
+
+    const QString trashed = findInTrash(root.path(), QStringLiteral("Inside.md"));
+    QVERIFY2(!trashed.isEmpty(), "the deleted folder's note did not reach the trash");
+    QVERIFY(readFile(trashed).contains(QStringLiteral("Folder text never saved")));
+}
+
+// QML-6. QML used to turn a file dialog's URL into a path by stripping the
+// "file://" prefix. That loses the authority of a UNC URL entirely, and
+// leaves percent escapes in what is supposed to be a literal path, so a
+// picked file whose name contains a space, a hash or a percent sign was
+// handed on as a path naming a file that does not exist.
+void TestDocumentManager::testToLocalPathHandlesEncodedAndUncUrls()
+{
+    // Round trip: whatever a dialog reports for a real path comes back as
+    // that path, escapes and all.
+    const QStringList awkward{
+        QStringLiteral("/tmp/plain.md"),
+        QStringLiteral("/tmp/with space.md"),
+        QStringLiteral("/tmp/with#hash.md"),
+        QStringLiteral("/tmp/100% done.md"),
+        QStringLiteral("/tmp/café/notes.md"),
+    };
+    for (const QString &path : awkward) {
+        const QUrl url = QUrl::fromLocalFile(path);
+        QCOMPARE(m_manager->toLocalPath(url), path);
+    }
+
+    // Prefix-stripping would have produced "tmp/with space.md" here (no
+    // leading slash, escape intact).
+    QCOMPARE(m_manager->toLocalPath(QUrl(QStringLiteral(
+                 "file:///tmp/with%20space.md"))),
+             QStringLiteral("/tmp/with space.md"));
+
+    // UNC: the host is part of the path, and stripping the scheme drops it.
+    const QString unc =
+        m_manager->toLocalPath(QUrl(QStringLiteral("file://server/share/x.md")));
+    QCOMPARE(unc, QStringLiteral("//server/share/x.md"));
+
+    // A URL that is not a local file has no path to offer, and says so
+    // rather than handing back something path-shaped.
+    QCOMPARE(m_manager->toLocalPath(QUrl(QStringLiteral("https://example.com/x.md"))),
+             QString());
+}
+
+// APP-3. Loading a whole new body into the block model — what creating a note
+// from a template does — resets the model rather than editing it. A reset
+// carries no dataChanged and no row signals and pushes nothing onto the undo
+// stack, so the document used to call itself clean while holding a body that
+// had never been written: no journal, and switching away discarded it.
+void TestDocumentManager::testWholeModelReplacementIsDirtyAndJournaled()
+{
+    const QString filePath = m_tempDir->filePath("replaced_body.md");
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("Original\n");
+    }
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
+    QVERIFY(!m_manager->isDirty());
+
+    const QString journalPath = m_tempDir->filePath("replaced-body-journal");
+    m_manager->setJournalPath(journalPath);
+    m_manager->setJournalDebounceMs(30);
+
+    QSignalSpy dirtySpy(m_manager, &DocumentManager::isDirtyChanged);
+    DocumentSerializer serializer;
+    serializer.loadIntoModel(m_model, QStringLiteral("# Template\n\nExpanded body\n"));
+
+    QVERIFY2(m_manager->isDirty(),
+             "a whole-document replacement is unsaved work like any other");
+    QVERIFY(dirtySpy.count() >= 1);
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(journalPath), 2000);
+    QVERIFY(readFile(journalPath).contains(QStringLiteral("Expanded body")));
+
+    // Saving settles it, exactly as for an ordinary edit.
+    QVERIFY(m_manager->save());
+    QVERIFY(!m_manager->isDirty());
+    QVERIFY(!QFileInfo::exists(journalPath));
+    QVERIFY(readFile(filePath).contains(QStringLiteral("Expanded body")));
+}
+
+// The same defect from the persistence side. An asynchronous save that was
+// already in flight when the body was replaced landed afterwards against a
+// document that called itself clean, so nothing recorded the replacement:
+// no dirty flag, no recovery journal, and switching away discarded it.
+void TestDocumentManager::testReplacementDuringAnInFlightSaveIsStillUnsaved()
+{
+    const QString path = m_tempDir->filePath("replace_during_save.md");
+    {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("Original body\n");
+    }
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(path)));
+    QVERIFY(!m_manager->isDirty());
+
+    const QString journalPath = m_tempDir->filePath("replace-during-save-journal");
+    m_manager->setJournalPath(journalPath);
+    m_manager->setJournalDebounceMs(30);
+
+    // A save of the loaded body starts and is held before its commit.
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    QVERIFY(m_manager->saveAsync());
+
+    // The user creates a note from a template: the whole body is replaced
+    // while that snapshot is still on its way to disk.
+    DocumentSerializer serializer;
+    serializer.loadIntoModel(m_model, QStringLiteral("Template body\n"));
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QTest::qWait(800);
+
+    QVERIFY2(m_manager->isDirty(),
+             "the committed snapshot predates the replacement, so the "
+             "replaced body is still unsaved");
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(journalPath), 2000);
+    QVERIFY2(readFile(journalPath).contains(QStringLiteral("Template body")),
+             "the replaced body must be recoverable after a crash");
+
+    // And the next save writes what the reader is actually looking at.
+    QVERIFY(m_manager->save());
+    QVERIFY(readFile(path).contains(QStringLiteral("Template body")));
+    QVERIFY(!readFile(path).contains(QStringLiteral("Original body")));
+}
+
+// The manager's own loads reset the model too. Those ARE the baseline, so
+// they must leave the document clean — otherwise every note switch would
+// report unsaved changes and write a recovery journal for a file it just read.
+void TestDocumentManager::testBaselineLoadIsNotAUserReplacement()
+{
+    const QString filePath = m_tempDir->filePath("baseline_load.md");
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("Loaded from disk\n");
+    }
+
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
+    QVERIFY(!m_manager->isDirty());
+
+    m_manager->newDocument();
+    QVERIFY(!m_manager->isDirty());
+
+    QSignalSpy openedSpy(m_manager, &DocumentManager::openSucceeded);
+    QVERIFY(m_manager->openAsync(QUrl::fromLocalFile(filePath)));
+    QTRY_COMPARE_WITH_TIMEOUT(openedSpy.count(), 1, 5000);
+    QVERIFY(!m_manager->isDirty());
 }
 
 QTEST_MAIN(TestDocumentManager)

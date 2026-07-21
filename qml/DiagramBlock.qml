@@ -1156,8 +1156,8 @@ BlockDelegateBase {
         defaultSuffix: "png"
         nameFilters: [ qsTr("PNG images (*.png)") ]
         onAccepted: {
-            if (!root.shell) return
-            var path = root.shell.urlToLocalPath(selectedFile)
+            var path = DocumentManager.toLocalPath(selectedFile)
+            if (path === "") return
             var ok = readCanvas.savePng(path, 2.0)
             AppActions.requestTransientStatus(ok ? qsTr("Diagram saved to ") + path
                                                  : qsTr("Could not save the diagram"))

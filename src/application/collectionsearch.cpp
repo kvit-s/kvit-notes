@@ -85,13 +85,45 @@ void CollectionSearch::setSearchIndex(CollectionSearchIndex *index)
                 &CollectionSearch::indexingChanged);
         connect(m_index, &CollectionSearchIndex::indexingChanged, this,
                 &CollectionSearch::scheduleQuery);
+        connect(m_index, &CollectionSearchIndex::degradedChanged, this,
+                &CollectionSearch::degradedChanged);
     }
+    emit degradedChanged();
     scheduleQuery();
 }
 
 bool CollectionSearch::indexing() const
 {
     return m_index && m_index->isIndexing();
+}
+
+bool CollectionSearch::degraded() const
+{
+    return m_index && m_index->isDegraded();
+}
+
+void CollectionSearch::setLastQueryFailed(bool failed)
+{
+    if (m_lastQueryFailed == failed)
+        return;
+    m_lastQueryFailed = failed;
+    emit lastQueryFailedChanged();
+}
+
+bool CollectionSearch::rebuildIndex()
+{
+    if (!m_index || !m_collection || !m_collection->isOpen())
+        return false;
+    if (!m_index->rebuildIndex())
+        return false;
+    // rebuildIndex() leaves an EMPTY database behind. refresh() is the
+    // collection's public route to its own index sync, which is what refills
+    // it; it rescans the vault as well, which is more than strictly needed and
+    // is what a recovery action is expected to cost.
+    m_collection->refresh();
+    setLastQueryFailed(false);
+    scheduleQuery();
+    return true;
 }
 
 void CollectionSearch::setQuery(const QString &query)
@@ -213,11 +245,27 @@ void CollectionSearch::onQueryFinished(quint64 generation,
     // gone.
     if (generation != m_generation)
         return;
+
+    // A reply the engine could not produce is not an answer. Applying it
+    // anyway emptied the result list, which reads as "no matches" — a
+    // confident, wrong answer to a question the index never managed to ask.
+    // Keep the previous snapshot and say the query failed instead.
+    if (!results.ok) {
+        setLastQueryFailed(true);
+        return;
+    }
+    // A cancelled scan stopped early, so its group list is partial. It is not
+    // a failure and there is nothing to report: a newer query is on its way.
+    if (results.cancelled)
+        return;
+
+    setLastQueryFailed(false);
     applyResults(results, !indexing());
 }
 
 void CollectionSearch::publishEmpty()
 {
+    setLastQueryFailed(false);
     applyResults(SearchResults(), !indexing());
 }
 

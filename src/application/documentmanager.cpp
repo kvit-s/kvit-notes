@@ -82,7 +82,37 @@ void DocumentManager::setBlockModel(BlockModel *model)
                 this, &DocumentManager::onDocumentChangedForJournal);
         connect(m_model, &QAbstractItemModel::rowsMoved,
                 this, &DocumentManager::onDocumentChangedForJournal);
+        // A whole-document replacement emits none of the four signals above,
+        // only a model reset. See beginBaselineLoad().
+        connect(m_model, &QAbstractItemModel::modelReset,
+                this, &DocumentManager::onModelReset);
     }
+}
+
+void DocumentManager::beginBaselineLoad()
+{
+    ++m_baselineLoadDepth;
+}
+
+void DocumentManager::endBaselineLoad()
+{
+    if (m_baselineLoadDepth > 0)
+        --m_baselineLoadDepth;
+}
+
+void DocumentManager::onModelReset()
+{
+    if (m_baselineLoadDepth > 0)
+        return;
+
+    // Someone replaced the whole document behind the undo stack's back. Treat
+    // it as the unsaved change it is: report the document dirty, advance the
+    // revision so an older snapshot still in flight is recognised as stale
+    // when it lands, and start the recovery-journal debounce.
+    m_bodyReplaced = true;
+    emit isDirtyChanged();
+    emit documentModified();
+    onDocumentChangedForJournal();
 }
 
 void DocumentManager::setUndoStack(UndoStack *stack)
@@ -109,9 +139,9 @@ QString DocumentManager::currentFileName() const
 
 bool DocumentManager::isDirty() const
 {
-    // Metadata changes do not pass through the block model, so the undo stack
-    // is not the whole answer.
-    if (m_frontMatterDirty)
+    // Metadata changes and whole-document replacements do not pass through the
+    // undo stack, so it is not the whole answer.
+    if (m_frontMatterDirty || m_bodyReplaced)
         return true;
     if (m_undoStack) {
         return !m_undoStack->isClean();
@@ -239,6 +269,7 @@ bool DocumentManager::open(const QUrl &fileUrl, bool ignoreSizeCap)
             m_undoStack->setClean();
         }
         m_frontMatterDirty = false;
+        m_bodyReplaced = false;
 
         emit openSucceeded(filePath);
         return true;
@@ -293,8 +324,10 @@ void DocumentManager::newDocument()
     ++m_asyncJournalGeneration;
     if (!m_model) return;
 
+    beginBaselineLoad();
     m_model->clear();
     m_model->insertBlockInternal(0, Block::Paragraph, QString());
+    endBaselineLoad();
 
     m_currentFilePath.clear();
     m_frontMatter.clear();
@@ -308,6 +341,7 @@ void DocumentManager::newDocument()
         m_undoStack->setClean();
     }
     m_frontMatterDirty = false;
+    m_bodyReplaced = false;
 }
 
 QString DocumentManager::getDefaultSavePath() const
@@ -319,6 +353,11 @@ QString DocumentManager::getDefaultSavePath() const
 QUrl DocumentManager::toLocalFileUrl(const QString &path) const
 {
     return QUrl::fromLocalFile(path);
+}
+
+QString DocumentManager::toLocalPath(const QUrl &fileUrl) const
+{
+    return fileUrl.toLocalFile();
 }
 
 void DocumentManager::openFileDialog()
@@ -482,6 +521,7 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
         m_undoStack->setClean();
     }
     m_frontMatterDirty = false;
+    m_bodyReplaced = false;
 
     emit saveSucceeded(filePath);
     emit saveSucceededWithText(filePath, fileText);
@@ -599,7 +639,9 @@ bool DocumentManager::loadFromFile(const QString &filePath)
     NoteFrontMatter::Split split = NoteFrontMatter::split(content);
     m_frontMatter = split.block;
     m_frontMatterDirty = false;
+    beginBaselineLoad();
     m_serializer->loadIntoModel(m_model, split.body);
+    endBaselineLoad();
 
     // The divergence test runs at load, not save: by the first save the
     // model already holds user edits, so comparing there would back up
@@ -806,7 +848,9 @@ void DocumentManager::onAsyncOpenFinished()
         applyTimer.emplace();
         applyTimer->start();
     }
+    beginBaselineLoad();
     m_model->replaceAllBlocksInternal(result.states);
+    endBaselineLoad();
     if (applyTimer) {
         PerfLog::instance().record(
             QStringLiteral("note.open.apply"),
@@ -825,6 +869,7 @@ void DocumentManager::onAsyncOpenFinished()
         m_undoStack->setClean();
     }
     m_frontMatterDirty = false;
+    m_bodyReplaced = false;
 
     PerfLog::instance().record(
         QStringLiteral("note.open"),
@@ -879,6 +924,29 @@ bool DocumentManager::saveWithFrontMatter(const QString &block)
         onDocumentChangedForJournal();
     }
     return false;
+}
+
+bool DocumentManager::hasUnsavedChanges() const
+{
+    // Exactly the question isDirty() answers: body edits the undo stack knows
+    // about, a metadata block that has not been written, and a whole-document
+    // replacement that went round the undo stack entirely.
+    return isDirty();
+}
+
+bool DocumentManager::persistCurrentRevision()
+{
+    flushPendingEdits();
+    if (m_currentFilePath.isEmpty())
+        return false;
+    // Nothing to write means the file already holds the current document,
+    // which is what the caller is asking about. Writing anyway would touch a
+    // file the user is about to have trashed.
+    if (!isDirty())
+        return true;
+    // saveToFile() waits for any write already in flight before starting, so
+    // by the time it returns there is exactly one writer and it has finished.
+    return saveToFile(m_currentFilePath);
 }
 
 void DocumentManager::rebindFilePath(const QString &newPath)
@@ -1139,6 +1207,7 @@ void DocumentManager::onAsyncSaveFinished()
         if (m_undoStack)
             m_undoStack->setClean();
         m_frontMatterDirty = false;
+        m_bodyReplaced = false;
         emit saveSucceeded(result.path);
         emit saveSucceededWithText(result.path, result.fileText);
         emit isDirtyChanged();

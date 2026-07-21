@@ -150,8 +150,11 @@ Item {
                       qsTr("All files (*)")]
         onAccepted: {
             // Store the chosen file's path; ingestion/copy comes later.
-            var p = selectedFile.toString().replace(/^file:\/\//, "")
-            imagePathField.text = p
+            // The conversion goes through C++: stripping "file://" left
+            // %20/%23/%25 escapes in the path, so a picked file whose name
+            // contains a space or a hash was inserted as Markdown pointing at
+            // a file that does not exist.
+            imagePathField.text = DocumentManager.toLocalPath(selectedFile)
         }
     }
 }

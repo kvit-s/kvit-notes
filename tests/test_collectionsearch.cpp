@@ -10,9 +10,12 @@
 
 #include "faultinjection.h"
 
+#include "appcontext.h"
 #include "notecollection.h"
 #include "collectionsearch.h"
 #include "collectionsearchindex.h"
+
+#include <QElapsedTimer>
 
 // Facade suite for global search. The query engine and its semantics are
 // covered exhaustively by test_searchindexdb; this suite checks the
@@ -58,6 +61,15 @@ private slots:
     // SEARCH-7: the indexing flag describes the queue, not the worker's echo.
     void testIndexingIsTrueTheMomentReconcileIsQueued();
     void testQueuedReconcilesDoNotFlickerTheIndexingFlag();
+    // SEARCH-5, facade half: a query the engine could not run must not be
+    // shown as "no matches", the degraded state must reach QML, and the
+    // rebuild must be reachable.
+    void testFailedQueryKeepsThePreviousResults();
+    void testDegradedStateIsVisibleToTheView();
+    void testRebuildIndexRefillsFromDisk();
+    // ARCH-4: switching vaults through the real composition must not park the
+    // GUI thread behind the previous vault's reconcile and queries.
+    void testVaultSwitchReleasesTheOldIndexWithoutBlocking();
 
 private:
     void writeNote(const QString &relPath, const QString &content);
@@ -670,6 +682,173 @@ void TestCollectionSearch::testQueuedReconcilesDoNotFlickerTheIndexingFlag()
     // them, which is a moment where a query can be published as a complete
     // answer over a half-built index.
     QCOMPARE(changes.count(), 2);
+}
+
+// A reply carrying ok == false means "the index could not tell you", which is
+// a different answer from "no matches". The facade applied it like any other
+// reply, so a database error silently emptied the result list and the reader
+// was told, with no caveat, that their vault contains nothing matching.
+void TestCollectionSearch::testFailedQueryKeepsThePreviousResults()
+{
+    // Learn the generation of a real reply, which is still the generation the
+    // facade is showing once the query has settled.
+    quint64 lastGeneration = 0;
+    connect(m_index, &CollectionSearchIndex::queryFinished, this,
+            [&lastGeneration](quint64 generation, SearchResults) {
+                lastGeneration = generation;
+            });
+
+    m_search->setQuery(QStringLiteral("fox"));
+    QTRY_COMPARE(m_search->noteCount(), 2);
+    QVERIFY(lastGeneration != 0);
+    QVERIFY(!m_search->lastQueryFailed());
+    const int revisionBefore = m_search->revision();
+
+    // The engine fails on the next attempt at the same question.
+    QSignalSpy failedSpy(m_search, &CollectionSearch::lastQueryFailedChanged);
+    SearchResults failure;
+    failure.ok = false;
+    emit m_index->queryFinished(lastGeneration, failure);
+
+    QCOMPARE(m_search->noteCount(), 2);
+    QCOMPARE(m_search->revision(), revisionBefore);
+    QVERIFY2(m_search->lastQueryFailed(),
+             "a query the engine could not run must be reported, not shown "
+             "as an empty result set");
+    QCOMPARE(failedSpy.count(), 1);
+
+    // A later successful reply clears the flag and publishes normally.
+    m_search->setQuery(QStringLiteral("stock"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+    QVERIFY(!m_search->lastQueryFailed());
+}
+
+void TestCollectionSearch::testDegradedStateIsVisibleToTheView()
+{
+    QVERIFY(!m_search->degraded());
+    QSignalSpy degradedSpy(m_search, &CollectionSearch::degradedChanged);
+
+    const QString dbPath =
+        CollectionSearchIndex::databasePathForRoot(m_dir->path());
+    {
+        FaultInjection::FileSizeLimit capped(
+            qMax(QFileInfo(dbPath).size(),
+                 QFileInfo(dbPath + QStringLiteral("-wal")).size()));
+        if (!capped.supported())
+            QSKIP(qPrintable(capped.skipReason()));
+        m_index->replaceFromText(QStringLiteral("Blocked.md"),
+                                 QStringLiteral("content that cannot land\n"),
+                                 25, 0);
+        QTRY_VERIFY(m_search->degraded());
+    }
+    QVERIFY(degradedSpy.count() >= 1);
+}
+
+void TestCollectionSearch::testRebuildIndexRefillsFromDisk()
+{
+    const QString dbPath =
+        CollectionSearchIndex::databasePathForRoot(m_dir->path());
+    {
+        FaultInjection::FileSizeLimit capped(
+            qMax(QFileInfo(dbPath).size(),
+                 QFileInfo(dbPath + QStringLiteral("-wal")).size()));
+        if (!capped.supported())
+            QSKIP(qPrintable(capped.skipReason()));
+        m_index->replaceFromText(QStringLiteral("Blocked.md"),
+                                 QStringLiteral("content that cannot land\n"),
+                                 25, 0);
+        QTRY_VERIFY(m_search->degraded());
+    }
+
+    // The recovery action the view offers: the empty index rebuildIndex()
+    // leaves behind is refilled here, not left for the next incidental scan.
+    QVERIFY(m_search->rebuildIndex());
+    QVERIFY(!m_search->degraded());
+    QTRY_VERIFY(!m_search->indexing());
+
+    m_search->setQuery(QStringLiteral("fox"));
+    QTRY_COMPARE(m_search->noteCount(), 2);
+}
+
+// ARCH-4. The shipped composition always attaches the search index, and
+// opening a vault's index is two BlockingQueuedConnection calls onto its
+// database worker threads. Switching straight from one vault to another
+// reached those calls with the vault being left still reconciling and still
+// answering queries, so the GUI thread waited on that worker queue.
+//
+// The fix is that the composition gives up the old vault's index first, with
+// requestClose(), which returns immediately. This composes the real
+// AppContext, because the previous responsiveness test used a bare
+// NoteCollection and so never touched this path at all.
+void TestCollectionSearch::testVaultSwitchReleasesTheOldIndexWithoutBlocking()
+{
+    QTemporaryDir first;
+    QTemporaryDir second;
+    QVERIFY(first.isValid() && second.isValid());
+
+    auto seed = [](const QString &root, int count, const QString &word) {
+        for (int i = 0; i < count; ++i) {
+            const QString path =
+                QDir(root).filePath(QStringLiteral("Note%1.md").arg(i));
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+            file.write(QStringLiteral("# Note %1\n\n%2 body %1\n")
+                           .arg(i).arg(word).toUtf8());
+        }
+    };
+    // Enough notes in the vault being left that its cold reconcile is real
+    // work rather than something that finishes between two statements.
+    seed(first.path(), 400, QStringLiteral("alpha"));
+    seed(second.path(), 3, QStringLiteral("omega"));
+
+    AppContext::Options options;
+    options.showSystemTray = false;
+    options.configureLoggingFromSettings = false;
+    AppContext context(options);
+    QTemporaryDir config;
+    context.openSettings(config.filePath(QStringLiteral("settings.json")));
+
+    NoteCollection *collection = context.noteCollection();
+    CollectionSearchIndex *index = context.searchIndex();
+    CollectionSearch *search = context.collectionSearch();
+
+    QVERIFY(collection->openRootAsync(first.path()));
+    // Wait until the first vault's reconcile is actually queued and running.
+    QTRY_VERIFY_WITH_TIMEOUT(index->isIndexing(), 15000);
+
+    // And a query is in flight against it at the same time.
+    search->setQuery(QStringLiteral("alpha"));
+    search->submitNow();
+
+    QSignalSpy usableSpy(index, &CollectionSearchIndex::usableChanged);
+
+    QElapsedTimer timer;
+    timer.start();
+    QVERIFY(context.openVaultRoot(second.path()));
+    const qint64 elapsedMs = timer.elapsed();
+
+    // The observable difference: the vault being left had its index RELEASED
+    // (usable -> false) before the next one's database was opened over the
+    // top of it (false -> true). Opening straight through leaves usable true
+    // throughout and emits nothing.
+    QVERIFY2(usableSpy.count() >= 2,
+             qPrintable(QStringLiteral("the old vault's index was not "
+                                       "released before the new one opened "
+                                       "(usableChanged fired %1 times)")
+                            .arg(usableSpy.count())));
+    QVERIFY2(elapsedMs < 2000,
+             qPrintable(QStringLiteral("switching vaults blocked the calling "
+                                       "thread for %1 ms").arg(elapsedMs)));
+
+    QCOMPARE(collection->rootPath(), QDir(second.path()).absolutePath());
+
+    // The new vault is genuinely searchable afterwards, and the old one's
+    // content is gone from the results rather than lingering.
+    QTRY_VERIFY_WITH_TIMEOUT(!index->isIndexing(), 20000);
+    search->setQuery(QStringLiteral("omega"));
+    QTRY_COMPARE_WITH_TIMEOUT(search->noteCount(), 3, 20000);
+    search->setQuery(QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(search->noteCount(), 0, 20000);
 }
 
 QTEST_MAIN(TestCollectionSearch)

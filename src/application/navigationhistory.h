@@ -9,6 +9,8 @@
 #include <QList>
 #include <QVariantMap>
 
+#include <optional>
+
 // Back/forward navigation over notes: a GUI-free
 // history of visited notes with their scroll positions, driven by the
 // window's openNoteByPath. The stack discipline is the browser one — a new
@@ -43,8 +45,23 @@ public:
     // {ok, relPath, position}; ok=false when the stack is empty. The
     // departing position is stamped onto the entry being left, so forward
     // returns the reader to where they were.
+    //
+    // The move happens here, before the caller has opened the note, and that
+    // open can still fail — the departing note would not save, the target was
+    // deleted or is unreadable. So a successful move leaves a rollback token
+    // behind: rollbackNavigation() puts both stacks and the current entry back
+    // exactly as they were, and the reader's Back button still points where
+    // the document on screen says it should. A visit() (which only happens
+    // once a note has actually opened) confirms the move instead.
     Q_INVOKABLE QVariantMap goBack(qreal departingPosition = 0);
     Q_INVOKABLE QVariantMap goForward(qreal departingPosition = 0);
+
+    // Confirm/undo the last Back or Forward move. Both are no-ops when there
+    // is nothing outstanding, so a caller may commit defensively.
+    Q_INVOKABLE void commitNavigation();
+    Q_INVOKABLE void rollbackNavigation();
+    // True while a Back/Forward move is still waiting for its open to report.
+    Q_INVOKABLE bool navigationPending() const { return m_pending.has_value(); }
 
     // Collection lifecycle: renames rebind entries, deletions drop them
     // (deduplicating adjacent repeats), root changes clear everything.
@@ -61,6 +78,17 @@ private:
         QString relPath;
         qreal position = 0;
     };
+    // Everything a Back/Forward move changes, so undoing one is a restore
+    // rather than a replay in the opposite direction (which would have to
+    // reason about trimming and about the position stamped on departure).
+    struct Snapshot {
+        QList<Entry> back;
+        QList<Entry> forward;
+        Entry current;
+        bool hasCurrent = false;
+    };
+    Snapshot snapshot() const;
+
     static QVariantMap toMap(const Entry &entry, bool ok);
     void trim();
     // Removes repeats that sit next to each other in either stack, or next
@@ -71,6 +99,9 @@ private:
     QList<Entry> m_forward;
     Entry m_current;          // relPath empty = nothing visited yet
     bool m_hasCurrent = false;
+    // Set while a Back/Forward move is unconfirmed; holds the state to
+    // restore if the note never opened.
+    std::optional<Snapshot> m_pending;
 };
 
 #endif // NAVIGATIONHISTORY_H

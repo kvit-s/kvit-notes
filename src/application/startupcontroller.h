@@ -56,6 +56,14 @@ private:
     QString m_pendingStartupRelPath;
     QElapsedTimer m_initialOpenTimer;
     QSet<QString> m_failedStartupNotes;
+    // openAsync() can fail synchronously — an oversized first candidate is
+    // refused before any read — and it reports that failure by emitting
+    // openAsyncFinished(false) BEFORE it returns. The handler then starts the
+    // next candidate from inside that call, so by the time the failing call
+    // regains control, m_pendingStartupRelPath and m_initialOpenInProgress
+    // already describe a newer, valid request. Stamping each request lets the
+    // failing call recognise that and leave the newer one alone.
+    quint64 m_openRequestGeneration = 0;
     bool m_started = false;
     bool m_finished = false;
     bool m_initialOpenInProgress = false;

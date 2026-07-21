@@ -4,10 +4,15 @@
 #ifndef DOCUMENTEXPORTER_H
 #define DOCUMENTEXPORTER_H
 
+#include <QList>
 #include <QObject>
 #include <QPair>
 #include <QString>
+#include <QStringList>
+#include <QTimer>
 #include "block.h"
+
+#include <memory>
 
 class BlockModel;
 class NoteCollection;
@@ -37,8 +42,20 @@ class DocumentExporter : public QObject
 {
     Q_OBJECT
 
+    // A collection or selection export runs as a job: one note per turn of the
+    // event loop, so the window repaints, the reader can cancel, and a large
+    // vault does not build the whole output in memory before anything reaches
+    // disk. These describe that job to the UI.
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    Q_PROPERTY(int progress READ progress NOTIFY progressChanged)
+    Q_PROPERTY(int total READ total NOTIFY progressChanged)
+    // Why the last export refused to start, or how it failed. Empty after a
+    // clean run.
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+
 public:
     explicit DocumentExporter(QObject *parent = nullptr);
+    ~DocumentExporter() override;
 
     void setTheme(Theme *theme) { m_theme = theme; }
     // Image resolution context: the open note's folder and the collection root
@@ -78,9 +95,13 @@ public:
                                      const QString &format, const QString &path);
 
     // Collection export: one file per note under destDir, mirroring the folder
-    // tree, or a single concatenated file. Returns the number written.
+    // tree, or a single concatenated file. Returns the number written, and 0
+    // when the export was refused — lastError() then says why.
     // The collection is passed as QObject* so QML can marshal the context
     // property (NoteCollection is not a registered QML type); cast internally.
+    //
+    // These run to completion before returning and are kept for tests and for
+    // small, known-bounded scopes. The UI uses the start*() pair below.
     Q_INVOKABLE int exportCollection(QObject *collection,
                                      const QString &destDir,
                                      const QString &format, bool singleFile);
@@ -91,12 +112,58 @@ public:
                                 const QString &destDir,
                                 const QString &format, bool singleFile);
 
+    // The same two exports as a job: the whole output plan is resolved and
+    // checked first, then one note is rendered per turn of the event loop.
+    // Return false when the export was refused before doing anything, or when
+    // another job is already running; exportFinished() reports the outcome of
+    // one that did start. Progress and cancellation are the properties and
+    // cancelExport() above.
+    Q_INVOKABLE bool startExportCollection(QObject *collection,
+                                           const QString &destDir,
+                                           const QString &format,
+                                           bool singleFile);
+    Q_INVOKABLE bool startExportNotes(QObject *collection,
+                                      const QStringList &relPaths,
+                                      const QString &destDir,
+                                      const QString &format, bool singleFile);
+    // Stop after the note being rendered. Nothing already written is removed:
+    // a cancelled per-note export leaves the files it finished.
+    Q_INVOKABLE void cancelExport();
+
+    bool busy() const { return m_job != nullptr; }
+    int progress() const;
+    int total() const;
+    QString lastError() const { return m_lastError; }
+
+    // Budgets. An export used to read every attachment fully, Base64-expand it
+    // and hold every note's rendered output at once, so a vault with large
+    // media could exhaust memory before a single file was written.
+    //
+    // An image over the attachment budget is left out of the output rather
+    // than failing the export. A combined document over the document budget
+    // aborts the export, because there is no partial answer to give: a single
+    // file is all or nothing, and the PDF printer needs the whole string.
+    Q_INVOKABLE void setMaxAttachmentBytes(double bytes);
+    Q_INVOKABLE void setMaxCombinedChars(double chars);
+
     // The PDF print seam (static so it is trivially reusable/testable): load
     // the HTML into a QTextDocument and print through QPdfWriter.
     static bool htmlToPdf(const QString &html, const QString &path);
 
     // The file extension for a format ("md", "html", "pdf", "txt").
     Q_INVOKABLE static QString extensionFor(const QString &format);
+
+signals:
+    void busyChanged();
+    void progressChanged();
+    void lastErrorChanged();
+    // done notes of total have been rendered; relPath is the one just done.
+    void exportProgress(int done, int total, const QString &relPath);
+    void exportFinished(int written, int total, bool cancelled,
+                        const QString &error);
+    // The plan was rejected before anything was written. Separate from a
+    // failure: nothing went wrong, the export was not allowed to happen.
+    void exportRefused(const QString &reason);
 
 private:
     struct Blk {
@@ -138,6 +205,75 @@ private:
 
     QString buildPlainText(const QList<Blk> &blocks) const;
 
+    // ---- output plan ----
+    // Where every note in scope will be written, resolved and canonicalised
+    // before a single byte is produced.
+    //
+    // Choosing the vault itself as the destination for a per-note Markdown
+    // export mirrors each output path straight back onto the note it came
+    // from, and the export writes only the body — so the note's tags, pinned
+    // and favourite state, custom fields and any foreign front matter were
+    // destroyed by exporting it. Deciding that one note at a time, while
+    // writing, is too late: the first notes are already gone by the time the
+    // conflict is noticed. So the whole plan is built and checked first, and
+    // an unsafe plan refuses the entire export.
+    struct PlannedOutput {
+        QString relPath;   // empty for the combined single file
+        QString outPath;
+    };
+    struct OutputPlan {
+        QList<PlannedOutput> outputs;
+        QString destDir;
+        QString error;     // non-empty: refuse, do not write anything
+        bool singleFile = false;
+    };
+    OutputPlan buildOutputPlan(NoteCollection *collection,
+                               const QStringList &relPaths,
+                               const QString &destDir,
+                               const QString &format, bool singleFile) const;
+    // Absolute, symlink-resolved form of a path that need not exist yet: the
+    // deepest existing ancestor is resolved and the remainder appended, so a
+    // destination inside a symlinked directory still compares equal to the
+    // source it aliases.
+    static QString canonicalTarget(const QString &path);
+    static bool isInsideDirectory(const QString &canonicalPath,
+                                  const QString &canonicalDir);
+    void setLastError(const QString &error);
+
+    // ---- job ----
+    // One note per turn of the event loop. The rendering itself stays on the
+    // GUI thread: it reads the theme, and the maths and diagram rasterisers
+    // are not safe to call from another thread. Yielding between notes is what
+    // buys the repaint, the progress report and the cancel.
+    struct Job {
+        NoteCollection *collection = nullptr;
+        QString format;
+        QString destDir;
+        QList<PlannedOutput> outputs;
+        QPair<QString, QString> savedContext;
+        QString combinedBody;   // html body fragments, or text/markdown
+        QString error;
+        int next = 0;
+        int written = 0;
+        bool singleFile = false;
+        bool sawMath = false;
+        bool sawMermaid = false;
+        bool firstNote = true;
+        bool cancelled = false;
+    };
+    bool startJob(NoteCollection *collection, const QStringList &relPaths,
+                  const QString &destDir, const QString &format,
+                  bool singleFile);
+    void stepJob();
+    void finishJob();
+    // One note's contribution, shared by the synchronous and job paths.
+    bool exportOneNote(NoteCollection *collection, const PlannedOutput &output,
+                       const QString &format);
+    // Appends one note to a combined document. Returns false when the
+    // document budget is exhausted.
+    bool appendCombinedNote(Job *job, const QString &relPath);
+    bool writeCombined(Job *job);
+
     // Inline markdown -> HTML (recursive over the span registry). With
     // mathJax, $x$ spans become \( … \) delimiters and *sawMath is set;
     // otherwise the TeX falls through as literal text, as before.
@@ -159,6 +295,15 @@ private:
     QString m_collectionRoot;
     QString m_liveRelPath;
     QString m_liveMarkdown;
+
+    QString m_lastError;
+    std::unique_ptr<Job> m_job;
+    QTimer m_jobTimer;
+    // 64 MiB of image, and 128 M characters of combined document (roughly
+    // 256 MiB as QString). Both are far above any real note and far below
+    // what exhausts a desktop.
+    qint64 m_maxAttachmentBytes = 64LL * 1024 * 1024;
+    qint64 m_maxCombinedChars = 128LL * 1024 * 1024;
 };
 
 #endif // DOCUMENTEXPORTER_H

@@ -147,7 +147,7 @@ Dialog {
         fileMode: FileDialog.SaveFile
         defaultSuffix: DocumentExporter.extensionFor(exportDialog.format)
         onAccepted: {
-            var path = exportDialog.appWindow.urlToLocalPath(selectedFile)
+            var path = DocumentManager.toLocalPath(selectedFile)
             var ok = DocumentExporter.writeModel(
                 BlockModel, exportDialog.currentTitle(),
                 exportDialog.format, path)
@@ -158,26 +158,96 @@ Dialog {
         }
     }
 
-    // Multi-note / collection destination directory.
+    // Multi-note / collection destination directory. The export itself runs
+    // as a job in DocumentExporter — one note per turn of the event loop —
+    // because a whole vault of notes with images used to render, Base64-expand
+    // and accumulate inside this handler, with no way to repaint, report
+    // progress or stop.
     FolderDialog {
         id: destFolderDialog
         objectName: "exportFolderDialog"
         onAccepted: {
-            var dir = exportDialog.appWindow.urlToLocalPath(selectedFolder)
-            var count = 0
-            if (exportDialog.scope === "selection")
-                count = DocumentExporter.exportNotes(
-                    NoteCollection, exportDialog.selectedPaths(), dir,
-                    exportDialog.format, singleFileCheck.checked)
-            else
-                count = DocumentExporter.exportCollection(
-                    NoteCollection, dir, exportDialog.format,
-                    singleFileCheck.checked)
+            exportDialog.destination = DocumentManager.toLocalPath(selectedFolder)
+            var started = exportDialog.scope === "selection"
+                ? DocumentExporter.startExportNotes(
+                      NoteCollection, exportDialog.selectedPaths(),
+                      exportDialog.destination, exportDialog.format,
+                      singleFileCheck.checked)
+                : DocumentExporter.startExportCollection(
+                      NoteCollection, exportDialog.destination,
+                      exportDialog.format, singleFileCheck.checked)
+            if (started)
+                progressDialog.open()
+        }
+    }
+
+    // Where the running job is writing, for the status message it ends with.
+    property string destination: ""
+
+    Connections {
+        target: DocumentExporter
+
+        // Refused before anything was written: an unsafe plan, or a scope too
+        // large to combine. Nothing to undo, only something to say.
+        function onExportRefused(reason) {
+            progressDialog.close()
             DocumentExporter.clearLiveNote()
-            exportDialog.appWindow.showTransientStatus(
-                count > 0 ? (qsTr("Exported ") + count + qsTr(" notes to ") + dir)
-                          : qsTr("Export failed"))
+            if (exportDialog.appWindow)
+                exportDialog.appWindow.showTransientStatus(reason)
+        }
+
+        function onExportProgress(done, total, relPath) {
+            progressLabel.text = qsTr("Exporting %1 of %2: %3")
+                .arg(done).arg(total).arg(relPath)
+        }
+
+        function onExportFinished(written, total, cancelled, error) {
+            progressDialog.close()
+            DocumentExporter.clearLiveNote()
+            var message
+            if (cancelled)
+                message = qsTr("Export stopped after %1 of %2 notes")
+                    .arg(written).arg(total)
+            else if (error !== "")
+                message = error
+            else if (written > 0)
+                message = qsTr("Exported %1 notes to %2")
+                    .arg(written).arg(exportDialog.destination)
+            else
+                message = qsTr("Export failed")
+            if (exportDialog.appWindow)
+                exportDialog.appWindow.showTransientStatus(message)
             exportDialog.close()
+        }
+    }
+
+    Dialog {
+        id: progressDialog
+        objectName: "exportProgressDialog"
+        modal: true
+        closePolicy: Popup.NoAutoClose
+        title: qsTr("Exporting")
+        anchors.centerIn: parent
+        width: 340
+        standardButtons: Dialog.Cancel
+        onRejected: DocumentExporter.cancelExport()
+
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label {
+                id: progressLabel
+                objectName: "exportProgressLabel"
+                text: qsTr("Preparing…")
+                elide: Text.ElideMiddle
+                Layout.fillWidth: true
+            }
+            ProgressBar {
+                objectName: "exportProgressBar"
+                Layout.fillWidth: true
+                from: 0
+                to: Math.max(1, DocumentExporter.total)
+                value: DocumentExporter.progress
+            }
         }
     }
 }

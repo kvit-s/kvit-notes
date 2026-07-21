@@ -32,6 +32,7 @@
 #include <QDir>
 #include <QUrl>
 #include <QHash>
+#include <QSet>
 #include <QtMath>
 #include <functional>
 
@@ -105,7 +106,15 @@ QString tokenColor(CodeLanguages::Token t, Theme *theme)
 DocumentExporter::DocumentExporter(QObject *parent)
     : QObject(parent)
 {
+    // Zero-interval single shot: each note is rendered from a fresh turn of
+    // the event loop, so everything queued behind it — repaints, the Cancel
+    // click, a close request — runs in between.
+    m_jobTimer.setSingleShot(true);
+    m_jobTimer.setInterval(0);
+    connect(&m_jobTimer, &QTimer::timeout, this, &DocumentExporter::stepJob);
 }
+
+DocumentExporter::~DocumentExporter() = default;
 
 void DocumentExporter::setImageContext(const QString &noteDir,
                                        const QString &collectionRoot)
@@ -273,6 +282,13 @@ QString DocumentExporter::dataUriForImagePath(const QString &storedPath) const
     if (resolved.startsWith(QLatin1String("http")))
         return resolved; // remote: reference directly
     const QString local = QUrl(resolved).toLocalFile();
+    // Budget: the file is read whole and then Base64-expands by a third, and
+    // an export can carry hundreds of them at once. An oversized attachment is
+    // left out rather than allowed to exhaust memory; the rest of the note
+    // exports normally.
+    if (m_maxAttachmentBytes > 0
+        && QFileInfo(local).size() > m_maxAttachmentBytes)
+        return QString();
     QFile f(local);
     if (!f.open(QIODevice::ReadOnly))
         return QString();
@@ -828,6 +844,238 @@ bool DocumentExporter::writeModel(BlockModel *model, const QString &title,
     return false;
 }
 
+// ---- output plan ----
+
+QString DocumentExporter::canonicalTarget(const QString &path)
+{
+    if (path.isEmpty())
+        return QString();
+    const QFileInfo info(path);
+    const QString existing = info.canonicalFilePath();
+    if (!existing.isEmpty())
+        return existing;
+
+    // Not on disk yet. Resolve the deepest ancestor that does exist and hang
+    // the rest off it, so a destination under a symlinked directory still
+    // compares equal to the note it aliases.
+    QString tail = info.fileName();
+    QDir dir = info.absoluteDir();
+    while (true) {
+        const QString canonicalDir =
+            QFileInfo(dir.absolutePath()).canonicalFilePath();
+        if (!canonicalDir.isEmpty()) {
+            return QDir::cleanPath(canonicalDir + QLatin1Char('/') + tail);
+        }
+        const QString name = dir.dirName();
+        if (name.isEmpty() || !dir.cdUp())
+            return QDir::cleanPath(info.absoluteFilePath());
+        tail = name + QLatin1Char('/') + tail;
+    }
+}
+
+bool DocumentExporter::isInsideDirectory(const QString &canonicalPath,
+                                         const QString &canonicalDir)
+{
+    if (canonicalPath.isEmpty() || canonicalDir.isEmpty())
+        return false;
+    if (canonicalPath == canonicalDir)
+        return true;
+    const QString prefix = canonicalDir.endsWith(QLatin1Char('/'))
+        ? canonicalDir
+        : canonicalDir + QLatin1Char('/');
+    return canonicalPath.startsWith(prefix);
+}
+
+DocumentExporter::OutputPlan
+DocumentExporter::buildOutputPlan(NoteCollection *collection,
+                                  const QStringList &relPaths,
+                                  const QString &destDir,
+                                  const QString &format,
+                                  bool singleFile) const
+{
+    OutputPlan plan;
+    plan.destDir = destDir;
+    plan.singleFile = singleFile;
+
+    if (!collection || !collection->isOpen() || relPaths.isEmpty()) {
+        plan.error = tr("There is nothing to export.");
+        return plan;
+    }
+    if (destDir.isEmpty()) {
+        plan.error = tr("No destination was chosen.");
+        return plan;
+    }
+
+    const QString ext = extensionFor(format);
+    const QString canonicalDest = canonicalTarget(destDir);
+    const QString canonicalRoot = canonicalTarget(collection->rootPath());
+
+    // Every source, resolved once, so an output can be compared against all
+    // of them and not merely against the note it came from.
+    QSet<QString> sources;
+    sources.reserve(relPaths.size());
+    for (const QString &rel : collection->noteRelPaths())
+        sources.insert(canonicalTarget(collection->absolutePath(rel)));
+
+    if (singleFile) {
+        PlannedOutput out;
+        out.outPath = QDir(destDir).filePath(QStringLiteral("collection.") + ext);
+        if (sources.contains(canonicalTarget(out.outPath))) {
+            plan.error = tr("Exporting there would overwrite one of your "
+                            "notes. Choose a destination outside the "
+                            "collection.");
+            return plan;
+        }
+        plan.outputs.append(out);
+        return plan;
+    }
+
+    // A per-note Markdown export writes only the body. Anywhere inside the
+    // vault that is one collision away from replacing a note with a copy of
+    // itself stripped of its metadata, so it is refused outright rather than
+    // path by path.
+    if (format == QLatin1String("markdown") && !canonicalRoot.isEmpty()
+        && isInsideDirectory(canonicalDest, canonicalRoot)) {
+        plan.error = tr("Markdown export writes note bodies without their "
+                        "metadata, so it cannot write inside the collection "
+                        "itself. Choose a destination outside it.");
+        return plan;
+    }
+
+    QSet<QString> claimed;
+    for (const QString &rel : relPaths) {
+        QString outRel = rel;
+        if (outRel.endsWith(QLatin1String(".md"), Qt::CaseInsensitive))
+            outRel = outRel.left(outRel.size() - 3);
+        PlannedOutput out;
+        out.relPath = rel;
+        out.outPath = QDir(destDir).filePath(outRel + QLatin1Char('.') + ext);
+
+        const QString canonical = canonicalTarget(out.outPath);
+        if (sources.contains(canonical)) {
+            plan.error = tr("Exporting there would overwrite %1. Choose a "
+                            "destination outside the collection.").arg(rel);
+            return plan;
+        }
+        if (claimed.contains(canonical)) {
+            plan.error = tr("Two notes in this export would be written to the "
+                            "same file (%1).").arg(out.outPath);
+            return plan;
+        }
+        claimed.insert(canonical);
+        plan.outputs.append(out);
+    }
+    return plan;
+}
+
+void DocumentExporter::setLastError(const QString &error)
+{
+    if (m_lastError == error)
+        return;
+    m_lastError = error;
+    emit lastErrorChanged();
+}
+
+void DocumentExporter::setMaxAttachmentBytes(double bytes)
+{
+    m_maxAttachmentBytes = bytes > 0 ? static_cast<qint64>(bytes) : 0;
+}
+
+void DocumentExporter::setMaxCombinedChars(double chars)
+{
+    m_maxCombinedChars = chars > 0 ? static_cast<qint64>(chars) : 0;
+}
+
+// ---- one note ----
+
+bool DocumentExporter::exportOneNote(NoteCollection *collection,
+                                     const PlannedOutput &output,
+                                     const QString &format)
+{
+    // Each note resolves relative media against its OWN folder; carrying
+    // one context across the whole run made notes in other folders pick
+    // up same-named files from wherever the export started.
+    useImageContextFor(collection, output.relPath);
+    const QVariantMap info = collection->noteInfo(output.relPath);
+    QString body = bodyForExport(collection, output.relPath);
+    const QString title = info.value(QStringLiteral("title")).toString();
+
+    // A standalone Markdown export is meant to be the note, so it carries the
+    // note's front matter: tags, favourite and pinned state, custom fields and
+    // any foreign keys the app does not interpret. The other formats render
+    // the metadata block as prose, so it stays out of them.
+    if (format == QLatin1String("markdown"))
+        body = collection->frontMatterFor(output.relPath) + body;
+
+    QDir().mkpath(QFileInfo(output.outPath).absolutePath());
+    return writeMarkdownAs(body, title, format, output.outPath);
+}
+
+bool DocumentExporter::appendCombinedNote(Job *job, const QString &relPath)
+{
+    // One combined file. For HTML and PDF that means ONE document: each
+    // note contributes only its <body> contents, the wrapper closes over
+    // all of them once, and each shared script tag is injected once
+    // however many notes needed it. Concatenating whole documents instead
+    // produced a file with several <html> elements and duplicated
+    // document-level scripts and ids, which is invalid HTML and ambiguous
+    // input to the PDF printer.
+    const bool browserTarget = job->format != QLatin1String("pdf");
+
+    useImageContextFor(job->collection, relPath);
+    const QString body = bodyForExport(job->collection, relPath);
+    const QString title = job->collection->noteInfo(relPath)
+        .value(QStringLiteral("title")).toString();
+
+    if (job->format == QLatin1String("markdown")) {
+        job->combinedBody += "# " + title + "\n\n" + body + "\n\n";
+    } else if (job->format == QLatin1String("text")) {
+        job->combinedBody += plainTextForMarkdown(body) + "\n\n";
+    } else {
+        bool noteMath = false;
+        bool noteMermaid = false;
+        const QString one = buildHtmlBody(blocksFromMarkdown(body),
+                                          browserTarget, &noteMath,
+                                          &noteMermaid);
+        job->sawMath = job->sawMath || noteMath;
+        job->sawMermaid = job->sawMermaid || noteMermaid;
+        // Each note after the first starts its own printed page, and
+        // keeps the rule that used to separate them on screen.
+        job->combinedBody += job->firstNote
+            ? QStringLiteral("<section>\n")
+            : QStringLiteral("<hr>\n<section style=\""
+                             "page-break-before:always\">\n");
+        job->combinedBody += one + QStringLiteral("\n</section>\n");
+    }
+    job->firstNote = false;
+
+    if (m_maxCombinedChars > 0 && job->combinedBody.size() > m_maxCombinedChars) {
+        job->error = tr("This selection is too large to combine into a single "
+                        "file. Export it as one file per note instead.");
+        return false;
+    }
+    return true;
+}
+
+bool DocumentExporter::writeCombined(Job *job)
+{
+    const bool htmlLike = job->format != QLatin1String("markdown")
+        && job->format != QLatin1String("text");
+    QString combined = htmlLike
+        ? wrapHtmlDocument(job->combinedBody, QString(),
+                           job->format != QLatin1String("pdf"),
+                           job->sawMath, job->sawMermaid)
+        : job->combinedBody;
+
+    const QString out = job->outputs.first().outPath;
+    QDir().mkpath(QFileInfo(out).absolutePath());
+    if (job->format == QLatin1String("pdf"))
+        return htmlToPdf(combined, out);
+    return writeText(out, combined);
+}
+
+// ---- synchronous export ----
+
 int DocumentExporter::exportCollection(QObject *collectionObj,
                                        const QString &destDir,
                                        const QString &format, bool singleFile)
@@ -853,94 +1101,188 @@ int DocumentExporter::exportNotes(QObject *collectionObj,
             {QStringLiteral("singleFile"), singleFile},
         });
     NoteCollection *collection = qobject_cast<NoteCollection *>(collectionObj);
-    if (!collection || !collection->isOpen() || relPaths.isEmpty())
+
+    // Nothing is written until the whole plan is known to be safe.
+    const OutputPlan plan =
+        buildOutputPlan(collection, relPaths, destDir, format, singleFile);
+    if (!plan.error.isEmpty()) {
+        setLastError(plan.error);
+        emit exportRefused(plan.error);
+        perf.addContext(QStringLiteral("refused"), true);
         return 0;
-    const QStringList notes = relPaths;
+    }
+    setLastError(QString());
     QDir().mkpath(destDir);
-    const QString ext = extensionFor(format);
 
     const QPair<QString, QString> savedContext{m_noteDir, m_collectionRoot};
+    int written = 0;
 
     if (singleFile) {
-        // One combined file. For HTML and PDF that means ONE document: each
-        // note contributes only its <body> contents, the wrapper closes over
-        // all of them once, and each shared script tag is injected once
-        // however many notes needed it. Concatenating whole documents instead
-        // produced a file with several <html> elements and duplicated
-        // document-level scripts and ids, which is invalid HTML and ambiguous
-        // input to the PDF printer.
-        const bool htmlLike = format != QLatin1String("markdown")
-            && format != QLatin1String("text");
-        const bool browserTarget = format != QLatin1String("pdf");
-        QString combined;
-        QString htmlBody;
-        bool sawMath = false;
-        bool sawMermaid = false;
-        bool firstNote = true;
-
-        for (const QString &rel : notes) {
-            useImageContextFor(collection, rel);
-            const QString body = bodyForExport(collection, rel);
-            const QString title = collection->noteInfo(rel)
-                .value(QStringLiteral("title")).toString();
-            if (format == QLatin1String("markdown")) {
-                combined += "# " + title + "\n\n" + body + "\n\n";
-            } else if (format == QLatin1String("text")) {
-                combined += plainTextForMarkdown(body) + "\n\n";
-            } else {
-                bool noteMath = false;
-                bool noteMermaid = false;
-                const QString one =
-                    buildHtmlBody(blocksFromMarkdown(body), browserTarget,
-                                  &noteMath, &noteMermaid);
-                sawMath = sawMath || noteMath;
-                sawMermaid = sawMermaid || noteMermaid;
-                // Each note after the first starts its own printed page, and
-                // keeps the rule that used to separate them on screen.
-                htmlBody += firstNote
-                    ? QStringLiteral("<section>\n")
-                    : QStringLiteral("<hr>\n<section style=\""
-                                     "page-break-before:always\">\n");
-                htmlBody += one + QStringLiteral("\n</section>\n");
-            }
-            firstNote = false;
+        Job job;
+        job.collection = collection;
+        job.format = format;
+        job.outputs = plan.outputs;
+        job.singleFile = true;
+        for (const QString &rel : relPaths) {
+            if (!appendCombinedNote(&job, rel))
+                break;
         }
-        if (htmlLike)
-            combined = wrapHtmlDocument(htmlBody, QString(), browserTarget,
-                                        sawMath, sawMermaid);
-
-        m_noteDir = savedContext.first;
-        m_collectionRoot = savedContext.second;
-        const QString out = QDir(destDir).filePath(QStringLiteral("collection.") + ext);
-        int written = 0;
-        if (format == QLatin1String("pdf"))
-            written = htmlToPdf(combined, out) ? notes.size() : 0;
-        else
-            written = writeText(out, combined) ? notes.size() : 0;
-        perf.addContext(QStringLiteral("written"), written);
-        return written;
+        if (job.error.isEmpty() && writeCombined(&job))
+            written = relPaths.size();
+        else if (!job.error.isEmpty())
+            setLastError(job.error);
+    } else {
+        for (const PlannedOutput &output : plan.outputs) {
+            if (exportOneNote(collection, output, format))
+                ++written;
+        }
     }
 
-    // One file per note, mirroring the folder tree.
-    int written = 0;
-    for (const QString &rel : notes) {
-        // Each note resolves relative media against its OWN folder; carrying
-        // one context across the whole run made notes in other folders pick
-        // up same-named files from wherever the export started.
-        useImageContextFor(collection, rel);
-        const QVariantMap info = collection->noteInfo(rel);
-        const QString body = bodyForExport(collection, rel);
-        const QString title = info.value(QStringLiteral("title")).toString();
-        QString outRel = rel;
-        if (outRel.endsWith(QLatin1String(".md"), Qt::CaseInsensitive))
-            outRel = outRel.left(outRel.size() - 3);
-        const QString outPath = QDir(destDir).filePath(outRel + "." + ext);
-        QDir().mkpath(QFileInfo(outPath).absolutePath());
-        if (writeMarkdownAs(body, title, format, outPath))
-            ++written;
-    }
     m_noteDir = savedContext.first;
     m_collectionRoot = savedContext.second;
     perf.addContext(QStringLiteral("written"), written);
     return written;
+}
+
+// ---- job ----
+
+int DocumentExporter::progress() const
+{
+    return m_job ? m_job->next : 0;
+}
+
+int DocumentExporter::total() const
+{
+    // One entry per note in both modes: a combined job's outputs are built
+    // note by note even though they all name the same file, so this is the
+    // amount of work, not the number of files.
+    return m_job ? m_job->outputs.size() : 0;
+}
+
+bool DocumentExporter::startExportCollection(QObject *collectionObj,
+                                             const QString &destDir,
+                                             const QString &format,
+                                             bool singleFile)
+{
+    NoteCollection *collection = qobject_cast<NoteCollection *>(collectionObj);
+    if (!collection || !collection->isOpen())
+        return false;
+    return startJob(collection, collection->noteRelPaths(), destDir, format,
+                    singleFile);
+}
+
+bool DocumentExporter::startExportNotes(QObject *collectionObj,
+                                        const QStringList &relPaths,
+                                        const QString &destDir,
+                                        const QString &format, bool singleFile)
+{
+    return startJob(qobject_cast<NoteCollection *>(collectionObj), relPaths,
+                    destDir, format, singleFile);
+}
+
+bool DocumentExporter::startJob(NoteCollection *collection,
+                                const QStringList &relPaths,
+                                const QString &destDir, const QString &format,
+                                bool singleFile)
+{
+    if (m_job) {
+        const QString busyError = tr("An export is already running.");
+        setLastError(busyError);
+        emit exportRefused(busyError);
+        return false;
+    }
+
+    const OutputPlan plan =
+        buildOutputPlan(collection, relPaths, destDir, format, singleFile);
+    if (!plan.error.isEmpty()) {
+        setLastError(plan.error);
+        emit exportRefused(plan.error);
+        return false;
+    }
+    setLastError(QString());
+    QDir().mkpath(destDir);
+
+    m_job = std::make_unique<Job>();
+    m_job->collection = collection;
+    m_job->format = format;
+    m_job->destDir = destDir;
+    m_job->singleFile = singleFile;
+    m_job->savedContext = QPair<QString, QString>{m_noteDir, m_collectionRoot};
+    // A combined export renders every note in scope and writes one file, so
+    // the plan's single output says nothing about how much work is left; the
+    // note list does.
+    if (singleFile) {
+        m_job->outputs.clear();
+        for (const QString &rel : relPaths) {
+            PlannedOutput out;
+            out.relPath = rel;
+            out.outPath = plan.outputs.first().outPath;
+            m_job->outputs.append(out);
+        }
+    } else {
+        m_job->outputs = plan.outputs;
+    }
+
+    emit busyChanged();
+    emit progressChanged();
+    m_jobTimer.start();
+    return true;
+}
+
+void DocumentExporter::cancelExport()
+{
+    if (m_job)
+        m_job->cancelled = true;
+}
+
+void DocumentExporter::stepJob()
+{
+    if (!m_job)
+        return;
+    if (m_job->cancelled || m_job->next >= m_job->outputs.size()) {
+        finishJob();
+        return;
+    }
+
+    const PlannedOutput output = m_job->outputs.at(m_job->next);
+    if (m_job->singleFile) {
+        if (!appendCombinedNote(m_job.get(), output.relPath)) {
+            m_job->next = m_job->outputs.size();
+            finishJob();
+            return;
+        }
+    } else if (exportOneNote(m_job->collection, output, m_job->format)) {
+        ++m_job->written;
+    }
+
+    ++m_job->next;
+    emit progressChanged();
+    emit exportProgress(m_job->next, m_job->outputs.size(), output.relPath);
+
+    // Back to the event loop: this is what lets the window repaint and the
+    // reader press Cancel between notes.
+    m_jobTimer.start();
+}
+
+void DocumentExporter::finishJob()
+{
+    if (!m_job)
+        return;
+    std::unique_ptr<Job> job = std::move(m_job);
+    m_jobTimer.stop();
+
+    if (job->singleFile && job->error.isEmpty() && !job->cancelled) {
+        if (writeCombined(job.get()))
+            job->written = job->outputs.size();
+    }
+
+    m_noteDir = job->savedContext.first;
+    m_collectionRoot = job->savedContext.second;
+    if (!job->error.isEmpty())
+        setLastError(job->error);
+
+    emit busyChanged();
+    emit progressChanged();
+    emit exportFinished(job->written, job->outputs.size(), job->cancelled,
+                        job->error);
 }

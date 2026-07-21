@@ -17,6 +17,10 @@ void NavigationHistory::visit(const QString &relPath, qreal departingPosition)
 {
     if (relPath.isEmpty())
         return;
+    // A visit only happens once a note has actually opened, which is exactly
+    // the confirmation an outstanding Back/Forward move was waiting for —
+    // including the re-entrant visit of the entry that move restored.
+    commitNavigation();
     if (m_hasCurrent && m_current.relPath == relPath)
         return;
     if (m_hasCurrent) {
@@ -39,10 +43,34 @@ QVariantMap NavigationHistory::toMap(const Entry &entry, bool ok)
     };
 }
 
+NavigationHistory::Snapshot NavigationHistory::snapshot() const
+{
+    return Snapshot{m_back, m_forward, m_current, m_hasCurrent};
+}
+
+void NavigationHistory::commitNavigation()
+{
+    m_pending.reset();
+}
+
+void NavigationHistory::rollbackNavigation()
+{
+    if (!m_pending)
+        return;
+    const Snapshot restored = *m_pending;
+    m_pending.reset();
+    m_back = restored.back;
+    m_forward = restored.forward;
+    m_current = restored.current;
+    m_hasCurrent = restored.hasCurrent;
+    emit changed();
+}
+
 QVariantMap NavigationHistory::goBack(qreal departingPosition)
 {
     if (m_back.isEmpty())
         return toMap(Entry(), false);
+    m_pending = snapshot();
     if (m_hasCurrent) {
         m_current.position = departingPosition;
         m_forward.append(m_current);
@@ -57,6 +85,7 @@ QVariantMap NavigationHistory::goForward(qreal departingPosition)
 {
     if (m_forward.isEmpty())
         return toMap(Entry(), false);
+    m_pending = snapshot();
     if (m_hasCurrent) {
         m_back.append(m_current);
         m_back.last().position = departingPosition;
@@ -72,6 +101,10 @@ void NavigationHistory::renamePath(const QString &oldRelPath,
 {
     if (oldRelPath.isEmpty() || newRelPath.isEmpty())
         return;
+    // The snapshot behind an unconfirmed move names paths this rename is
+    // rewriting, so restoring it would reintroduce the old name. The
+    // collection has spoken; the move is no longer reversible.
+    commitNavigation();
     for (Entry &entry : m_back) {
         if (entry.relPath == oldRelPath)
             entry.relPath = newRelPath;
@@ -116,6 +149,9 @@ void NavigationHistory::collapseAdjacentDuplicates()
 
 void NavigationHistory::dropPath(const QString &relPath)
 {
+    // As with renamePath: the pre-move snapshot may still contain the note
+    // that has just been deleted, so it must not be restorable.
+    commitNavigation();
     auto scrub = [&relPath](QList<Entry> *stack) {
         for (int i = stack->size() - 1; i >= 0; --i) {
             if (stack->at(i).relPath == relPath)
@@ -147,6 +183,7 @@ void NavigationHistory::dropPath(const QString &relPath)
 
 void NavigationHistory::clear()
 {
+    commitNavigation();
     m_back.clear();
     m_forward.clear();
     m_current = Entry();

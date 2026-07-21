@@ -142,6 +142,13 @@ public:
     // its own objects through the context-property injection seam.
     void installContextProperties(QQmlEngine *engine);
 
+    // Switch to another vault. Everything a root change needs that the
+    // repository alone cannot do: the search index for the vault being left is
+    // released first, without blocking, so opening the next vault's index does
+    // not wait on the previous one's reconcile or queries. QML reaches this
+    // through AppActions::requestOpenVault().
+    bool openVaultRoot(const QString &path);
+
     // Accessors for the launcher's startup instrumentation and for a superset
     // build that wires premium objects against the core's.
     BlockModel *blockModel() { return &m_blockModel; }
@@ -149,6 +156,9 @@ public:
     DocumentManager *documentManager() { return &m_documentManager; }
     NoteCollection *noteCollection() { return &m_noteCollection; }
     StartupController *startupController() { return &m_startupController; }
+    AppActions *appActions() { return &m_appActions; }
+    CollectionSearch *collectionSearch() { return &m_collectionSearch; }
+    CollectionSearchIndex *searchIndex() { return &m_searchIndex; }
     SettingsStore *settings() { return &m_settingsStore; }
     SystemTray *systemTray() { return &m_systemTray; }
     Theme *theme() { return &m_theme; }

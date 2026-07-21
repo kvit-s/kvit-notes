@@ -49,6 +49,14 @@ public:
     // Navigation and scrolling.
     Q_INVOKABLE void requestScrollToBlock(int index) { emit scrollToBlockRequested(index); }
     Q_INVOKABLE void requestOpenNoteByPath(const QString &relPath) { emit openNoteByPathRequested(relPath); }
+    // Switch to another vault. This exists rather than QML calling
+    // NoteCollection::openRootAsync() directly because giving up the previous
+    // vault is more than the repository does: the composition also has to
+    // release the search index for it, and it has to do so BEFORE the
+    // repository opens the next one. Opening the index is a blocking call onto
+    // its worker threads, so reaching it while the old vault's reconcile or
+    // query is still running parks the GUI thread behind that work.
+    Q_INVOKABLE void requestOpenVault(const QString &path) { emit openVaultRequested(path); }
     Q_INVOKABLE void requestCenterCaretLine(QObject *item) { emit centerCaretLineRequested(item); }
 
     // Menus the shell owns and a delegate asks it to raise.
@@ -103,6 +111,7 @@ public:
 signals:
     void scrollToBlockRequested(int index);
     void openNoteByPathRequested(const QString &relPath);
+    void openVaultRequested(const QString &path);
     void centerCaretLineRequested(QObject *item);
     void textContextMenuRequested(QObject *target);
     void linkContextMenuRequested(QObject *target);

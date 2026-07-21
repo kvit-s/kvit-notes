@@ -24,6 +24,9 @@ private slots:
     void testRenameCollapsesAdjacentDuplicates();
     void testDropScrubsEntries();
     void testClear();
+    void testFailedOpenRollsBackABackMove();
+    void testFailedOpenRollsBackAForwardMove();
+    void testSuccessfulOpenCommitsTheMove();
 };
 
 void TestNavigationHistory::testVisitAndBack()
@@ -152,6 +155,74 @@ void TestNavigationHistory::testClear()
     // After a clear, the next visit starts a fresh history.
     history.visit("c.md");
     QVERIFY(!history.canGoBack());
+}
+
+// APP-5. Back and Forward move the stacks before the window has opened
+// anything, and that open can fail: the departing note would not save, or the
+// target was deleted or is unreadable outside the app. The history then
+// describes a document nobody is looking at — Back has already been spent and
+// Forward now offers the note still on screen.
+void TestNavigationHistory::testFailedOpenRollsBackABackMove()
+{
+    NavigationHistory history;
+    history.visit("a.md");
+    history.visit("b.md", 120);
+    history.visit("c.md", 300);
+    // back = [a@120, b@300], current = c, forward = []
+
+    const QVariantMap back = history.goBack(50);
+    QCOMPARE(back.value("relPath").toString(), QString("b.md"));
+    QVERIFY(history.navigationPending());
+
+    // The window could not open b.md, so the reader is still on c.md.
+    QSignalSpy spy(&history, &NavigationHistory::changed);
+    history.rollbackNavigation();
+    QCOMPARE(spy.count(), 1);
+    QVERIFY(!history.navigationPending());
+
+    // Nothing was spent: Back still offers b.md, and Forward is still empty
+    // (it would otherwise offer c.md, the note that never stopped being shown).
+    QVERIFY(!history.canGoForward());
+    QVERIFY(history.canGoBack());
+    const QVariantMap retry = history.goBack(50);
+    QCOMPARE(retry.value("relPath").toString(), QString("b.md"));
+    QCOMPARE(retry.value("position").toReal(), 300.0);
+}
+
+void TestNavigationHistory::testFailedOpenRollsBackAForwardMove()
+{
+    NavigationHistory history;
+    history.visit("a.md");
+    history.visit("b.md", 120);
+    history.goBack(75);          // current = a, forward = [b@75]
+    history.visit("a.md");       // the reopen confirms the move
+
+    QCOMPARE(history.goForward(10).value("relPath").toString(), QString("b.md"));
+    QVERIFY(history.navigationPending());
+    history.rollbackNavigation();
+
+    QVERIFY(history.canGoForward());
+    QVERIFY(!history.canGoBack()); // a.md was the first visit
+    const QVariantMap retry = history.goForward(10);
+    QCOMPARE(retry.value("relPath").toString(), QString("b.md"));
+    QCOMPARE(retry.value("position").toReal(), 75.0);
+}
+
+void TestNavigationHistory::testSuccessfulOpenCommitsTheMove()
+{
+    NavigationHistory history;
+    history.visit("a.md");
+    history.visit("b.md");
+    history.goBack();
+    QVERIFY(history.navigationPending());
+
+    // The window opened a.md and reported the visit; the move is settled and
+    // a later rollback must not resurrect it.
+    history.visit("a.md");
+    QVERIFY(!history.navigationPending());
+    history.rollbackNavigation();
+    QVERIFY(history.canGoForward());
+    QCOMPARE(history.goForward().value("relPath").toString(), QString("b.md"));
 }
 
 QTEST_MAIN(TestNavigationHistory)

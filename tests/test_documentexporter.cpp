@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
+#include <QSignalSpy>
 
 // Document export: the pure HTML builder asserted per
 // block type, plain-text and markdown export, the PDF print seam producing a
@@ -63,6 +64,19 @@ private slots:
     void testPerNoteImageBaseInCollectionExport();
     void testLiveNoteSnapshotOverridesSavedBody();
     void testLiveNoteSnapshotIsIgnoredForOtherNotes();
+
+    // APP-1: an export may never write over a note.
+    void testMarkdownExportIntoTheVaultLeavesSourcesByteIdentical();
+    void testMarkdownExportIntoASubfolderOfTheVaultIsRefused();
+    void testCombinedExportOntoASourceIsRefused();
+    void testExportOutsideTheVaultStillWorks();
+    void testCollidingOutputsAreRefused();
+
+    // APP-6: the collection export runs as a cancellable job with progress.
+    void testJobExportReportsProgressAndWritesEveryNote();
+    void testJobExportCanBeCancelledPartWay();
+    void testOversizedAttachmentIsSkippedNotInlined();
+    void testCombinedExportOverTheDocumentBudgetIsRefused();
 
 private:
     DocumentExporter m_exporter;
@@ -704,6 +718,250 @@ void TestDocumentExporter::testLiveNoteSnapshotIsIgnoredForOtherNotes()
                 .contains("Saved other."));
 
     m_exporter.clearLiveNote();
+}
+
+// ---------- APP-1: an export must never overwrite a note ----------
+
+namespace {
+
+QByteArray readBytes(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return QByteArray();
+    return f.readAll();
+}
+
+} // namespace
+
+// Destination = the collection root, format = Markdown, one file per note.
+// Every output path then lands exactly on the note it came from, and the
+// export writes only the body — so tags, favourite/pinned state, custom fields
+// and any foreign front matter were erased from the reader's own notes by
+// exporting them. The whole plan is now built before anything is written, and
+// a plan that touches a source refuses the export outright.
+void TestDocumentExporter::testMarkdownExportIntoTheVaultLeavesSourcesByteIdentical()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "Kept.md",
+              "---\ntags: [work, urgent]\nfavorite: true\nreviewer: ada\n---\n"
+              "# Kept\n\nThe body.\n");
+    writeNote(&coll, "Folder/Nested.md",
+              "---\ntags: [nested]\n---\nNested body.\n");
+    coll.refresh();
+
+    const QByteArray keptBefore = readBytes(coll.absolutePath("Kept.md"));
+    const QByteArray nestedBefore = readBytes(coll.absolutePath("Folder/Nested.md"));
+    QVERIFY(!keptBefore.isEmpty());
+
+    QSignalSpy refused(&m_exporter, &DocumentExporter::exportRefused);
+    QCOMPARE(m_exporter.exportCollection(&coll, root.path(), "markdown", false), 0);
+    QCOMPARE(refused.count(), 1);
+    QVERIFY(!m_exporter.lastError().isEmpty());
+
+    // Byte-identical: not merely "still has front matter".
+    QCOMPARE(readBytes(coll.absolutePath("Kept.md")), keptBefore);
+    QCOMPARE(readBytes(coll.absolutePath("Folder/Nested.md")), nestedBefore);
+}
+
+// The same hazard one level down: a subfolder of the vault is still the
+// vault, and one collision there replaces a note with a metadata-free copy.
+void TestDocumentExporter::testMarkdownExportIntoASubfolderOfTheVaultIsRefused()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "One.md", "---\ntags: [a]\n---\nBody one.\n");
+    coll.refresh();
+    const QByteArray before = readBytes(coll.absolutePath("One.md"));
+
+    const QString inside = QDir(root.path()).filePath("Exports");
+    QVERIFY(QDir().mkpath(inside));
+    QCOMPARE(m_exporter.exportCollection(&coll, inside, "markdown", false), 0);
+    QCOMPARE(readBytes(coll.absolutePath("One.md")), before);
+
+    // HTML into the same place is fine: it cannot collide with a .md source.
+    QCOMPARE(m_exporter.exportCollection(&coll, inside, "html", false), 1);
+    QVERIFY(QFileInfo::exists(QDir(inside).filePath("One.html")));
+    QCOMPARE(readBytes(coll.absolutePath("One.md")), before);
+}
+
+// A combined export writes one file named collection.<ext>. If the vault
+// happens to hold a note by that name, the export would eat it.
+void TestDocumentExporter::testCombinedExportOntoASourceIsRefused()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "collection.md", "---\ntags: [meta]\n---\nIndex of notes.\n");
+    writeNote(&coll, "Other.md", "Another note.\n");
+    coll.refresh();
+    const QByteArray before = readBytes(coll.absolutePath("collection.md"));
+
+    QSignalSpy refused(&m_exporter, &DocumentExporter::exportRefused);
+    QCOMPARE(m_exporter.exportCollection(&coll, root.path(), "markdown", true), 0);
+    QCOMPARE(refused.count(), 1);
+    QCOMPARE(readBytes(coll.absolutePath("collection.md")), before);
+}
+
+void TestDocumentExporter::testExportOutsideTheVaultStillWorks()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "One.md", "---\ntags: [a]\n---\nBody one.\n");
+    writeNote(&coll, "Folder/Two.md", "Body two.\n");
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "markdown", false), 2);
+    QVERIFY(m_exporter.lastError().isEmpty());
+    // A standalone Markdown export is the note, metadata included: the
+    // exported file is what you would copy back into a vault.
+    QCOMPARE(readAll(QDir(dest.path()).filePath("One.md")),
+             QString("---\ntags: [a]\n---\nBody one.\n"));
+    QCOMPARE(readAll(QDir(dest.path()).filePath("Folder/Two.md")),
+             QString("Body two.\n"));
+}
+
+// Two notes whose names differ only in the extension the export strips would
+// be written to the same file; the second silently replaced the first.
+void TestDocumentExporter::testCollidingOutputsAreRefused()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, "Report.md", "Markdown report.\n");
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QSignalSpy refused(&m_exporter, &DocumentExporter::exportRefused);
+    QCOMPARE(m_exporter.exportNotes(
+                 &coll, QStringList{"Report.md", "Report.md"}, dest.path(),
+                 "html", false),
+             0);
+    QCOMPARE(refused.count(), 1);
+    QVERIFY(!QFileInfo::exists(QDir(dest.path()).filePath("Report.html")));
+}
+
+// ---------- APP-6: the export is a job, not a blocking loop ----------
+
+void TestDocumentExporter::testJobExportReportsProgressAndWritesEveryNote()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    for (int i = 0; i < 5; ++i)
+        writeNote(&coll, QStringLiteral("Note%1.md").arg(i),
+                  QStringLiteral("# Note %1\n\nBody %1\n").arg(i));
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QSignalSpy progress(&m_exporter, &DocumentExporter::exportProgress);
+    QSignalSpy finished(&m_exporter, &DocumentExporter::exportFinished);
+
+    QVERIFY(m_exporter.startExportCollection(&coll, dest.path(), "html", false));
+    QVERIFY2(m_exporter.busy(), "the job must report itself running");
+    // Nothing is written before control returns to the event loop.
+    QCOMPARE(progress.count(), 0);
+
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 10000);
+    QVERIFY(!m_exporter.busy());
+    QCOMPARE(progress.count(), 5);
+    QCOMPARE(finished.at(0).at(0).toInt(), 5);   // written
+    QVERIFY(!finished.at(0).at(2).toBool());     // not cancelled
+    QCOMPARE(finished.at(0).at(3).toString(), QString());
+    for (int i = 0; i < 5; ++i) {
+        QVERIFY(QFileInfo::exists(
+            QDir(dest.path()).filePath(QStringLiteral("Note%1.html").arg(i))));
+    }
+}
+
+// The point of yielding between notes: a Cancel that arrives part way is
+// acted on, and the notes already written stay written.
+void TestDocumentExporter::testJobExportCanBeCancelledPartWay()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    for (int i = 0; i < 8; ++i)
+        writeNote(&coll, QStringLiteral("N%1.md").arg(i),
+                  QStringLiteral("Body %1\n").arg(i));
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QSignalSpy finished(&m_exporter, &DocumentExporter::exportFinished);
+    connect(&m_exporter, &DocumentExporter::exportProgress, &m_exporter,
+            [this](int done, int, const QString &) {
+                if (done == 3)
+                    m_exporter.cancelExport();
+            });
+
+    QVERIFY(m_exporter.startExportCollection(&coll, dest.path(), "html", false));
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 10000);
+
+    QVERIFY(!m_exporter.busy());
+    QCOMPARE(finished.at(0).at(0).toInt(), 3);  // written
+    QVERIFY(finished.at(0).at(2).toBool());     // cancelled
+    QVERIFY(QFileInfo::exists(QDir(dest.path()).filePath("N0.html")));
+    QVERIFY(!QFileInfo::exists(QDir(dest.path()).filePath("N7.html")));
+}
+
+// Budgets. An attachment over the cap is left out of the output instead of
+// being read whole and Base64-expanded into it.
+void TestDocumentExporter::testOversizedAttachmentIsSkippedNotInlined()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    const QByteArray big(200 * 1024, 'Z');
+    {
+        QFile f(coll.absolutePath("big.png"));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(big);
+    }
+    writeNote(&coll, "WithImage.md", "# With image\n\n![](big.png)\n");
+    coll.refresh();
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", false), 1);
+    QVERIFY2(readAll(QDir(dest.path()).filePath("WithImage.html"))
+                 .contains(QString::fromLatin1(big.toBase64())),
+             "an attachment under the budget is inlined as before");
+
+    m_exporter.setMaxAttachmentBytes(1024);
+    QTemporaryDir dest2;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest2.path(), "html", false), 1);
+    const QString html = readAll(QDir(dest2.path()).filePath("WithImage.html"));
+    QVERIFY2(!html.contains(QString::fromLatin1(big.toBase64())),
+             "an attachment over the budget must not be inlined");
+    QVERIFY(html.contains(QStringLiteral("With image")));
+
+    m_exporter.setMaxAttachmentBytes(64LL * 1024 * 1024);
+}
+
+// A combined export holds the whole document in memory because the PDF
+// printer and the HTML wrapper both need it whole. Over the budget it stops
+// rather than growing until the process dies.
+void TestDocumentExporter::testCombinedExportOverTheDocumentBudgetIsRefused()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    for (int i = 0; i < 6; ++i)
+        writeNote(&coll, QStringLiteral("Big%1.md").arg(i),
+                  QString(4000, QLatin1Char('w')) + QStringLiteral("\n"));
+    coll.refresh();
+
+    QTemporaryDir dest;
+    m_exporter.setMaxCombinedChars(5000);
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", true), 0);
+    QVERIFY(!m_exporter.lastError().isEmpty());
+
+    m_exporter.setMaxCombinedChars(128LL * 1024 * 1024);
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", true), 6);
 }
 
 QTEST_MAIN(TestDocumentExporter)

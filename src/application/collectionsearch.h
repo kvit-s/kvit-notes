@@ -47,6 +47,16 @@ class CollectionSearch : public QObject
     // completed index: the view labels results as possibly incomplete.
     Q_PROPERTY(bool complete READ complete NOTIFY revisionChanged)
     Q_PROPERTY(bool indexing READ indexing NOTIFY indexingChanged)
+    // The index failed a write or a reconcile and is out of step with the
+    // notes on disk in a way it cannot repair on its own. Its answers stay
+    // usable but untrustworthy until rebuildIndex() is run, so the view
+    // offers that as an explicit action rather than taking it automatically:
+    // a rebuild throws the index away and re-reads every note.
+    Q_PROPERTY(bool degraded READ degraded NOTIFY degradedChanged)
+    // The last query could not be run at all. The results still on screen are
+    // the previous answer, not an answer to the current query.
+    Q_PROPERTY(bool lastQueryFailed READ lastQueryFailed
+                   NOTIFY lastQueryFailedChanged)
 
 public:
     explicit CollectionSearch(QObject *parent = nullptr);
@@ -72,6 +82,15 @@ public:
     int matchCount() const { return m_matchCount; }
     bool complete() const { return m_complete; }
     bool indexing() const;
+    bool degraded() const;
+    bool lastQueryFailed() const { return m_lastQueryFailed; }
+
+    // Throw away an index that reported itself degraded and refill it from
+    // disk. BLOCKS while the database is recreated, then triggers the
+    // collection's own rescan, which is what repopulates the empty index.
+    // Deliberately never automatic: recovering costs a full re-read of the
+    // vault, and a degraded index still answers.
+    Q_INVOKABLE bool rebuildIndex();
 
     // One entry per matching note, in relPath order:
     //   { relPath, title, titleMatched, matchCount, moreMatches,
@@ -94,6 +113,8 @@ signals:
     void inputChanged();
     void revisionChanged();
     void indexingChanged();
+    void degradedChanged();
+    void lastQueryFailedChanged();
 
 private slots:
     void scheduleQuery();
@@ -103,6 +124,7 @@ private:
     void submit();
     void publishEmpty();
     void applyResults(const SearchResults &results, bool complete);
+    void setLastQueryFailed(bool failed);
 
     NoteCollection *m_collection = nullptr;
     CollectionSearchIndex *m_index = nullptr;
@@ -115,6 +137,7 @@ private:
     int m_revision = 0;
     int m_matchCount = 0;
     bool m_complete = true;
+    bool m_lastQueryFailed = false;
     QVariantList m_groups;
 
     QTimer m_debounce;

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import Kvit 1.0
 
 // The editor window, as a block delegate sees it.
 //
@@ -45,14 +46,12 @@ ApplicationWindow {
     // vertically centred. Delegates check it before scrolling themselves.
     property bool typewriterMode: false
 
-    // A file: URL as a local path. Pure string work with no window state, so
-    // it lives on the type rather than being reached through it; main.qml
-    // inherits this one implementation and delegates call it typed.
+    // A file: URL as a local path. The conversion itself is C++
+    // (QUrl::toLocalFile) because the string form gets Windows drive letters,
+    // UNC hosts and percent escapes wrong; this stays on the type so main.qml
+    // inherits one implementation and delegates call it typed.
     function urlToLocalPath(fileUrl) {
-        var s = fileUrl.toString()
-        if (s.indexOf("file://") === 0)
-            s = s.substring(7)
-        return decodeURIComponent(s)
+        return DocumentManager.toLocalPath(fileUrl)
     }
 
     // The completion menus a delegate asks the shell about rather than

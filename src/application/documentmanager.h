@@ -96,6 +96,18 @@ public:
     // without leaving the document and repository disagreeing.
     bool saveWithFrontMatter(const QString &block) override;
 
+    // OpenDocumentSession, the destructive-operation half. The repository asks
+    // these before it moves the open note's file to the trash, because the
+    // file is only the newest revision if the session says so: with autosave
+    // off, or simply before the save debounce fires, everything typed since
+    // the last write lives here and nowhere else.
+    bool hasUnsavedChanges() const override;
+    // Synchronous by contract — a rename follows immediately, and an
+    // asynchronous save would be racing it. Waits out any write already in
+    // flight, then writes and reports whether the file holds the current
+    // document.
+    bool persistCurrentRevision() override;
+
     // File operations
     QDateTime lastSavedAt() const { return m_lastSavedAt; }
 
@@ -139,8 +151,22 @@ public:
     Q_INVOKABLE void flushPendingEdits() override;
 
     // Replace the whole document body with the given markdown as ONE
-    // undo step (restore from backup).
+    // undo step (restore from backup, template instantiation).
     Q_INVOKABLE bool restoreBody(const QString &markdown);
+
+    // Brackets a whole-document replacement that IS the new baseline rather
+    // than an edit to the current one: this manager's own file loads, and the
+    // sample document startup falls back to. Everything else that resets the
+    // block model is a user replacement, and is treated as an unsaved change.
+    //
+    // The distinction has to exist because a model reset carries no
+    // dataChanged and no row signals, and leaves the undo stack clean. Without
+    // it a replaced document reported itself saved, wrote no recovery journal,
+    // and an earlier asynchronous save that landed afterwards still matched on
+    // path, revision and undo index — so it marked the replaced body clean and
+    // deleted the journal that was the only other copy.
+    Q_INVOKABLE void beginBaselineLoad();
+    Q_INVOKABLE void endBaselineLoad();
 
     QString journalPath() const { return m_journalPath; }
     void setJournalPath(const QString &path);
@@ -160,6 +186,14 @@ public:
     // For QML file dialogs (backup)
     Q_INVOKABLE QString getDefaultSavePath() const;
     Q_INVOKABLE QUrl toLocalFileUrl(const QString &path) const;
+    // The inverse, and the only correct way to get a local path out of a URL
+    // a file dialog handed QML. Stripping the "file://" prefix by hand yields
+    // "/C:/notes/x.md" for a Windows drive URL, drops the host of a UNC URL
+    // (file://server/share/x.md), and leaves percent escapes (%20, %23, %25)
+    // in place, so the resulting "path" names a file that does not exist.
+    // QUrl::toLocalFile() handles all three. A URL that is not a local file
+    // yields an empty string, which callers must treat as "no path".
+    Q_INVOKABLE QString toLocalPath(const QUrl &fileUrl) const;
 
 signals:
     void lastSavedAtChanged();
@@ -199,6 +233,7 @@ private slots:
     void onUndoStackCleanChanged();
 
 private slots:
+    void onModelReset();
     void onDocumentChangedForJournal();
     void writeJournal();
     void onAsyncOpenFinished();
@@ -310,6 +345,11 @@ private:
     // speak for it. Without this the document reported itself clean while
     // holding metadata that had never been written.
     bool m_frontMatterDirty = false;
+    // A whole-document replacement the undo stack cannot speak for either,
+    // for the same reason: the reset that performed it pushed no command.
+    bool m_bodyReplaced = false;
+    // Nesting depth of beginBaselineLoad()/endBaselineLoad().
+    int m_baselineLoadDepth = 0;
     bool m_autoSaveEnabled = true;
     int m_autoSaveInterval = 30;  // seconds
     int m_maxOpenFileSizeMiB = 10;  // three War-and-Peaces (provisional,

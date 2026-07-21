@@ -87,7 +87,14 @@ void StartupController::initializeFallbackDocument()
 {
     if (!m_blockModel || !m_undoStack)
         return;
+    // The sample document IS the baseline — there is no file behind it and
+    // nothing to save — so the reset it performs must not be read as an
+    // unsaved user replacement.
+    if (m_documentManager)
+        m_documentManager->beginBaselineLoad();
     m_blockModel->initializeWithSampleData();
+    if (m_documentManager)
+        m_documentManager->endBaselineLoad();
     m_undoStack->clear();
     m_undoStack->setClean();
 }
@@ -101,14 +108,21 @@ bool StartupController::openStartupNote(const QString &relPath)
     if (m_initialOpenInProgress)
         return true;
 
+    const quint64 generation = ++m_openRequestGeneration;
     m_pendingStartupRelPath = relPath;
     m_initialOpenInProgress = true;
     m_initialOpenTimer.restart();
 
     if (!m_documentManager->openAsync(QUrl::fromLocalFile(
             m_collection->absolutePath(relPath)))) {
-        m_initialOpenInProgress = false;
-        m_pendingStartupRelPath.clear();
+        // Only tear down state that still belongs to THIS request. A
+        // synchronous failure runs onStartupNoteOpenFinished before returning
+        // here, and that handler may already have started a later candidate
+        // whose open is genuinely in progress.
+        if (m_openRequestGeneration == generation) {
+            m_initialOpenInProgress = false;
+            m_pendingStartupRelPath.clear();
+        }
         return false;
     }
 
@@ -177,6 +191,12 @@ void StartupController::tryFinishStartup()
     if (openStartupNote(startNote)) {
         return;
     }
+    // A candidate that fails synchronously re-enters this function and can
+    // start a newer candidate, or finish startup outright, before returning
+    // false above. Falling through to the fallback document here would then
+    // replace a document that is loading or already loaded with sample data.
+    if (m_initialOpenInProgress || m_finished)
+        return;
 
     if (m_collection->noteCount() > 0) {
         if (m_collection->scanInProgress())
@@ -198,6 +218,8 @@ void StartupController::tryFinishStartup()
         // declaring it finished here hands the UI an empty document.
         return;
     }
+    if (m_initialOpenInProgress || m_finished)
+        return;
 
     initializeFallbackDocument();
     finishStartup();
