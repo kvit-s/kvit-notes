@@ -7,7 +7,6 @@
         <file alias="qml/EditableBlock.qml">../qml/EditableBlock.qml</file>
         <file alias="qml/MathEntryAssist.qml">../qml/MathEntryAssist.qml</file>
         <file alias="qml/WikiLinkCompletion.qml">../qml/WikiLinkCompletion.qml</file>
-        <file alias="qml/CrossBlockTextSelection.qml">../qml/CrossBlockTextSelection.qml</file>
         <file alias="qml/BlockGutter.qml">../qml/BlockGutter.qml</file>
         <file alias="qml/DropCapOverlay.qml">../qml/DropCapOverlay.qml</file>
         <file alias="qml/CalloutBlockChrome.qml">../qml/CalloutBlockChrome.qml</file>
@@ -62,5 +61,24 @@
         <file alias="qml/ImportDialog.qml">../qml/ImportDialog.qml</file>
         <file alias="qml/EmbedBlock.qml">../qml/EmbedBlock.qml</file>
         <file alias="qml/DiagramBlock.qml">../qml/DiagramBlock.qml</file>
+        <file alias="qml/EditorStatusBar.qml">../qml/EditorStatusBar.qml</file>
+        <file alias="qml/EditorContextMenus.qml">../qml/EditorContextMenus.qml</file>
+        <file alias="qml/NoteSession.qml">../qml/NoteSession.qml</file>
+        <file alias="qml/NoteRenameWorkflow.qml">../qml/NoteRenameWorkflow.qml</file>
+        <file alias="qml/EdgeAutoScroller.qml">../qml/EdgeAutoScroller.qml</file>
+        <file alias="qml/CrossBlockTextDrag.qml">../qml/CrossBlockTextDrag.qml</file>
+        <file alias="qml/CrossBlockTextSelection.qml">../qml/CrossBlockTextSelection.qml</file>
+        <file alias="qml/BlockDragController.qml">../qml/BlockDragController.qml</file>
+        <file alias="qml/BlockDragLayer.qml">../qml/BlockDragLayer.qml</file>
+        <file alias="qml/BlockSelectionKeys.qml">../qml/BlockSelectionKeys.qml</file>
+        <file alias="qml/DocumentSessionDialogs.qml">../qml/DocumentSessionDialogs.qml</file>
+        <file alias="qml/BlockInsertDialogs.qml">../qml/BlockInsertDialogs.qml</file>
+        <file alias="qml/LinkDialog.qml">../qml/LinkDialog.qml</file>
+        <file alias="qml/EditorDropArea.qml">../qml/EditorDropArea.qml</file>
+        <file alias="qml/SystemIntegration.qml">../qml/SystemIntegration.qml</file>
+        <file alias="qml/TocFenceSync.qml">../qml/TocFenceSync.qml</file>
+        <file alias="qml/BackupRestoreDialog.qml">../qml/BackupRestoreDialog.qml</file>
+        <file alias="qml/SessionPersistence.qml">../qml/SessionPersistence.qml</file>
+        <file alias="qml/AppShortcuts.qml">../qml/AppShortcuts.qml</file>
     </qresource>
 </RCC>

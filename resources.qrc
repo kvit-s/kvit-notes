@@ -5,7 +5,6 @@
         <file>qml/EditableBlock.qml</file>
         <file>qml/MathEntryAssist.qml</file>
         <file>qml/WikiLinkCompletion.qml</file>
-        <file>qml/CrossBlockTextSelection.qml</file>
         <file>qml/BlockGutter.qml</file>
         <file>qml/DropCapOverlay.qml</file>
         <file>qml/CalloutBlockChrome.qml</file>
@@ -60,5 +59,24 @@
         <file>qml/ImportDialog.qml</file>
         <file>qml/EmbedBlock.qml</file>
         <file>qml/DiagramBlock.qml</file>
+        <file>qml/EditorStatusBar.qml</file>
+        <file>qml/EditorContextMenus.qml</file>
+        <file>qml/NoteSession.qml</file>
+        <file>qml/NoteRenameWorkflow.qml</file>
+        <file>qml/EdgeAutoScroller.qml</file>
+        <file>qml/CrossBlockTextDrag.qml</file>
+        <file>qml/CrossBlockTextSelection.qml</file>
+        <file>qml/BlockDragController.qml</file>
+        <file>qml/BlockDragLayer.qml</file>
+        <file>qml/BlockSelectionKeys.qml</file>
+        <file>qml/DocumentSessionDialogs.qml</file>
+        <file>qml/BlockInsertDialogs.qml</file>
+        <file>qml/LinkDialog.qml</file>
+        <file>qml/EditorDropArea.qml</file>
+        <file>qml/SystemIntegration.qml</file>
+        <file>qml/TocFenceSync.qml</file>
+        <file>qml/BackupRestoreDialog.qml</file>
+        <file>qml/SessionPersistence.qml</file>
+        <file>qml/AppShortcuts.qml</file>
     </qresource>
 </RCC>
