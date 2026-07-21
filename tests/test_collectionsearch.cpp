@@ -6,6 +6,9 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QDir>
+#include <QDirIterator>
+
+#include "faultinjection.h"
 
 #include "notecollection.h"
 #include "collectionsearch.h"
@@ -46,8 +49,19 @@ private slots:
     void testEqualLengthTagRenameReachesSearchIndex();
     void testRestoredRecoveryReachesSearchIndex();
 
+    // SEARCH-1: two vaults open at once must not share connections.
+    void testTwoIndexesOnTwoRootsStayApart();
+    // SEARCH-4: an equal-size rewrite that kept its timestamp is reindexed.
+    void testEqualSizeSameMtimeRewriteIsReindexed();
+    // SEARCH-5: a write the database refused is reported, not swallowed.
+    void testFailedWriteMarksTheIndexDegraded();
+    // SEARCH-7: the indexing flag describes the queue, not the worker's echo.
+    void testIndexingIsTrueTheMomentReconcileIsQueued();
+    void testQueuedReconcilesDoNotFlickerTheIndexingFlag();
+
 private:
     void writeNote(const QString &relPath, const QString &content);
+    QList<ReconcileEntry> listingFor(const QString &rootPath) const;
     // Wait until a query for `q` settles to the expected note count.
     void expectNoteCount(const QString &q, int expected);
 
@@ -109,6 +123,27 @@ void TestCollectionSearch::writeNote(const QString &relPath,
     QFile file(m_dir->filePath(relPath));
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
     file.write(content.toUtf8());
+}
+
+QList<ReconcileEntry> TestCollectionSearch::listingFor(
+    const QString &rootPath) const
+{
+    // What the repository hands the index: one entry per note, with the
+    // metadata a reconcile pass starts from.
+    QList<ReconcileEntry> listing;
+    QDirIterator it(rootPath, QStringList{QStringLiteral("*.md")}, QDir::Files,
+                    QDirIterator::Subdirectories);
+    const QDir root(rootPath);
+    while (it.hasNext()) {
+        const QFileInfo info(it.next());
+        ReconcileEntry entry;
+        entry.relPath = root.relativeFilePath(info.absoluteFilePath());
+        entry.absPath = info.absoluteFilePath();
+        entry.fileSize = info.size();
+        entry.modifiedMs = info.lastModified().toMSecsSinceEpoch();
+        listing.append(entry);
+    }
+    return listing;
 }
 
 void TestCollectionSearch::expectNoteCount(const QString &q, int expected)
@@ -480,6 +515,161 @@ void TestCollectionSearch::testRestoredRecoveryReachesSearchIndex()
     QTRY_COMPARE(m_search->noteCount(), 1);
     QCOMPARE(m_search->results().at(0).toMap().value("relPath").toString(),
              QStringLiteral("Plain.md"));
+}
+
+void TestCollectionSearch::testTwoIndexesOnTwoRootsStayApart()
+{
+    // Two vaults open at once. The connection names used to be fixed strings,
+    // so the second index replaced the first one's entry in Qt's global
+    // registry: the two coordinators then addressed one database between them,
+    // and closing either one unregistered the connection the other was using.
+    QTemporaryDir other;
+    QVERIFY(other.isValid());
+    {
+        QFile file(other.filePath(QStringLiteral("Other.md")));
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("zarfblat lives only here\n");
+    }
+
+    CollectionSearchIndex secondIndex;
+    secondIndex.openForRoot(other.path());
+    QVERIFY(secondIndex.isUsable());
+    QVERIFY(m_index->isUsable());
+
+    QSignalSpy secondIndexed(&secondIndex,
+                             &CollectionSearchIndex::indexingChanged);
+    secondIndex.reconcile(listingFor(other.path()));
+    QTRY_VERIFY(!secondIndex.isIndexing());
+
+    // The first vault still answers, and answers about its own notes.
+    m_search->setQuery(QStringLiteral("fox"));
+    QTRY_COMPARE(m_search->noteCount(), 2);
+    m_search->setQuery(QStringLiteral("zarfblat"));
+    QTest::qWait(200);
+    QCOMPARE(m_search->noteCount(), 0);
+
+    // And the second vault holds exactly its own note.
+    QSignalSpy replies(&secondIndex, &CollectionSearchIndex::queryFinished);
+    SearchQuery request;
+    request.query = QStringLiteral("zarfblat");
+    request.nowMs = QDateTime::currentMSecsSinceEpoch();
+    secondIndex.submitQuery(1, request);
+    QTRY_COMPARE(replies.count(), 1);
+    const SearchResults results =
+        replies.at(0).at(1).value<SearchResults>();
+    QVERIFY(results.ok);
+    QCOMPARE(results.noteCount, 1);
+
+    // Closing the second must leave the first attached and working.
+    secondIndex.closeIndex();
+    QVERIFY(m_index->isUsable());
+    m_search->setQuery(QStringLiteral("fox"));
+    QTRY_COMPARE(m_search->noteCount(), 2);
+}
+
+void TestCollectionSearch::testEqualSizeSameMtimeRewriteIsReindexed()
+{
+    // The two bodies are the same length, and the rewrite restores the
+    // original modification time, so neither of the metadata keys the index
+    // used to rely on moves. Same-length tag renames and timestamp-preserving
+    // tools produce exactly this.
+    const QString before = QStringLiteral("orbital mechanics notes\n");
+    const QString after = QStringLiteral("orbital zarfblats notes\n");
+    QCOMPARE(before.toUtf8().size(), after.toUtf8().size());
+
+    writeNote(QStringLiteral("Stale.md"), before);
+    m_collection->refresh();
+    QTRY_VERIFY(!m_search->indexing());
+    m_search->setQuery(QStringLiteral("mechanics"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+
+    const QString path = m_dir->filePath(QStringLiteral("Stale.md"));
+    const QDateTime originalMtime = QFileInfo(path).lastModified();
+    writeNote(QStringLiteral("Stale.md"), after);
+    {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadWrite));
+        QVERIFY(file.setFileTime(originalMtime,
+                                 QFileDevice::FileModificationTime));
+    }
+    QCOMPARE(QFileInfo(path).size(), qint64(before.toUtf8().size()));
+    QCOMPARE(QFileInfo(path).lastModified(), originalMtime);
+
+    // A plain rescan must notice. Nothing here tells the index which note
+    // changed; reconcile has to work it out from the files.
+    m_collection->refresh();
+    QTRY_VERIFY(!m_search->indexing());
+
+    m_search->setQuery(QStringLiteral("zarfblats"));
+    QTRY_COMPARE(m_search->noteCount(), 1);
+    m_search->setQuery(QStringLiteral("mechanics"));
+    QTest::qWait(200);
+    QCOMPARE(m_search->noteCount(), 0);
+}
+
+void TestCollectionSearch::testFailedWriteMarksTheIndexDegraded()
+{
+    QVERIFY(!m_index->isDegraded());
+    const QString dbPath =
+        CollectionSearchIndex::databasePathForRoot(m_dir->path());
+    QVERIFY(QFileInfo::exists(dbPath));
+
+    QSignalSpy degraded(m_index, &CollectionSearchIndex::degradedChanged);
+    {
+        // Nothing may grow: the write has nowhere to go. The index used to
+        // report this as an ordinary successful update, leaving the search
+        // results confidently wrong.
+        FaultInjection::FileSizeLimit capped(
+            qMax(QFileInfo(dbPath).size(),
+                 QFileInfo(dbPath + QStringLiteral("-wal")).size()));
+        if (!capped.supported())
+            QSKIP(qPrintable(capped.skipReason()));
+        m_index->replaceFromText(QStringLiteral("Blocked.md"),
+                                 QStringLiteral("content that cannot land\n"),
+                                 25, 0);
+        QTRY_COMPARE(degraded.count(), 1);
+        QVERIFY(m_index->isDegraded());
+    }
+
+    // Rebuilding is the way back: it discards the index that could not be
+    // trusted and leaves an empty one for the caller to refill.
+    QVERIFY(m_index->rebuildIndex());
+    QVERIFY(!m_index->isDegraded());
+    QVERIFY(m_index->isUsable());
+    m_index->reconcile(listingFor(m_dir->path()));
+    QTRY_VERIFY(!m_index->isIndexing());
+    m_search->setQuery(QStringLiteral("fox"));
+    QTRY_COMPARE(m_search->noteCount(), 2);
+}
+
+void TestCollectionSearch::testIndexingIsTrueTheMomentReconcileIsQueued()
+{
+    QVERIFY(!m_index->isIndexing());
+    m_index->reconcile(listingFor(m_dir->path()));
+    // Synchronously, before the event loop has run at all. Waiting for the
+    // worker to announce itself left a window in which a caller — or a test —
+    // could see an idle index that had a full vault queued behind it.
+    QVERIFY2(m_index->isIndexing(),
+             "the index reported itself idle with a reconcile already queued");
+    QTRY_VERIFY(!m_index->isIndexing());
+}
+
+void TestCollectionSearch::testQueuedReconcilesDoNotFlickerTheIndexingFlag()
+{
+    QSignalSpy changes(m_index, &CollectionSearchIndex::indexingChanged);
+    const QList<ReconcileEntry> listing = listingFor(m_dir->path());
+    m_index->reconcile(listing);
+    m_index->reconcile(listing);
+    m_index->reconcile(listing);
+    QCOMPARE(changes.count(), 1); // false -> true, once
+    QVERIFY(m_index->isIndexing());
+
+    QTRY_VERIFY(!m_index->isIndexing());
+    // Exactly one transition each way for the whole batch: three jobs used to
+    // produce three start/finish pairs, and the index looked idle between
+    // them, which is a moment where a query can be published as a complete
+    // answer over a half-built index.
+    QCOMPARE(changes.count(), 2);
 }
 
 QTEST_MAIN(TestCollectionSearch)

@@ -30,7 +30,10 @@ bool SearchIndexFeed::servesRoot(const QString &rootPath) const
 void SearchIndexFeed::close()
 {
     if (m_index && !m_openRoot.isEmpty()) {
-        m_index->closeIndex();
+        // Non-blocking: closing a vault must not park the caller behind a
+        // reconcile of the vault being left. The connections close on the
+        // worker threads, and the next openFor() is delivered behind them.
+        m_index->requestClose();
         m_openRoot.clear();
     }
 }
@@ -45,8 +48,9 @@ void SearchIndexFeed::syncTo(const QString &rootPath)
     }
     // Open (or reopen) the cache database for the current root, then reconcile
     // it against the on-disk listing: parse new or changed notes, drop missing
-    // ones. hasNoteFresh makes warm startup skip unchanged notes,
-    // so this stays cheap after the first cold build.
+    // ones. Reconcile compares each note's content fingerprint, so an
+    // unchanged note costs a read and a hash rather than a reparse, and the
+    // first cold build remains the expensive one.
     if (m_openRoot != rootPath) {
         m_index->openForRoot(rootPath);
         m_openRoot = rootPath;

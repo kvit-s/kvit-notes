@@ -48,13 +48,39 @@ public:
     static bool capabilityAvailable();
 
     bool isUsable() const { return m_usable; }
+    // True from the moment a reconcile is queued until the last queued
+    // reconcile has finished — never momentarily false in between.
     bool isIndexing() const { return m_indexing; }
+    // True when a database operation failed: a mutation that did not land, a
+    // reconcile that could not complete, or a query the engine could not
+    // answer. The index is then out of step with the notes on disk in a way it
+    // cannot repair by itself, and its answers are not trustworthy until
+    // rebuildIndex() succeeds.
+    bool isDegraded() const { return m_degraded; }
 
     // --- Lifecycle (GUI thread) -----------------------------------------
     // Opens (creating) the cache database for `rootPath` and readies both
     // connections. A closed or empty root tears the index down.
     void openForRoot(const QString &rootPath);
+
+    // Tear the index down, waiting for both workers to become idle first.
+    // BLOCKS THE CALLER for as long as the work in flight takes to notice the
+    // cancellation. Prefer requestClose() on the GUI thread.
     void closeIndex();
+
+    // Tear the index down without waiting. In-flight reconcile and query work
+    // is cancelled, isUsable() and isIndexing() are false when this returns,
+    // and the two database connections close on their own threads. A later
+    // openForRoot() is ordered behind those closes, so switching roots
+    // immediately afterwards is safe.
+    void requestClose();
+
+    // Delete and recreate the database for the current root, then reattach
+    // both connections. This is the recovery step for isDegraded(): it throws
+    // away an index that cannot be trusted and leaves an empty one, so the
+    // caller must follow it with reconcile() to refill it. Returns false when
+    // no root is open or the rebuild failed. BLOCKS THE CALLER.
+    bool rebuildIndex();
 
     // Absolute path of the cache database for a notes root — exposed for tests
     // and diagnostics.
@@ -66,6 +92,23 @@ public:
     // build the same rows without a database.
     static IndexedNote parseNote(const QString &relPath, const QString &fileText,
                                  qint64 fileSize, qint64 modifiedMs);
+
+    // One note's text together with the metadata that describes *that* text.
+    struct NoteSnapshot {
+        QString text;
+        qint64 fileSize = 0;
+        qint64 modifiedMs = 0;
+        bool ok = false;
+    };
+
+    // Read a note's text and metadata as one consistent snapshot: the file is
+    // stated before and after the read and re-read while the two disagree, so
+    // a rewrite that lands mid-read cannot store the old text under the new
+    // file's size and timestamp. `ok` is false when the file is unreadable, or
+    // still changing after `maxAttempts` tries; the caller then leaves the
+    // index alone rather than recording a mixture.
+    static NoteSnapshot readNoteSnapshot(const QString &absPath,
+                                         int maxAttempts = 4);
 
     // --- Content feed (thread-safe) -------------------------------------
     // Reconcile the index against the current on-disk listing: parse new or
@@ -88,9 +131,10 @@ public:
 
     // Abandon outstanding query work without submitting a replacement —
     // what clearing the search box needs. A running query stops at its next
-    // cancellation check and anything still queued below `generation` is
-    // dropped unread. Replies already on their way are still delivered, so
-    // the caller must also reject them by generation.
+    // row, anything still queued below `generation` is dropped unread, and
+    // neither produces a reply. Replies emitted before the cancellation
+    // reached the worker can still arrive, so the caller must also reject them
+    // by generation.
     void cancelQueries(quint64 generation);
 
     // The current index revision of a note, for click-time staleness checks.
@@ -110,6 +154,7 @@ public:
 signals:
     void usableChanged();
     void indexingChanged();
+    void degradedChanged();
     void indexingProgress(int indexed, int total);
     void queryFinished(quint64 generation, SearchResults results);
     // A single note's rows were replaced — lets live search recompute.
@@ -117,13 +162,16 @@ signals:
 
 private slots:
     void onReconcileProgress(int indexed, int total);
-    void onReconcileFinished();
+    void onReconcileFinished(bool ok);
     void onNoteReplaced();
     void onQueryReady(quint64 generation, SearchResults results);
 
 private:
     void setUsable(bool usable);
     void setIndexing(bool indexing);
+    void setDegraded(bool degraded);
+    void cancelWork();
+    void forgetRoot();
 
     QThread *m_writeThread = nullptr;
     QThread *m_readThread = nullptr;
@@ -134,6 +182,11 @@ private:
     QString m_dbPath;
     bool m_usable = false;
     bool m_indexing = false;
+    bool m_degraded = false;
+    // Reconciles queued but not yet finished. Counted here, on the coordinator
+    // thread, so the indexing flag is a fact about the queue rather than a
+    // lagging echo of the worker.
+    int m_pendingReconciles = 0;
 
     std::atomic<quint64> m_submittedGeneration{0};
 };

@@ -5,17 +5,22 @@
 
 #include "perflog.h"
 
+#include <QCryptographicHash>
 #include <QFile>
+#include <QHash>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
 
 #include <algorithm>
+#include <atomic>
+#include <limits>
 
 // Current on-disk schema version: every schema change bumps
 // PRAGMA user_version; an unsupported version is rebuilt.
-static constexpr int kSchemaVersion = 1;
+// v2 added search_notes.content_hash, the freshness fingerprint.
+static constexpr int kSchemaVersion = 2;
 
 namespace SearchMatching {
 
@@ -35,9 +40,55 @@ int unicodeScalarCount(const QString &query)
     return count;
 }
 
-bool isWordChar(QChar ch)
+bool isWordScalar(char32_t scalar)
 {
-    return ch.isLetterOrNumber() || ch == QLatin1Char('_');
+    if (scalar == U'_')
+        return true;
+    const QChar::Category category = QChar::category(char32_t(scalar));
+    switch (category) {
+    case QChar::Letter_Uppercase:
+    case QChar::Letter_Lowercase:
+    case QChar::Letter_Titlecase:
+    case QChar::Letter_Modifier:
+    case QChar::Letter_Other:
+    case QChar::Number_DecimalDigit:
+    case QChar::Number_Letter:
+    case QChar::Number_Other:
+    // unicode61 counts private-use characters as token characters, so a block
+    // containing one indexes it as part of the surrounding token. The verifier
+    // has to agree or it accepts matches the index cannot offer.
+    case QChar::Other_PrivateUse:
+    // Combining marks and modifier symbols continue a token rather than
+    // ending it: with remove_diacritics 0, unicode61 indexes decomposed
+    // "naïve" as the single token "naïve", so "ve" is not a whole word
+    // inside it and the verifier must not say otherwise. Marks that unicode61
+    // does treat as separators are included too — that only makes the verifier
+    // stricter than the candidate index, which costs an unusual match rather
+    // than producing one the index can never supply.
+    case QChar::Mark_NonSpacing:
+    case QChar::Mark_SpacingCombining:
+    case QChar::Mark_Enclosing:
+    case QChar::Symbol_Modifier:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool isWordCharAt(const QString &text, int index)
+{
+    if (index < 0 || index >= text.size())
+        return false;
+    const QChar ch = text.at(index);
+    if (ch.isHighSurrogate() && index + 1 < text.size()
+        && text.at(index + 1).isLowSurrogate()) {
+        return isWordScalar(QChar::surrogateToUcs4(ch, text.at(index + 1)));
+    }
+    if (ch.isLowSurrogate() && index > 0
+        && text.at(index - 1).isHighSurrogate()) {
+        return isWordScalar(QChar::surrogateToUcs4(text.at(index - 1), ch));
+    }
+    return isWordScalar(ch.unicode());
 }
 
 QString fold(const QString &text)
@@ -47,8 +98,20 @@ QString fold(const QString &text)
 
 bool hasWordChar(const QString &folded)
 {
-    for (const QChar ch : folded) {
-        if (isWordChar(ch))
+    // Over scalar values: a supplementary-plane letter is a letter, where
+    // inspecting UTF-16 code units sees two unpaired surrogates, classifies
+    // neither as a word character, and routes a perfectly ordinary
+    // single-letter query to the punctuation-only dead end.
+    for (int i = 0; i < folded.size(); ++i) {
+        const QChar ch = folded.at(i);
+        if (ch.isHighSurrogate() && i + 1 < folded.size()
+            && folded.at(i + 1).isLowSurrogate()) {
+            if (isWordScalar(QChar::surrogateToUcs4(ch, folded.at(i + 1))))
+                return true;
+            ++i;
+            continue;
+        }
+        if (isWordScalar(ch.unicode()))
             return true;
     }
     return false;
@@ -61,15 +124,24 @@ QString ftsPhrase(const QString &folded)
     return QLatin1Char('"') + escaped + QLatin1Char('"');
 }
 
-QList<int> verifyOccurrences(const QString &displayText, const QString &query,
-                             bool wholeWord)
+int scanOccurrences(const QString &displayText, const QString &query,
+                    bool wholeWord, int collectLimit, QList<int> *collected,
+                    const SearchCancel *cancel)
 {
-    QList<int> offsets;
     if (query.isEmpty())
-        return offsets;
+        return 0;
+    // One check per this many occurrences. A single pathological block — a
+    // pasted log with a million hits — is otherwise scanned to the end with no
+    // way out, which is exactly the work an abandoned query most needs to stop
+    // doing.
+    static const int cancelInterval = 64;
+    int total = 0;
+    int probes = 0;
     const int step = qMax(1, query.size());
     int from = 0;
     while (true) {
+        if (cancel && (probes++ % cancelInterval) == 0 && cancel->cancelled())
+            return -1;
         const int at = displayText.indexOf(query, from, Qt::CaseInsensitive);
         if (at < 0)
             break;
@@ -78,19 +150,31 @@ QList<int> verifyOccurrences(const QString &displayText, const QString &query,
         if (wholeWord) {
             // A whole-word match is bounded by non-word characters on both
             // sides. The Qt refinement is the final authority.
-            if (at > 0 && isWordChar(displayText.at(at - 1)))
+            if (at > 0 && isWordCharAt(displayText, at - 1))
                 accept = false;
             if (accept && end < displayText.size()
-                && isWordChar(displayText.at(end)))
+                && isWordCharAt(displayText, end))
                 accept = false;
         }
-        if (accept)
-            offsets.append(at);
+        if (accept) {
+            if (collected && collected->size() < collectLimit)
+                collected->append(at);
+            ++total;
+        }
         // Non-overlapping: advance past this occurrence even when rejected, so
         // a single scan is O(n). CaseInsensitive keeps display
         // offsets exact because folding is never applied to the display text.
         from = at + step;
     }
+    return total;
+}
+
+QList<int> verifyOccurrences(const QString &displayText, const QString &query,
+                             bool wholeWord)
+{
+    QList<int> offsets;
+    scanOccurrences(displayText, query, wholeWord,
+                    std::numeric_limits<int>::max(), &offsets, nullptr);
     return offsets;
 }
 
@@ -156,6 +240,12 @@ QString escapeLike(const QString &value)
     return out;
 }
 
+// Document order for two match positions in the same note.
+bool sortsBefore(int blockA, int startA, int blockB, int startB)
+{
+    return blockA != blockB ? blockA < blockB : startA < startB;
+}
+
 qint64 startOfDayMs(const QDate &day)
 {
     return day.startOfDay().toMSecsSinceEpoch();
@@ -168,14 +258,44 @@ qint64 endOfDayMs(const QDate &day)
 
 } // namespace
 
+namespace {
+
+// One name per object, for the life of the process. Qt's connection registry
+// is global and keyed by name alone, so a fixed name means the second vault
+// opened silently takes over the first one's registry entry — and the first
+// one's close() then unregisters a connection the second is still using.
+QString uniqueConnectionName(const QString &role)
+{
+    static std::atomic<quint64> counter{0};
+    return QStringLiteral("kvit_search_%1_%2")
+        .arg(role)
+        .arg(counter.fetch_add(1));
+}
+
+} // namespace
+
+SearchCancel::~SearchCancel() = default;
+
+SearchIndexDb::SearchIndexDb(const QString &role)
+    : m_connectionName(uniqueConnectionName(role))
+{
+}
+
 SearchIndexDb::~SearchIndexDb()
 {
     close();
 }
 
+QString SearchIndexDb::contentFingerprint(const QString &fileText)
+{
+    return QString::fromLatin1(
+        QCryptographicHash::hash(fileText.toUtf8(), QCryptographicHash::Sha1)
+            .toHex());
+}
+
 bool SearchIndexDb::probeCapability()
 {
-    static const QString probeConn = QStringLiteral("kvit_search_probe");
+    const QString probeConn = uniqueConnectionName(QStringLiteral("probe"));
     bool ok = false;
     {
         QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"),
@@ -192,10 +312,9 @@ bool SearchIndexDb::probeCapability()
     return ok;
 }
 
-bool SearchIndexDb::open(const QString &dbPath, const QString &connectionName)
+bool SearchIndexDb::open(const QString &dbPath, OpenMode mode)
 {
     close();
-    m_connectionName = connectionName;
     m_dbPath = dbPath;
 
     auto tryOpen = [&]() -> bool {
@@ -207,8 +326,15 @@ bool SearchIndexDb::open(const QString &dbPath, const QString &connectionName)
         m_open = true;
         if (!applyPragmas())
             return false;
-        // A failed integrity check means a corrupt database.
-        if (!integrityOk())
+        // Structural corruption, a stale FTS index, or a schema this build
+        // does not recognise all disqualify the file. The FTS check
+        // re-tokenizes the whole content table, so only the writer — which is
+        // also the only side that can act on the answer by rebuilding — pays
+        // for it; the reader opens after the writer has already vetted the
+        // file.
+        if (!structuralIntegrityOk())
+            return false;
+        if (mode == OpenMode::RebuildIfUnusable && !ftsIntegrityOk())
             return false;
         return ensureSchema() && schemaValid();
     };
@@ -216,6 +342,15 @@ bool SearchIndexDb::open(const QString &dbPath, const QString &connectionName)
     if (tryOpen()) {
         m_usable = true;
         return true;
+    }
+
+    if (mode == OpenMode::RequireUsable) {
+        // Only the writer may destroy the file. A reader that rebuilt here
+        // would unlink the database out from under a writer that is still
+        // attached, leaving the two connections on different inodes with no
+        // sign that anything went wrong.
+        close();
+        return false;
     }
 
     // A corrupt or obsolete database is closed, removed, and rebuilt. Note
@@ -236,19 +371,21 @@ bool SearchIndexDb::open(const QString &dbPath, const QString &connectionName)
 
 void SearchIndexDb::close()
 {
-    if (!m_connectionName.isEmpty()) {
-        if (QSqlDatabase::contains(m_connectionName)) {
-            {
-                QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
-                if (db.isOpen())
-                    db.close();
-            }
-            QSqlDatabase::removeDatabase(m_connectionName);
+    if (QSqlDatabase::contains(m_connectionName)) {
+        {
+            QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+            if (db.isOpen())
+                db.close();
         }
+        QSqlDatabase::removeDatabase(m_connectionName);
     }
     m_open = false;
     m_usable = false;
-    m_connectionName.clear();
+    // m_connectionName deliberately survives: it is this object's identity,
+    // and the rebuild retry inside open() calls close() first. Clearing it
+    // there sent the retry to Qt's *default* connection — shared with anything
+    // else in the process, and never removed afterwards, because the following
+    // close() no longer had a name to remove.
 }
 
 bool SearchIndexDb::applyPragmas()
@@ -273,11 +410,55 @@ bool SearchIndexDb::applyPragmas()
 
 bool SearchIndexDb::schemaValid() const
 {
+    if (!m_open)
+        return false;
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery q(db);
     if (!q.exec(QStringLiteral("PRAGMA user_version")) || !q.next())
         return false;
-    return q.value(0).toInt() == kSchemaVersion;
+    if (q.value(0).toInt() != kSchemaVersion)
+        return false;
+    return schemaObjectsPresent();
+}
+
+bool SearchIndexDb::schemaObjectsPresent() const
+{
+    // user_version is a number anyone can write; it says nothing about what is
+    // actually in the file. A database whose search_words table was dropped
+    // still reports version 2, opens cleanly, and then answers every word
+    // query with an error the caller used to read as "no matches".
+    struct Required {
+        const char *type;
+        const char *name;
+        const char *mustContain; // a fragment of the CREATE statement, or null
+    };
+    static const Required required[] = {
+        {"table", "search_notes", "content_hash"},
+        {"table", "search_note_tags", nullptr},
+        {"table", "search_blocks", "folded_text"},
+        {"index", "idx_blocks_note", nullptr},
+        {"index", "idx_notes_folder", nullptr},
+        {"table", "search_words", "content='search_blocks'"},
+        {"table", "search_trigrams", "content='search_blocks'"},
+    };
+
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral(
+        "SELECT type, sql FROM sqlite_master WHERE name = ?"));
+    for (const Required &object : required) {
+        q.addBindValue(QLatin1String(object.name));
+        if (!q.exec() || !q.next())
+            return false;
+        if (q.value(0).toString() != QLatin1String(object.type))
+            return false;
+        if (object.mustContain
+            && !q.value(1).toString().contains(
+                QLatin1String(object.mustContain))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool SearchIndexDb::ensureSchema()
@@ -303,6 +484,7 @@ bool SearchIndexDb::ensureSchema()
         "  title TEXT NOT NULL,"
         "  modified_ms INTEGER NOT NULL,"
         "  file_size INTEGER NOT NULL,"
+        "  content_hash TEXT NOT NULL DEFAULT '',"
         "  index_revision INTEGER NOT NULL)",
         "CREATE TABLE search_note_tags ("
         "  note_id INTEGER NOT NULL REFERENCES search_notes(id) ON DELETE CASCADE,"
@@ -342,6 +524,11 @@ bool SearchIndexDb::ensureSchema()
 
 bool SearchIndexDb::integrityOk() const
 {
+    return structuralIntegrityOk() && ftsIntegrityOk();
+}
+
+bool SearchIndexDb::structuralIntegrityOk() const
+{
     if (!m_open)
         return false;
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
@@ -349,6 +536,51 @@ bool SearchIndexDb::integrityOk() const
     if (!q.exec(QStringLiteral("PRAGMA integrity_check")) || !q.next())
         return false;
     return q.value(0).toString() == QLatin1String("ok");
+}
+
+bool SearchIndexDb::ftsIntegrityOk() const
+{
+    if (!m_open)
+        return false;
+    // PRAGMA integrity_check verifies SQLite's own b-trees. It cannot see that
+    // an external-content FTS index disagrees with search_blocks, which is the
+    // corruption that matters here: postings that no longer match the stored
+    // text return notes whose display text does not contain the query, and
+    // withdraw notes that do. FTS5's own integrity-check command compares the
+    // index against the content table and fails the statement when they part.
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    for (const char *table : {"search_words", "search_trigrams"}) {
+        // The tables only exist once the schema has been created; a brand new
+        // file legitimately has neither.
+        QSqlQuery exists(db);
+        exists.prepare(QStringLiteral(
+            "SELECT 1 FROM sqlite_master WHERE name = ? AND type = 'table'"));
+        exists.addBindValue(QLatin1String(table));
+        if (!exists.exec() || !exists.next())
+            continue;
+        // The argument is what makes this compare the index against the
+        // content table; without it FTS5 only checks the index against itself,
+        // which a stale external-content index passes.
+        QSqlQuery check(db);
+        if (check.exec(QStringLiteral(
+                "INSERT INTO %1(%1, rank) VALUES('integrity-check', 1)")
+                           .arg(QLatin1String(table)))) {
+            continue;
+        }
+        // SQLITE_CORRUPT (11) and SQLITE_CORRUPT_VTAB (267) are the verdict.
+        // Anything else means this SQLite does not understand the argument, so
+        // fall back to the weaker check rather than condemning a healthy file.
+        const int code = check.lastError().nativeErrorCode().toInt();
+        if (code == 11 || code == 267)
+            return false;
+        QSqlQuery legacy(db);
+        if (!legacy.exec(QStringLiteral(
+                "INSERT INTO %1(%1) VALUES('integrity-check')")
+                             .arg(QLatin1String(table)))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool SearchIndexDb::removeNote(const QString &relPath)
@@ -411,7 +643,11 @@ bool SearchIndexDb::removeNote(const QString &relPath)
         return false;
     }
     // search_blocks and search_note_tags cascade on the note delete.
-    return db.commit();
+    if (!db.commit()) {
+        db.rollback(); // see replaceNote: a failed commit stays open otherwise
+        return false;
+    }
+    return true;
 }
 
 bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
@@ -490,15 +726,18 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
     }
 
     // Upsert the note row.
+    const QString contentHash =
+        note.contentHash.isNull() ? QString::fromLatin1("") : note.contentHash;
     if (noteId >= 0) {
         QSqlQuery upd(db);
         upd.prepare(QStringLiteral(
             "UPDATE search_notes SET folder=?, title=?, modified_ms=?, "
-            "file_size=?, index_revision=? WHERE id=?"));
+            "file_size=?, content_hash=?, index_revision=? WHERE id=?"));
         upd.addBindValue(note.folder);
         upd.addBindValue(note.title);
         upd.addBindValue(note.modifiedMs);
         upd.addBindValue(note.fileSize);
+        upd.addBindValue(contentHash);
         upd.addBindValue(nextRevision);
         upd.addBindValue(noteId);
         if (!upd.exec()) {
@@ -509,12 +748,13 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
         QSqlQuery ins(db);
         ins.prepare(QStringLiteral(
             "INSERT INTO search_notes(rel_path, folder, title, modified_ms, "
-            "file_size, index_revision) VALUES(?,?,?,?,?,?)"));
+            "file_size, content_hash, index_revision) VALUES(?,?,?,?,?,?,?)"));
         ins.addBindValue(note.relPath);
         ins.addBindValue(note.folder);
         ins.addBindValue(note.title);
         ins.addBindValue(note.modifiedMs);
         ins.addBindValue(note.fileSize);
+        ins.addBindValue(contentHash);
         ins.addBindValue(nextRevision);
         if (!ins.exec()) {
             db.rollback();
@@ -581,30 +821,57 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
     for (const IndexedBlock &block : note.blocks) {
         if (!insertBlock(1, block.blockIndex, block.displayText,
                          block.verbatim)) {
-            db.rollback();
+                db.rollback();
             return false;
         }
     }
 
-    if (!db.commit())
+    if (!db.commit()) {
+        // A commit that fails leaves the transaction open on this connection,
+        // and every later transaction on it then fails to begin. Rolling back
+        // returns the connection to a usable state instead of poisoning it for
+        // the rest of the session.
+        db.rollback();
         return false;
+    }
     if (outRevision)
         *outRevision = nextRevision;
     return true;
 }
 
-bool SearchIndexDb::hasNoteFresh(const QString &relPath, qint64 fileSize,
-                                 qint64 modifiedMs) const
+bool SearchIndexDb::touchNote(const QString &relPath, qint64 fileSize,
+                              qint64 modifiedMs, const QString &contentHash)
 {
     if (!m_usable)
         return false;
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral(
-        "SELECT file_size, modified_ms FROM search_notes WHERE rel_path=?"));
+        "UPDATE search_notes SET file_size=?, modified_ms=?, content_hash=? "
+        "WHERE rel_path=?"));
+    q.addBindValue(fileSize);
+    q.addBindValue(modifiedMs);
+    q.addBindValue(contentHash.isNull() ? QString::fromLatin1("")
+                                        : contentHash);
+    q.addBindValue(relPath);
+    return q.exec() && q.numRowsAffected() != 0;
+}
+
+bool SearchIndexDb::hasNoteFresh(const QString &relPath, qint64 fileSize,
+                                 qint64 modifiedMs,
+                                 const QString &contentHash) const
+{
+    if (!m_usable)
+        return false;
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("SELECT file_size, modified_ms, content_hash "
+                             "FROM search_notes WHERE rel_path=?"));
     q.addBindValue(relPath);
     if (!q.exec() || !q.next())
         return false;
+    if (!contentHash.isEmpty())
+        return q.value(2).toString() == contentHash;
     return q.value(0).toLongLong() == fileSize
         && q.value(1).toLongLong() == modifiedMs;
 }
@@ -649,11 +916,14 @@ int SearchIndexDb::noteRowCount() const
 }
 
 SearchResults SearchIndexDb::query(const SearchQuery &request,
-                                   const std::atomic_bool *cancel) const
+                                   const SearchCancel *cancel) const
 {
     SearchResults results;
-    if (!m_usable)
+    if (!m_usable) {
+        // Not an answer of "no matches": there is no index to ask.
+        results.ok = false;
         return results;
+    }
 
     const QString effective = request.query.trimmed();
     if (effective.isEmpty())
@@ -712,19 +982,25 @@ SearchResults SearchIndexDb::query(const SearchQuery &request,
             predicates << QStringLiteral("n.modified_ms <= :customto");
     }
 
+    // No ORDER BY: sorting every candidate row happens inside the first step()
+    // and cannot be interrupted, so an abandoned query would still pay for the
+    // whole sort before its first cancellation check. Rows are grouped by note
+    // here instead, and the groups — bounded by ten stored matches each — are
+    // ordered at the end.
     QString sql = QStringLiteral(
         "SELECT n.rel_path, n.title, n.index_revision, b.kind, b.block_index, "
         "b.display_text, b.verbatim "
         "FROM %1 x JOIN search_blocks b ON b.id = x.rowid "
         "JOIN search_notes n ON n.id = b.note_id WHERE ").arg(ftsTable)
-        + predicates.join(QStringLiteral(" AND "))
-        + QStringLiteral(" ORDER BY n.rel_path, b.block_index");
+        + predicates.join(QStringLiteral(" AND "));
 
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery q(db);
     q.setForwardOnly(true);
-    if (!q.prepare(sql))
+    if (!q.prepare(sql)) {
+        results.ok = false;
         return results;
+    }
     q.bindValue(QStringLiteral(":phrase"), phrase);
     if (!request.folderScope.isEmpty()) {
         q.bindValue(QStringLiteral(":folder"), request.folderScope);
@@ -747,48 +1023,43 @@ SearchResults SearchIndexDb::query(const SearchQuery &request,
     qint64 candidateBlocks = 0;
     qint64 verifiedBlocks = 0;
     static const int rowsPerNoteCap = 10;
-    static const int cancelInterval = 256;
 
-    // Candidates arrive grouped by rel_path (the ORDER BY), so one pass builds
-    // groups without buffering the whole corpus.
+    // One entry per candidate note. Each holds at most rowsPerNoteCap matches,
+    // so the memory a query can reach is bounded by the number of matching
+    // notes rather than by the number of occurrences in them.
+    QHash<QString, SearchGroup> groups;
     {
         PerfLog::ScopedTimer perf(QStringLiteral("search.verify"));
-        if (!q.exec())
+        if (!q.exec()) {
+            results.ok = false;
             return results;
-
-        SearchGroup current;
-        bool haveCurrent = false;
-        auto flush = [&]() {
-            if (!haveCurrent)
-                return;
-            if (current.titleMatched || current.matchCount > 0) {
-                results.matchCount += current.matchCount;
-                current.moreMatches = current.matchCount - current.matches.size();
-                results.groups.append(current);
-            }
-            haveCurrent = false;
-        };
+        }
 
         while (q.next()) {
-            if (cancel && (candidateBlocks % cancelInterval) == 0
-                && cancel->load()) {
-                // An obsolete generation stops cooperatively; the caller
-                // discards a partial result.
-                return SearchResults();
+            // Every row, not every 256th: the 256-row stride meant a query
+            // over fewer than 256 candidates was never checked at all after
+            // its first row.
+            if (cancel && cancel->cancelled()) {
+                results.cancelled = true;
+                return results;
             }
             ++candidateBlocks;
 
             const QString relPath = q.value(0).toString();
-            if (!haveCurrent || relPath != current.relPath) {
-                flush();
-                current = SearchGroup();
-                current.relPath = relPath;
-                current.title = q.value(1).toString();
-                current.indexRevision = q.value(2).toLongLong();
-                current.titleMatched = !SearchMatching::verifyOccurrences(
-                                            current.title, effective, wholeWord)
-                                            .isEmpty();
-                haveCurrent = true;
+            auto it = groups.find(relPath);
+            if (it == groups.end()) {
+                SearchGroup fresh;
+                fresh.relPath = relPath;
+                fresh.title = q.value(1).toString();
+                fresh.indexRevision = q.value(2).toLongLong();
+                const int inTitle = SearchMatching::scanOccurrences(
+                    fresh.title, effective, wholeWord, 0, nullptr, cancel);
+                if (inTitle < 0) {
+                    results.cancelled = true;
+                    return results;
+                }
+                fresh.titleMatched = inTitle > 0;
+                it = groups.insert(relPath, fresh);
             }
 
             const int kind = q.value(3).toInt();
@@ -797,21 +1068,56 @@ SearchResults SearchIndexDb::query(const SearchQuery &request,
 
             const int blockIndex = q.value(4).toInt();
             const QString display = q.value(5).toString();
-            const QList<int> offsets = SearchMatching::verifyOccurrences(
-                display, effective, wholeWord);
-            if (offsets.isEmpty())
+            QList<int> offsets;
+            const int found = SearchMatching::scanOccurrences(
+                display, effective, wholeWord, rowsPerNoteCap, &offsets,
+                cancel);
+            if (found < 0) {
+                results.cancelled = true;
+                return results;
+            }
+            if (found == 0)
                 continue;
             ++verifiedBlocks;
+            it->matchCount += found;
+            // Rows arrive in whatever order SQLite produced them, so the ten
+            // kept matches are maintained as the first ten in document order
+            // rather than the first ten to arrive. The list never exceeds the
+            // cap, so a note with a million occurrences still costs ten rows.
             for (const int at : offsets) {
-                ++current.matchCount;
-                if (current.matches.size() < rowsPerNoteCap) {
-                    current.matches.append(
-                        buildMatch(display, blockIndex, at, effective.size()));
+                if (it->matches.size() >= rowsPerNoteCap) {
+                    const SearchMatch &last = it->matches.constLast();
+                    if (sortsBefore(last.blockIndex, last.start, blockIndex, at))
+                        break; // later offsets in this block sort later still
                 }
+                const SearchMatch match =
+                    buildMatch(display, blockIndex, at, effective.size());
+                int pos = it->matches.size();
+                while (pos > 0
+                       && sortsBefore(match.blockIndex, match.start,
+                                      it->matches.at(pos - 1).blockIndex,
+                                      it->matches.at(pos - 1).start)) {
+                    --pos;
+                }
+                it->matches.insert(pos, match);
+                if (it->matches.size() > rowsPerNoteCap)
+                    it->matches.removeLast();
             }
         }
-        flush();
     }
+
+    results.groups.reserve(groups.size());
+    for (SearchGroup &group : groups) {
+        if (!group.titleMatched && group.matchCount == 0)
+            continue;
+        group.moreMatches = group.matchCount - group.matches.size();
+        results.matchCount += group.matchCount;
+        results.groups.append(group);
+    }
+    std::sort(results.groups.begin(), results.groups.end(),
+              [](const SearchGroup &a, const SearchGroup &b) {
+                  return a.relPath < b.relPath;
+              });
 
     results.noteCount = results.groups.size();
 

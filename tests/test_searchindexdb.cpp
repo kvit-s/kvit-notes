@@ -8,8 +8,16 @@
 #include "collectionsearchindex.h"
 #include "searchindexdb.h"
 
+#include "faultinjection.h"
+
 #include <QDate>
 #include <QDateTime>
+#include <QSemaphore>
+#include <QtSql/QSqlDatabase>
+#include <QtSql/QSqlQuery>
+
+#include <atomic>
+#include <thread>
 
 // Unit and differential-oracle suite for the SQLite FTS5 search engine. The
 // engine is thread-affine, so every test drives one SearchIndexDb on the test
@@ -46,6 +54,28 @@ private slots:
     void testDifferentialOracle();
     void testQueryPerformanceGate();
 
+    // SEARCH-1: connection identity and rebuild authority.
+    void testConnectionNamesAreUniquePerInstance();
+    void testTwoRootsStayIndependent();
+    void testRebuildRetryLeavesNoStrayConnection();
+    void testOnlyTheWriterRebuilds();
+    // SEARCH-2: what "the database is usable" has to mean.
+    void testTamperedFtsPostingsFailIntegrity();
+    void testMissingSchemaObjectIsRebuilt();
+    // SEARCH-3: tokenization agrees with the candidate index.
+    void testAstralAndPrivateUseWordBoundaries();
+    void testTokenizationDifferentialOracle();
+    // SEARCH-4: freshness that survives an equal-size, equal-mtime rewrite.
+    void testContentFingerprintDecidesFreshness();
+    void testSnapshotReadIsSelfConsistentUnderRewrite();
+    // SEARCH-5: failures are reported as failures.
+    void testQueryFailureIsNotAnEmptyResult();
+    void testFailedCommitLeavesTheConnectionUsable();
+    // SEARCH-6: cancellation reaches the expensive work.
+    void testGenerationCancelIsMonotonic();
+    void testEveryRowIsACancellationPoint();
+    void testHugeBlockKeepsBoundedMatches();
+
 private:
     struct Note {
         QString relPath;
@@ -64,10 +94,47 @@ private:
     // The reference matcher: a full scan of every stored block with section-4
     // semantics, independent of FTS.
     SearchResults oracle(const QString &query, qint64 nowMs = 0) const;
+    // Every query must return exactly what the reference matcher returns. A
+    // candidate index that misses something the verifier would accept shows up
+    // here as a missing group, a missing match, or a shifted offset.
+    void expectOracleAgreement(const QStringList &queries);
+
+    // Run statements straight against the database file on a connection of the
+    // test's own, which is how tampering, schema drift, and a second process
+    // reach it.
+    static bool runRawSql(const QString &dbPath, const QStringList &statements);
 
     SearchIndexDb *m_db = nullptr;
     QList<IndexedNote> m_notes; // mirror of what was loaded, for the oracle
 };
+
+namespace {
+
+// Counts how often the engine asks whether it should stop, and optionally
+// says yes after the first question.
+class CountingCancel : public SearchCancel
+{
+public:
+    explicit CountingCancel(bool cancelAfterFirst = false)
+        : m_cancelAfterFirst(cancelAfterFirst)
+    {
+    }
+
+    bool cancelled() const override
+    {
+        const bool answer = m_cancelAfterFirst && m_checks > 0;
+        ++m_checks;
+        return answer;
+    }
+
+    int checks() const { return m_checks; }
+
+private:
+    bool m_cancelAfterFirst;
+    mutable int m_checks = 0;
+};
+
+} // namespace
 
 void TestSearchIndexDb::initTestCase()
 {
@@ -77,9 +144,8 @@ void TestSearchIndexDb::initTestCase()
 
 void TestSearchIndexDb::init()
 {
-    m_db = new SearchIndexDb();
-    QVERIFY(m_db->open(QStringLiteral(":memory:"),
-                       QStringLiteral("kvit_search_test")));
+    m_db = new SearchIndexDb(QStringLiteral("test"));
+    QVERIFY(m_db->open(QStringLiteral(":memory:")));
     QVERIFY(m_db->isUsable());
     m_notes.clear();
 }
@@ -444,9 +510,9 @@ void TestSearchIndexDb::testCorruptDatabaseRebuilds()
         QVERIFY(f.open(QIODevice::WriteOnly));
         f.write(QByteArray(4096, 'x'));
     }
-    SearchIndexDb db;
+    SearchIndexDb db(QStringLiteral("corrupt"));
     // open() detects the corruption, removes the file, and rebuilds empty.
-    QVERIFY(db.open(path, QStringLiteral("kvit_search_corrupt")));
+    QVERIFY(db.open(path));
     QVERIFY(db.isUsable());
     QCOMPARE(db.noteRowCount(), 0);
     db.close();
@@ -494,12 +560,18 @@ void TestSearchIndexDb::testDifferentialOracle()
         QStringLiteral("concatenate"), QStringLiteral("zzz"),
     };
 
+    expectOracleAgreement(queries);
+}
+
+void TestSearchIndexDb::expectOracleAgreement(const QStringList &queries)
+{
     for (const QString &query : queries) {
         const SearchResults got = run(query);
         const SearchResults want = oracle(query);
-        QCOMPARE(got.noteCount, want.noteCount);
-        QCOMPARE(got.matchCount, want.matchCount);
-        QCOMPARE(got.groups.size(), want.groups.size());
+        const QString head = QStringLiteral("query=%1").arg(query);
+        QVERIFY2(got.noteCount == want.noteCount, qPrintable(head));
+        QVERIFY2(got.matchCount == want.matchCount, qPrintable(head));
+        QVERIFY2(got.groups.size() == want.groups.size(), qPrintable(head));
         for (int i = 0; i < want.groups.size(); ++i) {
             const SearchGroup &a = got.groups.at(i);
             const SearchGroup &b = want.groups.at(i);
@@ -518,6 +590,30 @@ void TestSearchIndexDb::testDifferentialOracle()
             }
         }
     }
+}
+
+bool TestSearchIndexDb::runRawSql(const QString &dbPath,
+                                  const QStringList &statements)
+{
+    static int counter = 0;
+    const QString name =
+        QStringLiteral("kvit_test_raw_%1").arg(counter++);
+    bool ok = true;
+    {
+        QSqlDatabase db =
+            QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
+        db.setDatabaseName(dbPath);
+        if (!db.open())
+            return false;
+        QSqlQuery q(db);
+        for (const QString &statement : statements) {
+            if (!q.exec(statement))
+                ok = false;
+        }
+        db.close();
+    }
+    QSqlDatabase::removeDatabase(name);
+    return ok;
 }
 
 void TestSearchIndexDb::testQueryPerformanceGate()
@@ -586,6 +682,548 @@ void TestSearchIndexDb::testQueryPerformanceGate()
     // preserves the historical wall-clock gate's intent.
     KVIT_ASSERT_CPU_BUDGET_VALUES("search 500-note query", worstCpu, worstWall,
                                   worstContention, 45.0, 120.0);
+}
+
+// ======================================================================
+// SEARCH-1 — connection identity and rebuild authority
+// ======================================================================
+
+void TestSearchIndexDb::testConnectionNamesAreUniquePerInstance()
+{
+    // Qt's connection registry is global and keyed by name, so two instances
+    // sharing a name share — and then destroy — each other's entry.
+    SearchIndexDb first(QStringLiteral("write"));
+    SearchIndexDb second(QStringLiteral("write"));
+    QVERIFY(first.connectionName() != second.connectionName());
+    QVERIFY(first.connectionName() != m_db->connectionName());
+
+    const QString name = first.connectionName();
+    QVERIFY(first.open(QStringLiteral(":memory:")));
+    QVERIFY(QSqlDatabase::connectionNames().contains(name));
+    first.close();
+    // Closing unregisters the connection but must not surrender the name: it
+    // is the object's identity, and open() closes before it retries.
+    QVERIFY(!QSqlDatabase::connectionNames().contains(name));
+    QCOMPARE(first.connectionName(), name);
+    QVERIFY(first.open(QStringLiteral(":memory:")));
+    QCOMPARE(first.connectionName(), name);
+}
+
+void TestSearchIndexDb::testTwoRootsStayIndependent()
+{
+    QTemporaryDir dirA;
+    QTemporaryDir dirB;
+    QVERIFY(dirA.isValid() && dirB.isValid());
+    SearchIndexDb a(QStringLiteral("write"));
+    SearchIndexDb b(QStringLiteral("write"));
+    QVERIFY(a.open(dirA.filePath(QStringLiteral("s.sqlite"))));
+    QVERIFY(b.open(dirB.filePath(QStringLiteral("s.sqlite"))));
+
+    QVERIFY(a.replaceNote(CollectionSearchIndex::parseNote(
+        QStringLiteral("A.md"), QStringLiteral("alpha only\n"), 11, 0)));
+    QVERIFY(b.replaceNote(CollectionSearchIndex::parseNote(
+        QStringLiteral("B.md"), QStringLiteral("bravo only\n"), 11, 0)));
+
+    // Neither vault can see the other's notes, and interleaved use of both
+    // keeps working.
+    QCOMPARE(a.noteRowCount(), 1);
+    QCOMPARE(b.noteRowCount(), 1);
+    QCOMPARE(a.allRelPaths(), QStringList{QStringLiteral("A.md")});
+    QCOMPARE(b.allRelPaths(), QStringList{QStringLiteral("B.md")});
+
+    // Closing one leaves the other attached and usable.
+    a.close();
+    QVERIFY(!a.isUsable());
+    QVERIFY(b.isUsable());
+    QCOMPARE(b.noteRowCount(), 1);
+    QVERIFY(b.replaceNote(CollectionSearchIndex::parseNote(
+        QStringLiteral("B2.md"), QStringLiteral("bravo two\n"), 10, 0)));
+    QCOMPARE(b.noteRowCount(), 2);
+}
+
+void TestSearchIndexDb::testRebuildRetryLeavesNoStrayConnection()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(QByteArray(4096, 'x'));
+    }
+
+    SearchIndexDb db(QStringLiteral("write"));
+    const QString name = db.connectionName();
+    QVERIFY(db.open(path)); // first attempt fails, file is rebuilt, retry opens
+    QVERIFY(db.isUsable());
+    // The retry must open under this instance's own name. It used to open
+    // under Qt's default connection, shared with everything else in the
+    // process and never removed afterwards.
+    QVERIFY2(!QSqlDatabase::connectionNames().contains(
+                 QLatin1String(QSqlDatabase::defaultConnection)),
+             "the rebuild retry fell back to Qt's default connection");
+    QVERIFY(QSqlDatabase::connectionNames().contains(name));
+
+    db.close();
+    QVERIFY(!QSqlDatabase::connectionNames().contains(name));
+}
+
+void TestSearchIndexDb::testOnlyTheWriterRebuilds()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    const QByteArray garbage(4096, 'x');
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(garbage);
+    }
+
+    // A read-side open never deletes: the writer may be attached to this file,
+    // and unlinking it would leave the two connections on different inodes.
+    SearchIndexDb reader(QStringLiteral("read"));
+    QVERIFY(!reader.open(path, SearchIndexDb::OpenMode::RequireUsable));
+    QVERIFY(!reader.isUsable());
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QCOMPARE(f.readAll(), garbage);
+    }
+
+    // The writer has the authority, and after it has rebuilt, the reader
+    // attaches to what the writer made.
+    SearchIndexDb writer(QStringLiteral("write"));
+    QVERIFY(writer.open(path, SearchIndexDb::OpenMode::RebuildIfUnusable));
+    QVERIFY(writer.isUsable());
+    QVERIFY(reader.open(path, SearchIndexDb::OpenMode::RequireUsable));
+    QVERIFY(reader.isUsable());
+    QVERIFY(writer.replaceNote(CollectionSearchIndex::parseNote(
+        QStringLiteral("N.md"), QStringLiteral("shared row\n"), 11, 0)));
+    QCOMPARE(reader.revisionOf(QStringLiteral("N.md")), qint64(1));
+}
+
+// ======================================================================
+// SEARCH-2 — what "the database is usable" has to mean
+// ======================================================================
+
+void TestSearchIndexDb::testTamperedFtsPostingsFailIntegrity()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        QVERIFY(db.open(path));
+        QVERIFY(db.replaceNote(CollectionSearchIndex::parseNote(
+            QStringLiteral("N.md"), QStringLiteral("alpha beta gamma\n"), 17,
+            0)));
+        QVERIFY(db.integrityOk());
+        db.close();
+    }
+
+    // Rewrite the indexed text without withdrawing the postings that describe
+    // it. SQLite's own integrity_check still passes: the b-trees are intact,
+    // it is the meaning that is wrong.
+    QVERIFY(runRawSql(path, {QStringLiteral(
+        "UPDATE search_blocks SET display_text='zebra quokka', "
+        "folded_text='zebra quokka' WHERE kind=1")}));
+
+    {
+        SearchIndexDb db(QStringLiteral("read"));
+        QVERIFY(db.open(path, SearchIndexDb::OpenMode::RequireUsable));
+        QVERIFY2(!db.integrityOk(),
+                 "stale external-content postings were accepted as intact");
+        db.close();
+    }
+
+    // The writer notices at open and rebuilds, so the vault comes back empty
+    // and correct rather than usable and lying.
+    SearchIndexDb writer(QStringLiteral("write"));
+    QVERIFY(writer.open(path, SearchIndexDb::OpenMode::RebuildIfUnusable));
+    QVERIFY(writer.isUsable());
+    QCOMPARE(writer.noteRowCount(), 0);
+    QVERIFY(writer.integrityOk());
+}
+
+void TestSearchIndexDb::testMissingSchemaObjectIsRebuilt()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    {
+        SearchIndexDb db(QStringLiteral("write"));
+        QVERIFY(db.open(path));
+        QVERIFY(db.replaceNote(CollectionSearchIndex::parseNote(
+            QStringLiteral("N.md"), QStringLiteral("alpha beta\n"), 11, 0)));
+        db.close();
+    }
+    // user_version still says "current schema" — it is a number anyone can
+    // leave behind, and on its own it certified this file as usable.
+    QVERIFY(runRawSql(path, {QStringLiteral("DROP TABLE search_words")}));
+
+    SearchIndexDb reader(QStringLiteral("read"));
+    QVERIFY2(!reader.open(path, SearchIndexDb::OpenMode::RequireUsable),
+             "a database missing its word index opened as usable");
+
+    SearchIndexDb writer(QStringLiteral("write"));
+    QVERIFY(writer.open(path, SearchIndexDb::OpenMode::RebuildIfUnusable));
+    QVERIFY(writer.schemaValid());
+    QCOMPARE(writer.noteRowCount(), 0);
+    QVERIFY(writer.replaceNote(CollectionSearchIndex::parseNote(
+        QStringLiteral("N.md"), QStringLiteral("alpha beta\n"), 11, 0)));
+    QCOMPARE(writer.noteRowCount(), 1);
+}
+
+// ======================================================================
+// SEARCH-3 — tokenization agrees with the candidate index
+// ======================================================================
+
+void TestSearchIndexDb::testAstralAndPrivateUseWordBoundaries()
+{
+    // U+1D400 MATHEMATICAL BOLD CAPITAL A: one scalar, two UTF-16 code units,
+    // and an uppercase letter as far as Unicode and unicode61 are concerned.
+    const char32_t boldA[] = {0x1D400};
+    const QString astral = QString::fromUcs4(boldA, 1);
+    QCOMPARE(astral.size(), 2);
+
+    // Inspecting code units sees two unpaired surrogates, classifies neither
+    // as a word character, and routes the query to the punctuation-only dead
+    // end that returns nothing.
+    QVERIFY2(SearchMatching::hasWordChar(SearchMatching::fold(astral)),
+             "a supplementary-plane letter was not seen as a word character");
+    // And the boundary rule has to agree with the index: unicode61 stores
+    // "𝐀x" as one token, so "x" is not a whole word inside it.
+    QVERIFY(SearchMatching::verifyOccurrences(astral + QStringLiteral("x"),
+                                              QStringLiteral("x"), true)
+                .isEmpty());
+    QCOMPARE(SearchMatching::verifyOccurrences(
+                 astral + QStringLiteral(" x"), QStringLiteral("x"), true)
+                 .size(),
+             1);
+
+    loadNote(QStringLiteral("Astral.md"),
+             astral + QStringLiteral("x glued\n\n") + astral
+                 + QStringLiteral(" alone\n"));
+    // The astral letter is searchable as a word in its own right.
+    const SearchResults hit = run(astral);
+    QCOMPARE(hit.noteCount, 1);
+    QCOMPARE(hit.matchCount, 1);
+    QCOMPARE(hit.groups.at(0).matches.at(0).blockIndex, 1);
+    // And "x" does not match inside the glued token.
+    QCOMPARE(run(QStringLiteral("x")).matchCount, 0);
+}
+
+void TestSearchIndexDb::testTokenizationDifferentialOracle()
+{
+    const char32_t boldA[] = {0x1D400};
+    const QString astral = QString::fromUcs4(boldA, 1);
+    const QString privateUse = QString(QChar(0xE000));
+    const QString combining = QStringLiteral("naïve"); // decomposed ï
+    const QString decomposedE = QStringLiteral("é");   // decomposed é
+
+    loadNote(QStringLiteral("astral.md"),
+             astral + QStringLiteral("x glued and ") + astral
+                 + QStringLiteral(" alone\n"));
+    loadNote(QStringLiteral("private.md"),
+             privateUse + QStringLiteral("y glued and y alone\n"));
+    loadNote(QStringLiteral("combining.md"),
+             combining + QStringLiteral(" and ") + decomposedE
+                 + QStringLiteral(" alone and caf") + decomposedE
+                 + QStringLiteral("\n"));
+    loadNote(QStringLiteral("composed.md"),
+             QStringLiteral("naïve and é alone and café\n"));
+
+    expectOracleAgreement({
+        astral,
+        astral + QStringLiteral("x"),
+        QStringLiteral("x"),
+        privateUse,
+        QStringLiteral("y"),
+        decomposedE,
+        QStringLiteral("é"),
+        QStringLiteral("ve"),
+        combining,
+        QStringLiteral("naïve"),
+        QStringLiteral("caf") + decomposedE,
+        QStringLiteral("café"),
+        QStringLiteral("alone"),
+    });
+}
+
+// ======================================================================
+// SEARCH-4 — freshness that survives an equal-size, equal-mtime rewrite
+// ======================================================================
+
+void TestSearchIndexDb::testContentFingerprintDecidesFreshness()
+{
+    const QString before = QStringLiteral("alpha alpha\n"); // 12 bytes
+    const QString after = QStringLiteral("alpha bravo\n");  // 12 bytes
+    QCOMPARE(before.toUtf8().size(), after.toUtf8().size());
+
+    const IndexedNote note = CollectionSearchIndex::parseNote(
+        QStringLiteral("F.md"), before, 12, 1000);
+    QVERIFY(!note.contentHash.isEmpty());
+    QVERIFY(m_db->replaceNote(note));
+
+    const IndexedNote rewritten = CollectionSearchIndex::parseNote(
+        QStringLiteral("F.md"), after, 12, 1000);
+    QVERIFY(rewritten.contentHash != note.contentHash);
+
+    QVERIFY(m_db->hasNoteFresh(QStringLiteral("F.md"), 12, 1000,
+                               note.contentHash));
+    // Same size, same modification time, different bytes. Metadata alone calls
+    // this fresh, which is how an edited note stayed unsearchable for as long
+    // as the vault was open.
+    QVERIFY(m_db->hasNoteFresh(QStringLiteral("F.md"), 12, 1000));
+    QVERIFY2(!m_db->hasNoteFresh(QStringLiteral("F.md"), 12, 1000,
+                                 rewritten.contentHash),
+             "an equal-size, equal-mtime rewrite was reported as fresh");
+
+    // Metadata that drifted without the content changing costs one UPDATE and
+    // no reparse.
+    QVERIFY(m_db->touchNote(QStringLiteral("F.md"), 99, 2000,
+                            note.contentHash));
+    QVERIFY(m_db->hasNoteFresh(QStringLiteral("F.md"), 99, 2000,
+                               note.contentHash));
+    QCOMPARE(m_db->revisionOf(QStringLiteral("F.md")), qint64(1));
+    QVERIFY(m_db->integrityOk());
+}
+
+void TestSearchIndexDb::testSnapshotReadIsSelfConsistentUnderRewrite()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("racy.md"));
+    const QByteArray small(200, 'a');
+    const QByteArray large(9000, 'b');
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(small);
+    }
+
+    std::atomic_bool stop{false};
+    QSemaphore writerReady;
+    std::thread writer([&]() {
+        writerReady.release();
+        bool useSmall = false;
+        while (!stop.load()) {
+            QFile f(path);
+            if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                continue;
+            f.write(useSmall ? small : large);
+            f.close();
+            useSmall = !useSmall;
+        }
+    });
+    writerReady.acquire();
+
+    int taken = 0;
+    for (int i = 0; i < 2000; ++i) {
+        const CollectionSearchIndex::NoteSnapshot snapshot =
+            CollectionSearchIndex::readNoteSnapshot(path);
+        if (!snapshot.ok)
+            continue; // still changing after every attempt; nothing recorded
+        ++taken;
+        // The metadata must describe the text that came back with it. Reading
+        // first and stating afterwards stores the old text under the new
+        // file's size, and that mixture then looks permanently fresh.
+        if (snapshot.text.toUtf8().size() != snapshot.fileSize) {
+            stop.store(true);
+            writer.join();
+            QFAIL("snapshot text and recorded file size disagree");
+        }
+    }
+    stop.store(true);
+    writer.join();
+    QVERIFY2(taken > 0, "no snapshot was ever taken");
+
+    // With nothing writing, a snapshot is exact.
+    const CollectionSearchIndex::NoteSnapshot quiet =
+        CollectionSearchIndex::readNoteSnapshot(path);
+    QVERIFY(quiet.ok);
+    QCOMPARE(quiet.text.toUtf8().size(), quiet.fileSize);
+    QCOMPARE(quiet.modifiedMs, QFileInfo(path).lastModified()
+                                   .toMSecsSinceEpoch());
+}
+
+// ======================================================================
+// SEARCH-5 — failures are reported as failures
+// ======================================================================
+
+void TestSearchIndexDb::testQueryFailureIsNotAnEmptyResult()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    SearchIndexDb db(QStringLiteral("write"));
+    QVERIFY(db.open(path));
+    QVERIFY(db.replaceNote(CollectionSearchIndex::parseNote(
+        QStringLiteral("N.md"), QStringLiteral("needle in here\n"), 15, 0)));
+
+    SearchQuery request;
+    request.query = QStringLiteral("needle");
+    request.nowMs = QDateTime::currentMSecsSinceEpoch();
+    SearchResults good = db.query(request);
+    QVERIFY(good.ok);
+    QCOMPARE(good.noteCount, 1);
+
+    // Take the substring index away underneath the open connection.
+    QVERIFY(runRawSql(path, {QStringLiteral("DROP TABLE search_trigrams")}));
+    const SearchResults broken = db.query(request);
+    QVERIFY2(!broken.ok,
+             "a query the engine could not run reported success with no rows");
+    QCOMPARE(broken.groups.size(), 0);
+
+    // A closed index answers the same way: no result, not "no matches".
+    db.close();
+    const SearchResults closed = db.query(request);
+    QVERIFY(!closed.ok);
+}
+
+void TestSearchIndexDb::testFailedCommitLeavesTheConnectionUsable()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("search.sqlite"));
+    SearchIndexDb db(QStringLiteral("write"));
+    QVERIFY(db.open(path));
+
+    // One successful write first: it settles the database and its write-ahead
+    // log at the sizes the cap below is derived from.
+    QVERIFY(db.replaceNote(CollectionSearchIndex::parseNote(
+        QStringLiteral("Warm.md"), QStringLiteral("warm the files\n"), 15, 0)));
+
+    QString body;
+    for (int i = 0; i < 3; ++i)
+        body += QStringLiteral("paragraph %1 with plenty of words\n\n").arg(i);
+    const IndexedNote second = CollectionSearchIndex::parseNote(
+        QStringLiteral("Second.md"), body, body.toUtf8().size(), 0);
+
+    {
+        // A write that cannot reach the disk: no file may grow past what is
+        // already there, which is what a full disk looks like. A transaction
+        // this small stays in SQLite's page cache until COMMIT, so the failure
+        // lands on the commit itself.
+        FaultInjection::FileSizeLimit capped(
+            qMax(QFileInfo(path).size(),
+                 QFileInfo(path + QStringLiteral("-wal")).size()));
+        if (!capped.supported())
+            QSKIP(qPrintable(capped.skipReason()));
+        QVERIFY2(!db.replaceNote(second), "a write past the size cap succeeded");
+    }
+
+    // The failure must not poison the connection. A commit that fails leaves
+    // the transaction open, and every later write then fails to even begin.
+    const IndexedNote small = CollectionSearchIndex::parseNote(
+        QStringLiteral("Small.md"), QStringLiteral("tiny note\n"), 10, 0);
+    QVERIFY2(db.replaceNote(small),
+             "the connection was still inside the failed transaction");
+    QCOMPARE(db.noteRowCount(), 2);
+    QVERIFY(db.integrityOk());
+}
+
+// ======================================================================
+// SEARCH-6 — cancellation reaches the expensive work
+// ======================================================================
+
+void TestSearchIndexDb::testGenerationCancelIsMonotonic()
+{
+    std::atomic<quint64> target{5};
+    GenerationCancel older(target, 4);
+    GenerationCancel current(target, 5);
+    QVERIFY(older.cancelled());
+    QVERIFY(!current.cancelled());
+
+    // There is no shared flag for a late-arriving older request to clear: a
+    // token reads the target it was born with, and the target only moves
+    // forward. The old shared bool let generation 4 reset the cancellation
+    // generation 5 had just signalled, so the obsolete scan ran to the end and
+    // the new one queued behind it.
+    target.store(6);
+    QVERIFY(older.cancelled());
+    QVERIFY(current.cancelled());
+
+    loadNote(QStringLiteral("N.md"), QStringLiteral("needle here\n"));
+    SearchQuery request;
+    request.query = QStringLiteral("needle");
+    request.nowMs = QDateTime::currentMSecsSinceEpoch();
+    const SearchResults cancelled = m_db->query(request, &current);
+    QVERIFY(cancelled.cancelled);
+    QCOMPARE(cancelled.groups.size(), 0);
+    // An in-date generation is answered normally.
+    GenerationCancel live(target, 6);
+    const SearchResults answered = m_db->query(request, &live);
+    QVERIFY(!answered.cancelled);
+    QCOMPARE(answered.noteCount, 1);
+}
+
+void TestSearchIndexDb::testEveryRowIsACancellationPoint()
+{
+    // 40 notes of 10 matching blocks each: 400 candidate rows.
+    for (int note = 0; note < 40; ++note) {
+        QString body;
+        for (int block = 0; block < 10; ++block)
+            body += QStringLiteral("needle line %1\n\n").arg(block);
+        loadNote(QStringLiteral("Bulk %1.md").arg(note), body);
+    }
+
+    SearchQuery request;
+    request.query = QStringLiteral("needle");
+    request.nowMs = QDateTime::currentMSecsSinceEpoch();
+
+    CountingCancel counter;
+    const SearchResults all = m_db->query(request, &counter);
+    QCOMPARE(all.noteCount, 40);
+    // Checking every 256th row meant a query over fewer than 256 candidates
+    // was asked exactly once, at its first row, and never again.
+    QVERIFY2(counter.checks() >= 400,
+             qPrintable(QStringLiteral("only %1 cancellation checks over 400 "
+                                       "candidate rows")
+                            .arg(counter.checks())));
+
+    // A cancellation that arrives after the first row stops the scan there.
+    CountingCancel prompt(true);
+    const SearchResults stopped = m_db->query(request, &prompt);
+    QVERIFY(stopped.cancelled);
+    QCOMPARE(stopped.groups.size(), 0);
+    QVERIFY2(prompt.checks() < 20,
+             qPrintable(QStringLiteral("the scan carried on for %1 checks "
+                                       "after being cancelled")
+                            .arg(prompt.checks())));
+}
+
+void TestSearchIndexDb::testHugeBlockKeepsBoundedMatches()
+{
+    QString block;
+    for (int i = 0; i < 20000; ++i)
+        block += QStringLiteral("needle ");
+    loadNote(QStringLiteral("Huge.md"), block + QStringLiteral("\n"));
+
+    // Counting is exact; storage is not proportional to it.
+    QList<int> collected;
+    QCOMPARE(SearchMatching::scanOccurrences(block, QStringLiteral("needle"),
+                                             false, 10, &collected, nullptr),
+             20000);
+    QCOMPARE(collected.size(), 10);
+
+    const SearchResults r = run(QStringLiteral("needle"));
+    QCOMPARE(r.noteCount, 1);
+    QCOMPARE(r.groups.at(0).matchCount, 20000);
+    QCOMPARE(r.groups.at(0).matches.size(), 10);
+    QCOMPARE(r.groups.at(0).moreMatches, 19990);
+    // In document order, from the start of the block.
+    QCOMPARE(r.groups.at(0).matches.at(0).start, 0);
+    QCOMPARE(r.groups.at(0).matches.at(1).start, 7);
+
+    // One block is not a place a cancelled query can get stuck: the scan
+    // inside it is interruptible too.
+    CountingCancel prompt(true);
+    SearchQuery request;
+    request.query = QStringLiteral("needle");
+    request.nowMs = QDateTime::currentMSecsSinceEpoch();
+    QVERIFY(m_db->query(request, &prompt).cancelled);
 }
 
 QTEST_MAIN(TestSearchIndexDb)

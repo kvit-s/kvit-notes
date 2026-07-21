@@ -14,6 +14,8 @@
 #include <QStandardPaths>
 #include <QThread>
 
+#include <limits>
+
 // ======================================================================
 // Worker objects. Each owns a thread-affine SearchIndexDb connection and runs
 // on its own QThread; the coordinator posts work through queued invocations.
@@ -25,9 +27,32 @@ class SearchIndexWriteWorker : public QObject
 {
     Q_OBJECT
 public:
+    SearchIndexWriteWorker()
+        : m_db(QStringLiteral("write"))
+    {
+    }
+
     Q_INVOKABLE bool openDb(const QString &dbPath)
     {
-        return m_db.open(dbPath, QStringLiteral("kvit_search_write"));
+        // Runs on the write thread, so everything cancelled for the previous
+        // root has already unwound and the flag can be cleared here — clearing
+        // it from the coordinator would revive a reconcile that was still
+        // sitting in the queue.
+        m_cancel.store(false);
+        // The writer is the only side allowed to delete and recreate the file.
+        return m_db.open(dbPath, SearchIndexDb::OpenMode::RebuildIfUnusable);
+    }
+
+    Q_INVOKABLE bool rebuildDb(const QString &dbPath)
+    {
+        m_cancel.store(false);
+        m_db.close();
+        if (dbPath != QStringLiteral(":memory:")) {
+            QFile::remove(dbPath);
+            QFile::remove(dbPath + QStringLiteral("-wal"));
+            QFile::remove(dbPath + QStringLiteral("-shm"));
+        }
+        return openDb(dbPath);
     }
 
     Q_INVOKABLE void closeDb() { m_db.close(); }
@@ -37,14 +62,14 @@ public:
     Q_INVOKABLE void reconcile(QList<ReconcileEntry> listing)
     {
         if (!m_db.isUsable()) {
-            emit reconcileFinished();
+            emit reconcileFinished(false);
             return;
         }
-        m_cancel.store(false);
         PerfLog::ScopedTimer perf(QStringLiteral("search.index.rebuild"),
                                   QVariantMap{{QStringLiteral("notes"),
                                                listing.size()}});
         emit reconcileStarted();
+        bool ok = true;
 
         // Drop notes that no longer exist on disk.
         QSet<QString> present;
@@ -54,34 +79,63 @@ public:
         const QStringList indexed = m_db.allRelPaths();
         for (const QString &relPath : indexed) {
             if (!present.contains(relPath))
-                m_db.removeNote(relPath);
+                ok = m_db.removeNote(relPath) && ok;
         }
 
-        // Parse and replace only new or changed notes.
+        // Parse and replace only notes whose content actually changed.
         int done = 0;
         const int total = listing.size();
         int reindexed = 0;
+        int unreadable = 0;
         for (const ReconcileEntry &e : listing) {
             // Between notes: reading and parsing one body is the unit of
             // work, so this is the finest granularity available without
             // leaving the index half-written mid-note.
             if (m_cancel.load())
                 break;
-            if (!m_db.hasNoteFresh(e.relPath, e.fileSize, e.modifiedMs)) {
-                QString text;
-                if (readFile(e.absPath, &text)) {
-                    const IndexedNote note = CollectionSearchIndex::parseNote(
-                        e.relPath, text, e.fileSize, e.modifiedMs);
-                    m_db.replaceNote(note);
-                    ++reindexed;
+            // Freshness is decided on the file's content, not on its size and
+            // timestamp. Those two miss an equal-size rewrite that kept the
+            // mtime — which the app itself performs, and which used to leave
+            // the indexed text stale for as long as the vault stayed open.
+            // The read is the cost paid for that; the expensive part, parsing
+            // the note and rewriting its FTS postings, still happens only when
+            // the content differs.
+            const CollectionSearchIndex::NoteSnapshot snapshot =
+                CollectionSearchIndex::readNoteSnapshot(e.absPath);
+            if (!snapshot.ok) {
+                ++unreadable;
+                ++done;
+                if ((done % 32) == 0 || done == total)
+                    emit reconcileProgress(done, total);
+                continue;
+            }
+            const QString hash =
+                SearchIndexDb::contentFingerprint(snapshot.text);
+            if (m_db.hasNoteFresh(e.relPath, snapshot.fileSize,
+                                  snapshot.modifiedMs, hash)) {
+                // Same content; only refresh the metadata if it drifted.
+                if (!m_db.hasNoteFresh(e.relPath, snapshot.fileSize,
+                                       snapshot.modifiedMs)) {
+                    ok = m_db.touchNote(e.relPath, snapshot.fileSize,
+                                        snapshot.modifiedMs, hash)
+                        && ok;
                 }
+            } else {
+                const IndexedNote note = CollectionSearchIndex::parseNote(
+                    e.relPath, snapshot.text, snapshot.fileSize,
+                    snapshot.modifiedMs);
+                if (m_db.replaceNote(note))
+                    ++reindexed;
+                else
+                    ok = false;
             }
             ++done;
             if ((done % 32) == 0 || done == total)
                 emit reconcileProgress(done, total);
         }
         perf.addContext(QStringLiteral("reindexed"), reindexed);
-        emit reconcileFinished();
+        perf.addContext(QStringLiteral("unreadable"), unreadable);
+        emit reconcileFinished(ok);
     }
 
     Q_INVOKABLE void replaceFromText(const QString &relPath,
@@ -94,6 +148,8 @@ public:
             relPath, fileText, fileSize, modifiedMs);
         if (m_db.replaceNote(note))
             emit noteReplaced();
+        else
+            emit writeFailed();
     }
 
     Q_INVOKABLE void replaceFromPath(const QString &relPath,
@@ -101,15 +157,16 @@ public:
     {
         if (!m_db.isUsable())
             return;
-        QString text;
-        if (!readFile(absPath, &text))
+        const CollectionSearchIndex::NoteSnapshot snapshot =
+            CollectionSearchIndex::readNoteSnapshot(absPath);
+        if (!snapshot.ok)
             return;
-        const QFileInfo info(absPath);
         const IndexedNote note = CollectionSearchIndex::parseNote(
-            relPath, text, info.size(),
-            info.lastModified().toMSecsSinceEpoch());
+            relPath, snapshot.text, snapshot.fileSize, snapshot.modifiedMs);
         if (m_db.replaceNote(note))
             emit noteReplaced();
+        else
+            emit writeFailed();
     }
 
     Q_INVOKABLE void removePath(const QString &relPath)
@@ -118,24 +175,18 @@ public:
             return;
         if (m_db.removeNote(relPath))
             emit noteReplaced();
+        else
+            emit writeFailed();
     }
 
 signals:
     void reconcileStarted();
     void reconcileProgress(int indexed, int total);
-    void reconcileFinished();
+    void reconcileFinished(bool ok);
     void noteReplaced();
+    void writeFailed();
 
 private:
-    static bool readFile(const QString &absPath, QString *out)
-    {
-        QFile file(absPath);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-            return false;
-        *out = QString::fromUtf8(file.readAll());
-        return true;
-    }
-
     SearchIndexDb m_db;
     // Reconcile walks and reparses the whole vault on one thread. Without a
     // way out it runs to the end even when the vault it was reconciling has
@@ -150,9 +201,20 @@ class SearchIndexReadWorker : public QObject
 {
     Q_OBJECT
 public:
+    SearchIndexReadWorker()
+        : m_db(QStringLiteral("read"))
+    {
+    }
+
     Q_INVOKABLE bool openDb(const QString &dbPath)
     {
-        return m_db.open(dbPath, QStringLiteral("kvit_search_read"));
+        // Runs on the read thread, so no query can be in flight: a fresh root
+        // starts counting generations from zero again.
+        m_target.store(0);
+        // Read-side opens are non-destructive: the writer has already vetted
+        // and, if necessary, rebuilt the file, and a second rebuild here would
+        // unlink the database the writer is attached to.
+        return m_db.open(dbPath, SearchIndexDb::OpenMode::RequireUsable);
     }
 
     Q_INVOKABLE void closeDb() { m_db.close(); }
@@ -162,16 +224,28 @@ public:
         return m_db.revisionOf(relPath);
     }
 
-    void requestCancel() { m_cancel.store(true); }
-    void setTarget(quint64 generation) { m_target.store(generation); }
+    // Move the target forward. Cancellation is expressed only as "the target
+    // has moved past you", so it is monotonic: no caller and no worker can
+    // clear a cancellation another has already signalled.
+    void advanceTarget(quint64 generation)
+    {
+        quint64 current = m_target.load();
+        while (current < generation
+               && !m_target.compare_exchange_weak(current, generation)) {
+        }
+    }
+
+    quint64 target() const { return m_target.load(); }
 
     Q_INVOKABLE void runQuery(quint64 generation, SearchQuery request)
     {
         // A generation already superseded before it ran is dropped whole.
         if (generation < m_target.load())
             return;
-        m_cancel.store(false);
-        const SearchResults results = m_db.query(request, &m_cancel);
+        const GenerationCancel cancel(m_target, generation);
+        const SearchResults results = m_db.query(request, &cancel);
+        if (results.cancelled)
+            return; // superseded mid-scan; the newer generation answers
         emit queryReady(generation, results);
     }
 
@@ -180,7 +254,10 @@ signals:
 
 private:
     SearchIndexDb m_db;
-    std::atomic_bool m_cancel{false};
+    // The newest generation anyone has asked for. Work tagged with anything
+    // older is obsolete; the previous shared bool let an older query reset the
+    // flag a newer submission had just set, so the obsolete scan ran to the
+    // end and the new one waited behind it.
     std::atomic<quint64> m_target{0};
 };
 
@@ -201,14 +278,19 @@ CollectionSearchIndex::CollectionSearchIndex(QObject *parent)
     m_writeWorker->moveToThread(m_writeThread);
     connect(m_writeThread, &QThread::finished, m_writeWorker,
             &QObject::deleteLater);
-    connect(m_writeWorker, &SearchIndexWriteWorker::reconcileStarted, this,
-            [this]() { setIndexing(true); });
     connect(m_writeWorker, &SearchIndexWriteWorker::reconcileProgress, this,
             &CollectionSearchIndex::onReconcileProgress);
     connect(m_writeWorker, &SearchIndexWriteWorker::reconcileFinished, this,
             &CollectionSearchIndex::onReconcileFinished);
     connect(m_writeWorker, &SearchIndexWriteWorker::noteReplaced, this,
             &CollectionSearchIndex::onNoteReplaced);
+    connect(m_writeWorker, &SearchIndexWriteWorker::writeFailed, this,
+            [this]() {
+                // Ignore what a worker reports about a root that has already
+                // been closed: the index is not degraded, it is gone.
+                if (m_usable)
+                    setDegraded(true);
+            });
     m_writeThread->start();
 
     m_readThread = new QThread(this);
@@ -224,6 +306,9 @@ CollectionSearchIndex::CollectionSearchIndex(QObject *parent)
 
 CollectionSearchIndex::~CollectionSearchIndex()
 {
+    // Cancel before the blocking closes, so teardown waits for one note or one
+    // row rather than for a whole vault.
+    cancelWork();
     if (m_writeWorker)
         QMetaObject::invokeMethod(m_writeWorker, "closeDb",
                                   Qt::BlockingQueuedConnection);
@@ -269,6 +354,14 @@ void CollectionSearchIndex::setIndexing(bool indexing)
     emit indexingChanged();
 }
 
+void CollectionSearchIndex::setDegraded(bool degraded)
+{
+    if (m_degraded == degraded)
+        return;
+    m_degraded = degraded;
+    emit degradedChanged();
+}
+
 void CollectionSearchIndex::openForRoot(const QString &rootPath)
 {
     if (rootPath.isEmpty()) {
@@ -278,6 +371,11 @@ void CollectionSearchIndex::openForRoot(const QString &rootPath)
     m_rootPath = rootPath;
     m_dbPath = databasePathForRoot(rootPath);
     QDir().mkpath(QFileInfo(m_dbPath).absolutePath());
+
+    // Stop whatever the previous root left running before waiting on the
+    // worker threads: both opens below are blocking, so without this they
+    // queue behind a full-vault reconcile or a query over a large index.
+    cancelWork();
 
     // Open the write connection first: it owns schema creation and rebuild, so
     // the read connection never races an empty database into a destructive
@@ -294,30 +392,150 @@ void CollectionSearchIndex::openForRoot(const QString &rootPath)
                                   Q_RETURN_ARG(bool, readOk),
                                   Q_ARG(QString, m_dbPath));
     }
+    m_pendingReconciles = 0;
+    setIndexing(false);
+    setDegraded(false);
     setUsable(writeOk && readOk);
 }
 
 void CollectionSearchIndex::closeIndex()
 {
     // Both closes are BlockingQueuedConnection, so each waits for whatever
-    // its worker is doing to return first. Signal the cancel flags directly
-    // before queueing: they are plain atomics, safe to set from here, and a
-    // reconcile or query that stops at its next check turns a wait for the
-    // whole vault into a wait for one note.
-    if (m_writeWorker)
-        m_writeWorker->requestCancel();
-    if (m_readWorker)
-        m_readWorker->requestCancel();
+    // its worker is doing to return first. Cancel first: they are plain
+    // atomics, safe to set from here, and a reconcile or query that stops at
+    // its next check turns a wait for the whole vault into a wait for one
+    // note.
+    cancelWork();
     if (m_writeWorker)
         QMetaObject::invokeMethod(m_writeWorker, "closeDb",
                                   Qt::BlockingQueuedConnection);
     if (m_readWorker)
         QMetaObject::invokeMethod(m_readWorker, "closeDb",
                                   Qt::BlockingQueuedConnection);
+    forgetRoot();
+}
+
+void CollectionSearchIndex::requestClose()
+{
+    // The non-blocking teardown. Both workers are told to abandon what they
+    // are doing, and the two closes are posted rather than waited on, so a
+    // caller switching vaults on the GUI thread never waits behind a full-
+    // vault reconcile or a query over a large index. Work queued after these
+    // closes — the next root's opens — is delivered in order behind them, so
+    // reopening immediately is safe.
+    cancelWork();
+    if (m_writeWorker)
+        QMetaObject::invokeMethod(m_writeWorker, "closeDb",
+                                  Qt::QueuedConnection);
+    if (m_readWorker)
+        QMetaObject::invokeMethod(m_readWorker, "closeDb",
+                                  Qt::QueuedConnection);
+    forgetRoot();
+}
+
+void CollectionSearchIndex::cancelWork()
+{
+    if (m_writeWorker)
+        m_writeWorker->requestCancel();
+    if (m_readWorker) {
+        // Past every generation any caller can hold, so a query already
+        // running stops at its next row.
+        m_readWorker->advanceTarget(std::numeric_limits<quint64>::max());
+    }
+}
+
+void CollectionSearchIndex::forgetRoot()
+{
     m_rootPath.clear();
     m_dbPath.clear();
+    m_pendingReconciles = 0;
     setIndexing(false);
+    setDegraded(false);
     setUsable(false);
+}
+
+bool CollectionSearchIndex::rebuildIndex()
+{
+    if (m_rootPath.isEmpty() || m_dbPath.isEmpty())
+        return false;
+    const QString dbPath = m_dbPath;
+    cancelWork();
+    // The reader detaches first so the writer's unlink cannot leave it on a
+    // deleted inode, and reattaches only after the writer has recreated the
+    // file.
+    QMetaObject::invokeMethod(m_readWorker, "closeDb",
+                              Qt::BlockingQueuedConnection);
+    bool writeOk = false;
+    QMetaObject::invokeMethod(m_writeWorker, "rebuildDb",
+                              Qt::BlockingQueuedConnection,
+                              Q_RETURN_ARG(bool, writeOk),
+                              Q_ARG(QString, dbPath));
+    bool readOk = false;
+    if (writeOk) {
+        QMetaObject::invokeMethod(m_readWorker, "openDb",
+                                  Qt::BlockingQueuedConnection,
+                                  Q_RETURN_ARG(bool, readOk),
+                                  Q_ARG(QString, dbPath));
+    }
+    m_pendingReconciles = 0;
+    setIndexing(false);
+    setUsable(writeOk && readOk);
+    setDegraded(!(writeOk && readOk));
+    return writeOk && readOk;
+}
+
+CollectionSearchIndex::NoteSnapshot
+CollectionSearchIndex::readNoteSnapshot(const QString &absPath, int maxAttempts)
+{
+    // Metadata is taken before and after the read and the read is repeated
+    // while the two disagree, so the text, the size, and the timestamp stored
+    // for a note always describe the same revision of the file. Reading first
+    // and stating afterwards stores the old text under the new file's
+    // metadata, and because that metadata then looks current, nothing ever
+    // reads the note again.
+    NoteSnapshot snapshot;
+    for (int attempt = 0; attempt < qMax(1, maxAttempts); ++attempt) {
+        QFileInfo before(absPath);
+        if (!before.exists())
+            return NoteSnapshot();
+        const qint64 sizeBefore = before.size();
+        const qint64 modifiedBefore = before.lastModified().toMSecsSinceEpoch();
+
+        // Binary, so the bytes read can be compared against the size the two
+        // stats report. Timestamps are only accurate to the millisecond, and
+        // two rewrites inside one millisecond can leave both stats agreeing
+        // over a read that caught the file half-written; the byte count is
+        // what actually rules that out.
+        QFile file(absPath);
+        if (!file.open(QIODevice::ReadOnly))
+            return NoteSnapshot();
+        const QByteArray bytes = file.readAll();
+        if (file.error() != QFileDevice::NoError)
+            return NoteSnapshot();
+        file.close();
+
+        QFileInfo after(absPath);
+        if (!after.exists())
+            return NoteSnapshot();
+        if (bytes.size() != sizeBefore || after.size() != sizeBefore
+            || after.lastModified().toMSecsSinceEpoch() != modifiedBefore) {
+            continue; // the file moved under the read; take it again
+        }
+
+        // What QIODevice::Text used to do, done the same way everywhere
+        // instead of only on Windows.
+        QString text = QString::fromUtf8(bytes);
+        text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+        snapshot.text = text;
+        snapshot.fileSize = sizeBefore;
+        snapshot.modifiedMs = modifiedBefore;
+        snapshot.ok = true;
+        return snapshot;
+    }
+    // Still changing after every attempt. Skipping it now is safe: the note
+    // is left with whatever the index already held, and the next reconcile —
+    // which compares content, not metadata — picks it up.
+    return NoteSnapshot();
 }
 
 IndexedNote CollectionSearchIndex::parseNote(const QString &relPath,
@@ -337,6 +555,7 @@ IndexedNote CollectionSearchIndex::parseNote(const QString &relPath,
                      : name;
     note.fileSize = fileSize;
     note.modifiedMs = modifiedMs;
+    note.contentHash = SearchIndexDb::contentFingerprint(fileText);
 
     const NoteFrontMatter::Split split = NoteFrontMatter::split(fileText);
     note.tags = NoteFrontMatter::parse(split.block).tags;
@@ -367,6 +586,13 @@ void CollectionSearchIndex::reconcile(const QList<ReconcileEntry> &listing)
 {
     if (!m_usable)
         return;
+    // Indexing becomes true here, where the work is enqueued, not later when
+    // the worker gets around to announcing it. A caller that queued a
+    // reconcile and then asked whether the index was busy used to be told no,
+    // and a test waiting for the index to settle could sail through the gap
+    // before the job had started.
+    ++m_pendingReconciles;
+    setIndexing(true);
     QMetaObject::invokeMethod(m_writeWorker, "reconcile", Qt::QueuedConnection,
                               Q_ARG(QList<ReconcileEntry>, listing));
 }
@@ -405,13 +631,18 @@ void CollectionSearchIndex::submitQuery(quint64 generation,
                                         const SearchQuery &request)
 {
     if (!m_usable) {
-        // No index: report an empty result so the facade clears cleanly.
-        emit queryFinished(generation, SearchResults());
+        // No index to ask. The reply carries ok=false so the caller can tell
+        // "there is nothing to search" from "nothing matched".
+        SearchResults empty;
+        empty.ok = false;
+        emit queryFinished(generation, empty);
         return;
     }
     m_submittedGeneration.store(generation);
-    m_readWorker->setTarget(generation);
-    m_readWorker->requestCancel(); // stop any older query still running
+    // Moving the target is the whole cancellation mechanism: everything older
+    // is obsolete by definition, and this generation cannot be un-cancelled by
+    // an older one arriving late.
+    m_readWorker->advanceTarget(generation);
     QMetaObject::invokeMethod(m_readWorker, "runQuery", Qt::QueuedConnection,
                               Q_ARG(quint64, generation),
                               Q_ARG(SearchQuery, request));
@@ -422,8 +653,7 @@ void CollectionSearchIndex::cancelQueries(quint64 generation)
     if (!m_usable || !m_readWorker)
         return;
     m_submittedGeneration.store(generation);
-    m_readWorker->setTarget(generation);
-    m_readWorker->requestCancel();
+    m_readWorker->advanceTarget(generation);
 }
 
 qint64 CollectionSearchIndex::revisionOf(const QString &relPath) const
@@ -445,9 +675,18 @@ void CollectionSearchIndex::onReconcileProgress(int indexed, int total)
     emit indexingProgress(indexed, total);
 }
 
-void CollectionSearchIndex::onReconcileFinished()
+void CollectionSearchIndex::onReconcileFinished(bool ok)
 {
-    setIndexing(false);
+    if (!ok && m_usable)
+        setDegraded(true);
+    // Only the last outstanding job clears the flag. Two queued reconciles
+    // otherwise emit finish/start pairs that make the index look idle in
+    // between, which is a moment where a query can be published as a complete
+    // answer against a half-built index.
+    if (m_pendingReconciles > 0)
+        --m_pendingReconciles;
+    if (m_pendingReconciles == 0)
+        setIndexing(false);
     emit indexUpdated();
 }
 
@@ -459,6 +698,11 @@ void CollectionSearchIndex::onNoteReplaced()
 void CollectionSearchIndex::onQueryReady(quint64 generation,
                                          SearchResults results)
 {
+    // A query the engine could not run says something about the index, not
+    // about the query: the answer would otherwise arrive as an ordinary empty
+    // result set and replace valid results on screen.
+    if (!results.ok && m_usable)
+        setDegraded(true);
     // The coordinator forwards every completed generation; the facade keeps
     // only the latest.
     emit queryFinished(generation, results);
