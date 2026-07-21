@@ -5,6 +5,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
 import QtTest
+// The application services this suite drives — BlockModel, DocumentManager,
+// NoteCollection, Theme and the rest — reach QML as `Kvit` module singletons.
+// Without this import every scenario that names one throws on an undefined
+// variable before it captures a single frame, which is exactly what happened:
+// the suite reported 62 failures that were all this one missing line.
+import Kvit 1.0
 
 // Visual storyboard suite for screen verification.
 //

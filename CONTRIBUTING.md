@@ -92,11 +92,19 @@ doubled parse into a hot path and requires the budget to fail, then reverts
 and requires it to pass. A budget that cannot fail is not a budget.
 
 QML is also linted statically, and that check blocks merges too:
-`tools/run-qmllint.sh` runs over `qml/`. It reads every file, including those
-no test instantiates, and rejects malformed QML, unresolvable imports and uses
-of types that do not exist. Its header comment explains which qmllint
-categories are switched off and why — in short, this project reaches C++
-through context properties, which a static analyser cannot see at all.
+`tools/run-qmllint.sh` runs over the shipping QML in `qml/` and over the test
+QML in `tests/`. It reads every file, including those no test instantiates, and
+rejects malformed QML, unresolvable imports, uses of types that do not exist,
+unqualified names and reads of properties a type does not have. The C++ side is
+reached entirely through typed `Kvit` module singletons whose type description
+qmltyperegistrar generates at build time, so those last two categories are on;
+the only suppressions left are three line-scoped ones for gaps in Qt's own type
+descriptions. The script's header comment lists them, and names the three
+categories demoted to informational.
+
+Building the `qmllint` target runs the same script, so
+`cmake --build build --target qmllint` and `ctest -R QmlLint` both gate on it
+without anyone remembering the script's path.
 
 For UI-facing changes, also look at the running app. The automated suites
 render on the CPU and cannot see GPU-path rendering problems.

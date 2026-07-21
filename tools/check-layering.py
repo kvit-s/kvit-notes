@@ -4,7 +4,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Check the module boundary the tree is built on.
 
-src/ is seven modules (code-plan.md §6.1, docs/adr/0004-module-boundary.md).
+src/ is seven modules (code-plan.md §6.1, docs/adr/0008-module-boundary.md).
 CMake enforces the include direction already — each target publishes only its
 own directory and inherits the modules it links, so an upward include fails to
 compile. This script exists for the two things that cannot express:
@@ -232,7 +232,7 @@ def main():
         for rel, lineno, why in problems:
             where = "src/%s:%d" % (rel, lineno) if lineno else "src/%s" % rel
             print("  %s: %s" % (where, why), file=sys.stderr)
-        print("\n%d violation(s). See docs/adr/0004-module-boundary.md."
+        print("\n%d violation(s). See docs/adr/0008-module-boundary.md."
               % len(problems), file=sys.stderr)
         return 1
 

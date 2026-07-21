@@ -69,16 +69,16 @@ problem. The standing TODO in `ci.yml` names the shape of that future work,
 being a windeployqt zip with an Inno installer on Windows and a macdeployqt
 notarized DMG on macOS, both in the same protected environment.
 
-Two loose ends are worth recording rather than leaving to be rediscovered:
+One loose end is worth recording rather than leaving to be rediscovered:
 
 - `docs/release-rollback.md` still lists winget and a Homebrew tap as
   propagation targets, and neither has a manifest in the tree. Either that
   procedure is aspirational in the same way the README's claims were before they
   were corrected, or the manifests live somewhere outside this repository. This
   has not been determined.
-- `CMakeLists.txt` requires CMake 3.16 while the presets and the documentation
-  require 3.21. In practice the presets gate it, so a CMake between 3.16 and
-  3.20 fails at `--preset` rather than at configure. The numbers should agree.
+
+The CMake floor agrees everywhere it is stated: `cmake_minimum_required` in
+`CMakeLists.txt`, the presets, and the toolchain line above all say 3.21.
 
 ## Evidence in the tree
 

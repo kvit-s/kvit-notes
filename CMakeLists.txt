@@ -403,6 +403,45 @@ qt_add_qml_module(kvit-qml
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/qmlmodules/Kvit
 )
 
+# ── The two QML analysis entry points, both owned by this project.
+#
+# `kvit-qmltypes` is the name to build when all you want is the `Kvit` module
+# description that qmllint reads. Qt's own generator target is named after
+# whichever target qt_add_qml_module() was attached to, so it moves whenever
+# the module does — and it had already moved: CI and the release packaging job
+# built `kvit-core_qmltyperegistration`, a target that has not existed since
+# the module moved to kvit-qml, so the blocking lint job failed before it ran
+# a single check and tag builds could not package. Nothing outside this file
+# names Qt's target now.
+#
+# It is in ALL because the description is a build output the lint script needs
+# and cannot produce: without this, a complete `cmake --build` leaves
+# tools/run-qmllint.sh with nothing to read and the script exits 2 telling the
+# developer to build a target they have no reason to know about.
+add_custom_target(kvit-qmltypes ALL)
+add_dependencies(kvit-qmltypes kvit-qml_qmltyperegistration)
+
+# `qmllint` runs the real gate — tools/run-qmllint.sh, over the shipping QML
+# and the test QML both. Qt generates a per-module lint target too, but the
+# QML files ship through resources.qrc rather than through QML_FILES, so it
+# has nothing to lint and `all_qmllint` reported a clean run over an empty
+# set. Hanging this target off it means that aggregate now means what a
+# reader assumes it means.
+if(UNIX)
+    add_custom_target(qmllint
+        COMMAND ${CMAKE_COMMAND} -E env KVIT_BUILD_DIR=${CMAKE_BINARY_DIR}
+                bash ${CMAKE_CURRENT_SOURCE_DIR}/tools/run-qmllint.sh
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "qmllint over qml/ and the test QML"
+        VERBATIM
+        USES_TERMINAL
+    )
+    add_dependencies(qmllint kvit-qmltypes)
+    if(TARGET all_qmllint)
+        add_dependencies(all_qmllint qmllint)
+    endif()
+endif()
+
 # The `Kvit` module registers types that are compiled into the modules below
 # this one — Block's enum, the fence-kind numbering, the code-language
 # singleton, the diagram canvas, the settings store. qmltyperegistrar resolves

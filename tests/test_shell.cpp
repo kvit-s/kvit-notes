@@ -12,6 +12,7 @@
 #include <QUrl>
 
 #include <memory>
+#include <utility>
 
 #include "appcontext.h"
 #include "blockkindregistry.h"
@@ -27,23 +28,56 @@
 
 namespace {
 
-// Warnings emitted while the shell loads. QML resolves bindings lazily and
+// Warnings emitted while this suite runs. QML resolves bindings lazily and
 // reports every failure — an unknown context property, a type the qrc does
 // not carry, a binding loop — as a warning on the message handler and then
 // carries on with an undefined value. Loading therefore "succeeds" no matter
 // how much of the shell failed to wire up, which is precisely how a renamed
 // context property or a resource missing from the qrc used to merge green.
 // Capturing the warnings turns each one into a test failure.
-QStringList g_loadWarnings;
+//
+// The handler stays installed for the whole suite rather than only across the
+// load. Most of what the shell does happens after loadComplete: a binding
+// that only evaluates once a delegate is created, a signal handler that only
+// runs when something changes, and Qt's own deprecation warnings about the
+// QML the shell contains. Restoring the handler as soon as the engine
+// returned meant none of that could fail the test.
+QStringList g_warnings;
 QtMessageHandler g_previousHandler = nullptr;
+
+// Warnings a test provokes deliberately. The case that proves a module cannot
+// take a core singleton's namespace has to trigger the refusal to observe it,
+// and that refusal is a warning; without this it would fail the suite-wide
+// check below. QTest::ignoreMessage handles the same message for QTest's own
+// handler, which is a separate mechanism from this list.
+QList<QRegularExpression> g_expectedWarnings;
 
 void capturingHandler(QtMsgType type, const QMessageLogContext &context,
                       const QString &message)
 {
-    if (type == QtWarningMsg || type == QtCriticalMsg || type == QtFatalMsg)
-        g_loadWarnings << message;
+    if (type == QtWarningMsg || type == QtCriticalMsg || type == QtFatalMsg) {
+        bool expected = false;
+        for (const QRegularExpression &pattern : std::as_const(g_expectedWarnings)) {
+            if (message.contains(pattern)) {
+                expected = true;
+                break;
+            }
+        }
+        if (!expected)
+            g_warnings << message;
+    }
     if (g_previousHandler)
         g_previousHandler(type, context, message);
+}
+
+// Format `warnings` from `first` onward as a failure report.
+QString warningReport(const QString &what, const QStringList &warnings, int first)
+{
+    QString report =
+        QStringLiteral("%1 produced %2 warning(s):\n").arg(what).arg(warnings.size() - first);
+    for (int i = first; i < warnings.size(); ++i)
+        report += QStringLiteral("  - ") + warnings.at(i) + QLatin1Char('\n');
+    return report;
 }
 
 // A stand-in module that asks for a given QML namespace, so a test can aim
@@ -90,13 +124,22 @@ private slots:
         m_context->openSettings(m_dir.filePath(QStringLiteral("settings.json")));
         m_context->installContextProperties(&m_engine);
 
-        g_loadWarnings.clear();
+        g_warnings.clear();
+        g_expectedWarnings.clear();
         g_previousHandler = qInstallMessageHandler(capturingHandler);
         m_engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
         // Bindings evaluate as the scene is built; let the queue drain so a
         // late failure is captured too.
         QCoreApplication::processEvents();
-        qInstallMessageHandler(g_previousHandler);
+        // Where the load stopped and the rest of the suite begins. The handler
+        // is deliberately left installed; cleanupTestCase() takes it back.
+        m_warningsAfterLoad = g_warnings.size();
+    }
+
+    void cleanupTestCase()
+    {
+        if (g_previousHandler)
+            qInstallMessageHandler(g_previousHandler);
     }
 
     void theComposedContextLoadsTheShell()
@@ -110,14 +153,9 @@ private slots:
     // surface here as a warning rather than as a failed load.
     void loadingTheShellEmitsNoQmlWarnings()
     {
-        if (!g_loadWarnings.isEmpty()) {
-            QString report = QStringLiteral(
-                "Loading qml/main.qml produced %1 warning(s):\n")
-                    .arg(g_loadWarnings.size());
-            for (const QString &warning : g_loadWarnings)
-                report += QStringLiteral("  - ") + warning + QLatin1Char('\n');
-            QFAIL(qPrintable(report));
-        }
+        if (m_warningsAfterLoad > 0)
+            QFAIL(qPrintable(warningReport(QStringLiteral("Loading qml/main.qml"),
+                                           g_warnings.mid(0, m_warningsAfterLoad), 0)));
     }
 
     // The core publishes no context properties at all any more: every service
@@ -168,47 +206,19 @@ private slots:
     // second half checks a second composition really does get its own.
     void everySingletonResolvesWithinItsOwnComposition()
     {
-        static const QStringList singletons = {
-            QStringLiteral("QueryTools"),      QStringLiteral("GlobalHotkey"),
-            QStringLiteral("FileWatcher"),     QStringLiteral("ShortcutCatalog"),
-            QStringLiteral("QuickSwitcherModel"),
-            QStringLiteral("FolderTreeModel"),
-            QStringLiteral("MarkdownFormatter"),
-            QStringLiteral("BlockMenuModel"),
-            QStringLiteral("MathCommandModel"),
-            QStringLiteral("DocumentStats"),
-            QStringLiteral("DocumentExporter"),
-            QStringLiteral("DocumentSerializer"),
-            QStringLiteral("DocumentImporter"),
-            QStringLiteral("EmbedMetadata"),
-            QStringLiteral("SystemTray"),
-            QStringLiteral("NavigationHistory"),
-            QStringLiteral("UpdateChecker"),
-            QStringLiteral("TableTools"),
-            QStringLiteral("KanbanTools"),
-            QStringLiteral("TodoMeta"),
-            QStringLiteral("MathRenderer"),
-            QStringLiteral("UndoStack"),
-            QStringLiteral("DocumentOutline"),
-            QStringLiteral("CollectionSearch"),
-            QStringLiteral("NoteTemplates"),
-            QStringLiteral("EgressPolicy"),
-            QStringLiteral("Typography"),
-            QStringLiteral("ImageAssets"),
-            QStringLiteral("BlockAttributes"),
-            QStringLiteral("Clipboard"),
-            QStringLiteral("A11y"),
-            QStringLiteral("Extensions"),
-            QStringLiteral("BlockKindRegistry"),
-            QStringLiteral("DocumentSearch"),
-            QStringLiteral("NoteListModel"),
-            QStringLiteral("AppSettings"),
-            QStringLiteral("DocumentManager"),
-            QStringLiteral("NoteCollection"),
-            QStringLiteral("BlockModel"),
-            QStringLiteral("Theme"),
-            QStringLiteral("DocumentSelection"),
-        };
+        // The list comes from the registry that declares the singletons
+        // (KVIT_QML_SINGLETONS in qmlsingletons.h, expanded by
+        // KvitQml::singletonNames()), not from a copy kept here. The copy had
+        // already drifted: it named 41 of the 44 services and silently omitted
+        // RemoteMediaCache, AssetStore and AppActions, so a broken factory or
+        // a wrong-instance composition for any of those three passed a test
+        // whose whole claim is that it covers every singleton.
+        const QStringList singletons = KvitQml::singletonNames();
+
+        // An empty registry would make the loop below vacuous and still green,
+        // which is the one failure mode driving the list from code introduces.
+        QVERIFY(!singletons.isEmpty());
+        qInfo("checking %lld Kvit singletons", qint64(singletons.size()));
 
         // A second composition, wired exactly like the one under test.
         QTemporaryDir otherDir;
@@ -397,10 +407,12 @@ private slots:
         // this needs to learn that the core owns a singleton of that name and
         // that the two would be confusable, which is the whole reason the
         // comparison ignores case.
-        QTest::ignoreMessage(
-            QtWarningMsg,
-            QRegularExpression(QStringLiteral(
-                "the editor already publishes '%1'").arg(reserved.first())));
+        const QRegularExpression refusal(QStringLiteral(
+            "the editor already publishes '%1'").arg(reserved.first()));
+        QTest::ignoreMessage(QtWarningMsg, refusal);
+        // The suite-wide warning check runs after this case, and this warning
+        // is the thing the case exists to provoke.
+        g_expectedWarnings << refusal;
         context.installContextProperties(&engine);
 
         QVERIFY(context.extensions()->publishedNamespaces().isEmpty());
@@ -486,11 +498,34 @@ private slots:
         QCOMPARE(context.typography()->baseSize(), 19);
     }
 
+    // Declared last on purpose: QtTest runs test functions in declaration
+    // order, so this sees everything the cases above provoked.
+    //
+    // The load-time check earlier covers only what the engine reported before
+    // it returned, which is a small fraction of what the shell says. Bindings
+    // inside a delegate evaluate when the delegate is created — this suite
+    // creates one per block kind — and Qt reports deprecated QML constructs
+    // as the handlers containing them run rather than at parse time. Both
+    // classes were escaping the gate entirely.
+    //
+    // A warning a case raises on purpose belongs in g_expectedWarnings, next
+    // to the QTest::ignoreMessage that documents why it is expected.
+    void noWarningsAppearAfterTheShellHasLoaded()
+    {
+        if (g_warnings.size() > m_warningsAfterLoad)
+            QFAIL(qPrintable(warningReport(
+                QStringLiteral("Exercising the loaded shell"),
+                g_warnings, m_warningsAfterLoad)));
+    }
+
 private:
     QTemporaryDir m_dir;
     // The context outlives the engine, as it does in KvitApplication.
     std::unique_ptr<AppContext> m_context;
     QQmlApplicationEngine m_engine;
+    // How many warnings the shell load itself produced; everything after that
+    // index belongs to the cases that ran afterwards.
+    int m_warningsAfterLoad = 0;
 };
 
 QTEST_MAIN(TestShell)

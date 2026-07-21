@@ -166,13 +166,24 @@ jobs:
       # against the imperative registrations in AppContext. Generated
       # metadata cannot drift from the C++, so there is nothing left to
       # check.
+      #
+      # `kvit-qmltypes` is this project's own name for that generator. Qt's
+      # generated target is named after whichever target carries the QML
+      # module, so it moves when the module does — this job used to build
+      # `kvit-core_qmltyperegistration`, which stopped existing when the
+      # module moved to kvit-qml, and the step failed before the lint script
+      # ever ran. The alias in CMakeLists.txt is stable, so this cannot
+      # happen again.
       - name: Generate the Kvit QML type description
         run: |
           cmake -S . -B build
-          cmake --build build --target kvit-core_qmltyperegistration
+          cmake --build build --target kvit-qmltypes
 
+      # The `qmllint` target runs tools/run-qmllint.sh with KVIT_BUILD_DIR
+      # already pointing at this build tree, over the shipping QML and the
+      # test QML both.
       - name: qmllint
-        run: tools/run-qmllint.sh
+        run: cmake --build build --target qmllint
 
   # Optional CMake targets, built but not run. Everything off by default is
   # invisible to every other job, so a change elsewhere can break one and

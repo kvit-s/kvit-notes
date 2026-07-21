@@ -478,6 +478,34 @@ target_compile_definitions(test_visual PRIVATE
 
 add_test(NAME VisualTests COMMAND test_visual -input ${CMAKE_CURRENT_SOURCE_DIR}/tst_visual.qml)
 
+# The same storyboard suite offscreen, and blocking.
+#
+# Most of these scenarios drive the keyboard and need a focused window, so
+# they skip themselves headless; what is left is the set that only builds
+# content and captures it, which is deterministic under the offscreen
+# platform. Running the whole file and letting each case decide keeps the
+# subset derived from the tests rather than from a list here — a new scenario
+# that does not depend on focus joins the gate by existing.
+#
+# This exists because the display-only entry above could not fail a merge, and
+# the suite spent an unknown period unable to resolve a single application
+# service: tests/tst_visual.qml used BlockModel, DocumentManager,
+# NoteCollection and Theme without importing `Kvit 1.0`, and 62 of its 65
+# scenarios threw on the first name they touched. Headless, that same defect
+# is 11 failures here rather than an informational red somebody stopped
+# reading.
+#
+# Its own screenshot directory, and a lock shared with the display entry, so a
+# parallel `ctest` run cannot have the two processes overwrite each other's
+# frames.
+add_test(NAME VisualStoryboardHeadless
+         COMMAND test_visual -input ${CMAKE_CURRENT_SOURCE_DIR}/tst_visual.qml)
+set_tests_properties(VisualStoryboardHeadless PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;KVIT_SHOT_DIR=${CMAKE_BINARY_DIR}/screenshots-headless"
+    RESOURCE_LOCK visual-storyboard
+    TIMEOUT 300)
+set_tests_properties(VisualTests PROPERTIES RESOURCE_LOCK visual-storyboard)
+
 # A QML load error leaves the Qt Quick Test harness waiting forever on
 # its `when:` condition (observed 2026-07-07: a type missing from the
 # test qrc hung the gate for hours). Timeouts turn any future hang into
@@ -570,6 +598,31 @@ if(Python3_Interpreter_FOUND)
                      ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-layering.py)
 endif()
 
+# Static QML analysis, as a test rather than only as a script somebody has to
+# remember.
+#
+# It regenerates the `Kvit` module description before linting rather than
+# trusting whatever is in the build tree. qmllint checks QML against that
+# description, so a stale one is not a missing check but a wrong one: a
+# property added in C++ reads as absent, and a property removed in C++ still
+# resolves. Both directions are the misleading result this gate exists to
+# stop, and a description one commit behind is easy to arrive at — building a
+# single test target does not refresh it.
+#
+# Regenerating is cheap. The registrar needs moc output, not compiled objects,
+# so this does not turn the lint test into a build of the editor.
+if(UNIX)
+    add_test(NAME QmlLint
+             COMMAND ${CMAKE_COMMAND} -E env
+                     KVIT_BUILD_DIR=${CMAKE_BINARY_DIR}
+                     bash -c "\
+${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target kvit-qmltypes && \
+${CMAKE_SOURCE_DIR}/tools/run-qmllint.sh")
+    set_tests_properties(QmlLint PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        TIMEOUT 600)
+endif()
+
 # ── CTest labels. The suite is heterogeneous, so every entry gets exactly
 #    one label and CI filters with `ctest -L <label>`:
 #      unit        deterministic, headless-safe — the merge gate on all OSes
@@ -581,8 +634,10 @@ endif()
 #
 # `shell` is separate from `unit` only because it constructs a QQuickWindow
 # and so needs a QPA platform, not because it is any less deterministic: the
-# suites below take about 0.6s and pass repeatedly under QT_QPA_PLATFORM=
-# offscreen. They were previously labelled `gui-smoke` and run in CI under
+# suites below pass repeatedly under QT_QPA_PLATFORM=offscreen. ShellTests
+# takes about 0.6s; VisualStoryboardHeadless, which joined the label so the
+# storyboard scenarios that do not need focus can fail a merge, takes about
+# nine seconds. They were previously labelled `gui-smoke` and run in CI under
 # continue-on-error, which meant the one test that loads the shipped
 # resources.qrc could not fail a merge — a QML syntax error, a resource
 # missing from the qrc, an import that does not resolve, or a context
@@ -596,7 +651,11 @@ set(KVIT_PERFORMANCE_TESTS
     SearchIndexTimingBudget)
 set(KVIT_SHELL_TESTS
     ShellTests
-    AgentShellTests)
+    AgentShellTests
+    # The storyboard scenarios that do not need a focused window. Same
+    # binary and same file as VisualTests, but offscreen and blocking; the
+    # display entry stays informational under `visual`.
+    VisualStoryboardHeadless)
 set(KVIT_VISUAL_TESTS
     IntegrationTests
     IntegrationTestsIsolated

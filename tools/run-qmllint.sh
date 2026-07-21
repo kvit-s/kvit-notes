@@ -3,12 +3,22 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-# Static QML lint gate. Runs qmllint over qml/ and fails on any warning that
-# survives the configuration below, so a broken import or a malformed QML file
-# is caught before it reaches the runtime shell test.
+# Static QML lint gate. Runs qmllint over the shipping QML in qml/ and over
+# the Qt Quick Test QML in tests/, and fails on any warning that survives the
+# configuration below, so a broken import or a malformed QML file is caught
+# before it reaches the runtime shell test.
 #
-#   tools/run-qmllint.sh              # lint qml/
+#   tools/run-qmllint.sh              # lint qml/ and tests/*.qml
 #   tools/run-qmllint.sh a.qml b.qml  # lint specific files
+#
+# The build system runs this too, so nobody has to remember the path:
+#
+#   cmake --build build --target qmllint     # the same gate, as a build step
+#   ctest --test-dir build -R QmlLint        # and as a CTest case
+#
+# Test QML is checked under a slightly different profile from shipping QML;
+# the block above the test invocation at the bottom says which two categories
+# differ and why.
 #
 # Finding qmllint: $QT_ROOT_DIR/bin/qmllint if that is set (CI exports it via
 # install-qt-action), otherwise the newest 6.x kit under ~/Qt, otherwise PATH.
@@ -81,7 +91,13 @@ fi
 # bare checkout — it has to be generated first. Generating it does not need a
 # full build:
 #
-#   cmake -S . -B build && cmake --build build --target kvit-qml_qmltyperegistration
+#   cmake -S . -B build && cmake --build build --target kvit-qmltypes
+#
+# `kvit-qmltypes` is this project's own alias for the generator; Qt's own
+# target is named after whichever target carries the QML module and so moves
+# when the module does, which is how CI came to build a target that no longer
+# existed. It is also in ALL, so any complete build leaves the description in
+# place and this script needs no separate step.
 #
 # KVIT_BUILD_DIR overrides the location for an out-of-tree build directory.
 BUILD_DIR="${KVIT_BUILD_DIR:-build}"
@@ -90,27 +106,114 @@ MODULE_DIR="$BUILD_DIR/qmlmodules"
 if [ ! -f "$MODULE_DIR/Kvit/kvit-qml.qmltypes" ]; then
     echo "The Kvit module description is missing from $MODULE_DIR." >&2
     echo "Generate it with:" >&2
-    echo "  cmake -S . -B $BUILD_DIR && cmake --build $BUILD_DIR --target kvit-qml_qmltyperegistration" >&2
+    echo "  cmake -S . -B $BUILD_DIR && cmake --build $BUILD_DIR --target kvit-qmltypes" >&2
     echo "or set KVIT_BUILD_DIR to a build directory that has one." >&2
     exit 2
 fi
 
+# Two file sets, because they can carry different guarantees. Anything under
+# tests/ is a Qt Quick Test file and gets the profile described below; the
+# rest is shipping QML and gets the strict one. Naming files explicitly picks
+# the profile the same way, so linting one file behaves as it does in a full
+# run.
+SHIPPING=()
+TESTQML=()
 if [ $# -gt 0 ]; then
-    FILES=("$@")
+    for f in "$@"; do
+        case "$f" in
+            tests/*|./tests/*|*/tests/*) TESTQML+=("$f") ;;
+            *) SHIPPING+=("$f") ;;
+        esac
+    done
 else
-    mapfile -t FILES < <(find qml -name '*.qml' | sort)
+    mapfile -t SHIPPING < <(find qml -name '*.qml' | sort)
+    mapfile -t TESTQML < <(find tests -maxdepth 1 -name '*.qml' | sort)
 fi
 
 # -W 0 turns "any warning at all" into a non-zero exit; without it qmllint
 # prints findings and still succeeds. Every category is at its default (fail)
 # except the three demoted to `info` below.
-"$QMLLINT" \
-    -I qml \
-    -I "$MODULE_DIR" \
-    -W 0 \
-    --equality-type-coercion info \
-    --Quick.layout-positioning info \
-    --Quick.anchor-combinations info \
-    "${FILES[@]}"
+COMMON=(-I qml -I "$MODULE_DIR" -W 0
+        --equality-type-coercion info
+        --Quick.layout-positioning info
+        --Quick.anchor-combinations info)
 
-echo "qmllint: ${#FILES[@]} files clean"
+if [ ${#SHIPPING[@]} -gt 0 ]; then
+    "$QMLLINT" "${COMMON[@]}" "${SHIPPING[@]}"
+    echo "qmllint: ${#SHIPPING[@]} shipping files clean"
+fi
+
+# ── The test QML
+#
+# Test QML used to go unchecked entirely, which is how tests/tst_visual.qml
+# came to use BlockModel, DocumentManager, NoteCollection and Theme without
+# importing `Kvit 1.0` at all: 62 of its 65 scenarios threw on the first name
+# they touched, and no gate said so because the script only ever read qml/.
+#
+# It cannot carry the shipping profile, though, because two things a Qt Quick
+# Test file does are invisible to a static analyser by construction:
+#
+#   unqualified       tests/testsetup.h installs the harness handles
+#                     (testCollectionDir, testFiles, screenshotDir, the sample
+#                     media paths) as context properties, which is what
+#                     qmllint fundamentally cannot see — the same reason the
+#                     shipping QML stopped using them.
+#   missing-property  the suites drive the application through
+#                     `appLoader.item`, and Loader.item is typed QObject, so
+#                     every member read off the loaded shell is unresolvable.
+#
+# Both are demoted to `info` here. Everything else — a syntax error, an import
+# that does not resolve, a type that does not exist — fails exactly as it does
+# for shipping QML.
+#
+# Demoting `unqualified` wholesale would give back the very defect above, so
+# the findings are filtered rather than discarded: an unqualified name is
+# allowed only if testsetup.h publishes it. A missing `import Kvit 1.0` makes
+# every service name unqualified and none of them is a harness handle, so it
+# fails here. The allowlist is read out of testsetup.h rather than written
+# here, so adding a harness handle needs no edit to this script and removing
+# one cannot leave a stale exemption behind.
+if [ ${#TESTQML[@]} -gt 0 ]; then
+    mapfile -t HARNESS < <(
+        grep -oP 'setContextProperty\("\K[A-Za-z0-9_]+' tests/testsetup.h |
+        sort -u)
+    if [ ${#HARNESS[@]} -eq 0 ]; then
+        echo "no harness context properties found in tests/testsetup.h;" \
+             "the unqualified-access allowlist would be empty" >&2
+        exit 2
+    fi
+
+    output=$("$QMLLINT" "${COMMON[@]}" \
+                 --unqualified info \
+                 --missing-property info \
+                 "${TESTQML[@]}" 2>&1) && status=0 || status=$?
+    echo "$output"
+    [ "$status" -eq 0 ] || exit "$status"
+
+    # qmllint points at the offending name with a caret run under the source
+    # line, which is where the name itself comes from — the message text says
+    # only "Unqualified access".
+    unknown=$(printf '%s\n' "$output" | awk -v allowed="${HARNESS[*]}" '
+        BEGIN { split(allowed, a, " "); for (i in a) ok[a[i]] = 1 }
+        /Unqualified access \[unqualified\]/ {
+            where = $0; sub(/^Info: /, "", where); state = 1; next
+        }
+        state == 1 { src = $0; state = 2; next }
+        state == 2 {
+            col = index($0, "^")
+            name = substr(src, col, length($0) - col + 1)
+            if (!(name in ok)) print where
+            state = 0
+        }')
+    if [ -n "$unknown" ]; then
+        echo >&2
+        echo "Unqualified names in test QML that tests/testsetup.h does not" \
+             "publish. A service reached without its import reads exactly" \
+             "like this; add the missing import (usually 'import Kvit 1.0')" \
+             "or qualify the name:" >&2
+        printf '%s\n' "$unknown" >&2
+        exit 1
+    fi
+
+    echo "qmllint: ${#TESTQML[@]} test files clean"
+fi
