@@ -335,6 +335,9 @@ KvitShell {
     // stay with the component that answers them.
     AppShortcuts {
         anchors.fill: parent
+        // The back/forward area inside covers the window and has to sit above
+        // it, which is what its own z said while it was a child of the window.
+        z: 10000
         appWindow: root
         findBar: root.findBar
         quickSwitcher: root.quickSwitcher
@@ -774,7 +777,9 @@ KvitShell {
     function insertEmbedIntoBlock(idx) { blockInserts.insertEmbed(idx) }
     function insertTableIntoBlock(idx) { blockInserts.insertTable(idx) }
 
-    // ---- External drop ingestion (features.md §5.3, §5.4) ----
+    // The folder holding the open file. Two workflows ask for it: a drop
+    // ingests its assets beside the note, and the create-a-vault offer turns
+    // this folder into the collection root.
     function currentNoteDir() {
         var p = DocumentManager.currentFilePath
         var idx = p.lastIndexOf("/")
