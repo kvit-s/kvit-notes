@@ -42,3 +42,34 @@ specification they were built to:
   `DiagramCanvas::textDiagram()` checks for a non-empty scene rather than using the stricter
   `sceneCurrent()` guard specified by the plan; the visible action itself is hidden while a
   render is pending or errored.
+
+## Six behaviours the Qt Quick suite reports as wrong
+
+Established 2026-07-20, when the Qt Quick suites were repointed at the QML
+names the shell publishes. Before that, 284 of IntegrationTests' 312 cases
+were dying at the first line that touched a service, so nothing these six say
+had been visible. Each fails identically on the tree before the module split
+and after it, so they are existing defects rather than anything that work
+introduced.
+
+- `test_19_editorEngineAttached`: a plain, unfocused text block instantiates a
+  `TextArea`. The lazy-delegate contract says it should not need one until it
+  is focused, and the cost of the extra item is the reason that contract
+  exists.
+- `test_22_markersHiddenWhenCursorOutside`: with the cursor outside the span,
+  the document holds `Hello **world**` where display text is expected. The
+  reveal transition is not collapsing.
+- `test_v5_shiftClickSelectsRange`: shift-clicking three rows apart selects one
+  block rather than three.
+- `test_z4_blockMenuRecencyPersists`: a persisted block-menu recency value
+  reads back as `NaN`.
+- `test_z7_themePersistsAndRestylesShell`: a theme saved as `light` is restored
+  as `system`.
+- `test_z8_typographyScalesLiveDelegates`: a live delegate's size stays 0 after
+  a typography change.
+
+Neither Qt Quick suite is a merge gate, because both need a display and both
+are unreliable under this machine's compositor: consecutive runs of one binary
+have given 306, 305 and 306 passing, and also around 198, with inconsistent
+failure sets. The six above are stable across the good runs and reproduce in
+isolation, which is what separates them from that noise.
