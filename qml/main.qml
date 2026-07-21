@@ -519,7 +519,9 @@ KvitShell {
     function saveCurrentNoteAsTemplate(name) {
         return noteSession.saveCurrentNoteAsTemplate(name)
     }
-    function restoreRecoveredNote(relPath) { noteSession.restoreRecoveredNote(relPath) }
+    function restoreRecoveredNote(relPath) {
+        noteSession.restoreRecoveredNote(relPath)
+    }
     // The conflict banner's two buttons (§12.1).
     function keepMine() { noteSession.keepMine() }
     function loadTheirs(absPath) { noteSession.loadTheirs(absPath) }
@@ -981,108 +983,17 @@ KvitShell {
         }
     }
 
-    Shortcut {
-        sequences: [StandardKey.Open]  // Ctrl+O
-        onActivated: {
-            DocumentManager.flushPendingEdits()
-            if (DocumentManager.isDirty) {
-                unsavedChangesBeforeOpenDialog.open()
-            } else if (root.collectionOpen) {
-                // In collection mode, offer to import rather than only open a
-                // standalone file.
-                openOrImportChoiceDialog.open()
-            } else {
-                DocumentManager.openFileDialog()
-            }
-        }
-    }
+    // ---- Opening, starting and closing a document -----------------------
+    // The transitions that can lose work, and the dialogs that ask before
+    // they do, are in DocumentSessionDialogs.qml. The error dialog lives
+    // there too, because a failed save or open is the same conversation.
+    DocumentSessionDialogs {
+        id: documentDialogs
+        // Its dialogs centre on this window, so it spans it.
+        anchors.fill: parent
+        appWindow: root
 
-    // Ctrl+O in collection mode: open a file standalone, or import it into the
-    // collection (§12.6).
-    Dialog {
-        id: openOrImportChoiceDialog
-        objectName: "openOrImportChoiceDialog"
-        modal: true
-        title: qsTr("Open a file")
-        anchors.centerIn: parent
-        width: 320
-        contentItem: Label {
-            text: qsTr("Open the file on its own, or import it into your "
-                + "collection?")
-            wrapMode: Text.WordWrap
-            padding: 10
-        }
-        footer: DialogButtonBox {
-            Button {
-                text: qsTr("Open standalone")
-                DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
-                onClicked: {
-                    openOrImportChoiceDialog.close()
-                    DocumentManager.openFileDialog()
-                }
-            }
-            Button {
-                objectName: "chooseImportButton"
-                text: qsTr("Import…")
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-                onClicked: {
-                    openOrImportChoiceDialog.close()
-                    importDialog.openDialog()
-                }
-            }
-        }
-    }
-
-    // Single-file mode → vault upgrade: confirms, then opens the current
-    // file's folder as the collection root. The open file stays open and
-    // becomes a note of the new vault.
-    Dialog {
-        id: createVaultDialog
-        objectName: "createVaultDialog"
-        modal: true
-        title: qsTr("Create a vault")
-        anchors.centerIn: parent
-        width: 360
-        contentItem: Label {
-            text: qsTr("Use this file's folder as a vault? The sidebar, "
-                + "tags, global search, and wiki links will then work "
-                + "across every markdown file in it. The folder's files "
-                + "are left exactly as they are.")
-            wrapMode: Text.WordWrap
-            padding: 10
-        }
-        footer: DialogButtonBox {
-            Button {
-                text: qsTr("Cancel")
-                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-                onClicked: createVaultDialog.close()
-            }
-            Button {
-                objectName: "createVaultConfirmButton"
-                text: qsTr("Create vault")
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-                onClicked: {
-                    createVaultDialog.close()
-                    var dir = root.currentNoteDir()
-                    if (dir !== "")
-                        NoteCollection.openRootAsync(dir)
-                }
-            }
-        }
-    }
-
-    Shortcut {
-        sequences: [StandardKey.New]  // Ctrl+N — New Note (§13.4)
-        onActivated: {
-            DocumentManager.flushPendingEdits()
-            if (root.collectionOpen) {
-                root.createNoteInCurrentScope()
-            } else if (DocumentManager.isDirty) {
-                unsavedChangesBeforeNewDialog.open()
-            } else {
-                DocumentManager.newDocument()
-            }
-        }
+        onImportRequested: importDialog.openDialog()
     }
 
     // Toggle Sidebar (features.md §13.4): hides both panels for focused
@@ -1696,131 +1607,6 @@ KvitShell {
         }
     }
 
-    // Quitting with a document that has never been saved. Closing used to
-    // discard it silently: there is no file to fall back on and the recovery
-    // journal only covers crashes, so this was an unrecoverable loss on an
-    // ordinary quit.
-    Dialog {
-        id: closeConfirmDialog
-        title: "Unsaved Changes"
-        modal: true
-        anchors.centerIn: parent
-
-        contentItem: Item {
-            implicitWidth: 360
-            implicitHeight: closeDialogText.implicitHeight + 40
-
-            Text {
-                id: closeDialogText
-                anchors.fill: parent
-                anchors.margins: 20
-                text: "This document has never been saved. Save it before closing?"
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
-
-        onAccepted: {
-            // Only close once the document is actually on disk. If the Save-As
-            // dialog is cancelled or the write fails, stay open.
-            if (DocumentManager.saveFileDialog())
-                root.close()
-        }
-        // Discard is the user deciding to lose it, which is their call to make.
-        onDiscarded: {
-            DocumentManager.newDocument()
-            root.close()
-        }
-        // Cancel: nothing happens, the window stays open.
-    }
-
-    // Unsaved changes dialog before opening a new file
-    Dialog {
-        id: unsavedChangesBeforeOpenDialog
-        title: "Unsaved Changes"
-        modal: true
-        anchors.centerIn: parent
-
-        contentItem: Item {
-            implicitWidth: 360
-            implicitHeight: openDialogText.implicitHeight + 40
-
-            Text {
-                id: openDialogText
-                anchors.fill: parent
-                anchors.margins: 20
-                text: "You have unsaved changes. Do you want to save them before opening another file?"
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
-
-        onAccepted: {
-            // Save button clicked. Opening another document replaces the model,
-            // so it may only proceed once this one is genuinely on disk. A
-            // cancelled Save-As and a failed write both mean it is not, and in
-            // both cases the right thing is to leave the document alone rather
-            // than continue into an action that discards it.
-            var saved = DocumentManager.hasFile
-                        ? DocumentManager.save()
-                        : DocumentManager.saveFileDialog()
-            if (!saved)
-                return
-            DocumentManager.openFileDialog()
-        }
-
-        onDiscarded: {
-            // Discard button clicked - open without saving
-            DocumentManager.openFileDialog()
-        }
-
-        // Cancel - do nothing
-    }
-
-    // Unsaved changes dialog before creating new document
-    Dialog {
-        id: unsavedChangesBeforeNewDialog
-        title: "Unsaved Changes"
-        modal: true
-        anchors.centerIn: parent
-
-        contentItem: Item {
-            implicitWidth: 360
-            implicitHeight: newDialogText.implicitHeight + 40
-
-            Text {
-                id: newDialogText
-                anchors.fill: parent
-                anchors.margins: 20
-                text: "You have unsaved changes. Do you want to save them before creating a new document?"
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
-
-        onAccepted: {
-            // Save button clicked. Same rule as the Open confirmation: starting
-            // a new document throws this one away, so it has to be safely
-            // stored first.
-            var saved = DocumentManager.hasFile
-                        ? DocumentManager.save()
-                        : DocumentManager.saveFileDialog()
-            if (!saved)
-                return
-            DocumentManager.newDocument()
-        }
-
-        onDiscarded: {
-            // Discard button clicked - create new without saving
-            DocumentManager.newDocument()
-        }
-
-        // Cancel - do nothing
-    }
-
     // Oversized-paste confirm: pasting a payload over the open-size cap
     // is allowed, but only deliberately.
     Dialog {
@@ -1866,58 +1652,6 @@ KvitShell {
         onRejected: { pendingText = ""; pendingPlain = false }
     }
 
-    Dialog {
-        id: errorDialog
-        objectName: "errorDialog"
-        title: "Error"
-        modal: true
-        anchors.centerIn: parent
-        property string errorMessage: ""
-
-        contentItem: Item {
-            implicitWidth: 360
-            implicitHeight: errorDialogText.implicitHeight + 40
-
-            Text {
-                id: errorDialogText
-                anchors.fill: parent
-                anchors.margins: 20
-                text: errorDialog.errorMessage
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        standardButtons: Dialog.Ok
-    }
-
-    // Handle user-facing save/open results. Repository indexing, backup
-    // rotation, watcher guards, and metadata synchronization are wired by the
-    // C++ application composition rather than ordered here.
-    Connections {
-        target: DocumentManager
-
-        function onSaveFailed(error) {
-            errorDialog.errorMessage = "Failed to save: " + error
-            errorDialog.open()
-        }
-
-        function onOpenFailed(error) {
-            errorDialog.errorMessage = "Failed to open: " + error
-            errorDialog.open()
-        }
-
-        // Oversized-file guard: the file was refused before any read;
-        // show the placeholder with an "Open anyway".
-        function onOpenRejectedTooLarge(filePath, sizeBytes, capBytes) {
-            root.oversizedFilePath = filePath
-            root.oversizedFileBytes = sizeBytes
-            root.oversizedFileCap = capBytes
-        }
-        function onOpenSucceeded(filePath) {
-            root.oversizedFilePath = ""
-        }
-    }
-
     // Auto-save when window loses focus
     onActiveChanged: {
         if (!active && DocumentManager)
@@ -1949,7 +1683,7 @@ KvitShell {
         // A dirty document that has never been saved had no handling at all:
         // closing simply discarded it. Ask, and treat cancel as "do not close".
         close.accepted = false
-        closeConfirmDialog.open()
+        documentDialogs.confirmCloseUnsaved()
     }
 
     // Settings that cannot reach disk (read-only location, full disk).
@@ -1978,21 +1712,19 @@ KvitShell {
             })
         }
         function onOperationFailed(message) {
-            errorDialog.errorMessage = message
-            errorDialog.open()
+            documentDialogs.showError(message)
         }
         // The vault is open in another Kvit process. Only one session may
         // write a vault: both would load the same state and the second to
         // save would discard the first's work. This window keeps running as
         // a plain editor, so File > Open still works on individual notes.
         function onVaultInUse(path, detail) {
-            errorDialog.errorMessage =
+            documentDialogs.showError(
                 qsTr("%1\n\nOnly one Kvit window can have a vault open, "
                      + "because two would overwrite each other's changes. "
                      + "Close the other window and reopen this folder, or "
                      + "keep working here on single files.\n\n%2")
-                    .arg(detail).arg(path)
-            errorDialog.open()
+                    .arg(detail).arg(path))
         }
         function onWikiLinksRewritten(linkCount, noteCount) {
             // Rename-safe wiki-links (§3.3): a passive toast, never a dialog.
@@ -2671,6 +2403,6 @@ KvitShell {
         statisticsPanel: root.statisticsPanel
 
         onWritingGoalRequested: goalDialog.openFor(root.currentNoteRelPath)
-        onCreateVaultRequested: createVaultDialog.open()
+        onCreateVaultRequested: documentDialogs.offerVaultFromCurrentFolder()
     }
 }

@@ -61,5 +61,6 @@
         <file>qml/BlockDragController.qml</file>
         <file>qml/BlockDragLayer.qml</file>
         <file>qml/BlockSelectionKeys.qml</file>
+        <file>qml/DocumentSessionDialogs.qml</file>
     </qresource>
 </RCC>
