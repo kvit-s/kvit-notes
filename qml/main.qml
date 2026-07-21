@@ -723,155 +723,13 @@ KvitShell {
     // fields; prefilled when invoked inside an existing link; "Remove
     // link" replaces the span with its bare text. All edits go through
     // the model, like every formatting command.
+    // The Ctrl+K link dialog (features.md §2.4), in LinkDialog.qml. A
+    // delegate opens it through AppActions and the integration suite reaches
+    // it by name, so the window keeps the alias.
     property alias linkDialog: linkDialog
-    Dialog {
+    LinkDialog {
         id: linkDialog
-        objectName: "linkDialog"
-        modal: true
-        title: editing ? qsTr("Edit Link") : qsTr("Insert Link")
-        anchors.centerIn: parent
-        width: 380
-
-        property alias textField: linkTextField
-        property alias urlField: linkUrlField
-        property int blockIndex: -1
-        property int mdStart: -1
-        property int mdEnd: -1
-        property bool editing: false
-        property bool removable: false
-        // The document's headings for the "link to heading" mode
-        // (features.md §2.4's deferred jump-to-heading). Refreshed on open.
-        property var headingTargets: []
-
-        function openForInsert(index, start, end, initialText) {
-            editing = false
-            removable = false
-            blockIndex = index
-            mdStart = start
-            mdEnd = end
-            headingTargets = DocumentOutline.headings()
-            linkTextField.text = initialText
-            linkUrlField.text = ""
-            open()
-            linkUrlField.forceActiveFocus()
-        }
-
-        function openForEdit(index, start, end, text, url, canRemove) {
-            editing = true
-            removable = canRemove
-            blockIndex = index
-            mdStart = start
-            mdEnd = end
-            headingTargets = DocumentOutline.headings()
-            linkTextField.text = text
-            linkUrlField.text = url
-            open()
-            linkUrlField.forceActiveFocus()
-        }
-
-        function spliceAndFocus(replacement, cursorMd) {
-            var md = BlockModel.getContent(blockIndex)
-            BlockModel.updateContent(blockIndex,
-                md.substring(0, mdStart) + replacement + md.substring(mdEnd))
-            var idx = blockIndex
-            Qt.callLater(function() {
-                blockListView.currentIndex = idx
-                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-                if (item)
-                    item.focusAtPosition(cursorMd)
-            })
-        }
-
-        function removeLink() {
-            var text = linkTextField.text
-            spliceAndFocus(text, mdStart + text.length)
-            close()
-        }
-
-        onAccepted: {
-            // Brackets in the text or spaces/parens in the URL would
-            // produce markdown that no longer parses as one link.
-            var text = linkTextField.text.replace(/[\[\]]/g, "")
-            var url = linkUrlField.text.replace(/ /g, "%20").replace(/[()]/g, "")
-            if (text.length === 0)
-                text = url
-            if (text.length === 0)
-                return
-            var link = "[" + text + "](" + url + ")"
-            spliceAndFocus(link, mdStart + link.length)
-        }
-
-        contentItem: ColumnLayout {
-            spacing: 8
-            Label { text: qsTr("Text") }
-            TextField {
-                id: linkTextField
-                objectName: "linkDialogTextField"
-                Layout.fillWidth: true
-            }
-            Label { text: qsTr("URL") }
-            TextField {
-                id: linkUrlField
-                objectName: "linkDialogUrlField"
-                placeholderText: "https:// or #heading"
-                Layout.fillWidth: true
-                onAccepted: linkDialog.accept()
-            }
-            // Link-to-heading mode (§2.4): choosing a heading fills the URL
-            // with its #slug (and the text, if empty). Present only when the
-            // document has headings.
-            Label {
-                text: qsTr("Or link to a heading")
-                visible: linkDialog.headingTargets.length > 0
-            }
-            ComboBox {
-                id: headingCombo
-                objectName: "linkDialogHeadingCombo"
-                visible: linkDialog.headingTargets.length > 0
-                Layout.fillWidth: true
-                textRole: "label"
-                model: {
-                    var out = [{ label: qsTr("— choose a heading —"),
-                                 slug: "", text: "" }]
-                    var hs = linkDialog.headingTargets
-                    for (var i = 0; i < hs.length; i++) {
-                        var indent = ""
-                        for (var j = 1; j < hs[i].level; j++)
-                            indent += "   "
-                        out.push({ label: indent + hs[i].text,
-                                   slug: hs[i].slug, text: hs[i].text })
-                    }
-                    return out
-                }
-                currentIndex: 0
-                onActivated: function(index) {
-                    if (index <= 0)
-                        return
-                    var item = model[index]
-                    linkUrlField.text = "#" + item.slug
-                    if (linkTextField.text.length === 0)
-                        linkTextField.text = item.text
-                }
-            }
-        }
-
-        footer: DialogButtonBox {
-            Button {
-                objectName: "linkDialogRemoveButton"
-                text: qsTr("Remove link")
-                visible: linkDialog.editing && linkDialog.removable
-                DialogButtonBox.buttonRole: DialogButtonBox.ResetRole
-                onClicked: linkDialog.removeLink()
-            }
-            Button {
-                text: qsTr("Cancel")
-                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-            }
-            Button {
-                text: qsTr("OK")
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-            }
-        }
+        listView: blockListView
     }
 
     // The block-type menu (features.md §4): opened by "/" on an empty
@@ -1227,56 +1085,19 @@ KvitShell {
         lightbox.open(source, alt)
     }
 
-    // Insert an image into an (empty) block by file or URL (features.md §4.3).
-    function insertImageIntoBlock(idx) {
-        imageInsertDialog.targetIndex = idx
-        imagePathField.text = ""
-        imageInsertDialog.open()
-        imagePathField.forceActiveFocus()
+    // Putting an image, a web embed or a table into an empty block: the
+    // dialogs and the conversion they perform are in BlockInsertDialogs.qml.
+    // A delegate asks for these through AppActions, so the window keeps the
+    // three names.
+    BlockInsertDialogs {
+        id: blockInserts
+        anchors.fill: parent
+        listView: blockListView
     }
 
-    // §1.2.14 web embed: prompt for a URL and insert an ![](url) image
-    // expression, which the content classifier renders as a preview card.
-    function insertEmbedIntoBlock(idx) {
-        embedInsertDialog.targetIndex = idx
-        embedUrlField.text = ""
-        embedInsertDialog.open()
-        embedUrlField.forceActiveFocus()
-    }
-    Dialog {
-        id: embedInsertDialog
-        objectName: "embedInsertDialog"
-        title: qsTr("Insert web embed")
-        modal: true
-        anchors.centerIn: parent
-        width: 420
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        property int targetIndex: -1
-        function commit() {
-            var url = embedUrlField.text.trim()
-            if (url === "" || targetIndex < 0)
-                return
-            BlockModel.convertBlock(targetIndex, Block.Image, "![](" + url + ")")
-            var idx = targetIndex
-            Qt.callLater(function() {
-                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-                if (item && item.focusAtStart) item.focusAtStart()
-            })
-        }
-        onAccepted: commit()
-        contentItem: TextField {
-            id: embedUrlField
-            objectName: "embedUrlField"
-            placeholderText: qsTr("Web page or video URL (https://…)")
-            onAccepted: { embedInsertDialog.commit(); embedInsertDialog.close() }
-        }
-    }
-
-    // Insert a table via the grid-size picker (features.md §4.2).
-    function insertTableIntoBlock(idx) {
-        tableSizePicker.targetIndex = idx
-        tableSizePicker.open()
-    }
+    function insertImageIntoBlock(idx) { blockInserts.insertImage(idx) }
+    function insertEmbedIntoBlock(idx) { blockInserts.insertEmbed(idx) }
+    function insertTableIntoBlock(idx) { blockInserts.insertTable(idx) }
 
     // ---- External drop ingestion (features.md §5.3, §5.4) ----
     function currentNoteDir() {
@@ -1284,195 +1105,11 @@ KvitShell {
         var idx = p.lastIndexOf("/")
         return idx >= 0 ? p.substring(0, idx) : ""
     }
-    function currentNoteSlug() {
-        var p = DocumentManager.currentFilePath
-        var fn = p.substring(p.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "")
-        var slug = fn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
-        return slug === "" ? "image" : slug
-    }
-    function assetRoot() {
-        return NoteCollection.isOpen ? NoteCollection.rootPath : ""
-    }
-    // The block index a drop at content-y lands after (-1 → append).
-    function dropTargetIndex(dropY) {
-        var p = editorDropArea.mapToItem(blockListView.contentItem, 0, dropY)
-        var idx = blockListView.indexAt(10, p.y)
-        return idx  // -1 when below the last block
-    }
-    function insertBlocksAt(afterIndex, typedBlocks) {
-        // typedBlocks: [{type, content}]. Insert after `afterIndex` (append
-        // when -1); focus the last inserted block.
-        var at = afterIndex < 0 ? BlockModel.count : afterIndex + 1
-        var last = at
-        for (var i = 0; i < typedBlocks.length; ++i) {
-            BlockModel.insertBlock(at, typedBlocks[i].type, typedBlocks[i].content)
-            last = at
-            at++
-        }
-        Qt.callLater(function() {
-            var item = (blockListView.itemAtIndex(last) as BlockDelegateBase)
-            if (item && item.focusAtStart) item.focusAtStart()
-        })
-    }
-    // Turn a stored image/media path into the right block type by extension.
-    function blockForPath(stored) {
-        var kind = ImageAssets.kindOf(stored)
-        var type = kind === "media" ? Block.Media
-                 : Block.Image  // default images (and unknown local files show placeholder)
-        return { type: type, content: ImageAssets.build(stored, "", "", 0) }
-    }
-    function handleEditorDrop(drop) {
-        var afterIndex = dropTargetIndex(drop.y)
-        var slug = currentNoteSlug()
-        var root2 = assetRoot()
-        var nd = currentNoteDir()
-        var blocks = []
-
-        // 1) Raw image bytes (spike b's bytes arm), if delivered.
-        var fmts = drop.formats || []
-        for (var f = 0; f < fmts.length; ++f) {
-            if (fmts[f] === "application/x-qt-image"
-                || fmts[f].indexOf("image/") === 0) {
-                var buf = drop.getDataAsArrayBuffer(fmts[f])
-                if (buf) {
-                    var storedB = AssetStore.ingestImageBytes(buf, slug, root2, nd)
-                    if (storedB !== "") {
-                        blocks.push({ type: Block.Image,
-                            content: ImageAssets.build(storedB, "", "", 0) })
-                        insertBlocksAt(afterIndex, blocks)
-                        return
-                    }
-                }
-            }
-        }
-
-        // 2) URLs: local files ingest/link; http(s) image URLs stay remote.
-        if (drop.hasUrls) {
-            for (var u = 0; u < drop.urls.length; ++u) {
-                var url = "" + drop.urls[u]
-                if (url.indexOf("file://") === 0) {
-                    // Hand the whole file:// URL over and let ingestLocalFile
-                    // decode it with QUrl::toLocalFile(). Stripping the scheme
-                    // here left %23 and %25 in the path, so a file named
-                    // "photo #2.png" resolved to nothing and the drop was
-                    // silently ignored.
-                    if (ImageAssets.kindOf(url) === "none")
-                        continue  // not an image/media file
-                    var stored = AssetStore.ingestLocalFile(url, slug, root2, nd)
-                    if (stored !== "")
-                        blocks.push(blockForPath(stored))
-                } else if (url.indexOf("http") === 0) {
-                    if (ImageAssets.kindOf(url) === "media")
-                        blocks.push({ type: Block.Media, content: ImageAssets.build(url, "", "", 0) })
-                    else
-                        blocks.push({ type: Block.Image, content: ImageAssets.build(url, "", "", 0) })
-                }
-            }
-            if (blocks.length > 0) {
-                insertBlocksAt(afterIndex, blocks)
-                return
-            }
-        }
-
-        // 3) Plain text: a bare image URL becomes a remote image; otherwise
-        //    the text splits into paragraph blocks at the drop point (§5.4).
-        if (drop.hasText) {
-            var txt = ("" + drop.text).trim()
-            if (txt.indexOf("http") === 0 && ImageAssets.kindOf(txt) !== "none") {
-                blocks.push(blockForPath(txt))
-            } else {
-                var lines = txt.split("\n")
-                for (var l = 0; l < lines.length; ++l)
-                    blocks.push({ type: Block.Paragraph, content: lines[l] })
-            }
-            if (blocks.length > 0)
-                insertBlocksAt(afterIndex, blocks)
-        }
-    }
 
     // The image lightbox overlay (§1.2.8), over the whole window.
     Lightbox {
         id: lightbox
         objectName: "lightbox"
-    }
-
-    // Table grid-size picker (§4.2). On a size choice it converts the target
-    // block to a Table with an empty grid of that size.
-    TableSizePicker {
-        id: tableSizePicker
-        objectName: "tableSizePicker"
-        anchors.centerIn: parent
-        property int targetIndex: -1
-        onSizePicked: function(cols, rows) {
-            if (targetIndex < 0) return
-            BlockModel.convertBlock(targetIndex, Block.Table,
-                                    TableTools.emptyTable(cols, rows))
-            var idx = targetIndex
-            Qt.callLater(function() {
-                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-                if (item && item.focusAtStart) item.focusAtStart()
-            })
-        }
-    }
-
-    // Insert-image dialog (§4.3): a path/URL field with a file browser. On
-    // accept it converts the target block into an Image block whose content
-    // is the built markdown expression (one undo step).
-    Dialog {
-        id: imageInsertDialog
-        objectName: "imageInsertDialog"
-        title: qsTr("Insert image")
-        modal: true
-        anchors.centerIn: parent
-        width: 420
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        property int targetIndex: -1
-
-        function commit() {
-            var path = imagePathField.text.trim()
-            if (path === "" || targetIndex < 0)
-                return
-            var md = ImageAssets.build(path, "", "", 0)
-            // An audio/video path lands a Media block; everything else an
-            // Image. The dialog is shared.
-            var type = ImageAssets.parse(md).kind === "media"
-                     ? Block.Media : Block.Image
-            BlockModel.convertBlock(targetIndex, type, md)
-            var idx = targetIndex
-            Qt.callLater(function() {
-                var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-                if (item && item.focusAtStart) item.focusAtStart()
-            })
-        }
-        onAccepted: commit()
-
-        contentItem: Row {
-            spacing: 6
-            TextField {
-                id: imagePathField
-                objectName: "imagePathField"
-                width: 320
-                placeholderText: qsTr("Image file path or URL")
-                onAccepted: { imageInsertDialog.commit(); imageInsertDialog.close() }
-            }
-            Button {
-                text: qsTr("Browse…")
-                onClicked: imageFileDialog.open()
-            }
-        }
-    }
-
-    FileDialog {
-        id: imageFileDialog
-        objectName: "imageFileDialog"
-        title: qsTr("Choose an image")
-        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.gif *.webp *.svg *.bmp)"),
-                      qsTr("All files (*)")]
-        onAccepted: {
-            // Store the chosen file's path; ingestion/copy comes later.
-            var p = selectedFile.toString().replace(/^file:\/\//, "")
-            imagePathField.text = p
-        }
     }
 
     // Global search (§8.4; the Obsidian/VSCode convention — the spec
@@ -2058,30 +1695,13 @@ KvitShell {
             onClicked: backupDialog.openForCurrentNote()
         }
 
-        // External-drag ingestion (§5.4; spike b's contract): OS file drops,
-        // image bytes, image URLs, and plain text land as blocks at the drop
-        // point. The interactive XDND gesture is screenshot-verified (it can
-        // not be scripted); the ingestion core is unit-tested.
-        DropArea {
-            id: editorDropArea
+        // External-drag ingestion (§5.4), in EditorDropArea.qml.
+        EditorDropArea {
             objectName: "editorDropArea"
             anchors.fill: scrollView
             z: 40
-            property real dropY: -1
-            onEntered: function(drag) { drag.accepted = true; dropY = drag.y }
-            onPositionChanged: function(drag) { dropY = drag.y }
-            onExited: dropY = -1
-            onDropped: function(drop) { dropY = -1; root.handleEditorDrop(drop) }
-
-            // The drop-indicator line (§5.4), following the pointer.
-            Rectangle {
-                visible: editorDropArea.containsDrag
-                width: parent.width
-                height: 2
-                radius: 1
-                color: Theme.accent
-                y: Math.max(0, editorDropArea.dropY)
-            }
+            appWindow: root
+            listView: blockListView
         }
 
         ScrollView {

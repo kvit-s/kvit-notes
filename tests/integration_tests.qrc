@@ -64,5 +64,8 @@
         <file alias="qml/BlockDragLayer.qml">../qml/BlockDragLayer.qml</file>
         <file alias="qml/BlockSelectionKeys.qml">../qml/BlockSelectionKeys.qml</file>
         <file alias="qml/DocumentSessionDialogs.qml">../qml/DocumentSessionDialogs.qml</file>
+        <file alias="qml/BlockInsertDialogs.qml">../qml/BlockInsertDialogs.qml</file>
+        <file alias="qml/LinkDialog.qml">../qml/LinkDialog.qml</file>
+        <file alias="qml/EditorDropArea.qml">../qml/EditorDropArea.qml</file>
     </qresource>
 </RCC>
