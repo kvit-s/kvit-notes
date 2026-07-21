@@ -58,5 +58,9 @@
         <file alias="qml/EditorContextMenus.qml">../qml/EditorContextMenus.qml</file>
         <file alias="qml/NoteSession.qml">../qml/NoteSession.qml</file>
         <file alias="qml/NoteRenameWorkflow.qml">../qml/NoteRenameWorkflow.qml</file>
+        <file alias="qml/EdgeAutoScroller.qml">../qml/EdgeAutoScroller.qml</file>
+        <file alias="qml/CrossBlockTextSelection.qml">../qml/CrossBlockTextSelection.qml</file>
+        <file alias="qml/BlockDragController.qml">../qml/BlockDragController.qml</file>
+        <file alias="qml/BlockDragLayer.qml">../qml/BlockDragLayer.qml</file>
     </qresource>
 </RCC>

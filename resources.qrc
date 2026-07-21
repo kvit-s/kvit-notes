@@ -56,5 +56,9 @@
         <file>qml/EditorContextMenus.qml</file>
         <file>qml/NoteSession.qml</file>
         <file>qml/NoteRenameWorkflow.qml</file>
+        <file>qml/EdgeAutoScroller.qml</file>
+        <file>qml/CrossBlockTextSelection.qml</file>
+        <file>qml/BlockDragController.qml</file>
+        <file>qml/BlockDragLayer.qml</file>
     </qresource>
 </RCC>

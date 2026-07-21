@@ -549,45 +549,6 @@ KvitShell {
         renameWorkflow.finishRenamePlan(updateLinks)
     }
 
-
-
-
-
-
-
-
-    // Map a scene point to {index, mdPos, inText} on the block list.
-    // Pointer positions above, below, or between blocks resolve to the
-    // nearest block edge so a selection drag never loses its target.
-    function blockPositionAt(sceneX, sceneY) {
-        if (!BlockModel || BlockModel.count === 0)
-            return null
-        var pos = blockListView.contentItem.mapFromItem(null, sceneX, sceneY)
-        if (pos.y < 0)
-            return { index: 0, mdPos: 0, inText: false }
-        if (pos.y >= blockListView.contentHeight) {
-            var last = BlockModel.count - 1
-            return { index: last, mdPos: BlockModel.getContent(last).length,
-                     inText: false }
-        }
-        var cx = Math.max(1, Math.min(pos.x, blockListView.width - 1))
-        var idx = blockListView.indexAt(cx, pos.y)
-        if (idx < 0) {
-            // In the spacing gap: attach to the block just above
-            idx = blockListView.indexAt(cx, Math.max(0, pos.y - blockListView.spacing))
-            if (idx < 0)
-                return null
-            return { index: idx, mdPos: BlockModel.getContent(idx).length,
-                     inText: false }
-        }
-        var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-        if (!item || !item.markdownPositionAt)
-            return { index: idx, mdPos: 0, inText: false }
-        return { index: idx,
-                 mdPos: item.markdownPositionAt(sceneX, sceneY),
-                 inText: item.pointInText ? item.pointInText(sceneX, sceneY) : false }
-    }
-
     readonly property color backgroundColor: Theme.windowBackground
     readonly property color blockBackgroundColor: Theme.windowBackground
     readonly property color blockBorderColor: Theme.border
@@ -961,297 +922,36 @@ KvitShell {
         }
     }
 
-    // Cross-block text selection, mouse path (features.md §2.5, §21.3).
-    // Each block's TextArea hosts a passive PointHandler that reports its
-    // presses and drag moves here — an ancestor-level handler never sees
-    // a press the TextArea accepts (pinned by a feasibility test), but
-    // the TextArea's OWN
-    // handlers do, and a passive grab keeps reporting moves while the
-    // TextArea drags its native in-block selection (which IS the anchor
-    // block's portion). The coordinator engages when the pointer
-    // crosses into another block and disengages when it returns; while
-    // engaged it also feeds the edge auto-scroller. Presses in the
-    // gutter never reach a TextArea, so they never seed a text drag.
-    property alias crossBlockDrag: crossBlockDrag
-    QtObject {
-        id: crossBlockDrag
-
-        property int pressIndex: -1
-        property int pressMd: 0
-        property bool engaged: false
-        property int clickCount: 1
-        property double lastPressAt: 0
-        property real lastPressX: 0
-        property real lastPressY: 0
-
-        function beginPress(index, mdPos, sceneX, sceneY) {
-            // Click multiplicity sets the drag granularity (§21.3):
-            // 1 character, 2 word, 3 whole-block
-            var now = Date.now()
-            var near = Math.abs(sceneX - lastPressX) < 8
-                    && Math.abs(sceneY - lastPressY) < 8
-            clickCount = (now - lastPressAt < 400 && near)
-                ? Math.min(clickCount + 1, 3) : 1
-            lastPressAt = now
-            lastPressX = sceneX
-            lastPressY = sceneY
-            pressIndex = index
-            pressMd = mdPos
-            engaged = false
-        }
-
-        function update(sceneX, sceneY) {
-            if (pressIndex < 0)
-                return
-            var hit = root.blockPositionAt(sceneX, sceneY)
-            if (hit) {
-                if (!engaged && hit.index !== pressIndex) {
-                    DocumentSelection.beginTextSelection(pressIndex, pressMd,
-                        clickCount >= 3 ? 2 : clickCount === 2 ? 1 : 0)
-                    engaged = true
-                }
-                if (engaged) {
-                    if (hit.index === pressIndex) {
-                        // Back inside the anchor block: the native
-                        // in-block selection takes over again
-                        DocumentSelection.clearTextSelection()
-                        engaged = false
-                    } else {
-                        DocumentSelection.updateTextSelectionHead(
-                            hit.index, hit.mdPos)
-                    }
-                }
-            }
-            if (engaged) {
-                edgeScroller.pointerY =
-                    blockListView.mapFromItem(null, sceneX, sceneY).y
-                edgeScroller.active = true
-            } else {
-                edgeScroller.active = false
-            }
-        }
-
-        function endPress() {
-            pressIndex = -1
-            engaged = false
-            edgeScroller.active = false
-        }
+    // Cross-block text selection and block drag-and-drop are two gestures
+    // over the same list, sharing the edge auto-scroller that keeps the
+    // pointer's end of the list in view. KvitShell declares both states
+    // because the delegates read them; the behaviour is in the components.
+    EdgeAutoScroller {
+        id: edgeScroller
+        listView: blockListView
     }
 
-    // Block drag-and-drop reordering (features.md §3.2, §5.4).
-    // Single-block drags live-move the row with undo-bypassing preview
-    // moves — the real delegate is
-    // §21.4's space-holder while the floating proxy follows the
-    // pointer, and the ListView's move/displaced transitions animate
-    // the make-room. The drop commits ONE pre-applied command.
-    // Multi-block drags (the handle of a selected block) show a drop
-    // indicator instead and commit one compound move.
-    // Declared by KvitShell; this instance supplies the behaviour and keeps
-    // main.qml's scope, so it still drives blockListView and the edge
-    // scroller directly.
-    blockDrag: BlockDragState {
+    crossBlockDrag: CrossBlockTextSelection {
+        listView: blockListView
+        scroller: edgeScroller
+    }
+
+    blockDrag: BlockDragController {
         id: blockDragState
-
-        property bool active: false
-        property bool isMulti: false
-        property int sourceIndex: -1    // live position of the dragged row
-        property int originalIndex: -1
-        property var dragIndexes: []
-        property int dragCount: 0
-        property int indicatorGap: -1   // multi: gap BEFORE this index
-
-        function begin(index, sceneX, sceneY) {
-            isMulti = DocumentSelection.hasBlockSelection
-                      && DocumentSelection.isBlockSelected(index)
-            if (DocumentSelection.hasBlockSelection && !isMulti)
-                DocumentSelection.clear()
-            if (DocumentSelection.hasTextSelection)
-                DocumentSelection.clearTextSelection()
-            sourceIndex = index
-            originalIndex = index
-            dragIndexes = isMulti ? DocumentSelection.selectedIndexes()
-                                  : [index]
-            dragCount = dragIndexes.length
-            indicatorGap = -1
-            active = true
-            dragProxy.buildFrom(dragIndexes)
-            update(sceneX, sceneY)
-        }
-
-        function update(sceneX, sceneY) {
-            if (!active)
-                return
-            dragProxy.moveTo(sceneX, sceneY)
-            var pos = blockListView.contentItem.mapFromItem(null, sceneX, sceneY)
-            var cx = Math.max(1, Math.min(pos.x, blockListView.width - 1))
-            if (isMulti) {
-                indicatorGap = gapAt(cx, pos.y)
-            } else {
-                var idx = blockListView.indexAt(cx,
-                    Math.max(0, Math.min(pos.y, blockListView.contentHeight - 1)))
-                if (idx >= 0 && idx !== sourceIndex) {
-                    var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-                    // Move only once the pointer passes the target row's
-                    // midpoint, so unequal row heights cannot oscillate
-                    if (item) {
-                        var centerY = item.y + item.height / 2
-                        if ((idx > sourceIndex && pos.y > centerY)
-                            || (idx < sourceIndex && pos.y < centerY)) {
-                            BlockModel.previewMoveBlock(sourceIndex, idx)
-                            sourceIndex = idx
-                        }
-                    }
-                }
-            }
-            edgeScroller.pointerY =
-                blockListView.mapFromItem(null, sceneX, sceneY).y
-            edgeScroller.active = true
-        }
-
-        function gapAt(cx, cy) {
-            if (cy <= 0)
-                return 0
-            if (cy >= blockListView.contentHeight)
-                return BlockModel.count
-            var idx = blockListView.indexAt(cx, cy)
-            if (idx < 0) {
-                idx = blockListView.indexAt(cx,
-                    Math.max(0, cy - blockListView.spacing))
-                return idx < 0 ? -1 : idx + 1
-            }
-            var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-            if (!item)
-                return idx
-            return cy > item.y + item.height / 2 ? idx + 1 : idx
-        }
-
-        function drop() {
-            if (!active)
-                return
-            if (isMulti) {
-                if (indicatorGap >= 0)
-                    BlockModel.moveBlocksTo(dragIndexes, indicatorGap)
-                // The selection follows the moved blocks by id; keys
-                // stay with the selection handler
-                selectionKeyHandler.forceActiveFocus()
-            } else {
-                BlockModel.commitDragMove(originalIndex, sourceIndex)
-                blockListView.currentIndex = sourceIndex
-            }
-            end()
-        }
-
-        // Escape cancels (§5.4): the row returns to where the drag
-        // started and nothing lands on the undo stack
-        function cancel() {
-            if (!active)
-                return
-            if (!isMulti && sourceIndex !== originalIndex)
-                BlockModel.previewMoveBlock(sourceIndex, originalIndex)
-            end()
-        }
-
-        function end() {
-            active = false
-            sourceIndex = -1
-            originalIndex = -1
-            indicatorGap = -1
-            dragProxy.clear()
-            edgeScroller.active = false
-        }
+        listView: blockListView
+        scroller: edgeScroller
+        dragLayer: blockDragLayer
+        selectionKeys: selectionKeyHandler
     }
 
-    Shortcut {
-        sequence: "Escape"
-        enabled: blockDragState.active
-        onActivated: blockDragState.cancel()
-    }
-
-    // The floating drag proxy: snapshots of up to three dragged blocks
-    // stacked under the pointer, with a count badge for larger
-    // selections.
-    Item {
-        id: dragProxy
-        objectName: "dragProxy"
-        visible: blockDragState.active
+    // The floating proxy draws over the whole shell, which is what the z
+    // value on the proxy used to say from here.
+    BlockDragLayer {
+        id: blockDragLayer
+        anchors.fill: parent
         z: 1000
-        width: 300
-        height: proxyColumn.height
-        opacity: 0.85
-
-        function grabShot(slot, sourceItem) {
-            sourceItem.grabToImage(function(result) {
-                if (slot < proxyImages.count)
-                    proxyImages.setProperty(slot, "shotUrl", result.url.toString())
-            })
-        }
-
-        function buildFrom(indexes) {
-            proxyImages.clear()
-            var shots = Math.min(3, indexes.length)
-            for (var i = 0; i < shots; i++) {
-                var item = (blockListView.itemAtIndex(Number(indexes[i]) as BlockDelegateBase))
-                if (!item)
-                    continue
-                // A delegate can nominate its content item for the shot
-                // (the math block nominates the rendered formula): grabbing
-                // a full-width row and fitting it into the proxy shrinks
-                // narrow content far below the intended 60%.
-                var src = (item.dragGrabItem && item.dragGrabItem.visible)
-                    ? item.dragGrabItem : item
-                proxyImages.append({ shotUrl: "",
-                                     shotHeight: Math.round(src.height * 0.6) })
-                grabShot(proxyImages.count - 1, src)
-            }
-        }
-
-        function moveTo(sceneX, sceneY) {
-            x = sceneX + 12
-            y = sceneY - 10
-        }
-
-        function clear() {
-            proxyImages.clear()
-        }
-
-        ListModel { id: proxyImages }
-
-        Column {
-            id: proxyColumn
-            spacing: 2
-            Repeater {
-                model: proxyImages
-                Image {
-                    id: proxyShot
-                    required property real shotHeight
-                    required property url shotUrl
-                    width: dragProxy.width
-                    height: proxyShot.shotHeight
-                    fillMode: Image.PreserveAspectFit
-                    horizontalAlignment: Image.AlignLeft
-                    source: proxyShot.shotUrl
-                }
-            }
-        }
-
-        Rectangle {
-            visible: blockDragState.dragCount > 1
-            anchors.left: proxyColumn.right
-            anchors.top: proxyColumn.top
-            anchors.leftMargin: -12
-            anchors.topMargin: -8
-            width: 22
-            height: 22
-            radius: 11
-            color: Theme.accent
-            Text {
-                anchors.centerIn: parent
-                text: blockDragState.dragCount
-                color: Theme.onAccent
-                font.pixelSize: 11
-                font.bold: true
-            }
-        }
+        dragState: blockDragState
+        listView: blockListView
     }
 
     // Keys while a block selection is active (features.md §3.1).
@@ -2097,7 +1797,6 @@ KvitShell {
                ? NoteCollection.journalPathFor(root.currentNoteRelPath) : ""
     }
 
-
     // ---- Restore from backup: per-note, previewed, and
     // applied through the block model as ONE undo step — a wrong restore
     // costs one Ctrl+Z, which is why no extra confirmation is needed.
@@ -2365,8 +2064,6 @@ KvitShell {
         }
         onRejected: { pendingText = ""; pendingPlain = false }
     }
-
-
 
     Dialog {
         id: errorDialog
@@ -2793,37 +2490,6 @@ KvitShell {
             }
         }
 
-        // Shared edge auto-scroller: while a selection or block drag
-        // holds the pointer inside the viewport's top/bottom band,
-        // scroll with speed scaling with edge proximity (features.md
-        // §21.3 "smooth accelerated scrolling").
-        QtObject {
-            id: edgeScroller
-            property bool active: false
-            property real pointerY: 0 // in blockListView viewport coordinates
-            readonly property int band: 48
-        }
-
-        Timer {
-            interval: 16
-            repeat: true
-            running: edgeScroller.active
-            onTriggered: {
-                var lv = blockListView
-                if (lv.contentHeight <= lv.height)
-                    return
-                var speed = 0
-                if (edgeScroller.pointerY < edgeScroller.band)
-                    speed = -(edgeScroller.band - edgeScroller.pointerY) / 4
-                else if (edgeScroller.pointerY > lv.height - edgeScroller.band)
-                    speed = (edgeScroller.pointerY - (lv.height - edgeScroller.band)) / 4
-                if (speed === 0)
-                    return
-                lv.contentY = Math.max(0, Math.min(lv.contentY + speed,
-                                                   lv.contentHeight - lv.height))
-            }
-        }
-
         // The open note's tags. Stacked above the ScrollView (like the
         // find bar): the ScrollView's anchor
         // re-layout when the strip appears is a polish-frame behind, and
@@ -3104,37 +2770,6 @@ KvitShell {
                 ScrollBar.vertical: ScrollBar {
                     policy: ScrollBar.AsNeeded
                 }
-            }
-        }
-
-        // Multi-block drop indicator: a line naming the
-        // insertion gap. Parented to the ListView viewport (not its
-        // contentItem), so the y computation subtracts contentY.
-        Rectangle {
-            id: dropIndicator
-            objectName: "dropIndicator"
-            parent: blockListView
-            visible: blockDragState.active && blockDragState.isMulti
-                     && blockDragState.indicatorGap >= 0
-            x: 40
-            width: blockListView.width - 48
-            height: 3
-            radius: 1.5
-            color: Theme.accent
-            y: {
-                var gap = blockDragState.indicatorGap
-                if (gap < 0)
-                    return 0
-                var yContent = 0
-                if (gap < blockListView.count) {
-                    var item = (blockListView.itemAtIndex(gap) as BlockDelegateBase)
-                    yContent = item ? item.y - blockListView.spacing / 2 : 0
-                } else {
-                    var last = (blockListView.itemAtIndex(blockListView.count - 1) as BlockDelegateBase)
-                    yContent = last ? last.y + last.height
-                                      + blockListView.spacing / 2 : 0
-                }
-                return yContent - blockListView.contentY - height / 2
             }
         }
 
