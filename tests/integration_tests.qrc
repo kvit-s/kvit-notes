@@ -54,5 +54,6 @@
         <file alias="qml/ImportDialog.qml">../qml/ImportDialog.qml</file>
         <file alias="qml/EmbedBlock.qml">../qml/EmbedBlock.qml</file>
         <file alias="qml/DiagramBlock.qml">../qml/DiagramBlock.qml</file>
+        <file alias="qml/EditorStatusBar.qml">../qml/EditorStatusBar.qml</file>
     </qresource>
 </RCC>

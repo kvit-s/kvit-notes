@@ -52,5 +52,6 @@
         <file>qml/ImportDialog.qml</file>
         <file>qml/EmbedBlock.qml</file>
         <file>qml/DiagramBlock.qml</file>
+        <file>qml/EditorStatusBar.qml</file>
     </qresource>
 </RCC>
