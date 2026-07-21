@@ -4,9 +4,12 @@
 #ifndef DOCUMENTIMPORTER_H
 #define DOCUMENTIMPORTER_H
 
+#include <QList>
 #include <QObject>
+#include <QPair>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantMap>
 
 #include "cancellationtoken.h"
@@ -27,6 +30,16 @@ class NoteCollection;
 class DocumentImporter : public QObject
 {
     Q_OBJECT
+
+    // How many files the run in progress (or the last one) declined. A
+    // property rather than a plain method because it climbs as the run
+    // proceeds and the dialog reports it live, and because QML cannot call a
+    // method that is not invokable.
+    Q_PROPERTY(int lastSkippedCount READ lastSkippedCount
+                   NOTIFY lastSkippedCountChanged)
+    // True between startImportFolder() and importFinished().
+    Q_PROPERTY(bool importInProgress READ importInProgress
+                   NOTIFY importInProgressChanged)
 
 public:
     explicit DocumentImporter(QObject *parent = nullptr);
@@ -60,9 +73,35 @@ public:
     int importFolder(const QString &dirPath, const QString &targetFolder,
                      const CancellationTokenPtr &cancel);
 
+    // Import a folder without holding the GUI thread.
+    //
+    // importFolder() above copies every file before it returns, so nothing
+    // else runs while it does: the progress label cannot repaint and the
+    // cancel button cannot be pressed, which makes both of them decorative on
+    // exactly the imports big enough to need them. This starts the same
+    // import and returns immediately, then copies in short bursts between
+    // event-loop turns until it is done. Everything stays on the GUI thread —
+    // the copy goes through the collection, which is not thread-safe — so
+    // what buys the responsiveness is yielding often rather than moving the
+    // work elsewhere.
+    //
+    // importProgress carries the real totals for the whole folder, and
+    // requestCancel() stops it at the next file; importFinished() reports the
+    // outcome exactly once. A call while a run is already in progress is
+    // ignored.
+    Q_INVOKABLE void startImportFolder(const QString &dirPath,
+                                       const QString &targetFolder);
+    bool importInProgress() const { return m_running; }
+
+    // The importable files under a directory, as absolute paths, in the order
+    // an import would take them. The dialog uses it to size its progress bar
+    // and to show what a folder import would cover.
+    Q_INVOKABLE QStringList listImportableFiles(const QString &dirPath) const;
+
     // Cancellation for a run started from QML, which has no token to hold.
     // requestCancel() signals whichever run is in progress; the next run
-    // starts from a clear token, so a cancel never leaks into it.
+    // starts from a clear token, so a cancel never leaks into it. Safe to
+    // call when nothing is running.
     Q_INVOKABLE void requestCancel();
 
     // The largest single file this importer will copy. A note is text a
@@ -85,6 +124,12 @@ signals:
     // import from a worker thread can show progress and offer the cancel that
     // requestCancel() implements.
     void importProgress(int done, int total);
+    // A startImportFolder() run is over, once per run. `cancelled` says
+    // whether it stopped early; whatever it had already copied is on disk
+    // either way.
+    void importFinished(int imported, int skipped, bool cancelled);
+    void lastSkippedCountChanged();
+    void importInProgressChanged();
 
 private:
     // A collision-free note relPath under `folder` (relPath, "" = root) for the
@@ -103,9 +148,30 @@ private:
     // the one requestCancel() signals.
     CancellationTokenPtr tokenForRun(const CancellationTokenPtr &cancel);
 
+    // Copy one enumerated file into its mirrored destination folder. True
+    // when it was imported; a false answer has already been counted as
+    // skipped. Shared by the blocking folder import and the stepped one, so
+    // the two cannot drift on where a file lands.
+    bool importOne(const QString &absSource, const QString &relSubDir,
+                   const QString &targetFolder);
+    // One burst of the stepped folder import, scheduled between event-loop
+    // turns until the queue is empty or the run is called off.
+    void stepImportFolder();
+    void finishSteppedImport(bool cancelled);
+    void setLastSkipped(int skipped);
+
     NoteCollection *m_collection = nullptr;
     CancellationTokenPtr m_qmlCancel;
     int m_lastSkipped = 0;
+
+    // The stepped folder import in flight: what is left to copy, where it
+    // goes, and what has happened so far.
+    QTimer m_stepTimer;
+    QList<QPair<QString, QString>> m_queue;   // (absPath, relSubDir)
+    int m_queueIndex = 0;
+    QString m_stepTargetFolder;
+    int m_stepImported = 0;
+    bool m_running = false;
 };
 
 #endif // DOCUMENTIMPORTER_H

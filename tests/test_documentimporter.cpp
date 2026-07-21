@@ -37,6 +37,9 @@ private slots:
     void testUnreadableSourceIsNotCountedAsImported();
     void testOversizedSourceIsSkipped();
     void testCancelledImportKeepsWhatItCommitted();
+    void testSteppedFolderImportYieldsAndPreservesTheTree();
+    void testSteppedFolderImportStopsWhenCancelled();
+    void testSkippedCountIsReadableAndAnnouncedFromQml();
 
 private:
     QTemporaryDir *m_root = nullptr;   // the collection
@@ -289,6 +292,120 @@ void TestDocumentImporter::testCancelledImportKeepsWhatItCommitted()
     // A second run is not affected by the cancel that stopped the first.
     disconnect(m_importer, &DocumentImporter::importProgress, this, nullptr);
     QCOMPARE(m_importer->importFiles({sources.at(2)}, QString()), 1);
+}
+
+// Folder import copied every file before returning, so nothing else ran while
+// it did: the progress label could not repaint and the cancel button could not
+// be pressed, on exactly the imports big enough to need them. The stepped
+// import returns at once and copies between event-loop turns instead, with
+// the subfolder tree mirrored exactly as the blocking one does.
+void TestDocumentImporter::testSteppedFolderImportYieldsAndPreservesTheTree()
+{
+    writeSource("top.md", QStringLiteral("# top\n"));
+    writeSource("sub/one.md", QStringLiteral("# one\n"));
+    writeSource("sub/deeper/two.md", QStringLiteral("# two\n"));
+    writeSource("sub/notes.txt", QStringLiteral("plain text\n"));
+    writeSource("ignored.png", QStringLiteral("not importable\n"));
+
+    // What the dialog sizes its progress bar with.
+    QCOMPARE(m_importer->listImportableFiles(m_src->path()).size(), 4);
+
+    QSignalSpy progress(m_importer, &DocumentImporter::importProgress);
+    QSignalSpy finished(m_importer, &DocumentImporter::importFinished);
+
+    m_importer->startImportFolder(m_src->path(), QStringLiteral("In"));
+    // The call returned before doing any copying: the event loop has not run
+    // yet, so nothing can have been imported.
+    QVERIFY(m_importer->importInProgress());
+    QCOMPARE(progress.count(), 0);
+    QVERIFY(!QFile::exists(m_collection->absolutePath("In/top.md")));
+
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 15000);
+    QVERIFY(!m_importer->importInProgress());
+    QCOMPARE(finished.first().at(0).toInt(), 4);   // imported
+    QCOMPARE(finished.first().at(1).toInt(), 0);   // skipped
+    QCOMPARE(finished.first().at(2).toBool(), false); // cancelled
+
+    // The progress reports carry the whole folder's totals, not a chunk's.
+    QCOMPARE(progress.count(), 4);
+    QCOMPARE(progress.last().at(0).toInt(), 4);
+    QCOMPARE(progress.last().at(1).toInt(), 4);
+
+    // Same destinations as the blocking import: the subfolder tree is
+    // recreated under the target folder.
+    QCOMPARE(readNote("In/top.md"), QStringLiteral("# top\n"));
+    QCOMPARE(readNote("In/sub/one.md"), QStringLiteral("# one\n"));
+    QCOMPARE(readNote("In/sub/deeper/two.md"), QStringLiteral("# two\n"));
+    QVERIFY(QFile::exists(m_collection->absolutePath("In/sub/notes.md")));
+    // The index was refreshed once, at the end.
+    QVERIFY(m_collection->noteRelPaths().contains("In/sub/deeper/two.md"));
+}
+
+void TestDocumentImporter::testSteppedFolderImportStopsWhenCancelled()
+{
+    for (int i = 0; i < 40; ++i) {
+        writeSource(QStringLiteral("N%1.md").arg(i, 2, 10, QLatin1Char('0')),
+                    QStringLiteral("# note %1\n").arg(i));
+    }
+
+    QSignalSpy finished(m_importer, &DocumentImporter::importFinished);
+    int cancelledAfter = 0;
+    connect(m_importer, &DocumentImporter::importProgress, this,
+            [&](int done, int total) {
+                QCOMPARE(total, 40);
+                if (done == 1 && cancelledAfter == 0) {
+                    cancelledAfter = done;
+                    m_importer->requestCancel();
+                }
+            });
+
+    m_importer->startImportFolder(m_src->path(), QString());
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 15000);
+
+    QCOMPARE(cancelledAfter, 1);
+    QCOMPARE(finished.first().at(2).toBool(), true);
+    const int imported = finished.first().at(0).toInt();
+    // Whatever it had already committed stays; the rest was never started.
+    QVERIFY2(imported >= 1 && imported < 40,
+             qPrintable(QStringLiteral("a cancelled import copied %1 of 40 files")
+                            .arg(imported)));
+    QCOMPARE(m_collection->noteRelPaths().size(), imported);
+
+    // The next run is not affected by the cancel that stopped this one.
+    disconnect(m_importer, &DocumentImporter::importProgress, this, nullptr);
+    QSignalSpy second(m_importer, &DocumentImporter::importFinished);
+    m_importer->startImportFolder(m_src->path(), QStringLiteral("Again"));
+    QTRY_COMPARE_WITH_TIMEOUT(second.count(), 1, 15000);
+    QCOMPARE(second.first().at(0).toInt(), 40);
+    QCOMPARE(second.first().at(2).toBool(), false);
+}
+
+// The dialog reports how many files were declined. QML can only read a
+// property or an invokable, and the count climbs as the run proceeds, so it
+// is a property with a change signal rather than a plain method.
+void TestDocumentImporter::testSkippedCountIsReadableAndAnnouncedFromQml()
+{
+    writeSource("Small.md", QStringLiteral("# small\n"));
+    writeSource("Large.md", QString(64 * 1024, QLatin1Char('x')));
+
+    QSignalSpy skippedChanged(m_importer,
+                              &DocumentImporter::lastSkippedCountChanged);
+    QSignalSpy finished(m_importer, &DocumentImporter::importFinished);
+
+    const qint64 previous = DocumentImporter::maxFileBytes();
+    DocumentImporter::setMaxFileBytes(1024);
+    m_importer->startImportFolder(m_src->path(), QString());
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 15000);
+    DocumentImporter::setMaxFileBytes(previous);
+
+    QCOMPARE(finished.first().at(0).toInt(), 1);   // imported
+    QCOMPARE(finished.first().at(1).toInt(), 1);   // skipped
+    // Readable through the metaobject, which is what QML does.
+    QCOMPARE(m_importer->property("lastSkippedCount").toInt(), 1);
+    QVERIFY2(skippedChanged.count() >= 1,
+             "the skipped count changed without announcing it");
+    // And it is announced during the run rather than only at the end.
+    QVERIFY(m_importer->property("importInProgress").toBool() == false);
 }
 
 QTEST_MAIN(TestDocumentImporter)

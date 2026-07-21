@@ -7,6 +7,7 @@
 
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -29,11 +30,22 @@ constexpr qint64 kCopyBlockBytes = 1 << 20;
 // 64 MiB. A note is prose; the cap exists so that choosing the wrong file in
 // the import dialog fails fast instead of reading a disk image into memory.
 qint64 g_maxFileBytes = 64LL * 1024 * 1024;
+
+// How long one burst of a stepped import may run before yielding. Short
+// enough that a click lands within a frame or two, long enough that the whole
+// import is not paying an event-loop turn per file.
+constexpr qint64 kStepBudgetMs = 12;
 } // namespace
 
 DocumentImporter::DocumentImporter(QObject *parent)
     : QObject(parent)
 {
+    // Zero-interval and single-shot: each burst asks for the next one, so the
+    // event loop gets a turn between them and nothing is queued twice.
+    m_stepTimer.setSingleShot(true);
+    m_stepTimer.setInterval(0);
+    connect(&m_stepTimer, &QTimer::timeout,
+            this, &DocumentImporter::stepImportFolder);
 }
 
 void DocumentImporter::setCollection(NoteCollection *collection)
@@ -251,7 +263,7 @@ int DocumentImporter::importFiles(const QStringList &paths,
             {QStringLiteral("paths"), paths.size()},
             {QStringLiteral("targetFolder"), targetFolder},
         });
-    m_lastSkipped = 0;
+    setLastSkipped(0);
     if (!m_collection || !m_collection->isOpen())
         return 0;
     if (!m_collection->ensureWithinRoot(targetFolder))
@@ -272,7 +284,7 @@ int DocumentImporter::importFiles(const QStringList &paths,
         if (copyInto(p, rel))
             ++imported;
         else
-            ++m_lastSkipped;
+            setLastSkipped(m_lastSkipped + 1);
         emit importProgress(++done, int(paths.size()));
     }
     if (imported > 0)
@@ -292,7 +304,7 @@ int DocumentImporter::importFolder(const QString &dirPath,
             {QStringLiteral("dir"), dirPath},
             {QStringLiteral("targetFolder"), targetFolder},
         });
-    m_lastSkipped = 0;
+    setLastSkipped(0);
     if (!m_collection || !m_collection->isOpen())
         return 0;
     if (!m_collection->ensureWithinRoot(targetFolder))
@@ -305,25 +317,8 @@ int DocumentImporter::importFolder(const QString &dirPath,
     for (const auto &e : entries) {
         if (isCancelled(token))
             break;
-        // The destination folder mirrors the source subfolder under target.
-        QString folder;
-        if (targetFolder.isEmpty())
-            folder = e.second;
-        else if (e.second.isEmpty())
-            folder = targetFolder;
-        else
-            folder = targetFolder + QLatin1Char('/') + e.second;
-        if (!m_collection->ensureWithinRoot(folder))
-            continue;
-        if (!folder.isEmpty()
-            && !QDir().mkpath(m_collection->absolutePath(folder)))
-            continue;
-        const QString base = QFileInfo(e.first).completeBaseName();
-        const QString rel = uniqueRelPath(folder, base);
-        if (copyInto(e.first, rel))
+        if (importOne(e.first, e.second, targetFolder))
             ++imported;
-        else
-            ++m_lastSkipped;
         emit importProgress(++done, int(entries.size()));
     }
     if (imported > 0)
@@ -331,4 +326,131 @@ int DocumentImporter::importFolder(const QString &dirPath,
     perf.addContext(QStringLiteral("imported"), imported);
     perf.addContext(QStringLiteral("skipped"), m_lastSkipped);
     return imported;
+}
+
+bool DocumentImporter::importOne(const QString &absSource,
+                                 const QString &relSubDir,
+                                 const QString &targetFolder)
+{
+    // The destination folder mirrors the source subfolder under target.
+    QString folder;
+    if (targetFolder.isEmpty())
+        folder = relSubDir;
+    else if (relSubDir.isEmpty())
+        folder = targetFolder;
+    else
+        folder = targetFolder + QLatin1Char('/') + relSubDir;
+    if (!m_collection->ensureWithinRoot(folder)
+        || (!folder.isEmpty()
+            && !QDir().mkpath(m_collection->absolutePath(folder)))) {
+        setLastSkipped(m_lastSkipped + 1);
+        return false;
+    }
+    const QString base = QFileInfo(absSource).completeBaseName();
+    const QString rel = uniqueRelPath(folder, base);
+    if (copyInto(absSource, rel))
+        return true;
+    setLastSkipped(m_lastSkipped + 1);
+    return false;
+}
+
+void DocumentImporter::setLastSkipped(int skipped)
+{
+    if (m_lastSkipped == skipped)
+        return;
+    m_lastSkipped = skipped;
+    emit lastSkippedCountChanged();
+}
+
+QStringList DocumentImporter::listImportableFiles(const QString &dirPath) const
+{
+    QStringList paths;
+    const auto entries = importableFilesUnder(dirPath);
+    paths.reserve(entries.size());
+    for (const auto &entry : entries)
+        paths.append(entry.first);
+    return paths;
+}
+
+void DocumentImporter::startImportFolder(const QString &dirPath,
+                                         const QString &targetFolder)
+{
+    if (m_running)
+        return; // one run at a time; the dialog offers cancel, not a queue
+    if (!m_collection || !m_collection->isOpen())
+        return;
+    if (!m_collection->ensureWithinRoot(targetFolder))
+        return;
+
+    setLastSkipped(0);
+    m_stepImported = 0;
+    m_queueIndex = 0;
+    m_stepTargetFolder = targetFolder;
+    // A fresh token, as every run gets: cancellation is one-way, so reusing
+    // the previous one would call this run off before it started.
+    tokenForRun(CancellationTokenPtr());
+    // The walk itself is not stepped. It is the same enumeration the dry run
+    // in front of this dialog has already paid for, and it costs one stat per
+    // file against a copy per file.
+    m_queue = importableFilesUnder(dirPath, m_qmlCancel);
+
+    m_running = true;
+    emit importInProgressChanged();
+    if (m_queue.isEmpty()) {
+        finishSteppedImport(isCancelled(m_qmlCancel));
+        return;
+    }
+    // Deliberately not copying anything yet: the caller gets its event loop
+    // back first, so the dialog it just opened can paint before the first
+    // file lands.
+    m_stepTimer.start();
+}
+
+void DocumentImporter::stepImportFolder()
+{
+    if (!m_running)
+        return;
+    if (!m_collection || !m_collection->isOpen()) {
+        finishSteppedImport(true);
+        return;
+    }
+
+    QElapsedTimer burst;
+    burst.start();
+    const int total = int(m_queue.size());
+    while (m_queueIndex < total) {
+        if (isCancelled(m_qmlCancel)) {
+            finishSteppedImport(true);
+            return;
+        }
+        const auto &entry = m_queue.at(m_queueIndex);
+        if (importOne(entry.first, entry.second, m_stepTargetFolder))
+            ++m_stepImported;
+        ++m_queueIndex;
+        emit importProgress(m_queueIndex, total);
+        if (burst.elapsed() >= kStepBudgetMs)
+            break;
+    }
+
+    if (m_queueIndex >= total) {
+        finishSteppedImport(false);
+        return;
+    }
+    m_stepTimer.start();
+}
+
+void DocumentImporter::finishSteppedImport(bool cancelled)
+{
+    m_stepTimer.stop();
+    const int imported = m_stepImported;
+    // One rescan for the whole run rather than one per file: refreshing after
+    // each copy would cost a full scan of the vault per imported note.
+    if (imported > 0 && m_collection && m_collection->isOpen())
+        m_collection->refresh();
+    m_queue.clear();
+    m_queueIndex = 0;
+    m_stepImported = 0;
+    m_running = false;
+    emit importInProgressChanged();
+    emit importFinished(imported, m_lastSkipped, cancelled);
 }
