@@ -6,13 +6,16 @@
 
 #include <QObject>
 #include <QHash>
+#include <QPointer>
 #include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
 
-class BlockModel;
+// Included, not forward-declared: the guarded model pointer below is a
+// QPointer, which needs the complete type wherever this header is used.
+#include "blockmodel.h"
 
 // All search state: the query, the match options, the document-ordered
 // match list, the current match, and the in-selection domain. Exposed as
@@ -190,6 +193,18 @@ private:
     int displayPosition(int blockIndex, int mdPos) const;
     int markdownPosition(int blockIndex, int displayPos) const;
     bool matchInDomain(const Match &match) const;
+    // Text-domain endpoints as indexes and display positions, refreshed once
+    // per recompute so matchInDomain is O(1) per candidate match.
+    struct ResolvedTextDomain {
+        bool valid = false;
+        int startIndex = -1;
+        int endIndex = -1;
+        int startDisplay = 0;
+        int endDisplay = 0;
+    };
+    void resolveTextDomain();
+    // Drops every result and domain that referred to a model being destroyed.
+    void onModelDestroyed();
     // The replacement text one match gets (captures + preserve case).
     QString finalReplacement(const QString &replacement, const Match &match) const;
     void scheduleRecompute();
@@ -203,7 +218,9 @@ private:
     void applyContentUpdates(const QString &macroName,
                              const QList<QPair<int, QString>> &updates);
 
-    BlockModel *m_model = nullptr;
+    // Guarded: QObject auto-disconnection unhooks the signals but leaves a
+    // raw pointer dangling, and a queued recompute can outlive the model.
+    QPointer<BlockModel> m_model;
     int m_revision = 0;
 
     bool m_active = false;
@@ -229,6 +246,7 @@ private:
     QString m_domainEndId;
     int m_domainStartMd = 0;
     int m_domainEndMd = 0;
+    ResolvedTextDomain m_resolvedDomain;
 
     bool m_recomputeQueued = false;
 };

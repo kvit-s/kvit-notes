@@ -26,6 +26,16 @@ class BlockModel : public QAbstractListModel
     Q_PROPERTY(int documentCharsNoSpaces READ documentCharsNoSpaces NOTIFY documentCountsChanged)
     Q_PROPERTY(int documentParagraphCount READ documentParagraphCount NOTIFY documentCountsChanged)
     Q_PROPERTY(int tocBlockCount READ tocBlockCount NOTIFY tocBlockIndexesChanged)
+    // Counter for state that is DERIVED from the document rather than stored
+    // in any one block: a parent todo's sub-task progress and a MathBlock's
+    // equation number. Both are computed by position, so a change to one row
+    // can change what a different row displays, and a QML binding that only
+    // reads its own roles would never re-evaluate. Bindings on those two
+    // read this property to gain the dependency; the model bumps it whenever
+    // a check, type, indent, move, insert, or remove could have changed
+    // either. TodoProgressRole and MathNumberRole carry the same information
+    // to model-level consumers, with dataChanged naming the affected rows.
+    Q_PROPERTY(int derivedRevision READ derivedRevision NOTIFY derivedRevisionChanged)
 
 public:
     enum BlockRoles {
@@ -40,7 +50,13 @@ public:
         DelegateKindRole,
         CalloutTitleRole,
         AttributesRole,
-        DisplayTextRole
+        DisplayTextRole,
+        // Derived from neighbouring rows, not stored: {done, total} over a
+        // parent todo's children, and a MathBlock's 1-based equation number.
+        // Appended last; role values are persisted in tests, so nothing
+        // above renumbers.
+        TodoProgressRole,
+        MathNumberRole
     };
 
     // The DelegateChooser watches this role instead of the raw type:
@@ -115,8 +131,9 @@ public:
     // language becomes (or stops being) `kanban`.
     int delegateKindForBlock(Block::BlockType type, const QString &language) const;
 
-    // Indentation depth limit (features.md §3.3)
-    static constexpr int MaxIndentLevel = 4;
+    // Indentation depth limit (features.md §3.3). Owned by Block, which
+    // clamps every write; kept here under its established name.
+    static constexpr int MaxIndentLevel = Block::MaxIndentLevel;
 
     explicit BlockModel(QObject *parent = nullptr);
     ~BlockModel() override;
@@ -252,6 +269,7 @@ public:
     int documentCharsNoSpaces() const { return m_documentCharsNoSpaces; }
     int documentParagraphCount() const { return m_documentParagraphCount; }
     int tocBlockCount() const { return m_tocBlockIndexes.size(); }
+    int derivedRevision() const { return m_derivedRevision; }
 
     void initializeWithSampleData();
 
@@ -282,8 +300,43 @@ signals:
     void countChanged();
     void documentCountsChanged();
     void tocBlockIndexesChanged();
+    void derivedRevisionChanged();
 
 private:
+    // Blocks are handed out through blockAt() and BlockObjectRole, so a
+    // consumer can still write one directly. The model subscribes to every
+    // Block change signal and republishes the write as dataChanged, refreshed
+    // caches, and a derived-state bump — so an out-of-band edit reaches the
+    // views, the projections, and the journal/dirty tracking that listens on
+    // dataChanged instead of disappearing silently. It does NOT gain an undo
+    // step; the property system cannot reach these setters (every Q_PROPERTY
+    // is read-only) and every in-app edit goes through the model's own
+    // undo-aware API.
+    void watchBlock(Block *block);
+    void onBlockMutated(Block *block, int role);
+    // True while the model itself is writing a block, so the subscription
+    // above does not double-handle a change the caller already published.
+    // Saved and restored, since the internal mutators nest.
+    bool m_applyingInternalChange = false;
+    struct InternalChangeScope {
+        BlockModel *model;
+        bool previous;
+        explicit InternalChangeScope(BlockModel *m)
+            : model(m), previous(m->m_applyingInternalChange)
+        {
+            model->m_applyingInternalChange = true;
+        }
+        ~InternalChangeScope() { model->m_applyingInternalChange = previous; }
+    };
+    // Full recount. Only the out-of-band write path needs it: the model's own
+    // mutators bracket each change with adjustBlockCounts*, which is O(1).
+    void recomputeDocumentCounts();
+
+    // Publishes the derived state a change at `changeIndex` can have altered:
+    // TodoProgressRole for every parent todo whose child run reaches the row,
+    // MathNumberRole for the rows after it, and one derivedRevision bump.
+    void notifyDerivedState(int changeIndex);
+
     // The registry kinds resolve against, and the private one used until
     // something wires a shared registry in. Declared before it so it is
     // constructed first.
@@ -343,6 +396,11 @@ private:
     int m_documentCharCount = 0;
     int m_documentCharsNoSpaces = 0;
     int m_documentParagraphCount = 0;
+    // How many MathBlocks the document holds, maintained by the same
+    // add/subtract count hooks. Zero means no row can carry an equation
+    // number, so the suffix notification is skipped entirely.
+    int m_mathBlockCount = 0;
+    int m_derivedRevision = 0;
     QList<int> m_tocBlockIndexes;
     mutable QHash<QString, int> m_idIndex;
     mutable bool m_idIndexDirty = true;

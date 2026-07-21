@@ -77,7 +77,14 @@ BlockDelegateBase {
         var r = AppSettings.revision // re-evaluate when a setting changes
         return AppSettings.value("view.equationNumbers", false) === true
     }
-    readonly property int equationNumber: BlockModel.mathNumber(root.index)
+    // Equation numbers count the MathBlocks above this one, so converting any
+    // EARLIER row to or from math renumbers this one without touching its own
+    // roles. derivedRevision is the model's counter for that class of change;
+    // reading it gives the binding the dependency it otherwise lacks.
+    readonly property int equationNumber: {
+        var derived = BlockModel.derivedRevision
+        return BlockModel.mathNumber(root.index)
+    }
 
     // aarrggbb hex of a color, for the image://math/ query.
     function argbHex(c) {

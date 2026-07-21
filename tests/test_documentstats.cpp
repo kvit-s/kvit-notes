@@ -26,6 +26,7 @@ private slots:
     void testParagraphAndBlockCounts();
     void testStatsForSelectionText();
     void testEmptyDocument();
+    void testModelDestroyedLeavesZeroCounts();
 };
 
 void TestDocumentStats::testWordCount_data()
@@ -158,6 +159,29 @@ void TestDocumentStats::testEmptyDocument()
     QCOMPARE(s.value("words").toInt(), 0);
     QCOMPARE(s.value("blocks").toInt(), 0);
     QCOMPARE(s.value("readingMinutes").toInt(), 0);
+}
+
+// The stats object is a long-lived context property that outlives the model
+// it reads counts from. A raw pointer left it reading freed memory after a
+// note switch or a shutdown.
+void TestDocumentStats::testModelDestroyedLeavesZeroCounts()
+{
+    auto *model = new BlockModel(nullptr);
+    model->insertBlock(0, Block::Paragraph, QStringLiteral("one two three"));
+    model->insertBlock(1, Block::Paragraph, QStringLiteral("four five"));
+
+    DocumentStats stats;
+    stats.setModel(model);
+    QCOMPARE(stats.documentStats().value(QStringLiteral("words")).toInt(), 5);
+
+    delete model;
+
+    QVERIFY(stats.model() == nullptr);
+    const QVariantMap after = stats.documentStats();
+    QCOMPARE(after.value(QStringLiteral("words")).toInt(), 0);
+    QCOMPARE(after.value(QStringLiteral("blocks")).toInt(), 0);
+    QCOMPARE(after.value(QStringLiteral("charsWithSpaces")).toInt(), 0);
+    QCOMPARE(after.value(QStringLiteral("readingMinutes")).toInt(), 0);
 }
 
 QTEST_MAIN(TestDocumentStats)

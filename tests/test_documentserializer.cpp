@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest/QtTest>
+#include <QElapsedTimer>
 #include "documentserializer.h"
 #include "blockmodel.h"
 #include "block.h"
@@ -104,6 +105,8 @@ private slots:
     void testTocFenceRoundTripAndDerivedKind();
     void testWikiLinksRoundTripByteIdentical();
     void testQueryFenceRoundTripAndDerivedKind();
+    void testNoSpaceNestedQuotes();
+    void testSerializeBlocksHandlesHugeSelections();
 
 private:
     // Serialize -> parse -> serialize must reproduce the exact bytes for
@@ -1397,6 +1400,82 @@ void TestDocumentSerializer::testQueryFenceRoundTripAndDerivedKind()
                                               QStringLiteral("query")),
              BlockModel::QueryKind);
     QCOMPARE(m_serializer->serialize(m_model), md + "\n");
+}
+
+// The parser accepts `>>nested`, but its depth loop only consumed "> ", so
+// the leftover markers became CONTENT and the block serialized back out as
+// "> >>nested" — two extra marker levels appearing in the text on every round
+// trip. The whole marker run is now one depth count.
+void TestDocumentSerializer::testNoSpaceNestedQuotes()
+{
+    auto two = m_serializer->parse(">>nested");
+    QCOMPARE(two.size(), 1);
+    QCOMPARE(two[0].type, Block::Quote);
+    QCOMPARE(two[0].indentLevel, 1);          // depth 2
+    QCOMPARE(two[0].content, QString("nested"));
+
+    auto three = m_serializer->parse(">>>deep");
+    QCOMPARE(three.size(), 1);
+    QCOMPARE(three[0].type, Block::Quote);
+    QCOMPARE(three[0].indentLevel, 2);        // depth 3
+    QCOMPARE(three[0].content, QString("deep"));
+
+    // Mixed spacing names the same depth as the fully spaced form.
+    auto mixed = m_serializer->parse("> >nested");
+    QCOMPARE(mixed.size(), 1);
+    QCOMPARE(mixed[0].indentLevel, 1);
+    QCOMPARE(mixed[0].content, QString("nested"));
+
+    // The markers never reappear as text: canonical spacing round-trips.
+    BlockModel model;
+    m_serializer->loadIntoModel(&model, ">>nested\n");
+    QCOMPARE(m_serializer->serialize(&model), QString("> > nested\n"));
+    verifyByteIdentical("> > nested\n");
+    verifyByteIdentical("> > > deep\n");
+
+    // A single ">" with no space is still literal paragraph text.
+    auto literal = m_serializer->parse(">no space quote");
+    QCOMPARE(literal.size(), 1);
+    QCOMPARE(literal[0].type, Block::Paragraph);
+}
+
+// Deduplicating the index list used to scan the growing result list per
+// index, so preparing a select-all copy was quadratic in the selection size.
+// The list below names every block twenty times over: billions of
+// comparisons with the linear scan, a few hundred thousand hash lookups now.
+void TestDocumentSerializer::testSerializeBlocksHandlesHugeSelections()
+{
+    const int blockCount = 50000;
+    const int repeats = 16;
+
+    BlockModel model;
+    QList<Block::State> states;
+    states.reserve(blockCount);
+    for (int i = 0; i < blockCount; ++i) {
+        Block::State state;
+        state.type = Block::Paragraph;
+        state.content = QStringLiteral("line %1").arg(i);
+        states.append(state);
+    }
+    model.replaceAllBlocksInternal(states);
+
+    QVariantList indexes;
+    indexes.reserve(blockCount * repeats);
+    for (int r = 0; r < repeats; ++r)
+        for (int i = 0; i < blockCount; ++i)
+            indexes.append(i);
+
+    QElapsedTimer timer;
+    timer.start();
+    const QString markdown = m_serializer->serializeBlocks(&model, indexes);
+    const qint64 elapsed = timer.elapsed();
+
+    QVERIFY(markdown.startsWith(QStringLiteral("line 0\n\n")));
+    QVERIFY(markdown.endsWith(QStringLiteral("line %1").arg(blockCount - 1)));
+    QVERIFY2(elapsed < 1500,
+             qPrintable(QStringLiteral("serializing %1 indexes took %2 ms")
+                            .arg(indexes.size())
+                            .arg(elapsed)));
 }
 
 QTEST_MAIN(TestDocumentSerializer)

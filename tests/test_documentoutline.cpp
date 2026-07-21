@@ -54,6 +54,9 @@ private slots:
     void testSkipsNoOpStructuralRebuild();
     void testHeadingEditRebuildsOnce();
 
+    // Model lifetime
+    void testModelDestroyedWithRebuildPending();
+
 private:
     BlockModel *m_model = nullptr;
     DocumentOutline *m_outline = nullptr;
@@ -479,6 +482,38 @@ void TestDocumentOutline::testHeadingEditRebuildsOnce()
     QCOMPARE(slugsSpy.count(), 1);
     QCOMPARE(m_outline->data(m_outline->index(0), DocumentOutline::TextRole).toString(),
              QStringLiteral("Renamed"));
+}
+
+// The rebuild is compressed through a queued call, so a heading edit made
+// just before the model dies leaves one scheduled against `this`. QObject
+// auto-disconnection does not stop it, and the raw pointer it walked was
+// never nulled.
+void TestDocumentOutline::testModelDestroyedWithRebuildPending()
+{
+    auto *model = new BlockModel(nullptr);
+    model->insertBlock(0, Block::Heading1, QStringLiteral("Alpha"));
+    model->insertBlock(1, Block::Paragraph, QStringLiteral("body"));
+    model->insertBlock(2, Block::Heading2, QStringLiteral("Beta"));
+
+    auto *outline = new DocumentOutline(this);
+    outline->setModel(model);
+    QCOMPARE(outline->rowCount(), 2);
+    QVERIFY(outline->hasHeadings());
+
+    // Schedule the compressed rebuild, then destroy the model before the
+    // event loop gets to it.
+    model->updateContent(0, QStringLiteral("Renamed"));
+    delete model;
+    QCoreApplication::processEvents();
+
+    QVERIFY(outline->model() == nullptr);
+    QCOMPARE(outline->rowCount(), 0);
+    QVERIFY(!outline->hasHeadings());
+    QCOMPARE(outline->blockIndexForSlug(QStringLiteral("alpha")), -1);
+    outline->rebuildNow();
+    QCOMPARE(outline->rowCount(), 0);
+
+    delete outline;
 }
 
 QTEST_MAIN(TestDocumentOutline)

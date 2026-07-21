@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest>
+#include <QElapsedTimer>
 #include <QSignalSpy>
 #include "blockmodel.h"
 #include "documentserializer.h"
@@ -66,6 +67,19 @@ private slots:
     void testMoveBlocksToMatchesReference();
     // Cached ordinals/equation numbers
     void testDerivedOrderCacheMatchesRecompute();
+    // Mutation ownership: standard model editing and direct block writes
+    void testSetDataRoutesEveryRoleThroughUndo();
+    void testSetDataRejectsUnknownRolesAndValues();
+    void testDirectBlockWriteReachesTheModel();
+    // Derived state: sub-task progress and equation numbers
+    void testTodoProgressRoleNotifiesParents();
+    void testMathNumberRoleNotifiesTheSuffix();
+    // Invariant enforcement at the model's public boundary
+    void testInvalidTypeIsRejectedAtEveryEntryPoint();
+    void testNoOpAndInvalidMovesLeaveTheDocumentClean();
+    void testIndentWritesAreClamped();
+    // Bulk index normalization must not be quadratic in the selection
+    void testBulkIndexNormalizationHandlesHugeSelections();
 
 private:
     // Build a model (no undo stack) from {type, content, indent} rows
@@ -1649,6 +1663,314 @@ void TestBlockModel::testDerivedOrderCacheMatchesRecompute()
         all.append(i);
     model->moveBlocksTo({0, 2}, model->count());
     verifyAll();
+}
+
+// setData() is the standard model editing API. It used to write the block
+// straight through, which left the edit on a clean undo stack: Ctrl+Z could
+// not take it back, and save/close logic that asks the stack whether the
+// document is clean would drop it.
+void TestBlockModel::testSetDataRoutesEveryRoleThroughUndo()
+{
+    UndoStack *stack = nullptr;
+    BlockModel *model = makeModelWithStack(
+        {{Block::Paragraph, "Original", 0}}, &stack);
+    const QModelIndex index = model->index(0, 0);
+
+    QVERIFY(stack->isClean());
+    QVERIFY(model->setData(index, QStringLiteral("Modified"), BlockModel::ContentRole));
+    QCOMPARE(model->getContent(0), QStringLiteral("Modified"));
+    QVERIFY(!stack->isClean());
+    QVERIFY(stack->canUndo());
+    stack->undo();
+    QCOMPARE(model->getContent(0), QStringLiteral("Original"));
+
+    stack->clear();
+    QVERIFY(model->setData(index, static_cast<int>(Block::Heading2),
+                           BlockModel::BlockTypeRole));
+    QCOMPARE(model->blockAt(0)->blockType(), Block::Heading2);
+    QCOMPARE(stack->count(), 1);
+    stack->undo();
+    QCOMPARE(model->blockAt(0)->blockType(), Block::Paragraph);
+
+    stack->clear();
+    QVERIFY(model->setData(index, 3, BlockModel::IndentLevelRole));
+    QCOMPARE(model->blockAt(0)->indentLevel(), 3);
+    QCOMPARE(stack->count(), 1);
+    stack->undo();
+    QCOMPARE(model->blockAt(0)->indentLevel(), 0);
+
+    stack->clear();
+    QVERIFY(model->setData(index, true, BlockModel::CheckedRole));
+    QCOMPARE(model->blockAt(0)->checked(), true);
+    QCOMPARE(stack->count(), 1);
+    stack->undo();
+    QCOMPARE(model->blockAt(0)->checked(), false);
+
+    stack->clear();
+    QVERIFY(model->setData(index, QStringLiteral("python"), BlockModel::LanguageRole));
+    QCOMPARE(model->blockAt(0)->language(), QStringLiteral("python"));
+    QCOMPARE(stack->count(), 1);
+    stack->undo();
+    QCOMPARE(model->blockAt(0)->language(), QString());
+
+    // A write that changes nothing must not push a step, or every idle
+    // rebind of a delegate would dirty the document.
+    stack->clear();
+    QVERIFY(model->setData(index, QString(), BlockModel::LanguageRole));
+    QVERIFY(model->setData(index, 0, BlockModel::IndentLevelRole));
+    QVERIFY(model->setData(index, model->getContent(0), BlockModel::ContentRole));
+    QVERIFY(stack->isClean());
+    QCOMPARE(stack->count(), 0);
+}
+
+void TestBlockModel::testSetDataRejectsUnknownRolesAndValues()
+{
+    BlockModel *model = makeModel({{Block::Paragraph, "text", 0}});
+    const QModelIndex index = model->index(0, 0);
+
+    QVERIFY(!model->setData(model->index(100, 0), QStringLiteral("x"),
+                            BlockModel::ContentRole));
+    QVERIFY(!model->setData(index, QStringLiteral("x"), BlockModel::BlockIdRole));
+    QVERIFY(!model->setData(index, 9999, BlockModel::BlockTypeRole));
+    QCOMPARE(model->blockAt(0)->blockType(), Block::Paragraph);
+}
+
+// blockAt() and BlockObjectRole hand out the Block itself, so a consumer can
+// still write one directly. The model subscribes to the block's change
+// signals so such a write is published as dataChanged (which is what the
+// journal/dirty tracking listens on) and refreshes the caches it feeds.
+void TestBlockModel::testDirectBlockWriteReachesTheModel()
+{
+    BlockModel *model = makeModel({{Block::Paragraph, "one", 0}});
+    QSignalSpy dataSpy(model, &BlockModel::dataChanged);
+    QSignalSpy countsSpy(model, &BlockModel::documentCountsChanged);
+
+    model->blockAt(0)->setContent(QStringLiteral("two three four"));
+
+    QVERIFY(dataSpy.count() >= 1);
+    const QList<int> roles = dataSpy.first().at(2).value<QList<int>>();
+    QVERIFY(roles.contains(BlockModel::ContentRole));
+    QVERIFY(roles.contains(BlockModel::DisplayTextRole));
+    QCOMPARE(dataSpy.first().at(0).toModelIndex().row(), 0);
+    QVERIFY(countsSpy.count() >= 1);
+    // The cached document counts must follow the write, not keep the old
+    // one-word total.
+    QCOMPARE(model->documentWordCount(), 3);
+
+    // The table-of-contents index is derived from type+language, so a direct
+    // language write has to refresh it too.
+    model->insertBlock(1, Block::CodeBlock, "body");
+    QSignalSpy tocSpy(model, &BlockModel::tocBlockIndexesChanged);
+    model->blockAt(1)->setLanguage(QStringLiteral("toc"));
+    QCOMPARE(tocSpy.count(), 1);
+    QCOMPARE(model->tocBlockIndexes(), QVariantList{1});
+}
+
+// Sub-task progress is derived from the CHILD rows, so checking a child
+// changes what the PARENT displays while leaving the parent's own roles
+// untouched. Without a notification the badge stayed stale indefinitely.
+void TestBlockModel::testTodoProgressRoleNotifiesParents()
+{
+    BlockModel *model = makeModel({
+        {Block::Todo, "parent", 0},
+        {Block::Todo, "child one", 1},
+        {Block::Todo, "child two", 1},
+    });
+
+    QCOMPARE(model->data(model->index(0, 0), BlockModel::TodoProgressRole)
+                 .toMap()
+                 .value(QStringLiteral("total"))
+                 .toInt(), 2);
+
+    QSignalSpy dataSpy(model, &BlockModel::dataChanged);
+    QSignalSpy derivedSpy(model, &BlockModel::derivedRevisionChanged);
+    const int revisionBefore = model->derivedRevision();
+
+    model->setChecked(1, true);
+
+    QVERIFY(derivedSpy.count() >= 1);
+    QVERIFY(model->derivedRevision() > revisionBefore);
+    bool parentNotified = false;
+    for (const QList<QVariant> &emission : dataSpy) {
+        const QList<int> roles = emission.at(2).value<QList<int>>();
+        if (!roles.contains(BlockModel::TodoProgressRole))
+            continue;
+        const int first = emission.at(0).toModelIndex().row();
+        const int last = emission.at(1).toModelIndex().row();
+        if (first <= 0 && last >= 0)
+            parentNotified = true;
+    }
+    QVERIFY(parentNotified);
+    QCOMPARE(model->data(model->index(0, 0), BlockModel::TodoProgressRole)
+                 .toMap()
+                 .value(QStringLiteral("done"))
+                 .toInt(), 1);
+
+    // Reindenting a child out of the run changes the parent's total too.
+    dataSpy.clear();
+    model->changeIndent(2, -1);
+    QCOMPARE(model->data(model->index(0, 0), BlockModel::TodoProgressRole)
+                 .toMap()
+                 .value(QStringLiteral("total"))
+                 .toInt(), 1);
+    bool parentNotifiedAgain = false;
+    for (const QList<QVariant> &emission : dataSpy) {
+        const QList<int> roles = emission.at(2).value<QList<int>>();
+        if (roles.contains(BlockModel::TodoProgressRole)
+            && emission.at(0).toModelIndex().row() == 0)
+            parentNotifiedAgain = true;
+    }
+    QVERIFY(parentNotifiedAgain);
+}
+
+// Equation numbers count the MathBlocks above a row, so converting an EARLIER
+// row to or from math renumbers every later equation without touching their
+// own roles.
+void TestBlockModel::testMathNumberRoleNotifiesTheSuffix()
+{
+    BlockModel *model = makeModel({
+        {Block::Paragraph, "intro", 0},
+        {Block::MathBlock, "$$a$$", 0},
+        {Block::MathBlock, "$$b$$", 0},
+    });
+    QCOMPARE(model->data(model->index(2, 0), BlockModel::MathNumberRole).toInt(), 2);
+
+    QSignalSpy dataSpy(model, &BlockModel::dataChanged);
+    QSignalSpy derivedSpy(model, &BlockModel::derivedRevisionChanged);
+
+    model->updateType(0, Block::MathBlock);
+
+    QCOMPARE(model->data(model->index(2, 0), BlockModel::MathNumberRole).toInt(), 3);
+    QVERIFY(derivedSpy.count() >= 1);
+    bool suffixNotified = false;
+    for (const QList<QVariant> &emission : dataSpy) {
+        const QList<int> roles = emission.at(2).value<QList<int>>();
+        if (roles.contains(BlockModel::MathNumberRole)
+            && emission.at(1).toModelIndex().row() >= 2)
+            suffixNotified = true;
+    }
+    QVERIFY(suffixNotified);
+
+    // Converting the equation back must renumber the suffix again.
+    dataSpy.clear();
+    model->updateType(0, Block::Paragraph);
+    QCOMPARE(model->data(model->index(2, 0), BlockModel::MathNumberRole).toInt(), 2);
+    bool suffixNotifiedAgain = false;
+    for (const QList<QVariant> &emission : dataSpy) {
+        const QList<int> roles = emission.at(2).value<QList<int>>();
+        if (roles.contains(BlockModel::MathNumberRole)
+            && emission.at(1).toModelIndex().row() >= 2)
+            suffixNotifiedAgain = true;
+    }
+    QVERIFY(suffixNotifiedAgain);
+}
+
+void TestBlockModel::testInvalidTypeIsRejectedAtEveryEntryPoint()
+{
+    UndoStack *stack = nullptr;
+    BlockModel *model = makeModelWithStack(
+        {{Block::Heading1, "title", 0}}, &stack);
+    const int invalid = static_cast<int>(Block::LastType) + 1;
+
+    model->insertBlock(1, invalid, QStringLiteral("nope"));
+    QCOMPARE(model->count(), 1);
+
+    model->updateType(0, invalid);
+    QCOMPARE(model->blockAt(0)->blockType(), Block::Heading1);
+
+    model->convertBlock(0, invalid, QStringLiteral("nope"));
+    QCOMPARE(model->blockAt(0)->blockType(), Block::Heading1);
+    QCOMPARE(model->getContent(0), QStringLiteral("title"));
+
+    QVERIFY(stack->isClean());
+    QCOMPARE(stack->count(), 0);
+}
+
+void TestBlockModel::testNoOpAndInvalidMovesLeaveTheDocumentClean()
+{
+    UndoStack *stack = nullptr;
+    BlockModel *model = makeModelWithStack({
+        {Block::Paragraph, "one", 0},
+        {Block::Paragraph, "two", 0},
+    }, &stack);
+
+    model->moveBlock(0, 0);          // same position
+    model->moveBlock(0, 17);         // past the end
+    model->moveBlock(-1, 1);         // negative source
+    model->updateType(0, Block::Paragraph); // already that type
+
+    QCOMPARE(contents(model), QStringList({"one", "two"}));
+    QVERIFY(stack->isClean());
+    QCOMPARE(stack->count(), 0);
+
+    // A real move still works and is one step.
+    model->moveBlock(0, 1);
+    QCOMPARE(contents(model), QStringList({"two", "one"}));
+    QCOMPARE(stack->count(), 1);
+}
+
+void TestBlockModel::testIndentWritesAreClamped()
+{
+    BlockModel *model = makeModel({{Block::BulletList, "item", 0}});
+
+    model->insertBlock(1, Block::BulletList, QStringLiteral("deep"), 42);
+    QCOMPARE(model->blockAt(1)->indentLevel(), BlockModel::MaxIndentLevel);
+
+    QVERIFY(model->setData(model->index(0, 0), 42, BlockModel::IndentLevelRole));
+    QCOMPARE(model->blockAt(0)->indentLevel(), BlockModel::MaxIndentLevel);
+
+    model->setIndentInternal(0, -7);
+    QCOMPARE(model->blockAt(0)->indentLevel(), 0);
+
+    Block::State state;
+    state.type = Block::BulletList;
+    state.content = QStringLiteral("restored");
+    state.indentLevel = 99;
+    model->applyStateInternal(0, state);
+    QCOMPARE(model->blockAt(0)->indentLevel(), BlockModel::MaxIndentLevel);
+}
+
+// Deduplicating the selection used to scan the growing result list per index,
+// so a select-all bulk operation was quadratic. The call below hands over
+// every block twenty times over: with the linear scan that is billions of
+// comparisons, and with the hash set it is a few hundred thousand lookups.
+// The move itself is a no-op arrangement, so what is timed is the
+// normalization.
+void TestBlockModel::testBulkIndexNormalizationHandlesHugeSelections()
+{
+    const int blockCount = 50000;
+    const int repeats = 16;
+
+    auto *model = new BlockModel(this);
+    QList<Block::State> states;
+    states.reserve(blockCount);
+    for (int i = 0; i < blockCount; ++i) {
+        Block::State state;
+        state.type = Block::Paragraph;
+        state.content = QStringLiteral("line %1").arg(i);
+        states.append(state);
+    }
+    model->replaceAllBlocksInternal(states);
+    QCOMPARE(model->count(), blockCount);
+
+    QVariantList indexes;
+    indexes.reserve(blockCount * repeats);
+    for (int r = 0; r < repeats; ++r)
+        for (int i = 0; i < blockCount; ++i)
+            indexes.append(i);
+
+    QElapsedTimer timer;
+    timer.start();
+    model->moveBlocksTo(indexes, 0);
+    const qint64 elapsed = timer.elapsed();
+
+    QCOMPARE(model->count(), blockCount);
+    QCOMPARE(model->getContent(0), QStringLiteral("line 0"));
+    QVERIFY2(elapsed < 1500,
+             qPrintable(QStringLiteral("normalizing %1 indexes took %2 ms")
+                            .arg(indexes.size())
+                            .arg(elapsed)));
+    delete model;
 }
 
 QTEST_MAIN(TestBlockModel)

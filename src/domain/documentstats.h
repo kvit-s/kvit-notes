@@ -5,10 +5,13 @@
 #define DOCUMENTSTATS_H
 
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QVariantMap>
 
-class BlockModel;
+// Included, not forward-declared: the guarded model pointer below is a
+// QPointer, which needs the complete type wherever this header is used.
+#include "blockmodel.h"
 
 // Document statistics (features.md §19.1): word, character-with-spaces,
 // character-without-spaces, paragraph, block, and reading-time counts for
@@ -51,7 +54,10 @@ public:
     static int readingMinutes(int words);
 
 private:
-    BlockModel *m_model = nullptr;
+    // Guarded: the projection is a long-lived context property and outlives
+    // the model it reads counts from, so a raw pointer would dangle across a
+    // note switch or a shutdown.
+    QPointer<BlockModel> m_model;
 };
 
 #endif // DOCUMENTSTATS_H

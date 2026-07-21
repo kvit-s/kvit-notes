@@ -75,6 +75,14 @@ private slots:
     // Revision contract
     void testRevisionBumpsExactlyOnChange();
 
+    // Display-semantics changes (code <-> formatted text)
+    void testCodeToParagraphRecomputesMatches();
+    void testParagraphToCodeReplacesTheRightSpan();
+    // In-selection find must not be O(matches x blocks)
+    void testDenseInSelectionFindStaysLinear();
+    // Model lifetime
+    void testModelDestroyedWithRecomputePending();
+
 private:
     // Blocks: 0 formatted paragraph, 1 plain paragraph, 2 bullet,
     // 3 divider, 4 multi-line code block, 5 multi-line quote.
@@ -708,6 +716,142 @@ void TestDocumentSearch::testRevisionBumpsExactlyOnChange()
     const int base = spy.count();
     m_search->recomputeNow();
     QCOMPARE(spy.count(), base);
+}
+
+// ---- display-semantics changes ----
+
+// Matches are computed over DISPLAY text, so a block flipping between
+// verbatim code and formatted text changes both what matches and what a
+// match's coordinates mean — while its content stays byte-identical.
+// Recompute used to listen for ContentRole alone, so nothing fired and the
+// highlights stayed on the old coordinates.
+void TestDocumentSearch::testCodeToParagraphRecomputesMatches()
+{
+    auto *model = new BlockModel(this);
+    model->insertBlock(0, Block::CodeBlock, QStringLiteral("a*b*c"));
+    auto *search = new DocumentSearch(this);
+    search->setModel(model);
+    search->setActive(true);
+    search->setQuery(QStringLiteral("b"));
+
+    // Verbatim: the markers are ordinary characters, so "b" sits at 2.
+    QCOMPARE(search->matchCount(), 1);
+    QCOMPARE(search->currentMatchInfo().value(QStringLiteral("start")).toInt(), 2);
+
+    model->updateType(0, Block::Paragraph);
+    QCoreApplication::processEvents();
+
+    // Formatted: *b* is italic, so the display text is "abc" and "b" is at 1.
+    QCOMPARE(search->matchCount(), 1);
+    QCOMPARE(search->currentMatchInfo().value(QStringLiteral("start")).toInt(), 1);
+
+    delete search;
+    delete model;
+}
+
+// The dangerous half of the same defect: replace applies the CACHED display
+// coordinates to the block's markdown. Stale coordinates from the previous
+// display semantics rewrite the wrong span.
+void TestDocumentSearch::testParagraphToCodeReplacesTheRightSpan()
+{
+    auto *model = new BlockModel(this);
+    model->insertBlock(0, Block::Paragraph, QStringLiteral("a*b*c"));
+    auto *search = new DocumentSearch(this);
+    search->setModel(model);
+    search->setActive(true);
+    search->setQuery(QStringLiteral("b"));
+    QCOMPARE(search->currentMatchInfo().value(QStringLiteral("start")).toInt(), 1);
+
+    model->updateType(0, Block::CodeBlock);
+    QCoreApplication::processEvents();
+
+    QVERIFY(search->replaceCurrent(QStringLiteral("Z")));
+    // Verbatim splice at the recomputed position 2. With the stale position 1
+    // this produced "aZb*c" — a marker eaten and the match left behind.
+    QCOMPARE(model->getContent(0), QStringLiteral("a*Z*c"));
+
+    delete search;
+    delete model;
+}
+
+// Every candidate match used to resolve both selection endpoints by scanning
+// the model for their block ids and re-mapping their markdown positions into
+// display coordinates. On a dense match set that is O(matches x blocks) of
+// string comparison plus a markdown mapping per match. Endpoints are now
+// resolved once per recompute.
+void TestDocumentSearch::testDenseInSelectionFindStaysLinear()
+{
+    const int blockCount = 2000;
+    auto *model = new BlockModel(this);
+    QList<Block::State> states;
+    states.reserve(blockCount);
+    for (int i = 0; i < blockCount; ++i) {
+        Block::State state;
+        state.type = Block::Paragraph;
+        // 40 matches per block, with markers so the mapping is not trivial.
+        state.content = QStringLiteral("*x* ").repeated(40);
+        states.append(state);
+    }
+    model->replaceAllBlocksInternal(states);
+
+    auto *search = new DocumentSearch(this);
+    search->setModel(model);
+    search->setActive(true);
+    search->setInSelectionOnly(true);
+    search->setTextDomain(0, 0, blockCount - 1,
+                          static_cast<int>(model->getContent(blockCount - 1).length()));
+    search->setQuery(QStringLiteral("x"));
+
+    QElapsedTimer timer;
+    timer.start();
+    search->recomputeNow();
+    const qint64 elapsed = timer.elapsed();
+
+    QCOMPARE(search->matchCount(), blockCount * 40);
+    QVERIFY2(elapsed < 3000,
+             qPrintable(QStringLiteral("recomputing %1 in-selection matches "
+                                       "over %2 blocks took %3 ms")
+                            .arg(search->matchCount())
+                            .arg(blockCount)
+                            .arg(elapsed)));
+
+    delete search;
+    delete model;
+}
+
+// QObject auto-disconnection unhooks the signals but leaves the raw pointer
+// dangling, and a queued recompute scheduled before the model died still runs
+// afterwards.
+void TestDocumentSearch::testModelDestroyedWithRecomputePending()
+{
+    auto *model = new BlockModel(nullptr);
+    model->insertBlock(0, Block::Paragraph, QStringLiteral("fox one"));
+    model->insertBlock(1, Block::Paragraph, QStringLiteral("fox two"));
+
+    auto *search = new DocumentSearch(this);
+    search->setModel(model);
+    search->setActive(true);
+    search->setQuery(QStringLiteral("fox"));
+    search->setBlockDomain(QVariantList{0, 1});
+    search->setInSelectionOnly(true);
+    QCOMPARE(search->matchCount(), 2);
+
+    // Schedule the compressed recompute, then destroy the model before the
+    // event loop gets to it.
+    model->updateContent(0, QStringLiteral("fox three"));
+    delete model;
+    QCoreApplication::processEvents();
+
+    QVERIFY(search->model() == nullptr);
+    QCOMPARE(search->matchCount(), 0);
+    QVERIFY(!search->hasDomain());
+    // Still usable: the queries must answer instead of dereferencing freed
+    // memory.
+    QVERIFY(search->matchesForBlock(0).isEmpty());
+    search->recomputeNow();
+    QCOMPARE(search->matchCount(), 0);
+
+    delete search;
 }
 
 QTEST_MAIN(TestDocumentSearch)

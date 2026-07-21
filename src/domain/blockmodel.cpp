@@ -18,7 +18,10 @@
 #include "imageassets.h"
 #include "perflog.h"
 
+#include <QSet>
+
 #include <algorithm>
+#include <utility>
 
 void BlockModel::setBlockKindRegistry(BlockKindRegistry *registry)
 {
@@ -101,73 +104,69 @@ QVariant BlockModel::data(const QModelIndex &index, int role) const
         return block->calloutTitle();
     case AttributesRole:
         return block->attributes();
+    case TodoProgressRole:
+        return todoProgress(index.row());
+    case MathNumberRole:
+        return mathNumber(index.row());
     default:
         return QVariant();
     }
 }
 
+// Standard model editing IS supported, and every role it accepts is routed
+// through the same undo-aware entry point the rest of the application uses.
+// Writing the block directly here (what this used to do) put the edit on a
+// clean undo stack: Ctrl+Z could not take it back, and save/close logic that
+// asks the stack whether the document is clean would drop it.
 bool BlockModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_blocks.count())
+    if (!index.isValid() || !isValidIndex(index.row()))
         return false;
 
-    Block *block = m_blocks.at(index.row());
+    const int row = index.row();
+    Block *block = m_blocks.at(row);
 
     switch (role) {
-    case ContentRole: {
-        const int oldKind = delegateKindForContent(
-            block->blockType(), block->language(), block->content());
-        adjustBlockCountsBeforeChange(block);
-        block->setContent(value.toString());
-        adjustBlockCountsAfterChange(block);
-        QVector<int> roles{role, DisplayTextRole};
-        // An Image/Media block's content URL can flip it to/from an embed.
-        if (delegateKindForContent(block->blockType(), block->language(),
-                                   block->content()) != oldKind)
-            roles.append(DelegateKindRole);
-        emit dataChanged(index, index, roles);
+    case ContentRole:
+        updateContent(row, value.toString());
         return true;
-    }
     case BlockTypeRole: {
-        const QList<int> tocBefore = m_tocBlockIndexes;
-        const int oldKind = delegateKindForContent(
-            block->blockType(), block->language(), block->content());
-        adjustBlockCountsBeforeChange(block);
-        block->setBlockType(static_cast<Block::BlockType>(value.toInt()));
-        invalidateDerivedOrder();
-        adjustBlockCountsAfterChange(block);
-        refreshTocBlockIndex(index.row());
-        QVector<int> roles{role, DisplayTextRole};
-        if (delegateKindForContent(block->blockType(), block->language(),
-                                   block->content()) != oldKind)
-            roles.append(DelegateKindRole);
-        emit dataChanged(index, index, roles);
-        emitTocBlockIndexesChangedIfNeeded(tocBefore);
-        emitOrdinalsChangedFrom(index.row());
+        bool ok = false;
+        const int type = value.toInt(&ok);
+        if (!ok || !Block::isValidType(type))
+            return false;
+        updateType(row, type);
         return true;
     }
-    case IndentLevelRole:
-        block->setIndentLevel(value.toInt());
-        invalidateDerivedOrder();
-        emit dataChanged(index, index, {role});
-        emitOrdinalsChangedFrom(index.row());
+    case IndentLevelRole: {
+        bool ok = false;
+        const int level = value.toInt(&ok);
+        if (!ok)
+            return false;
+        // Absolute level, clamped: setData is the generic model API, so it
+        // does not carry changeIndent's list-parent rule — but it must not
+        // be able to write a depth serialization would clamp on reload.
+        const int target = Block::clampIndent(level);
+        const int current = block->indentLevel();
+        if (target == current)
+            return true;
+        pushOrRun(std::make_unique<ChangeIndentCommand>(this, row, current,
+                                                        target));
         return true;
+    }
     case CheckedRole:
-        block->setChecked(value.toBool());
-        emit dataChanged(index, index, {role});
+        setChecked(row, value.toBool());
         return true;
     case LanguageRole: {
-        const QList<int> tocBefore = m_tocBlockIndexes;
-        const int oldKind = delegateKindForContent(
-            block->blockType(), block->language(), block->content());
-        block->setLanguage(value.toString());
-        refreshTocBlockIndex(index.row());
-        QVector<int> roles{role};
-        if (delegateKindForContent(block->blockType(), block->language(),
-                                   block->content()) != oldKind)
-            roles.append(DelegateKindRole);
-        emit dataChanged(index, index, roles);
-        emitTocBlockIndexesChangedIfNeeded(tocBefore);
+        const QString language = value.toString();
+        if (block->language() == language)
+            return true;
+        // No language-only command exists; the full-state one covers it.
+        const Block::State oldState = block->state();
+        Block::State newState = oldState;
+        newState.language = language;
+        pushOrRun(std::make_unique<ConvertBlockCommand>(this, row, oldState,
+                                                        newState));
         return true;
     }
     default:
@@ -190,6 +189,8 @@ QHash<int, QByteArray> BlockModel::roleNames() const
     roles[CalloutTitleRole] = "calloutTitle";
     roles[AttributesRole] = "attributes";
     roles[DisplayTextRole] = "displayText";
+    roles[TodoProgressRole] = "todoProgress";
+    roles[MathNumberRole] = "mathNumber";
     return roles;
 }
 
@@ -200,14 +201,118 @@ Qt::ItemFlags BlockModel::flags(const QModelIndex &index) const
     return Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable;
 }
 
+void BlockModel::watchBlock(Block *block)
+{
+    if (!block)
+        return;
+    const auto publish = [this, block](int role) {
+        return [this, block, role] { onBlockMutated(block, role); };
+    };
+    connect(block, &Block::contentChanged, this, publish(ContentRole));
+    connect(block, &Block::blockTypeChanged, this, publish(BlockTypeRole));
+    connect(block, &Block::indentLevelChanged, this, publish(IndentLevelRole));
+    connect(block, &Block::checkedChanged, this, publish(CheckedRole));
+    connect(block, &Block::languageChanged, this, publish(LanguageRole));
+    connect(block, &Block::calloutTitleChanged, this, publish(CalloutTitleRole));
+    connect(block, &Block::attributesChanged, this, publish(AttributesRole));
+}
+
+void BlockModel::onBlockMutated(Block *block, int role)
+{
+    // The model's own mutators already publish their change with exactly the
+    // roles it touched; this handler exists only for a write that arrived
+    // straight at the Block.
+    if (m_applyingInternalChange)
+        return;
+    const int row = indexOfBlockId(block->blockId());
+    if (row < 0)
+        return;
+
+    // No before-image is available here, so the cheap incremental paths do
+    // not apply: recount, and assume the delegate kind may have moved.
+    recomputeDocumentCounts();
+    invalidateDerivedOrder();
+    const QList<int> tocBefore = m_tocBlockIndexes;
+    refreshTocBlockIndex(row);
+
+    QVector<int> roles{role};
+    if (role == ContentRole || role == BlockTypeRole)
+        roles.append(DisplayTextRole);
+    if (role == ContentRole || role == BlockTypeRole || role == LanguageRole)
+        roles.append(DelegateKindRole);
+
+    const QModelIndex modelIndex = createIndex(row, 0);
+    emit dataChanged(modelIndex, modelIndex, roles);
+    emit documentCountsChanged();
+    emitTocBlockIndexesChangedIfNeeded(tocBefore);
+    emitOrdinalsChangedFrom(row);
+    notifyDerivedState(row);
+}
+
+void BlockModel::recomputeDocumentCounts()
+{
+    resetDocumentCounts();
+    for (const Block *block : std::as_const(m_blocks))
+        addBlockCounts(block);
+}
+
+void BlockModel::notifyDerivedState(int changeIndex)
+{
+    if (m_blocks.isEmpty() || changeIndex < 0)
+        return;
+    changeIndex = qBound(0, changeIndex, m_blocks.count() - 1);
+
+    // Sub-task progress: a todo shows the run of deeper-indented todos that
+    // follows it, so the row itself and every ancestor whose run reaches it
+    // can have changed. Walking back stops at the first non-todo, which is
+    // where every such run ends.
+    const Block *changed = m_blocks.at(changeIndex);
+    if (changed->blockType() == Block::Todo) {
+        const QModelIndex self = createIndex(changeIndex, 0);
+        emit dataChanged(self, self, {TodoProgressRole});
+    }
+    // Deliberately NOT bounded by the changed row's current indent: a row
+    // that just became shallower (or stopped being a todo) has left the runs
+    // of parents its OLD depth belonged to, and only they can tell that their
+    // total dropped. Walking every preceding todo down to depth 0 notifies a
+    // superset; a row that turns out to have no children just reports
+    // {0, 0} again.
+    int minIndent = MaxIndentLevel + 1;
+    for (int p = changeIndex - 1; p >= 0 && minIndent > 0; --p) {
+        const Block *candidate = m_blocks.at(p);
+        if (candidate->blockType() != Block::Todo)
+            break;
+        const int level = candidate->indentLevel();
+        if (level >= minIndent)
+            continue;
+        minIndent = level;
+        const QModelIndex parent = createIndex(p, 0);
+        emit dataChanged(parent, parent, {TodoProgressRole});
+    }
+
+    // Equation numbers count MathBlocks from the top, so only the suffix
+    // after the change can renumber — and only if the document has any.
+    if (m_mathBlockCount > 0 && changeIndex < m_blocks.count()) {
+        emit dataChanged(createIndex(changeIndex, 0),
+                         createIndex(m_blocks.count() - 1, 0),
+                         {MathNumberRole});
+    }
+
+    ++m_derivedRevision;
+    emit derivedRevisionChanged();
+}
+
 // Public methods that create undo commands
 
 void BlockModel::insertBlock(int index, int type, const QString &content, int indentLevel)
 {
+    if (!Block::isValidType(type))
+        return;
+
     Block::State state;
     state.type = static_cast<Block::BlockType>(type);
     state.content = content;
-    state.indentLevel = qBound(0, indentLevel, MaxIndentLevel);
+    state.indentLevel = Block::clampIndent(indentLevel);
 
     // Clamp here rather than inside insertBlockInternal alone: the command
     // has to remember the position it actually inserted at, or undo removes
@@ -268,10 +373,14 @@ void BlockModel::updateContent(int index, const QString &content)
 
 void BlockModel::updateType(int index, int type)
 {
-    if (index < 0 || index >= m_blocks.count())
+    if (!isValidIndex(index) || !Block::isValidType(type))
         return;
 
     Block::BlockType oldType = m_blocks.at(index)->blockType();
+    // A no-op conversion must not push a command: it would dirty a clean
+    // document and add an undo step that undoes nothing visible.
+    if (oldType == static_cast<Block::BlockType>(type))
+        return;
 
     if (m_undoStack) {
         auto cmd = std::make_unique<ChangeTypeCommand>(
@@ -284,6 +393,13 @@ void BlockModel::updateType(int index, int type)
 
 void BlockModel::moveBlock(int fromIndex, int toIndex)
 {
+    // Screened before anything else: an out-of-range or same-position move is
+    // a no-op, and pushing it would dirty a clean document and add an undo
+    // step that undoes nothing. Nothing happened, so nothing is timed either.
+    if (!isValidIndex(fromIndex) || !isValidIndex(toIndex)
+        || fromIndex == toIndex)
+        return;
+
     PerfLog::ScopedTimer perf(
         QStringLiteral("block.move"),
         QVariantMap{
@@ -382,7 +498,7 @@ void BlockModel::convertBlock(int index, int type, const QString &content,
             {QStringLiteral("blocks"), m_blocks.count()},
         });
     Block *block = blockAt(index);
-    if (!block)
+    if (!block || !Block::isValidType(type))
         return;
 
     Block::State newState;
@@ -478,14 +594,23 @@ bool BlockModel::isValidMerge(int keepIndex, int removeIndex) const
     return removeIndex > keepIndex;
 }
 
+// Deduplication runs through a hash set, not a repeated linear scan of the
+// result: a select-all copy/delete/duplicate/move hands over one index per
+// block, so `contains` on a growing list made every bulk operation quadratic
+// in the selection size.
 QList<int> BlockModel::validIndexes(const QVariantList &indexes) const
 {
+    QSet<int> seen;
+    seen.reserve(indexes.size());
     QList<int> result;
+    result.reserve(indexes.size());
     for (const QVariant &value : indexes) {
         bool ok = false;
         const int idx = value.toInt(&ok);
-        if (ok && idx >= 0 && idx < m_blocks.count() && !result.contains(idx))
+        if (ok && idx >= 0 && idx < m_blocks.count() && !seen.contains(idx)) {
+            seen.insert(idx);
             result.append(idx);
+        }
     }
     std::sort(result.begin(), result.end());
     return result;
@@ -883,13 +1008,15 @@ void BlockModel::mergeBlocks(int keepIndex, int removeIndex)
 void BlockModel::insertBlockInternal(int index, int type, const QString &content)
 {
     Block::State state;
-    state.type = static_cast<Block::BlockType>(type);
+    state.type = Block::typeFromInt(type);
     state.content = content;
     insertBlockInternal(index, state);
 }
 
-void BlockModel::insertBlockInternal(int index, const Block::State &state)
+void BlockModel::insertBlockInternal(int index, const Block::State &rawState)
 {
+    InternalChangeScope scope(this);
+    const Block::State state = Block::sanitized(rawState);
     index = qBound(0, index, m_blocks.count());
     const QList<int> tocBefore = m_tocBlockIndexes;
 
@@ -900,6 +1027,7 @@ void BlockModel::insertBlockInternal(int index, const Block::State &state)
     block->setLanguage(state.language);
     block->setCalloutTitle(state.calloutTitle);
     block->setAttributes(state.attributes);
+    watchBlock(block);
     m_blocks.insert(index, block);
     invalidateIdIndex();
     invalidateDerivedOrder();
@@ -919,6 +1047,7 @@ void BlockModel::insertBlockInternal(int index, const Block::State &state)
     emit documentCountsChanged();
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
     emitOrdinalsChangedFrom(index);
+    notifyDerivedState(index);
 }
 
 void BlockModel::removeBlockInternal(int index)
@@ -926,6 +1055,7 @@ void BlockModel::removeBlockInternal(int index)
     if (index < 0 || index >= m_blocks.count())
         return;
 
+    InternalChangeScope scope(this);
     const QList<int> tocBefore = m_tocBlockIndexes;
     subtractBlockCounts(m_blocks.at(index));
     beginRemoveRows(QModelIndex(), index, index);
@@ -943,6 +1073,7 @@ void BlockModel::removeBlockInternal(int index)
     emit documentCountsChanged();
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
     emitOrdinalsChangedFrom(qMin(index, m_blocks.count() - 1));
+    notifyDerivedState(qMin(index, m_blocks.count() - 1));
 }
 
 void BlockModel::updateContentInternal(int index, const QString &content)
@@ -950,6 +1081,7 @@ void BlockModel::updateContentInternal(int index, const QString &content)
     if (index < 0 || index >= m_blocks.count())
         return;
 
+    InternalChangeScope scope(this);
     Block *block = m_blocks.at(index);
     const int oldKind = delegateKindForContent(block->blockType(),
                                                block->language(), block->content());
@@ -972,9 +1104,10 @@ void BlockModel::updateContentSilently(int index, const QString &content)
 
 void BlockModel::updateTypeInternal(int index, int type)
 {
-    if (index < 0 || index >= m_blocks.count())
+    if (index < 0 || index >= m_blocks.count() || !Block::isValidType(type))
         return;
 
+    InternalChangeScope scope(this);
     Block *block = m_blocks.at(index);
     const QList<int> tocBefore = m_tocBlockIndexes;
     const int oldKind = delegateKindForContent(block->blockType(),
@@ -995,6 +1128,7 @@ void BlockModel::updateTypeInternal(int index, int type)
     emit dataChanged(modelIndex, modelIndex, roles);
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
     emitOrdinalsChangedFrom(index);
+    notifyDerivedState(index);
 }
 
 void BlockModel::moveBlockInternal(int fromIndex, int toIndex)
@@ -1030,6 +1164,7 @@ void BlockModel::moveBlockInternal(int fromIndex, int toIndex)
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
     emitOrdinalsChangedFrom(qMin(fromIndex, m_blocks.count() - 1));
     emitOrdinalsChangedFrom(qMin(toIndex, m_blocks.count() - 1));
+    notifyDerivedState(qMin(fromIndex, toIndex));
 }
 
 void BlockModel::moveBlocksRangeInternal(int first, int last, int dest)
@@ -1072,6 +1207,7 @@ void BlockModel::moveBlocksRangeInternal(int first, int last, int dest)
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
     emitOrdinalsChangedFrom(qMin(first, insertAt));
     emitOrdinalsChangedFrom(qMax(last, insertAt + len - 1));
+    notifyDerivedState(qMin(first, insertAt));
 }
 
 void BlockModel::setCheckedInternal(int index, bool checked)
@@ -1079,9 +1215,11 @@ void BlockModel::setCheckedInternal(int index, bool checked)
     if (index < 0 || index >= m_blocks.count())
         return;
 
+    InternalChangeScope scope(this);
     m_blocks.at(index)->setChecked(checked);
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {CheckedRole});
+    notifyDerivedState(index);
 }
 
 void BlockModel::setAttributesInternal(int index, const QString &attributes)
@@ -1089,6 +1227,7 @@ void BlockModel::setAttributesInternal(int index, const QString &attributes)
     if (index < 0 || index >= m_blocks.count())
         return;
 
+    InternalChangeScope scope(this);
     m_blocks.at(index)->setAttributes(attributes);
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {AttributesRole});
@@ -1099,11 +1238,13 @@ void BlockModel::setIndentInternal(int index, int level)
     if (index < 0 || index >= m_blocks.count())
         return;
 
+    InternalChangeScope scope(this);
     m_blocks.at(index)->setIndentLevel(level);
     invalidateDerivedOrder();
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {IndentLevelRole});
     emitOrdinalsChangedFrom(index);
+    notifyDerivedState(index);
 }
 
 void BlockModel::applyStateInternal(int index, const Block::State &state)
@@ -1111,6 +1252,7 @@ void BlockModel::applyStateInternal(int index, const Block::State &state)
     if (index < 0 || index >= m_blocks.count())
         return;
 
+    InternalChangeScope scope(this);
     Block *block = m_blocks.at(index);
     const QList<int> tocBefore = m_tocBlockIndexes;
     const int oldKind = delegateKindForContent(block->blockType(),
@@ -1136,6 +1278,7 @@ void BlockModel::applyStateInternal(int index, const Block::State &state)
     emit dataChanged(modelIndex, modelIndex, roles);
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
     emitOrdinalsChangedFrom(index);
+    notifyDerivedState(index);
 }
 
 // Helper methods for internal split/merge
@@ -1145,6 +1288,7 @@ void BlockModel::splitBlockInternal(int index, int position)
     if (!isValidSplit(index, position))
         return;
 
+    InternalChangeScope scope(this);
     Block *block = m_blocks.at(index);
     QString content = block->content();
 
@@ -1173,6 +1317,7 @@ void BlockModel::mergeBlocksInternal(int keepIndex, int removeIndex)
     if (!isValidMerge(keepIndex, removeIndex))
         return;
 
+    InternalChangeScope scope(this);
     Block *keepBlock = m_blocks.at(keepIndex);
     Block *removeBlockPtr = m_blocks.at(removeIndex);
 
@@ -1203,6 +1348,7 @@ int BlockModel::count() const
 
 void BlockModel::initializeWithSampleData()
 {
+    InternalChangeScope scope(this);
     const QList<int> tocBefore = m_tocBlockIndexes;
     beginResetModel();
 
@@ -1218,13 +1364,16 @@ void BlockModel::initializeWithSampleData()
     m_blocks.append(new Block(Block::Heading2, "Getting Started", this));
     m_blocks.append(new Block(Block::Paragraph, "Each block is independent. You can edit them separately.", this));
     m_blocks.append(new Block(Block::Paragraph, "More blocks can be added later with the Enter key.", this));
-    for (const Block *block : m_blocks)
+    for (Block *block : std::as_const(m_blocks)) {
         addBlockCounts(block);
+        watchBlock(block);
+    }
 
     endResetModel();
     emit countChanged();
     emit documentCountsChanged();
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
+    notifyDerivedState(0);
 }
 
 QString BlockModel::getContent(int index) const
@@ -1296,6 +1445,7 @@ void BlockModel::clear()
 {
     if (m_blocks.isEmpty()) return;
 
+    InternalChangeScope scope(this);
     const QList<int> tocBefore = m_tocBlockIndexes;
     beginResetModel();
     qDeleteAll(m_blocks);
@@ -1309,10 +1459,13 @@ void BlockModel::clear()
     emit countChanged();
     emit documentCountsChanged();
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
+    ++m_derivedRevision;
+    emit derivedRevisionChanged();
 }
 
 void BlockModel::replaceAllBlocksInternal(const QList<Block::State> &states)
 {
+    InternalChangeScope scope(this);
     const QList<int> tocBefore = m_tocBlockIndexes;
 
     beginResetModel();
@@ -1324,13 +1477,15 @@ void BlockModel::replaceAllBlocksInternal(const QList<Block::State> &states)
     resetDocumentCounts();
 
     m_blocks.reserve(states.size());
-    for (const Block::State &state : states) {
+    for (const Block::State &rawState : states) {
+        const Block::State state = Block::sanitized(rawState);
         Block *block = new Block(state.type, state.content, this);
         block->setIndentLevel(state.indentLevel);
         block->setChecked(state.checked);
         block->setLanguage(state.language);
         block->setCalloutTitle(state.calloutTitle);
         block->setAttributes(state.attributes);
+        watchBlock(block);
         m_blocks.append(block);
         addBlockCounts(block);
         if (isTocBlock(block))
@@ -1343,12 +1498,15 @@ void BlockModel::replaceAllBlocksInternal(const QList<Block::State> &states)
     emit documentCountsChanged();
     emitTocBlockIndexesChangedIfNeeded(tocBefore);
     emitOrdinalRoleChanged(0, m_blocks.count() - 1);
+    notifyDerivedState(0);
 }
 
 void BlockModel::addBlockCounts(const Block *block)
 {
     if (!block)
         return;
+    if (block->blockType() == Block::MathBlock)
+        ++m_mathBlockCount;
     m_documentWordCount += block->wordCount();
     m_documentCharCount += block->charCount(true);
     m_documentCharsNoSpaces += block->charCount(false);
@@ -1360,6 +1518,8 @@ void BlockModel::subtractBlockCounts(const Block *block)
 {
     if (!block)
         return;
+    if (block->blockType() == Block::MathBlock)
+        --m_mathBlockCount;
     m_documentWordCount -= block->wordCount();
     m_documentCharCount -= block->charCount(true);
     m_documentCharsNoSpaces -= block->charCount(false);
@@ -1384,6 +1544,7 @@ void BlockModel::resetDocumentCounts()
     m_documentCharCount = 0;
     m_documentCharsNoSpaces = 0;
     m_documentParagraphCount = 0;
+    m_mathBlockCount = 0;
 }
 
 void BlockModel::emitOrdinalsChangedFrom(int changeIndex)

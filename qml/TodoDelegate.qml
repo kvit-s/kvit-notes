@@ -27,10 +27,14 @@ EditableBlock {
     // The metadata tail (📅 date / priority emoji) is chrome, not text.
     metaTail: TodoMeta.tail(content)
     readonly property var meta: TodoMeta.parse(content)
-    // Sub-task progress; re-evaluates on structural change (count) and on the
-    // model's data updates that bump it.
+    // Sub-task progress. It is derived from the CHILD rows, so nothing this
+    // delegate's own roles carry can signal a change: checking a child,
+    // retyping it, reindenting it, or moving it all leave this row's data
+    // untouched. derivedRevision is the model's counter for exactly that
+    // class of change, and reading it here is what makes the badge update.
     readonly property var progress: {
-        var dep = BlockModel.count       // structural dependency
+        var dep = BlockModel.count            // structural dependency
+        var derived = BlockModel.derivedRevision   // child-state dependency
         return BlockModel.todoProgress(root.index)
     }
     readonly property bool overdue: {

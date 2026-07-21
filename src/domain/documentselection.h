@@ -5,6 +5,7 @@
 #define DOCUMENTSELECTION_H
 
 #include <QObject>
+#include <QPointer>
 #include <QSet>
 #include <QString>
 #include <QVariantList>
@@ -12,7 +13,9 @@
 
 #include <functional>
 
-class BlockModel;
+// Included, not forward-declared: the guarded model pointer below is a
+// QPointer, which needs the complete type wherever this header is used.
+#include "blockmodel.h"
 class QModelIndex;
 
 // All selection state above the single-block level: which blocks are
@@ -158,11 +161,15 @@ private:
     QSet<QString> effectiveIds() const;
     bool orderedEndpoints(Endpoint &start, Endpoint &end) const;
     void captureRemovedIds(const QModelIndex &parent, int first, int last);
+    // Drops every id that referred to a model being destroyed.
+    void onModelDestroyed();
     void pruneRemovedBlocks();
     void bumpIfChanged(const std::function<void()> &mutate);
     Snapshot snapshot() const;
 
-    BlockModel *m_model = nullptr;
+    // Guarded: QObject auto-disconnection unhooks the signals but leaves a
+    // raw pointer dangling; the selection outlives a note switch.
+    QPointer<BlockModel> m_model;
     int m_revision = 0;
 
     // Block selection: committed set + active range gesture.

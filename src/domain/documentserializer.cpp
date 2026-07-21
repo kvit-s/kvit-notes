@@ -14,6 +14,7 @@
 #include "undostack.h"
 
 #include <QRegularExpression>
+#include <QSet>
 #include <QStringList>
 
 #include <algorithm>
@@ -193,12 +194,20 @@ QString DocumentSerializer::serializeBlocks(BlockModel *model,
     if (!model)
         return QString();
 
+    // Hash-set deduplication, not a repeated scan of the growing list: a
+    // select-all copy hands over one index per block, and `contains` there
+    // made the preparation quadratic in the selection size.
+    QSet<int> seen;
+    seen.reserve(indexes.size());
     QList<int> sorted;
+    sorted.reserve(indexes.size());
     for (const QVariant &value : indexes) {
         bool ok = false;
         const int idx = value.toInt(&ok);
-        if (ok && idx >= 0 && idx < model->count() && !sorted.contains(idx))
+        if (ok && idx >= 0 && idx < model->count() && !seen.contains(idx)) {
+            seen.insert(idx);
             sorted.append(idx);
+        }
     }
     std::sort(sorted.begin(), sorted.end());
 
@@ -714,17 +723,21 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
         if (line.startsWith(QStringLiteral("> ")) || line == QStringLiteral(">")
             || line.startsWith(QStringLiteral(">>"))) {
             flushParagraph();
+            // Consume the WHOLE marker run, space-separated or not: the
+            // entry test above accepts `>>nested`, and a loop that only ate
+            // "> " left the remaining markers in the content, so the block
+            // came back out as `> >>nested` — two extra levels of marker
+            // appearing in the text on every round trip. Each `>` is one
+            // level and eats at most one following space.
             int depth = 0;
             QString rest = line;
-            while (rest.startsWith(QStringLiteral("> "))) {
+            while (rest.startsWith(QLatin1Char('>'))) {
                 ++depth;
-                rest = rest.mid(2);
+                rest = rest.mid(1);
+                if (rest.startsWith(QLatin1Char(' ')))
+                    rest = rest.mid(1);
             }
-            if (rest == QStringLiteral(">")) {   // trailing bare marker
-                ++depth;
-                rest.clear();
-            }
-            if (depth == 0)   // a bare leading ">" with no space
+            if (depth == 0)   // unreachable given the entry test; defensive
                 depth = 1;
             if (!quoteRun.isEmpty() && depth != quoteDepth)
                 flushQuote();

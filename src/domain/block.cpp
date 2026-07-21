@@ -80,7 +80,7 @@ Block::Block(QObject *parent)
 Block::Block(BlockType type, const QString &content, QObject *parent)
     : QObject(parent)
     , m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
-    , m_type(type)
+    , m_type(typeFromInt(static_cast<int>(type)))
     , m_content(content)
     , m_indentLevel(0)
 {
@@ -165,6 +165,12 @@ int Block::charCount(bool withSpaces) const
 
 void Block::setBlockType(BlockType type)
 {
+    // An unknown value is rejected rather than coerced: the caller passed
+    // something that names no block, and turning a heading into a paragraph
+    // would be a silent edit. Restore paths that have no caller to reject
+    // use setState(), which coerces through sanitized().
+    if (!isValidType(static_cast<int>(type)))
+        return;
     if (m_type != type) {
         m_type = type;
         invalidateCache();
@@ -183,7 +189,7 @@ void Block::setContent(const QString &content)
 
 void Block::setIndentLevel(int level)
 {
-    int newLevel = qMax(0, level);
+    const int newLevel = clampIndent(level);
     if (m_indentLevel != newLevel) {
         m_indentLevel = newLevel;
         emit indentLevelChanged();
@@ -235,15 +241,24 @@ Block::State Block::state() const
     return s;
 }
 
+Block::State Block::sanitized(const State &state)
+{
+    State s = state;
+    s.type = typeFromInt(static_cast<int>(state.type));
+    s.indentLevel = clampIndent(state.indentLevel);
+    return s;
+}
+
 void Block::setState(const State &state)
 {
-    setBlockType(state.type);
-    setContent(state.content);
-    setIndentLevel(state.indentLevel);
-    setChecked(state.checked);
-    setLanguage(state.language);
-    setCalloutTitle(state.calloutTitle);
-    setAttributes(state.attributes);
+    const State s = sanitized(state);
+    setBlockType(s.type);
+    setContent(s.content);
+    setIndentLevel(s.indentLevel);
+    setChecked(s.checked);
+    setLanguage(s.language);
+    setCalloutTitle(s.calloutTitle);
+    setAttributes(s.attributes);
 }
 
 void Block::invalidateCache() const

@@ -25,6 +25,11 @@ private slots:
     void testStateRoundTrip();
     void testDisplayTextAndCountsCache();
     void testCacheInvalidatesOnContentAndType();
+    // Mutation ownership and invariant enforcement
+    void testPropertiesAreNotWritableThroughTheMetaObject();
+    void testInvalidBlockTypeIsRejected();
+    void testIndentLevelIsClampedToTheDepthLimit();
+    void testSanitizedStateFixesTypeAndIndent();
 };
 
 void TestBlock::testDefaultConstruction()
@@ -124,8 +129,11 @@ void TestBlock::testIndentLevel()
     block.setIndentLevel(1);
     QCOMPARE(block.indentLevel(), 1);
 
+    // Above the §3.3 depth limit clamps down. It used to be accepted, which
+    // let a level reach serialization that only clamped on RELOAD, so the
+    // round trip lost the block's real depth.
     block.setIndentLevel(5);
-    QCOMPARE(block.indentLevel(), 5);
+    QCOMPARE(block.indentLevel(), Block::MaxIndentLevel);
 
     // Negative values should be clamped to 0
     block.setIndentLevel(-1);
@@ -283,6 +291,88 @@ void TestBlock::testCacheInvalidatesOnContentAndType()
 
     block.setBlockType(Block::Paragraph);
     QCOMPARE(block.displayText(), QStringLiteral("literal text"));
+}
+
+// A Block is owned by its BlockModel, and only the model can turn a change
+// into dataChanged, cached counts, and an undo step. So the property system —
+// the route QML and any generic meta-object code would take — must not be
+// able to write one; the C++ setters remain for the model and its commands.
+void TestBlock::testPropertiesAreNotWritableThroughTheMetaObject()
+{
+    Block block(Block::Paragraph, "original");
+
+    const QList<QByteArray> mutableLooking{
+        "blockType", "content", "indentLevel", "checked",
+        "language", "calloutTitle", "attributes"
+    };
+    const QMetaObject *meta = block.metaObject();
+    for (const QByteArray &name : mutableLooking) {
+        const int index = meta->indexOfProperty(name.constData());
+        QVERIFY2(index >= 0, name.constData());
+        QVERIFY2(!meta->property(index).isWritable(), name.constData());
+    }
+
+    QVERIFY(!block.setProperty("content", QStringLiteral("through QML")));
+    QCOMPARE(block.content(), QStringLiteral("original"));
+    QVERIFY(!block.setProperty("checked", true));
+    QCOMPARE(block.checked(), false);
+    QVERIFY(!block.setProperty("indentLevel", 3));
+    QCOMPARE(block.indentLevel(), 0);
+}
+
+void TestBlock::testInvalidBlockTypeIsRejected()
+{
+    QVERIFY(Block::isValidType(Block::Paragraph));
+    QVERIFY(Block::isValidType(Block::Table));
+    QVERIFY(!Block::isValidType(-1));
+    QVERIFY(!Block::isValidType(static_cast<int>(Block::LastType) + 1));
+
+    Block block(Block::Heading2, "title");
+    QSignalSpy typeSpy(&block, &Block::blockTypeChanged);
+    block.setBlockType(static_cast<Block::BlockType>(9999));
+    QCOMPARE(block.blockType(), Block::Heading2);
+    QCOMPARE(typeSpy.count(), 0);
+
+    // The restore paths have no caller to reject, so they coerce instead:
+    // an unknown persisted type reads as a paragraph, keeping its text.
+    Block restored(static_cast<Block::BlockType>(9999), "kept", nullptr);
+    QCOMPARE(restored.blockType(), Block::Paragraph);
+    QCOMPARE(restored.content(), QStringLiteral("kept"));
+}
+
+void TestBlock::testIndentLevelIsClampedToTheDepthLimit()
+{
+    Block block(Block::BulletList, "item");
+
+    block.setIndentLevel(99);
+    QCOMPARE(block.indentLevel(), Block::MaxIndentLevel);
+    block.setIndentLevel(-5);
+    QCOMPARE(block.indentLevel(), 0);
+
+    QCOMPARE(Block::clampIndent(Block::MaxIndentLevel + 7), Block::MaxIndentLevel);
+    QCOMPARE(Block::clampIndent(-1), 0);
+    QCOMPARE(Block::clampIndent(2), 2);
+}
+
+void TestBlock::testSanitizedStateFixesTypeAndIndent()
+{
+    Block::State raw;
+    raw.type = static_cast<Block::BlockType>(4242);
+    raw.content = QStringLiteral("body");
+    raw.indentLevel = 17;
+    raw.language = QStringLiteral("cpp");
+
+    const Block::State clean = Block::sanitized(raw);
+    QCOMPARE(clean.type, Block::Paragraph);
+    QCOMPARE(clean.indentLevel, Block::MaxIndentLevel);
+    QCOMPARE(clean.content, QStringLiteral("body"));
+    QCOMPARE(clean.language, QStringLiteral("cpp"));
+
+    Block block;
+    block.setState(raw);
+    QCOMPARE(block.blockType(), Block::Paragraph);
+    QCOMPARE(block.indentLevel(), Block::MaxIndentLevel);
+    QCOMPARE(block.content(), QStringLiteral("body"));
 }
 
 QTEST_MAIN(TestBlock)

@@ -51,6 +51,11 @@ void DocumentSearch::setModel(BlockModel *model)
         m_model->disconnect(this);
     m_model = model;
     if (m_model) {
+        // Auto-disconnection is not enough: a queued recompute is already
+        // scheduled against `this`, and it would dereference the freed model
+        // when it runs. Drop the state the moment the model goes.
+        connect(m_model, &QObject::destroyed,
+                this, &DocumentSearch::onModelDestroyed);
         connect(m_model, &QAbstractItemModel::rowsInserted,
                 this, &DocumentSearch::scheduleRecompute);
         connect(m_model, &QAbstractItemModel::rowsRemoved,
@@ -62,13 +67,41 @@ void DocumentSearch::setModel(BlockModel *model)
         connect(m_model, &QAbstractItemModel::dataChanged, this,
                 [this](const QModelIndex &, const QModelIndex &,
                        const QList<int> &roles) {
-                    // Matches depend on content and structure only; ignore
-                    // checked/ordinal churn.
-                    if (roles.isEmpty() || roles.contains(BlockModel::ContentRole))
+                    // Matches are computed over DISPLAY text, so
+                    // DisplayTextRole is the actual dependency: switching a
+                    // block between verbatim code and formatted text leaves
+                    // the content identical while changing both what matches
+                    // and what a match's coordinates mean. Listening only to
+                    // ContentRole left highlights stale, and let replace map
+                    // display coordinates from the old representation onto
+                    // the new markdown, rewriting the wrong span. ContentRole
+                    // stays because every content edit carries it.
+                    if (roles.isEmpty()
+                        || roles.contains(BlockModel::ContentRole)
+                        || roles.contains(BlockModel::DisplayTextRole))
                         scheduleRecompute();
                 });
     }
     recompute();
+}
+
+void DocumentSearch::onModelDestroyed()
+{
+    m_model = nullptr;
+    m_domainMode = NoDomain;
+    m_domainIds.clear();
+    m_domainStartId.clear();
+    m_domainEndId.clear();
+    m_resolvedDomain = ResolvedTextDomain();
+    m_seedId.clear();
+    m_seedDisplayPos = 0;
+    const bool hadResults = !m_matches.isEmpty() || m_current >= 0;
+    m_matches.clear();
+    m_byBlock.clear();
+    m_current = -1;
+    m_patternError = false;
+    if (hadResults)
+        bumpRevision();
 }
 
 // ---- properties ----
@@ -267,6 +300,32 @@ void DocumentSearch::clearDomain()
         bumpRevision();
 }
 
+// The endpoints a text domain resolves to right now. Called once per
+// recompute: matchInDomain runs per candidate match, so resolving the two ids
+// and mapping their markdown positions into display coordinates inside it
+// made a dense-match recompute cost O(matches × blocks).
+void DocumentSearch::resolveTextDomain()
+{
+    m_resolvedDomain = ResolvedTextDomain();
+    if (m_domainMode != TextDomain)
+        return;
+    int sIdx = indexOfId(m_domainStartId);
+    int eIdx = indexOfId(m_domainEndId);
+    if (sIdx < 0 || eIdx < 0)
+        return;
+    int sMd = m_domainStartMd;
+    int eMd = m_domainEndMd;
+    if (sIdx > eIdx || (sIdx == eIdx && sMd > eMd)) {
+        std::swap(sIdx, eIdx);
+        std::swap(sMd, eMd);
+    }
+    m_resolvedDomain.valid = true;
+    m_resolvedDomain.startIndex = sIdx;
+    m_resolvedDomain.endIndex = eIdx;
+    m_resolvedDomain.startDisplay = displayPosition(sIdx, sMd);
+    m_resolvedDomain.endDisplay = displayPosition(eIdx, eMd);
+}
+
 bool DocumentSearch::matchInDomain(const Match &match) const
 {
     if (!m_inSelectionOnly || m_domainMode == NoDomain)
@@ -274,24 +333,16 @@ bool DocumentSearch::matchInDomain(const Match &match) const
     if (m_domainMode == BlockDomain)
         return m_domainIds.contains(idAt(match.blockIndex));
 
-    // Text domain: the match must lie entirely inside the range. Edges
-    // resolve at call time so the domain follows moved blocks.
-    int sIdx = indexOfId(m_domainStartId);
-    int eIdx = indexOfId(m_domainEndId);
-    int sMd = m_domainStartMd;
-    int eMd = m_domainEndMd;
-    if (sIdx < 0 || eIdx < 0)
+    // Text domain: the match must lie entirely inside the range.
+    if (!m_resolvedDomain.valid)
         return true; // handled (cleared) by recompute's validation
-    if (sIdx > eIdx || (sIdx == eIdx && sMd > eMd)) {
-        std::swap(sIdx, eIdx);
-        std::swap(sMd, eMd);
-    }
-    if (match.blockIndex < sIdx || match.blockIndex > eIdx)
+    const ResolvedTextDomain &d = m_resolvedDomain;
+    if (match.blockIndex < d.startIndex || match.blockIndex > d.endIndex)
         return false;
-    if (match.blockIndex == sIdx && match.start < displayPosition(sIdx, sMd))
+    if (match.blockIndex == d.startIndex && match.start < d.startDisplay)
         return false;
-    if (match.blockIndex == eIdx
-        && match.start + match.length > displayPosition(eIdx, eMd))
+    if (match.blockIndex == d.endIndex
+        && match.start + match.length > d.endDisplay)
         return false;
     return true;
 }
@@ -471,6 +522,7 @@ void DocumentSearch::recompute()
         if (indexOfId(m_domainStartId) < 0 || indexOfId(m_domainEndId) < 0)
             m_domainMode = NoDomain;
     }
+    resolveTextDomain();
 
     QList<Match> matches;
     QHash<int, QList<int>> byBlock;
@@ -633,13 +685,9 @@ int DocumentSearch::indexOfId(const QString &id) const
 {
     if (!m_model || id.isEmpty())
         return -1;
-    const int count = m_model->count();
-    for (int i = 0; i < count; ++i) {
-        Block *block = m_model->blockAt(i);
-        if (block && block->blockId() == id)
-            return i;
-    }
-    return -1;
+    // The model keeps a lazily rebuilt id->index hash; the linear scan this
+    // replaced ran once per domain endpoint per candidate match.
+    return m_model->indexOfBlockId(id);
 }
 
 bool DocumentSearch::isVerbatimBlock(int blockIndex) const

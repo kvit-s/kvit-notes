@@ -7,12 +7,15 @@
 #include <QAbstractListModel>
 #include <QHash>
 #include <QList>
+#include <QPointer>
 #include <QSet>
 #include <QString>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
-class BlockModel;
+// Included, not forward-declared: the guarded model pointer below is a
+// QPointer, which needs the complete type wherever this header is used.
+#include "blockmodel.h"
 
 // The document outline: a GUI-free projection over the block model's heading
 // blocks, exposed as the `documentOutline` context property on the
@@ -150,11 +153,15 @@ private:
 
     void scheduleRebuild();
     void rebuild();
+    // Empties the outline when the model it projects is destroyed.
+    void onModelDestroyed();
     bool isShown(const Node &node) const;
     // Rows visible given the level filter and collapse state.
     void recomputeVisibleRows();
 
-    BlockModel *m_model = nullptr;
+    // Guarded: QObject auto-disconnection unhooks the signals but leaves a
+    // raw pointer dangling, and a queued rebuild can outlive the model.
+    QPointer<BlockModel> m_model;
     int m_revision = 0;
     int m_slugsRevision = 0;
     int m_levelMask = 0xF;          // all four levels

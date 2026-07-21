@@ -23,6 +23,10 @@ void DocumentSelection::setModel(BlockModel *model)
         m_model->disconnect(this);
     m_model = model;
     if (m_model) {
+        // Auto-disconnection unhooks the signals but leaves the ids pointing
+        // at blocks that no longer exist; clear them with the model.
+        connect(m_model, &QObject::destroyed,
+                this, &DocumentSelection::onModelDestroyed);
         // Removals invalidate ids (an undo re-inserts a NEW block with a
         // new id, so stale ids simply never match again); moves and
         // inserts leave ids valid — selection follows moved blocks.
@@ -35,6 +39,13 @@ void DocumentSelection::setModel(BlockModel *model)
         connect(m_model, &QAbstractItemModel::modelReset,
                 this, &DocumentSelection::clear);
     }
+    m_pendingRemovedIds.clear();
+    clear();
+}
+
+void DocumentSelection::onModelDestroyed()
+{
+    m_model = nullptr;
     m_pendingRemovedIds.clear();
     clear();
 }
@@ -462,6 +473,13 @@ QString DocumentSelection::rangeMarkdown() const
         QString text;
         if (fullBlock) {
             text = serializer.serializeBlock(block, m_model->ordinalAt(i));
+        } else if (block->blockType() == Block::CodeBlock) {
+            // Verbatim content: its offsets ALREADY are markdown offsets, so
+            // there is nothing to map. Routing them through the inline
+            // markdown mapping treated `*`, `_`, backticks, `[`, and `$` in
+            // the code as formatting markers, which could collapse the range
+            // to a different or empty span and lose code on copy/cut.
+            text = md.mid(from, to - from);
         } else {
             // A partial edge block contributes a self-contained inline
             // fragment (no structural prefix — it is partial text).

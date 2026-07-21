@@ -61,6 +61,8 @@ private slots:
     void testRangeMarkdownFragmentsAndStructure();
     void testRangeMarkdownSpansStaySelfContained();
     void testRangeMarkdownTightLists();
+    void testPartialCodeBlockCopyIsVerbatim();
+    void testPartialCodeBlockCopyAcrossBlocks();
 
     // Structure changes
     void testIdsSurviveMoves();
@@ -72,6 +74,9 @@ private slots:
 
     // Revision contract
     void testRevisionBumpsExactlyOnChange();
+
+    // Model lifetime
+    void testModelDestroyedWhileSelected();
 
 private:
     // Blocks: 0..5 = P0, P1, P2, Divider, P4, P5 (contents below)
@@ -517,6 +522,50 @@ void TestDocumentSelection::testRangeMarkdownTightLists()
              QString("text\n\n- one\n1. first\n2. second\n\nou"));
 }
 
+// A code block's offsets ALREADY are markdown offsets — display is content
+// there. Mapping a partial edge through the inline-markdown coordinate
+// translation treated `*`, `_`, backticks, `[` and `$` in the code as
+// formatting markers, so the copied range could collapse to a different or
+// empty span and lose code.
+void TestDocumentSelection::testPartialCodeBlockCopyIsVerbatim()
+{
+    BlockModel model;
+    const QString code = QStringLiteral("a*b_c`d`[e](f)$g$ *h*");
+    model.insertBlock(0, Block::CodeBlock, code);
+    DocumentSelection sel;
+    sel.setModel(&model);
+
+    // Every partial start offset must produce exactly the raw tail. From 1,
+    // since offset 0 to the end is the FULL block and carries its fence.
+    for (int from = 1; from < code.length(); ++from) {
+        sel.beginTextSelection(0, from, DocumentSelection::CharacterGranularity);
+        sel.updateTextSelectionHead(0, code.length());
+        QCOMPARE(sel.rangeMarkdown(), code.mid(from));
+    }
+
+    // A range that starts and ends on marker characters keeps them.
+    sel.beginTextSelection(0, 1, DocumentSelection::CharacterGranularity);
+    sel.updateTextSelectionHead(0, 6);
+    QCOMPARE(sel.rangeMarkdown(), code.mid(1, 5));
+}
+
+void TestDocumentSelection::testPartialCodeBlockCopyAcrossBlocks()
+{
+    const QString code = QStringLiteral("a*b_c`d`[e](f)$g$ *h*");
+    BlockModel model;
+    model.insertBlock(0, Block::CodeBlock, code);
+    model.insertBlock(1, Block::Paragraph, QStringLiteral("after **bold** end"));
+    DocumentSelection sel;
+    sel.setModel(&model);
+
+    // Starting between the code's `*` and the character after it: the code
+    // edge stays byte-for-byte (the mapping used to hand back the marker as
+    // well), while the prose edge still maps through display coordinates.
+    sel.beginTextSelection(0, 2, DocumentSelection::CharacterGranularity);
+    sel.updateTextSelectionHead(1, 5);
+    QCOMPARE(sel.rangeMarkdown(), code.mid(2) + QStringLiteral("\n\nafter"));
+}
+
 // ---- structure changes ----
 
 void TestDocumentSelection::testIdsSurviveMoves()
@@ -618,6 +667,38 @@ void TestDocumentSelection::testPruneTouchesOnlyRemovedRange()
     QCOMPARE(spy.count(), 1);
     QVERIFY(m_sel->isBlockSelected(0));
     QCOMPARE(m_sel->selectedIndexes().size(), 1);
+}
+
+// QObject auto-disconnection unhooks the signals but leaves the raw pointer
+// dangling; the selection outlives a note switch and every query it answers
+// dereferences the model.
+void TestDocumentSelection::testModelDestroyedWhileSelected()
+{
+    auto *model = new BlockModel(nullptr);
+    model->insertBlock(0, Block::Paragraph, QStringLiteral("alpha beta"));
+    model->insertBlock(1, Block::Paragraph, QStringLiteral("second block"));
+
+    auto *sel = new DocumentSelection(this);
+    sel->setModel(model);
+    sel->selectBlock(0);
+    sel->extendBlockSelectionTo(1);
+    QVERIFY(sel->hasBlockSelection());
+    // The two selection kinds are mutually exclusive, so the text range
+    // replaces the block selection; both must survive the model's death.
+    sel->beginTextSelection(0, 2, DocumentSelection::CharacterGranularity);
+    sel->updateTextSelectionHead(1, 4);
+    QVERIFY(sel->hasTextSelection());
+
+    delete model;
+
+    QVERIFY(sel->model() == nullptr);
+    QVERIFY(!sel->hasBlockSelection());
+    QVERIFY(!sel->hasTextSelection());
+    QVERIFY(sel->selectedIndexes().isEmpty());
+    QCOMPARE(sel->rangeMarkdown(), QString());
+    QCOMPARE(sel->lastActiveIndex(), -1);
+
+    delete sel;
 }
 
 QTEST_MAIN(TestDocumentSelection)

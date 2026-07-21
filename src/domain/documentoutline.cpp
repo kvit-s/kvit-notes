@@ -39,6 +39,11 @@ void DocumentOutline::setModel(BlockModel *model)
         m_model->disconnect(this);
     m_model = model;
     if (m_model) {
+        // Auto-disconnection is not enough: a queued rebuild is already
+        // scheduled against `this`, and it would dereference the freed model
+        // when it runs.
+        connect(m_model, &QObject::destroyed,
+                this, &DocumentOutline::onModelDestroyed);
         // Any structural or content change may add, remove, renumber, or
         // re-slug a heading; a compressed queued rebuild coalesces a burst.
         connect(m_model, &QAbstractItemModel::dataChanged, this,
@@ -69,6 +74,13 @@ void DocumentOutline::setModel(BlockModel *model)
                 this, &DocumentOutline::scheduleRebuild);
     }
     rebuild();
+}
+
+void DocumentOutline::onModelDestroyed()
+{
+    m_model = nullptr;
+    m_currentBlockIndex = -1;
+    rebuild(); // with no model this empties the tree and bumps the revision
 }
 
 // ---- the shared slug function ----
