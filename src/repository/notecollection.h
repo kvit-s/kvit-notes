@@ -22,6 +22,7 @@
 #include "cancellationtoken.h"
 #include "notebackupstore.h"
 #include "collectionstatestore.h"
+#include "vaultscan.h"
 #include "noteentry.h"
 #include "noteindexfile.h"
 #include "notefrontmatter.h"
@@ -326,97 +327,18 @@ signals:
     void scanFinished();
 
 private:
-    struct AsyncIndexTask {
-        QString relPath;
-        QString absPath;
-        QDateTime createdFallback;
-        QDateTime modified;
-        qint64 fileSize = -1;
-        quint64 generation = 0;
-    };
-
-    struct AsyncIndexResult {
-        QString relPath;
-        NoteEntry entry;
-        bool ok = false;
-        quint64 generation = 0;
-    };
-
-    struct AsyncScanRequest {
-        QString rootPath;
-        QHash<QString, NoteEntry> cachedNotes;
-        bool indexOk = false;
-        bool indexFileExists = false;
-        quint64 generation = 0;
-        // Checked between directories. QtConcurrent::run cannot interrupt
-        // this walk, so without it a vault the user has already left goes on
-        // being listed to the end.
-        CancellationTokenPtr cancel;
-    };
-
-    struct AsyncScanListing {
-        QString rootPath;
-        QList<FolderEntry> folders;
-        QList<NoteEntry> entries;
-        QList<AsyncIndexTask> tasks;
-        bool indexDirty = false;
-        quint64 generation = 0;
-        // The walk stopped early, so the folder and note lists are a prefix
-        // of the vault rather than all of it. The generation bump that
-        // accompanies every cancel already keeps this from being applied;
-        // the flag says so in the value itself, where a later reader cannot
-        // miss it.
-        bool cancelled = false;
-    };
-
-    struct AsyncRefreshRequest {
-        QString rootPath;
-        QStringList relDirs;
-        QHash<QString, NoteEntry> currentNotes;
-        quint64 generation = 0;
-        // Checked between notes. This worker reads and parses every changed
-        // body inline, so it is the one whose abandoned run costs the most.
-        CancellationTokenPtr cancel;
-    };
-
-    struct AsyncRefreshResult {
-        QString rootPath;
-        QStringList relDirs;
-        QStringList missingDirs;
-        QList<FolderEntry> folders;
-        QList<NoteEntry> entries;
-        QSet<QString> seenNotes;
-        QSet<QString> seenFolders;
-        quint64 generation = 0;
-        // As above: a stopped refresh saw only part of the subtree, and
-        // seenNotes/seenFolders drive removals — applying a partial one
-        // would delete entries the walk simply never reached.
-        bool cancelled = false;
-    };
-
-    struct AsyncSavedNoteTask {
-        QString relPath;
-        QString absPath;
-        QString fileText;
-        QDateTime createdFallback;
-        QDateTime modified;
-        qint64 fileSize = -1;
-        quint64 generation = 0;
-    };
-
-    struct AsyncIndexSaveRequest {
-        QString path;
-        QHash<QString, NoteEntry> notes;
-        quint64 generation = 0;
-    };
-
-    struct AsyncIndexSaveResult {
-        QString path;
-        int notes = 0;
-        int bytes = 0;
-        bool ok = false;
-        quint64 generation = 0;
-    };
+    // The worker-thread half of scanning is VaultScan (vaultscan.h): request
+    // in, result out, no shared state. Its value types keep their names here
+    // so the watchers and handlers below read as they did.
+    using AsyncIndexTask = VaultScan::IndexTask;
+    using AsyncIndexResult = VaultScan::IndexResult;
+    using AsyncScanRequest = VaultScan::ScanRequest;
+    using AsyncScanListing = VaultScan::ScanListing;
+    using AsyncRefreshRequest = VaultScan::RefreshRequest;
+    using AsyncRefreshResult = VaultScan::RefreshResult;
+    using AsyncSavedNoteTask = VaultScan::SavedNoteTask;
+    using AsyncIndexSaveRequest = VaultScan::IndexSaveRequest;
+    using AsyncIndexSaveResult = VaultScan::IndexSaveResult;
 
     bool prepareRootPath(const QString &path);
     void attachStoresToRoot();
@@ -443,23 +365,6 @@ private:
     bool tryIndexNoteFromCache(const QString &relPath,
                                const QFileInfo &info,
                                const QHash<QString, NoteEntry> &cachedNotes);
-    static NoteEntry placeholderEntry(const QString &relPath,
-                                      const QFileInfo &info);
-    static NoteEntry cachedEntryForPath(const QString &relPath,
-                                        const NoteEntry &cached,
-                                        const QFileInfo &info);
-    static NoteEntry entryFromText(const QString &relPath,
-                                   const QString &fileText,
-                                   const QFileInfo &info);
-    static AsyncScanListing buildAsyncScanListing(
-        const AsyncScanRequest &request);
-    static AsyncIndexResult parseIndexTask(const AsyncIndexTask &task);
-    static AsyncRefreshResult buildAsyncRefreshResult(
-        const AsyncRefreshRequest &request);
-    static AsyncIndexResult parseSavedNoteTask(
-        const AsyncSavedNoteTask &task);
-    static AsyncIndexSaveResult writeIndexFileSnapshot(
-        const AsyncIndexSaveRequest &request);
     void setScanInProgress(bool inProgress);
     void applyAsyncScanListing();
     void applyAsyncIndexResult(int index);
@@ -483,11 +388,6 @@ private:
     void rebuildFolderNoteCounts();
     void clearFolderNoteCounts();
 
-    struct BodyStats {
-        int wordCount = 0;
-        QString snippet;
-    };
-    static BodyStats analyzeBody(const QString &markdownBody);
 
     // Read one note file from disk and return its body (front-matter stripped).
     // Bodies are no longer resident, so features that need one

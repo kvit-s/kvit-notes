@@ -310,6 +310,7 @@ add_library(kvit-repository STATIC
     src/repository/recoveryjournalstore.cpp
     src/repository/vaultlock.cpp
     src/repository/vaultpaths.cpp
+    src/repository/vaultscan.cpp
     src/repository/wikilinkindex.cpp
     src/repository/opendocumentsession.h
 )
