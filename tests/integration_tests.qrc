@@ -56,5 +56,7 @@
         <file alias="qml/DiagramBlock.qml">../qml/DiagramBlock.qml</file>
         <file alias="qml/EditorStatusBar.qml">../qml/EditorStatusBar.qml</file>
         <file alias="qml/EditorContextMenus.qml">../qml/EditorContextMenus.qml</file>
+        <file alias="qml/NoteSession.qml">../qml/NoteSession.qml</file>
+        <file alias="qml/NoteRenameWorkflow.qml">../qml/NoteRenameWorkflow.qml</file>
     </qresource>
 </RCC>

@@ -492,286 +492,69 @@ KvitShell {
         collectionOpen && DocumentManager.hasFile
             ? NoteCollection.relativePath(DocumentManager.currentFilePath) : ""
 
-    // Switch notes: save-on-blur, load, undo clears (the existing open()
-    // contract), search and selections reset.
-    function openNoteByPath(relPath) {
-        if (!collectionOpen || relPath === "")
-            return false
-        var abs = NoteCollection.absolutePath(relPath)
-        if (DocumentManager.currentFilePath === abs)
-            return true
-        DocumentManager.flushPendingEdits()
-        // The departing note's scroll position, captured before the
-        // switch so back/forward return the reader to it (§3.3). A
-        // history-driven reopen is a no-op inside visit().
-        var departingY = blockListView.contentY
-        // Opening the next note replaces the model, which is the only copy of
-        // the current one's unsaved content and undo history. If the save did
-        // not succeed - unwritable file, full disk - going ahead destroys work
-        // the user never agreed to lose, so stay put and let the error stand.
-        if (DocumentManager.isDirty && DocumentManager.hasFile) {
-            if (!DocumentManager.save())
-                return false
-        }
-        if (findBar.visible)
-            findBar.close()
-        if (DocumentSelection.hasBlockSelection
-            || DocumentSelection.hasTextSelection)
-            DocumentSelection.clear()
-        if (!DocumentManager.open(DocumentManager.toLocalFileUrl(abs)))
-            return false
-        NavigationHistory.visit(relPath, departingY)
-        NoteCollection.setLastOpenNote(relPath)
-        root.lastFocusedBlock = 0
-        blockListView.currentIndex = 0
-        // Reset the session word tracker to the just-loaded document (the model
-        // has finished loading synchronously here).
-        Qt.callLater(root.refreshSessionBaseline)
-        return true
+    // ---- The open note -------------------------------------------------
+    // Which note is open, and every transition into another one, is in
+    // NoteSession.qml. The calls below are the names its callers already use:
+    // the delegates reach them through AppActions, the side panels through
+    // this window, and the integration suite drives several directly.
+    NoteSession {
+        id: noteSession
+        appWindow: root
+        listView: blockListView
+        findBar: root.findBar
+        sidebarPanel: sidebar
     }
 
-    // ---- Wiki-link navigation -----------------------------------------
+    function openNoteByPath(relPath) { return noteSession.openNoteByPath(relPath) }
+    function navigateBack() { noteSession.navigateBack() }
+    function navigateForward() { noteSession.navigateForward() }
+    function followWikiLink(spec) { noteSession.followWikiLink(spec) }
+    function openSearchResult(relPath, blockIndex, displayStart) {
+        noteSession.openSearchResult(relPath, blockIndex, displayStart)
+    }
+    function createNoteInCurrentScope() { noteSession.createNoteInCurrentScope() }
+    function createFromTemplate(templateName) {
+        return noteSession.createFromTemplate(templateName)
+    }
+    function saveCurrentNoteAsTemplate(name) {
+        return noteSession.saveCurrentNoteAsTemplate(name)
+    }
+    function restoreRecoveredNote(relPath) { noteSession.restoreRecoveredNote(relPath) }
+    // The conflict banner's two buttons (§12.1).
+    function keepMine() { noteSession.keepMine() }
+    function loadTheirs(absPath) { noteSession.loadTheirs(absPath) }
 
-    // Back/forward over the note history; scroll positions restore after
-    // the (synchronous) model load settles.
-    function navigateBack() {
-        var entry = NavigationHistory.goBack(blockListView.contentY)
-        if (entry.ok)
-            openHistoryEntry(entry)
+    // ---- Renaming a note, and the links that point at it ----------------
+    // NoteRenameWorkflow.qml owns the plan-then-apply sequence and its two
+    // dialogs. The note list and folder tree ask this window to rename, so
+    // the requests keep their names here.
+    NoteRenameWorkflow {
+        id: renameWorkflow
+        // Its dialogs centre on this window, so it spans it.
+        anchors.fill: parent
+        appWindow: root
     }
-    function navigateForward() {
-        var entry = NavigationHistory.goForward(blockListView.contentY)
-        if (entry.ok)
-            openHistoryEntry(entry)
-    }
-    function openHistoryEntry(entry) {
-        if (!openNoteByPath(entry.relPath))
-            return
-        Qt.callLater(function() {
-            var maxY = Math.max(0, blockListView.contentHeight
-                                   - blockListView.height)
-            blockListView.contentY = Math.min(entry.position, maxY)
-        })
-    }
-
-    // Follow a [[wiki-link]] spec ("target#heading", either part
-    // optional). Resolved targets open (then scroll to the heading);
-    // unresolved ones are created on click, as Obsidian does — a bare
-    // name in the current note's folder, a path-qualified target at its
-    // own path.
-    function followWikiLink(spec) {
-        var hashIdx = spec.indexOf("#")
-        var target = (hashIdx >= 0 ? spec.substring(0, hashIdx) : spec).trim()
-        var heading = hashIdx >= 0 ? spec.substring(hashIdx + 1).trim() : ""
-        if (target === "") {
-            if (heading !== "")
-                scrollToHeadingText(heading)
-            return
-        }
-        if (!collectionOpen) {
-            showTransientStatus(qsTr("Wiki-links need an open collection"))
-            return
-        }
-        var resolution = NoteCollection.wikiTargetResolution(target)
-        if (resolution.status === "ambiguous") {
-            showTransientStatus(qsTr("Ambiguous link “%1”: %2")
-                                .arg(target)
-                                .arg(resolution.candidates.join(", ")))
-            return
-        }
-        var relPath = resolution.relPath
-        if (resolution.status === "missing") {
-            relPath = createWikiTarget(target)
-            if (relPath === "")
-                return
-            showTransientStatus(qsTr("Created “%1”").arg(relPath))
-        }
-        if (!openNoteByPath(relPath))
-            return
-        if (heading !== "") {
-            Qt.callLater(function() {
-                DocumentOutline.rebuildNow()
-                scrollToHeadingText(heading)
-            })
-        }
-    }
-
-    // Rename-safe wiki links: planning is read-only; this dialog is the only
-    // UI path that authorizes multi-file edits.  The open note is rewritten
-    // through DocumentManager as one undoable body replacement.
-    property var pendingRenamePlan: null
-    property var pendingRenameAfter: null
 
     function requestNoteRename(relPath, newTitle) {
-        beginRenamePlan(NoteCollection.planNoteRename(relPath, newTitle), null)
+        renameWorkflow.requestNoteRename(relPath, newTitle)
     }
     function requestNoteMove(relPath, targetFolder) {
-        beginRenamePlan(NoteCollection.planNoteMove(relPath, targetFolder), null)
+        renameWorkflow.requestNoteMove(relPath, targetFolder)
     }
     function requestFolderRename(relPath, newName, afterApply) {
-        beginRenamePlan(NoteCollection.planFolderRename(relPath, newName), afterApply)
+        renameWorkflow.requestFolderRename(relPath, newName, afterApply)
     }
-    function beginRenamePlan(plan, afterApply) {
-        if (!plan || !plan.ok)
-            return
-        pendingRenamePlan = plan
-        pendingRenameAfter = afterApply
-        if (plan.linkCount > 0)
-            renameLinksDialog.open()
-        else
-            finishRenamePlan(false)
-    }
-    function executeRenamePlan(planId, updateLinks) {
-        DocumentManager.flushPendingEdits()
-        var openRelPath = root.currentNoteRelPath
-        var openBody = openRelPath !== ""
-            ? DocumentSerializer.serialize(BlockModel) : ""
-        var wasDirty = DocumentManager.isDirty
-        var result = NoteCollection.applyRenamePlan(
-            planId, updateLinks, openRelPath, openBody)
-        if (!result.ok)
-            return result
-        if (result.openRewriteCount > 0
-                && DocumentManager.restoreBody(result.openBody)
-                && !wasDirty)
-            DocumentManager.save()
-        return result
-    }
+    // Driven directly by the integration suite, which skips the dialog.
     function finishRenamePlan(updateLinks) {
-        var plan = pendingRenamePlan
-        var after = pendingRenameAfter
-        if (!plan)
-            return
-        var result = executeRenamePlan(plan.id, updateLinks)
-        pendingRenamePlan = null
-        pendingRenameAfter = null
-        if (result && result.ok && after)
-            after(result)
-        if (result && ((result.skipped && result.skipped.length > 0)
-                       || (result.failed && result.failed.length > 0))) {
-            rewriteResultDialog.planId = plan.id
-            rewriteResultDialog.skipped = result.skipped
-            rewriteResultDialog.failed = result.failed
-            rewriteResultDialog.open()
-        }
+        renameWorkflow.finishRenamePlan(updateLinks)
     }
 
-    // A wiki-link's #heading part is raw heading text; slug it through
-    // the shared slug function before outline lookup.
-    function scrollToHeadingText(heading) {
-        var idx = DocumentOutline.blockIndexForSlug(
-            DocumentOutline.slugForText(heading))
-        if (idx >= 0)
-            scrollToBlock(idx)
-        else
-            showTransientStatus(qsTr("No heading “%1”").arg(heading))
-    }
 
-    function createWikiTarget(target) {
-        var folder
-        var title
-        var slash = target.lastIndexOf("/")
-        if (slash >= 0) {
-            // Path-qualified target: materialize its folder chain first.
-            var parts = target.substring(0, slash).split("/")
-            var accumulated = ""
-            for (var i = 0; i < parts.length; ++i) {
-                var next = accumulated === ""
-                    ? parts[i] : accumulated + "/" + parts[i]
-                if (NoteCollection.folderRelPaths().indexOf(next) < 0)
-                    NoteCollection.createFolder(accumulated, parts[i])
-                accumulated = next
-            }
-            folder = accumulated
-            title = target.substring(slash + 1)
-        } else {
-            folder = currentNoteRelPath.indexOf("/") >= 0
-                ? currentNoteRelPath.substring(
-                      0, currentNoteRelPath.lastIndexOf("/"))
-                : ""
-            title = target
-        }
-        if (title.toLowerCase().lastIndexOf(".md")
-                === title.length - 3 && title.length > 3)
-            title = title.substring(0, title.length - 3)
-        return NoteCollection.createNote(folder, title)
-    }
 
-    // A clicked global-search result (§8.4 "open note at match
-    // location"): open the note, then hand off to the find bar —
-    // the query seeds DocumentSearch and the clicked occurrence becomes
-    // the current match through the cursor-seeding rule.
-    function openSearchResult(relPath, blockIndex, displayStart) {
-        var mdPos = CollectionSearch.markdownPosition(relPath, blockIndex,
-                                                      displayStart)
-        if (!openNoteByPath(relPath))
-            return
-        sidebar.commitRecentSearch(CollectionSearch.query)
-        findBar.openAt(CollectionSearch.query, blockIndex, mdPos)
-    }
 
-    // Ctrl+N in collection mode: a new note in the current folder scope
-    // (§13.4 New Note), opened immediately.
-    function createNoteInCurrentScope() {
-        if (!collectionOpen)
-            return
-        var folder = NoteListModel.scope === "folder"
-            ? NoteListModel.folderPath : ""
-        var relPath = NoteCollection.createNote(folder, "")
-        if (relPath !== "") {
-            openNoteByPath(relPath)
-            var item = (blockListView.itemAtIndex(0) as BlockDelegateBase)
-            if (item && item.focusAtStart)
-                item.focusAtStart()
-        }
-    }
 
-    // features.md §18 create a note from a template: a new note in
-    // the current scope, titled by the template, with the template's expanded
-    // body loaded and its front-matter (tags, favorite) carried through.
-    function createFromTemplate(templateName) {
-        if (!collectionOpen)
-            return ""
-        var folder = NoteListModel.scope === "folder"
-            ? NoteListModel.folderPath : ""
-        var relPath = NoteCollection.createNote(folder, templateName)
-        if (relPath === "")
-            return ""
-        var title = NoteCollection.noteInfo(relPath).title
-        var inst = NoteTemplates.instantiate(templateName, title)
-        if (!openNoteByPath(relPath))
-            return relPath
-        // The note is open and empty; load the expanded body, then apply the
-        // template's metadata and save through the normal path.
-        DocumentSerializer.loadIntoModel(BlockModel, inst.body || "")
-        var tags = inst.tags || []
-        for (var i = 0; i < tags.length; i++)
-            NoteCollection.addTag(relPath, tags[i])
-        if (inst.favorite === true)
-            NoteCollection.setFavorite(relPath, true)
-        DocumentManager.save()
-        Qt.callLater(function() {
-            var item = (blockListView.itemAtIndex(0) as BlockDelegateBase)
-            if (item && item.focusAtStart)
-                item.focusAtStart()
-        })
-        return relPath
-    }
 
-    // "Save current note as template": copy the open note (front-matter and
-    // body) into .kvit/templates under the given name.
-    function saveCurrentNoteAsTemplate(name) {
-        if (!collectionOpen || currentNoteRelPath === "")
-            return false
-        DocumentManager.flushPendingEdits()
-        // The on-disk note text (front-matter + serialized body) is the
-        // template; save first so the file reflects the current buffer.
-        if (DocumentManager.isDirty)
-            DocumentManager.save()
-        var fm = NoteCollection.frontMatterFor(currentNoteRelPath)
-        var full = (fm ? fm : "") + DocumentSerializer.serialize(BlockModel)
-        return NoteTemplates.writeTemplate(name, full)
-    }
+
 
     // Map a scene point to {index, mdPos, inText} on the block list.
     // Pointer positions above, below, or between blocks resolve to the
@@ -1876,36 +1659,6 @@ KvitShell {
     // load-theirs rather than silently clobbering either side.
     property bool externalConflict: false
     property string conflictPath: ""
-    Connections {
-        target: FileWatcher
-        function onNoteChangedExternally(absPath) {
-            if (absPath !== DocumentManager.currentFilePath)
-                return   // not the open note — the tree re-scan handles the rest
-            DocumentManager.flushPendingEdits()
-            if (DocumentManager.isDirty) {
-                root.conflictPath = absPath
-                root.externalConflict = true
-                A11y.announce(qsTr("This note changed on disk"))
-            } else {
-                // Not dirty here: loading theirs is lossless, so do it silently.
-                root.loadTheirs(absPath)
-            }
-        }
-    }
-    function keepMine() {
-        // Re-write the editor's content, overwriting the external change.
-        DocumentManager.save()
-        root.externalConflict = false
-    }
-    function loadTheirs(absPath) {
-        var target = absPath !== undefined ? absPath : root.conflictPath
-        // Force a reload past openNoteByPath's same-path short-circuit.
-        DocumentManager.open(DocumentManager.toLocalFileUrl(target))
-        root.lastFocusedBlock = 0
-        blockListView.currentIndex = 0
-        Qt.callLater(root.refreshSessionBaseline)
-        root.externalConflict = false
-    }
 
     // features.md §15 system integration: quick capture + tray + global hotkey.
     function openQuickCapture() {
@@ -2344,18 +2097,6 @@ KvitShell {
                ? NoteCollection.journalPathFor(root.currentNoteRelPath) : ""
     }
 
-    // Restore a crash-recovered note (the banner's Restore button): the
-    // journal content lands on disk; a currently-open note reloads.
-    function restoreRecoveredNote(relPath) {
-        if (!NoteCollection.restoreRecovery(relPath))
-            return
-        if (root.currentNoteRelPath === relPath) {
-            DocumentManager.open(DocumentManager.toLocalFileUrl(
-                NoteCollection.absolutePath(relPath)))
-        } else {
-            openNoteByPath(relPath)
-        }
-    }
 
     // ---- Restore from backup: per-note, previewed, and
     // applied through the block model as ONE undo step — a wrong restore
@@ -2625,109 +2366,7 @@ KvitShell {
         onRejected: { pendingText = ""; pendingPlain = false }
     }
 
-    // Error dialog
-    Dialog {
-        id: renameLinksDialog
-        objectName: "renameLinksDialog"
-        title: qsTr("Update wiki-links?")
-        modal: true
-        closePolicy: Popup.NoAutoClose
-        anchors.centerIn: parent
-        width: 440
 
-        contentItem: Label {
-            width: 390
-            padding: 18
-            wrapMode: Text.WordWrap
-            text: root.pendingRenamePlan
-                ? qsTr("Update %1 links in %2 notes?")
-                    .arg(root.pendingRenamePlan.linkCount)
-                    .arg(root.pendingRenamePlan.noteCount)
-                : ""
-        }
-        footer: DialogButtonBox {
-            Button {
-                objectName: "renameUpdateLinksButton"
-                text: qsTr("Update links")
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-                onClicked: {
-                    renameLinksDialog.close()
-                    root.finishRenamePlan(true)
-                }
-            }
-            Button {
-                objectName: "renameOnlyButton"
-                text: qsTr("Rename only")
-                DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
-                onClicked: {
-                    renameLinksDialog.close()
-                    root.finishRenamePlan(false)
-                }
-            }
-            Button {
-                text: qsTr("Cancel")
-                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-                onClicked: {
-                    if (root.pendingRenamePlan)
-                        NoteCollection.cancelRenamePlan(root.pendingRenamePlan.id)
-                    root.pendingRenamePlan = null
-                    root.pendingRenameAfter = null
-                    renameLinksDialog.close()
-                }
-            }
-        }
-    }
-
-    Dialog {
-        id: rewriteResultDialog
-        objectName: "rewriteResultDialog"
-        title: qsTr("Some links were not updated")
-        modal: true
-        anchors.centerIn: parent
-        width: 460
-        property string planId: ""
-        property var skipped: []
-        property var failed: []
-
-        contentItem: Label {
-            width: 420
-            padding: 18
-            wrapMode: Text.WordWrap
-            text: {
-                var lines = []
-                if (rewriteResultDialog.skipped.length > 0)
-                    lines.push(qsTr("Changed externally (skipped):\n%1")
-                               .arg(rewriteResultDialog.skipped.join("\n")))
-                if (rewriteResultDialog.failed.length > 0)
-                    lines.push(qsTr("Could not write:\n%1")
-                               .arg(rewriteResultDialog.failed.join("\n")))
-                return lines.join("\n\n")
-            }
-        }
-        footer: DialogButtonBox {
-            Button {
-                text: qsTr("Retry")
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-                onClicked: {
-                    var result = root.executeRenamePlan(
-                        rewriteResultDialog.planId, true)
-                    if (result && result.ok
-                            && result.skipped.length === 0
-                            && result.failed.length === 0)
-                        rewriteResultDialog.close()
-                    else if (result) {
-                        rewriteResultDialog.skipped = result.skipped || []
-                        rewriteResultDialog.failed = result.failed || []
-                    }
-                }
-            }
-            Button {
-                text: qsTr("Close")
-                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-                onClicked: rewriteResultDialog.close()
-            }
-        }
-    }
 
     Dialog {
         id: errorDialog

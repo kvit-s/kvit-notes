@@ -54,5 +54,7 @@
         <file>qml/DiagramBlock.qml</file>
         <file>qml/EditorStatusBar.qml</file>
         <file>qml/EditorContextMenus.qml</file>
+        <file>qml/NoteSession.qml</file>
+        <file>qml/NoteRenameWorkflow.qml</file>
     </qresource>
 </RCC>
