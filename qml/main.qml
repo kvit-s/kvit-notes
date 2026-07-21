@@ -809,102 +809,13 @@ KvitShell {
                ? NoteCollection.journalPathFor(root.currentNoteRelPath) : ""
     }
 
-    // ---- Restore from backup: per-note, previewed, and
-    // applied through the block model as ONE undo step — a wrong restore
-    // costs one Ctrl+Z, which is why no extra confirmation is needed.
+    // Restoring a note from one of its backups, in BackupRestoreDialog.qml.
+    // The tag strip's button opens it and the integration suite reaches it by
+    // name, so the window keeps the alias.
     property alias backupDialog: backupDialog
-    Dialog {
+    BackupRestoreDialog {
         id: backupDialog
-        objectName: "backupDialog"
-        modal: true
-        anchors.centerIn: parent
-        width: 420
-        title: qsTr("Restore from Backup")
-
-        property var backups: []
-        property int selectedRow: 0
-
-        function openForCurrentNote() {
-            if (root.currentNoteRelPath === "")
-                return
-            backups = NoteCollection.backupsFor(root.currentNoteRelPath)
-            selectedRow = 0
-            open()
-        }
-
-        onAccepted: {
-            if (selectedRow < 0 || selectedRow >= backups.length)
-                return
-            var body = NoteCollection.backupBody(
-                root.currentNoteRelPath, backups[selectedRow].fileName)
-            if (DocumentManager.restoreBody(body))
-                DocumentManager.save()
-        }
-
-        contentItem: ColumnLayout {
-            spacing: 4
-            Label {
-                visible: backupDialog.backups.length === 0
-                text: qsTr("No backups yet — they appear as the note is edited over time.")
-                wrapMode: Text.WordWrap
-                Layout.fillWidth: true
-                padding: 8
-            }
-            ListView {
-                objectName: "backupDialogList"
-                visible: backupDialog.backups.length > 0
-                Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(count * 44, 220)
-                clip: true
-                model: backupDialog.backups
-                delegate: Rectangle {
-                    id: backupRow
-                    required property int index
-                    required property var modelData
-                    width: parent ? parent.width : 0
-                    height: 44
-                    color: backupRow.index === backupDialog.selectedRow
-                           ? Theme.selectionTint : "transparent"
-                    Column {
-                        anchors.fill: parent
-                        anchors.margins: 6
-                        spacing: 2
-                        Label {
-                            text: Qt.formatDateTime(backupRow.modelData.timestamp,
-                                                    "MMM d, yyyy hh:mm:ss")
-                            font.pixelSize: 12
-                            font.bold: true
-                        }
-                        Label {
-                            text: backupRow.modelData.preview !== ""
-                                  ? backupRow.modelData.preview
-                                  : qsTr("(empty)")
-                            font.pixelSize: 11
-                            color: Theme.textFaint
-                            elide: Text.ElideRight
-                            width: parent.width
-                        }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: backupDialog.selectedRow = backupRow.index
-                    }
-                }
-            }
-        }
-
-        footer: DialogButtonBox {
-            Button {
-                text: qsTr("Cancel")
-                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-            }
-            Button {
-                objectName: "backupDialogRestoreButton"
-                text: qsTr("Restore")
-                enabled: backupDialog.backups.length > 0
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-            }
-        }
+        appWindow: root
     }
 
     // Oversized-paste confirm: pasting a payload over the open-size cap
