@@ -55,5 +55,6 @@
         <file alias="qml/EmbedBlock.qml">../qml/EmbedBlock.qml</file>
         <file alias="qml/DiagramBlock.qml">../qml/DiagramBlock.qml</file>
         <file alias="qml/EditorStatusBar.qml">../qml/EditorStatusBar.qml</file>
+        <file alias="qml/EditorContextMenus.qml">../qml/EditorContextMenus.qml</file>
     </qresource>
 </RCC>

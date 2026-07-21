@@ -2011,16 +2011,29 @@ KvitShell {
         }
     }
 
-    // ---- Context menus (features.md §9.5): shared window-level Menu
-    // instances triggering the same tested operations the shortcuts
-    // drive. A right-click on a selected block routes to
-    // the selection menu; on a link, the link menu wins by specificity.
-    // A visible text/link menu keeps its target's selection alive
-    // through the menu's focus grab (the delegate consults this in its
-    // focus-loss deselect).
+    // ---- Context menus (features.md §9.5) ---------------------------
+    // The right-click menus live in EditorContextMenus.qml; what stays here
+    // is the shell-level surface they answer. contextMenuHoldsSelection is a
+    // KvitShell query a delegate makes on itself, and the three open calls
+    // arrive from AppActions, so both have to be reachable on the window.
+    EditorContextMenus {
+        id: contextMenus
+        anchors.fill: parent
+        toolbar: appToolbar
+        selectionKeys: selectionKeyHandler
+    }
+
     function contextMenuHoldsSelection(target) {
-        return (textContextMenu.visible && textContextMenu.target === target)
-            || (linkContextMenu.visible && linkContextMenu.target === target)
+        return contextMenus.holdsSelection(target)
+    }
+    function openTextContextMenu(target) {
+        contextMenus.openTextMenu(target)
+    }
+    function openLinkContextMenu(target) {
+        contextMenus.openLinkMenu(target)
+    }
+    function openBlockHandleMenu(target) {
+        contextMenus.openHandleMenu(target)
     }
 
     // KvitShell query overrides: a delegate asks whether its completion menu
@@ -2041,16 +2054,6 @@ KvitShell {
     function openLink(url) {
         linkOpener.activate(url)
         return true
-    }
-
-    function openTextContextMenu(target) {
-        if (DocumentSelection.hasBlockSelection
-            && DocumentSelection.isBlockSelected(target.index)) {
-            selectionContextMenu.popup()
-            return
-        }
-        textContextMenu.target = target
-        textContextMenu.popup()
     }
 
     // The image lightbox (§1.2.8): an image block opens it with a resolved
@@ -2221,131 +2224,6 @@ KvitShell {
                 insertBlocksAt(afterIndex, blocks)
         }
     }
-    function openLinkContextMenu(target) {
-        linkContextMenu.target = target
-        linkContextMenu.popup()
-    }
-    function openBlockHandleMenu(target) {
-        if (DocumentSelection.hasBlockSelection
-            && DocumentSelection.isBlockSelected(target.index)) {
-            selectionContextMenu.popup()
-            return
-        }
-        blockContextMenu.target = target
-        blockContextMenu.popup()
-    }
-
-    Menu {
-        id: textContextMenu
-        objectName: "textContextMenu"
-        property var target: null
-        readonly property bool hasSel: target
-            && target.selectionEndDoc > target.selectionStartDoc
-
-        MenuItem {
-            objectName: "ctxCut"
-            text: qsTr("Cut")
-            enabled: textContextMenu.hasSel
-            onTriggered: textContextMenu.target.cutSelection()
-        }
-        MenuItem {
-            objectName: "ctxCopy"
-            text: qsTr("Copy")
-            enabled: textContextMenu.hasSel
-            onTriggered: textContextMenu.target.copySelection()
-        }
-        MenuItem {
-            objectName: "ctxPaste"
-            text: qsTr("Paste")
-            enabled: Clipboard.hasText
-            onTriggered: textContextMenu.target.pasteClipboard(false)
-        }
-        MenuItem {
-            objectName: "ctxPastePlain"
-            text: qsTr("Paste as plain text")
-            enabled: Clipboard.hasText
-            onTriggered: textContextMenu.target.pasteClipboard(true)
-        }
-        MenuSeparator {}
-        Menu {
-            title: qsTr("Formatting")
-            enabled: textContextMenu.target
-                     && !textContextMenu.target.verbatimEditing
-            Repeater {
-                model: [
-                    { name: qsTr("Bold"), type: "bold" },
-                    { name: qsTr("Italic"), type: "italic" },
-                    { name: qsTr("Underline"), type: "underline" },
-                    { name: qsTr("Strikethrough"), type: "strike" },
-                    { name: qsTr("Inline code"), type: "code" },
-                    { name: qsTr("Highlight"), type: "highlight" },
-                    { name: qsTr("Superscript"), type: "superscript" },
-                    { name: qsTr("Subscript"), type: "subscript" },
-                    { name: qsTr("Inline math"), type: "math" }]
-                MenuItem {
-                    id: spanTypeItem
-                    required property var modelData
-                    text: spanTypeItem.modelData.name
-                    onTriggered: textContextMenu.target.toggleSpanType(
-                        spanTypeItem.modelData.type)
-                }
-            }
-        }
-        Menu {
-            title: qsTr("Text color")
-            enabled: textContextMenu.target
-                     && !textContextMenu.target.verbatimEditing
-            Repeater {
-                model: [
-                    { name: qsTr("Red"), value: "#e05c5c" },
-                    { name: qsTr("Orange"), value: "#e0a04c" },
-                    { name: qsTr("Green"), value: "#58a866" },
-                    { name: qsTr("Blue"), value: "#4a90d9" },
-                    { name: qsTr("Purple"), value: "#9068c8" },
-                    { name: qsTr("Pink"), value: "#d06ca8" }]
-                MenuItem {
-                    id: colorItem
-                    required property var modelData
-                    text: colorItem.modelData.name
-                    // A leading swatch of the color the item applies.
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.right: parent.right
-                        anchors.rightMargin: 12
-                        width: 14; height: 14; radius: 3
-                        color: colorItem.modelData.value
-                        border.color: Theme.border
-                    }
-                    onTriggered: textContextMenu.target.applyColor(colorItem.modelData.value)
-                }
-            }
-            MenuSeparator {}
-            MenuItem {
-                text: qsTr("Custom…")
-                onTriggered: {
-                    textColorDialog.target = textContextMenu.target
-                    textColorDialog.open()
-                }
-            }
-            MenuItem {
-                text: qsTr("Remove color")
-                enabled: textContextMenu.target
-                         && textContextMenu.target.currentColor !== ""
-                onTriggered: textContextMenu.target.removeColor()
-            }
-        }
-        MenuItem {
-            text: qsTr("Link…")
-            enabled: textContextMenu.target
-                     && !textContextMenu.target.verbatimEditing
-            onTriggered: textContextMenu.target.openLinkDialog()
-        }
-        MenuSeparator {}
-        MenuItem {
-            text: qsTr("Select all")
-            onTriggered: textContextMenu.target.selectAllText()
-        }
-    }
 
     // The image lightbox overlay (§1.2.8), over the whole window.
     Lightbox {
@@ -2429,207 +2307,6 @@ KvitShell {
             // Store the chosen file's path; ingestion/copy comes later.
             var p = selectedFile.toString().replace(/^file:\/\//, "")
             imagePathField.text = p
-        }
-    }
-
-    // The custom-color picker for the text context menu.
-    // The target block is captured when the menu opens, since the dialog is
-    // asynchronous.
-    ColorDialog {
-        id: textColorDialog
-        property var target: null
-        onAccepted: {
-            if (!target) return
-            var s = selectedColor.toString()
-            if (s.length === 9)
-                s = "#" + s.substr(3)
-            target.applyColor(s)
-        }
-    }
-
-    Menu {
-        id: linkContextMenu
-        objectName: "linkContextMenu"
-        property var target: null
-
-        MenuItem {
-            objectName: "ctxOpenLink"
-            text: qsTr("Open link")
-            onTriggered: linkContextMenu.target.openLinkUnderCursor()
-        }
-        MenuItem {
-            objectName: "ctxEditLink"
-            text: qsTr("Edit link…")
-            onTriggered: linkContextMenu.target.openLinkDialog()
-        }
-        MenuItem {
-            objectName: "ctxRemoveLink"
-            text: qsTr("Remove link")
-            onTriggered: linkContextMenu.target.removeLinkAtCursor()
-        }
-    }
-
-    Menu {
-        id: blockContextMenu
-        objectName: "blockContextMenu"
-        property var target: null
-
-        Menu {
-            title: qsTr("Turn into")
-            Repeater {
-                model: appToolbar.typeNames
-                MenuItem {
-                    required property int index
-                    required property string modelData
-                    text: modelData
-                    onTriggered: blockContextMenu.target.convertBlockType(
-                        appToolbar.typeValues[index])
-                }
-            }
-        }
-        // Alignment (§9.2): paragraphs, headings, and images.
-        Menu {
-            objectName: "ctxAlignMenu"
-            title: qsTr("Align")
-            enabled: blockContextMenu.target
-                && blockContextMenu.target.setBlockAlignment !== undefined
-                && [0, 1, 2, 3, 10, 11].indexOf(blockContextMenu.target.blockType) >= 0
-            MenuItem {
-                text: qsTr("Left")
-                onTriggered: blockContextMenu.target.setBlockAlignment("left")
-            }
-            MenuItem {
-                text: qsTr("Center")
-                onTriggered: blockContextMenu.target.setBlockAlignment("center")
-            }
-            MenuItem {
-                text: qsTr("Right")
-                onTriggered: blockContextMenu.target.setBlockAlignment("right")
-            }
-        }
-        // Drop cap (§1.2.16): a paragraph-only enlarged initial.
-        Menu {
-            objectName: "ctxDropCapMenu"
-            title: qsTr("Drop cap")
-            enabled: blockContextMenu.target
-                && blockContextMenu.target.setDropCap !== undefined
-                && blockContextMenu.target.blockType === 0   // Paragraph
-            MenuItem {
-                text: qsTr("None")
-                onTriggered: blockContextMenu.target.setDropCap(0)
-            }
-            MenuItem {
-                text: qsTr("2 lines")
-                onTriggered: blockContextMenu.target.setDropCap(2)
-            }
-            MenuItem {
-                text: qsTr("3 lines")
-                onTriggered: blockContextMenu.target.setDropCap(3)
-            }
-            MenuItem {
-                text: qsTr("5 lines")
-                onTriggered: blockContextMenu.target.setDropCap(5)
-            }
-        }
-        MenuSeparator {}
-        MenuItem {
-            objectName: "ctxBlockDuplicate"
-            text: qsTr("Duplicate")
-            onTriggered: BlockModel.duplicateBlocks(
-                [blockContextMenu.target.index])
-        }
-        MenuItem {
-            objectName: "ctxBlockDelete"
-            text: qsTr("Delete")
-            onTriggered: BlockModel.removeBlocks(
-                [blockContextMenu.target.index])
-        }
-        MenuSeparator {}
-        MenuItem {
-            text: qsTr("Move up")
-            enabled: blockContextMenu.target
-                     && blockContextMenu.target.index > 0
-            onTriggered: BlockModel.moveBlocksBy(
-                [blockContextMenu.target.index], -1)
-        }
-        MenuItem {
-            text: qsTr("Move down")
-            enabled: blockContextMenu.target
-                     && blockContextMenu.target.index < BlockModel.count - 1
-            onTriggered: BlockModel.moveBlocksBy(
-                [blockContextMenu.target.index], 1)
-        }
-        MenuItem {
-            text: qsTr("Indent")
-            onTriggered: BlockModel.changeIndentForBlocks(
-                [blockContextMenu.target.index], 1)
-        }
-        MenuItem {
-            text: qsTr("Outdent")
-            onTriggered: BlockModel.changeIndentForBlocks(
-                [blockContextMenu.target.index], -1)
-        }
-    }
-
-    Menu {
-        id: selectionContextMenu
-        objectName: "selectionContextMenu"
-
-        MenuItem {
-            objectName: "ctxSelCopy"
-            text: qsTr("Copy")
-            onTriggered: selectionKeyHandler.copyBlocksToClipboard()
-        }
-        MenuItem {
-            text: qsTr("Cut")
-            onTriggered: {
-                selectionKeyHandler.copyBlocksToClipboard()
-                selectionKeyHandler.removeSelectedBlocks()
-            }
-        }
-        MenuItem {
-            objectName: "ctxSelDuplicate"
-            text: qsTr("Duplicate")
-            onTriggered: {
-                var clones = BlockModel.duplicateBlocks(
-                    DocumentSelection.selectedIndexes())
-                if (clones.length > 0)
-                    selectionKeyHandler.selectRange(
-                        Number(clones[0]),
-                        Number(clones[clones.length - 1]))
-            }
-        }
-        MenuItem {
-            objectName: "ctxSelDelete"
-            text: qsTr("Delete")
-            onTriggered: selectionKeyHandler.removeSelectedBlocks()
-        }
-        MenuSeparator {}
-        MenuItem {
-            text: qsTr("Move up")
-            onTriggered: {
-                BlockModel.moveBlocksBy(
-                    DocumentSelection.selectedIndexes(), -1)
-                selectionKeyHandler.revealSelectionEdge()
-            }
-        }
-        MenuItem {
-            text: qsTr("Move down")
-            onTriggered: {
-                BlockModel.moveBlocksBy(
-                    DocumentSelection.selectedIndexes(), 1)
-                selectionKeyHandler.revealSelectionEdge()
-            }
-        }
-        MenuItem {
-            text: qsTr("Indent")
-            onTriggered: BlockModel.changeIndentForBlocks(
-                DocumentSelection.selectedIndexes(), 1)
-        }
-        MenuItem {
-            text: qsTr("Outdent")
-            onTriggered: BlockModel.changeIndentForBlocks(
-                DocumentSelection.selectedIndexes(), -1)
         }
     }
 

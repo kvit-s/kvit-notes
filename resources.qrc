@@ -53,5 +53,6 @@
         <file>qml/EmbedBlock.qml</file>
         <file>qml/DiagramBlock.qml</file>
         <file>qml/EditorStatusBar.qml</file>
+        <file>qml/EditorContextMenus.qml</file>
     </qresource>
 </RCC>
