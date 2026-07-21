@@ -111,6 +111,27 @@ if [ ! -f "$MODULE_DIR/Kvit/kvit-qml.qmltypes" ]; then
     exit 2
 fi
 
+# A stale description is worse than a missing one, because it fails in the
+# wrong place: a property added to a C++ type is reported as missing-property
+# on the QML line that uses it, which reads as a defect in the QML rather than
+# as an out-of-date build. That happened during review remediation with
+# BlockModel's derivedRevision and KanbanTools' isValidDue.
+#
+# So refresh it here rather than trying to detect staleness. Comparing
+# timestamps does not work: qmltyperegistrar leaves the file alone when the
+# content would be identical, so a mtime check goes red and stays red. The
+# regeneration needs moc output rather than compiled objects, so it costs
+# little even when there is nothing to do. A build directory that is not
+# configured is left to the missing-file message above.
+if [ -f "$BUILD_DIR/CMakeCache.txt" ] && command -v cmake > /dev/null; then
+    if ! cmake --build "$BUILD_DIR" --target kvit-qmltypes > /dev/null 2>&1; then
+        echo "Could not refresh the Kvit module description in $BUILD_DIR." >&2
+        echo "Build it directly to see why:" >&2
+        echo "  cmake --build $BUILD_DIR --target kvit-qmltypes" >&2
+        exit 2
+    fi
+fi
+
 # Two file sets, because they can carry different guarantees. Anything under
 # tests/ is a Qt Quick Test file and gets the profile described below; the
 # rest is shipping QML and gets the strict one. Naming files explicitly picks
