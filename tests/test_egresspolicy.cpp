@@ -7,6 +7,7 @@
 #include <QtTest/QtTest>
 
 #include <QDir>
+#include <QFile>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QSignalSpy>
@@ -14,12 +15,16 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
+#include <QBuffer>
+#include <QImage>
 
 #include "appcontext.h"
 #include "egressfetcher.h"
 #include "egresspolicy.h"
 #include "embedmetadata.h"
 #include "notecollection.h"
+#include "remoteimageprovider.h"
+#include "remotemediacache.h"
 #include "settingsstore.h"
 
 // A minimal HTTP/1.0 server on 127.0.0.1. Records the request lines it
@@ -39,6 +44,7 @@ public:
     // streaming cap can stop that, so it is the case that tells the
     // enforcement mechanisms apart.
     bool declareLength = true;
+    qint64 declaredLengthOverride = -1;
 
     bool start()
     {
@@ -65,8 +71,10 @@ private slots:
                 resp = "HTTP/1.0 302 Found\r\nLocation: " + redirectTo.toUtf8()
                      + "\r\nContent-Length: 0\r\n\r\n";
             } else if (declareLength) {
+                const qint64 declared = declaredLengthOverride >= 0
+                    ? declaredLengthOverride : body.size();
                 resp = "HTTP/1.0 200 OK\r\nContent-Type: " + contentType + "\r\n"
-                       "Content-Length: " + QByteArray::number(body.size())
+                       "Content-Length: " + QByteArray::number(declared)
                      + "\r\n\r\n" + body;
             } else {
                 resp = "HTTP/1.0 200 OK\r\nContent-Type: " + contentType
@@ -117,6 +125,9 @@ private slots:
     void oversizedResponseIsCutOffWhileReceiving();
     void oversizedResponseWithNoDeclaredLengthIsCutOff();
     void wrongContentTypeIsRefused();
+    void oversizedImageDimensionsAreRejectedBeforeDecode();
+    void remoteMediaIsPlayedOnlyFromBoundedLocalCache();
+    void remoteMediaRevalidatesRedirectsAndSize();
 
     // ---- Metadata-selected images ----
     void metadataImagesObeyTheSamePolicy();
@@ -573,6 +584,93 @@ void TestEgressPolicy::wrongContentTypeIsRefused()
                     });
     QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
     QVERIFY2(!result, "a non-HTML response was accepted as a page");
+}
+
+void TestEgressPolicy::oversizedImageDimensionsAreRejectedBeforeDecode()
+{
+    QImage source(RemoteImageProvider::MaxDimension + 1, 1,
+                  QImage::Format_ARGB32_Premultiplied);
+    source.fill(Qt::transparent);
+    QByteArray compressed;
+    QBuffer output(&compressed);
+    QVERIFY(output.open(QIODevice::WriteOnly));
+    QVERIFY(source.save(&output, "PNG"));
+    QVERIFY(compressed.size() < 64 * 1024);
+
+    const QImage decoded = RemoteImageProvider::decodeForDisplay(compressed);
+    QVERIFY2(decoded.isNull(),
+             "an over-dimension image was fully decoded before rejection");
+}
+
+void TestEgressPolicy::remoteMediaIsPlayedOnlyFromBoundedLocalCache()
+{
+    LocalServer server;
+    server.contentType = "audio/mpeg";
+    server.body = QByteArrayLiteral("small-test-media");
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+    RemoteMediaCache cache;
+    cache.setFetcher(&fetcher);
+
+    const QString remote = server.url("/sound.mp3");
+    QVERIFY(cache.sourceFor(remote).isEmpty());
+    QSignalSpy ready(&cache, &RemoteMediaCache::mediaReady);
+    cache.request(remote);
+    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 10000);
+
+    const QUrl local(cache.sourceFor(remote));
+    QVERIFY(local.isLocalFile());
+    QFile file(local.toLocalFile());
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), server.body);
+    QCOMPARE(EgressFetcher::maxBytesFor(EgressFetcher::Purpose::RemoteMedia),
+             qint64(64 * 1024 * 1024));
+}
+
+void TestEgressPolicy::remoteMediaRevalidatesRedirectsAndSize()
+{
+    LocalServer redirector;
+    redirector.redirectTo = "http://10.0.0.5/private.mp3";
+    QVERIFY(redirector.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(redirector.url());
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+    RemoteMediaCache cache;
+    cache.setFetcher(&fetcher);
+    QSignalSpy redirectFailed(&cache, &RemoteMediaCache::mediaFailed);
+    const QString redirected = redirector.url("/redirect.mp3");
+    cache.request(redirected);
+    QTRY_COMPARE_WITH_TIMEOUT(redirectFailed.count(), 1, 10000);
+    QVERIFY(cache.sourceFor(redirected).isEmpty());
+    QCOMPARE(redirector.requests.size(), 1);
+
+    LocalServer oversized;
+    oversized.contentType = "audio/mpeg";
+    oversized.body = "not actually a huge allocation";
+    oversized.declaredLengthOverride =
+        EgressFetcher::maxBytesFor(EgressFetcher::Purpose::RemoteMedia) + 1;
+    QVERIFY(oversized.start());
+    policy.allowOrigin(oversized.url());
+    QSignalSpy sizeFailed(&cache, &RemoteMediaCache::mediaFailed);
+    const QString tooLarge = oversized.url("/large.mp3");
+    cache.request(tooLarge);
+    QTRY_COMPARE_WITH_TIMEOUT(sizeFailed.count(), 1, 10000);
+    QVERIFY(cache.sourceFor(tooLarge).isEmpty());
 }
 
 // A preview's thumbnail and favicon are chosen by the fetched page, so they

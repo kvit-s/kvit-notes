@@ -53,6 +53,7 @@ Dialog {
     }
 
     function prepareContext() {
+        DocumentManager.flushPendingEdits()
         var noteDir = ""
         var root = NoteCollection.isOpen ? NoteCollection.rootPath : ""
         if (appWindow && appWindow.currentNoteRelPath !== "") {

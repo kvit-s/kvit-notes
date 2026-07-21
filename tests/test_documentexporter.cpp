@@ -7,6 +7,7 @@
 #include "block.h"
 #include "notecollection.h"
 #include "documentserializer.h"
+#include "faultinjection.h"
 
 #include <QTemporaryDir>
 #include <QFile>
@@ -45,6 +46,7 @@ private slots:
     void testMathExportPngModeArtifacts();
     void testPlainTextStructuralPrefixes();
     void testWriteHtmlFile();
+    void testShortTextWritePreservesExistingExport();
     void testWritePdfNonEmpty();
     void testExportCollectionPerNote();
     void testExportCollectionSingleFile();
@@ -415,6 +417,27 @@ void TestDocumentExporter::testWriteHtmlFile()
     QVERIFY(f.open(QIODevice::ReadOnly));
     const QString content = QString::fromUtf8(f.readAll());
     QVERIFY(content.contains("<h1 id=\"hi\">Hi</h1>"));
+}
+
+void TestDocumentExporter::testShortTextWritePreservesExistingExport()
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath("out.txt");
+    {
+        QFile original(path);
+        QVERIFY(original.open(QIODevice::WriteOnly | QIODevice::Text));
+        QCOMPARE(original.write("original export\n"), qint64(16));
+    }
+    {
+        FaultInjection::FileSizeLimit limit(4096);
+        if (!limit.supported())
+            QSKIP(qPrintable(limit.skipReason()));
+        QVERIFY(!m_exporter.writeMarkdownAs(QString(64 * 1024, 'x'), "T",
+                                            "text", path));
+    }
+    QFile retained(path);
+    QVERIFY(retained.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(retained.readAll(), QByteArray("original export\n"));
 }
 
 void TestDocumentExporter::testWritePdfNonEmpty()

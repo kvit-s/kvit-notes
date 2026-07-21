@@ -45,6 +45,8 @@ qint64 EgressFetcher::maxBytesFor(Purpose purpose)
         return 512 * 1024;        // OpenGraph tags live in the <head>
     case Purpose::RemoteImage:
         return 8 * 1024 * 1024;   // a preview thumbnail or an inline image
+    case Purpose::RemoteMedia:
+        return 64 * 1024 * 1024;  // a bounded file handed to QtMultimedia
     case Purpose::UpdateCheck:
         return 256 * 1024;        // one release object
     }
@@ -53,6 +55,8 @@ qint64 EgressFetcher::maxBytesFor(Purpose purpose)
 
 int EgressFetcher::timeoutMsFor(Purpose purpose)
 {
+    if (purpose == Purpose::RemoteMedia)
+        return 30000;
     return purpose == Purpose::RemoteImage ? 15000 : 8000;
 }
 
@@ -63,6 +67,10 @@ QStringList EgressFetcher::acceptedTypesFor(Purpose purpose)
         return {QStringLiteral("text/html"), QStringLiteral("application/xhtml+xml")};
     case Purpose::RemoteImage:
         return {QStringLiteral("image/")};
+    case Purpose::RemoteMedia:
+        return {QStringLiteral("audio/"), QStringLiteral("video/"),
+                QStringLiteral("application/ogg"),
+                QStringLiteral("application/octet-stream")};
     case Purpose::UpdateCheck:
         return {QStringLiteral("application/json"), QStringLiteral("text/json"),
                 QStringLiteral("application/vnd.github")};

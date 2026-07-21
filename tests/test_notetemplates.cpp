@@ -4,6 +4,7 @@
 #include <QtTest/QtTest>
 #include "notetemplates.h"
 #include "notecollection.h"
+#include "faultinjection.h"
 
 #include <QTemporaryDir>
 #include <QDir>
@@ -34,6 +35,7 @@ private slots:
 
     void testDistinctNamesDoNotShareOneFile();
     void testDeleteDoesNotRemoveAliasedTemplate();
+    void testShortWritePreservesExistingTemplate();
 
 private:
     QTemporaryDir *m_dir = nullptr;
@@ -177,6 +179,18 @@ void TestNoteTemplates::testDeleteDoesNotRemoveAliasedTemplate()
     // "Note:s" sanitizes to "Notes"; deleting it must not delete "Notes".
     m_templates->deleteTemplate("Note:s");
     QCOMPARE(m_templates->readTemplate("Notes"), QString("kept"));
+}
+
+void TestNoteTemplates::testShortWritePreservesExistingTemplate()
+{
+    QVERIFY(m_templates->writeTemplate("Quota", "original template"));
+    {
+        FaultInjection::FileSizeLimit limit(4096);
+        if (!limit.supported())
+            QSKIP(qPrintable(limit.skipReason()));
+        QVERIFY(!m_templates->writeTemplate("Quota", QString(64 * 1024, 'x')));
+    }
+    QCOMPARE(m_templates->readTemplate("Quota"), QString("original template"));
 }
 
 QTEST_MAIN(TestNoteTemplates)

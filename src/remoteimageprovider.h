@@ -5,6 +5,7 @@
 #define REMOTEIMAGEPROVIDER_H
 
 #include <QQuickAsyncImageProvider>
+#include <QImage>
 #include <QString>
 
 class EgressFetcher;
@@ -27,10 +28,19 @@ class EgressFetcher;
 class RemoteImageProvider : public QQuickAsyncImageProvider
 {
 public:
+    static constexpr int MaxDimension = 8192;
+    static constexpr qint64 MaxDecodedPixels = 32LL * 1024 * 1024;
+
     explicit RemoteImageProvider(EgressFetcher *fetcher);
 
     QQuickImageResponse *requestImageResponse(const QString &id,
                                               const QSize &requestedSize) override;
+
+    // Header-first decoder shared with regression tests. It refuses images
+    // whose decoded dimensions exceed the allocation budget before read()
+    // asks a plugin to allocate their pixel buffer.
+    static QImage decodeForDisplay(const QByteArray &body,
+                                   const QSize &requestedSize = QSize());
 
 private:
     EgressFetcher *m_fetcher;

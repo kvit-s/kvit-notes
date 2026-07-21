@@ -4936,8 +4936,8 @@ Item {
         function resetFindBar() {
             var bar = appLoader.item.findBar
             bar.visible = false
-            documentSearch.active = false
-            documentSearch.clearDomain()
+            DocumentSearch.active = false
+            DocumentSearch.clearDomain()
             bar.queryField.text = ""
             bar.replaceField.text = ""
             findChild(bar, "findCaseButton").checked = false
@@ -9535,6 +9535,94 @@ Item {
             }, 2000, "clicking a result opens that note")
 
             closeTestCollection()
+        }
+
+        // Review-v2 regression coverage: document replacement, save, export,
+        // and shutdown all call the same pending-edit barrier. Exercise that
+        // signal against editors whose newest value otherwise lives only in
+        // QML, then exercise the ListView pooling boundary separately.
+        function test_zzzz1_pendingEditorsFlushIntoTheModel() {
+            DocumentManager.newDocument()
+            BlockModel.convertBlock(0, Block.CodeBlock,
+                                    "from: .", false, "query")
+            wait(200)
+            var querySource = findChild(findBlockDelegate(0), "querySourceArea")
+            verify(querySource !== null, "query source editor exists")
+            querySource.text = "from: .\nwhere: status = active"
+            verify(BlockModel.getContent(0) !== querySource.text,
+                   "the fixture must still own a QML-only edit")
+            DocumentManager.flushPendingEdits()
+            compare(BlockModel.getContent(0), querySource.text,
+                    "the document barrier commits query source")
+
+            BlockModel.convertBlock(0, Block.Callout, "body", false,
+                                    "warning", "Old title")
+            wait(200)
+            var title = findChild(findBlockDelegate(0), "calloutTitleField")
+            verify(title !== null, "callout title editor exists")
+            title.text = "Newest title"
+            compare(BlockModel.blockAt(0).calloutTitle, "Old title")
+            DocumentManager.flushPendingEdits()
+            compare(BlockModel.blockAt(0).calloutTitle, "Newest title",
+                    "the document barrier commits the callout title")
+        }
+
+        function test_zzzz2_poolingCommitsBeforeDelegateReuse() {
+            DocumentManager.newDocument()
+            BlockModel.convertBlock(0, Block.CodeBlock,
+                                    "from: .", false, "query")
+            for (var i = 1; i < 80; ++i)
+                BlockModel.insertBlock(i, Block.Paragraph,
+                                       "filler block " + i)
+            wait(250)
+
+            var list = findChild(appLoader.item, "blockListView")
+            list.positionViewAtBeginning()
+            wait(100)
+            var querySource = findChild(findBlockDelegate(0), "querySourceArea")
+            verify(querySource !== null, "query source editor exists")
+            var pending = "from: .\ncolumns: title, status"
+            querySource.text = pending
+            verify(BlockModel.getContent(0) !== pending)
+
+            // ListView keeps its current item instantiated even when it is
+            // far outside the viewport, so move currentIndex as well as the
+            // viewport to force row zero through the pool.
+            list.currentIndex = BlockModel.count - 1
+            list.positionViewAtEnd()
+            tryVerify(function() {
+                return BlockModel.getContent(0) === pending
+            }, 2000, "pooling commits before the delegate can be reused")
+        }
+
+        function test_zzzz3_platformLiteralShortcuts() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            var textArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(textArea)
+            resetFindBar()
+
+            if (Qt.platform.os === "osx")
+                keyClick(Qt.Key_F, Qt.MetaModifier | Qt.AltModifier)
+            else
+                keyClick(Qt.Key_H, Qt.ControlModifier)
+            tryCompare(appLoader.item.findBar, "visible", true, 1000)
+            verify(findChild(appLoader.item.findBar, "replaceField").visible,
+                   "the platform Find & Replace chord opens replace mode")
+            resetFindBar()
+
+            appLoader.item.focusMode = false
+            ensureFocus(textArea)
+            if (Qt.platform.os === "osx")
+                keyClick(Qt.Key_F, Qt.MetaModifier | Qt.ControlModifier)
+            else
+                keyClick(Qt.Key_F11)
+            tryCompare(appLoader.item, "focusMode", true, 1000)
+            appLoader.item.focusMode = false
+            appLoader.item.visibility = Window.Windowed
         }
     }
 }

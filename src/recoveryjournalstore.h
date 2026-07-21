@@ -43,6 +43,11 @@ public:
     void resolve(const QString &relPath);
     void clear();
 
+    // Persisted journal names are untrusted vault content. Only canonical,
+    // relative note paths without dot segments can enter the pending list or
+    // be translated back into a journal path.
+    static bool isValidRelativeNotePath(const QString &relPath);
+
 private:
     QString m_rootPath;
     QStringList m_pending; // relPaths with startup journals

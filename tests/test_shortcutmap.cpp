@@ -61,11 +61,19 @@ void TestShortcutMap::everySpecShortcutPresentWithChord_data()
     QTest::newRow("Undo") << "Undo" << "Ctrl+Z";
     QTest::newRow("Redo") << "Redo" << "Ctrl+Y";
     QTest::newRow("Find") << "Find" << "Ctrl+F";
+#ifdef Q_OS_MACOS
+    QTest::newRow("Find & Replace") << "Find & Replace" << "Meta+Alt+F";
+#else
     QTest::newRow("Find & Replace") << "Find & Replace" << "Ctrl+H";
+#endif
     QTest::newRow("Select All") << "Select All" << "Ctrl+A";
     QTest::newRow("New Note") << "New Note" << "Ctrl+N";
     QTest::newRow("Toggle Sidebar") << "Toggle Sidebar" << "Ctrl+\\";
+#ifdef Q_OS_MACOS
+    QTest::newRow("Distraction-free") << "Distraction-free" << "Meta+Ctrl+F";
+#else
     QTest::newRow("Distraction-free") << "Distraction-free" << "F11";
+#endif
 }
 
 void TestShortcutMap::everySpecShortcutPresentWithChord()

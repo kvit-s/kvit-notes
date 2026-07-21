@@ -104,6 +104,7 @@ void AppContext::wire()
                  "trigram tokenizer. Packaged builds must ship it.");
     }
     m_noteCollection.setSearchIndex(&m_searchIndex);
+    m_noteCollection.setDocumentManager(&m_documentManager);
     m_folderTreeModel.setCollection(&m_noteCollection);
     m_noteListModel.setCollection(&m_noteCollection);
     m_collectionSearch.setSearchIndex(&m_searchIndex);
@@ -117,6 +118,7 @@ void AppContext::wire()
     // policy. Embed previews, the images those previews name, remote images
     // and media in a note, and the update check all pass through here.
     m_egressFetcher->setPolicy(&m_egressPolicy);
+    m_remoteMediaCache.setFetcher(m_egressFetcher.get());
     // Embed preview cards (features.md §1.2.14). The card is inert until the
     // reader approves the origin, so a note cannot fetch by being opened.
     m_embedMetadata.setFetcher(m_egressFetcher.get());
@@ -158,6 +160,21 @@ void AppContext::wire()
             &m_fileWatcher, [this](const QString &path) {
                 m_fileWatcher.noteOwnWrite(path);
             });
+    connect(&m_documentManager, &DocumentManager::aboutToSave,
+            &m_noteCollection, [this](const QString &path) {
+                if (!m_noteCollection.relativePath(path).isEmpty())
+                    m_noteCollection.backupBeforeOverwrite(path);
+            });
+    connect(&m_documentManager, &DocumentManager::saveSucceededWithText,
+            &m_noteCollection,
+            [this](const QString &path, const QString &fileText) {
+                if (!m_noteCollection.relativePath(path).isEmpty())
+                    m_noteCollection.noteSaved(path, fileText);
+            });
+    connect(&m_noteCollection, &NoteCollection::aboutToWrite,
+            &m_fileWatcher, [this](const QString &path) {
+                m_fileWatcher.noteOwnWrite(path);
+            });
     connect(&m_noteCollection, &NoteCollection::rootChanged,
             &m_fileWatcher, [this]() {
                 m_fileWatcher.watchRoot(m_noteCollection.rootPath());
@@ -175,6 +192,17 @@ void AppContext::wire()
             &m_fileWatcher, [this](const QString &path) {
                 if (path == m_documentManager.currentFilePath())
                     m_fileWatcher.rewatchCurrentFile();
+            });
+    // Collection metadata is reflected into the live document session in
+    // C++, alongside the exclusive open-note writer. QML no longer orders
+    // repository revisions and document snapshots itself.
+    connect(&m_noteCollection, &NoteCollection::revisionChanged,
+            &m_documentManager, [this]() {
+                const QString relPath = m_noteCollection.relativePath(
+                    m_documentManager.currentFilePath());
+                if (!relPath.isEmpty())
+                    m_documentManager.setFrontMatter(
+                        m_noteCollection.frontMatterFor(relPath));
             });
 
     // Wiki-link navigation: back/forward history and the quick switcher's
@@ -317,6 +345,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_collectionSearch);
     m_services.add(&m_noteTemplates);
     m_services.add(&m_egressPolicy);
+    m_services.add(&m_remoteMediaCache);
     m_services.add(&m_typography);
     m_services.add(&m_imageAssets);
     m_services.add(&m_blockAttributes);

@@ -105,8 +105,17 @@ BlockDelegateBase {
 
     implicitHeight: contentColumn.implicitHeight + 16
 
-    ListView.onPooled: { isPooled = true; opacity = 0 }
-    ListView.onReused: { isPooled = false; opacity = 1 }
+    ListView.onPooled: {
+        sourceArea.commitPendingSource()
+        refreshTimer.stop()
+        isPooled = true
+        opacity = 0
+    }
+    ListView.onReused: {
+        isPooled = false
+        opacity = 1
+        sourceArea.text = Qt.binding(function() { return root.content })
+    }
 
     function focusAtStart() { sourceArea.forceActiveFocus(); sourceArea.cursorPosition = 0 }
     function focusAtEnd() { sourceArea.forceActiveFocus(); sourceArea.cursorPosition = sourceArea.length }

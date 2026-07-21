@@ -57,6 +57,7 @@ public:
     enum class Purpose {
         EmbedPreview,
         RemoteImage,
+        RemoteMedia,
         UpdateCheck,
     };
 

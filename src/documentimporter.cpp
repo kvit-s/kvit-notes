@@ -65,7 +65,7 @@ QString DocumentImporter::uniqueRelPath(const QString &folder,
 bool DocumentImporter::copyInto(const QString &sourcePath,
                                 const QString &targetRelPath)
 {
-    if (!m_collection)
+    if (!m_collection || !m_collection->ensureWithinRoot(targetRelPath))
         return false;
     QFile in(sourcePath);
     if (!in.open(QIODevice::ReadOnly))
@@ -171,8 +171,11 @@ int DocumentImporter::importFiles(const QStringList &paths,
         });
     if (!m_collection || !m_collection->isOpen())
         return 0;
-    if (!targetFolder.isEmpty())
-        QDir().mkpath(m_collection->absolutePath(targetFolder));
+    if (!m_collection->ensureWithinRoot(targetFolder))
+        return 0;
+    if (!targetFolder.isEmpty()
+        && !QDir().mkpath(m_collection->absolutePath(targetFolder)))
+        return 0;
     int imported = 0;
     for (const QString &p : paths) {
         if (!isImportable(p))
@@ -199,6 +202,8 @@ int DocumentImporter::importFolder(const QString &dirPath,
         });
     if (!m_collection || !m_collection->isOpen())
         return 0;
+    if (!m_collection->ensureWithinRoot(targetFolder))
+        return 0;
     const auto entries = importableFilesUnder(dirPath);
     perf.addContext(QStringLiteral("paths"), entries.size());
     int imported = 0;
@@ -211,8 +216,11 @@ int DocumentImporter::importFolder(const QString &dirPath,
             folder = targetFolder;
         else
             folder = targetFolder + QLatin1Char('/') + e.second;
-        if (!folder.isEmpty())
-            QDir().mkpath(m_collection->absolutePath(folder));
+        if (!m_collection->ensureWithinRoot(folder))
+            continue;
+        if (!folder.isEmpty()
+            && !QDir().mkpath(m_collection->absolutePath(folder)))
+            continue;
         const QString base = QFileInfo(e.first).completeBaseName();
         const QString rel = uniqueRelPath(folder, base);
         if (copyInto(e.first, rel))

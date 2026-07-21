@@ -150,6 +150,7 @@ BlockDelegateBase {
     implicitHeight: contentColumn.implicitHeight + 16
 
     ListView.onPooled: {
+        captionField.commitPendingCaption()
         isPooled = true
         focusTarget.focus = false
         opacity = 0
@@ -158,6 +159,7 @@ BlockDelegateBase {
     ListView.onReused: {
         isPooled = false
         opacity = 1
+        captionField.text = Qt.binding(function() { return delegate.img.caption })
         // A drag interrupted by scrolling must not follow the delegate to
         // whatever block reuses it.
         previewWidth = 0

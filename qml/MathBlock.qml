@@ -138,7 +138,13 @@ BlockDelegateBase {
 
     implicitHeight: contentColumn.implicitHeight + 16
 
-    ListView.onPooled: { isPooled = true; opacity = 0 }
+    ListView.onPooled: {
+        if (debounce.running)
+            root.commitPendingSource()
+        debounce.stop()
+        isPooled = true
+        opacity = 0
+    }
     ListView.onReused: {
         isPooled = false
         opacity = 1

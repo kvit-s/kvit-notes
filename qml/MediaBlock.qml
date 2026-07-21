@@ -47,25 +47,36 @@ BlockDelegateBase {
     readonly property string resolvedSource:
         ImageAssets.resolve(media.path, noteDir,
                             NoteCollection.isOpen ? NoteCollection.rootPath : "")
-    // Remote media needs the reader's approval before the player is given a
-    // URL, for the same reason images do: opening a note must not contact the
-    // hosts it names.
-    //
-    // Consent is where the enforcement stops for media. Playback streams
-    // through QtMultimedia's own network stack, so once an origin is approved
-    // the address validation and byte caps EgressFetcher applies elsewhere do
-    // not cover the media stream. Routing a seekable stream through the
-    // fetcher would mean buffering whole files, so the gate is the approval;
-    // devel.md records the gap.
+    // QtMultimedia never receives an http(s) URL. Approved media is fetched
+    // through the guarded transport and played from a bounded temporary file.
     readonly property bool isRemote: /^https?:\/\//i.test(root.resolvedSource)
     readonly property string playbackSource: {
-        var r = EgressPolicy.revision
+        var policyRevision = EgressPolicy.revision
+        var cacheRevision = RemoteMediaCache.revision
         if (!root.isRemote)
             return root.resolvedSource
-        return EgressPolicy.isAllowed(root.resolvedSource) ? root.resolvedSource : ""
+        if (!EgressPolicy.isAllowed(root.resolvedSource))
+            return ""
+        return RemoteMediaCache.sourceFor(root.resolvedSource)
     }
     readonly property bool awaitingConsent:
-        root.resolvedSource !== "" && root.playbackSource === ""
+        root.isRemote && !EgressPolicy.isAllowed(root.resolvedSource)
+    readonly property bool downloadFailed:
+        root.isRemote && RemoteMediaCache.failedFor(root.resolvedSource)
+    readonly property bool awaitingDownload:
+        root.isRemote && !root.awaitingConsent && !root.downloadFailed
+        && root.playbackSource === ""
+
+    function requestRemoteMedia() {
+        if (root.isRemote && EgressPolicy.isAllowed(root.resolvedSource))
+            RemoteMediaCache.request(root.resolvedSource)
+    }
+    Component.onCompleted: requestRemoteMedia()
+    onResolvedSourceChanged: requestRemoteMedia()
+    Connections {
+        target: EgressPolicy
+        function onRevisionChanged() { root.requestRemoteMedia() }
+    }
 
     readonly property string extension: {
         var p = media.path
@@ -81,7 +92,8 @@ BlockDelegateBase {
     // three show the fallback card rather than a dead control bar; the card
     // itself distinguishes the consent case.
     readonly property bool hasError:
-        resolvedSource === "" || awaitingConsent
+        resolvedSource === "" || awaitingConsent || awaitingDownload
+        || downloadFailed
         || player.error !== MediaPlayer.NoError
     readonly property int maxWidth: Math.max(120, root.width - 96)
     readonly property int videoWidth:
@@ -265,8 +277,10 @@ BlockDelegateBase {
                     color: Theme.textMuted; font.pixelSize: 11; elide: Text.ElideMiddle
                 }
                 Text {
-                    visible: !root.awaitingConsent
-                    text: root.resolvedSource === ""
+                    visible: !root.awaitingConsent && !root.awaitingDownload
+                    text: root.downloadFailed
+                          ? qsTr("Remote media download failed")
+                          : root.resolvedSource === ""
                           ? qsTr("File not found")
                           : qsTr("Cannot play this file: ") + player.errorString
                     color: Theme.danger; font.pixelSize: 11
@@ -297,7 +311,10 @@ BlockDelegateBase {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: EgressPolicy.allowOrigin(root.resolvedSource)
+                            onClicked: {
+                                EgressPolicy.allowOrigin(root.resolvedSource)
+                                root.requestRemoteMedia()
+                            }
                         }
                     }
                     Text {
@@ -318,7 +335,7 @@ BlockDelegateBase {
             }
 
             // ---- Audio label ----
-            Row {
+                Row {
                 width: parent.width
                 spacing: 8
                 visible: root.isAudio && !root.hasError
@@ -411,9 +428,14 @@ BlockDelegateBase {
                     width: 60
                     from: 0; to: 1; value: audioOut.volume
                     onMoved: audioOut.volume = value
+                    }
+                }
+                Text {
+                    visible: root.awaitingDownload
+                    text: qsTr("Loading remote media…")
+                    color: Theme.textMuted; font.pixelSize: 11
                 }
             }
-        }
     }
 
     MouseArea {

@@ -48,6 +48,7 @@ BlockDelegateBase {
 
     property int blockIndex: index
     property bool isPooled: false
+    signal commitCalloutTitleRequested()
 
     // ---- Extension points for per-type delegates ----
     // Chrome rendered between the focus indicator and the text (bullet,
@@ -689,6 +690,7 @@ BlockDelegateBase {
     // both sides of the pool boundary instead of relying on transition
     // completion.
     ListView.onPooled: {
+        delegate.commitCalloutTitleRequested()
         isPooled = true
         textArea.focus = false
         opacity = 0
@@ -1743,9 +1745,24 @@ BlockDelegateBase {
                             font.bold: true
                             background: null
                             padding: 0
-                            onEditingFinished: {
+                            function commitPendingTitle() {
                                 if (text !== delegate.calloutTitle)
                                     delegate.setCalloutTitleText(text)
+                            }
+                            Connections {
+                                target: DocumentManager
+                                function onPendingEditsRequested() {
+                                    calloutTitleField.commitPendingTitle()
+                                }
+                            }
+                            Connections {
+                                target: delegate
+                                function onCommitCalloutTitleRequested() {
+                                    calloutTitleField.commitPendingTitle()
+                                }
+                            }
+                            onEditingFinished: {
+                                calloutTitleField.commitPendingTitle()
                             }
                         }
                         Rectangle {

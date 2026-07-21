@@ -75,24 +75,20 @@ Three rules are easy to break without noticing, which is the main ongoing cost:
   `EgressPolicy::setLoopbackAllowedForTests()` is the only way, and it is
   deliberately neither `Q_INVOKABLE` nor backed by a setting.
 
-### Where mediation stops
-
-One gap is known, deliberate, and worth stating plainly rather than leaving for
-a reader to discover. Remote media is gated but not proxied. `MediaBlock.qml`
-withholds the URL from `MediaPlayer` until the origin is approved, but playback
-then streams through QtMultimedia's own stack, so the address validation and the
-byte cap do not cover the media stream itself. Routing a seekable stream through
-the fetcher would mean buffering whole files.
-
-Consent is therefore the only control on that path, where everything else has
-consent plus validation. The project weighed buffering whole media files against
-narrowing the guarantee for this one case and accepted the narrower guarantee.
+Remote media follows the same boundary. `MediaBlock.qml` never hands an http(s)
+URL to `MediaPlayer`; `RemoteMediaCache` downloads approved media through
+`EgressFetcher` with per-hop validation, a 64 MiB cap, a 30-second timeout, and
+media content-type checks. QtMultimedia receives only the resulting temporary
+local file URL, and the cache removes the file when the application composition
+is destroyed. This buffers a bounded file, but preserves the decision that no
+document-controlled URL reaches a second networking stack.
 
 ## Evidence in the tree
 
 - `src/egresspolicy.h`, `src/egresspolicy.cpp`: the decision object, consent model, address classification
 - `src/egressfetcher.h`, `src/egressfetcher.cpp`: the sole network access manager, DNS pinning, redirect re-checks, caps
+- `src/remotemediacache.h`, `src/remotemediacache.cpp`: bounded media download and local-only playback handoff
 - `src/updatechecker.h`: the disclosed opt-out update check
-- `devel.md`, "Network egress goes through one policy": the working rules and the media gap
+- `devel.md`, "Network egress goes through one policy": the working rules
 - `README.md`, "Privacy": the user-facing statement of the same behavior
 - `tests/test_egresspolicy.cpp`: drives a loopback `QTcpServer` rather than the real internet, covering refusals, redirect re-checks and the streaming cap

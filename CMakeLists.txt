@@ -197,6 +197,7 @@ add_library(kvit-core STATIC
     src/documentimporter.cpp
     src/egressfetcher.cpp
     src/egresspolicy.cpp
+    src/remotemediacache.cpp
     src/embedmetadata.cpp
     src/remoteimageprovider.cpp
     src/notetemplates.cpp

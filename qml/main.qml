@@ -509,6 +509,7 @@ KvitShell {
         var abs = NoteCollection.absolutePath(relPath)
         if (DocumentManager.currentFilePath === abs)
             return true
+        DocumentManager.flushPendingEdits()
         // The departing note's scroll position, captured before the
         // switch so back/forward return the reader to it (§3.3). A
         // history-driven reopen is a no-op inside visit().
@@ -630,6 +631,7 @@ KvitShell {
             finishRenamePlan(false)
     }
     function executeRenamePlan(planId, updateLinks) {
+        DocumentManager.flushPendingEdits()
         var openRelPath = root.currentNoteRelPath
         var openBody = openRelPath !== ""
             ? DocumentSerializer.serialize(BlockModel) : ""
@@ -770,6 +772,7 @@ KvitShell {
     function saveCurrentNoteAsTemplate(name) {
         if (!collectionOpen || currentNoteRelPath === "")
             return false
+        DocumentManager.flushPendingEdits()
         // The on-disk note text (front-matter + serialized body) is the
         // template; save first so the file reflects the current buffer.
         if (DocumentManager.isDirty)
@@ -889,8 +892,8 @@ KvitShell {
     Shortcut {
         // Explicit, not StandardKey.Replace: the platform theme maps
         // that to Ctrl+R or nothing on some Linux desktops, and §7.2
-        // names Ctrl+H.
-        sequence: "Ctrl+H"
+        // names Ctrl+H on Windows/Linux and Cmd+Option+F on macOS.
+        sequence: Qt.platform.os === "osx" ? "Meta+Alt+F" : "Ctrl+H"
         context: Qt.ApplicationShortcut
         onActivated: findBar.open(true)
     }
@@ -1706,6 +1709,7 @@ KvitShell {
     Shortcut {
         sequences: [StandardKey.Open]  // Ctrl+O
         onActivated: {
+            DocumentManager.flushPendingEdits()
             if (DocumentManager.isDirty) {
                 unsavedChangesBeforeOpenDialog.open()
             } else if (root.collectionOpen) {
@@ -1795,6 +1799,7 @@ KvitShell {
     Shortcut {
         sequences: [StandardKey.New]  // Ctrl+N — New Note (§13.4)
         onActivated: {
+            DocumentManager.flushPendingEdits()
             if (root.collectionOpen) {
                 root.createNoteInCurrentScope()
             } else if (DocumentManager.isDirty) {
@@ -1836,10 +1841,11 @@ KvitShell {
         onActivated: root.backlinksVisible = !root.backlinksVisible
     }
 
-    // Focus mode (§16.1): F11 toggles; Escape exits when active (a single-key
+    // Focus mode (§16.1): F11 toggles on Windows/Linux; Cmd+Ctrl+F does so on
+    // macOS. Escape exits when active (a single-key
     // exit, as the plan requires). Typewriter mode has no default shortcut.
     Shortcut {
-        sequence: "F11"
+        sequence: Qt.platform.os === "osx" ? "Meta+Ctrl+F" : "F11"
         context: Qt.ApplicationShortcut
         onActivated: root.focusMode = !root.focusMode
     }
@@ -1884,6 +1890,7 @@ KvitShell {
         function onNoteChangedExternally(absPath) {
             if (absPath !== DocumentManager.currentFilePath)
                 return   // not the open note — the tree re-scan handles the rest
+            DocumentManager.flushPendingEdits()
             if (DocumentManager.isDirty) {
                 root.conflictPath = absPath
                 root.externalConflict = true
@@ -3078,32 +3085,11 @@ KvitShell {
         standardButtons: Dialog.Ok
     }
 
-    // Handle save/open results
+    // Handle user-facing save/open results. Repository indexing, backup
+    // rotation, watcher guards, and metadata synchronization are wired by the
+    // C++ application composition rather than ordered here.
     Connections {
         target: DocumentManager
-
-        function onSaveSucceeded(filePath) {
-            // Keep the collection index (mtime, word count, snippet)
-            // current with what just hit the disk.
-            if (root.collectionOpen) {
-                var rel = NoteCollection.relativePath(filePath)
-                if (rel !== "" && rel === root.currentNoteRelPath) {
-                    var fm = NoteCollection.frontMatterFor(root.currentNoteRelPath)
-                    NoteCollection.noteSaved(filePath,
-                                             (fm ? fm : "")
-                                             + DocumentSerializer.serialize(BlockModel))
-                } else {
-                    NoteCollection.noteSaved(filePath)
-                }
-            }
-        }
-
-        function onAboutToSave(filePath) {
-            // Backup rotation: copy the pre-save file when
-            // the newest backup is older than the floor.
-            if (root.collectionOpen)
-                NoteCollection.backupBeforeOverwrite(filePath)
-        }
 
         function onSaveFailed(error) {
             errorDialog.errorMessage = "Failed to save: " + error
@@ -3129,6 +3115,8 @@ KvitShell {
 
     // Auto-save when window loses focus
     onActiveChanged: {
+        if (!active && DocumentManager)
+            DocumentManager.flushPendingEdits()
         if (!active && DocumentManager && DocumentManager.isDirty && DocumentManager.hasFile) {
             DocumentManager.saveAsync()
         }
@@ -3137,7 +3125,10 @@ KvitShell {
     // Orderly shutdown saves (features.md §12.2). Crash recovery relies
     // on this — the recovery journal only survives real crashes.
     onClosing: function(close) {
-        if (!DocumentManager || !DocumentManager.isDirty)
+        if (!DocumentManager)
+            return
+        DocumentManager.flushPendingEdits()
+        if (!DocumentManager.isDirty)
             return
 
         if (DocumentManager.hasFile) {
@@ -3168,34 +3159,18 @@ KvitShell {
         }
     }
 
-    // Collection wiring: saves refresh the index; renames rebind the
-    // open document; deleting the open note moves on without
-    // resurrecting the trashed file.
+    // Collection UI notifications. Open-note rebind/detach and metadata
+    // persistence happen inside the C++ session/repository transaction.
     Connections {
         target: NoteCollection
         enabled: root.collectionOpen
 
-        function onNoteMoved(oldRelPath, newRelPath) {
-            if (DocumentManager.currentFilePath
-                    === NoteCollection.absolutePath(oldRelPath))
-                DocumentManager.rebindFilePath(
-                    NoteCollection.absolutePath(newRelPath))
-        }
-        function onNoteRemoved(relPath) {
-            if (DocumentManager.currentFilePath
-                    === NoteCollection.absolutePath(relPath)) {
-                // Drop the dead file binding first: a save (auto-save,
-                // switch) must never rewrite the trashed path. The
-                // fallback note is chosen LATER: this signal precedes the
-                // revision bump, so the list model still contains the
-                // removed note at this instant.
-                DocumentManager.newDocument()
-                Qt.callLater(function() {
-                    var next = NoteListModel.relPathAt(0)
-                    if (next !== "")
-                        root.openNoteByPath(next)
-                })
-            }
+        function onOpenNoteRemoved(relPath) {
+            Qt.callLater(function() {
+                var next = NoteListModel.relPathAt(0)
+                if (next !== "")
+                    root.openNoteByPath(next)
+            })
         }
         function onOperationFailed(message) {
             errorDialog.errorMessage = message
@@ -3222,15 +3197,6 @@ KvitShell {
                     .arg(linkCount === 1 ? qsTr("link") : qsTr("links"))
                     .arg(noteCount)
                     .arg(noteCount === 1 ? qsTr("note") : qsTr("notes")))
-        }
-        function onRevisionChanged() {
-            // Metadata is owned by the collection: any change
-            // refreshes the open document's held front-matter, so the next
-            // save writes the canonical current block instead of the one
-            // captured at load.
-            if (root.currentNoteRelPath !== "")
-                DocumentManager.setFrontMatter(
-                    NoteCollection.frontMatterFor(root.currentNoteRelPath))
         }
     }
 

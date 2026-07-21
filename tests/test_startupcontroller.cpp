@@ -23,6 +23,7 @@ class TestStartupController : public QObject
 private slots:
     void deferredStartOpensLastNoteAsynchronously();
     void freshVaultFinishesOnlyAfterWelcomeNoteOpens();
+    void traversalLastOpenNoteIsIgnored();
 };
 
 namespace {
@@ -79,7 +80,10 @@ void TestStartupController::deferredStartOpensLastNoteAsynchronously()
     QVERIFY(controller.started());
     QVERIFY(!controller.finished());
     QVERIFY(collection.isOpen());
-    QCOMPARE(collection.noteCount(), 0);
+    // The persisted last-open path is validated and published as one indexed
+    // placeholder before it is opened; the rest of the vault remains on the
+    // background listing path.
+    QCOMPARE(collection.noteCount(), 1);
     QCOMPARE(collection.lastOpenNote(), QStringLiteral("B.md"));
     QVERIFY(documentManager.openInProgress());
     QCOMPARE(parsed.size(), 0);
@@ -145,6 +149,45 @@ void TestStartupController::freshVaultFinishesOnlyAfterWelcomeNoteOpens()
              "startup reported finished while the welcome note was still opening");
     QVERIFY2(blocksAtFinish > 0,
              "startup reported finished before the welcome note had any blocks");
+}
+
+void TestStartupController::traversalLastOpenNoteIsIgnored()
+{
+    QTemporaryDir outer;
+    QVERIFY(outer.isValid());
+    const QString vault = outer.filePath(QStringLiteral("vault"));
+    QVERIFY(QDir().mkpath(QDir(vault).filePath(QStringLiteral(".kvit"))));
+    writeText(QDir(vault).filePath(QStringLiteral("Safe.md")),
+              QStringLiteral("safe note\n"));
+    writeText(outer.filePath(QStringLiteral("outside.md")),
+              QStringLiteral("outside secret\n"));
+
+    QJsonObject state;
+    state.insert(QStringLiteral("lastOpenNote"),
+                 QStringLiteral("../outside.md"));
+    writeText(QDir(vault).filePath(QStringLiteral(".kvit/collection.json")),
+              QString::fromUtf8(QJsonDocument(state).toJson()));
+
+    UndoStack undoStack;
+    BlockModel blockModel;
+    blockModel.setUndoStack(&undoStack);
+    DocumentManager documentManager;
+    documentManager.setBlockModel(&blockModel);
+    documentManager.setUndoStack(&undoStack);
+    NoteCollection collection;
+    StartupController controller;
+    controller.setCollection(&collection);
+    controller.setDocumentManager(&documentManager);
+    controller.setBlockModel(&blockModel);
+    controller.setUndoStack(&undoStack);
+    controller.setRootPath(vault);
+
+    controller.start();
+    QTRY_VERIFY_WITH_TIMEOUT(controller.finished(), 5000);
+    QCOMPARE(documentManager.currentFilePath(),
+             collection.absolutePath(QStringLiteral("Safe.md")));
+    QVERIFY(documentManager.currentFilePath()
+            != outer.filePath(QStringLiteral("outside.md")));
 }
 
 QTEST_MAIN(TestStartupController)

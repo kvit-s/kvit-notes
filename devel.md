@@ -230,16 +230,15 @@ Rules that are easy to break without noticing:
 - **Loopback is blocked, which a hermetic test needs to undo.**
   `EgressPolicy::setLoopbackAllowedForTests()` is the only way, and it is
   deliberately neither `Q_INVOKABLE` nor backed by a setting.
-- **Remote media is gated but not proxied.** `MediaBlock.qml` withholds the
-  URL from `MediaPlayer` until the origin is approved, but playback then
-  streams through QtMultimedia's own stack, so address validation and byte
-  caps do not cover the media stream itself. Routing a seekable stream
-  through the fetcher would mean buffering whole files. Consent is the
-  control there; everything else is fully mediated.
+- **Never give `MediaPlayer` a remote URL.** `MediaBlock.qml` asks
+  `RemoteMediaCache` for approved audio/video. The cache downloads through
+  `EgressFetcher` with DNS/redirect validation, a 64 MiB cap, a 30-second
+  timeout, and media content-type checks, then gives QtMultimedia only a
+  temporary local file URL. The cache lifetime owns and removes that file.
 
 The suite is `tests/test_egresspolicy.cpp` (`EgressPolicyTests`), which
 drives a loopback `QTcpServer` rather than the real internet and covers the
-refusals, the redirect re-checks, and the streaming cap.
+refusals, redirect re-checks, streaming caps, and local-only media handoff.
 
 ## Extensions are first-party code, and that is the decision
 

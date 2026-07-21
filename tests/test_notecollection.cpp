@@ -8,6 +8,10 @@
 #include <QDir>
 
 #include "notecollection.h"
+#include "blockmodel.h"
+#include "documentmanager.h"
+#include "undostack.h"
+#include "appcontext.h"
 #include "timingbudget.h"
 
 #include "faultinjection.h"
@@ -61,6 +65,7 @@ private slots:
     void testMoveNote();
     void testMoveNoteCollision();
     void testDeleteNoteGoesToTrash();
+    void testOpenNotePathMutationsWaitForFinalSaveCommit();
 
     // Folder operations
     void testCreateFolder();
@@ -75,6 +80,8 @@ private slots:
     void testClearingMetadataRemovesBlock();
     void testForeignKeysSurviveMetadataWrite();
     void testFrontMatterFor();
+    void testDirtyOpenNoteMetadataUsesSessionWriter();
+    void testDirtyOpenNoteMetadataUsesProductionWatcherGraph();
 
     // Tags
     void testTagRegistry();
@@ -100,6 +107,7 @@ private slots:
     // Crash recovery
     void testRecoveryLifecycle();
     void testRecoveryRecreatesDeletedFolder();
+    void testHostileRecoveryFilenameCannotEscapeVault();
     void testFailedIndexWriteKeepsIndexDirty();
     void testFailedCollectionWriteIsReported();
     void testRefreshDoesNotIngestLiveJournals();
@@ -826,6 +834,53 @@ void TestNoteCollection::testDeleteNoteGoesToTrash()
              QStringLiteral("---\ntags: [books]\n---\nA **bold** reading list\n"));
 }
 
+void TestNoteCollection::testOpenNotePathMutationsWaitForFinalSaveCommit()
+{
+    makeFixture();
+    UndoStack undo;
+    BlockModel model;
+    model.setUndoStack(&undo);
+    DocumentManager manager;
+    manager.setBlockModel(&model);
+    manager.setUndoStack(&undo);
+    manager.setAutoSaveEnabled(false);
+    manager.setAsyncPreCommitDelayMsForTests(300);
+    m_collection->setDocumentManager(&manager);
+
+    const auto startSaveAtFinalBoundary = [&](const QString &relPath,
+                                               const QString &body) {
+        QVERIFY(manager.open(QUrl::fromLocalFile(abs(relPath))));
+        model.updateContent(0, body);
+        QVERIFY(manager.saveAsync());
+        QTRY_VERIFY_WITH_TIMEOUT(manager.asyncPreCommitReachedForTests(), 5000);
+    };
+
+    startSaveAtFinalBoundary("Ideas/Plans.md", "rename body");
+    QVERIFY(m_collection->renameNote("Ideas/Plans.md", "Renamed"));
+    QCOMPARE(manager.currentFilePath(), abs("Ideas/Renamed.md"));
+    QVERIFY(!QFileInfo::exists(abs("Ideas/Plans.md")));
+    QVERIFY(readNote("Ideas/Renamed.md").contains("rename body"));
+
+    startSaveAtFinalBoundary("Welcome.md", "move body");
+    QVERIFY(m_collection->moveNote("Welcome.md", "Ideas/Projects"));
+    QCOMPARE(manager.currentFilePath(), abs("Ideas/Projects/Welcome.md"));
+    QVERIFY(!QFileInfo::exists(abs("Welcome.md")));
+    QVERIFY(readNote("Ideas/Projects/Welcome.md").contains("move body"));
+
+    startSaveAtFinalBoundary("Ideas/Reading.md", "delete body");
+    QSignalSpy removedOpen(m_collection, &NoteCollection::openNoteRemoved);
+    QVERIFY(m_collection->deleteNote("Ideas/Reading.md"));
+    QCOMPARE(removedOpen.count(), 1);
+    QVERIFY(!manager.hasFile());
+    QVERIFY(!QFileInfo::exists(abs("Ideas/Reading.md")));
+
+    // No worker remains that can recreate any of the retired paths.
+    QTest::qWait(350);
+    QVERIFY(!QFileInfo::exists(abs("Ideas/Plans.md")));
+    QVERIFY(!QFileInfo::exists(abs("Welcome.md")));
+    QVERIFY(!QFileInfo::exists(abs("Ideas/Reading.md")));
+}
+
 // ---------------------------------------------------- folder operations
 
 void TestNoteCollection::testCreateFolder()
@@ -967,6 +1022,76 @@ void TestNoteCollection::testFrontMatterFor()
              QStringLiteral("---\ntags: [work, kvit]\npinned: true\n---\n"));
     QCOMPARE(m_collection->frontMatterFor("Ideas/Plans.md"), QString());
     QCOMPARE(m_collection->frontMatterFor("missing.md"), QString());
+}
+
+void TestNoteCollection::testDirtyOpenNoteMetadataUsesSessionWriter()
+{
+    makeFixture();
+    UndoStack undo;
+    BlockModel model;
+    model.setUndoStack(&undo);
+    DocumentManager manager;
+    manager.setBlockModel(&model);
+    manager.setUndoStack(&undo);
+    manager.setAutoSaveEnabled(false);
+    m_collection->setDocumentManager(&manager);
+
+    const QString relPath = QStringLiteral("Ideas/Plans.md");
+    QVERIFY(manager.open(QUrl::fromLocalFile(abs(relPath))));
+    model.updateContent(0, QStringLiteral("authoritative unsaved body"));
+    QVERIFY(manager.isDirty());
+
+    QSignalSpy sessionWrites(&manager, &DocumentManager::aboutToSave);
+    QSignalSpy repositoryWrites(m_collection, &NoteCollection::aboutToWrite);
+    QVERIFY(m_collection->setTags(relPath, {QStringLiteral("session")}));
+
+    QCOMPARE(sessionWrites.count(), 1);
+    QCOMPARE(repositoryWrites.count(), 0);
+    const QString disk = readNote(relPath);
+    QVERIFY(disk.contains(QStringLiteral("tags: [session]")));
+    QVERIFY(disk.contains(QStringLiteral("authoritative unsaved body")));
+    QVERIFY(!manager.isDirty());
+}
+
+void TestNoteCollection::testDirtyOpenNoteMetadataUsesProductionWatcherGraph()
+{
+    QTemporaryDir vault;
+    QVERIFY(vault.isValid());
+    const QString path = vault.filePath("Open.md");
+    {
+        QFile noteFile(path);
+        QVERIFY(noteFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        QCOMPARE(noteFile.write("saved body\n"), qint64(11));
+    }
+
+    AppContext::Options options;
+    options.showSystemTray = false;
+    options.configureLoggingFromSettings = false;
+    AppContext context(options);
+    QVERIFY(context.noteCollection()->openRoot(vault.path()));
+    QVERIFY(context.documentManager()->open(QUrl::fromLocalFile(path)));
+    context.blockModel()->updateContent(0, "authoritative live body");
+
+    FileWatcher *watcher = context.fileWatcher();
+    watcher->setDebounceMs(0);
+    watcher->setGuardMs(5000);
+    watcher->watchRoot(vault.path());
+    watcher->watchFile(path);
+    QSignalSpy external(watcher, &FileWatcher::noteChangedExternally);
+    QSignalSpy writes(context.documentManager(), &DocumentManager::aboutToSave);
+
+    QVERIFY(context.noteCollection()->setTags("Open.md", {"production"}));
+    QCOMPARE(writes.count(), 1);
+    // Model the filesystem notification produced by that same atomic write.
+    watcher->feedChange(path, true);
+    QTest::qWait(20);
+    QCOMPARE(external.count(), 0);
+
+    QFile saved(path);
+    QVERIFY(saved.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString text = QString::fromUtf8(saved.readAll());
+    QVERIFY(text.contains("tags: [production]"));
+    QVERIFY(text.contains("authoritative live body"));
 }
 
 // ----------------------------------------------------------------- tags
@@ -1308,6 +1433,29 @@ void TestNoteCollection::testRefreshDoesNotIngestLiveJournals()
     }
     m_collection->refresh();
     QCOMPARE(m_collection->recoveryEntries().size(), 0);
+}
+
+void TestNoteCollection::testHostileRecoveryFilenameCannotEscapeVault()
+{
+    const QString vault = m_dir->filePath("vault");
+    const QString victim = m_dir->filePath("victim.md");
+    QVERIFY(QDir().mkpath(QDir(vault).filePath(".kvit/recovery")));
+    writeNote("victim.md", "outside stays untouched\n");
+
+    const QString hostile = QDir(vault).filePath(
+        ".kvit/recovery/..%2Fvictim.md");
+    QFile journal(hostile);
+    QVERIFY(journal.open(QIODevice::WriteOnly | QIODevice::Text));
+    QCOMPARE(journal.write("attacker-controlled recovery\n"), qint64(29));
+    journal.close();
+
+    QVERIFY(m_collection->openRoot(vault));
+    QCOMPARE(m_collection->recoveryEntries().size(), 0);
+    QVERIFY(!m_collection->restoreRecovery("../victim.md"));
+
+    QFile outside(victim);
+    QVERIFY(outside.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(outside.readAll(), QByteArray("outside stays untouched\n"));
 }
 
 // ----------------------------------------------------------- wiki-links
@@ -1720,6 +1868,17 @@ void TestNoteCollection::testFailedCollectionWriteIsReported()
 
     QVERIFY2(failures > 0,
              "a failed collection-state write was not surfaced to the user");
+    QVERIFY(m_collection->collectionFileDirtyForTesting());
+
+    // The next mutation after writability returns retries the whole current
+    // snapshot, including the tag colour that failed above.
+    m_collection->setLastOpenNote("A.md");
+    QVERIFY(!m_collection->collectionFileDirtyForTesting());
+    QFile state(m_dir->filePath(".kvit/collection.json"));
+    QVERIFY(state.open(QIODevice::ReadOnly));
+    const QByteArray json = state.readAll();
+    QVERIFY(json.contains("#ff0000"));
+    QVERIFY(json.contains("A.md"));
 }
 
 QTEST_MAIN(TestNoteCollection)

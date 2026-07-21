@@ -47,6 +47,7 @@
 #include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
+#include "remotemediacache.h"
 #include "settingsstore.h"
 #include "shortcutcatalog.h"
 #include "startupcontroller.h"
@@ -167,6 +168,8 @@ public:
     // to the update checker; nothing else in the tree opens a connection.
     EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }
     EgressPolicy *egressPolicy() { return &m_egressPolicy; }
+    RemoteMediaCache *remoteMediaCache() { return &m_remoteMediaCache; }
+    FileWatcher *fileWatcher() { return &m_fileWatcher; }
 
 private:
     void wire();
@@ -216,6 +219,7 @@ private:
     // beside the fetcher it stands in for and before the cache that borrows
     // whichever of the two is in use.
     std::unique_ptr<EmbedFetcher> m_embedFetcherOverride;
+    RemoteMediaCache m_remoteMediaCache;
     EmbedMetadata m_embedMetadata;
     StartupController m_startupController;
     ImageAssets m_imageAssets;

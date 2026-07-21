@@ -4,6 +4,8 @@
 #include "remoteimageprovider.h"
 
 #include <QImage>
+#include <QBuffer>
+#include <QImageReader>
 #include <QQuickTextureFactory>
 #include <QUrl>
 
@@ -27,7 +29,8 @@ public:
             fetcher->request(QUrl(url), EgressFetcher::Purpose::RemoteImage,
                              [this](bool ok, const QByteArray &body, const QString &) {
                                  if (ok)
-                                     m_image.loadFromData(body);
+                                     m_image = RemoteImageProvider::decodeForDisplay(
+                                         body, m_requestedSize);
                                  finished();
                              });
         }, Qt::QueuedConnection);
@@ -36,10 +39,6 @@ public:
     QQuickTextureFactory *textureFactory() const override
     {
         QImage image = m_image;
-        if (!image.isNull() && m_requestedSize.isValid() && !m_requestedSize.isEmpty()) {
-            image = image.scaled(m_requestedSize, Qt::KeepAspectRatio,
-                                 Qt::SmoothTransformation);
-        }
         return QQuickTextureFactory::textureFactoryForImage(image);
     }
 
@@ -53,6 +52,35 @@ private:
 RemoteImageProvider::RemoteImageProvider(EgressFetcher *fetcher)
     : m_fetcher(fetcher)
 {
+}
+
+QImage RemoteImageProvider::decodeForDisplay(const QByteArray &body,
+                                             const QSize &requestedSize)
+{
+    QBuffer buffer;
+    buffer.setData(body);
+    if (!buffer.open(QIODevice::ReadOnly))
+        return QImage();
+
+    QImageReader reader(&buffer);
+    reader.setDecideFormatFromContent(true);
+    const QSize sourceSize = reader.size();
+    if (!sourceSize.isValid() || sourceSize.isEmpty()
+        || sourceSize.width() > MaxDimension
+        || sourceSize.height() > MaxDimension
+        || qint64(sourceSize.width()) * sourceSize.height()
+            > MaxDecodedPixels) {
+        return QImage();
+    }
+
+    if (requestedSize.isValid() && !requestedSize.isEmpty()) {
+        QSize decodeSize = sourceSize;
+        decodeSize.scale(requestedSize, Qt::KeepAspectRatio);
+        if (decodeSize.width() < sourceSize.width()
+            || decodeSize.height() < sourceSize.height())
+            reader.setScaledSize(decodeSize);
+    }
+    return reader.read();
 }
 
 QQuickImageResponse *RemoteImageProvider::requestImageResponse(

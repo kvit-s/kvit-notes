@@ -41,6 +41,7 @@
 #include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
+#include "remotemediacache.h"
 #include "settingsstore.h"
 #include "shortcutcatalog.h"
 #include "systemtray.h"
@@ -116,6 +117,7 @@
     X(CollectionSearch, CollectionSearch)     \
     X(NoteTemplates, NoteTemplates)           \
     X(EgressPolicy, EgressPolicy)             \
+    X(RemoteMediaCache, RemoteMediaCache)     \
     X(Typography, Typography)                 \
     X(ImageAssets, ImageAssets)               \
     X(BlockAttributes, BlockAttributes)       \

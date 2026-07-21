@@ -32,6 +32,7 @@ private slots:
     void testDryRunFiles();
     void testDryRunFolder();
     void testNonImportableSkipped();
+    void testTraversalAndAbsoluteTargetsAreRejected();
     void testTruncatedWriteIsNotCountedOrLeftBehind();
 
 private:
@@ -167,6 +168,19 @@ void TestDocumentImporter::testNonImportableSkipped()
 {
     const QString png = writeSource("image.png", "notmarkdown");
     QCOMPARE(m_importer->importFiles({png}, QString()), 0);
+}
+
+void TestDocumentImporter::testTraversalAndAbsoluteTargetsAreRejected()
+{
+    const QString src = writeSource("Escape.md", "must stay in the vault");
+    const QString outside = m_root->path() + QStringLiteral("-outside");
+    const QString outsideName = QFileInfo(outside).fileName();
+
+    QCOMPARE(m_importer->importFiles({src}, QStringLiteral("../") + outsideName), 0);
+    QVERIFY(!QFileInfo::exists(outside));
+
+    QCOMPARE(m_importer->importFolder(m_src->path(), outside), 0);
+    QVERIFY(!QFileInfo::exists(QDir(outside).filePath("Escape.md")));
 }
 
 void TestDocumentImporter::testTruncatedWriteIsNotCountedOrLeftBehind()

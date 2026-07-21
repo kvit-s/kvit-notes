@@ -4,6 +4,7 @@
 #include "notecollection.h"
 
 #include "documentserializer.h"
+#include "documentmanager.h"
 #include "block.h"
 #include "collectionsearchindex.h"
 #include "notefileio.h"
@@ -169,6 +170,10 @@ NoteCollection::NoteCollection(QObject *parent)
             this, &NoteCollection::applyAsyncIndexSaveResult);
     connect(&m_asyncRevisionTimer, &QTimer::timeout,
             this, &NoteCollection::flushAsyncIndexUpdates);
+    m_collectionSaveRetryTimer.setSingleShot(true);
+    m_collectionSaveRetryTimer.setInterval(2000);
+    connect(&m_collectionSaveRetryTimer, &QTimer::timeout,
+            this, &NoteCollection::saveCollectionFile);
 }
 
 NoteCollection::~NoteCollection()
@@ -177,12 +182,23 @@ NoteCollection::~NoteCollection()
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
     cancelAsyncIndexSave();
+    if (m_collectionFileDirty && isOpen())
+        saveCollectionFile();
+}
+
+void NoteCollection::setDocumentManager(DocumentManager *manager)
+{
+    m_documentManager = manager;
 }
 
 // --------------------------------------------------------------- root
 
 bool NoteCollection::openRoot(const QString &path)
 {
+    if (m_collectionFileDirty && isOpen())
+        saveCollectionFile();
+    if (m_collectionFileDirty)
+        return false;
     PerfLog::ScopedTimer perf(QStringLiteral("startup.scan"),
                               QVariantMap{{QStringLiteral("path"), path}});
     cancelAsyncScan();
@@ -208,6 +224,10 @@ bool NoteCollection::openRoot(const QString &path)
 
 bool NoteCollection::openRootAsync(const QString &path)
 {
+    if (m_collectionFileDirty && isOpen())
+        saveCollectionFile();
+    if (m_collectionFileDirty)
+        return false;
     cancelAsyncScan();
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
@@ -232,6 +252,10 @@ void NoteCollection::closeRoot()
 {
     if (!isOpen())
         return;
+    if (m_collectionFileDirty)
+        saveCollectionFile();
+    if (m_collectionFileDirty)
+        return;
     cancelAsyncScan();
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
@@ -247,6 +271,8 @@ void NoteCollection::closeRoot()
     m_lastOpenNote.clear();
     m_recoveryJournals.clear();
     m_indexDirty = false;
+    m_collectionFileDirty = false;
+    m_collectionSaveRetryTimer.stop();
     m_searchFeed.close();
     // Released last: nothing above may still be writing when another process
     // is allowed in.
@@ -469,6 +495,7 @@ void NoteCollection::initializeIfEmpty()
         "- Type `/` in an empty block for block types\n"
         "- Press **Ctrl+Shift+F** to search every note\n");
     const QString relPath = QStringLiteral("Welcome.md");
+    emit aboutToWrite(absolutePath(relPath));
     if (writeTextFileAtomic(absolutePath(relPath), welcome)) {
         indexNote(relPath);
         saveIndexFileIfDirty();
@@ -503,11 +530,49 @@ bool NoteCollection::ensureWithinRoot(const QString &relPath)
 {
     if (!isOpen())
         return false;
+    if (relPath.isEmpty())
+        return true;
+    const QString normalized = QString(relPath).replace(QLatin1Char('\\'),
+                                                        QLatin1Char('/'));
+    const QStringList segments = normalized.split(QLatin1Char('/'));
+    if (QDir::isAbsolutePath(relPath)
+        || normalized != relPath
+        || QDir::cleanPath(normalized) != normalized
+        || segments.contains(QStringLiteral("."))
+        || segments.contains(QStringLiteral(".."))
+        || segments.contains(QString())) {
+        emit operationFailed(tr("\"%1\" is not a safe relative path")
+                                 .arg(relPath));
+        return false;
+    }
     if (isWithinCanonicalRoot(m_canonicalRoot, m_rootPath + QLatin1Char('/')
                                                    + relPath))
         return true;
     emit operationFailed(tr("\"%1\" is outside the notes folder").arg(relPath));
     return false;
+}
+
+bool NoteCollection::openDocumentIs(const QString &relPath) const
+{
+    return m_documentManager && !relPath.isEmpty()
+        && QDir::cleanPath(m_documentManager->currentFilePath())
+            == QDir::cleanPath(absolutePath(relPath));
+}
+
+bool NoteCollection::prepareOpenDocumentMutation(const QString &relPath)
+{
+    if (!openDocumentIs(relPath))
+        return true;
+    m_documentManager->flushPendingEdits();
+    m_documentManager->cancelPendingWrites();
+    return true;
+}
+
+void NoteCollection::rebindOpenDocument(const QString &oldRelPath,
+                                        const QString &newRelPath)
+{
+    if (openDocumentIs(oldRelPath))
+        m_documentManager->rebindFilePath(absolutePath(newRelPath));
 }
 
 // --------------------------------------------------------------- scan
@@ -564,7 +629,7 @@ void NoteCollection::scanAsync()
     // Load workspace state now so startup can open a remembered note from
     // disk before the background directory listing has caught up. Folder
     // visual state is applied again after the listing publishes folders.
-    loadCollectionFile();
+    loadCollectionFile(true);
 
     setScanInProgress(true);
     emit scanStarted();
@@ -1859,10 +1924,12 @@ QVariantMap NoteCollection::applyWikiLinkRewrites(
         if (isOpen) {
             rewrittenOpenBody = body;
             openRewriteCount = n;
-        } else if (!writeTextFileAtomic(absolutePath(actual), frontMatter + body)) {
-            failed.append(actual);
-            continue;
         } else {
+            emit aboutToWrite(absolutePath(actual));
+            if (!writeTextFileAtomic(absolutePath(actual), frontMatter + body)) {
+                failed.append(actual);
+                continue;
+            }
             indexNote(actual);
             reindexNoteInSearch(actual);
             ++indexedNoteCount;
@@ -2048,6 +2115,7 @@ QString NoteCollection::createNote(const QString &folder, const QString &title,
         emit operationFailed(tr("A note named \"%1\" already exists").arg(name));
         return QString();
     }
+    emit aboutToWrite(absolutePath(relPath));
     if (!writeTextFileAtomic(absolutePath(relPath), body)) {
         emit operationFailed(tr("Cannot create note \"%1\"").arg(name));
         return QString();
@@ -2306,10 +2374,12 @@ bool NoteCollection::renameNote(const QString &relPath, const QString &newTitle)
         emit operationFailed(tr("A note named \"%1\" already exists").arg(name));
         return false;
     }
+    prepareOpenDocumentMutation(relPath);
     if (!QFile::rename(absolutePath(relPath), absolutePath(newRelPath))) {
         emit operationFailed(tr("Cannot rename \"%1\"").arg(entry->title));
         return false;
     }
+    rebindOpenDocument(relPath, newRelPath);
 
     NoteEntry moved = *entry;
     removeNoteEntry(relPath);
@@ -2360,10 +2430,12 @@ bool NoteCollection::moveNote(const QString &relPath, const QString &targetFolde
             tr("\"%1\" already exists in the target folder").arg(entry->title));
         return false;
     }
+    prepareOpenDocumentMutation(relPath);
     if (!QFile::rename(absolutePath(relPath), absolutePath(newRelPath))) {
         emit operationFailed(tr("Cannot move \"%1\"").arg(entry->title));
         return false;
     }
+    rebindOpenDocument(relPath, newRelPath);
 
     NoteEntry moved = *entry;
     removeNoteEntry(relPath);
@@ -2420,10 +2492,14 @@ bool NoteCollection::deleteNote(const QString &relPath)
         emit operationFailed(tr("No such note: %1").arg(relPath));
         return false;
     }
+    const bool wasOpen = openDocumentIs(relPath);
+    prepareOpenDocumentMutation(relPath);
     if (!moveToTrash(relPath)) {
         emit operationFailed(tr("Cannot delete \"%1\"").arg(entry->title));
         return false;
     }
+    if (wasOpen)
+        m_documentManager->newDocument();
 
     const QString folderPath = entry->folder;
     m_manualOrder[folderPath].removeAll(nameOfRelPath(relPath));
@@ -2436,6 +2512,8 @@ bool NoteCollection::deleteNote(const QString &relPath)
     saveIndexFileIfDirty();
     emit noteRemoved(relPath);
     bump();
+    if (wasOpen)
+        emit openNoteRemoved(relPath);
     dropNoteInSearch(relPath);
     return true;
 }
@@ -2503,6 +2581,7 @@ void NoteCollection::renamePathsUnderFolder(const QString &oldPrefix,
             m_notes.insert(newRelPath, entry);
             if (m_lastOpenNote == key)
                 m_lastOpenNote = newRelPath;
+            rebindOpenDocument(key, newRelPath);
             emit noteMoved(key, newRelPath);
         }
     }
@@ -2544,6 +2623,11 @@ bool NoteCollection::renameFolder(const QString &relPath, const QString &newName
             tr("A folder named \"%1\" already exists").arg(trimmed));
         return false;
     }
+    const QString openRelPath = m_documentManager
+        ? relativePath(m_documentManager->currentFilePath()) : QString();
+    if (openRelPath == relPath
+        || openRelPath.startsWith(relPath + QLatin1Char('/')))
+        prepareOpenDocumentMutation(openRelPath);
     if (!QDir().rename(absolutePath(relPath), absolutePath(newRelPath))) {
         emit operationFailed(tr("Cannot rename folder \"%1\"").arg(entry->name));
         return false;
@@ -2567,10 +2651,17 @@ bool NoteCollection::deleteFolder(const QString &relPath)
         emit operationFailed(tr("No such folder: %1").arg(relPath));
         return false;
     }
+    const QString openRelPath = m_documentManager
+        ? relativePath(m_documentManager->currentFilePath()) : QString();
+    const bool removedOpen = openRelPath.startsWith(relPath + QLatin1Char('/'));
+    if (removedOpen)
+        prepareOpenDocumentMutation(openRelPath);
     if (!moveToTrash(relPath)) {
         emit operationFailed(tr("Cannot delete folder \"%1\"").arg(entry->name));
         return false;
     }
+    if (removedOpen)
+        m_documentManager->newDocument();
 
     // Remove contained folders, notes, and order lists from the index.
     const QString prefix = relPath + QLatin1Char('/');
@@ -2599,6 +2690,8 @@ bool NoteCollection::deleteFolder(const QString &relPath)
     markIndexDirty();
     saveIndexFileIfDirty();
     bump();
+    if (removedOpen)
+        emit openNoteRemoved(openRelPath);
     // Reconcile drops every note that moved into the trash.
     syncSearchIndex();
     return true;
@@ -2630,19 +2723,37 @@ bool NoteCollection::rewriteFrontMatter(const QString &relPath)
 {
     if (!ensureWithinRoot(relPath))
         return false;
+    const NoteEntry *entry = note(relPath);
+    if (!entry)
+        return false;
+
+    const QString absPath = absolutePath(relPath);
+    const QDateTime mtime = QFileInfo(absPath).lastModified();
+
+    // The live session is the sole full-file writer for the open note. It
+    // combines the repository's new metadata with the authoritative in-memory
+    // body, drains any older snapshot, and reports the real persistence
+    // result. Closed notes continue through the repository writer below.
+    if (openDocumentIs(relPath)) {
+        if (!m_documentManager->saveWithFrontMatter(
+                NoteFrontMatter::serialize(entry->meta)))
+            return false;
+        restoreFileTime(absPath, mtime);
+        reindexNoteInSearch(relPath);
+        return true;
+    }
+
     // The file's bytes are authoritative for the body (the open note's
     // unsaved edits flow through DocumentManager, not here).
-    const QString absPath = absolutePath(relPath);
     bool ok = false;
     const QString fileText = readTextFile(absPath, &ok);
     if (!ok)
         return false;
 
-    const NoteEntry *entry = note(relPath);
-    const QDateTime mtime = QFileInfo(absPath).lastModified();
     NoteFrontMatter::Split split = NoteFrontMatter::split(fileText);
     const QString rewritten =
         NoteFrontMatter::serialize(entry->meta) + split.body;
+    emit aboutToWrite(absPath);
     if (!writeTextFileAtomic(absPath, rewritten))
         return false;
     restoreFileTime(absPath, mtime);
@@ -3100,7 +3211,7 @@ QVariantList NoteCollection::recoveryEntries() const
 
 bool NoteCollection::restoreRecovery(const QString &relPath)
 {
-    if (!m_recoveryJournals.isPending(relPath))
+    if (!m_recoveryJournals.isPending(relPath) || !ensureWithinRoot(relPath))
         return false;
     bool ok = false;
     const QString text = m_recoveryJournals.readJournal(relPath, &ok);
@@ -3113,6 +3224,7 @@ bool NoteCollection::restoreRecovery(const QString &relPath)
     // recreates a deleted note's folder if needed.
     const QString absPath = absolutePath(relPath);
     QDir().mkpath(QFileInfo(absPath).absolutePath());
+    emit aboutToWrite(absPath);
     if (!writeTextFileAtomic(absPath, text)) {
         emit operationFailed(tr("Cannot restore \"%1\"").arg(relPath));
         return false;
@@ -3146,7 +3258,7 @@ bool NoteCollection::restoreRecovery(const QString &relPath)
 
 void NoteCollection::discardRecovery(const QString &relPath)
 {
-    if (!m_recoveryJournals.isPending(relPath))
+    if (!m_recoveryJournals.isPending(relPath) || !ensureWithinRoot(relPath))
         return;
     m_recoveryJournals.resolve(relPath);
     bump();
@@ -3210,7 +3322,7 @@ QString NoteCollection::frontMatterFor(const QString &relPath) const
 
 // ------------------------------------------------------ collection.json
 
-void NoteCollection::loadCollectionFile()
+void NoteCollection::loadCollectionFile(bool indexSafeLastOpen)
 {
     const QString path = m_rootPath + QLatin1Char('/') + kvitDirName
         + QLatin1Char('/') + collectionFileName;
@@ -3251,16 +3363,31 @@ void NoteCollection::loadCollectionFile()
     }
 
     m_lastOpenNote = root.value(QStringLiteral("lastOpenNote")).toString();
-    if (!m_lastOpenNote.isEmpty()
-        && !m_notes.contains(m_lastOpenNote)
-        && !QFileInfo::exists(absolutePath(m_lastOpenNote)))
+    const bool safeLastOpen = m_lastOpenNote.isEmpty()
+        || (RecoveryJournalStore::isValidRelativeNotePath(m_lastOpenNote)
+            && isWithinCanonicalRoot(m_canonicalRoot,
+                                     absolutePath(m_lastOpenNote))
+            && QFileInfo(absolutePath(m_lastOpenNote)).isFile());
+    if (!safeLastOpen) {
         m_lastOpenNote.clear();
+    } else if (!m_lastOpenNote.isEmpty()
+               && !m_notes.contains(m_lastOpenNote)) {
+        if (indexSafeLastOpen) {
+            const QFileInfo info(absolutePath(m_lastOpenNote));
+            insertNoteEntry(m_lastOpenNote,
+                            placeholderEntry(m_lastOpenNote, info));
+        } else {
+            m_lastOpenNote.clear();
+        }
+    }
 }
 
 void NoteCollection::saveCollectionFile()
 {
     if (!isOpen())
         return;
+
+    m_collectionFileDirty = true;
 
     QJsonObject root;
 
@@ -3293,11 +3420,23 @@ void NoteCollection::saveCollectionFile()
         root.insert(QStringLiteral("lastOpenNote"), m_lastOpenNote);
 
     const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
-    QDir().mkpath(dir);
+    if (!QDir().mkpath(dir)) {
+        if (!m_collectionSaveRetryTimer.isActive())
+            m_collectionSaveRetryTimer.start();
+        emit operationFailed(
+            tr("Cannot create the collection settings folder \"%1\"")
+                .arg(dir));
+        return;
+    }
     const QString path = dir + QLatin1Char('/') + collectionFileName;
-    if (!writeTextFileAtomic(path,
-                             QString::fromUtf8(QJsonDocument(root).toJson(
-                                 QJsonDocument::Indented)))) {
+    if (writeTextFileAtomic(path,
+                            QString::fromUtf8(QJsonDocument(root).toJson(
+                                QJsonDocument::Indented)))) {
+        m_collectionFileDirty = false;
+        m_collectionSaveRetryTimer.stop();
+    } else {
+        if (!m_collectionSaveRetryTimer.isActive())
+            m_collectionSaveRetryTimer.start();
         // Tag colours, folder expansion, manual order and the last-open
         // note all live in this file. Silently dropping the write loses
         // them at the next start with nothing shown to the user.

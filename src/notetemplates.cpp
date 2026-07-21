@@ -3,11 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "notetemplates.h"
 #include "notecollection.h"
+#include "notefileio.h"
 #include "notefrontmatter.h"
 
 #include <QDir>
 #include <QFile>
-#include <QSaveFile>
 #include <QRegularExpression>
 #include <QTextStream>
 
@@ -59,13 +59,7 @@ QString readAll(const QString &path)
 
 bool writeAll(const QString &path, const QString &content)
 {
-    QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
-        return false;
-    QTextStream out(&f);
-    out.setEncoding(QStringConverter::Utf8);
-    out << content;
-    return f.commit();
+    return NoteFileIo::writeTextFileAtomic(path, content);
 }
 
 } // namespace

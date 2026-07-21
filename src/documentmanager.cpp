@@ -214,6 +214,7 @@ bool DocumentManager::rejectIfOverSizeCap(const QString &filePath)
 
 bool DocumentManager::open(const QUrl &fileUrl, bool ignoreSizeCap)
 {
+    flushPendingEdits();
     invalidateAsyncOpen();
     ++m_asyncSaveGeneration;
     ++m_asyncJournalGeneration;
@@ -248,6 +249,7 @@ bool DocumentManager::open(const QUrl &fileUrl, bool ignoreSizeCap)
 
 bool DocumentManager::openAsync(const QUrl &fileUrl, bool ignoreSizeCap)
 {
+    flushPendingEdits();
     const QString filePath = fileUrl.toLocalFile();
     if (!ignoreSizeCap && rejectIfOverSizeCap(filePath)) {
         emit openAsyncFinished(filePath, false);
@@ -280,6 +282,7 @@ bool DocumentManager::openAsync(const QUrl &fileUrl, bool ignoreSizeCap)
 
 void DocumentManager::newDocument()
 {
+    flushPendingEdits();
     invalidateAsyncOpen();
     // Bumping the generation stops a late result from being applied, but the
     // worker's write happens regardless of whether anyone reads the result.
@@ -446,6 +449,19 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
         stream.flush();
     }
 
+    // QTextStream records a short write in its own status. QSaveFile::commit()
+    // can still succeed after that and replace the old note with the prefix
+    // that happened to fit, so the stream status is part of the atomic-write
+    // contract just as much as commit() is.
+    if (stream.status() != QTextStream::Ok) {
+        const QString error = file.errorString().isEmpty()
+            ? tr("The complete document could not be written")
+            : file.errorString();
+        file.cancelWriting();
+        emit saveFailed(error);
+        return false;
+    }
+
     bool committed = false;
     {
         PerfLog::ScopedTimer split(operation + QStringLiteral(".commit"),
@@ -468,6 +484,7 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
     m_frontMatterDirty = false;
 
     emit saveSucceeded(filePath);
+    emit saveSucceededWithText(filePath, fileText);
     emit isDirtyChanged();
     setLastSavedAt(QDateTime::currentDateTime());
 
@@ -512,6 +529,7 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
     const quint64 generation = ++m_asyncSaveGeneration;
     m_autosaveRequestedWhileRunning = false;
     m_activeWriteCancel = makeCancellationToken();
+    m_activePreCommitReached = QSharedPointer<QAtomicInt>::create(0);
     m_asyncSaveWatcher.setFuture(QtConcurrent::run(
         persistenceThreadPool(),
         &DocumentManager::writeSnapshotToFile,
@@ -524,6 +542,8 @@ bool DocumentManager::saveToFileAsync(const QString &filePath, SaveKind kind)
         m_documentRevision,
         undoIndex,
         m_asyncPersistenceDelayMs,
+        m_asyncPreCommitDelayMs,
+        m_activePreCommitReached,
         m_activeWriteCancel));
     return true;
 }
@@ -670,11 +690,14 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
                                      quint64 documentRevision,
                                      int undoIndex,
                                      int delayMs,
+                                     int preCommitDelayMs,
+                                     QSharedPointer<QAtomicInt> preCommitReached,
                                      WriteCancellationPtr cancel)
 {
     PersistenceWriteResult result;
     result.operation = operation;
     result.path = filePath;
+    result.fileText = fileText;
     result.context = context;
     result.generation = generation;
     result.contentHash = contentHash;
@@ -707,6 +730,14 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
     stream.flush();
     result.flushMs = double(timer.nsecsElapsed()) / 1000000.0;
 
+    if (stream.status() != QTextStream::Ok) {
+        result.error = file.errorString().isEmpty()
+            ? QStringLiteral("The complete document could not be written")
+            : file.errorString();
+        file.cancelWriting();
+        return result;
+    }
+
     // Last chance to call the write off. Everything up to here touched only
     // QSaveFile's temporary file; commit() is the rename that would put these
     // bytes at filePath. If the note has moved since this worker started, that
@@ -718,6 +749,15 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
         result.committed = false;
         return result;
     }
+
+    // Test seam for the irreducible interval after the final cancellation
+    // check. Path mutations must wait for the worker, not merely set its
+    // token, because a worker already here will commit before it can observe
+    // another cancellation request.
+    if (preCommitReached)
+        preCommitReached->storeRelease(1);
+    if (preCommitDelayMs > 0)
+        QThread::msleep(static_cast<unsigned long>(preCommitDelayMs));
 
     timer.restart();
     result.committed = file.commit();
@@ -807,13 +847,38 @@ void DocumentManager::setFrontMatter(const QString &block)
     // is recognised as stale when it lands. Without it the older snapshot
     // committed afterwards, silently restoring the previous metadata and
     // marking the document clean.
-    ++m_documentRevision;
     m_frontMatterDirty = true;
     emit isDirtyChanged();
     emit documentModified();
 
     // The journal covers unsaved state, and the metadata is now part of it.
     onDocumentChangedForJournal();
+}
+
+bool DocumentManager::saveWithFrontMatter(const QString &block)
+{
+    flushPendingEdits();
+    if (m_currentFilePath.isEmpty())
+        return false;
+
+    const QString previousBlock = m_frontMatter;
+    const bool previousDirty = m_frontMatterDirty;
+    setFrontMatter(block);
+    if (saveToFile(m_currentFilePath))
+        return true;
+
+    if (m_frontMatter != previousBlock) {
+        m_frontMatter = previousBlock;
+        m_frontMatterDirty = previousDirty;
+        emit isDirtyChanged();
+        emit documentModified();
+        // Restoring the pre-transaction snapshot is itself one revision
+        // boundary. Keep it on the same single increment path as ordinary
+        // body/front-matter changes; the journal timer is harmless when the
+        // restored document is clean and writeJournal() will no-op.
+        onDocumentChangedForJournal();
+    }
+    return false;
 }
 
 void DocumentManager::rebindFilePath(const QString &newPath)
@@ -830,6 +895,7 @@ void DocumentManager::rebindFilePath(const QString &newPath)
 
 bool DocumentManager::restoreBody(const QString &markdown)
 {
+    flushPendingEdits();
     if (!m_model || !m_undoStack)
         return false;
 
@@ -888,6 +954,17 @@ void DocumentManager::setJournalDebounceMs(int ms)
 void DocumentManager::setAsyncPersistenceDelayMsForTests(int ms)
 {
     m_asyncPersistenceDelayMs = qMax(0, ms);
+}
+
+void DocumentManager::setAsyncPreCommitDelayMsForTests(int ms)
+{
+    m_asyncPreCommitDelayMs = qMax(0, ms);
+}
+
+bool DocumentManager::asyncPreCommitReachedForTests() const
+{
+    return m_activePreCommitReached
+        && m_activePreCommitReached->loadAcquire() != 0;
 }
 
 void DocumentManager::onDocumentChangedForJournal()
@@ -950,6 +1027,8 @@ void DocumentManager::writeJournal()
         m_documentRevision,
         undoIndex,
         m_asyncPersistenceDelayMs,
+        0,
+        QSharedPointer<QAtomicInt>(),
         // The journal has a fixed control path that note renames never move,
         // so a path change is no reason to abandon it.
         WriteCancellationPtr()));
@@ -1061,6 +1140,7 @@ void DocumentManager::onAsyncSaveFinished()
             m_undoStack->setClean();
         m_frontMatterDirty = false;
         emit saveSucceeded(result.path);
+        emit saveSucceededWithText(result.path, result.fileText);
         emit isDirtyChanged();
         setLastSavedAt(QDateTime::currentDateTime());
     }

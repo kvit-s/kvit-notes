@@ -6,6 +6,16 @@
 #include <QKeySequence>
 #include <QVariantMap>
 
+namespace {
+#ifdef Q_OS_MACOS
+constexpr auto kFindReplaceChord = "Meta+Alt+F";
+constexpr auto kDistractionFreeChord = "Meta+Ctrl+F";
+#else
+constexpr auto kFindReplaceChord = "Ctrl+H";
+constexpr auto kDistractionFreeChord = "F11";
+#endif
+}
+
 const QList<ShortcutInfo> &ShortcutCatalog::entries()
 {
     // Chords are the Windows/Linux column of features.md §13; the app wires the
@@ -70,13 +80,14 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
          QKeySequence::Redo},
         {"General", "Find",              "Ctrl+F",       "window", false, {},
          QKeySequence::Find},
-        {"General", "Find & Replace",    "Ctrl+H",       "window", false, {}},
+        {"General", "Find & Replace",    kFindReplaceChord, "window", false, {}},
         {"General", "Select All",        "Ctrl+A",       "engine", false, {},
          QKeySequence::SelectAll},
         {"General", "New Note",          "Ctrl+N",       "window", false, {},
          QKeySequence::New},
         {"General", "Toggle Sidebar",    "Ctrl+\\",      "window", false, {}},
-        {"General", "Distraction-free",  "F11",          "window", false, {}},
+        {"General", "Distraction-free",  kDistractionFreeChord,
+         "window", false, {}},
         // Wiki-link navigation. Ctrl+P rather
         // than Obsidian's Ctrl+O, which §13.4-adjacent behavior already
         // assigns to Open File.

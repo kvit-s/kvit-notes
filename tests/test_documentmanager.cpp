@@ -73,6 +73,8 @@ private slots:
     void testNewDocumentClearsFrontMatter();
     void testOpenReplacesFrontMatter();
     void testFailedSaveLeavesExistingFileIntact();
+    void testShortSynchronousSavePreservesFileJournalAndDirtyState();
+    void testShortAsynchronousSavePreservesFileJournalAndDirtyState();
 
     // Journal and restore
     // One-time .bak before the first diverging overwrite
@@ -1059,6 +1061,65 @@ void TestDocumentManager::testFailedSaveLeavesExistingFileIntact()
     // And the same save succeeds once the obstacle is gone.
     QVERIFY(m_manager->save());
     QCOMPARE(readFile(filePath), QStringLiteral("Changed\n"));
+}
+
+void TestDocumentManager::testShortSynchronousSavePreservesFileJournalAndDirtyState()
+{
+    const QString filePath = m_tempDir->filePath("short_sync.md");
+    const QString journalPath = m_tempDir->filePath("short_sync.journal");
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QCOMPARE(file.write("Original content\n"), qint64(17));
+    }
+
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
+    m_manager->setJournalPath(journalPath);
+    m_model->updateContent(0, QString(64 * 1024, QLatin1Char('x')));
+    QVERIFY(m_manager->isDirty());
+    QVERIFY(QMetaObject::invokeMethod(m_manager, "writeJournal",
+                                      Qt::DirectConnection));
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(journalPath), 5000);
+
+    QSignalSpy failed(m_manager, &DocumentManager::saveFailed);
+    FaultInjection::FileSizeLimit limit(4096);
+    if (!limit.supported())
+        QSKIP(qPrintable(limit.skipReason()));
+
+    QVERIFY(!m_manager->save());
+    QCOMPARE(failed.count(), 1);
+    QCOMPARE(readFile(filePath), QStringLiteral("Original content\n"));
+    QVERIFY(QFileInfo::exists(journalPath));
+    QVERIFY(m_manager->isDirty());
+}
+
+void TestDocumentManager::testShortAsynchronousSavePreservesFileJournalAndDirtyState()
+{
+    const QString filePath = m_tempDir->filePath("short_async.md");
+    const QString journalPath = m_tempDir->filePath("short_async.journal");
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QCOMPARE(file.write("Original content\n"), qint64(17));
+    }
+
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
+    m_manager->setJournalPath(journalPath);
+    m_model->updateContent(0, QString(64 * 1024, QLatin1Char('y')));
+    QVERIFY(QMetaObject::invokeMethod(m_manager, "writeJournal",
+                                      Qt::DirectConnection));
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(journalPath), 5000);
+
+    QSignalSpy failed(m_manager, &DocumentManager::saveFailed);
+    FaultInjection::FileSizeLimit limit(4096);
+    if (!limit.supported())
+        QSKIP(qPrintable(limit.skipReason()));
+
+    QVERIFY(m_manager->saveAsync());
+    QTRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 5000);
+    QCOMPARE(readFile(filePath), QStringLiteral("Original content\n"));
+    QVERIFY(QFileInfo::exists(journalPath));
+    QVERIFY(m_manager->isDirty());
 }
 
 // ---- oversized-file guard ----

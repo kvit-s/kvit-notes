@@ -15,11 +15,11 @@
 #include "diagrams/diagrampainter.h"
 #include "documentoutline.h"
 #include "notecollection.h"
+#include "notefileio.h"
 #include "theme.h"
 #include "perflog.h"
 
 #include <QFile>
-#include <QSaveFile>
 #include <QTextStream>
 #include <QTextDocument>
 #include <QPdfWriter>
@@ -765,13 +765,7 @@ QString DocumentExporter::plainTextForMarkdown(const QString &markdown) const
 namespace {
 bool writeText(const QString &path, const QString &content)
 {
-    QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
-        return false;
-    QTextStream out(&f);
-    out.setEncoding(QStringConverter::Utf8);
-    out << content;
-    return f.commit();
+    return NoteFileIo::writeTextFileAtomic(path, content);
 }
 }
 

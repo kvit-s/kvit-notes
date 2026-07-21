@@ -32,6 +32,7 @@
 
 class QFileInfo;
 class CollectionSearchIndex;
+class DocumentManager;
 
 // The notes-collection object: one GUI-free
 // QObject owning everything above the open document — the notes root, the
@@ -73,6 +74,10 @@ public:
     // database. When set, the collection opens it per root and streams note
     // changes to it.
     void setSearchIndex(CollectionSearchIndex *index);
+    // The open-document session is the exclusive writer for its note. The
+    // repository uses it to serialize live metadata with the live body and
+    // to drain active saves before a path mutation.
+    void setDocumentManager(DocumentManager *manager);
 
     // --- Root -----------------------------------------------------------
     // Opens (creating if missing) a notes root and scans it. Loading may refresh
@@ -105,6 +110,10 @@ public:
     Q_INVOKABLE QString absolutePath(const QString &relPath) const;
     // "" if outside the root.
     Q_INVOKABLE QString relativePath(const QString &absPath) const;
+    // Repository-boundary validation for callers that construct a relative
+    // destination (imports, recovery state). Reports and rejects absolute,
+    // dot-segmented, symlink-escaping, or otherwise out-of-root paths.
+    Q_INVOKABLE bool ensureWithinRoot(const QString &relPath);
 
     // --- Wiki-links --------------------------------------------------------
     // Obsidian-compatible resolution: a target matches a note by path
@@ -269,6 +278,8 @@ public:
     // Lets the I/O-failure tests observe that a failed write is retained
     // for a later retry rather than forgotten.
     bool indexDirtyForTesting() const { return m_indexDirty; }
+    bool collectionFileDirtyForTesting() const
+    { return m_collectionFileDirty; }
     // Test seam: whether the directory-listing future has actually been
     // picked up by a pool thread. Cancellation only waits on a watcher that
     // reports itself running, so measuring the cost of a cancel has to know
@@ -289,6 +300,13 @@ signals:
     // (open document, selections, journal) rebind their paths.
     void noteMoved(const QString &oldRelPath, const QString &newRelPath);
     void noteRemoved(const QString &relPath);
+    // The removed path was the live document and the session has already
+    // detached it. QML only chooses the next note; it no longer participates
+    // in persistence ordering.
+    void openNoteRemoved(const QString &relPath);
+    // Direct repository writes (closed-note metadata, link rewrites,
+    // recovery) use the same watcher own-write registration as session saves.
+    void aboutToWrite(const QString &absPath);
     // Rename-safe wiki-links (§3.3): after an in-app rename/move rewrote
     // referring [[links]] in other notes — the "Updated N links in M
     // notes" toast.
@@ -486,14 +504,17 @@ private:
     // returns false. Scans already exclude symbolic links, so in practice
     // nothing outside reaches the index — this is the second lock, for paths
     // that arrive from QML or a caller rather than from a scan.
-    bool ensureWithinRoot(const QString &relPath);
     bool validName(const QString &name, QString *reason) const;
     QString uniqueUntitled(const QString &folder) const;
     bool moveToTrash(const QString &relPath);
     bool rewriteFrontMatter(const QString &relPath);
+    bool prepareOpenDocumentMutation(const QString &relPath);
+    void rebindOpenDocument(const QString &oldRelPath,
+                            const QString &newRelPath);
+    bool openDocumentIs(const QString &relPath) const;
     void renamePathsUnderFolder(const QString &oldPrefix, const QString &newPrefix);
 
-    void loadCollectionFile();
+    void loadCollectionFile(bool indexSafeLastOpen = false);
     void saveCollectionFile();
 
     void bump();
@@ -516,6 +537,7 @@ private:
     QList<ReconcileEntry> searchReconcileListing() const;
 
     SearchIndexFeed m_searchFeed;
+    DocumentManager *m_documentManager = nullptr;
 
     QString m_rootPath;
     // m_rootPath with every symbolic link resolved. Containment is decided
@@ -575,6 +597,7 @@ private:
 
     std::function<void(const QString &)> m_indexParseObserver;
     bool m_indexDirty = false;
+    bool m_collectionFileDirty = false;
     bool m_scanInProgress = false;
     int m_asyncPendingUpdates = 0;
     quint64 m_asyncScanGeneration = 0;
@@ -599,6 +622,7 @@ private:
     bool m_indexSaveQueued = false;
     bool m_asyncSavedNotePendingFlush = false;
     QTimer m_asyncRevisionTimer;
+    QTimer m_collectionSaveRetryTimer;
 };
 
 #endif // NOTECOLLECTION_H

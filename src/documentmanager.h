@@ -85,6 +85,11 @@ public:
     // overwritten by an older body snapshot that was already in flight, or be
     // dropped entirely because the document still called itself clean.
     Q_INVOKABLE void setFrontMatter(const QString &block);
+    // Persist repository-owned metadata together with the authoritative live
+    // body. On failure the previous metadata state is restored while body
+    // dirtiness is retained, so callers can roll back their index mutation
+    // without leaving the document and repository disagreeing.
+    bool saveWithFrontMatter(const QString &block);
 
     // File operations
     QDateTime lastSavedAt() const { return m_lastSavedAt; }
@@ -136,6 +141,8 @@ public:
     // Test seam: the journal debounce (default 2000 ms).
     Q_INVOKABLE void setJournalDebounceMs(int ms);
     void setAsyncPersistenceDelayMsForTests(int ms);
+    void setAsyncPreCommitDelayMsForTests(int ms);
+    bool asyncPreCommitReachedForTests() const;
 
     // C++ file dialogs (more reliable than QML FileDialog)
     Q_INVOKABLE void openFileDialog();
@@ -169,6 +176,9 @@ signals:
 
     // UI notifications
     void saveSucceeded(const QString &filePath);
+    // The exact full-file snapshot that committed. Repository/index wiring
+    // consumes this in C++ so QML never has to reconstruct persistence state.
+    void saveSucceededWithText(const QString &filePath, const QString &fileText);
     void saveFailed(const QString &error);
     void openSucceeded(const QString &filePath);
     void openFailed(const QString &error);
@@ -226,6 +236,7 @@ private:
         QString operation;
         QString path;
         QString error;
+        QString fileText;
         QVariantMap context;
         quint64 generation = 0;
         quint64 contentHash = 0;
@@ -257,6 +268,8 @@ private:
         quint64 documentRevision,
         int undoIndex,
         int delayMs,
+        int preCommitDelayMs,
+        QSharedPointer<QAtomicInt> preCommitReached,
         WriteCancellationPtr cancel);
 
     void setLastSavedAt(const QDateTime &when);
@@ -321,6 +334,8 @@ private:
     bool m_autosaveRequestedWhileRunning = false;
     bool m_journalRequestedWhileRunning = false;
     int m_asyncPersistenceDelayMs = 0;
+    int m_asyncPreCommitDelayMs = 0;
+    QSharedPointer<QAtomicInt> m_activePreCommitReached;
 };
 
 #endif // DOCUMENTMANAGER_H
