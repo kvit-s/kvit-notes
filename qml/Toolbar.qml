@@ -13,8 +13,13 @@ import Kvit 1.0
 // The toolbar (features.md §9.2): a block type dropdown, formatting
 // toggles reflecting the caret's span membership, an insert menu over
 // the block-menu catalog, and a view menu. Right-click offers the §9.2
-// show/hide customization, persisted per group. Every control declines
-// focus so clicking never blurs the block being edited.
+// show/hide customization, persisted per group.
+//
+// Every control takes focus by keyboard only (Qt.TabFocus): clicking one
+// still never blurs the block being edited, while Tab and the F6 region
+// cycle can reach Insert, Templates and View, whose actions have no other
+// shortcut. A control holding keyboard focus draws a focus ring, since a
+// caret that cannot be seen is the same as no caret at all.
 Rectangle {
     id: toolbar
     objectName: "toolbar"
@@ -49,6 +54,21 @@ Rectangle {
     function setGroupVisible(key, prop, value) {
         toolbar[prop] = value
         AppSettings.setValue(key, value)
+    }
+
+    // Pane focus entry (§14.1 tab order), reached from F6 like the sidebar and
+    // note list. Insert, Templates and View come first because they are the
+    // actions with no separate shortcut; Tab walks on to the rest.
+    function focusPane() {
+        var candidates = [insertButton, templatesButton, viewButton,
+                          blockTypeCombo, backButton, forwardButton]
+        for (var i = 0; i < candidates.length; ++i) {
+            if (candidates[i].visible && candidates[i].enabled) {
+                candidates[i].forceActiveFocus(Qt.TabFocusReason)
+                return true
+            }
+        }
+        return false
     }
 
     // ---- The caret's block and formatting state --------------------
@@ -98,12 +118,28 @@ Rectangle {
         qsTr("Code Block"), qsTr("Callout"), qsTr("Divider")]
     readonly property var typeValues: [0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 12, 9]
 
+    // The background every toolbar control shares, so the keyboard focus ring
+    // is drawn the same way on all of them. The control is passed in rather
+    // than reached through `parent`, which is untyped in a background scope.
+    component BarBackground: Rectangle {
+        property var control: null
+        radius: 4
+        color: control && control.checked ? Theme.selectionTint
+             : control && control.hovered && control.enabled ? Theme.hoverTint
+             : "transparent"
+        // These controls decline mouse focus, so active focus here can only
+        // have come from the keyboard — which is exactly when the ring is
+        // wanted.
+        border.width: control && control.activeFocus ? 2 : 0
+        border.color: Theme.focusRing
+    }
+
     component BarButton: ToolButton {
         // Named so the background, its own scope, reads the button's state
         // rather than reaching it through an untyped `parent`.
         id: barButton
         property int flagBit: 0
-        focusPolicy: Qt.NoFocus
+        focusPolicy: Qt.TabFocus
         implicitWidth: 30
         implicitHeight: 28
         font.pixelSize: 13
@@ -116,12 +152,7 @@ Rectangle {
         Accessible.name: barButton.ToolTip.text !== "" ? barButton.ToolTip.text : barButton.text
         Accessible.checkable: barButton.flagBit !== 0
         Accessible.checked: barButton.checked
-        background: Rectangle {
-            radius: 4
-            color: barButton.checked ? Theme.selectionTint
-                 : barButton.hovered && barButton.enabled ? Theme.hoverTint
-                 : "transparent"
-        }
+        background: BarBackground { control: barButton }
     }
 
     RowLayout {
@@ -134,9 +165,10 @@ Rectangle {
         // Back/forward over the note history; collection mode only, like
         // the shortcuts they mirror.
         ToolButton {
+            id: backButton
             objectName: "toolbarBackButton"
             visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
-            focusPolicy: Qt.NoFocus
+            focusPolicy: Qt.TabFocus
             implicitWidth: 30
             implicitHeight: 28
             font.pixelSize: 14
@@ -148,9 +180,10 @@ Rectangle {
             onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateBack()
         }
         ToolButton {
+            id: forwardButton
             objectName: "toolbarForwardButton"
             visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
-            focusPolicy: Qt.NoFocus
+            focusPolicy: Qt.TabFocus
             implicitWidth: 30
             implicitHeight: 28
             font.pixelSize: 14
@@ -166,7 +199,7 @@ Rectangle {
             id: blockTypeCombo
             objectName: "toolbarBlockTypeCombo"
             visible: toolbar.showBlockGroup
-            focusPolicy: Qt.NoFocus
+            focusPolicy: Qt.TabFocus
             implicitWidth: 130
             implicitHeight: 28
             font.pixelSize: 12
@@ -308,7 +341,7 @@ Rectangle {
                 // accessibility bindings are separate scopes.
                 id: alignButton
                 property string alignValue: "left"
-                focusPolicy: Qt.NoFocus
+                focusPolicy: Qt.TabFocus
                 implicitWidth: 28
                 implicitHeight: 28
                 font.pixelSize: 13
@@ -322,13 +355,7 @@ Rectangle {
                 onClicked: if (toolbar.targetBlock)
                                toolbar.targetBlock.setBlockAlignment(
                                    alignButton.alignValue)
-                background: Rectangle {
-                    radius: 4
-                    color: alignButton.checked ? Theme.selectionTint
-                         : alignButton.hovered && alignButton.enabled
-                           ? Theme.hoverTint
-                         : "transparent"
-                }
+                background: BarBackground { control: alignButton }
             }
             AlignButton {
                 objectName: "toolbarAlignLeft"
@@ -353,12 +380,16 @@ Rectangle {
         }
 
         ToolButton {
+            id: insertButton
             objectName: "toolbarInsertButton"
             visible: toolbar.showInsertGroup
-            focusPolicy: Qt.NoFocus
+            focusPolicy: Qt.TabFocus
             text: qsTr("+ Insert")
             font.pixelSize: 12
             implicitHeight: 28
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("Insert block")
+            background: BarBackground { control: insertButton }
             onClicked: insertMenu.popup(this, 0, height)
 
             Menu {
@@ -407,12 +438,16 @@ Rectangle {
         // features.md §18 templates: new-from-template and management.
         // Only meaningful with a collection open (templates live under .kvit).
         ToolButton {
+            id: templatesButton
             objectName: "toolbarTemplatesButton"
             visible: toolbar.appWindow && toolbar.appWindow.collectionOpen
-            focusPolicy: Qt.NoFocus
+            focusPolicy: Qt.TabFocus
             text: qsTr("Templates")
             font.pixelSize: 12
             implicitHeight: 28
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("Templates")
+            background: BarBackground { control: templatesButton }
             onClicked: {
                 NoteTemplates.seedBuiltinsIfEmpty()
                 templatesMenu.popup(this, 0, height)
@@ -447,12 +482,16 @@ Rectangle {
         }
 
         ToolButton {
+            id: viewButton
             objectName: "toolbarViewButton"
             visible: toolbar.showViewGroup
-            focusPolicy: Qt.NoFocus
+            focusPolicy: Qt.TabFocus
             text: qsTr("View")
             font.pixelSize: 12
             implicitHeight: 28
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("View")
+            background: BarBackground { control: viewButton }
             onClicked: viewMenu.popup(this, 0, height)
 
             Menu {
@@ -616,11 +655,11 @@ Rectangle {
         if (idx < 0 || idx >= BlockModel.count)
             idx = BlockModel.count - 1
         BlockModel.insertBlock(idx + 1, type, "")
-        if (listView) {
-            var item = listView.itemAtIndex(idx + 1)
-            if (item && item.focusAtStart)
-                item.focusAtStart()
-        }
+        // Inserting below the caret can put the new block past the viewport,
+        // where its delegate does not exist yet; the window's focus router
+        // brings it into view and retries until it does.
+        if (toolbar.appWindow)
+            toolbar.appWindow.focusBlockAtIndex(idx + 1)
     }
 
     // Insert a wave-2 type that needs a flow rather than a bare convert

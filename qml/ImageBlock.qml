@@ -172,6 +172,24 @@ BlockDelegateBase {
     function isCursorOnFirstLine() { return true }
     function isCursorOnLastLine() { return true }
 
+    // Space on a focused image block: what clicking it does, from the
+    // keyboard. A remote image still waiting for consent takes it as "load
+    // this one"; a resolved image opens the lightbox. Enter is deliberately
+    // not used: every non-text block already spends it on "new block below",
+    // and taking it here would cost block navigation more than it gains.
+    function activateImage() {
+        if (delegate.awaitingConsent) {
+            if (!EgressPolicy.canRequestConsent(delegate.resolvedSource))
+                return false
+            EgressPolicy.allowOrigin(delegate.resolvedSource)
+            return true
+        }
+        if (delegate.displaySource === "")
+            return false
+        AppActions.requestLightbox(delegate.displaySource, delegate.img.alt)
+        return true
+    }
+
     // Rewrite the block's markdown through the model as one undo step.
     function writeImage(path, alt, caption, width) {
         BlockModel.updateContent(delegate.index,
@@ -277,6 +295,11 @@ BlockDelegateBase {
             if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
                 delegate.deleteCurrentBlock()
                 event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Space) {
+                if (delegate.activateImage())
+                    event.accepted = true
                 return
             }
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -422,30 +445,32 @@ BlockDelegateBase {
                         color: Theme.textMuted
                         font.pixelSize: 12
                     }
-                    Rectangle {
+                    // A real Button rather than a rectangle with a mouse
+                    // handler: granting a remote image consent was reachable
+                    // only by pointer, and it is the one control on this
+                    // placeholder. Space on the block itself does the same
+                    // thing without leaving the block.
+                    Button {
+                        id: imgLoadButton
                         objectName: "imageLoadButton"
                         anchors.horizontalCenter: parent.horizontalCenter
-                        width: imgLoadLabel.implicitWidth + 16
-                        height: imgLoadLabel.implicitHeight + 8
-                        radius: 4
                         visible: EgressPolicy.canRequestConsent(delegate.resolvedSource)
-                        color: Theme.hoverTint
-                        border.color: imgLoadArea.containsMouse ? Theme.accent : Theme.border
-                        Text {
-                            id: imgLoadLabel
-                            anchors.centerIn: parent
-                            text: qsTr("Load image")
-                            font.pixelSize: 11
-                            color: imgLoadArea.containsMouse ? Theme.textPrimary
-                                                             : Theme.textMuted
+                        activeFocusOnTab: true
+                        padding: 4
+                        font.pixelSize: 11
+                        text: qsTr("Load image")
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Load this remote image")
+                        background: Rectangle {
+                            radius: 4
+                            color: Theme.hoverTint
+                            border.width: imgLoadButton.visualFocus ? 2 : 1
+                            border.color: imgLoadButton.visualFocus
+                                          ? Theme.focusRing
+                                          : (imgLoadButton.hovered ? Theme.accent
+                                                                   : Theme.border)
                         }
-                        MouseArea {
-                            id: imgLoadArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: EgressPolicy.allowOrigin(delegate.resolvedSource)
-                        }
+                        onClicked: EgressPolicy.allowOrigin(delegate.resolvedSource)
                     }
                 }
             }

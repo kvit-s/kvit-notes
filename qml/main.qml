@@ -74,9 +74,11 @@ KvitShell {
         if (!geometryRestored)
             return
         // Full screen (focus mode) and minimized leave the flag alone.
-        if (visibility === Window.Maximized)
+        // Qualified: a bare `visibility` here resolves to the signal's
+        // injected parameter, which Qt 6.10 warns about as undeclared.
+        if (root.visibility === Window.Maximized)
             AppSettings.setValue("window.maximized", true)
-        else if (visibility === Window.Windowed)
+        else if (root.visibility === Window.Windowed)
             AppSettings.setValue("window.maximized", false)
     }
 
@@ -158,18 +160,79 @@ KvitShell {
 
     function openSettingsDialog() { settingsDialog.open() }
 
+    // ---- Focusing a block by index --------------------------------------
+    // The editor list is virtualized, so a row only exists once the view has
+    // positioned and polished it. Insertion, drop and navigation all finish
+    // their model edit and then want the keyboard in the affected block, and
+    // asking itemAtIndex() in that same turn returns null for anything that
+    // was offscreen: the edit lands, the caret does not follow it. Everything
+    // that focuses by index goes through here, which sets the current index,
+    // brings the row into view, and keeps trying across frames until the
+    // delegate exists — or until a newer request replaces this one, so a
+    // rapid second insertion is never fought over by a stale retry.
+    property int focusRequestGeneration: 0
+    function focusBlockAtIndex(index, atEnd) {
+        if (BlockModel.count === 0)
+            return
+        var idx = Math.max(0, Math.min(index, BlockModel.count - 1))
+        root.focusRequestGeneration++
+        blockListView.currentIndex = idx
+        blockListView.positionViewAtIndex(idx, ListView.Contain)
+        blockFocusRetry.targetIndex = idx
+        blockFocusRetry.atEnd = atEnd === true
+        blockFocusRetry.generation = root.focusRequestGeneration
+        blockFocusRetry.attemptsLeft = 12
+        if (!root.applyPendingBlockFocus())
+            blockFocusRetry.restart()
+    }
+    // One attempt: true when the delegate was there and took the focus.
+    function applyPendingBlockFocus() {
+        var item = (blockListView.itemAtIndex(blockFocusRetry.targetIndex)
+                    as BlockDelegateBase)
+        if (!item)
+            return false
+        if (blockFocusRetry.atEnd && item.focusAtEnd)
+            item.focusAtEnd()
+        else if (item.focusAtStart)
+            item.focusAtStart()
+        else
+            return false
+        return true
+    }
+    Timer {
+        id: blockFocusRetry
+        objectName: "blockFocusRetry"
+        property int targetIndex: -1
+        property bool atEnd: false
+        property int generation: 0
+        property int attemptsLeft: 0
+        interval: 16
+        repeat: true
+        onTriggered: {
+            if (blockFocusRetry.generation !== root.focusRequestGeneration
+                || blockFocusRetry.attemptsLeft <= 0) {
+                blockFocusRetry.stop()
+                return
+            }
+            blockFocusRetry.attemptsLeft--
+            blockListView.positionViewAtIndex(blockFocusRetry.targetIndex,
+                                              ListView.Contain)
+            if (root.applyPendingBlockFocus())
+                blockFocusRetry.stop()
+        }
+    }
+
     // ---- Keyboard accessibility: focus and pane navigation (§14.1) ----
     // Skip-navigation: land on the current (or first) editor block, bypassing
     // the chrome. Bound to F6's pane cycle and the View menu.
     function focusEditor() {
-        var idx = Math.max(0, Math.min(root.lastFocusedBlock, BlockModel.count - 1))
-        blockListView.currentIndex = idx
-        var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-        if (item && item.focusAtStart)
-            item.focusAtStart()
+        root.focusBlockAtIndex(root.lastFocusedBlock)
     }
-    // Which major pane last took focus (0 sidebar, 1 note list, 2 editor), so
-    // F6 can cycle to the next visible one — the standard desktop region key.
+    // Which major pane last took focus (0 sidebar, 1 note list, 2 editor,
+    // 3 toolbar), so F6 can cycle to the next visible one — the standard
+    // desktop region key. The toolbar is in the cycle because Insert,
+    // Templates, View and the customization menu have no other shortcut, so
+    // leaving it out left those actions with no keyboard route at all.
     property int focusedPane: 2
     function focusPane(p) {
         root.focusedPane = p
@@ -177,6 +240,8 @@ KvitShell {
             sidebar.focusPane()
         else if (p === 1 && !root.noteListCollapsed && root.collectionOpen)
             noteListPane.focusPane()
+        else if (p === 3 && appToolbar.visible)
+            appToolbar.focusPane()
         else
             focusEditor()
     }
@@ -185,6 +250,7 @@ KvitShell {
         if (root.collectionOpen && !root.sidebarCollapsed) order.push(0)
         if (root.collectionOpen && !root.noteListCollapsed) order.push(1)
         order.push(2)  // the editor is always present
+        if (appToolbar.visible) order.push(3)
         var cur = order.indexOf(root.focusedPane)
         focusPane(order[(cur + 1) % order.length])
     }
@@ -380,11 +446,29 @@ KvitShell {
         return noteSession.saveCurrentNoteAsTemplate(name)
     }
     function restoreRecoveredNote(relPath) {
-        noteSession.restoreRecoveredNote(relPath)
+        return noteSession.restoreRecoveredNote(relPath)
     }
-    // The conflict banner's two buttons (§12.1).
-    function keepMine() { noteSession.keepMine() }
-    function loadTheirs(absPath) { noteSession.loadTheirs(absPath) }
+    // Asked for by restoreRecoveredNote when the recovered note is the open
+    // one and its buffer holds edits the journal does not: the dialog offers
+    // replace / keep / cancel and calls back into the session.
+    function confirmRecoveryOverwrite(relPath) {
+        documentDialogs.confirmRecoveryOverwrite(relPath)
+    }
+    function replaceEditsWithRecovery(relPath) {
+        return noteSession.replaceEditsWithRecovery(relPath)
+    }
+    function keepEditsOverRecovery(relPath) {
+        noteSession.keepEditsOverRecovery(relPath)
+    }
+    // A failure the session has to put in front of the user. Named here so the
+    // session does not have to know which child owns the error dialog.
+    function showDocumentError(message) { documentDialogs.showError(message) }
+    // The conflict banner's two buttons (§12.1), and the one entry point that
+    // raises it — both the file watcher and the collection report an external
+    // change, and both arrive here.
+    function keepMine() { return noteSession.keepMine() }
+    function loadTheirs(absPath) { return noteSession.loadTheirs(absPath) }
+    function noteChangedOnDisk(absPath) { noteSession.noteChangedOnDisk(absPath) }
 
     // ---- Renaming a note, and the links that point at it ----------------
     // NoteRenameWorkflow.qml owns the plan-then-apply sequence and its two
@@ -452,23 +536,32 @@ KvitShell {
         id: linkOpener
         property bool openExternally: true
         signal activated(string url)
+        // The last target handed to Qt.openUrlExternally(), so a test can
+        // observe that the browser branch really was reached rather than
+        // only that the activation signal fired.
+        property string lastExternalTarget: ""
         function activate(url) {
-            if (!url || url.length === 0)
+            // AppActions::openLinkRequested carries a QUrl, and a delegate may
+            // pass either that or a plain string. QUrl has no indexOf,
+            // substring or charAt, so the whole function works on one
+            // normalized string rather than on whatever arrived.
+            var target = String(url === undefined || url === null ? "" : url)
+            if (target.length === 0)
                 return
-            activated(url)
+            activated(target)
             // Wiki-link: kvit-note:target#heading resolves through the
             // collection and opens in-app — creating the note when the
             // target dangles — never a browser.
-            if (url.indexOf("kvit-note:") === 0) {
-                root.followWikiLink(url.substring(10))
+            if (target.indexOf("kvit-note:") === 0) {
+                root.followWikiLink(target.substring(10))
                 return
             }
             // Internal document link: #slug resolves
             // through the shared slug function to a heading and scrolls there,
             // rather than opening a browser. An unresolved slug is a
             // recoverable no-op with a status-bar note, never an error.
-            if (url.charAt(0) === "#") {
-                var slug = url.substring(1)
+            if (target.charAt(0) === "#") {
+                var slug = target.substring(1)
                 var idx = DocumentOutline.blockIndexForSlug(slug)
                 if (idx >= 0) {
                     root.scrollToBlock(idx)
@@ -478,8 +571,9 @@ KvitShell {
                 }
                 return
             }
+            linkOpener.lastExternalTarget = target
             if (openExternally)
-                Qt.openUrlExternally(url)
+                Qt.openUrlExternally(target)
         }
     }
 
@@ -768,7 +862,7 @@ KvitShell {
     // The image lightbox (§1.2.8): an image block opens it with a resolved
     // source. Declared below over the whole window at a high z.
     function openLightbox(source, alt) {
-        lightbox.open(source, alt)
+        lightbox.openImage(source, alt)
     }
 
     // Putting an image, a web embed or a table into an empty block: the

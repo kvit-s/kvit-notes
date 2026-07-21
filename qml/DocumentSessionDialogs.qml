@@ -44,6 +44,62 @@ Item {
         errorDialog.open()
     }
 
+    // The recovery banner's Restore, clicked while the note it names is open
+    // and holds unsaved edits. Both versions are real work, so the choice is
+    // the user's.
+    function confirmRecoveryOverwrite(relPath) {
+        recoveryOverwriteDialog.relPath = relPath
+        recoveryOverwriteDialog.open()
+    }
+
+    Dialog {
+        id: recoveryOverwriteDialog
+        objectName: "recoveryOverwriteDialog"
+        modal: true
+        title: qsTr("Recovered version")
+        anchors.centerIn: parent
+        width: 400
+        closePolicy: Popup.CloseOnEscape
+        property string relPath: ""
+
+        contentItem: Label {
+            text: qsTr("This note has unsaved changes that are newer than the "
+                + "recovered version. Using the recovered version replaces "
+                + "them; a copy of the current version is kept as a backup.")
+            wrapMode: Text.WordWrap
+            padding: 12
+        }
+
+        footer: DialogButtonBox {
+            Button {
+                objectName: "recoveryCancelButton"
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: recoveryOverwriteDialog.close()
+            }
+            Button {
+                objectName: "recoveryKeepEditsButton"
+                text: qsTr("Keep my changes")
+                DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
+                onClicked: {
+                    var path = recoveryOverwriteDialog.relPath
+                    recoveryOverwriteDialog.close()
+                    dialogs.appWindow.keepEditsOverRecovery(path)
+                }
+            }
+            Button {
+                objectName: "recoveryReplaceButton"
+                text: qsTr("Use recovered version")
+                DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
+                onClicked: {
+                    var path = recoveryOverwriteDialog.relPath
+                    recoveryOverwriteDialog.close()
+                    dialogs.appWindow.replaceEditsWithRecovery(path)
+                }
+            }
+        }
+    }
+
     Shortcut {
         sequences: [StandardKey.Open]  // Ctrl+O
         onActivated: {
@@ -127,8 +183,13 @@ Item {
                 onClicked: {
                     createVaultDialog.close()
                     var dir = dialogs.appWindow.currentNoteDir()
+                    // Through AppActions rather than straight to the
+                    // collection: the application's openVaultRoot() releases
+                    // the outgoing vault's search index first, and opening the
+                    // root directly leaves a switch waiting on the old vault's
+                    // worker queue on the GUI thread.
                     if (dir !== "")
-                        NoteCollection.openRootAsync(dir)
+                        AppActions.requestOpenVault(dir)
                 }
             }
         }

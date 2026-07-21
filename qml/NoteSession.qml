@@ -86,8 +86,15 @@ QtObject {
     }
 
     function openHistoryEntry(entry) {
-        if (!session.openNoteByPath(entry.relPath))
+        // goBack()/goForward() have already moved the stacks. If the open then
+        // fails the editor is still showing the note the history says we left,
+        // so the move has to be undone or Back and Forward keep pointing at
+        // the wrong end of a document that never changed. A successful open
+        // commits it through visit().
+        if (!session.openNoteByPath(entry.relPath)) {
+            NavigationHistory.rollbackNavigation()
             return
+        }
         Qt.callLater(function() {
             var maxY = Math.max(0, session.listView.contentHeight
                                    - session.listView.height)
@@ -226,15 +233,25 @@ QtObject {
         var inst = NoteTemplates.instantiate(templateName, title)
         if (!session.openNoteByPath(relPath))
             return relPath
-        // The note is open and empty; load the expanded body, then apply the
-        // template's metadata and save through the normal path.
-        DocumentSerializer.loadIntoModel(BlockModel, inst.body || "")
+        // The note is open and empty; put the expanded body in as one undoable
+        // edit rather than a bare model reset, so a single Ctrl+Z takes the
+        // template back off. Then apply the metadata and save through the
+        // normal path.
+        DocumentManager.restoreBody(inst.body || "")
         var tags = inst.tags || []
         for (var i = 0; i < tags.length; i++)
             NoteCollection.addTag(relPath, tags[i])
         if (inst.favorite === true)
             NoteCollection.setFavorite(relPath, true)
-        DocumentManager.save()
+        // The body exists only in the model until this succeeds. Swallowing a
+        // failed write left the note empty on disk and the next switch away
+        // discarded it, so say so and let the caller decide.
+        if (!DocumentManager.save()) {
+            session.appWindow.showDocumentError(
+                qsTr("The note was created but its template content could not "
+                     + "be saved."))
+            return relPath
+        }
         Qt.callLater(function() {
             var item = (session.listView.itemAtIndex(0) as BlockDelegateBase)
             if (item && item.focusAtStart)
@@ -262,53 +279,133 @@ QtObject {
 
     // Restore a crash-recovered note (the banner's Restore button): the
     // journal content lands on disk; a currently-open note reloads.
+    //
+    // The banner can be on screen for the note the user is editing right now,
+    // and the journal snapshot behind it is up to one debounce interval old.
+    // So restoring is not always a one-sided choice: the buffer may hold
+    // newer work than the journal, and going ahead would overwrite the file
+    // and replace the model — losing both the edits and the undo history
+    // that could get them back. Flushing first makes isDirty describe the
+    // buffer as it is now rather than as it was when the last keystroke was
+    // debounced; a dirty buffer then turns the button into a question.
     function restoreRecoveredNote(relPath) {
+        DocumentManager.flushPendingEdits()
+        if (session.appWindow.currentNoteRelPath === relPath
+            && DocumentManager.isDirty) {
+            session.appWindow.confirmRecoveryOverwrite(relPath)
+            return false
+        }
+        return session.applyRecoveredNote(relPath)
+    }
+
+    // Write the journal over the file and reload. The pre-overwrite copy goes
+    // through the collection's own backup rotation, so the version being
+    // replaced stays reachable from the backup dialog if the recovered text
+    // turns out to be the wrong one.
+    function applyRecoveredNote(relPath) {
+        var abs = NoteCollection.absolutePath(relPath)
+        NoteCollection.backupBeforeOverwrite(abs)
         if (!NoteCollection.restoreRecovery(relPath))
-            return
+            return false
         if (session.appWindow.currentNoteRelPath === relPath) {
-            DocumentManager.open(DocumentManager.toLocalFileUrl(
-                NoteCollection.absolutePath(relPath)))
+            DocumentManager.open(DocumentManager.toLocalFileUrl(abs))
         } else {
             session.openNoteByPath(relPath)
         }
+        return true
+    }
+
+    // "Keep my edits": the buffer is the version worth having, so the journal
+    // is what goes. The banner entry disappears with it.
+    function keepEditsOverRecovery(relPath) {
+        NoteCollection.discardRecovery(relPath)
+    }
+
+    // "Use the recovered version" answered over unsaved edits. Reopening the
+    // note would throw the model away, and with it the undo history that is
+    // the only remaining copy of those edits, so the recovered text is
+    // applied to the live document as one undoable edit instead: the file
+    // holds the recovered version, and one Ctrl+Z brings the replaced work
+    // back. Saving the buffer first is not an option — a clean save resolves
+    // the journal, so there would be nothing left to restore.
+    function replaceEditsWithRecovery(relPath) {
+        var abs = NoteCollection.absolutePath(relPath)
+        NoteCollection.backupBeforeOverwrite(abs)
+        if (!NoteCollection.restoreRecovery(relPath))
+            return false
+        return DocumentManager.restoreBody(
+            NoteCollection.noteInfo(relPath).body)
     }
 
     function keepMine() {
         // Re-write the editor's content, overwriting the external change.
-        DocumentManager.save()
+        // The banner is the only surface that offers this decision, and the
+        // watcher will not necessarily raise the same version again, so it
+        // stays up until the write actually succeeded.
+        if (!DocumentManager.save())
+            return false
         session.appWindow.externalConflict = false
+        return true
     }
 
     function loadTheirs(absPath) {
         var target = absPath !== undefined
             ? absPath : session.appWindow.conflictPath
-        // Force a reload past openNoteByPath's same-path short-circuit.
-        DocumentManager.open(DocumentManager.toLocalFileUrl(target))
+        // Force a reload past openNoteByPath's same-path short-circuit. A
+        // failed open leaves the editor on the version it already had, which
+        // is still in conflict, so the banner stays for a second attempt.
+        if (!DocumentManager.open(DocumentManager.toLocalFileUrl(target)))
+            return false
         session.appWindow.lastFocusedBlock = 0
         session.listView.currentIndex = 0
         Qt.callLater(session.appWindow.refreshSessionBaseline)
         session.appWindow.externalConflict = false
+        return true
     }
 
     // features.md §12.1: the open note changed on disk. While it is dirty
     // here both versions are real work, so the window raises its conflict
     // banner and the two functions above are its answers; when it is not
     // dirty, taking the disk version loses nothing and happens silently.
-    // Held in a property because this object has no children of its own.
+    //
+    // Two objects report the same event — the filesystem watcher, which sees
+    // the write, and the collection, which reports it after re-indexing — so
+    // both are routed through this one function. It is idempotent: a second
+    // report for a note whose banner is already up changes nothing, rather
+    // than announcing the conflict twice.
+    function noteChangedOnDisk(absPath) {
+        if (absPath === "" || absPath !== DocumentManager.currentFilePath)
+            return   // not the open note — the tree re-scan handles the rest
+        if (session.appWindow.externalConflict
+            && session.appWindow.conflictPath === absPath)
+            return   // already asked, and the answer is still outstanding
+        DocumentManager.flushPendingEdits()
+        if (DocumentManager.isDirty) {
+            session.appWindow.conflictPath = absPath
+            session.appWindow.externalConflict = true
+            A11y.announce(qsTr("This note changed on disk"))
+        } else {
+            // Not dirty here: loading theirs is lossless, so do it silently.
+            session.loadTheirs(absPath)
+        }
+    }
+
+    // Held in properties because this object has no children of its own.
     property Connections externalChangeWatch: Connections {
         target: FileWatcher
         function onNoteChangedExternally(absPath) {
-            if (absPath !== DocumentManager.currentFilePath)
-                return   // not the open note — the tree re-scan handles the rest
-            DocumentManager.flushPendingEdits()
-            if (DocumentManager.isDirty) {
-                session.appWindow.conflictPath = absPath
-                session.appWindow.externalConflict = true
-                A11y.announce(qsTr("This note changed on disk"))
-            } else {
-                // Not dirty here: loading theirs is lossless, so do it silently.
-                session.loadTheirs(absPath)
-            }
+            session.noteChangedOnDisk(absPath)
+        }
+    }
+
+    // The collection's own report of the same thing. Without this it reaches
+    // the user only as a transient status line, which scrolls away — and a
+    // decision about which version of their work to keep is not something to
+    // put somewhere that disappears on its own.
+    property Connections collectionChangeWatch: Connections {
+        target: NoteCollection
+        function onNoteChangedExternally(relPath) {
+            session.noteChangedOnDisk(NoteCollection.absolutePath(relPath))
         }
     }
 }

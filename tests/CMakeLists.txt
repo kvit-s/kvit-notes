@@ -458,6 +458,23 @@ set_tests_properties(IntegrationTestsIsolated PROPERTIES
     ENVIRONMENT "QT_QUICK_BACKEND=software"
     TIMEOUT 1800)
 
+# tests/tst_uiremediation.qml — the UI remediation suite, run by the same
+# harness binary with a different -input. A Qt Quick Test file is data to that
+# binary rather than something linked into it, so a second suite needs no
+# second executable.
+#
+# It runs offscreen and blocking, under `shell` rather than `visual`: unlike
+# the storyboard and integration suites it needs no focused window, and it
+# measured 31 of 31 with no skips across repeated offscreen runs. The
+# behaviours it covers are the ones a user loses data to, so they should fail
+# a merge rather than be reported for information.
+add_test(NAME UiRemediationTests
+         COMMAND test_integration
+                 -input ${CMAKE_CURRENT_SOURCE_DIR}/tst_uiremediation.qml)
+set_tests_properties(UiRemediationTests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+    TIMEOUT 600)
+
 # Visual storyboard tests (Qt Quick Test) — screenshot walkthroughs.
 qt_add_executable(test_visual
     test_visual.cpp
@@ -655,7 +672,8 @@ set(KVIT_SHELL_TESTS
     # The storyboard scenarios that do not need a focused window. Same
     # binary and same file as VisualTests, but offscreen and blocking; the
     # display entry stays informational under `visual`.
-    VisualStoryboardHeadless)
+    VisualStoryboardHeadless
+    UiRemediationTests)
 set(KVIT_VISUAL_TESTS
     IntegrationTests
     IntegrationTestsIsolated

@@ -25,9 +25,43 @@ Rectangle {
     property var appWindow
     property var sidebar
 
-    // Pane focus entry (§14.1 tab order): land on the note list.
+    // Pane focus entry (§14.1 tab order): land on the note list, on the open
+    // note's row where there is one. Arriving on an unset current index left
+    // the arrow keys moving a selection nobody could see and Enter with
+    // nothing to act on, so the index is placed before the focus is.
     function focusPane() {
-        noteListView.forceActiveFocus()
+        if (noteListView.currentIndex < 0 || noteListView.currentIndex
+            >= NoteListModel.count) {
+            var open = noteListPane.appWindow
+                ? NoteListModel.rowOf(noteListPane.appWindow.currentNoteRelPath)
+                : -1
+            noteListView.currentIndex =
+                open >= 0 ? open : (NoteListModel.count > 0 ? 0 : -1)
+        }
+        if (noteListView.currentIndex >= 0)
+            noteListView.positionViewAtIndex(noteListView.currentIndex,
+                                             ListView.Contain)
+        noteListView.forceActiveFocus(Qt.TabFocusReason)
+    }
+
+    // Enter/Space on the focused row: open the note the arrow keys walked to.
+    function activateCurrentRow() {
+        var relPath = NoteListModel.relPathAt(noteListView.currentIndex)
+        if (relPath === "")
+            return false
+        noteListPane.selectionClick(relPath, 0)
+        return true
+    }
+
+    // The context-menu key (and Shift+F10) on the focused row: the same menu
+    // the right mouse button opens.
+    function contextMenuForCurrentRow() {
+        var relPath = NoteListModel.relPathAt(noteListView.currentIndex)
+        if (relPath === "")
+            return false
+        noteContextMenu.openFor(relPath, noteListView.currentPinned,
+                                noteListView.currentFavorite)
+        return true
     }
 
     // relPath of the row currently in inline rename ("" = none).
@@ -507,6 +541,42 @@ Rectangle {
             clip: true
             model: NoteListModel
 
+            // Keyboard operation (§14.1). Up/Down move the current row, which
+            // is drawn as such, and Return/Enter/Space open it; the
+            // context-menu key reaches the same menu as the right button.
+            // Without these the pane could take focus but nothing in it could
+            // be reached or acted on from the keyboard.
+            activeFocusOnTab: true
+            keyNavigationEnabled: true
+            highlightMoveDuration: 0
+            Accessible.role: Accessible.List
+            Accessible.name: qsTr("Notes")
+
+            // The current row's pin/favorite state, published by that row
+            // (below). itemAtIndex() is declared to return a bare Item, so a
+            // key handler cannot read model roles off it.
+            property bool currentPinned: false
+            property bool currentFavorite: false
+
+            Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                    || event.key === Qt.Key_Space) {
+                    if (noteListPane.activateCurrentRow())
+                        event.accepted = true
+                } else if (event.key === Qt.Key_Menu
+                           || (event.key === Qt.Key_F10
+                               && (event.modifiers & Qt.ShiftModifier))) {
+                    if (noteListPane.contextMenuForCurrentRow())
+                        event.accepted = true
+                } else if (event.key === Qt.Key_F2) {
+                    var relPath = NoteListModel.relPathAt(noteListView.currentIndex)
+                    if (relPath !== "") {
+                        noteListPane.startRename(relPath)
+                        event.accepted = true
+                    }
+                }
+            }
+
             delegate: Rectangle {
                 id: noteRow
                 // NoteListModel's roles, declared rather than injected, so
@@ -529,8 +599,15 @@ Rectangle {
                 // Screen-reader name/role for each note (§14.2).
                 Accessible.role: Accessible.ListItem
                 Accessible.name: noteRow.title
+                Accessible.description: noteRow.snippet
                 Accessible.selected: noteListPane.appWindow
                     && noteListPane.appWindow.currentNoteRelPath === noteRow.relPath
+                Accessible.focused: noteListView.activeFocus
+                    && noteListView.currentIndex === noteRow.index
+                // The keyboard's position in the list has to be visible, or
+                // the arrow keys move something the user cannot see.
+                readonly property bool isCurrentRow:
+                    noteListView.currentIndex === noteRow.index
                 color: {
                     if (noteListPane.isSelected(noteRow.relPath)
                         && noteListPane.selectedPaths.length > 1)
@@ -538,7 +615,36 @@ Rectangle {
                     if (noteListPane.appWindow
                         && noteListPane.appWindow.currentNoteRelPath === noteRow.relPath)
                         return Theme.selectionTint
+                    if (noteRow.isCurrentRow && noteListView.activeFocus)
+                        return Theme.focusTint
                     return noteRowHover.hovered ? Theme.hoverTint : "transparent"
+                }
+
+                // What the view's context-menu key needs from whichever row
+                // is current.
+                Binding {
+                    target: noteListView
+                    property: "currentPinned"
+                    value: noteRow.pinned
+                    when: noteRow.isCurrentRow
+                }
+                Binding {
+                    target: noteListView
+                    property: "currentFavorite"
+                    value: noteRow.favorite
+                    when: noteRow.isCurrentRow
+                }
+
+                // Focus ring on the row the keyboard is on.
+                Rectangle {
+                    objectName: "noteRowFocusRing"
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    visible: noteRow.isCurrentRow && noteListView.activeFocus
+                    color: "transparent"
+                    border.width: 2
+                    border.color: Theme.focusRing
+                    radius: 3
                 }
 
                 HoverHandler { id: noteRowHover }
@@ -726,9 +832,14 @@ Rectangle {
                         dragging = false
                     }
                     onClicked: function(mouse) {
-                        if (!dragging)
-                            noteListPane.selectionClick(noteRow.relPath,
-                                                        mouse.modifiers)
+                        if (dragging)
+                            return
+                        // Keep the keyboard's position with the pointer's, so
+                        // arrowing after a click continues from the clicked
+                        // row rather than from wherever it was left.
+                        noteListView.currentIndex = noteRow.index
+                        noteListPane.selectionClick(noteRow.relPath,
+                                                    mouse.modifiers)
                     }
                     onDoubleClicked: noteListPane.startRename(noteRow.relPath)
                 }

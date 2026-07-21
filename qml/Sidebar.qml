@@ -82,9 +82,48 @@ Rectangle {
         globalSearchField.selectAll()
     }
 
-    // Pane focus entry (§14.1 tab order): land on the folder tree.
+    // Pane focus entry (§14.1 tab order): land on the folder tree, with a
+    // current row set. Focusing a list whose current index is still -1 left
+    // the arrows moving nothing visible and Enter with nothing to choose.
     function focusPane() {
-        folderTreeView.forceActiveFocus()
+        if (folderTreeView.currentIndex < 0
+            || folderTreeView.currentIndex >= folderTreeView.count)
+            folderTreeView.currentIndex = folderTreeView.count > 0 ? 0 : -1
+        if (folderTreeView.currentIndex >= 0)
+            folderTreeView.positionViewAtIndex(folderTreeView.currentIndex,
+                                               ListView.Contain)
+        folderTreeView.forceActiveFocus(Qt.TabFocusReason)
+    }
+
+    // Enter/Space on the focused folder row: scope the note list to it, which
+    // is what clicking the row does.
+    function activateCurrentFolder() {
+        if (folderTreeView.currentIndex < 0)
+            return false
+        NoteListModel.folderPath =
+            FolderTreeModel.relPathAt(folderTreeView.currentIndex)
+        NoteListModel.scope = "folder"
+        return true
+    }
+
+    // Enter/Space on the focused tag row: the same toggle the mouse performs,
+    // so pressing it again on the active tag clears the filter.
+    function activateCurrentTag() {
+        var entry = sidebar.tagEntryAt(tagListView.currentIndex)
+        if (!entry)
+            return null
+        NoteListModel.tagFilter =
+            NoteListModel.tagFilter === entry.name ? "" : entry.name
+        return entry
+    }
+
+    // The tag model is a plain array of maps, so the current row's data comes
+    // from the model rather than from a delegate that may not exist.
+    function tagEntryAt(index) {
+        var listing = tagListView.model
+        if (!listing || index < 0 || index >= listing.length)
+            return null
+        return listing[index]
     }
 
     ColumnLayout {
@@ -263,6 +302,54 @@ Rectangle {
             clip: true
             model: FolderTreeModel
 
+            // Keyboard operation (§14.1): Up/Down walk the tree, Right/Left
+            // expand and collapse it, Enter/Space scope the note list to the
+            // current folder, and the context-menu key opens the folder menu.
+            activeFocusOnTab: true
+            keyNavigationEnabled: true
+            highlightMoveDuration: 0
+            Accessible.role: Accessible.Tree
+            Accessible.name: qsTr("Folders")
+
+            // The current row's model roles, published by that row (below).
+            // A key handler cannot read them off itemAtIndex(), whose declared
+            // type is a bare Item, and the row it wants may not be built yet.
+            property string currentName: ""
+            property string currentColor: ""
+            property bool currentExpanded: false
+            property bool currentHasChildren: false
+
+            Keys.onPressed: function(event) {
+                var relPath = folderTreeView.currentIndex >= 0
+                    ? FolderTreeModel.relPathAt(folderTreeView.currentIndex) : ""
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                    || event.key === Qt.Key_Space) {
+                    if (sidebar.activateCurrentFolder())
+                        event.accepted = true
+                } else if (event.key === Qt.Key_Right) {
+                    if (folderTreeView.currentHasChildren
+                        && !folderTreeView.currentExpanded) {
+                        NoteCollection.setFolderExpanded(relPath, true)
+                        event.accepted = true
+                    }
+                } else if (event.key === Qt.Key_Left) {
+                    if (folderTreeView.currentHasChildren
+                        && folderTreeView.currentExpanded) {
+                        NoteCollection.setFolderExpanded(relPath, false)
+                        event.accepted = true
+                    }
+                } else if (event.key === Qt.Key_Menu
+                           || (event.key === Qt.Key_F10
+                               && (event.modifiers & Qt.ShiftModifier))) {
+                    if (folderTreeView.currentIndex >= 0) {
+                        folderContextMenu.openFor(relPath,
+                                                  folderTreeView.currentName,
+                                                  folderTreeView.currentColor)
+                        event.accepted = true
+                    }
+                }
+            }
+
             delegate: Rectangle {
                 id: folderRow
                 // FolderTreeModel's roles, declared rather than injected, so
@@ -277,6 +364,16 @@ Rectangle {
                 required property int index
                 width: folderTreeView.width
                 height: 28
+                // Screen-reader name/role and the keyboard's position (§14.2).
+                Accessible.role: Accessible.TreeItem
+                Accessible.name: folderRow.name
+                Accessible.description: qsTr("%1 notes").arg(folderRow.noteCount)
+                Accessible.selected: NoteListModel.scope === "folder"
+                    && NoteListModel.folderPath === folderRow.relPath
+                Accessible.focused: folderTreeView.activeFocus
+                    && folderTreeView.currentIndex === folderRow.index
+                readonly property bool isCurrentRow:
+                    folderTreeView.currentIndex === folderRow.index
                 color: {
                     if (sidebar.dropTargetActive
                         && sidebar.dropTargetFolder === folderRow.relPath)
@@ -284,7 +381,48 @@ Rectangle {
                     if (NoteListModel.scope === "folder"
                         && NoteListModel.folderPath === folderRow.relPath)
                         return Theme.selectionTint
+                    if (folderRow.isCurrentRow && folderTreeView.activeFocus)
+                        return Theme.focusTint
                     return rowHover.hovered ? Theme.hoverTint : "transparent"
+                }
+
+                Rectangle {
+                    objectName: "folderRowFocusRing"
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    visible: folderRow.isCurrentRow && folderTreeView.activeFocus
+                    color: "transparent"
+                    border.width: 2
+                    border.color: Theme.focusRing
+                    radius: 3
+                }
+
+                // What the view's key handler needs from whichever row is
+                // current: expand/collapse state for the arrow keys, name and
+                // colour for the context menu.
+                Binding {
+                    target: folderTreeView
+                    property: "currentName"
+                    value: folderRow.name
+                    when: folderRow.isCurrentRow
+                }
+                Binding {
+                    target: folderTreeView
+                    property: "currentColor"
+                    value: folderRow.folderColor
+                    when: folderRow.isCurrentRow
+                }
+                Binding {
+                    target: folderTreeView
+                    property: "currentExpanded"
+                    value: folderRow.expanded
+                    when: folderRow.isCurrentRow
+                }
+                Binding {
+                    target: folderTreeView
+                    property: "currentHasChildren"
+                    value: folderRow.hasChildren
+                    when: folderRow.isCurrentRow
                 }
 
                 HoverHandler { id: rowHover }
@@ -375,6 +513,8 @@ Rectangle {
                     anchors.fill: parent
                     z: -1
                     onClicked: {
+                        // Keep the keyboard's row with the pointer's.
+                        folderTreeView.currentIndex = folderRow.index
                         NoteListModel.folderPath = folderRow.relPath
                         NoteListModel.scope = "folder"
                     }
@@ -410,14 +550,60 @@ Rectangle {
                 return NoteCollection.isOpen ? NoteCollection.tagListing() : []
             }
 
+            // Keyboard operation (§14.1), matching the folder tree above.
+            activeFocusOnTab: true
+            keyNavigationEnabled: true
+            highlightMoveDuration: 0
+            Accessible.role: Accessible.List
+            Accessible.name: qsTr("Tags")
+            Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                    || event.key === Qt.Key_Space) {
+                    if (sidebar.activateCurrentTag())
+                        event.accepted = true
+                } else if (event.key === Qt.Key_Menu
+                           || (event.key === Qt.Key_F10
+                               && (event.modifiers & Qt.ShiftModifier))) {
+                    var entry = sidebar.tagEntryAt(tagListView.currentIndex)
+                    if (entry) {
+                        tagContextMenu.openFor(entry.name, entry.color,
+                                               entry.count)
+                        event.accepted = true
+                    }
+                }
+            }
+
             delegate: Rectangle {
                 id: tagRow
                 required property var modelData
+                required property int index
                 width: tagListView.width
                 height: 24
+                Accessible.role: Accessible.ListItem
+                Accessible.name: tagRow.modelData.name
+                Accessible.description: qsTr("%1 notes").arg(tagRow.modelData.count)
+                Accessible.selected:
+                    NoteListModel.tagFilter === tagRow.modelData.name
+                Accessible.focused: tagListView.activeFocus
+                    && tagListView.currentIndex === tagRow.index
+                readonly property bool isCurrentRow:
+                    tagListView.currentIndex === tagRow.index
                 color: NoteListModel.tagFilter === tagRow.modelData.name
                        ? Theme.selectionTint
-                       : (tagHover.hovered ? Theme.hoverTint : "transparent")
+                       : (tagRow.isCurrentRow && tagListView.activeFocus
+                          ? Theme.focusTint
+                          : (tagHover.hovered ? Theme.hoverTint : "transparent"))
+
+                Rectangle {
+                    objectName: "tagRowFocusRing"
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    visible: tagRow.isCurrentRow && tagListView.activeFocus
+                    color: "transparent"
+                    border.width: 2
+                    border.color: Theme.focusRing
+                    radius: 3
+                }
 
                 HoverHandler { id: tagHover }
             // §9.5 tag context menu.
@@ -478,9 +664,12 @@ Rectangle {
                     anchors.fill: parent
                     z: -1
                     // Toggle: clicking the active tag clears the filter.
-                    onClicked: NoteListModel.tagFilter =
-                        NoteListModel.tagFilter === tagRow.modelData.name
-                            ? "" : tagRow.modelData.name
+                    onClicked: {
+                        tagListView.currentIndex = tagRow.index
+                        NoteListModel.tagFilter =
+                            NoteListModel.tagFilter === tagRow.modelData.name
+                                ? "" : tagRow.modelData.name
+                    }
                 }
             }
         }

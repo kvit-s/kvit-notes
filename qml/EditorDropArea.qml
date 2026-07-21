@@ -59,10 +59,10 @@ DropArea {
             last = at
             at++
         }
-        Qt.callLater(function() {
-            var item = (dropArea.listView.itemAtIndex(last) as BlockDelegateBase)
-            if (item && item.focusAtStart) item.focusAtStart()
-        })
+        // The dropped blocks can land outside the viewport, where no delegate
+        // exists yet, so the window's retrying focus router is what puts the
+        // caret in the last one rather than a single deferred itemAtIndex().
+        dropArea.appWindow.focusBlockAtIndex(last)
     }
 
     // Turn a stored image/media path into the right block type by extension.
