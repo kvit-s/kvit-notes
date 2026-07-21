@@ -319,37 +319,29 @@ BlockDelegateBase {
         var dep2 = mathTick
         return editorEngine.inlineMathBoxes()
     }
-    function inlineMathSource(tex) {
-        if (!tex || tex.trim().length === 0)
-            return ""
-        function h(x) { return ("0" + Math.round(x * 255).toString(16)).slice(-2) }
-        var c = delegate.appTheme ? delegate.appTheme.textPrimary : Qt.rgba(0, 0, 0, 1)
-        var fg = h(c.a) + h(c.r) + h(c.g) + h(c.b)
-        var sz = delegate.inlineMathPixelSize
-        var dpr = 1
+    // The ratio the equation bitmaps are rendered at, so they are sharp on a
+    // scaled display.
+    readonly property real screenDevicePixelRatio: {
         // Qt's type description for ApplicationWindow omits devicePixelRatio,
         // which is documented QML API, so the linter cannot see it. Same gap
         // as Qt.application.screens in main.qml, and scoped the same way.
         // qmllint disable missing-property
         if (delegate.shell && delegate.shell.devicePixelRatio !== undefined && delegate.shell.devicePixelRatio > 0)
-            dpr = delegate.shell.devicePixelRatio
+            return delegate.shell.devicePixelRatio
         // qmllint enable missing-property
         // The window's own screen is this item's screen, so the attached
         // Screen below answers what delegate.shell.screen used to — typed, and
         // still correct when the cast yields null.
-        else if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
-            dpr = Screen.devicePixelRatio
-        dpr = Math.round(dpr * 100) / 100
-        return "image://math/" + MathRenderer.encode(tex)
-             + "?fg=" + fg + "&size=" + sz + "&dpr=" + dpr.toFixed(2)
-             + "&vpad=" + delegate.inlineMathVerticalPadding
+        if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
+            return Screen.devicePixelRatio
+        return 1
     }
 
     // Track hover state. The gutter has its own hover handler
     // because its child MouseAreas occlude blockMouseArea; without this,
     // showing the buttons can make the block look un-hovered and start a
     // hide/show loop under the pointer.
-    property bool isHovered: blockMouseArea.containsMouse || gutterHover.hovered
+    property bool isHovered: blockMouseArea.containsMouse || blockHandle.hovered
 
     // Whether this block is in the document-level block selection
     // (features.md §3.1). The revision read makes the binding re-evaluate
@@ -389,54 +381,46 @@ BlockDelegateBase {
         editorRequested = true
     }
 
-    // ---- Cross-block text selection support (features.md §2.5, §21.3).
-    // The per-block passive PointHandler feeds the window's drag
-    // coordinator through these per-delegate position helpers; the
-    // coordinator holds the range; this block renders its portion through
-    // its own TextArea selection. ----
+    // ---- Cross-block text selection (features.md §2.5, §21.3) ----
+    // A selection reaching past this block belongs to DocumentSelection, not
+    // to any one editor; the controller below converts this block's
+    // coordinates for it and renders the part of the range that falls in this
+    // block's text. The functions the shell calls on a row stay here as the
+    // interface BlockDelegateBase declares, and forward to it.
+    CrossBlockTextSelection {
+        id: crossBlockSelection
+        blockIndex: delegate.index
+        editor: textArea
+        engine: editorEngine
+        blockList: delegate.listView
+        pooled: delegate.isPooled
+        onRefocusRequested: function(index, markdownPos) {
+            delegate.refocusBlock(index, markdownPos)
+        }
+        onPasteRequested: function(index, markdownPos, text, stripFormatting) {
+            delegate.pasteMarkdownAtBlock(index, markdownPos, text, stripFormatting)
+        }
+    }
 
-    // Markdown position under a scene point (clamped into this block).
     function markdownPositionAt(sceneX, sceneY) {
-        var p = textArea.mapFromItem(null, sceneX, sceneY)
-        var cx = Math.max(0, Math.min(p.x, textArea.width - 1))
-        var cy = Math.max(0, Math.min(p.y, textArea.height - 1))
-        return editorEngine.toMarkdownPosition(textArea.positionAt(cx, cy))
+        return crossBlockSelection.markdownPositionAt(sceneX, sceneY)
     }
-
-    // Whether a scene point is over this block's text (a press in the
-    // gutter must not seed a text-selection drag).
     function pointInText(sceneX, sceneY) {
-        var p = textArea.mapFromItem(null, sceneX, sceneY)
-        return p.x >= 0 && p.x <= textArea.width
-            && p.y >= 0 && p.y <= textArea.height
+        return crossBlockSelection.pointInText(sceneX, sceneY)
     }
-
-    // Markdown position one visual line up/down from mdPos within this
-    // block, or -1 when that would leave the block.
     function lineStepPosition(mdPos, dir) {
-        var doc = Math.min(editorEngine.toDocumentPosition(mdPos), textArea.text.length)
-        var rect = textArea.positionToRectangle(doc)
-        var newY = rect.y + dir * rect.height + rect.height / 2
-        if (newY < 0)
-            return -1
-        var newDoc = textArea.positionAt(rect.x, newY)
-        var newRect = textArea.positionToRectangle(newDoc)
-        if (Math.abs(newRect.y - rect.y) < 1)
-            return -1 // same visual line: the step leaves the block
-        return editorEngine.toMarkdownPosition(newDoc)
+        return crossBlockSelection.lineStepPosition(mdPos, dir)
     }
-
-    // Entry position for a vertical crossing into this block at a given
-    // x (the first or last visual line).
     function entryPositionAtX(x, fromTop) {
-        var y = fromTop ? 2 : textArea.height - 2
-        var cx = Math.max(0, Math.min(x, textArea.width - 1))
-        return editorEngine.toMarkdownPosition(textArea.positionAt(cx, y))
+        return crossBlockSelection.entryPositionAtX(x, fromTop)
     }
-
     function xAtMarkdown(mdPos) {
-        var doc = Math.min(editorEngine.toDocumentPosition(mdPos), textArea.text.length)
-        return textArea.positionToRectangle(doc).x
+        return crossBlockSelection.xAtMarkdown(mdPos)
+    }
+    // TextBlockDelegate calls this when a row it owns comes back out of the
+    // list's reuse pool, since the row may land inside an active range.
+    function applyTextPortionLater() {
+        crossBlockSelection.applyTextPortionLater()
     }
 
     // ---- Find bar hooks (features.md §7) ----
@@ -462,221 +446,16 @@ BlockDelegateBase {
         return Qt.rect(p.x, p.y, rect.width, rect.height)
     }
 
-    // The Qt.callLater re-apply sites below can outlive this delegate:
-    // a selection clear immediately followed by a document reload
-    // (find-and-replace flows do this) tears the delegate down before
-    // the queued call fires, and calling into its invalidated context
-    // is a TypeError.
-    function applyTextPortionLater() {
-        Qt.callLater(function() {
-            if (delegate && typeof delegate.applyTextPortion === "function")
-                delegate.applyTextPortion()
-        })
-    }
-
-    // Apply this block's portion of the cross-block range to the
-    // TextArea (persistentSelection keeps it visible unfocused). The
-    // focused anchor block needs no help — its native selection IS its
-    // portion while the mouse drags, and the keyboard paths manage it.
-    function applyTextPortion() {
-        if (isPooled || textArea.activeFocus)
-            return
-        var p = DocumentSelection.portionForBlock(delegate.index)
-        if (p.selected === true && p.end > p.start) {
-            var docStart = editorEngine.toDocumentPosition(p.start)
-            var docEnd = editorEngine.toDocumentPosition(p.end)
-            // Fixed-point guard: re-select only when the TextArea does
-            // not already show the desired range, so the re-apply paths
-            // below cannot feed back through the engine indefinitely.
-            if (textArea.selectionStart !== docStart
-                || textArea.selectionEnd !== docEnd)
-                textArea.select(docStart, docEnd)
-        } else if (textArea.selectionEnd > textArea.selectionStart) {
-            textArea.deselect()
-        }
-    }
-
     Connections {
         target: DocumentSelection
         function onRevisionChanged() {
-            // Apply now, and once more on a clean stack: the engine's
-            // deferred reveal transitions (the blurred anchor block
-            // collapsing its markers) edit the document AFTER this
-            // handler and destroy a just-applied selection. A cleared
-            // selection needs no delayed pass — the synchronous call
-            // already deselected, and nothing re-selects afterwards.
-            delegate.applyTextPortion()
-            if (DocumentSelection.hasTextSelection)
-                delegate.applyTextPortionLater()
+            crossBlockSelection.onSelectionRevisionChanged()
         }
     }
 
     Component.onCompleted: {
         if (DocumentSelection.hasTextSelection)
-            delegate.applyTextPortionLater()
-    }
-
-    // Remove the coordinator's range from the model (one undo step) and
-    // return the {index, cursor} landing spot.
-    // Copy markdown in every Clipboard flavor (§5.1). Shared by the
-    // cross-block and in-block copy/cut paths.
-    function copyMarkdownToClipboard(md) {
-        Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
-    }
-
-    function crossBlockDeleteRange() {
-        var range = DocumentSelection.orderedTextRange()
-        DocumentSelection.clearTextSelection()
-        textArea.deselect()
-        return BlockModel.removeTextRange(range.startIndex, range.startPos,
-                                          range.endIndex, range.endPos)
-    }
-
-    // Move the cross-block head one step (Shift+Arrows, §21.3 keyboard
-    // extension). Vertical steps stay within the head block's visual
-    // lines until they must cross into the neighbor at the same x.
-    function moveCrossBlockHead(key) {
-        var headIdx = DocumentSelection.textHeadIndex()
-        var headMd = DocumentSelection.textHeadPosition()
-        if (headIdx < 0 || !delegate.listView)
-            return
-        var content = BlockModel.getContent(headIdx)
-        var headItem = (delegate.listView.itemAtIndex(headIdx) as BlockDelegateBase)
-        var newIdx = headIdx
-        var newMd = headMd
-
-        if (key === Qt.Key_Right) {
-            if (headMd < content.length) {
-                newMd = headMd + 1
-            } else if (headIdx < BlockModel.count - 1) {
-                newIdx = headIdx + 1
-                newMd = 0
-            }
-        } else if (key === Qt.Key_Left) {
-            if (headMd > 0) {
-                newMd = headMd - 1
-            } else if (headIdx > 0) {
-                newIdx = headIdx - 1
-                newMd = BlockModel.getContent(newIdx).length
-            }
-        } else if (key === Qt.Key_Down || key === Qt.Key_Up) {
-            var dir = key === Qt.Key_Down ? 1 : -1
-            var stepped = headItem && headItem.lineStepPosition
-                ? headItem.lineStepPosition(headMd, dir) : -1
-            if (stepped >= 0) {
-                newMd = stepped
-            } else {
-                var x = headItem && headItem.xAtMarkdown
-                    ? headItem.xAtMarkdown(headMd) : 0
-                if (dir > 0 && headIdx < BlockModel.count - 1) {
-                    newIdx = headIdx + 1
-                    var below = (delegate.listView.itemAtIndex(newIdx) as BlockDelegateBase)
-                    newMd = below && below.entryPositionAtX
-                        ? below.entryPositionAtX(x, true) : 0
-                } else if (dir < 0 && headIdx > 0) {
-                    newIdx = headIdx - 1
-                    var above = (delegate.listView.itemAtIndex(newIdx) as BlockDelegateBase)
-                    newMd = above && above.entryPositionAtX
-                        ? above.entryPositionAtX(x, false)
-                        : BlockModel.getContent(newIdx).length
-                }
-            }
-        }
-
-        if (newIdx === DocumentSelection.textAnchorIndex()
-            && newIdx === delegate.index) {
-            // The head returned into the anchor block: collapse back to
-            // a native in-block selection
-            var anchorMd = DocumentSelection.textAnchorPosition()
-            DocumentSelection.clearTextSelection()
-            textArea.select(editorEngine.toDocumentPosition(anchorMd),
-                            editorEngine.toDocumentPosition(newMd))
-            return
-        }
-        DocumentSelection.updateTextSelectionHead(newIdx, newMd)
-    }
-
-    // Keys while this block anchors an active cross-block selection.
-    // Returns true when the key was consumed.
-    function handleCrossBlockKey(event) {
-        var ctrl = event.modifiers & Qt.ControlModifier
-        var shift = event.modifiers & Qt.ShiftModifier
-        var isArrow = event.key === Qt.Key_Left || event.key === Qt.Key_Right
-                   || event.key === Qt.Key_Up || event.key === Qt.Key_Down
-
-        if (event.key === Qt.Key_Escape) {
-            DocumentSelection.clearTextSelection()
-            textArea.deselect()
-            event.accepted = true
-            return true
-        }
-        if (shift && !ctrl && isArrow) {
-            moveCrossBlockHead(event.key)
-            event.accepted = true
-            return true
-        }
-        if (!ctrl && !shift && isArrow) {
-            // Plain arrows collapse the selection to its edge
-            var range = DocumentSelection.orderedTextRange()
-            DocumentSelection.clearTextSelection()
-            textArea.deselect()
-            var goStart = event.key === Qt.Key_Left || event.key === Qt.Key_Up
-            refocusBlock(goStart ? range.startIndex : range.endIndex,
-                         goStart ? range.startPos : range.endPos)
-            event.accepted = true
-            return true
-        }
-        if (event.key === Qt.Key_C && ctrl) {
-            copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
-            event.accepted = true
-            return true
-        }
-        if (event.key === Qt.Key_X && ctrl) {
-            copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
-            var cutResult = crossBlockDeleteRange()
-            if (cutResult.index !== undefined)
-                refocusBlock(cutResult.index, cutResult.cursor)
-            event.accepted = true
-            return true
-        }
-        // Ctrl+V / Ctrl+Shift+V over a cross-block selection: the range goes
-        // first, exactly as every sibling operation here does, and the
-        // Clipboard lands at the collapsed caret. Without this branch the
-        // per-block handler would run instead and see only the head block's
-        // own selection, leaving the rest of the range in the document.
-        if (event.key === Qt.Key_V && ctrl) {
-            if (Clipboard && Clipboard.hasText) {
-                var stripPaste = (event.modifiers & Qt.ShiftModifier) ? true : false
-                var pasteRes = crossBlockDeleteRange()
-                if (pasteRes.index !== undefined)
-                    pasteMarkdownAtBlock(pasteRes.index, pasteRes.cursor,
-                                         Clipboard.text, stripPaste)
-            }
-            event.accepted = true
-            return true
-        }
-        if (event.key === Qt.Key_Delete || event.key === Qt.Key_Backspace) {
-            var delResult = crossBlockDeleteRange()
-            if (delResult.index !== undefined)
-                refocusBlock(delResult.index, delResult.cursor)
-            event.accepted = true
-            return true
-        }
-        // Printable text replaces the range; the deletion and the typed
-        // character are layered undo steps
-        if (!ctrl && event.text.length > 0 && event.text.charCodeAt(0) >= 32) {
-            var repResult = crossBlockDeleteRange()
-            if (repResult.index !== undefined) {
-                var md = BlockModel.getContent(repResult.index)
-                BlockModel.updateContent(repResult.index,
-                    md.substring(0, repResult.cursor) + event.text
-                    + md.substring(repResult.cursor))
-                refocusBlock(repResult.index, repResult.cursor + event.text.length)
-            }
-            event.accepted = true
-            return true
-        }
-        return false
+            crossBlockSelection.applyTextPortionLater()
     }
 
     // Get reference to the ListView
@@ -702,7 +481,7 @@ BlockDelegateBase {
         // A block scrolled back into view may sit inside an active
         // cross-block range; re-render its portion.
         if (DocumentSelection.hasTextSelection)
-            delegate.applyTextPortionLater()
+            crossBlockSelection.applyTextPortionLater()
     }
 
     // Toolbar / formatting-bar surface: the caret's combined span flags
@@ -878,19 +657,14 @@ BlockDelegateBase {
         })
     }
 
-    // Helper functions for cursor position detection
+    // Whether the caret sits on the block's first or last visual line, which
+    // is what turns an arrow key into a move to the neighbouring block.
     function isCursorOnFirstLine() {
-        if (textArea.text.indexOf('\n') === -1) return true
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var firstLineRect = textArea.positionToRectangle(0)
-        return Math.abs(rect.y - firstLineRect.y) < 1
+        return crossBlockSelection.cursorOnFirstLine()
     }
 
     function isCursorOnLastLine() {
-        if (textArea.text.indexOf('\n') === -1) return true
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var lastLineRect = textArea.positionToRectangle(textArea.text.length)
-        return Math.abs(rect.y - lastLineRect.y) < 1
+        return crossBlockSelection.cursorOnLastLine()
     }
 
     // Refocus a block after an operation that may have recreated its
@@ -1160,62 +934,24 @@ BlockDelegateBase {
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
     }
 
-    // ---- Math-entry assistance ----
-    // Tab slot-chain: armed by a menu insertion; Tab hops between the
-    // empty {} / [] pairs inside the current math span.
-    property bool mathSlotChain: false
-    // Transient $-pair tracking: document position of the opening $ of a
-    // freshly auto-paired $$, else -1. Governs Backspace-deletes-both,
-    // Delete-leaves-literal, and $-types-over while the caret stays
-    // inside the pair.
-    property int dollarPairOpenPos: -1
-
-    // The window's math command menu while it is open FOR THIS EDITOR,
-    // else null (the activeBlockMenu() pattern).
-    function activeMathMenu() {
-        return delegate.shell ? delegate.shell.activeMathMenu(textArea) : null
+    // ---- Assisted entry ----
+    // Two constructs a prose block helps type: inline mathematics, and
+    // wiki-links. Each owns its own transient state and its own share of the
+    // key handler, and each is opened against a menu the window keeps one of.
+    MathEntryAssist {
+        id: mathEntry
+        editor: textArea
+        engine: editorEngine
+        shell: delegate.shell
+        verbatim: delegate.verbatimEditing
     }
 
-    function openMathMenu() {
-
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var topLeft = textArea.mapToItem(null, rect.x, rect.y)
-        AppActions.requestMathCommandMenu(textArea,
-            Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height),
-            false /* inline context: single-line templates */)
-        textArea.syncMathMenuQuery()
-    }
-
-    // ---- Wiki-link completion ----
-    // The window's wiki-link menu while it is open FOR THIS EDITOR, else
-    // null (the activeMathMenu() pattern).
-    function activeWikiMenu() {
-        return delegate.shell ? delegate.shell.activeWikiMenu(textArea) : null
-    }
-
-    function openWikiMenu() {
-
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var topLeft = textArea.mapToItem(null, rect.x, rect.y)
-        AppActions.requestWikiLinkMenu(textArea,
-            Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
-        textArea.syncWikiMenuQuery()
-    }
-
-    // The pair's closing $ position while tracking is valid for the
-    // current caret, else -1: the opening $ still stands, the caret is
-    // inside the pair, and the next $ is at or right of the caret.
-    function dollarPairClosePos() {
-        var open = dollarPairOpenPos
-        if (open < 0 || open >= textArea.text.length
-            || textArea.text.charAt(open) !== "$")
-            return -1
-        if (textArea.cursorPosition <= open)
-            return -1
-        var close = textArea.text.indexOf("$", open + 1)
-        if (close < 0 || close < textArea.cursorPosition)
-            return -1
-        return close
+    WikiLinkCompletion {
+        id: wikiCompletion
+        editor: textArea
+        engine: editorEngine
+        shell: delegate.shell
+        verbatim: delegate.verbatimEditing
     }
 
     // The gutter plus-button (features.md §3.7): insert an empty
@@ -1386,165 +1122,39 @@ BlockDelegateBase {
             border.width: 1
         }
 
-        // Block handle/gutter (widened for the plus-button) - visible
-        // on hover
-        Item {
+        // The gutter's plus-button and drag handle. It reports gestures; the
+        // reorder itself goes to the window's coordinator, which is the only
+        // thing that can see the rows a drag passes over.
+        BlockGutter {
             id: blockHandle
-            width: 40
             anchors.left: parent.left
             anchors.top: parent.top
-            height: 24
             anchors.topMargin: 4
 
-            HoverHandler {
-                id: gutterHover
+            rowHovered: delegate.isHovered
+            dragEnabled: delegate.shell !== null && delegate.shell.blockDrag !== null
+
+            onInsertRequested: delegate.insertBlockBelowAndOpenMenu()
+            onHandleMenuRequested: AppActions.requestBlockHandleMenu(delegate)
+            onBlockSelectRequested: {
+                if (delegate.listView)
+                    delegate.listView.currentIndex = delegate.index
+                DocumentSelection.selectBlock(delegate.index)
+                delegate.focusSelectionHandler()
             }
-
-            Row {
-                objectName: "gutterButtons"
-                anchors.centerIn: parent
-                spacing: 4
-                // Stays visible while the handle is pressed: hiding an
-                // item cancels its MouseArea's grab, which would kill a
-                // drag the moment the pointer left this block's hover
-                // area (bites multi-drags, whose source row does not
-                // follow the pointer).
-                opacity: delegate.isHovered || handleArea.pressed ? 1 : 0
-                visible: opacity > 0
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 150 }
-                }
-
-                // Plus-button: add a block below and open the block
-                // menu for it (features.md §3.7)
-                Rectangle {
-                    objectName: "plusButton"
-                    width: 18
-                    height: 18
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 4
-                    color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "+"
-                        color: Theme.textMuted
-                        font.pixelSize: 14
-                        font.bold: true
-                    }
-
-                    MouseArea {
-                        id: plusArea
-                        anchors.fill: parent
-                        anchors.margins: -2
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: delegate.insertBlockBelowAndOpenMenu()
-                    }
-                }
-
-                // Drag handle dots. Clicking selects the whole block
-                // (features.md §3.1 "click on block handle to select");
-                // the reorder drag lives on the same handle.
-                Item {
-                    width: 14
-                    height: 18
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        opacity: 0.6
-
-                        Repeater {
-                            model: 2
-
-                            Row {
-                                spacing: 2
-
-                                Repeater {
-                                    model: 2
-
-                                    Rectangle {
-                                        width: 3
-                                        height: 3
-                                        radius: 1.5
-                                        color: Theme.textFaint
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Below the drag threshold a press-release is the
-                    // §3.1 select-block click; past it the reorder drag
-                    // begins (§3.2). preventStealing keeps the Flickable
-                    // from grabbing the vertical movement.
-                    MouseArea {
-                        id: handleArea
-                        objectName: "dragHandle"
-                        anchors.fill: parent
-                        anchors.margins: -2
-                        hoverEnabled: true
-                        cursorShape: Qt.OpenHandCursor
-                        preventStealing: true
-                        // Right-click: the §9.5 block menu.
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                        property real pressX: 0
-                        property real pressY: 0
-                        property bool dragging: false
-
-                        onPressed: function(mouse) {
-                            if (mouse.button === Qt.RightButton) {
-                                    AppActions.requestBlockHandleMenu(delegate)
-                                return
-                            }
-                            pressX = mouse.x
-                            pressY = mouse.y
-                            dragging = false
-                        }
-                        onPositionChanged: function(mouse) {
-                            if (!pressed
-                                || (pressedButtons & Qt.RightButton))
-                                return
-                            if (!delegate.shell || !delegate.shell.blockDrag)
-                                return
-                            var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
-                            if (!dragging) {
-                                if (Math.abs(mouse.x - pressX) < 5
-                                    && Math.abs(mouse.y - pressY) < 5)
-                                    return
-                                dragging = true
-                                delegate.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
-                            } else {
-                                delegate.shell.blockDrag.update(sp.x, sp.y)
-                            }
-                        }
-                        onReleased: function(mouse) {
-                            if (mouse.button === Qt.RightButton)
-                                return
-                            if (dragging) {
-                                dragging = false
-                                if (delegate.shell && delegate.shell.blockDrag)
-                                    delegate.shell.blockDrag.drop()
-                                return
-                            }
-                            if (delegate.listView)
-                                delegate.listView.currentIndex = delegate.index
-                            DocumentSelection.selectBlock(delegate.index)
-                            delegate.focusSelectionHandler()
-                        }
-                        onCanceled: {
-                            if (dragging) {
-                                dragging = false
-                                if (delegate.shell && delegate.shell.blockDrag)
-                                    delegate.shell.blockDrag.cancel()
-                            }
-                        }
-                    }
-                }
+            onDragStarted: function(sceneX, sceneY) {
+                delegate.shell.blockDrag.begin(delegate.index, sceneX, sceneY)
+            }
+            onDragMoved: function(sceneX, sceneY) {
+                delegate.shell.blockDrag.update(sceneX, sceneY)
+            }
+            onDragDropped: {
+                if (delegate.shell && delegate.shell.blockDrag)
+                    delegate.shell.blockDrag.drop()
+            }
+            onDragCanceled: {
+                if (delegate.shell && delegate.shell.blockDrag)
+                    delegate.shell.blockDrag.cancel()
             }
         }
 
@@ -1623,39 +1233,19 @@ BlockDelegateBase {
             }
             Component {
                 id: dropCapComponent
-                Item {
-                    // ---- Drop cap (features.md §1.2.16) ----
-                    // Drop-cap chrome is rare; keeping it behind a Loader
-                    // avoids building text metrics/masks for ordinary rows.
-                    TextMetrics {
-                        id: dropCapMetrics
-                        font.family: textArea.font.family
-                        font.pixelSize: delegate.contentFontSize
-                        text: delegate.content.charAt(0)
-                    }
-                    Rectangle {
-                        objectName: "dropCapMask"
-                        visible: delegate.dropCapActive
-                        x: textArea.x + textArea.leftPadding - 1
-                        y: textArea.y + textArea.topPadding
-                        width: dropCapMetrics.advanceWidth + 3
-                        height: dropCapMetrics.height
-                        color: Theme.windowBackground
-                        z: 4
-                    }
-                    Text {
-                        objectName: "dropCapLetter"
-                        visible: delegate.dropCapActive
-                        text: delegate.content.charAt(0)
-                        color: delegate.dropCapColor
-                        font.bold: true
-                        font.pixelSize: delegate.dropCapPixelSize
-                        font.family: delegate.dropCapFontAttr !== ""
-                            ? delegate.dropCapFontAttr : textArea.font.family
-                        x: 2
-                        y: textArea.y + textArea.topPadding
-                        z: 5
-                    }
+                // Drop-cap chrome is rare; keeping it behind a Loader avoids
+                // building text metrics and masks for ordinary rows.
+                DropCapOverlay {
+                    letter: delegate.content.charAt(0)
+                    active: delegate.dropCapActive
+                    bodyFontFamily: textArea.font.family
+                    bodyFontPixelSize: delegate.contentFontSize
+                    textOriginX: textArea.x + textArea.leftPadding
+                    textOriginY: textArea.y + textArea.topPadding
+                    letterColor: delegate.dropCapColor
+                    letterPixelSize: delegate.dropCapPixelSize
+                    letterFontFamily: delegate.dropCapFontAttr !== ""
+                        ? delegate.dropCapFontAttr : textArea.font.family
                 }
             }
 
@@ -1677,116 +1267,27 @@ BlockDelegateBase {
             }
             Component {
                 id: calloutChromeComponent
-                Item {
+                CalloutBlockChrome {
+                    id: calloutChrome
                     anchors.fill: parent
-
-                    // ---- Callout chrome ----
-                    // Tinted panel with an accent left bar; the header (icon,
-                    // title, fold chevron) sits at the top and the body below.
-                    Rectangle {
-                        id: calloutPanel
-                        objectName: "calloutPanel"
-                        anchors.fill: parent
-                        radius: 5
-                        color: Qt.alpha(delegate.calloutAccent, 0.10)
-                        border.width: 1
-                        border.color: Qt.alpha(delegate.calloutAccent, 0.35)
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: 4
-                            radius: 2
-                            color: delegate.calloutAccent
-                        }
-                    }
-                    Item {
-                        id: calloutHeader
-                        objectName: "calloutHeader"
-                        x: 10
-                        y: 0
-                        z: 3
-                        width: parent.width - 14
-                        height: delegate.calloutHeaderHeight
-
-                        Text {
-                            id: calloutChevron
-                            objectName: "calloutFoldChevron"
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: delegate.calloutFolded ? "▸" : "▾"
-                            color: delegate.calloutAccent
-                            font.pixelSize: 12
-                            TapHandler { onTapped: delegate.toggleCalloutFold() }
-                        }
-                        Text {
-                            id: calloutIcon
-                            anchors.left: calloutChevron.right
-                            anchors.leftMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: delegate.calloutInfo.icon !== ""
-                            text: delegate.calloutInfo.icon
-                            color: delegate.calloutAccent
-                            font.pixelSize: 13
-                            font.bold: true
-                        }
-                        TextField {
-                            id: calloutTitleField
-                            objectName: "calloutTitleField"
-                            anchors.left: calloutIcon.visible ? calloutIcon.right : calloutChevron.right
-                            anchors.leftMargin: 6
-                            anchors.right: calloutColorDot.left
-                            anchors.rightMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: delegate.calloutTitle
-                            placeholderText: delegate.calloutInfo.label
-                            color: delegate.calloutAccent
-                            font.pixelSize: 13
-                            font.bold: true
-                            background: null
-                            padding: 0
-                            function commitPendingTitle() {
-                                if (text !== delegate.calloutTitle)
-                                    delegate.setCalloutTitleText(text)
-                            }
-                            Connections {
-                                target: DocumentManager
-                                function onPendingEditsRequested() {
-                                    calloutTitleField.commitPendingTitle()
-                                }
-                            }
-                            Connections {
-                                target: delegate
-                                function onCommitCalloutTitleRequested() {
-                                    calloutTitleField.commitPendingTitle()
-                                }
-                            }
-                            onEditingFinished: {
-                                calloutTitleField.commitPendingTitle()
-                            }
-                        }
-                        Rectangle {
-                            id: calloutColorDot
-                            objectName: "calloutColorDot"
-                            anchors.right: parent.right
-                            anchors.rightMargin: 2
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 14; height: 14; radius: 7
-                            color: delegate.calloutAccent
-                            border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.4)
-                            opacity: delegate.isHovered || calloutColorPicker.visible ? 1 : 0.35
-                            Behavior on opacity { NumberAnimation { duration: 150 } }
-                            TapHandler { onTapped: calloutColorPicker.open() }
-
-                            CalloutColorPicker {
-                                id: calloutColorPicker
-                                x: parent ? parent.width - width : 0
-                                y: parent ? parent.height + 4 : 0
-                                currentColor: BlockAttributes.str(delegate.attributes, "color", "")
-                                onColorPicked: function(v) { delegate.setCalloutColor(v) }
-                                onResetRequested: delegate.resetCalloutColor()
-                            }
+                    accent: delegate.calloutAccent
+                    folded: delegate.calloutFolded
+                    icon: delegate.calloutInfo.icon
+                    typeLabel: delegate.calloutInfo.label
+                    title: delegate.calloutTitle
+                    headerHeight: delegate.calloutHeaderHeight
+                    customColor: BlockAttributes.str(delegate.attributes, "color", "")
+                    rowHovered: delegate.isHovered
+                    onFoldToggled: delegate.toggleCalloutFold()
+                    onTitleCommitted: function(t) { delegate.setCalloutTitleText(t) }
+                    onColorPicked: function(v) { delegate.setCalloutColor(v) }
+                    onColorResetRequested: delegate.resetCalloutColor()
+                    // The row is about to be recycled, so a title the user
+                    // typed but has not left yet would be lost with it.
+                    Connections {
+                        target: delegate
+                        function onCommitCalloutTitleRequested() {
+                            calloutChrome.commitPendingTitle()
                         }
                     }
                 }
@@ -1800,182 +1301,27 @@ BlockDelegateBase {
             }
             Component {
                 id: codeChromeComponent
-                Item {
+                // Plain text rows never instantiate the panel, language
+                // picker, gutter, or horizontal scrollbar.
+                CodeBlockChrome {
                     anchors.fill: parent
-
-                    // ---- Code-block chrome ----
-                    // Plain text rows no longer instantiate this panel,
-                    // language picker, gutter, or horizontal scrollbar.
-                    Rectangle {
-                        id: codePanel
-                        objectName: "codePanel"
-                        anchors.fill: parent
-                        color: Theme.codePanelBackground
-                        radius: 4
-                        border.width: 1
-                        border.color: Theme.border
-                    }
-
-                    Column {
-                        id: codeGutter
-                        objectName: "codeGutter"
-                        visible: delegate.codeLineNumbers
-                        width: delegate.codeGutterWidth
-                        x: 0
-                        y: textArea.y + textArea.topPadding
-                        z: 2
-                        // On the Repeater below a bare `delegate` is its own
-                        // delegate component, not the block (outer ids rank
-                        // below scope properties inside this inline
-                        // component) — alias here, where Column has no
-                        // `delegate` property.
-                        readonly property int gutterLineCount:
-                            delegate.codeLineNumbers ? textArea.lineCount : 0
-                        Repeater {
-                            model: codeGutter.gutterLineCount
-                            delegate: Text {
-                                required property int index
-                                width: delegate.codeGutterWidth - 8
-                                height: textArea.lineCount > 0
-                                    ? textArea.contentHeight / textArea.lineCount : 0
-                                horizontalAlignment: Text.AlignRight
-                                verticalAlignment: Text.AlignVCenter
-                                text: index + 1
-                                color: Theme.textFaint
-                                font.family: delegate.contentFontFamily
-                                font.pixelSize: delegate.contentFontSize
-                            }
-                        }
-                    }
-                    Rectangle {
-                        visible: delegate.codeLineNumbers
-                        x: 0
-                        y: 0
-                        width: delegate.codeGutterWidth
-                        height: parent.height
-                        color: Theme.codePanelBackground
-                        z: 1
-                    }
-
-                    Item {
-                        id: codeHeader
-                        objectName: "codeHeader"
-                        x: 0
-                        y: 0
-                        z: 3
-                        width: parent.width
-                        height: delegate.codeHeaderHeight
-
-                        Rectangle {
-                            id: langButton
-                            objectName: "codeLanguageButton"
-                            height: 20
-                            anchors.left: parent.left
-                            anchors.leftMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: langLabel.implicitWidth + 20
-                            radius: 3
-                            color: langHover.hovered ? Theme.hoverTint : "transparent"
-                            Text {
-                                id: langLabel
-                                anchors.left: parent.left
-                                anchors.leftMargin: 6
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: (delegate.language && delegate.language.length > 0)
-                                      ? delegate.language : "plain text"
-                                color: Theme.textMuted
-                                font.pixelSize: Math.max(10, delegate.contentFontSize - 3)
-                            }
-                            Text {
-                                anchors.right: parent.right
-                                anchors.rightMargin: 5
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "▾"
-                                color: Theme.textFaint
-                                font.pixelSize: 9
-                            }
-                            HoverHandler { id: langHover }
-                            TapHandler { onTapped: languagePicker.open() }
-                        }
-
-                        Rectangle {
-                            id: copyButton
-                            objectName: "codeCopyButton"
-                            height: 20
-                            width: copyLabel.implicitWidth + 14
-                            anchors.right: parent.right
-                            anchors.rightMargin: 6
-                            anchors.verticalCenter: parent.verticalCenter
-                            radius: 3
-                            color: copyHover.hovered ? Theme.hoverTint : "transparent"
-                            Text {
-                                id: copyLabel
-                                anchors.centerIn: parent
-                                text: copyButton.copied ? "Copied" : "Copy"
-                                color: Theme.textMuted
-                                font.pixelSize: Math.max(10, delegate.contentFontSize - 3)
-                            }
-                            property bool copied: false
-                            HoverHandler { id: copyHover }
-                            TapHandler {
-                                onTapped: {
-                                    Clipboard.text = delegate.content
-                                    copyButton.copied = true
-                                    copyResetTimer.restart()
-                                }
-                            }
-                            Timer {
-                                id: copyResetTimer
-                                interval: 1200
-                                onTriggered: copyButton.copied = false
-                            }
-                        }
-                    }
-
-                    // Menu has its own `delegate` property (the item chrome
-                    // component), and scope-object attributes shadow document
-                    // ids — so inside the Menu's instantiation an unqualified
-                    // `delegate` is that Component, not the block root. Bind
-                    // and connect from sibling scope, where the id resolves.
-                    LanguagePicker {
-                        id: languagePicker
-                        objectName: "languagePicker"
-                    }
-                    Binding {
-                        target: languagePicker
-                        property: "currentLanguage"
-                        value: delegate.language || ""
-                    }
-                    Connections {
-                        target: languagePicker
-                        function onLanguageChosen(lang) {
-                            delegate.setCodeLanguage(lang)
-                        }
-                    }
-
-                    ScrollBar {
-                        id: codeHScrollBar
-                        objectName: "codeHScrollBar"
-                        visible: delegate.codeMaxScroll > 0
-                        orientation: Qt.Horizontal
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: delegate.codeContentLeft
-                        height: 8
-                        z: 2
-                        size: delegate.codeViewportWidth
-                              / Math.max(1, textArea.contentWidth)
-                        position: delegate.codeMaxScroll > 0
-                            ? delegate.codeHScroll / (delegate.codeMaxScroll + delegate.codeViewportWidth)
-                            : 0
-                        onPositionChanged: {
-                            if (pressed) {
-                                delegate.codeHScroll = Math.round(
-                                    position * (delegate.codeMaxScroll + delegate.codeViewportWidth))
-                            }
-                        }
-                    }
+                    language: delegate.language
+                    copyText: delegate.content
+                    lineNumbers: delegate.codeLineNumbers
+                    gutterWidth: delegate.codeGutterWidth
+                    headerHeight: delegate.codeHeaderHeight
+                    contentLeft: delegate.codeContentLeft
+                    viewportWidth: delegate.codeViewportWidth
+                    maxScroll: delegate.codeMaxScroll
+                    hScroll: delegate.codeHScroll
+                    fontFamily: delegate.contentFontFamily
+                    fontPixelSize: delegate.contentFontSize
+                    textTop: textArea.y + textArea.topPadding
+                    lineCount: textArea.lineCount
+                    textContentHeight: textArea.contentHeight
+                    textContentWidth: textArea.contentWidth
+                    onLanguageChosen: function(lang) { delegate.setCodeLanguage(lang) }
+                    onHScrollRequested: function(offset) { delegate.codeHScroll = offset }
                 }
             }
 
@@ -2467,11 +1813,10 @@ BlockDelegateBase {
                 // selection already matches.
                 onTextChanged: {
                     if (DocumentSelection.hasTextSelection && !activeFocus)
-                        delegate.applyTextPortionLater()
-                    if (delegate.activeMathMenu()
-                        || delegate.dollarPairOpenPos >= 0)
+                        crossBlockSelection.applyTextPortionLater()
+                    if (mathEntry.tracking())
                         Qt.callLater(settleMathEntryState)
-                    if (delegate.activeWikiMenu())
+                    if (wikiCompletion.activeMenu())
                         Qt.callLater(syncWikiMenuQuery)
                 }
 
@@ -2483,197 +1828,30 @@ BlockDelegateBase {
                 // edit, so an immediate read sees an inconsistent
                 // snapshot and would mis-dismiss.
                 onCursorPositionChanged: {
-                    if (delegate.activeMathMenu()
-                        || delegate.dollarPairOpenPos >= 0)
+                    if (mathEntry.tracking())
                         Qt.callLater(settleMathEntryState)
-                    if (delegate.activeWikiMenu())
+                    if (wikiCompletion.activeMenu())
                         Qt.callLater(syncWikiMenuQuery)
                 }
 
-                function settleMathEntryState() {
-                    syncMathMenuQuery()
-                    if (delegate.dollarPairOpenPos >= 0
-                        && delegate.dollarPairClosePos() < 0)
-                        delegate.dollarPairOpenPos = -1
-                }
+                // Named here rather than passed straight through, so
+                // Qt.callLater sees one function per editor and collapses
+                // repeats of it the way it did before the split.
+                function settleMathEntryState() { mathEntry.settleState() }
+                function syncWikiMenuQuery() { wikiCompletion.syncQuery() }
 
                 onActiveFocusChanged: {
                     if (!activeFocus) {
-                        delegate.dollarPairOpenPos = -1
-                        delegate.mathSlotChain = false
-                        var mathMenu = delegate.activeMathMenu()
-                        if (mathMenu)
-                            mathMenu.dismiss()
-                        var wikiMenu = delegate.activeWikiMenu()
-                        if (wikiMenu)
-                            wikiMenu.dismiss()
+                        mathEntry.releaseOnFocusLoss()
+                        wikiCompletion.releaseOnFocusLoss()
                     }
                 }
 
-                // The backslash-word ending at the caret — {trigger,
-                // query} or null. Derived from content rather than a
-                // stored position: reveal transitions rewrite the
-                // document (the span materializing around the fresh
-                // "$\a$" bounces it), so any saved document offset goes
-                // stale mid-word; the content at the caret never does.
-                function mathWordAtCaret() {
-                    var pos = cursorPosition
-                    // TeX control symbols are one non-letter character.
-                    // These five are the symbol-style commands in the menu.
-                    if (pos >= 2 && text.charAt(pos - 2) === "\\"
-                        && /^[|,;:!]$/.test(text.charAt(pos - 1))) {
-                        return { trigger: pos - 2,
-                                 query: text.charAt(pos - 1) }
-                    }
-                    var s = pos
-                    while (s > 0 && /[A-Za-z]/.test(text.charAt(s - 1)))
-                        s--
-                    if (s === 0 || text.charAt(s - 1) !== "\\")
-                        return null
-                    // A second backslash right after the trigger is the
-                    // "\\" (row break) query.
-                    if (s === pos && s > 1 && text.charAt(s - 2) === "\\")
-                        return { trigger: s - 2, query: "\\" }
-                    return { trigger: s - 1, query: text.substring(s, pos) }
-                }
+                // The shared menus call these on their host editor, so both
+                // names have to live on the TextArea itself.
+                function applyMathCommand(row) { mathEntry.applyCommand(row) }
+                function applyWikiCompletion(row) { wikiCompletion.applyCompletion(row) }
 
-                // Recompute the math-menu query; when the caret no longer
-                // ends a backslash-word (trigger deleted, caret moved
-                // away, non-letter typed) the menu closes with the text
-                // kept.
-                function syncMathMenuQuery() {
-                    var menu = delegate.activeMathMenu()
-                    if (!menu)
-                        return
-                    var word = mathWordAtCaret()
-                    if (!word) {
-                        menu.dismiss()
-                        return
-                    }
-                    menu.updateQuery(word.query)
-                }
-
-                // The "[[…" run ending at the caret — {trigger, query} or
-                // null. Content-derived, like mathWordAtCaret: reveal
-                // transitions rewrite the document, so stored offsets go
-                // stale but the text at the caret never does (§3.5).
-                function wikiWordAtCaret() {
-                    var pos = cursorPosition
-                    var open = text.lastIndexOf("[[", Math.max(0, pos - 2))
-                    if (open < 0 || open + 2 > pos)
-                        return null
-                    var between = text.substring(open + 2, pos)
-                    if (between.indexOf("]]") >= 0
-                        || between.indexOf("[") >= 0
-                        || between.indexOf("\n") >= 0)
-                        return null
-                    return { trigger: open, query: between }
-                }
-
-                // Recompute the wiki-menu query; when the caret no longer
-                // sits in an open "[[…" run (trigger deleted, "]]" typed,
-                // caret moved away) the menu closes with the text kept.
-                function syncWikiMenuQuery() {
-                    var menu = delegate.activeWikiMenu()
-                    if (!menu)
-                        return
-                    var word = wikiWordAtCaret()
-                    if (!word) {
-                        menu.dismiss()
-                        return
-                    }
-                    menu.updateQuery(word.query)
-                }
-
-                // Insertion (the wiki menu hands the chosen row here):
-                // replace the whole "[[…" run with the completed link,
-                // caret after the closing "]]".
-                function applyWikiCompletion(row) {
-                    var word = wikiWordAtCaret()
-                    if (!word)
-                        return
-                    var insertText
-                    if (row.kind === "heading") {
-                        var hashIdx = word.query.indexOf("#")
-                        var targetPart = hashIdx >= 0
-                            ? word.query.substring(0, hashIdx) : ""
-                        insertText = "[[" + targetPart + "#"
-                                     + row.heading + "]]"
-                    } else {
-                        insertText = "[[" + row.target + "]]"
-                    }
-                    var start = word.trigger
-                    var end = cursorPosition
-                    remove(start, end)
-                    insert(start, insertText)
-                    cursorPosition = start + insertText.length
-                    forceActiveFocus()
-                }
-
-                // Insertion (the math menu hands the chosen row here):
-                // replace the backslash-word at the caret with the
-                // template, caret into the first slot, arm the Tab chain.
-                // Inline context always takes the single-line form.
-                function applyMathCommand(row) {
-                    var insertText = row.insert
-                    var offset = row.cursorOffset
-                    var word = mathWordAtCaret()
-                    var start = word ? word.trigger : cursorPosition
-                    var end = cursorPosition
-                    // A bare command fuses with a following letter
-                    // (\alphax); pad with a space.
-                    if (offset < 0 && end < text.length
-                        && /[A-Za-z]/.test(text.charAt(end))
-                        && /[A-Za-z]$/.test(insertText))
-                        insertText += " "
-                    remove(start, end)
-                    insert(start, insertText)
-                    cursorPosition = start
-                        + (offset >= 0 ? offset : insertText.length)
-                    delegate.mathSlotChain = insertText.indexOf("{}") >= 0
-                        || insertText.indexOf("[]") >= 0
-                    forceActiveFocus()
-                }
-
-                // The next (or previous) empty {} / [] pair inside the
-                // math span under the caret; false when none is left or
-                // the caret left the span — the chain ends there.
-                function jumpToNextMathSlot(backward) {
-                    var span = editorEngine.mathSpanRangeAt(cursorPosition)
-                    if (!span.found) {
-                        delegate.mathSlotChain = false
-                        return false
-                    }
-                    var from = span.docContentStart
-                    var to = Math.min(span.docContentEnd, text.length)
-                    var positions = []
-                    for (var i = from; i + 1 < to; ++i) {
-                        var two = text.substring(i, i + 2)
-                        if (two === "{}" || two === "[]")
-                            positions.push(i + 1)
-                    }
-                    if (positions.length === 0) {
-                        delegate.mathSlotChain = false
-                        return false
-                    }
-                    if (backward) {
-                        for (var j = positions.length - 1; j >= 0; --j) {
-                            if (positions[j] < cursorPosition) {
-                                cursorPosition = positions[j]
-                                return true
-                            }
-                        }
-                        return false
-                    }
-                    for (var k = 0; k < positions.length; ++k) {
-                        if (positions[k] > cursorPosition) {
-                            cursorPosition = positions[k]
-                            return true
-                        }
-                    }
-                    delegate.mathSlotChain = false
-                    return false
-                }
 
 
                 // Passive observer feeding the window's cross-block
@@ -2691,7 +1869,7 @@ BlockDelegateBase {
                         if (active) {
                             var sp = point.scenePosition
                             drag.beginPress(delegate.index,
-                                delegate.markdownPositionAt(sp.x, sp.y),
+                                crossBlockSelection.markdownPositionAt(sp.x, sp.y),
                                 sp.x, sp.y)
                         } else {
                             drag.endPress()
@@ -2715,73 +1893,13 @@ BlockDelegateBase {
 
                 // Key handlers for Milestone 2, 3, 4, 5, and 7 features
                 Keys.onPressed: function(event) {
-                    // While the math command menu targets this editor it
-                    // owns navigation; Enter is claimed in handleReturn.
-                    // Everything else keeps typing, which feeds the query.
-                    var mathMenu = delegate.activeMathMenu()
-                    if (mathMenu) {
-                        if (event.key === Qt.Key_Down) {
-                            mathMenu.highlightNext()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Up) {
-                            mathMenu.highlightPrevious()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Left
-                            || event.key === Qt.Key_Right) {
-                            var consumed = event.key === Qt.Key_Left
-                                ? mathMenu.moveLeft() : mathMenu.moveRight()
-                            if (consumed) {
-                                event.accepted = true
-                                return
-                            }
-                            // Completion mode: the caret moves, menu closes.
-                            mathMenu.dismiss()
-                            return
-                        }
-                        if (event.key === Qt.Key_Tab) {
-                            mathMenu.applyHighlighted()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Escape) {
-                            // Closes the menu only; the editor keeps focus
-                            // and the next Escape behaves as before.
-                            mathMenu.dismiss()
-                            event.accepted = true
-                            return
-                        }
-                    }
-
-                    // While the wiki-link menu targets this editor it owns
-                    // navigation (§3.5); Enter is claimed in handleReturn.
-                    // Everything else keeps typing, which feeds the query.
-                    var wikiMenu = delegate.activeWikiMenu()
-                    if (wikiMenu) {
-                        if (event.key === Qt.Key_Down) {
-                            wikiMenu.highlightNext()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Up) {
-                            wikiMenu.highlightPrevious()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Tab) {
-                            wikiMenu.applyHighlighted()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Escape) {
-                            wikiMenu.dismiss()
-                            event.accepted = true
-                            return
-                        }
-                    }
+                    // The open menus own their navigation keys; Enter is
+                    // claimed in handleReturn. Everything else keeps typing,
+                    // which is what filters them.
+                    if (mathEntry.handleMenuKey(event))
+                        return
+                    if (wikiCompletion.handleMenuKey(event))
+                        return
 
                     // While the block menu targets this block it owns
                     // Up/Down/Escape (features.md §4.1); Enter is claimed
@@ -2812,164 +1930,23 @@ BlockDelegateBase {
                     // and typing-replaces all resolve against the range.
                     if (DocumentSelection.hasTextSelection
                         && DocumentSelection.textAnchorIndex() === delegate.index) {
-                        if (delegate.handleCrossBlockKey(event))
+                        if (crossBlockSelection.handleCrossBlockKey(event))
                             return
                     }
 
-                    // ---- Math-entry assistance ----
-
-                    // Backslash: the command-menu trigger — inside a math
-                    // context only. The gate pre-checks the span (the
-                    // transitional "$\$" state is not a parsed span, so a
-                    // post-insertion check would miss the primary flow) and
-                    // honors the fresh $-pair, which is not a span until it
-                    // has content. A second backslash right after the
-                    // trigger becomes the "\\" query instead of a new one.
-                    if (event.text === "\\" && !delegate.verbatimEditing) {
-                        var bsPos = selectionStart
-                        var inMathContext = delegate.dollarPairClosePos() >= 0
-                            || editorEngine.mathSpanRangeAt(bsPos).found
-                        if (mathMenu || inMathContext) {
-                            if (selectionEnd > selectionStart)
-                                remove(selectionStart, selectionEnd)
-                            insert(bsPos, "\\")
-                            cursorPosition = bsPos + 1
-                            // With the menu already open the sync derives
-                            // the new state (a "\\" query, or a fresh
-                            // trigger elsewhere in the formula).
-                            if (!mathMenu)
-                                delegate.openMathMenu()
-                            event.accepted = true
-                            return
-                        }
-                        // Plain prose: a literal backslash, default typing.
-                    }
-
-                    // "[[": the wiki-link completion trigger (§3.5) —
-                    // prose only (never in verbatim/code blocks), a
-                    // collection open, never inside a math span. The
-                    // second "[" is inserted by hand so the menu opens on
-                    // a settled document.
-                    if (event.text === "[" && !delegate.verbatimEditing
-                        && NoteCollection.isOpen
-                        && !delegate.activeWikiMenu()
-                        && selectionStart === selectionEnd
-                        && cursorPosition > 0
-                        && text.charAt(cursorPosition - 1) === "["
-                        && !editorEngine.mathSpanRangeAt(
-                               cursorPosition).found) {
-                        var bracketPos = cursorPosition
-                        insert(bracketPos, "[")
-                        cursorPosition = bracketPos + 1
-                        delegate.openWikiMenu()
-                        event.accepted = true
+                    // ---- Assisted entry ----
+                    // Order matters between these three. The backslash
+                    // trigger is checked before the wiki-link one so a
+                    // backslash inside a formula never reaches the bracket
+                    // test, and both run before the rest of math entry so a
+                    // menu that a keystroke has just opened is already
+                    // tracking by the time the $-pair and Tab rules look.
+                    if (mathEntry.handleBackslash(event))
                         return
-                    }
-
-                    // Ctrl+Space: re-trigger completion for the
-                    // backslash-word at the caret, inside a math span.
-                    if (event.key === Qt.Key_Space
-                        && (event.modifiers & Qt.ControlModifier)
-                        && !delegate.verbatimEditing
-                        && editorEngine.mathSpanRangeAt(cursorPosition).found) {
-                        var wordStart = cursorPosition
-                        while (wordStart > 0
-                               && /[A-Za-z]/.test(text.charAt(wordStart - 1)))
-                            wordStart--
-                        if (wordStart > 0
-                            && text.charAt(wordStart - 1) === "\\")
-                            delegate.openMathMenu()
-                        event.accepted = true
+                    if (wikiCompletion.handleBracket(event))
                         return
-                    }
-
-                    // Dollar auto-pair for entering inline math: type-over
-                    // the tracked closer, wrap a selection, or insert the
-                    // pair with the caret between — each gated by the
-                    // engine's suppression rules.
-                    if (event.text === "$" && !delegate.verbatimEditing) {
-                        var closePos = delegate.dollarPairClosePos()
-                        if (closePos >= 0 && closePos === cursorPosition
-                            && selectionStart === selectionEnd) {
-                            // Types over the auto-inserted $ instead of
-                            // inserting a third: "$x$" typed in full.
-                            delegate.dollarPairOpenPos = -1
-                            cursorPosition = closePos + 1
-                            event.accepted = true
-                            return
-                        }
-                        if (selectionEnd > selectionStart) {
-                            if (editorEngine.shouldAutoPairDollar(
-                                    selectionStart, true)) {
-                                var selStart = selectionStart
-                                var selEnd = selectionEnd
-                                var wrapped = "$"
-                                    + text.substring(selStart, selEnd) + "$"
-                                remove(selStart, selEnd)
-                                insert(selStart, wrapped)
-                                cursorPosition = selStart + wrapped.length
-                                event.accepted = true
-                                return
-                            }
-                            // Suppressed: default replace-selection typing.
-                        } else if (editorEngine.shouldAutoPairDollar(
-                                       cursorPosition)) {
-                            var pairPos = cursorPosition
-                            insert(pairPos, "$$")
-                            cursorPosition = pairPos + 1
-                            delegate.dollarPairOpenPos = pairPos
-                            event.accepted = true
-                            return
-                        }
-                        // Suppressed: a literal $, default typing.
-                    }
-
-                    // Backspace on the still-empty pair removes both
-                    // dollars — as if the keystroke never happened.
-                    if (event.key === Qt.Key_Backspace
-                        && selectionStart === selectionEnd
-                        && delegate.dollarPairOpenPos >= 0
-                        && cursorPosition === delegate.dollarPairOpenPos + 1
-                        && delegate.dollarPairClosePos()
-                           === delegate.dollarPairOpenPos + 1) {
-                        var openPos = delegate.dollarPairOpenPos
-                        delegate.dollarPairOpenPos = -1
-                        remove(openPos, openPos + 2)
-                        event.accepted = true
+                    if (mathEntry.handleEntryKey(event))
                         return
-                    }
-
-                    // Delete just before the tracked closer removes only
-                    // the auto-inserted $, leaving a literal dollar sign —
-                    // the escape hatch for typing $ as a character.
-                    if (event.key === Qt.Key_Delete
-                        && selectionStart === selectionEnd
-                        && delegate.dollarPairOpenPos >= 0) {
-                        var closer = delegate.dollarPairClosePos()
-                        if (closer >= 0 && closer === cursorPosition) {
-                            delegate.dollarPairOpenPos = -1
-                            remove(closer, closer + 1)
-                            event.accepted = true
-                            return
-                        }
-                    }
-
-                    // Tab slot-chain: hop between the empty {} / [] pairs
-                    // a template insertion left in the math span. Runs
-                    // before the list-indent Tab below.
-                    if (delegate.mathSlotChain && event.key === Qt.Key_Tab
-                        && !(event.modifiers & Qt.ControlModifier)) {
-                        if (jumpToNextMathSlot(false)) {
-                            event.accepted = true
-                            return
-                        }
-                    }
-                    if (delegate.mathSlotChain && event.key === Qt.Key_Backtab) {
-                        if (jumpToNextMathSlot(true)) {
-                            event.accepted = true
-                            return
-                        }
-                    }
 
                     // Escape drops an in-block selection (which also
                     // dismisses the formatting bar).
@@ -2987,45 +1964,7 @@ BlockDelegateBase {
                         && !(event.modifiers & Qt.ControlModifier)
                         && !(event.modifiers & Qt.AltModifier)
                         && !DocumentSelection.hasTextSelection) {
-                        var crossIdx = -1
-                        var crossMd = 0
-                        if (event.key === Qt.Key_Right
-                            && cursorPosition >= text.length
-                            && delegate.index < BlockModel.count - 1) {
-                            crossIdx = delegate.index + 1
-                            crossMd = 0
-                        } else if (event.key === Qt.Key_Left
-                                   && cursorPosition === 0 && delegate.index > 0) {
-                            crossIdx = delegate.index - 1
-                            crossMd = BlockModel.getContent(crossIdx).length
-                        } else if (event.key === Qt.Key_Down
-                                   && delegate.isCursorOnLastLine()
-                                   && delegate.index < BlockModel.count - 1) {
-                            crossIdx = delegate.index + 1
-                            var below = delegate.listView ? (delegate.listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
-                            crossMd = below && below.entryPositionAtX
-                                ? below.entryPositionAtX(
-                                      positionToRectangle(cursorPosition).x, true)
-                                : 0
-                        } else if (event.key === Qt.Key_Up
-                                   && delegate.isCursorOnFirstLine() && delegate.index > 0) {
-                            crossIdx = delegate.index - 1
-                            var above = delegate.listView ? (delegate.listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
-                            crossMd = above && above.entryPositionAtX
-                                ? above.entryPositionAtX(
-                                      positionToRectangle(cursorPosition).x, false)
-                                : BlockModel.getContent(crossIdx).length
-                        }
-                        if (crossIdx >= 0) {
-                            // The anchor is the far end of any native
-                            // selection, else the cursor
-                            var anchorDoc = selectionEnd > selectionStart
-                                ? (cursorPosition === selectionEnd
-                                       ? selectionStart : selectionEnd)
-                                : cursorPosition
-                            DocumentSelection.beginTextSelection(delegate.index,
-                                editorEngine.toMarkdownPosition(anchorDoc), 0)
-                            DocumentSelection.updateTextSelectionHead(crossIdx, crossMd)
+                        if (crossBlockSelection.beginSelectionAtEdge(event)) {
                             event.accepted = true
                             return
                         }
@@ -3382,29 +2321,13 @@ BlockDelegateBase {
                 //  - otherwise: continue/split (split inherits type and
                 //    indent; continuation type comes from createBlockBelow)
                 function handleReturn(event) {
-                    // Enter selects the highlighted entry while the math
-                    // command menu targets this editor.
-                    var mathMenu = delegate.activeMathMenu()
-                    if (mathMenu) {
-                        mathMenu.applyHighlighted()
-                        event.accepted = true
+                    // Enter takes the highlighted entry while either
+                    // assisted-entry menu targets this editor.
+                    if (mathEntry.handleReturn(event))
                         return
-                    }
+                    if (wikiCompletion.handleReturn(event))
+                        return
 
-                    // Enter completes the highlighted note/heading while
-                    // the wiki-link menu targets this editor (§3.5). With
-                    // no match the menu just closes and Enter splits as
-                    // usual — the typed link is already valid text.
-                    var wikiMenu = delegate.activeWikiMenu()
-                    if (wikiMenu) {
-                        if (wikiMenu.highlightIndex >= 0) {
-                            wikiMenu.applyHighlighted()
-                        } else {
-                            wikiMenu.dismiss()
-                        }
-                        event.accepted = true
-                        return
-                    }
 
                     // Enter selects the highlighted menu entry while the
                     // block menu targets this block (features.md §4.1)
@@ -3420,7 +2343,7 @@ BlockDelegateBase {
                     // at the landing cursor
                     if (DocumentSelection.hasTextSelection
                         && DocumentSelection.textAnchorIndex() === delegate.index) {
-                        var repl = delegate.crossBlockDeleteRange()
+                        var repl = crossBlockSelection.crossBlockDeleteRange()
                         if (repl.index !== undefined) {
                             var splitIdx = repl.index
                             BlockModel.splitBlock(splitIdx, repl.cursor)
@@ -3490,103 +2413,17 @@ BlockDelegateBase {
             }
             Component {
                 id: inlineMathOverlayComponent
-                Item {
-                    // The inline-math overlay layer: one Image
-                    // per hidden $…$ span, created only for rows that actually
-                    // contain active inline math.
-                    id: mathOverlayLayer
-                    objectName: "mathOverlayLayer"
+                InlineMathOverlay {
                     anchors.fill: parent
-                    z: 3
-
-                    // Inside this inline component the outer id `delegate`
-                    // reaches bindings only through the creation context,
-                    // AFTER the scope object's own properties — so on the
-                    // Repeater below, a bare `delegate` is the Repeater's
-                    // delegate component, not the block. Alias the boxes here
-                    // (Item has no `delegate` property) and bind to the alias.
-                    readonly property var overlayBoxes: delegate.inlineMathBoxes
-
-                    FontMetrics {
-                        id: inlineMathFontMetrics
-                        font: textArea.font
-                    }
-
-                    Repeater {
-                        model: mathOverlayLayer.overlayBoxes
-                        Image {
-                            id: mathImg
-                            objectName: "inlineMathImage"
-                            required property var modelData
-                            function boxFor(entry) {
-                                var r1 = textArea.positionToRectangle(entry.docStart)
-                                var r2 = textArea.positionToRectangle(entry.docEnd)
-                                var sameLine = Math.abs(r2.y - r1.y) < 2
-                                var w = sameLine ? Math.max(2, r2.x - r1.x)
-                                                 : Math.max(2, r1.width)
-                                return Qt.rect(r1.x, r1.y, w, r1.height)
-                            }
-                            function reservationAscentFor(entry) {
-                                return entry.reservationValid
-                                    && entry.reservationAscent > 0
-                                    && entry.reservationHeight > 0
-                                    ? entry.reservationAscent
-                                    : inlineMathFontMetrics.ascent
-                            }
-                            function lineBaselineY() {
-                                var t = delegate.mathTick  // reposition on change
-                                var lineStart = modelData.lineStart !== undefined
-                                    ? modelData.lineStart : modelData.docStart
-                                var baseline = box.y + reservationAscentFor(modelData)
-                                for (var i = 0; i < delegate.inlineMathBoxes.length; ++i) {
-                                    var entry = delegate.inlineMathBoxes[i]
-                                    var entryLineStart = entry.lineStart !== undefined
-                                        ? entry.lineStart : entry.docStart
-                                    if (entryLineStart !== lineStart)
-                                        continue
-                                    var r = boxFor(entry)
-                                    baseline = Math.max(baseline,
-                                                        r.y + reservationAscentFor(entry))
-                                }
-                                return baseline
-                            }
-                            property rect box: {
-                                var t = delegate.mathTick  // reposition on change
-                                return boxFor(modelData)
-                            }
-                            property bool metricsValid: modelData.valid
-                                && modelData.width > 0
-                                && modelData.height > 0
-                                && modelData.baseline > 0
-                            property bool reservationValid: modelData.reservationValid
-                                && modelData.reservationAscent > 0
-                                && modelData.reservationHeight > 0
-                            property real mathVerticalPadding:
-                                modelData.inlineVerticalPadding !== undefined
-                                ? modelData.inlineVerticalPadding
-                                : delegate.inlineMathVerticalPadding
-                            property real measuredWidth: metricsValid
-                                ? modelData.width : box.width
-                            property real measuredHeight: metricsValid
-                                ? modelData.height
-                                  + 2 * mathVerticalPadding
-                                : box.height
-                            property real mathBaseline: metricsValid
-                                ? modelData.baseline
-                                  + mathVerticalPadding
-                                : measuredHeight
-                            property real lineBaseline: textArea.y + lineBaselineY()
-                            x: textArea.x + box.x
-                            y: lineBaseline - mathBaseline
-                            width: measuredWidth
-                            height: measuredHeight
-                            fillMode: Image.PreserveAspectFit
-                            horizontalAlignment: Image.AlignLeft
-                            verticalAlignment: Image.AlignTop
-                            smooth: true
-                            source: delegate.inlineMathSource(modelData.tex)
-                        }
-                    }
+                    editor: textArea
+                    editorFont: textArea.font
+                    boxes: delegate.inlineMathBoxes
+                    tick: delegate.mathTick
+                    textColor: delegate.appTheme ? delegate.appTheme.textPrimary
+                                                 : Qt.rgba(0, 0, 0, 1)
+                    pixelSize: delegate.inlineMathPixelSize
+                    verticalPadding: delegate.inlineMathVerticalPadding
+                    devicePixelRatio: delegate.screenDevicePixelRatio
                 }
             }
         }

@@ -3,6 +3,14 @@
     <qresource prefix="/">
         <file>qml/main.qml</file>
         <file>qml/EditableBlock.qml</file>
+        <file>qml/MathEntryAssist.qml</file>
+        <file>qml/WikiLinkCompletion.qml</file>
+        <file>qml/CrossBlockTextSelection.qml</file>
+        <file>qml/BlockGutter.qml</file>
+        <file>qml/DropCapOverlay.qml</file>
+        <file>qml/CalloutBlockChrome.qml</file>
+        <file>qml/CodeBlockChrome.qml</file>
+        <file>qml/InlineMathOverlay.qml</file>
         <file>qml/TextBlockDelegate.qml</file>
         <file>qml/BulletListDelegate.qml</file>
         <file>qml/NumberedListDelegate.qml</file>

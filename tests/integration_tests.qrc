@@ -5,6 +5,14 @@
         <file>tst_visual.qml</file>
         <file alias="qml/main.qml">../qml/main.qml</file>
         <file alias="qml/EditableBlock.qml">../qml/EditableBlock.qml</file>
+        <file alias="qml/MathEntryAssist.qml">../qml/MathEntryAssist.qml</file>
+        <file alias="qml/WikiLinkCompletion.qml">../qml/WikiLinkCompletion.qml</file>
+        <file alias="qml/CrossBlockTextSelection.qml">../qml/CrossBlockTextSelection.qml</file>
+        <file alias="qml/BlockGutter.qml">../qml/BlockGutter.qml</file>
+        <file alias="qml/DropCapOverlay.qml">../qml/DropCapOverlay.qml</file>
+        <file alias="qml/CalloutBlockChrome.qml">../qml/CalloutBlockChrome.qml</file>
+        <file alias="qml/CodeBlockChrome.qml">../qml/CodeBlockChrome.qml</file>
+        <file alias="qml/InlineMathOverlay.qml">../qml/InlineMathOverlay.qml</file>
         <file alias="qml/TextBlockDelegate.qml">../qml/TextBlockDelegate.qml</file>
         <file alias="qml/BulletListDelegate.qml">../qml/BulletListDelegate.qml</file>
         <file alias="qml/NumberedListDelegate.qml">../qml/NumberedListDelegate.qml</file>
