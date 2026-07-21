@@ -73,6 +73,16 @@ Dialog {
     // rescans twenty times rather than five hundred.
     readonly property int importChunk: 25
 
+    // Files declined so far by the run in progress. lastSkippedCount is a
+    // property rather than a one-shot reading because it climbs as the run
+    // proceeds, so the label follows it live; a reader who chose a folder full
+    // of images sees that being said while it happens rather than only in the
+    // closing message. The chunked flow keeps its own total instead, because
+    // lastSkippedCount there describes the chunk rather than the run.
+    readonly property int liveSkippedCount:
+        pendingKind === "folder" ? DocumentImporter.lastSkippedCount
+                                 : skippedCount
+
     // A file list is driven in chunks from here; a folder is handed to the
     // importer's own asynchronous run.
     //
@@ -95,7 +105,6 @@ Dialog {
         importDialog.skippedCount = 0
         importDialog.progressDone = 0
         importDialog.importCancelled = false
-        progressLabel.text = qsTr("Preparing…")
 
         if (pendingKind === "folder") {
             importDialog.importQueue = []
@@ -157,8 +166,6 @@ Dialog {
             importDialog.skippedCount += DocumentImporter.lastSkippedCount
             importDialog.progressDone =
                 importDialog.importTotal - importDialog.importQueue.length
-            progressLabel.text = qsTr("Importing %1 of %2")
-                .arg(importDialog.progressDone).arg(importDialog.importTotal)
             importStep.start()
         }
     }
@@ -174,8 +181,6 @@ Dialog {
                 return
             importDialog.progressDone = done
             importDialog.importTotal = total
-            progressLabel.text = qsTr("Importing %1 of %2")
-                .arg(done).arg(total)
         }
 
         // Emitted once per startImportFolder() run, after its single
@@ -204,7 +209,16 @@ Dialog {
             Label {
                 id: progressLabel
                 objectName: "importProgressLabel"
-                text: qsTr("Preparing…")
+                text: importDialog.importTotal <= 0
+                    ? qsTr("Preparing…")
+                    : (importDialog.liveSkippedCount > 0
+                        ? qsTr("Importing %1 of %2 (%3 skipped)")
+                            .arg(importDialog.progressDone)
+                            .arg(importDialog.importTotal)
+                            .arg(importDialog.liveSkippedCount)
+                        : qsTr("Importing %1 of %2")
+                            .arg(importDialog.progressDone)
+                            .arg(importDialog.importTotal))
                 elide: Text.ElideMiddle
                 Layout.fillWidth: true
             }
