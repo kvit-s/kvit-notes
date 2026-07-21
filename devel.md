@@ -457,21 +457,32 @@ service rather than a flag, add a narrow interface and a setter in the shape of
 Three checks keep the wiring honest, and all three block a merge:
 
 - **ShellTests** loads the shipped `resources.qrc` against the real context and
-  fails on any QML warning emitted during load. QML reports an unknown context
-  property or an unresolvable type as a warning and then carries on with an
-  undefined value, so without this the load "succeeds" no matter how much of
-  the shell failed to wire up. It also pins the published context-property
-  names, so a rename has to be made deliberately in both C++ and QML.
+  fails on any QML warning, both during load and for the rest of the suite as
+  the loaded shell is exercised. QML reports an unknown context property or an
+  unresolvable type as a warning and then carries on with an undefined value,
+  so without this the load "succeeds" no matter how much of the shell failed to
+  wire up. A case that provokes a warning on purpose declares it in
+  `g_expectedWarnings`. The test also asserts that the published
+  context-property set is empty and checks every singleton in
+  `KVIT_QML_SINGLETONS`, reading that registry directly so the two cannot
+  drift.
 - **QrcSyncGuard** (`tools/check-qrc-sync.py`) compares `resources.qrc`,
   `tests/integration_tests.qrc` and the files actually in `qml/`. A file added
   to only one list either breaks the shipped shell or hangs the Qt Quick
   harness until its CTest timeout.
 - **qmllint** reads every file in `qml/`, including the ones no test
-  instantiates. This matters because the runtime gate only sees what the
-  initial scene actually builds: a bad binding inside an inactive `Loader`
-  never evaluates, and a missing *sub-property* of an object that does exist
-  (`noteCollection.somethingGone`) evaluates to `undefined` silently, with no
-  warning at all. Static analysis is what covers those.
+  instantiates, and the Qt Quick Test files in `tests/` as well. This matters
+  because the runtime gate only sees what the initial scene actually builds: a
+  bad binding inside an inactive `Loader` never evaluates, and a missing
+  *sub-property* of an object that does exist (`noteCollection.somethingGone`)
+  evaluates to `undefined` silently, with no warning at all. Static analysis is
+  what covers those. Reach it as the `qmllint` build target or the `QmlLint`
+  CTest entry rather than by calling `tools/run-qmllint.sh` directly; both
+  regenerate `kvit-qmltypes` first, and the script needs that type description
+  to resolve C++-declared properties. Test QML runs a looser profile, because
+  the harness handles are context properties and the suites drive the app
+  through a `QObject`-typed loader; an unqualified name there passes only if
+  `tests/testsetup.h` publishes it.
 
 ## Making the filesystem fail in a test
 
