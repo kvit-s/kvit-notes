@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest/QtTest>
 #include "embedmetadata.h"
+#include "imageassets.h"
 #include "egresspolicy.h"
 #include "notecollection.h"
 
@@ -58,7 +59,7 @@ void TestEmbedMetadata::testIsEmbedUrl()
 {
     QFETCH(QString, url);
     QFETCH(bool, embed);
-    QCOMPARE(EmbedMetadata::isEmbedUrl(url), embed);
+    QCOMPARE(ImageAssets::isEmbedUrl(url), embed);
 }
 
 void TestEmbedMetadata::testIsVideoHost()

@@ -18,12 +18,16 @@
 
 #include "block.h"
 #include "cancellationtoken.h"
+#include "opendocumentsession.h"
 
 class BlockModel;
 class UndoStack;
 class DocumentSerializer;
 
-class DocumentManager : public QObject
+// Implements OpenDocumentSession: the repository reaches the live document
+// only through that interface, so the note filesystem layer never has to
+// know this class.
+class DocumentManager : public QObject, public OpenDocumentSession
 {
     Q_OBJECT
 
@@ -60,6 +64,7 @@ public:
 
     // File path
     QString currentFilePath() const { return m_currentFilePath; }
+    QString openFilePath() const override { return m_currentFilePath; }
     QString currentFileName() const;
     bool hasFile() const { return !m_currentFilePath.isEmpty(); }
     bool openInProgress() const { return m_asyncOpenInProgress; }
@@ -89,7 +94,7 @@ public:
     // body. On failure the previous metadata state is restored while body
     // dirtiness is retained, so callers can roll back their index mutation
     // without leaving the document and repository disagreeing.
-    bool saveWithFrontMatter(const QString &block);
+    bool saveWithFrontMatter(const QString &block) override;
 
     // File operations
     QDateTime lastSavedAt() const { return m_lastSavedAt; }
@@ -102,6 +107,7 @@ public:
     Q_INVOKABLE bool open(const QUrl &fileUrl, bool ignoreSizeCap = false);
     Q_INVOKABLE bool openAsync(const QUrl &fileUrl, bool ignoreSizeCap = false);
     Q_INVOKABLE void newDocument();
+    void closeDocument() override { newDocument(); }
 
     int maxOpenFileSizeMiB() const { return m_maxOpenFileSizeMiB; }
     void setMaxOpenFileSizeMiB(int mib);
@@ -109,7 +115,7 @@ public:
     // The open file was renamed or moved on disk (a collection rename of
     // the open note): rebind the path without reloading — content, undo
     // history, and dirty state all continue.
-    Q_INVOKABLE void rebindFilePath(const QString &newPath);
+    Q_INVOKABLE void rebindFilePath(const QString &newPath) override;
 
     // Abandon any write still in flight and wait for its worker to stop.
     //
@@ -119,7 +125,7 @@ public:
     // delete, or as a duplicate after a rename. Every operation that changes
     // where the open note lives must call this first, so there is exactly one
     // writer and it is the one that knows the current path.
-    Q_INVOKABLE void cancelPendingWrites();
+    Q_INVOKABLE void cancelPendingWrites() override;
 
     // Ask every editor holding uncommitted text to write it into the model now.
     //
@@ -130,7 +136,7 @@ public:
     // a note switch or a shutdown could all act on a document that was missing
     // the user's most recent typing. Anything that reads or persists the
     // document must call this first.
-    Q_INVOKABLE void flushPendingEdits();
+    Q_INVOKABLE void flushPendingEdits() override;
 
     // Replace the whole document body with the given markdown as ONE
     // undo step (restore from backup).

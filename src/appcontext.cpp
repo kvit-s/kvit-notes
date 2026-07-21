@@ -104,7 +104,7 @@ void AppContext::wire()
                  "trigram tokenizer. Packaged builds must ship it.");
     }
     m_noteCollection.setSearchIndex(&m_searchIndex);
-    m_noteCollection.setDocumentManager(&m_documentManager);
+    m_noteCollection.setOpenDocument(&m_documentManager);
     m_folderTreeModel.setCollection(&m_noteCollection);
     m_noteListModel.setCollection(&m_noteCollection);
     m_collectionSearch.setSearchIndex(&m_searchIndex);

@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "documentselection.h"
+#include "inlinemarkdown.h"
 #include "blockmodel.h"
 #include "block.h"
-#include "blockeditorengine.h"
 #include "documentserializer.h"
 #include "perflog.h"
 
@@ -467,9 +467,9 @@ QString DocumentSelection::rangeMarkdown() const
             // fragment (no structural prefix — it is partial text).
             // Positions map through the display state; the fragment is
             // reveal-independent because it maps back to markdown.
-            const int docStart = BlockEditorEngine::markdownToDocument(md, QList<int>(), from);
-            const int docEnd = BlockEditorEngine::markdownToDocument(md, QList<int>(), to);
-            text = BlockEditorEngine::markdownForRange(md, QList<int>(), docStart, docEnd);
+            const int docStart = InlineMarkdown::markdownToDocument(md, QList<int>(), from);
+            const int docEnd = InlineMarkdown::markdownToDocument(md, QList<int>(), to);
+            text = InlineMarkdown::markdownForRange(md, QList<int>(), docStart, docEnd);
         }
 
         const bool listLine = fullBlock && Block::isListFamily(block->blockType());

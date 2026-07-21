@@ -177,6 +177,8 @@ add_library(kvit-core STATIC
     src/diagrams/textdiagram.cpp
     src/diagrams/mermaidrenderer.cpp
     src/diagrams/diagramcanvas.cpp
+    src/opendocumentsession.h
+    src/embedfetcher.h
     src/documentmanager.cpp
     src/blockmenumodel.cpp
     src/mathcommandmodel.cpp
@@ -188,6 +190,7 @@ add_library(kvit-core STATIC
     src/mathrenderer.cpp
     src/clipboardhelper.cpp
     src/htmltomarkdown.cpp
+    src/inlinemarkdown.cpp
     src/blockeditorengine.cpp
     src/documentselection.cpp
     src/documentsearch.cpp

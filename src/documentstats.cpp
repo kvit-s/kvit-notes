@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "documentstats.h"
+#include "inlinemarkdown.h"
 #include "blockmodel.h"
-#include "blockeditorengine.h"
 
 #include <QRegularExpression>
 #include <cmath>
@@ -88,7 +88,7 @@ QVariantMap DocumentStats::documentStats() const
 
 QString DocumentStats::displayTextFor(const QString &markdown, bool verbatim) const
 {
-    return verbatim ? markdown : BlockEditorEngine::displayText(markdown);
+    return verbatim ? markdown : InlineMarkdown::displayText(markdown);
 }
 
 QVariantMap DocumentStats::statsForText(const QString &displayText) const

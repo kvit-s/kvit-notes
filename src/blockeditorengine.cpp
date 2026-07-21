@@ -46,129 +46,11 @@ const QColor kCodeString("#50a14f");
 const QColor kCodeComment("#a0a1a7");
 const QColor kCodeNumber("#986801");
 
-QList<FormattedSpan> spansFor(const QString &markdown)
-{
-    const MarkdownFormatter formatter;
-    return formatter.parseSpans(markdown);
-}
-
 QList<int> singleSpanList(int revealedSpan)
 {
     if (revealedSpan < 0)
         return {};
     return {revealedSpan};
-}
-
-// The single traversal every state function is built on: ordered segments
-// mapping document ranges to markdown ranges for a given reveal state.
-// Segments with docLen > 0 are 1:1 (their document text equals their
-// markdown slice); HiddenMarker segments are the marker characters of a
-// hidden span — present in the markdown, zero-width in the document.
-// Nested spans recurse: the reveal unit is the top-level span, so a revealed
-// span shows every marker in its subtree and a hidden one hides them all. A
-// trailing Plain segment is always present (possibly zero-length) so
-// end-of-text positions extrapolate from it.
-struct Seg {
-    enum Kind {
-        Plain,         // text outside any span
-        Content,       // a span's direct content (between child spans)
-        VisibleMarker, // marker of a revealed span (1:1)
-        HiddenMarker,  // marker of a hidden span (docLen == 0)
-    };
-    int docStart = 0;
-    int docLen = 0;
-    int mdStart = 0;
-    int mdLen = 0;
-    Kind kind = Plain;
-    int spanIdx = -1;   // top-level span index, -1 for Plain
-    quint32 flags = 0;  // char-format flags (ancestor flags combined)
-    int ownerIdx = -1;  // owning node in the flat span tree, -1 for Plain
-    QString color;      // nearest enclosing color-span value
-    QString url;        // nearest enclosing link target
-};
-
-// Pre-order flattening of the span tree, for owner chains and coverage.
-struct FlatSpan {
-    const FormattedSpan *span;
-    int parent; // flat index, -1 for a top-level span
-    int topIdx; // index of the containing top-level span
-};
-
-void emitSpanSegs(const FormattedSpan &span, bool revealed, quint32 inherited,
-                  int topIdx, int parentFlat, QList<FlatSpan> &flat,
-                  int &doc, QList<Seg> &segs, const QString &inheritedColor,
-                  const QString &inheritedUrl)
-{
-    const int self = flat.size();
-    flat.append({&span, parentFlat, topIdx});
-    const quint32 flags = inherited | span.formatFlags;
-    // The nearest enclosing color-span value styles this span's content; a
-    // nested color span overrides it for its own content (innermost wins).
-    const QString color = (span.formatFlags & SpanFormat::Color)
-        ? span.color : inheritedColor;
-    // Same for a link's target: content inside a link carries its url so the
-    // highlighter can distinguish a resolved from an unresolved #slug link.
-    const QString url = (span.formatFlags & SpanFormat::Link)
-        ? span.url : inheritedUrl;
-
-    segs.append({doc, revealed ? span.openLen : 0, span.start, span.openLen,
-                 revealed ? Seg::VisibleMarker : Seg::HiddenMarker,
-                 topIdx, SpanFormat::Marker, self, QString(), QString()});
-    doc += revealed ? span.openLen : 0;
-
-    int md = span.start + span.openLen;
-    for (const FormattedSpan &child : span.children) {
-        if (child.start > md) {
-            segs.append({doc, child.start - md, md, child.start - md,
-                         Seg::Content, topIdx, flags, self, color, url});
-            doc += child.start - md;
-        }
-        emitSpanSegs(child, revealed, flags, topIdx, self, flat, doc, segs,
-                     color, url);
-        md = child.end;
-    }
-    const int contentEnd = span.end - span.closeLen;
-    if (contentEnd > md) {
-        segs.append({doc, contentEnd - md, md, contentEnd - md,
-                     Seg::Content, topIdx, flags, self, color, url});
-        doc += contentEnd - md;
-    }
-
-    segs.append({doc, revealed ? span.closeLen : 0, contentEnd, span.closeLen,
-                 revealed ? Seg::VisibleMarker : Seg::HiddenMarker,
-                 topIdx, SpanFormat::Marker, self, QString(), QString()});
-    doc += revealed ? span.closeLen : 0;
-}
-
-QList<Seg> segmentsFor(const QList<FormattedSpan> &spans, const QString &markdown,
-                       const QList<int> &revealedSpans,
-                       QList<FlatSpan> *flatOut = nullptr)
-{
-    QList<Seg> segs;
-    QList<FlatSpan> flat;
-    int doc = 0;
-    int md = 0;
-    for (int i = 0; i < spans.size(); ++i) {
-        const auto &span = spans.at(i);
-        if (span.start > md) {
-            segs.append({doc, span.start - md, md, span.start - md,
-                         Seg::Plain, -1, 0, -1});
-            doc += span.start - md;
-        }
-        emitSpanSegs(span, revealedSpans.contains(i), 0, i, -1, flat, doc, segs,
-                     QString(), QString());
-        md = span.end;
-    }
-    segs.append({doc, int(markdown.length()) - md, md, int(markdown.length()) - md,
-                 Seg::Plain, -1, 0, -1});
-    if (flatOut)
-        *flatOut = flat;
-    return segs;
-}
-
-QList<Seg> segmentsFor(const QString &markdown, const QList<int> &revealedSpans)
-{
-    return segmentsFor(spansFor(markdown), markdown, revealedSpans);
 }
 
 QString mathMetricsCacheKey(const QString &tex, int textSizePx)
@@ -277,7 +159,7 @@ private:
 
     void applySpanFormats(const QString &text, int blockPos)
     {
-        const auto ranges = BlockEditorEngine::formatRangesForState(
+        const auto ranges = InlineMarkdown::formatRangesForState(
             m_engine->m_markdown, m_engine->m_revealedSpans);
         for (const auto &range : ranges) {
             const int localStart = range.start - blockPos;
@@ -446,7 +328,7 @@ private:
     {
         if (m_engine->m_searchMatches.isEmpty())
             return;
-        const auto ranges = BlockEditorEngine::searchHighlightRanges(
+        const auto ranges = InlineMarkdown::searchHighlightRanges(
             m_engine->m_markdown, m_engine->m_revealedSpans,
             m_engine->m_searchMatches, m_engine->m_verbatim);
         for (const auto &range : ranges) {
@@ -843,46 +725,9 @@ void BlockEditorEngine::applyLineHeight()
     m_internalEdit = false;
 }
 
-QList<BlockEditorEngine::HighlightRange> BlockEditorEngine::searchHighlightRanges(
-    const QString &markdown, const QList<int> &revealedSpans,
-    const QList<HighlightRange> &displayMatches, bool verbatim)
-{
-    QList<HighlightRange> out;
-    if (displayMatches.isEmpty())
-        return out;
-
-    // Display length bounds stale matches: a keystroke can shorten the
-    // text before the queued search recompute delivers fresh ranges.
-    const int displayLength = verbatim
-        ? static_cast<int>(markdown.length())
-        : static_cast<int>(documentText(markdown, QList<int>()).length());
-
-    for (const HighlightRange &match : displayMatches) {
-        const int start = qBound(0, match.start, displayLength);
-        const int end = qBound(0, match.start + match.length, displayLength);
-        if (end <= start)
-            continue;
-        if (verbatim) {
-            out.append({start, end - start, match.current});
-            continue;
-        }
-        // Per matched character: display → markdown (no reveals) →
-        // document (current reveals). The last character maps as a
-        // position-of-char so the range covers exactly the matched
-        // characters — plus any markers a reveal put between them.
-        const int mdStart = documentToMarkdown(markdown, QList<int>(), start);
-        const int mdLast = documentToMarkdown(markdown, QList<int>(), end - 1);
-        const int docStart = markdownToDocument(markdown, revealedSpans, mdStart);
-        const int docEnd = markdownToDocument(markdown, revealedSpans, mdLast) + 1;
-        if (docEnd > docStart)
-            out.append({docStart, docEnd - docStart, match.current});
-    }
-    return out;
-}
-
 QString BlockEditorEngine::stateText() const
 {
-    return m_verbatim ? m_markdown : documentText(m_markdown, m_revealedSpans);
+    return m_verbatim ? m_markdown : InlineMarkdown::documentText(m_markdown, m_revealedSpans);
 }
 
 void BlockEditorEngine::requestRebuild()
@@ -995,14 +840,14 @@ int BlockEditorEngine::toMarkdownPosition(int documentPosition) const
 {
     if (m_verbatim)
         return qBound(0, documentPosition, int(m_markdown.length()));
-    return documentToMarkdown(m_markdown, m_revealedSpans, documentPosition);
+    return InlineMarkdown::documentToMarkdown(m_markdown, m_revealedSpans, documentPosition);
 }
 
 int BlockEditorEngine::toDocumentPosition(int markdownPosition) const
 {
     if (m_verbatim)
         return qBound(0, markdownPosition, int(m_markdown.length()));
-    return markdownToDocument(m_markdown, m_revealedSpans, markdownPosition);
+    return InlineMarkdown::markdownToDocument(m_markdown, m_revealedSpans, markdownPosition);
 }
 
 QString BlockEditorEngine::markdownForRange(int docStart, int docEnd) const
@@ -1012,7 +857,7 @@ QString BlockEditorEngine::markdownForRange(int docStart, int docEnd) const
         const int hi = qBound(lo, docEnd, int(m_markdown.length()));
         return m_markdown.mid(lo, hi - lo);
     }
-    return markdownForRange(m_markdown, m_revealedSpans, docStart, docEnd);
+    return InlineMarkdown::markdownForRange(m_markdown, m_revealedSpans, docStart, docEnd);
 }
 
 QVariantMap BlockEditorEngine::cutRange(int docStart, int docEnd) const
@@ -1025,7 +870,7 @@ QVariantMap BlockEditorEngine::cutRange(int docStart, int docEnd) const
             {QStringLiteral("cursor"), lo},
         };
     }
-    const EditResult result = cutRangeResult(m_markdown, m_revealedSpans, docStart, docEnd);
+    const EditResult result = InlineMarkdown::cutRangeResult(m_markdown, m_revealedSpans, docStart, docEnd);
     return {
         {QStringLiteral("markdown"), result.markdown},
         {QStringLiteral("cursor"), result.mdEditEnd},
@@ -1036,171 +881,34 @@ QString BlockEditorEngine::stripFormatting(const QString &markdown) const
 {
     if (m_verbatim)
         return markdown;  // code content is literal; nothing to strip
-    return displayText(markdown);
+    return InlineMarkdown::displayText(markdown);
 }
-
-namespace {
-
-// Deepest span carrying a URL whose inclusive markdown range contains
-// mdPos — the span Ctrl+K edits.
-const FormattedSpan *deepestLinkAt(const QList<FormattedSpan> &spans, int mdPos)
-{
-    const FormattedSpan *found = nullptr;
-    for (const FormattedSpan &span : spans) {
-        if (mdPos < span.start || mdPos > span.end)
-            continue;
-        // Wiki-links are excluded: the Ctrl+K dialog edits [text](url)
-        // spans, and rewriting a [[wiki-link]] into that form would mangle
-        // it. Ctrl+K inside one inserts a fresh link instead.
-        if (span.type == QLatin1String("wikilink"))
-            continue;
-        if (!span.url.isEmpty() || span.type == QLatin1String("link"))
-            found = &span;
-        if (const FormattedSpan *inner = deepestLinkAt(span.children, mdPos))
-            found = inner;
-    }
-    return found;
-}
-
-} // namespace
 
 QVariantMap BlockEditorEngine::linkSpanAtCursor(int docPos) const
 {
     if (m_verbatim)
         return {{QStringLiteral("found"), false}};
-    const int mdPos = documentToMarkdown(m_markdown, m_revealedSpans, docPos);
-    const auto spans = spansFor(m_markdown);
-    const FormattedSpan *span = deepestLinkAt(spans, mdPos);
-    QVariantMap map;
-    map.insert(QStringLiteral("found"), span != nullptr);
-    if (span) {
-        map.insert(QStringLiteral("start"), span->start);
-        map.insert(QStringLiteral("end"), span->end);
-        map.insert(QStringLiteral("text"),
-                   m_markdown.mid(span->start + span->openLen, span->contentLength()));
-        map.insert(QStringLiteral("url"), span->url);
-        map.insert(QStringLiteral("removable"), span->type == QLatin1String("link"));
-    }
-    return map;
-}
-
-namespace {
-
-// The math span whose content range contains mdPos, both edges inclusive
-// (a caret right after the opening $ or right before the closing $ counts
-// as inside), searching nested spans depth-first. Pointers reference the
-// caller-held span list.
-const FormattedSpan *mathSpanAt(const QList<FormattedSpan> &spans, int mdPos)
-{
-    for (const FormattedSpan &span : spans) {
-        if (span.type == QLatin1String("math")
-            && mdPos >= span.start + span.openLen
-            && mdPos <= span.end - span.closeLen) {
-            return &span;
-        }
-        if (const FormattedSpan *child = mathSpanAt(span.children, mdPos))
-            return child;
-    }
-    return nullptr;
-}
-
-// Whether mdPos sits inside (content edges inclusive) any span carrying
-// the given content flags — the inline-code check of the auto-pair gate.
-bool insideSpanWithFlags(const QList<FormattedSpan> &spans, int mdPos,
-                         quint32 flags)
-{
-    for (const FormattedSpan &span : spans) {
-        if ((span.formatFlags & flags)
-            && mdPos >= span.start + span.openLen
-            && mdPos <= span.end - span.closeLen) {
-            return true;
-        }
-        if (insideSpanWithFlags(span.children, mdPos, flags))
-            return true;
-    }
-    return false;
-}
-
-// Whether the character at `pos` is escaped by a backslash run before it
-// (odd run length), matching the span parser's isEscapedAt semantics.
-bool escapedAt(const QString &text, int pos)
-{
-    int backslashes = 0;
-    for (int i = pos - 1; i >= 0 && text.at(i) == QLatin1Char('\\'); --i)
-        ++backslashes;
-    return (backslashes % 2) == 1;
-}
-
-} // namespace
-
-QVariantMap BlockEditorEngine::mathSpanRangeIn(const QString &markdown,
-                                               int mdPos)
-{
-    QVariantMap map{{QStringLiteral("found"), false}};
-    const auto spans = spansFor(markdown);
-    const FormattedSpan *span = mathSpanAt(spans, mdPos);
-    if (!span)
-        return map;
-    map.insert(QStringLiteral("found"), true);
-    map.insert(QStringLiteral("mdStart"), span->start);
-    map.insert(QStringLiteral("mdEnd"), span->end);
-    map.insert(QStringLiteral("contentStart"), span->start + span->openLen);
-    map.insert(QStringLiteral("contentEnd"), span->end - span->closeLen);
-    map.insert(QStringLiteral("tex"),
-               markdown.mid(span->start + span->openLen,
-                            span->contentLength()));
-    return map;
+    const int mdPos = InlineMarkdown::documentToMarkdown(m_markdown, m_revealedSpans, docPos);
+    return InlineMarkdown::linkSpanIn(m_markdown, mdPos);
 }
 
 QVariantMap BlockEditorEngine::mathSpanRangeAt(int docPos) const
 {
     if (m_verbatim)
         return {{QStringLiteral("found"), false}};
-    const int mdPos = documentToMarkdown(m_markdown, m_revealedSpans, docPos);
-    QVariantMap map = mathSpanRangeIn(m_markdown, mdPos);
+    const int mdPos = InlineMarkdown::documentToMarkdown(m_markdown, m_revealedSpans, docPos);
+    QVariantMap map = InlineMarkdown::mathSpanRangeIn(m_markdown, mdPos);
     if (map.value(QStringLiteral("found")).toBool()) {
         map.insert(QStringLiteral("docContentStart"),
-                   markdownToDocument(m_markdown, m_revealedSpans,
+                   InlineMarkdown::markdownToDocument(m_markdown, m_revealedSpans,
                                       map.value(QStringLiteral("contentStart"))
                                           .toInt()));
         map.insert(QStringLiteral("docContentEnd"),
-                   markdownToDocument(m_markdown, m_revealedSpans,
+                   InlineMarkdown::markdownToDocument(m_markdown, m_revealedSpans,
                                       map.value(QStringLiteral("contentEnd"))
                                           .toInt()));
     }
     return map;
-}
-
-bool BlockEditorEngine::shouldAutoPairDollarIn(const QString &markdown,
-                                               int mdPos, bool ignoreFollowing)
-{
-    mdPos = qBound(0, mdPos, markdown.size());
-    // Escaped: the caret follows an unescaped backslash — this $ is the
-    // literal \$.
-    if (escapedAt(markdown, mdPos))
-        return false;
-    // Unmatched $ left of the caret: this keystroke closes that span
-    // rather than opening a new one. Escaped dollars are prose.
-    int dollars = 0;
-    for (int i = 0; i < mdPos; ++i) {
-        if (markdown.at(i) == QLatin1Char('$') && !escapedAt(markdown, i))
-            ++dollars;
-    }
-    if ((dollars % 2) == 1)
-        return false;
-    // Inside an inline code span, $ is always literal.
-    const auto spans = spansFor(markdown);
-    if (insideSpanWithFlags(spans, mdPos, SpanFormat::Code))
-        return false;
-    // A letter, digit, or $ right of the caret: typing a dollar in front
-    // of existing text means a price, not a formula. The selection-wrap
-    // path skips this — the selection is what follows.
-    if (!ignoreFollowing && mdPos < markdown.size()) {
-        const QChar next = markdown.at(mdPos);
-        if (next.isLetterOrNumber() || next == QLatin1Char('$'))
-            return false;
-    }
-    return true;
 }
 
 bool BlockEditorEngine::shouldAutoPairDollar(int docPos,
@@ -1208,8 +916,8 @@ bool BlockEditorEngine::shouldAutoPairDollar(int docPos,
 {
     if (m_verbatim)
         return false;
-    const int mdPos = documentToMarkdown(m_markdown, m_revealedSpans, docPos);
-    return shouldAutoPairDollarIn(m_markdown, mdPos, ignoreFollowing);
+    const int mdPos = InlineMarkdown::documentToMarkdown(m_markdown, m_revealedSpans, docPos);
+    return InlineMarkdown::shouldAutoPairDollarIn(m_markdown, mdPos, ignoreFollowing);
 }
 
 QVariantList BlockEditorEngine::inlineMathBoxes() const
@@ -1217,21 +925,16 @@ QVariantList BlockEditorEngine::inlineMathBoxes() const
     QVariantList out;
     if (m_verbatim)
         return out;
-    for (const Seg &seg : segmentsFor(m_markdown, m_revealedSpans)) {
-        if (seg.kind != Seg::Content || seg.docLen <= 0)
-            continue;
-        if (!(seg.flags & SpanFormat::Math))
-            continue;
-        // Only HIDDEN math spans overlay an image; a revealed one shows its
-        // editable $…$ source, so skip it (its top-level span is revealed).
-        if (seg.spanIdx >= 0 && m_revealedSpans.contains(seg.spanIdx))
-            continue;
-        const QString tex = m_markdown.mid(seg.mdStart, seg.mdLen);
+    for (const InlineMarkdown::MathSegment &seg :
+         InlineMarkdown::hiddenMathSegments(m_markdown, m_revealedSpans)) {
         QVariantMap box{
-            {QStringLiteral("tex"), tex},
+            {QStringLiteral("tex"), seg.tex},
             {QStringLiteral("docStart"), seg.docStart},
-            {QStringLiteral("docEnd"), seg.docStart + seg.docLen},
+            {QStringLiteral("docEnd"), seg.docEnd},
         };
+        // The line the reservation sits on, so the delegate can position the
+        // overlay after a relayout. Needs the live document, which is why the
+        // measurement half of this stays here rather than in InlineMarkdown.
         if (m_doc) {
             const QTextBlock block = m_doc->findBlock(seg.docStart);
             if (block.isValid()) {
@@ -1250,11 +953,11 @@ QVariantList BlockEditorEngine::inlineMathBoxes() const
             }
         }
         const QVariantMap metrics =
-            cachedMathMetrics(tex, mathFontPixelSize());
+            cachedMathMetrics(seg.tex, mathFontPixelSize());
         for (auto it = metrics.constBegin(); it != metrics.constEnd(); ++it)
             box.insert(it.key(), it.value());
         const QVariantMap reservation =
-            mathReservationMetrics(tex, seg.flags);
+            mathReservationMetrics(seg.tex, seg.flags);
         for (auto it = reservation.constBegin(); it != reservation.constEnd(); ++it)
             box.insert(it.key(), it.value());
         out.append(box);
@@ -1266,45 +969,14 @@ int BlockEditorEngine::formatFlagsAtDocumentPosition(int docPos) const
 {
     if (m_verbatim)
         return 0;
-    const auto spans = spansFor(m_markdown);
-    QList<FlatSpan> flat;
-    const auto segs = segmentsFor(spans, m_markdown, m_revealedSpans, &flat);
-    // Both segment ends inclusive, matching the reveal rule: with the
-    // caret at a span edge the toolbar shows the span's state, exactly
-    // when typing there would extend the span. A boundary position
-    // touches two segments (plain|span or span|span) — the flags of
-    // everything touched combine, as the reveal does.
-    quint32 flags = 0;
-    for (const Seg &seg : segs) {
-        if (seg.docLen <= 0 || docPos < seg.docStart
-            || docPos > seg.docStart + seg.docLen)
-            continue;
-        for (int k = seg.ownerIdx; k != -1; k = flat.at(k).parent)
-            flags |= flat.at(k).span->formatFlags;
-    }
-    return int(flags & ~quint32(SpanFormat::Marker));
+    return int(InlineMarkdown::formatFlagsAt(m_markdown, m_revealedSpans, docPos));
 }
 
 QString BlockEditorEngine::linkAtDocumentPosition(int docPos) const
 {
     if (m_verbatim)
         return QString();
-    const auto spans = spansFor(m_markdown);
-    QList<FlatSpan> flat;
-    const auto segs = segmentsFor(spans, m_markdown, m_revealedSpans, &flat);
-    for (const Seg &seg : segs) {
-        if (seg.docLen <= 0 || docPos < seg.docStart
-            || docPos >= seg.docStart + seg.docLen)
-            continue;
-        // Deepest span in the owner chain that carries a URL — covers
-        // link text, a revealed link's markers, and autolinks.
-        for (int k = seg.ownerIdx; k != -1; k = flat.at(k).parent) {
-            if (!flat.at(k).span->url.isEmpty())
-                return flat.at(k).span->url;
-        }
-        return QString();
-    }
-    return QString();
+    return InlineMarkdown::linkAt(m_markdown, m_revealedSpans, docPos);
 }
 
 void BlockEditorEngine::rebuildDocument(bool runRehighlight)
@@ -1385,12 +1057,12 @@ void BlockEditorEngine::updateRevealState()
                 // Selection: reveal every span it touches (§2.2.4).
                 const int selLo = qMin(m_selStart, m_selEnd);
                 const int selHi = qMax(m_selStart, m_selEnd);
-                const int mdLo = documentToMarkdown(m_markdown, m_revealedSpans, selLo);
-                const int mdHi = documentToMarkdown(m_markdown, m_revealedSpans, selHi);
-                desired = spansToRevealForRange(m_markdown, mdLo, mdHi);
+                const int mdLo = InlineMarkdown::documentToMarkdown(m_markdown, m_revealedSpans, selLo);
+                const int mdHi = InlineMarkdown::documentToMarkdown(m_markdown, m_revealedSpans, selHi);
+                desired = InlineMarkdown::spansToRevealForRange(m_markdown, mdLo, mdHi);
             } else {
-                const int mdPos = documentToMarkdown(m_markdown, m_revealedSpans, m_cursorPos);
-                desired = singleSpanList(spanToReveal(m_markdown, mdPos));
+                const int mdPos = InlineMarkdown::documentToMarkdown(m_markdown, m_revealedSpans, m_cursorPos);
+                desired = singleSpanList(InlineMarkdown::spanToReveal(m_markdown, mdPos));
             }
         }
         if (desired == m_revealedSpans)
@@ -1399,21 +1071,9 @@ void BlockEditorEngine::updateRevealState()
     }
 }
 
-// All markers of a span's subtree in ascending markdown order — the
-// reveal unit is the top-level span, so its children's markers show and
-// hide together with its own (features.md §2.2.7).
-static void collectSubtreeMarkers(const FormattedSpan &span,
-                                  QList<QPair<int, QString>> &markers)
-{
-    markers.append({span.start, span.openMarker()});
-    for (const FormattedSpan &child : span.children)
-        collectSubtreeMarkers(child, markers);
-    markers.append({span.end - span.closeLen, span.closeMarker()});
-}
-
 void BlockEditorEngine::transitionTo(const QList<int> &revealedSpans)
 {
-    const auto spans = spansFor(m_markdown);
+    const int spanCount = InlineMarkdown::spanCount(m_markdown);
 
     m_internalEdit = true;
 
@@ -1425,14 +1085,13 @@ void BlockEditorEngine::transitionTo(const QList<int> &revealedSpans)
     QList<int> current = m_revealedSpans;
     for (int idx = current.size() - 1; idx >= 0; --idx) {
         const int k = current.at(idx);
-        if (revealedSpans.contains(k) || k >= spans.size())
+        if (revealedSpans.contains(k) || k >= spanCount)
             continue;
-        QList<QPair<int, QString>> markers;
-        collectSubtreeMarkers(spans.at(k), markers);
+        const auto markers = InlineMarkdown::subtreeMarkers(m_markdown, k);
 
         QList<QPair<int, int>> ranges; // docStart, length
         for (const auto &m : markers) {
-            ranges.append({markdownToDocument(m_markdown, current, m.first),
+            ranges.append({InlineMarkdown::markdownToDocument(m_markdown, current, m.first),
                            int(m.second.length())});
         }
         QTextCursor tc(m_doc);
@@ -1450,14 +1109,13 @@ void BlockEditorEngine::transitionTo(const QList<int> &revealedSpans)
     // first), which also keeps a cursor at the content's left edge in
     // front of the opening marker until that marker lands.
     for (int k : revealedSpans) {
-        if (current.contains(k) || k < 0 || k >= spans.size())
+        if (current.contains(k) || k < 0 || k >= spanCount)
             continue;
-        QList<QPair<int, QString>> markers;
-        collectSubtreeMarkers(spans.at(k), markers);
+        const auto markers = InlineMarkdown::subtreeMarkers(m_markdown, k);
 
         QList<QPair<int, QString>> inserts; // docPos, marker text
         for (const auto &m : markers) {
-            inserts.append({markdownToDocument(m_markdown, current, m.first),
+            inserts.append({InlineMarkdown::markdownToDocument(m_markdown, current, m.first),
                             m.second});
         }
         QTextCursor tc(m_doc);
@@ -1497,7 +1155,7 @@ void BlockEditorEngine::applyVerticalAlignmentFormats()
     if (!m_doc || m_verbatim)
         return;
 
-    const auto ranges = formatRangesForState(m_markdown, m_revealedSpans);
+    const auto ranges = InlineMarkdown::formatRangesForState(m_markdown, m_revealedSpans);
     bool hasAny = false;
     for (const auto &range : ranges) {
         if (range.kind & (FormatRange::Superscript | FormatRange::Subscript))
@@ -1562,23 +1220,23 @@ void BlockEditorEngine::onContentsChange(int position, int charsRemoved, int cha
     }
 
     const QString inserted = m_doc->toPlainText().mid(position, charsAdded);
-    const EditResult result = applyDocumentEdit(m_markdown, m_revealedSpans,
+    const EditResult result = InlineMarkdown::applyDocumentEdit(m_markdown, m_revealedSpans,
                                                 position, charsRemoved, inserted);
     m_markdown = result.markdown;
 
     // Adopt the state the document is already in if it is consistent with
     // the new markdown; only repair the document when it is not.
     const QString actual = m_doc->toPlainText();
-    const int spanCount = int(spansFor(m_markdown).size());
+    const int spanCount = InlineMarkdown::spanCount(m_markdown);
     QList<QList<int>> candidates;
-    candidates << singleSpanList(spanToReveal(m_markdown, result.mdEditEnd));
+    candidates << singleSpanList(InlineMarkdown::spanToReveal(m_markdown, result.mdEditEnd));
     candidates << QList<int>{};
     for (int i = 0; i < spanCount; ++i)
         candidates << QList<int>{i};
 
     bool adopted = false;
     for (const auto &candidate : candidates) {
-        if (documentText(m_markdown, candidate) == actual) {
+        if (InlineMarkdown::documentText(m_markdown, candidate) == actual) {
             m_revealedSpans = candidate;
             adopted = true;
             break;
@@ -1591,7 +1249,7 @@ void BlockEditorEngine::onContentsChange(int position, int charsRemoved, int cha
         // state with a minimal diff; the scheduled evaluation then
         // re-reveals per cursor/selection.
         m_revealedSpans.clear();
-        applyMinimalDiff(documentText(m_markdown, m_revealedSpans));
+        applyMinimalDiff(InlineMarkdown::documentText(m_markdown, m_revealedSpans));
     }
     rehighlight();
 
@@ -1601,343 +1259,4 @@ void BlockEditorEngine::onContentsChange(int position, int charsRemoved, int cha
     // The cursor property update usually arrives after this signal; the
     // deferred evaluation sees the final cursor value.
     scheduleRevealUpdate();
-}
-
-// ---- Pure state functions ----
-
-QString BlockEditorEngine::displayText(const QString &markdown)
-{
-    return documentText(markdown, QList<int>{});
-}
-
-QString BlockEditorEngine::documentText(const QString &markdown, int revealedSpan)
-{
-    return documentText(markdown, singleSpanList(revealedSpan));
-}
-
-QString BlockEditorEngine::documentText(const QString &markdown, const QList<int> &revealedSpans)
-{
-    QString out;
-    out.reserve(markdown.size());
-    for (const Seg &seg : segmentsFor(markdown, revealedSpans)) {
-        if (seg.docLen > 0)
-            out += markdown.mid(seg.mdStart, seg.docLen);
-    }
-    return out;
-}
-
-int BlockEditorEngine::documentToMarkdown(const QString &markdown, int revealedSpan, int docPos)
-{
-    return documentToMarkdown(markdown, singleSpanList(revealedSpan), docPos);
-}
-
-int BlockEditorEngine::documentToMarkdown(const QString &markdown, const QList<int> &revealedSpans, int docPos)
-{
-    const auto segs = segmentsFor(markdown, revealedSpans);
-    for (const Seg &seg : segs) {
-        if (seg.docLen > 0 && docPos < seg.docStart + seg.docLen)
-            return seg.mdStart + (docPos - seg.docStart);
-    }
-    // Past the end: extrapolate from the trailing segment. A hidden span's
-    // left content edge maps inside the span (after the opening marker) and
-    // the right edge maps after the closing marker because the zero-width
-    // marker segments never contain a position — matching where a
-    // QTextCursor lands when the markers are inserted at the cursor.
-    const Seg &last = segs.last();
-    return last.mdStart + last.mdLen + (docPos - (last.docStart + last.docLen));
-}
-
-int BlockEditorEngine::markdownToDocument(const QString &markdown, int revealedSpan, int mdPos)
-{
-    return markdownToDocument(markdown, singleSpanList(revealedSpan), mdPos);
-}
-
-int BlockEditorEngine::markdownToDocument(const QString &markdown, const QList<int> &revealedSpans, int mdPos)
-{
-    const auto segs = segmentsFor(markdown, revealedSpans);
-    for (const Seg &seg : segs) {
-        if (seg.mdLen > 0 && mdPos < seg.mdStart + seg.mdLen) {
-            // Hidden-marker interiors clamp to the nearest content edge.
-            if (seg.docLen == 0)
-                return seg.docStart;
-            return seg.docStart + (mdPos - seg.mdStart);
-        }
-    }
-    const Seg &last = segs.last();
-    return last.docStart + last.docLen + (mdPos - (last.mdStart + last.mdLen));
-}
-
-int BlockEditorEngine::spanToReveal(const QString &markdown, int mdPos)
-{
-    const auto spans = spansFor(markdown);
-    for (int i = 0; i < spans.size(); ++i) {
-        if (mdPos >= spans.at(i).start && mdPos <= spans.at(i).end)
-            return i;
-    }
-    return -1;
-}
-
-QList<int> BlockEditorEngine::spansToRevealForRange(const QString &markdown, int mdStart, int mdEnd)
-{
-    const auto spans = spansFor(markdown);
-    QList<int> touched;
-    for (int i = 0; i < spans.size(); ++i) {
-        if (spans.at(i).start <= mdEnd && spans.at(i).end >= mdStart)
-            touched.append(i);
-    }
-    return touched;
-}
-
-QList<BlockEditorEngine::FormatRange> BlockEditorEngine::formatRangesForState(
-    const QString &markdown, int revealedSpan)
-{
-    return formatRangesForState(markdown, singleSpanList(revealedSpan));
-}
-
-QList<BlockEditorEngine::FormatRange> BlockEditorEngine::formatRangesForState(
-    const QString &markdown, const QList<int> &revealedSpans)
-{
-    QList<FormatRange> ranges;
-    for (const Seg &seg : segmentsFor(markdown, revealedSpans)) {
-        if (seg.docLen <= 0 || seg.kind == Seg::Plain)
-            continue;
-        quint32 flags = seg.flags;
-        // A REVEALED math span shows its $…$ source (editable, like inline
-        // code), so its content is not rendered transparently — strip Math.
-        // A HIDDEN math span keeps Math: the highlighter renders its content
-        // invisibly at renderer-measured width, and the delegate overlays the
-        // equation.
-        if ((flags & SpanFormat::Math) && seg.spanIdx >= 0
-            && revealedSpans.contains(seg.spanIdx))
-            flags &= ~SpanFormat::Math;
-        ranges.append({seg.docStart, seg.docLen, flags, seg.color, seg.url});
-    }
-    return ranges;
-}
-
-BlockEditorEngine::EditResult BlockEditorEngine::applyDocumentEdit(
-    const QString &markdown, int revealedSpan,
-    int pos, int removedLen, const QString &insertedText)
-{
-    return applyDocumentEdit(markdown, singleSpanList(revealedSpan), pos, removedLen, insertedText);
-}
-
-QString BlockEditorEngine::markdownForRange(const QString &markdown, const QList<int> &revealedSpans,
-                                            int docStart, int docEnd)
-{
-    const auto spans = spansFor(markdown);
-    QList<FlatSpan> flat;
-    const auto segs = segmentsFor(spans, markdown, revealedSpans, &flat);
-
-    // Coverage of each top-level span's visible content (its own and its
-    // descendants'). Marker characters in the selection never count —
-    // the reconstruction supplies markers exactly once.
-    QList<int> total(spans.size(), 0);
-    QList<int> covered(spans.size(), 0);
-    for (const Seg &seg : segs) {
-        if (seg.kind != Seg::Content || seg.spanIdx < 0)
-            continue;
-        const int a = qMax(docStart, seg.docStart);
-        const int b = qMin(docEnd, seg.docStart + seg.docLen);
-        total[seg.spanIdx] += seg.docLen;
-        covered[seg.spanIdx] += qMax(0, b - a);
-    }
-
-    // A fully covered top-level span contributes its raw markdown
-    // verbatim — byte-faithful, nested markers included. A partially
-    // covered one is rebuilt from its covered pieces as self-contained
-    // fragments: every owner-chain change closes all open markers and
-    // reopens the piece's full chain, so each fragment parses on its own
-    // (a shared-prefix reconstruction like "**o *i***" would hit the
-    // scanner's first-fit corner cases and render differently).
-    QString out;
-    QList<int> current; // open chain for fragment reconstruction
-    int lastWholeTop = -1;
-    auto chainOf = [&](int node) {
-        QList<int> chain;
-        for (int k = node; k != -1; k = flat.at(k).parent)
-            chain.prepend(k);
-        return chain;
-    };
-    auto syncChain = [&](const QList<int> &target) {
-        if (current == target)
-            return;
-        for (int i = current.size() - 1; i >= 0; --i)
-            out += flat.at(current.at(i)).span->closeMarker();
-        for (int i = 0; i < target.size(); ++i)
-            out += flat.at(target.at(i)).span->openMarker();
-        current = target;
-    };
-
-    for (const Seg &seg : segs) {
-        if (seg.docLen <= 0 || (seg.kind != Seg::Plain && seg.kind != Seg::Content))
-            continue;
-        const int a = qMax(docStart, seg.docStart);
-        const int b = qMin(docEnd, seg.docStart + seg.docLen);
-        if (a >= b)
-            continue;
-        if (seg.kind == Seg::Plain) {
-            syncChain({});
-            out += markdown.mid(seg.mdStart + (a - seg.docStart), b - a);
-            continue;
-        }
-        if (covered.at(seg.spanIdx) == total.at(seg.spanIdx)) {
-            syncChain({});
-            if (lastWholeTop != seg.spanIdx) {
-                out += spans.at(seg.spanIdx).rawText;
-                lastWholeTop = seg.spanIdx;
-            }
-            continue;
-        }
-        syncChain(chainOf(seg.ownerIdx));
-        out += markdown.mid(seg.mdStart + (a - seg.docStart), b - a);
-    }
-    syncChain({});
-    return out;
-}
-
-BlockEditorEngine::EditResult BlockEditorEngine::cutRangeResult(
-    const QString &markdown, const QList<int> &revealedSpans, int docStart, int docEnd)
-{
-    const auto spans = spansFor(markdown);
-    QList<FlatSpan> flat;
-    const auto segs = segmentsFor(spans, markdown, revealedSpans, &flat);
-
-    // Mirror of markdownForRange: plain slices remove 1:1; a span node
-    // whose entire visible content is covered — highest such ancestor
-    // wins — is removed whole (markers included), partial coverage
-    // removes content characters only; marker characters in the selection
-    // are ignored. Unlike applyDocumentEdit, this applies to revealed
-    // spans too: cut removes exactly what copy captured.
-    QList<int> total(flat.size(), 0);
-    QList<int> covered(flat.size(), 0);
-    for (const Seg &seg : segs) {
-        if (seg.kind != Seg::Content || seg.ownerIdx < 0)
-            continue;
-        const int a = qMax(docStart, seg.docStart);
-        const int b = qMin(docEnd, seg.docStart + seg.docLen);
-        const int cov = qMax(0, b - a);
-        for (int k = seg.ownerIdx; k != -1; k = flat.at(k).parent) {
-            total[k] += seg.docLen;
-            covered[k] += cov;
-        }
-    }
-    auto highestFullyCovered = [&](int node) {
-        int best = -1;
-        for (int k = node; k != -1; k = flat.at(k).parent) {
-            if (total.at(k) > 0 && covered.at(k) == total.at(k))
-                best = k;
-        }
-        return best;
-    };
-
-    QList<QPair<int, int>> removals;
-    for (const Seg &seg : segs) {
-        if (seg.docLen <= 0 || (seg.kind != Seg::Plain && seg.kind != Seg::Content))
-            continue;
-        const int a = qMax(docStart, seg.docStart);
-        const int b = qMin(docEnd, seg.docStart + seg.docLen);
-        if (a >= b)
-            continue;
-        if (seg.kind == Seg::Content) {
-            const int h = highestFullyCovered(seg.ownerIdx);
-            if (h != -1) {
-                const QPair<int, int> whole{flat.at(h).span->start,
-                                            flat.at(h).span->end};
-                if (removals.isEmpty() || removals.last() != whole)
-                    removals.append(whole);
-                continue;
-            }
-        }
-        removals.append({seg.mdStart + (a - seg.docStart),
-                         seg.mdStart + (b - seg.docStart)});
-    }
-
-    int mdCursor;
-    if (!removals.isEmpty()) {
-        mdCursor = removals.first().first;
-    } else {
-        mdCursor = documentToMarkdown(markdown, revealedSpans, docStart);
-    }
-
-    QString out = markdown;
-    for (int i = removals.size() - 1; i >= 0; --i)
-        out.remove(removals.at(i).first, removals.at(i).second - removals.at(i).first);
-
-    return {out, mdCursor};
-}
-
-BlockEditorEngine::EditResult BlockEditorEngine::applyDocumentEdit(
-    const QString &markdown, const QList<int> &revealedSpans,
-    int pos, int removedLen, const QString &insertedText)
-{
-    const auto spans = spansFor(markdown);
-    QList<FlatSpan> flat;
-    const auto segs = segmentsFor(spans, markdown, revealedSpans, &flat);
-    const int removeEnd = pos + removedLen;
-
-    // Visible-content coverage per hidden span node: a node whose entire
-    // visible content (its own and its descendants') is removed loses its
-    // whole markdown range, markers included — and the highest fully
-    // covered ancestor wins, so emptying a nested span empties outward.
-    // A revealed span's characters (markers too) remove 1:1 instead.
-    QList<int> total(flat.size(), 0);
-    QList<int> covered(flat.size(), 0);
-    for (const Seg &seg : segs) {
-        if (seg.kind != Seg::Content || seg.ownerIdx < 0
-            || revealedSpans.contains(seg.spanIdx))
-            continue;
-        const int a = qMax(pos, seg.docStart);
-        const int b = qMin(removeEnd, seg.docStart + seg.docLen);
-        const int cov = qMax(0, b - a);
-        for (int k = seg.ownerIdx; k != -1; k = flat.at(k).parent) {
-            total[k] += seg.docLen;
-            covered[k] += cov;
-        }
-    }
-    auto highestFullyCovered = [&](int node) {
-        int best = -1;
-        for (int k = node; k != -1; k = flat.at(k).parent) {
-            if (total.at(k) > 0 && covered.at(k) == total.at(k))
-                best = k;
-        }
-        return best;
-    };
-
-    // Map the removed document range onto markdown ranges.
-    QList<QPair<int, int>> removals;
-    for (const Seg &seg : segs) {
-        if (seg.docLen <= 0)
-            continue;
-        const int a = qMax(pos, seg.docStart);
-        const int b = qMin(removeEnd, seg.docStart + seg.docLen);
-        if (a >= b)
-            continue;
-        if (seg.kind == Seg::Content && !revealedSpans.contains(seg.spanIdx)) {
-            const int h = highestFullyCovered(seg.ownerIdx);
-            if (h != -1) {
-                const QPair<int, int> whole{flat.at(h).span->start,
-                                            flat.at(h).span->end};
-                if (removals.isEmpty() || removals.last() != whole)
-                    removals.append(whole);
-                continue;
-            }
-        }
-        removals.append({seg.mdStart + (a - seg.docStart),
-                         seg.mdStart + (b - seg.docStart)});
-    }
-
-    int mdInsertPos;
-    if (!removals.isEmpty()) {
-        mdInsertPos = removals.first().first;
-    } else {
-        mdInsertPos = documentToMarkdown(markdown, revealedSpans, pos);
-    }
-
-    QString md = markdown;
-    for (int i = removals.size() - 1; i >= 0; --i)
-        md.remove(removals.at(i).first, removals.at(i).second - removals.at(i).first);
-    md.insert(mdInsertPos, insertedText);
-
-    return {md, mdInsertPos + int(insertedText.length())};
 }

@@ -15,7 +15,7 @@
 
 #include <functional>
 
-#include "embedmetadata.h"
+#include "embedfetcher.h"
 #include "updatechecker.h"
 
 class EgressPolicy;

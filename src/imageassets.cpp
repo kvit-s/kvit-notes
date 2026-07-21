@@ -168,13 +168,24 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
     // A lone ![](url) whose URL is an http(s) web page or video host (no media
     // extension, so kindForExtension is None) is a WEB EMBED, stored as an
     // Image block; delegateKindForContent then renders it as a preview
-    // card. Keeps kindForExtension pure so EmbedMetadata::isEmbedUrl
-    // (which checks for None) still distinguishes it from a remote image file.
+    // card. Keeps kindForExtension pure so isEmbedUrl (which checks for
+    // None) still distinguishes it from a remote image file.
     if (result.kind == Kind::None
         && (path.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
             || path.startsWith(QLatin1String("https://"), Qt::CaseInsensitive)))
         result.kind = Kind::Image;
     return result;
+}
+
+bool ImageAssets::isEmbedUrl(const QString &url)
+{
+    const QString u = url.trimmed();
+    if (!(u.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
+          || u.startsWith(QLatin1String("https://"), Qt::CaseInsensitive)))
+        return false;
+    // A remote image or media *file* stays an image/media block; a web page
+    // or video host (no recognized media extension) is an embed.
+    return kindForExtension(u) == Kind::None;
 }
 
 QString ImageAssets::buildMarkdown(const QString &path, const QString &alt,

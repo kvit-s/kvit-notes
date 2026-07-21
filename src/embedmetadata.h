@@ -4,6 +4,8 @@
 #ifndef EMBEDMETADATA_H
 #define EMBEDMETADATA_H
 
+#include "embedfetcher.h"
+
 #include <QObject>
 #include <QString>
 #include <QVariantMap>
@@ -12,19 +14,6 @@
 
 class NoteCollection;
 class EgressPolicy;
-
-// The network seam: fetch a page's HTML. The app wires EgressFetcher, which
-// applies the egress policy; tests wire a fake that returns
-// canned HTML (or a canned failure), so the suite is hermetic and never
-// touches the network. `done(success, html)` may be called synchronously (the
-// fake) or asynchronously (the real fetcher).
-class EmbedFetcher
-{
-public:
-    virtual ~EmbedFetcher() = default;
-    virtual void fetch(const QString &url,
-                       std::function<void(bool, const QString &)> done) = 0;
-};
 
 // Embed preview metadata (features.md §1.2.14): an `![](url)` whose URL is a
 // web page or a recognized video host renders as a preview card built from the
@@ -67,10 +56,9 @@ public:
     // "ok" (bool — false is the fetched-but-failed fallback state).
     Q_INVOKABLE QVariantMap cachedMetadata(const QString &url) const;
 
-    // Classifier: an http(s) URL that is not a recognized image
-    // or media *file* — a web page or a video host.
-    Q_INVOKABLE static bool isEmbedUrl(const QString &url);
-    // A known video host (adds a play affordance to the card).
+    // A known video host (adds a play affordance to the card). The
+    // web-page-versus-image-file classifier itself is
+    // ImageAssets::isEmbedUrl, which needs neither a network nor a cache.
     Q_INVOKABLE static bool isVideoHost(const QString &url);
 
     // Pure OpenGraph parse (unit-tested): title, description, og:image,

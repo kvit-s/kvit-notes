@@ -13,13 +13,14 @@
 #include <QTemporaryDir>
 
 #include "blockeditorengine.h"
+#include "inlinemarkdown.h"
 #include "mathrenderer.h"
 #include "documentoutline.h"
 #include "notecollection.h"
 #include "blockmodel.h"
 #include "block.h"
 
-using FormatRange = BlockEditorEngine::FormatRange;
+using FormatRange = InlineMarkdown::FormatRange;
 
 // Shorthand builders for expected ranges
 static FormatRange marker(int start, int len)
@@ -53,7 +54,7 @@ static FormatRange linkRange(int start, int len, const QString &url)
     return {start, len, FormatRange::Link, QString(), url};
 }
 
-using HighlightRange = BlockEditorEngine::HighlightRange;
+using HighlightRange = InlineMarkdown::HighlightRange;
 
 static HighlightRange hr(int start, int len, bool current = false)
 {
@@ -245,16 +246,16 @@ void TestBlockEditorEngine::testDisplayText()
 {
     QFETCH(QString, markdown);
     QFETCH(QString, display);
-    QCOMPARE(BlockEditorEngine::displayText(markdown), display);
+    QCOMPARE(InlineMarkdown::displayText(markdown), display);
 }
 
 void TestBlockEditorEngine::testDocumentTextStates()
 {
-    QCOMPARE(BlockEditorEngine::documentText(M, -1),
+    QCOMPARE(InlineMarkdown::documentText(M, -1),
              QString("This is bold and it end"));
-    QCOMPARE(BlockEditorEngine::documentText(M, 0),
+    QCOMPARE(InlineMarkdown::documentText(M, 0),
              QString("This is **bold** and it end"));
-    QCOMPARE(BlockEditorEngine::documentText(M, 1),
+    QCOMPARE(InlineMarkdown::documentText(M, 1),
              QString("This is bold and *it* end"));
 }
 
@@ -281,16 +282,16 @@ void TestBlockEditorEngine::testDocumentToMarkdownHidden()
 {
     QFETCH(int, docPos);
     QFETCH(int, mdPos);
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(M, -1, docPos), mdPos);
+    QCOMPARE(InlineMarkdown::documentToMarkdown(M, -1, docPos), mdPos);
 }
 
 void TestBlockEditorEngine::testDocumentToMarkdownRevealed()
 {
     // documentText(M, 0) == "This is **bold** and it end"
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(M, 0, 9), 9);   // inside raw markers
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(M, 0, 12), 12); // inside raw content
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(M, 0, 16), 16); // after raw
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(M, 0, 21), 22); // hidden italic content edge
+    QCOMPARE(InlineMarkdown::documentToMarkdown(M, 0, 9), 9);   // inside raw markers
+    QCOMPARE(InlineMarkdown::documentToMarkdown(M, 0, 12), 12); // inside raw content
+    QCOMPARE(InlineMarkdown::documentToMarkdown(M, 0, 16), 16); // after raw
+    QCOMPARE(InlineMarkdown::documentToMarkdown(M, 0, 21), 22); // hidden italic content edge
 }
 
 void TestBlockEditorEngine::testMarkdownToDocumentHidden_data()
@@ -313,20 +314,20 @@ void TestBlockEditorEngine::testMarkdownToDocumentHidden()
 {
     QFETCH(int, mdPos);
     QFETCH(int, docPos);
-    QCOMPARE(BlockEditorEngine::markdownToDocument(M, -1, mdPos), docPos);
+    QCOMPARE(InlineMarkdown::markdownToDocument(M, -1, mdPos), docPos);
 }
 
 void TestBlockEditorEngine::testMappingRoundTripThroughContent()
 {
     // Every position strictly inside hidden content round-trips exactly.
     for (int docPos = 9; docPos < 12; ++docPos) {
-        const int mdPos = BlockEditorEngine::documentToMarkdown(M, -1, docPos);
-        QCOMPARE(BlockEditorEngine::markdownToDocument(M, -1, mdPos), docPos);
+        const int mdPos = InlineMarkdown::documentToMarkdown(M, -1, docPos);
+        QCOMPARE(InlineMarkdown::markdownToDocument(M, -1, mdPos), docPos);
     }
     // Every revealed-state position round-trips exactly (1:1 raw segment).
     for (int docPos = 8; docPos <= 16; ++docPos) {
-        const int mdPos = BlockEditorEngine::documentToMarkdown(M, 0, docPos);
-        QCOMPARE(BlockEditorEngine::markdownToDocument(M, 0, mdPos), docPos);
+        const int mdPos = InlineMarkdown::documentToMarkdown(M, 0, docPos);
+        QCOMPARE(InlineMarkdown::markdownToDocument(M, 0, mdPos), docPos);
     }
 }
 
@@ -349,51 +350,51 @@ void TestBlockEditorEngine::testSpanToReveal()
 {
     QFETCH(int, mdPos);
     QFETCH(int, spanIndex);
-    QCOMPARE(BlockEditorEngine::spanToReveal(M, mdPos), spanIndex);
+    QCOMPARE(InlineMarkdown::spanToReveal(M, mdPos), spanIndex);
 }
 
 void TestBlockEditorEngine::testFormatRangesHidden()
 {
-    QCOMPARE(BlockEditorEngine::formatRangesForState("", -1), QList<FormatRange>{});
-    QCOMPARE(BlockEditorEngine::formatRangesForState("plain", -1), QList<FormatRange>{});
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**b**", -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("", -1), QList<FormatRange>{});
+    QCOMPARE(InlineMarkdown::formatRangesForState("plain", -1), QList<FormatRange>{});
+    QCOMPARE(InlineMarkdown::formatRangesForState("**b**", -1),
              (QList<FormatRange>{bold(0, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("*i*", -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("*i*", -1),
              (QList<FormatRange>{italic(0, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("***x***", -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("***x***", -1),
              (QList<FormatRange>{boldItalic(0, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("Hello **world** end", -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("Hello **world** end", -1),
              (QList<FormatRange>{bold(6, 5)}));
 }
 
 void TestBlockEditorEngine::testFormatRangesRevealed()
 {
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**b**", 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState("**b**", 0),
              (QList<FormatRange>{marker(0, 2), bold(2, 1), marker(3, 2)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("*i*", 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState("*i*", 0),
              (QList<FormatRange>{marker(0, 1), italic(1, 1), marker(2, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("***x***", 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState("***x***", 0),
              (QList<FormatRange>{marker(0, 3), boldItalic(3, 1), marker(4, 3)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("Hello **world** end", 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState("Hello **world** end", 0),
              (QList<FormatRange>{marker(6, 2), bold(8, 5), marker(13, 2)}));
 }
 
 void TestBlockEditorEngine::testFormatRangesMultipleAndAdjacent()
 {
     // "a **b** c *d* e" — display "a b c d e"
-    QCOMPARE(BlockEditorEngine::formatRangesForState("a **b** c *d* e", -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("a **b** c *d* e", -1),
              (QList<FormatRange>{bold(2, 1), italic(6, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("a **b** c *d* e", 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState("a **b** c *d* e", 0),
              (QList<FormatRange>{marker(2, 2), bold(4, 1), marker(5, 2), italic(10, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("a **b** c *d* e", 1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("a **b** c *d* e", 1),
              (QList<FormatRange>{bold(2, 1), marker(6, 1), italic(7, 1), marker(8, 1)}));
 
     // adjacent "**a***b*" — display "ab"
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**a***b*", -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("**a***b*", -1),
              (QList<FormatRange>{bold(0, 1), italic(1, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**a***b*", 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState("**a***b*", 0),
              (QList<FormatRange>{marker(0, 2), bold(2, 1), marker(3, 2), italic(5, 1)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**a***b*", 1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("**a***b*", 1),
              (QList<FormatRange>{bold(0, 1), marker(1, 1), italic(2, 1), marker(3, 1)}));
 }
 
@@ -401,22 +402,22 @@ void TestBlockEditorEngine::testFormatRangesNestedAndDegenerate()
 {
     // Nested content combines ancestor flags; hidden state shows
     // "bo it ld" with the inner word bold+italic.
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**bo *it* ld**", -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState("**bo *it* ld**", -1),
              (QList<FormatRange>{bold(0, 3), boldItalic(3, 2), bold(5, 3)}));
     // Revealed, the whole top-level span shows every marker in its
     // subtree, muted; content styling is unchanged.
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**bo *it* ld**", 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState("**bo *it* ld**", 0),
              (QList<FormatRange>{marker(0, 2), bold(2, 3), marker(5, 1),
                                  boldItalic(6, 2), marker(8, 1), bold(9, 3),
                                  marker(12, 2)}));
 
-    QCOMPARE(BlockEditorEngine::formatRangesForState("**abc", -1), QList<FormatRange>{});
-    QCOMPARE(BlockEditorEngine::formatRangesForState("****", -1), QList<FormatRange>{});
+    QCOMPARE(InlineMarkdown::formatRangesForState("**abc", -1), QList<FormatRange>{});
+    QCOMPARE(InlineMarkdown::formatRangesForState("****", -1), QList<FormatRange>{});
 }
 
 void TestBlockEditorEngine::testEditTypeInPlainText()
 {
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, -1, 4, 0, "X");
+    const auto r = InlineMarkdown::applyDocumentEdit(M, -1, 4, 0, "X");
     QCOMPARE(r.markdown, QString("ThisX is **bold** and *it* end"));
     QCOMPARE(r.mdEditEnd, 5);
 }
@@ -424,7 +425,7 @@ void TestBlockEditorEngine::testEditTypeInPlainText()
 void TestBlockEditorEngine::testEditTypeInsideHiddenSpan()
 {
     // Insert 'x' between 'o' and 'l' of hidden "bold" (doc pos 10)
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, -1, 10, 0, "x");
+    const auto r = InlineMarkdown::applyDocumentEdit(M, -1, 10, 0, "x");
     QCOMPARE(r.markdown, QString("This is **boxld** and *it* end"));
     QCOMPARE(r.mdEditEnd, 13);
 }
@@ -432,7 +433,7 @@ void TestBlockEditorEngine::testEditTypeInsideHiddenSpan()
 void TestBlockEditorEngine::testEditTypeInsideRevealedSpan()
 {
     // documentText(M, 0) == "This is **bold** and it end"; insert at raw pos 12
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, 0, 12, 0, "x");
+    const auto r = InlineMarkdown::applyDocumentEdit(M, 0, 12, 0, "x");
     QCOMPARE(r.markdown, QString("This is **boxld** and *it* end"));
     QCOMPARE(r.mdEditEnd, 13);
 }
@@ -440,7 +441,7 @@ void TestBlockEditorEngine::testEditTypeInsideRevealedSpan()
 void TestBlockEditorEngine::testEditDeleteWholeHiddenWordRemovesMarkers()
 {
     // Deleting all of "bold" (doc [8,12)) must delete the markers too.
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, -1, 8, 4, QString());
+    const auto r = InlineMarkdown::applyDocumentEdit(M, -1, 8, 4, QString());
     QCOMPARE(r.markdown, QString("This is  and *it* end"));
     QCOMPARE(r.mdEditEnd, 8);
 }
@@ -448,7 +449,7 @@ void TestBlockEditorEngine::testEditDeleteWholeHiddenWordRemovesMarkers()
 void TestBlockEditorEngine::testEditPartialDeleteKeepsMarkers()
 {
     // Deleting "bo" (doc [8,10)) keeps the span with the remaining content.
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, -1, 8, 2, QString());
+    const auto r = InlineMarkdown::applyDocumentEdit(M, -1, 8, 2, QString());
     QCOMPARE(r.markdown, QString("This is **ld** and *it* end"));
 }
 
@@ -456,14 +457,14 @@ void TestBlockEditorEngine::testEditStraddlingDelete()
 {
     // Deleting "s bo" (doc [6,10)): plain "s " plus content "bo"; the
     // closing marker survives between the two removed ranges.
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, -1, 6, 4, QString());
+    const auto r = InlineMarkdown::applyDocumentEdit(M, -1, 6, 4, QString());
     QCOMPARE(r.markdown, QString("This i**ld** and *it* end"));
 }
 
 void TestBlockEditorEngine::testEditReplaceSelection()
 {
     // Replace doc [4,10) ("s is" + " bo"... plain [4,8) + content [8,10)) with "Z"
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, -1, 4, 6, "Z");
+    const auto r = InlineMarkdown::applyDocumentEdit(M, -1, 4, 6, "Z");
     QCOMPARE(r.markdown, QString("ThisZ**ld** and *it* end"));
     QCOMPARE(r.mdEditEnd, 5);
 }
@@ -471,13 +472,13 @@ void TestBlockEditorEngine::testEditReplaceSelection()
 void TestBlockEditorEngine::testEditDeleteRevealedMarkerChar()
 {
     // Revealed state; delete the last '*' of the closing marker (raw is 1:1).
-    const auto r = BlockEditorEngine::applyDocumentEdit(M, 0, 15, 1, QString());
+    const auto r = InlineMarkdown::applyDocumentEdit(M, 0, 15, 1, QString());
     QCOMPARE(r.markdown, QString("This is **bold* and *it* end"));
 }
 
 void TestBlockEditorEngine::testEditInsertIntoEmptyMarkdown()
 {
-    const auto r = BlockEditorEngine::applyDocumentEdit(QString(), -1, 0, 0, "a");
+    const auto r = InlineMarkdown::applyDocumentEdit(QString(), -1, 0, 0, "a");
     QCOMPARE(r.markdown, QString("a"));
     QCOMPARE(r.mdEditEnd, 1);
 }
@@ -865,15 +866,15 @@ void TestBlockEditorEngine::testMarkdownForRangeCopy()
 {
     const QList<int> none;
     // Whole document reproduces the full markdown.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, none, 0, 23), M);
+    QCOMPARE(InlineMarkdown::markdownForRange(M, none, 0, 23), M);
     // Plain-only slice is literal.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, none, 0, 7), QString("This is"));
+    QCOMPARE(InlineMarkdown::markdownForRange(M, none, 0, 7), QString("This is"));
     // Exactly the rendered bold word: markers come along.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, none, 8, 12), QString("**bold**"));
+    QCOMPARE(InlineMarkdown::markdownForRange(M, none, 8, 12), QString("**bold**"));
     // Partial span content keeps its formatting.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, none, 9, 11), QString("**ol**"));
+    QCOMPARE(InlineMarkdown::markdownForRange(M, none, 9, 11), QString("**ol**"));
     // Across spans and plain text.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, none, 8, 19),
+    QCOMPARE(InlineMarkdown::markdownForRange(M, none, 8, 19),
              QString("**bold** and *it*"));
 }
 
@@ -882,11 +883,11 @@ void TestBlockEditorEngine::testMarkdownForRangeRevealedState()
     // documentText(M, 0) == "This is **bold** and it end"
     const QList<int> revealed{0};
     // Content only (double-click on the revealed word): markers included once.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, revealed, 10, 14), QString("**bold**"));
+    QCOMPARE(InlineMarkdown::markdownForRange(M, revealed, 10, 14), QString("**bold**"));
     // Content plus both visible markers: not doubled.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, revealed, 8, 16), QString("**bold**"));
+    QCOMPARE(InlineMarkdown::markdownForRange(M, revealed, 8, 16), QString("**bold**"));
     // Half a marker plus content: marker chars ignored, wrap supplies them.
-    QCOMPARE(BlockEditorEngine::markdownForRange(M, revealed, 9, 14), QString("**bold**"));
+    QCOMPARE(InlineMarkdown::markdownForRange(M, revealed, 9, 14), QString("**bold**"));
 }
 
 void TestBlockEditorEngine::testCutRangeResult()
@@ -894,22 +895,22 @@ void TestBlockEditorEngine::testCutRangeResult()
     const QList<int> none;
     // Cutting the whole rendered word removes markers too (cut+paste
     // round-trips, unlike plain deletion which keeps empty markers).
-    auto r = BlockEditorEngine::cutRangeResult(M, none, 8, 12);
+    auto r = InlineMarkdown::cutRangeResult(M, none, 8, 12);
     QCOMPARE(r.markdown, QString("This is  and *it* end"));
     QCOMPARE(r.mdEditEnd, 8);
 
     // Partial cut keeps the span with the remaining content.
-    r = BlockEditorEngine::cutRangeResult(M, none, 9, 11);
+    r = InlineMarkdown::cutRangeResult(M, none, 9, 11);
     QCOMPARE(r.markdown, QString("This is **bd** and *it* end"));
     QCOMPARE(r.mdEditEnd, 11);
 
     // Across spans: both fully-covered spans disappear with their markers.
-    r = BlockEditorEngine::cutRangeResult(M, none, 8, 19);
+    r = InlineMarkdown::cutRangeResult(M, none, 8, 19);
     QCOMPARE(r.markdown, QString("This is  end"));
     QCOMPARE(r.mdEditEnd, 8);
 
     // Revealed state, content selected: whole span removed.
-    r = BlockEditorEngine::cutRangeResult(M, QList<int>{0}, 10, 14);
+    r = InlineMarkdown::cutRangeResult(M, QList<int>{0}, 10, 14);
     QCOMPARE(r.markdown, QString("This is  and *it* end"));
     QCOMPARE(r.mdEditEnd, 8);
 }
@@ -946,31 +947,31 @@ void TestBlockEditorEngine::testSymmetricTypeLifecycle()
     const int spanEnd = 3 + 2 * L + 4;
 
     // Display / document text per state.
-    QCOMPARE(BlockEditorEngine::displayText(md), QString("Hi word end"));
-    QCOMPARE(BlockEditorEngine::documentText(md, 0), md);
+    QCOMPARE(InlineMarkdown::displayText(md), QString("Hi word end"));
+    QCOMPARE(InlineMarkdown::documentText(md, 0), md);
 
     // Reveal decision, inclusive at both edges.
-    QCOMPARE(BlockEditorEngine::spanToReveal(md, spanStart - 1), -1);
-    QCOMPARE(BlockEditorEngine::spanToReveal(md, spanStart), 0);
-    QCOMPARE(BlockEditorEngine::spanToReveal(md, spanEnd), 0);
-    QCOMPARE(BlockEditorEngine::spanToReveal(md, spanEnd + 1), -1);
+    QCOMPARE(InlineMarkdown::spanToReveal(md, spanStart - 1), -1);
+    QCOMPARE(InlineMarkdown::spanToReveal(md, spanStart), 0);
+    QCOMPARE(InlineMarkdown::spanToReveal(md, spanEnd), 0);
+    QCOMPARE(InlineMarkdown::spanToReveal(md, spanEnd + 1), -1);
 
     // Format ranges hidden and revealed.
-    QCOMPARE(BlockEditorEngine::formatRangesForState(md, -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState(md, -1),
              (QList<FormatRange>{{3, 4, flags}}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState(md, 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState(md, 0),
              (QList<FormatRange>{{3, L, FormatRange::Marker},
                                  {3 + L, 4, flags},
                                  {3 + L + 4, L, FormatRange::Marker}}));
 
     // Edit mapping: typing inside hidden content lands in the content.
-    auto r = BlockEditorEngine::applyDocumentEdit(md, -1, 5, 0, "x");
+    auto r = InlineMarkdown::applyDocumentEdit(md, -1, 5, 0, "x");
     QCOMPARE(r.markdown, "Hi " + marker + "woxrd" + marker + " end");
     // Deleting all of the hidden content removes the markers too.
-    r = BlockEditorEngine::applyDocumentEdit(md, -1, 3, 4, QString());
+    r = InlineMarkdown::applyDocumentEdit(md, -1, 3, 4, QString());
     QCOMPARE(r.markdown, QString("Hi  end"));
     // Copy of exactly the rendered word carries the markers.
-    QCOMPARE(BlockEditorEngine::markdownForRange(md, QList<int>{}, 3, 7),
+    QCOMPARE(InlineMarkdown::markdownForRange(md, QList<int>{}, 3, 7),
              marker + "word" + marker);
 
     // Live engine: reveal on cursor entry, hide on exit, model untouched.
@@ -1001,17 +1002,17 @@ void TestBlockEditorEngine::testCodeSpanContentStaysVerbatim()
     // never parse, in display or in format ranges (features.md §2.1's
     // "monospace" region; the nesting model excludes code).
     const QString md = QStringLiteral("`a **b** c`");
-    QCOMPARE(BlockEditorEngine::displayText(md), QString("a **b** c"));
-    QCOMPARE(BlockEditorEngine::formatRangesForState(md, -1),
+    QCOMPARE(InlineMarkdown::displayText(md), QString("a **b** c"));
+    QCOMPARE(InlineMarkdown::formatRangesForState(md, -1),
              (QList<FormatRange>{codeRange(0, 9)}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState(md, 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState(md, 0),
              (QList<FormatRange>{marker(0, 1), codeRange(1, 9), marker(10, 1)}));
 
     // Editing inside the code content edits literal characters; the new
     // '*' does not start a span because the code span still wraps it.
-    const auto r = BlockEditorEngine::applyDocumentEdit(md, -1, 2, 0, "*");
+    const auto r = InlineMarkdown::applyDocumentEdit(md, -1, 2, 0, "*");
     QCOMPARE(r.markdown, QString("`a ***b** c`"));
-    QCOMPARE(BlockEditorEngine::displayText(r.markdown), QString("a ***b** c"));
+    QCOMPARE(InlineMarkdown::displayText(r.markdown), QString("a ***b** c"));
 }
 
 // Nested-span reference markdown:
@@ -1021,42 +1022,42 @@ static const QString N = QStringLiteral("**bo *it* ld**");
 
 void TestBlockEditorEngine::testNestedMappingRoundTrip()
 {
-    QCOMPARE(BlockEditorEngine::documentText(N, -1), QString("bo it ld"));
-    QCOMPARE(BlockEditorEngine::documentText(N, 0), N);
+    QCOMPARE(InlineMarkdown::documentText(N, -1), QString("bo it ld"));
+    QCOMPARE(InlineMarkdown::documentText(N, 0), N);
 
     // Hidden: inner content maps through both marker levels.
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(N, -1, 4), 7);  // between i,t
-    QCOMPARE(BlockEditorEngine::markdownToDocument(N, -1, 7), 4);
+    QCOMPARE(InlineMarkdown::documentToMarkdown(N, -1, 4), 7);  // between i,t
+    QCOMPARE(InlineMarkdown::markdownToDocument(N, -1, 7), 4);
     // The child's left content edge maps inside the child span.
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(N, -1, 3), 6);
+    QCOMPARE(InlineMarkdown::documentToMarkdown(N, -1, 3), 6);
     // Every hidden-content position round-trips.
     for (int docPos = 1; docPos < 8; ++docPos) {
-        const int mdPos = BlockEditorEngine::documentToMarkdown(N, -1, docPos);
-        QCOMPARE(BlockEditorEngine::markdownToDocument(N, -1, mdPos), docPos);
+        const int mdPos = InlineMarkdown::documentToMarkdown(N, -1, docPos);
+        QCOMPARE(InlineMarkdown::markdownToDocument(N, -1, mdPos), docPos);
     }
     // Revealed: the whole top-level span is 1:1.
     for (int docPos = 0; docPos <= 14; ++docPos)
-        QCOMPARE(BlockEditorEngine::documentToMarkdown(N, 0, docPos), docPos);
+        QCOMPARE(InlineMarkdown::documentToMarkdown(N, 0, docPos), docPos);
 }
 
 void TestBlockEditorEngine::testNestedEditMapping()
 {
     // Typing inside the nested content lands between both marker levels.
-    auto r = BlockEditorEngine::applyDocumentEdit(N, -1, 4, 0, "x");
+    auto r = InlineMarkdown::applyDocumentEdit(N, -1, 4, 0, "x");
     QCOMPARE(r.markdown, QString("**bo *ixt* ld**"));
 
     // Deleting exactly the nested word removes the child span whole,
     // markers included; the outer span survives.
-    r = BlockEditorEngine::applyDocumentEdit(N, -1, 3, 2, QString());
+    r = InlineMarkdown::applyDocumentEdit(N, -1, 3, 2, QString());
     QCOMPARE(r.markdown, QString("**bo  ld**"));
 
     // A straddling deletion ("o i") removes content characters only; the
     // child's markers survive around its remaining content.
-    r = BlockEditorEngine::applyDocumentEdit(N, -1, 1, 3, QString());
+    r = InlineMarkdown::applyDocumentEdit(N, -1, 1, 3, QString());
     QCOMPARE(r.markdown, QString("**b*t* ld**"));
 
     // Deleting the entire visible content removes the whole span tree.
-    r = BlockEditorEngine::applyDocumentEdit(N, -1, 0, 8, QString());
+    r = InlineMarkdown::applyDocumentEdit(N, -1, 0, 8, QString());
     QCOMPARE(r.markdown, QString(""));
 }
 
@@ -1064,20 +1065,20 @@ void TestBlockEditorEngine::testNestedCopyAndCut()
 {
     const QList<int> none;
     // Whole visible content: byte-faithful raw markdown.
-    QCOMPARE(BlockEditorEngine::markdownForRange(N, none, 0, 8), N);
+    QCOMPARE(InlineMarkdown::markdownForRange(N, none, 0, 8), N);
     // Exactly the nested word: its own span, wrapped in the outer chain.
-    QCOMPARE(BlockEditorEngine::markdownForRange(N, none, 3, 5), QString("***it***"));
+    QCOMPARE(InlineMarkdown::markdownForRange(N, none, 3, 5), QString("***it***"));
     // A straddle ("o i") reconstructs self-contained fragments that
     // render exactly like the selected text.
-    const QString frag = BlockEditorEngine::markdownForRange(N, none, 1, 4);
+    const QString frag = InlineMarkdown::markdownForRange(N, none, 1, 4);
     QCOMPARE(frag, QString("**o *****i***"));
-    QCOMPARE(BlockEditorEngine::displayText(frag), QString("o i"));
+    QCOMPARE(InlineMarkdown::displayText(frag), QString("o i"));
 
     // Cut of the nested word removes the child span whole.
-    auto r = BlockEditorEngine::cutRangeResult(N, none, 3, 5);
+    auto r = InlineMarkdown::cutRangeResult(N, none, 3, 5);
     QCOMPARE(r.markdown, QString("**bo  ld**"));
     // Cut of everything removes the whole tree.
-    r = BlockEditorEngine::cutRangeResult(N, none, 0, 8);
+    r = InlineMarkdown::cutRangeResult(N, none, 0, 8);
     QCOMPARE(r.markdown, QString(""));
 }
 
@@ -1121,32 +1122,32 @@ static const QString L = QStringLiteral("go [ab](http://x) on");
 
 void TestBlockEditorEngine::testLinkStatesAndMapping()
 {
-    QCOMPARE(BlockEditorEngine::displayText(L), QString("go ab on"));
-    QCOMPARE(BlockEditorEngine::documentText(L, 0), L);
+    QCOMPARE(InlineMarkdown::displayText(L), QString("go ab on"));
+    QCOMPARE(InlineMarkdown::documentText(L, 0), L);
 
     // Format ranges: link accent on the text; revealed markers muted.
-    QCOMPARE(BlockEditorEngine::formatRangesForState(L, -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState(L, -1),
              (QList<FormatRange>{linkRange(3, 2, "http://x")}));
-    QCOMPARE(BlockEditorEngine::formatRangesForState(L, 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState(L, 0),
              (QList<FormatRange>{marker(3, 1),
                                  linkRange(4, 2, "http://x"),
                                  marker(6, 11)}));
 
     // The reveal decision is inclusive over the whole [text](url) range.
-    QCOMPARE(BlockEditorEngine::spanToReveal(L, 2), -1);
-    QCOMPARE(BlockEditorEngine::spanToReveal(L, 3), 0);
-    QCOMPARE(BlockEditorEngine::spanToReveal(L, 10), 0); // inside the URL
-    QCOMPARE(BlockEditorEngine::spanToReveal(L, 17), 0);
-    QCOMPARE(BlockEditorEngine::spanToReveal(L, 18), -1);
+    QCOMPARE(InlineMarkdown::spanToReveal(L, 2), -1);
+    QCOMPARE(InlineMarkdown::spanToReveal(L, 3), 0);
+    QCOMPARE(InlineMarkdown::spanToReveal(L, 10), 0); // inside the URL
+    QCOMPARE(InlineMarkdown::spanToReveal(L, 17), 0);
+    QCOMPARE(InlineMarkdown::spanToReveal(L, 18), -1);
 
     // Asymmetric mapping: doc left content edge is inside the span; the
     // right edge maps past the whole "](url)" closing marker.
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(L, -1, 3), 4);
-    QCOMPARE(BlockEditorEngine::documentToMarkdown(L, -1, 5), 17);
-    QCOMPARE(BlockEditorEngine::markdownToDocument(L, -1, 10), 5); // URL interior clamps
+    QCOMPARE(InlineMarkdown::documentToMarkdown(L, -1, 3), 4);
+    QCOMPARE(InlineMarkdown::documentToMarkdown(L, -1, 5), 17);
+    QCOMPARE(InlineMarkdown::markdownToDocument(L, -1, 10), 5); // URL interior clamps
     for (int docPos = 4; docPos < 5; ++docPos) {
-        const int mdPos = BlockEditorEngine::documentToMarkdown(L, -1, docPos);
-        QCOMPARE(BlockEditorEngine::markdownToDocument(L, -1, mdPos), docPos);
+        const int mdPos = InlineMarkdown::documentToMarkdown(L, -1, docPos);
+        QCOMPARE(InlineMarkdown::markdownToDocument(L, -1, mdPos), docPos);
     }
 }
 
@@ -1154,14 +1155,14 @@ void TestBlockEditorEngine::testColorSpanStatesAndMapping()
 {
     // <span style="color:red">hi</span> — openLen 24, content "hi", close 7.
     const QString C = QStringLiteral("<span style=\"color:red\">hi</span>");
-    QCOMPARE(BlockEditorEngine::displayText(C), QString("hi"));
-    QCOMPARE(BlockEditorEngine::documentText(C, 0), C);
+    QCOMPARE(InlineMarkdown::displayText(C), QString("hi"));
+    QCOMPARE(InlineMarkdown::documentText(C, 0), C);
 
     // Hidden: the content carries a Color range with the per-instance value.
-    QCOMPARE(BlockEditorEngine::formatRangesForState(C, -1),
+    QCOMPARE(InlineMarkdown::formatRangesForState(C, -1),
              (QList<FormatRange>{colorRange(0, 2, QStringLiteral("red"))}));
     // Revealed: markers muted, content still colored.
-    QCOMPARE(BlockEditorEngine::formatRangesForState(C, 0),
+    QCOMPARE(InlineMarkdown::formatRangesForState(C, 0),
              (QList<FormatRange>{marker(0, 24),
                                  colorRange(24, 2, QStringLiteral("red")),
                                  marker(26, 7)}));
@@ -1170,8 +1171,8 @@ void TestBlockEditorEngine::testColorSpanStatesAndMapping()
     // wins), outer value resumes after it.
     const QString N = QStringLiteral(
         "<span style=\"color:red\">a <span style=\"color:blue\">b</span> c</span>");
-    QCOMPARE(BlockEditorEngine::displayText(N), QString("a b c"));
-    const auto ranges = BlockEditorEngine::formatRangesForState(N, -1);
+    QCOMPARE(InlineMarkdown::displayText(N), QString("a b c"));
+    const auto ranges = InlineMarkdown::formatRangesForState(N, -1);
     QCOMPARE(ranges, (QList<FormatRange>{
                  colorRange(0, 2, QStringLiteral("red")),   // "a "
                  colorRange(2, 1, QStringLiteral("blue")),  // "b"
@@ -1182,28 +1183,28 @@ void TestBlockEditorEngine::testColorSpanStatesAndMapping()
 void TestBlockEditorEngine::testLinkEditCopyCut()
 {
     // Typing inside the hidden link text edits the text, not the URL.
-    auto r = BlockEditorEngine::applyDocumentEdit(L, -1, 4, 0, "x");
+    auto r = InlineMarkdown::applyDocumentEdit(L, -1, 4, 0, "x");
     QCOMPARE(r.markdown, QString("go [axb](http://x) on"));
 
     // Deleting the whole link text removes the link, URL included.
-    r = BlockEditorEngine::applyDocumentEdit(L, -1, 3, 2, QString());
+    r = InlineMarkdown::applyDocumentEdit(L, -1, 3, 2, QString());
     QCOMPARE(r.markdown, QString("go  on"));
 
     // Copy: full text captures the raw link; partial keeps the URL.
     const QList<int> none;
-    QCOMPARE(BlockEditorEngine::markdownForRange(L, none, 3, 5),
+    QCOMPARE(InlineMarkdown::markdownForRange(L, none, 3, 5),
              QString("[ab](http://x)"));
-    QCOMPARE(BlockEditorEngine::markdownForRange(L, none, 3, 4),
+    QCOMPARE(InlineMarkdown::markdownForRange(L, none, 3, 4),
              QString("[a](http://x)"));
 
     // Cut mirrors copy.
-    auto cut = BlockEditorEngine::cutRangeResult(L, none, 3, 5);
+    auto cut = InlineMarkdown::cutRangeResult(L, none, 3, 5);
     QCOMPARE(cut.markdown, QString("go  on"));
-    cut = BlockEditorEngine::cutRangeResult(L, none, 3, 4);
+    cut = InlineMarkdown::cutRangeResult(L, none, 3, 4);
     QCOMPARE(cut.markdown, QString("go [b](http://x) on"));
 
     // Paste-plain semantics: the URL is dropped, the text stays.
-    QCOMPARE(BlockEditorEngine::displayText(QStringLiteral("[a](http://x)")),
+    QCOMPARE(InlineMarkdown::displayText(QStringLiteral("[a](http://x)")),
              QString("a"));
 }
 
@@ -1237,17 +1238,17 @@ void TestBlockEditorEngine::testAutolinkBehavior()
     const QString md = QStringLiteral("go http://a.com on");
 
     // Zero-length markers: display equals markdown in every state.
-    QCOMPARE(BlockEditorEngine::displayText(md), md);
-    QCOMPARE(BlockEditorEngine::documentText(md, 0), md);
-    QCOMPARE(BlockEditorEngine::formatRangesForState(md, -1),
+    QCOMPARE(InlineMarkdown::displayText(md), md);
+    QCOMPARE(InlineMarkdown::documentText(md, 0), md);
+    QCOMPARE(InlineMarkdown::formatRangesForState(md, -1),
              (QList<FormatRange>{linkRange(3, 12, "http://a.com")}));
 
     // Copy across the autolink is the literal text.
-    QCOMPARE(BlockEditorEngine::markdownForRange(md, QList<int>{}, 3, 15),
+    QCOMPARE(InlineMarkdown::markdownForRange(md, QList<int>{}, 3, 15),
              QString("http://a.com"));
 
     // Editing the URL text is a plain 1:1 edit.
-    const auto r = BlockEditorEngine::applyDocumentEdit(md, -1, 15, 0, "x");
+    const auto r = InlineMarkdown::applyDocumentEdit(md, -1, 15, 0, "x");
     QCOMPARE(r.markdown, QString("go http://a.comx on"));
 
     // A live engine never mutates the document for autolink reveals.
@@ -1320,7 +1321,7 @@ void TestBlockEditorEngine::testInternalLinkUnresolvedStyle()
 void TestBlockEditorEngine::testWikiLinkRangesAndUnresolvedStyle()
 {
     // The hidden state carries Link|WikiLink flags and the kvit-note: url.
-    const auto ranges = BlockEditorEngine::formatRangesForState("[[Note]]", -1);
+    const auto ranges = InlineMarkdown::formatRangesForState("[[Note]]", -1);
     QCOMPARE(ranges.size(), 1);
     QVERIFY(ranges[0].kind & FormatRange::Link);
     QVERIFY(ranges[0].kind & FormatRange::WikiLink);
@@ -1375,7 +1376,7 @@ void TestBlockEditorEngine::testInlineMathReserveAndReveal()
     // Hidden ($…$ not revealed): the content carries the Math flag, which the
     // highlighter renders transparent at renderer-measured width while the
     // delegate overlays the equation.
-    const auto hidden = BlockEditorEngine::formatRangesForState("$x^2$", -1);
+    const auto hidden = InlineMarkdown::formatRangesForState("$x^2$", -1);
     bool hiddenMath = false;
     for (const auto &r : hidden)
         if (r.kind & FormatRange::Math)
@@ -1384,7 +1385,7 @@ void TestBlockEditorEngine::testInlineMathReserveAndReveal()
 
     // Revealed: the Math flag is stripped so the raw $…$ source shows and is
     // editable, exactly like inline code.
-    const auto shown = BlockEditorEngine::formatRangesForState("$x^2$", 0);
+    const auto shown = InlineMarkdown::formatRangesForState("$x^2$", 0);
     for (const auto &r : shown)
         QVERIFY(!(r.kind & FormatRange::Math));
 
@@ -1571,7 +1572,7 @@ void TestBlockEditorEngine::testSearchHighlightRangesPlain()
     // No spans: document text equals display text in every reveal state,
     // so ranges pass through unchanged; the current flag rides along.
     const QString md = QStringLiteral("plain text here");
-    const auto out = BlockEditorEngine::searchHighlightRanges(
+    const auto out = InlineMarkdown::searchHighlightRanges(
         md, {}, {hr(2, 4), hr(6, 4, true)}, false);
     QCOMPARE(out, (QList<HighlightRange>{hr(2, 4), hr(6, 4, true)}));
 }
@@ -1580,7 +1581,7 @@ void TestBlockEditorEngine::testSearchHighlightRangesHiddenSpans()
 {
     // With nothing revealed the document IS the display text, even when
     // the match crosses a hidden marker boundary or covers span content.
-    const auto out = BlockEditorEngine::searchHighlightRanges(
+    const auto out = InlineMarkdown::searchHighlightRanges(
         M, {}, {hr(8, 4), hr(5, 5), hr(17, 2, true)}, false);
     QCOMPARE(out, (QList<HighlightRange>{hr(8, 4), hr(5, 5), hr(17, 2, true)}));
 }
@@ -1592,7 +1593,7 @@ void TestBlockEditorEngine::testSearchHighlightRangesRevealedSpan()
     // 5..10) tints document 5..12 — the opening marker between matched
     // characters tints with them; "and" (display 13..16) shifts past the
     // revealed markers to 17..20.
-    const auto out = BlockEditorEngine::searchHighlightRanges(
+    const auto out = InlineMarkdown::searchHighlightRanges(
         M, {0}, {hr(8, 4), hr(5, 5, true), hr(13, 3)}, false);
     QCOMPARE(out, (QList<HighlightRange>{hr(10, 4), hr(5, 7, true), hr(17, 3)}));
 }
@@ -1601,7 +1602,7 @@ void TestBlockEditorEngine::testSearchHighlightRangesVerbatim()
 {
     // Verbatim: identity, marker-shaped text and newlines included.
     const QString code = QStringLiteral("let x = **y**\nline");
-    const auto out = BlockEditorEngine::searchHighlightRanges(
+    const auto out = InlineMarkdown::searchHighlightRanges(
         code, {}, {hr(8, 5), hr(14, 4, true)}, true);
     QCOMPARE(out, (QList<HighlightRange>{hr(8, 5), hr(14, 4, true)}));
 }
@@ -1611,7 +1612,7 @@ void TestBlockEditorEngine::testSearchHighlightRangesClampStale()
     // Stale matches (an edit outran the queued search recompute) clamp
     // to the display bounds or drop instead of mispainting.
     const QString md = QStringLiteral("short");
-    const auto out = BlockEditorEngine::searchHighlightRanges(
+    const auto out = InlineMarkdown::searchHighlightRanges(
         md, {}, {hr(3, 10), hr(7, 2), hr(0, 0)}, false);
     QCOMPARE(out, (QList<HighlightRange>{hr(3, 2)}));
 }
@@ -1740,20 +1741,20 @@ void TestBlockEditorEngine::testMathSpanRangeIn()
     const QString md = QStringLiteral("see $x^2$ here");
 
     // Outside: prose, the opening marker, and after the closing marker.
-    QVERIFY(!BlockEditorEngine::mathSpanRangeIn(md, 0)
+    QVERIFY(!InlineMarkdown::mathSpanRangeIn(md, 0)
                  .value("found").toBool());
-    QVERIFY(!BlockEditorEngine::mathSpanRangeIn(md, 4)
+    QVERIFY(!InlineMarkdown::mathSpanRangeIn(md, 4)
                  .value("found").toBool());
-    QVERIFY(!BlockEditorEngine::mathSpanRangeIn(md, 9)
+    QVERIFY(!InlineMarkdown::mathSpanRangeIn(md, 9)
                  .value("found").toBool());
-    QVERIFY(!BlockEditorEngine::mathSpanRangeIn(md, 12)
+    QVERIFY(!InlineMarkdown::mathSpanRangeIn(md, 12)
                  .value("found").toBool());
 
     // Inside, both content edges inclusive: right after the opening $
     // (5) and right before the closing $ (8) both count — the trigger
     // must fire for a \ typed at either edge.
     for (int pos : { 5, 7, 8 }) {
-        const QVariantMap map = BlockEditorEngine::mathSpanRangeIn(md, pos);
+        const QVariantMap map = InlineMarkdown::mathSpanRangeIn(md, pos);
         QVERIFY2(map.value("found").toBool(),
                  qPrintable(QString::number(pos)));
         QCOMPARE(map.value("mdStart").toInt(), 4);
@@ -1767,11 +1768,11 @@ void TestBlockEditorEngine::testMathSpanRangeIn()
     // (digit-after rule), an unclosed $ is prose, and — the transitional
     // state the trigger pre-checks around — "$\$" reads its closing
     // dollar as escaped, so it is not a span either.
-    QVERIFY(!BlockEditorEngine::mathSpanRangeIn(
+    QVERIFY(!InlineMarkdown::mathSpanRangeIn(
                  QStringLiteral("$5 and $6"), 1).value("found").toBool());
-    QVERIFY(!BlockEditorEngine::mathSpanRangeIn(
+    QVERIFY(!InlineMarkdown::mathSpanRangeIn(
                  QStringLiteral("a $x + y"), 4).value("found").toBool());
-    QVERIFY(!BlockEditorEngine::mathSpanRangeIn(
+    QVERIFY(!InlineMarkdown::mathSpanRangeIn(
                  QStringLiteral("$\\$"), 1).value("found").toBool());
 }
 
@@ -1806,36 +1807,36 @@ void TestBlockEditorEngine::testShouldAutoPairDollarRules()
     using E = BlockEditorEngine;
 
     // Plain prose, end of line: pair.
-    QVERIFY(E::shouldAutoPairDollarIn(QStringLiteral("It costs "), 9));
-    QVERIFY(E::shouldAutoPairDollarIn(QString(), 0));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("It costs "), 9));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QString(), 0));
 
     // Unmatched unescaped $ left of the caret: this $ closes it.
-    QVERIFY(!E::shouldAutoPairDollarIn(QStringLiteral("a $x + y "), 9));
+    QVERIFY(!InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("a $x + y "), 9));
     // Balanced dollars to the left pair again.
-    QVERIFY(E::shouldAutoPairDollarIn(QStringLiteral("$x$ and "), 8));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("$x$ and "), 8));
     // An escaped \$ is prose, not an opener.
-    QVERIFY(E::shouldAutoPairDollarIn(QStringLiteral("costs \\$5 "), 10));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("costs \\$5 "), 10));
 
     // Escape: right after a backslash the user is typing the literal \$.
-    QVERIFY(!E::shouldAutoPairDollarIn(QStringLiteral("a \\"), 3));
+    QVERIFY(!InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("a \\"), 3));
     // A double backslash does not escape (parity rule).
-    QVERIFY(E::shouldAutoPairDollarIn(QStringLiteral("a \\\\"), 4));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("a \\\\"), 4));
 
     // Inside an inline code span, $ is always literal.
-    QVERIFY(!E::shouldAutoPairDollarIn(QStringLiteral("`code` x"), 3));
-    QVERIFY(E::shouldAutoPairDollarIn(QStringLiteral("`code` "), 7));
+    QVERIFY(!InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("`code` x"), 3));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("`code` "), 7));
 
     // A letter, digit, or $ right of the caret suppresses: a dollar in
     // front of existing text is a price ("costs $|5").
-    QVERIFY(!E::shouldAutoPairDollarIn(QStringLiteral("costs 5"), 6));
-    QVERIFY(!E::shouldAutoPairDollarIn(QStringLiteral("word"), 2));
+    QVERIFY(!InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("costs 5"), 6));
+    QVERIFY(!InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("word"), 2));
     // Punctuation or space after the caret still pairs.
-    QVERIFY(E::shouldAutoPairDollarIn(QStringLiteral("x , y"), 2));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("x , y"), 2));
 
     // Selection wrap skips the following-character rule (the selection is
     // what follows) but keeps the others.
-    QVERIFY(E::shouldAutoPairDollarIn(QStringLiteral("costs 5"), 6, true));
-    QVERIFY(!E::shouldAutoPairDollarIn(QStringLiteral("a $x y z"), 5, true));
+    QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("costs 5"), 6, true));
+    QVERIFY(!InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("a $x y z"), 5, true));
 }
 
 void TestBlockEditorEngine::testShouldAutoPairDollarVerbatim()

@@ -16,7 +16,6 @@
 #include "convertblockcommand.h"
 #include "setblockattributescommand.h"
 #include "imageassets.h"
-#include "embedmetadata.h"
 #include "perflog.h"
 
 #include <algorithm>
@@ -46,7 +45,7 @@ int BlockModel::delegateKindForContent(Block::BlockType type,
 {
     if (type == Block::Image || type == Block::Media) {
         const ImageAssets::Parsed p = ImageAssets::parseLine(content);
-        if (p.valid && EmbedMetadata::isEmbedUrl(p.path))
+        if (p.valid && ImageAssets::isEmbedUrl(p.path))
             return EmbedKind;
     }
     return delegateKindForBlock(type, language);

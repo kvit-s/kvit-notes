@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "documentexporter.h"
+#include "inlinemarkdown.h"
 #include "blockmodel.h"
 #include "documentserializer.h"
 #include "markdownformatter.h"
-#include "blockeditorengine.h"
 #include "imageassets.h"
 #include "tabledata.h"
 #include "kanbandata.h"
@@ -355,7 +355,7 @@ QStringList DocumentExporter::headingSlugs(const QList<Blk> &blocks) const
             continue;
         }
         const QString base =
-            DocumentOutline::baseSlug(BlockEditorEngine::displayText(b.content));
+            DocumentOutline::baseSlug(InlineMarkdown::displayText(b.content));
         const int seen = counts.value(base, 0);
         counts.insert(base, seen + 1);
         slugs.append(seen == 0 ? base
@@ -624,7 +624,7 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
                     body += "<li style=\"margin-left:"
                           + QString::number((lvl - minLevel) * 16) + "px\">"
                           + "<a href=\"#" + esc(slugs.at(j)) + "\">"
-                          + esc(BlockEditorEngine::displayText(h.content))
+                          + esc(InlineMarkdown::displayText(h.content))
                           + "</a></li>";
                 }
                 body += "</ul>";
@@ -722,7 +722,7 @@ QString DocumentExporter::buildPlainText(const QList<Blk> &blocks) const
         const QString indent(2 * b.indentLevel, QLatin1Char(' '));
         const bool verbatim = b.type == Block::CodeBlock;
         const QString text = verbatim ? b.content
-            : BlockEditorEngine::displayText(b.content);
+            : InlineMarkdown::displayText(b.content);
         if (b.type == Block::NumberedList) ++ordinal; else ordinal = 0;
         switch (b.type) {
         case Block::Heading1: lines << "# " + text; break;

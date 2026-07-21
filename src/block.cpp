@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "block.h"
-#include "blockeditorengine.h"
+#include "inlinemarkdown.h"
 #include "todometa.h"
 
 namespace {
@@ -262,7 +262,7 @@ void Block::ensureTextCache() const
         const QString source =
             m_type == Todo ? TodoMeta::displayText(m_content) : m_content;
         m_cachedDisplayText = hasDisplayMarkers(source)
-            ? BlockEditorEngine::displayText(source)
+            ? InlineMarkdown::displayText(source)
             : source;
     }
 

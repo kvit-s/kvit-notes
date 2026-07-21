@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "collectionsearch.h"
+#include "inlinemarkdown.h"
 
 #include "block.h"
-#include "blockeditorengine.h"
 #include "collectionsearchindex.h"
 #include "documentserializer.h"
 #include "notecollection.h"
@@ -258,6 +258,6 @@ int CollectionSearch::markdownPosition(const QString &relPath, int blockIndex,
     const DocumentSerializer::BlockData &block = blocks.at(blockIndex);
     if (block.type == Block::CodeBlock)
         return displayStart; // verbatim: display IS markdown
-    return BlockEditorEngine::documentToMarkdown(block.content, QList<int>(),
+    return InlineMarkdown::documentToMarkdown(block.content, QList<int>(),
                                                  displayStart);
 }

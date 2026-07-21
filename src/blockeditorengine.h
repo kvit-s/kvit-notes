@@ -16,6 +16,7 @@
 #include <QQmlParserStatus>
 #include <QtQml/qqmlregistration.h>
 
+#include "inlinemarkdown.h"
 #include "markdownformatter.h"
 #include "theme.h"
 #include "documentoutline.h"
@@ -125,67 +126,13 @@ class BlockEditorEngine : public QObject, public QQmlParserStatus
     Q_PROPERTY(int contentFontWeight READ contentFontWeight WRITE setContentFontWeight NOTIFY contentFontChanged)
 
 public:
-    // One character-format run, in document coordinates. `kind` is a
-    // combination of SpanFormat flags (markdownformatter.h) — nested spans
-    // combine their ancestors' content flags into one flat range list. The
-    // names are mirrored here so rendering code and tests read naturally.
-    struct FormatRange {
-        enum Kind : quint32 {
-            Marker     = SpanFormat::Marker,
-            Bold       = SpanFormat::Bold,
-            Italic     = SpanFormat::Italic,
-            BoldItalic = SpanFormat::BoldItalic,
-            Strike     = SpanFormat::Strike,
-            Underline  = SpanFormat::Underline,
-            Code       = SpanFormat::Code,
-            Highlight  = SpanFormat::Highlight,
-            Link       = SpanFormat::Link,
-            Superscript = SpanFormat::Superscript,
-            Subscript   = SpanFormat::Subscript,
-            Color       = SpanFormat::Color,
-            Math        = SpanFormat::Math,
-            WikiLink    = SpanFormat::WikiLink,
-        };
-        int start = 0;
-        int length = 0;
-        quint32 kind = Marker;
-        // The color-span value for a Color range (empty otherwise). Per
-        // instance, so it travels with the range rather than mapping from a
-        // fixed token.
-        QString color;
-        // The link target for a Link range (empty otherwise). Per instance,
-        // like color; the highlighter reads it to render a `#slug` internal
-        // link muted when its slug resolves to no heading.
-        QString url;
-
-        bool operator==(const FormatRange &other) const
-        {
-            return start == other.start && length == other.length
-                   && kind == other.kind && color == other.color
-                   && url == other.url;
-        }
-    };
-
-    // Result of mapping a document edit back into storage markdown.
-    struct EditResult {
-        QString markdown;  // new storage markdown
-        int mdEditEnd = 0; // markdown position just after the inserted text
-    };
-
-    // One search-match highlight range: the input of searchHighlightRanges is
-    // DocumentSearch's display coordinates, its output the document
-    // coordinates of the current reveal state that the highlighter paints.
-    struct HighlightRange {
-        int start = 0;
-        int length = 0;
-        bool current = false; // the distinctly tinted current match
-
-        bool operator==(const HighlightRange &other) const
-        {
-            return start == other.start && length == other.length
-                   && current == other.current;
-        }
-    };
+    // The mapping vocabulary lives in InlineMarkdown (inlinemarkdown.h),
+    // which holds the pure transition tables this class drives a live
+    // QTextDocument with. Named here too so the engine's own signatures and
+    // the tests around them read unchanged.
+    using FormatRange = InlineMarkdown::FormatRange;
+    using EditResult = InlineMarkdown::EditResult;
+    using HighlightRange = InlineMarkdown::HighlightRange;
 
     explicit BlockEditorEngine(QObject *parent = nullptr);
     ~BlockEditorEngine() override;
@@ -307,73 +254,6 @@ public:
     // index or -1. Exposed for tests.
     QList<int> revealedSpans() const { return m_revealedSpans; }
     int revealedSpan() const { return m_revealedSpans.isEmpty() ? -1 : m_revealedSpans.first(); }
-
-    // ---- Pure state functions (the "transition tables"; all unit-testable
-    // without a GUI). revealedSpans are indexes into
-    // MarkdownFormatter::parseSpans(markdown) order. The int overloads are
-    // single-span conveniences (-1 = none). ----
-
-    // Markdown with all top-level span markers stripped.
-    static QString displayText(const QString &markdown);
-    // What the document must contain for a given reveal state.
-    static QString documentText(const QString &markdown, const QList<int> &revealedSpans);
-    static QString documentText(const QString &markdown, int revealedSpan);
-    // Document position -> markdown position. At a hidden span's left edge
-    // maps inside the span (after the opening marker); at the right edge
-    // maps after the closing marker — matching where a QTextCursor lands
-    // when the markers are inserted at the cursor (see spike notes).
-    static int documentToMarkdown(const QString &markdown, const QList<int> &revealedSpans, int docPos);
-    static int documentToMarkdown(const QString &markdown, int revealedSpan, int docPos);
-    // Markdown position -> document position (marker interiors clamp to
-    // the nearest content edge when the span is hidden).
-    static int markdownToDocument(const QString &markdown, const QList<int> &revealedSpans, int mdPos);
-    static int markdownToDocument(const QString &markdown, int revealedSpan, int mdPos);
-    // The span to reveal for a collapsed cursor at mdPos (inclusive), or -1.
-    static int spanToReveal(const QString &markdown, int mdPos);
-    // All spans touched by the markdown range [mdStart, mdEnd] (inclusive).
-    static QList<int> spansToRevealForRange(const QString &markdown, int mdStart, int mdEnd);
-    // Character formats for the whole document in a given state.
-    static QList<FormatRange> formatRangesForState(const QString &markdown, const QList<int> &revealedSpans);
-    static QList<FormatRange> formatRangesForState(const QString &markdown, int revealedSpan);
-    // Map a document edit (pos/removed/inserted on documentText(markdown,
-    // revealedSpans)) back into storage markdown. Deleting all of a hidden
-    // span's content deletes its markers too; partial deletions keep them.
-    static EditResult applyDocumentEdit(const QString &markdown, const QList<int> &revealedSpans,
-                                        int pos, int removedLen, const QString &insertedText);
-    static EditResult applyDocumentEdit(const QString &markdown, int revealedSpan,
-                                        int pos, int removedLen, const QString &insertedText);
-    // Markdown equivalent of the document range [docStart, docEnd).
-    // Marker characters inside the range are ignored; every span whose
-    // CONTENT intersects the range contributes its markers wrapped around
-    // the selected content — so selecting exactly a bold word (rendered or
-    // revealed) copies "**word**", never a bare or doubled fragment.
-    static QString markdownForRange(const QString &markdown, const QList<int> &revealedSpans,
-                                    int docStart, int docEnd);
-    // Document-coordinate ranges the highlighter paints for the given
-    // display-coordinate search matches in the given reveal state. Every
-    // matched character maps display → markdown (no reveals) → document
-    // (current reveals); the range runs from the first matched character to
-    // the last, so a revealed span's markers between matched characters tint
-    // with them. Out-of-range matches (stale against a fresher document)
-    // clamp or drop instead of mispainting. Verbatim mode is the identity.
-    static QList<HighlightRange> searchHighlightRanges(const QString &markdown,
-                                                       const QList<int> &revealedSpans,
-                                                       const QList<HighlightRange> &displayMatches,
-                                                       bool verbatim);
-    // Pure forms of the math-entry gates above, on explicit markdown and
-    // a markdown position (unit-testable without a document).
-    static QVariantMap mathSpanRangeIn(const QString &markdown, int mdPos);
-    static bool shouldAutoPairDollarIn(const QString &markdown, int mdPos,
-                                       bool ignoreFollowing = false);
-    // Inverse of markdownForRange for cut: removes the captured markdown
-    // (whole span including markers when its content is fully selected;
-    // content characters only when partially selected — the remaining
-    // fragment keeps its formatting). Unlike plain deletion, which per
-    // §2.2.7 leaves empty markers ("****") for the format-then-type
-    // workflow, cut+paste must round-trip. mdEditEnd is the markdown
-    // cursor position after the removal.
-    static EditResult cutRangeResult(const QString &markdown, const QList<int> &revealedSpans,
-                                     int docStart, int docEnd);
 
     // Test hook: attach directly to a bare QTextDocument (no QML layer).
     void attachDocument(QTextDocument *doc);

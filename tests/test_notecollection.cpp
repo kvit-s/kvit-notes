@@ -845,7 +845,7 @@ void TestNoteCollection::testOpenNotePathMutationsWaitForFinalSaveCommit()
     manager.setUndoStack(&undo);
     manager.setAutoSaveEnabled(false);
     manager.setAsyncPreCommitDelayMsForTests(300);
-    m_collection->setDocumentManager(&manager);
+    m_collection->setOpenDocument(&manager);
 
     const auto startSaveAtFinalBoundary = [&](const QString &relPath,
                                                const QString &body) {
@@ -1034,7 +1034,7 @@ void TestNoteCollection::testDirtyOpenNoteMetadataUsesSessionWriter()
     manager.setBlockModel(&model);
     manager.setUndoStack(&undo);
     manager.setAutoSaveEnabled(false);
-    m_collection->setDocumentManager(&manager);
+    m_collection->setOpenDocument(&manager);
 
     const QString relPath = QStringLiteral("Ideas/Plans.md");
     QVERIFY(manager.open(QUrl::fromLocalFile(abs(relPath))));

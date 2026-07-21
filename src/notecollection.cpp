@@ -4,7 +4,7 @@
 #include "notecollection.h"
 
 #include "documentserializer.h"
-#include "documentmanager.h"
+#include "opendocumentsession.h"
 #include "block.h"
 #include "collectionsearchindex.h"
 #include "notefileio.h"
@@ -186,9 +186,9 @@ NoteCollection::~NoteCollection()
         saveCollectionFile();
 }
 
-void NoteCollection::setDocumentManager(DocumentManager *manager)
+void NoteCollection::setOpenDocument(OpenDocumentSession *session)
 {
-    m_documentManager = manager;
+    m_openDocument = session;
 }
 
 // --------------------------------------------------------------- root
@@ -554,8 +554,8 @@ bool NoteCollection::ensureWithinRoot(const QString &relPath)
 
 bool NoteCollection::openDocumentIs(const QString &relPath) const
 {
-    return m_documentManager && !relPath.isEmpty()
-        && QDir::cleanPath(m_documentManager->currentFilePath())
+    return m_openDocument && !relPath.isEmpty()
+        && QDir::cleanPath(m_openDocument->openFilePath())
             == QDir::cleanPath(absolutePath(relPath));
 }
 
@@ -563,8 +563,8 @@ bool NoteCollection::prepareOpenDocumentMutation(const QString &relPath)
 {
     if (!openDocumentIs(relPath))
         return true;
-    m_documentManager->flushPendingEdits();
-    m_documentManager->cancelPendingWrites();
+    m_openDocument->flushPendingEdits();
+    m_openDocument->cancelPendingWrites();
     return true;
 }
 
@@ -572,7 +572,7 @@ void NoteCollection::rebindOpenDocument(const QString &oldRelPath,
                                         const QString &newRelPath)
 {
     if (openDocumentIs(oldRelPath))
-        m_documentManager->rebindFilePath(absolutePath(newRelPath));
+        m_openDocument->rebindFilePath(absolutePath(newRelPath));
 }
 
 // --------------------------------------------------------------- scan
@@ -2499,7 +2499,7 @@ bool NoteCollection::deleteNote(const QString &relPath)
         return false;
     }
     if (wasOpen)
-        m_documentManager->newDocument();
+        m_openDocument->closeDocument();
 
     const QString folderPath = entry->folder;
     m_manualOrder[folderPath].removeAll(nameOfRelPath(relPath));
@@ -2623,8 +2623,8 @@ bool NoteCollection::renameFolder(const QString &relPath, const QString &newName
             tr("A folder named \"%1\" already exists").arg(trimmed));
         return false;
     }
-    const QString openRelPath = m_documentManager
-        ? relativePath(m_documentManager->currentFilePath()) : QString();
+    const QString openRelPath = m_openDocument
+        ? relativePath(m_openDocument->openFilePath()) : QString();
     if (openRelPath == relPath
         || openRelPath.startsWith(relPath + QLatin1Char('/')))
         prepareOpenDocumentMutation(openRelPath);
@@ -2651,8 +2651,8 @@ bool NoteCollection::deleteFolder(const QString &relPath)
         emit operationFailed(tr("No such folder: %1").arg(relPath));
         return false;
     }
-    const QString openRelPath = m_documentManager
-        ? relativePath(m_documentManager->currentFilePath()) : QString();
+    const QString openRelPath = m_openDocument
+        ? relativePath(m_openDocument->openFilePath()) : QString();
     const bool removedOpen = openRelPath.startsWith(relPath + QLatin1Char('/'));
     if (removedOpen)
         prepareOpenDocumentMutation(openRelPath);
@@ -2661,7 +2661,7 @@ bool NoteCollection::deleteFolder(const QString &relPath)
         return false;
     }
     if (removedOpen)
-        m_documentManager->newDocument();
+        m_openDocument->closeDocument();
 
     // Remove contained folders, notes, and order lists from the index.
     const QString prefix = relPath + QLatin1Char('/');
@@ -2735,7 +2735,7 @@ bool NoteCollection::rewriteFrontMatter(const QString &relPath)
     // body, drains any older snapshot, and reports the real persistence
     // result. Closed notes continue through the repository writer below.
     if (openDocumentIs(relPath)) {
-        if (!m_documentManager->saveWithFrontMatter(
+        if (!m_openDocument->saveWithFrontMatter(
                 NoteFrontMatter::serialize(entry->meta)))
             return false;
         restoreFileTime(absPath, mtime);

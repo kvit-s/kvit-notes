@@ -32,7 +32,7 @@
 
 class QFileInfo;
 class CollectionSearchIndex;
-class DocumentManager;
+class OpenDocumentSession;
 
 // The notes-collection object: one GUI-free
 // QObject owning everything above the open document — the notes root, the
@@ -76,8 +76,10 @@ public:
     void setSearchIndex(CollectionSearchIndex *index);
     // The open-document session is the exclusive writer for its note. The
     // repository uses it to serialize live metadata with the live body and
-    // to drain active saves before a path mutation.
-    void setDocumentManager(DocumentManager *manager);
+    // to drain active saves before a path mutation. Held as the
+    // OpenDocumentSession interface (opendocumentsession.h), so the
+    // repository does not depend on the class that implements it.
+    void setOpenDocument(OpenDocumentSession *session);
 
     // --- Root -----------------------------------------------------------
     // Opens (creating if missing) a notes root and scans it. Loading may refresh
@@ -537,7 +539,7 @@ private:
     QList<ReconcileEntry> searchReconcileListing() const;
 
     SearchIndexFeed m_searchFeed;
-    DocumentManager *m_documentManager = nullptr;
+    OpenDocumentSession *m_openDocument = nullptr;
 
     QString m_rootPath;
     // m_rootPath with every symbolic link resolved. Containment is decided

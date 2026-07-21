@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "documentsearch.h"
+#include "inlinemarkdown.h"
 #include "blockmodel.h"
 #include "block.h"
-#include "blockeditorengine.h"
 #include "undostack.h"
 #include "perflog.h"
 
@@ -211,7 +211,7 @@ int DocumentSearch::markdownPosition(int blockIndex, int displayPos) const
         return 0;
     if (block->blockType() == Block::CodeBlock)
         return qBound(0, displayPos, static_cast<int>(block->content().length()));
-    return BlockEditorEngine::documentToMarkdown(block->content(),
+    return InlineMarkdown::documentToMarkdown(block->content(),
                                                  QList<int>(), displayPos);
 }
 
@@ -335,7 +335,7 @@ bool DocumentSearch::replaceCurrent(const QString &replacement)
     m_seedId = idAt(m.blockIndex);
     m_seedDisplayPos = verbatim
         ? r.mdEnd
-        : BlockEditorEngine::markdownToDocument(r.content, QList<int>(), r.mdEnd);
+        : InlineMarkdown::markdownToDocument(r.content, QList<int>(), r.mdEnd);
     recomputeNow();
     return true;
 }
@@ -666,7 +666,7 @@ int DocumentSearch::displayPosition(int blockIndex, int mdPos) const
         return 0;
     if (block->blockType() == Block::CodeBlock)
         return qBound(0, mdPos, static_cast<int>(block->content().length()));
-    return BlockEditorEngine::markdownToDocument(block->content(),
+    return InlineMarkdown::markdownToDocument(block->content(),
                                                  QList<int>(), mdPos);
 }
 
@@ -814,7 +814,7 @@ DocumentSearch::ReplaceResult DocumentSearch::replaceRange(
     }
     // Select-and-type semantics: the cut contract handles
     // markers — partial spans keep theirs, fully covered spans go.
-    const BlockEditorEngine::EditResult cut = BlockEditorEngine::cutRangeResult(
+    const InlineMarkdown::EditResult cut = InlineMarkdown::cutRangeResult(
         content, QList<int>(), displayStart, displayEnd);
     result.content = cut.markdown;
     result.content.insert(cut.mdEditEnd, replacement);

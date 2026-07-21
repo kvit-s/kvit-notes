@@ -53,6 +53,13 @@ public:
     // trailing text fails — an image block is a whole line).
     static Parsed parseLine(const QString &line);
 
+    // True for an http(s) URL that names no recognized image or media
+    // *file* — a web page or a video host, which renders as an embed
+    // preview card rather than as an image. The block model asks this to
+    // decide a delegate, so it lives beside kindForExtension rather than on
+    // the embed service, which knows about the network and a cache.
+    Q_INVOKABLE static bool isEmbedUrl(const QString &url);
+
     // Build the canonical markdown from parts (width 0 omits the |width
     // suffix; an empty caption omits the title).
     static QString buildMarkdown(const QString &path, const QString &alt,

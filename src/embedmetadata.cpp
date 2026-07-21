@@ -78,17 +78,6 @@ bool EmbedMetadata::isVideoHost(const QString &url)
     return false;
 }
 
-bool EmbedMetadata::isEmbedUrl(const QString &url)
-{
-    const QString u = url.trimmed();
-    if (!(u.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
-          || u.startsWith(QLatin1String("https://"), Qt::CaseInsensitive)))
-        return false;
-    // A remote image or media *file* stays an image/media block; a web page
-    // or video host (no recognized media extension) is an embed.
-    return ImageAssets::kindForExtension(u) == ImageAssets::Kind::None;
-}
-
 QVariantMap EmbedMetadata::parseOpenGraph(const QString &html, const QString &url)
 {
     QString title = ogTag(html, QStringLiteral("og:title"));
