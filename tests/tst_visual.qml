@@ -1196,7 +1196,7 @@ Item {
         // ============================================================
         // The four themes over the full shell and a formatted document.
         // Every token-driven surface — panels, note list, editor chrome,
-        // the engine's inline styles, search tints — re-renders per Theme.
+        // the engine's inline styles, search tints — re-renders per theme.
         // ============================================================
 
         function test_24_themes() {
@@ -1261,7 +1261,7 @@ Item {
         }
 
         // ============================================================
-        // The settings dialog and the Typography settings applied to a
+        // The settings dialog and the typography settings applied to a
         // live document.
         // ============================================================
 
@@ -1602,7 +1602,7 @@ Item {
             wait(300)
             clearFocus()
 
-            // Each Theme's highlighted Python / JS / C++ sample.
+            // Each theme's highlighted Python / JS / C++ sample.
             var themes = ["light", "dark", "sepia"]
             for (var i = 0; i < themes.length; ++i) {
                 Theme.themeId = themes[i]
@@ -2677,7 +2677,7 @@ Item {
             saveScreenshot("visual_58_focus_ring.png")
         }
 
-        // §14.3 high-contrast Theme: the shell rendered in the high-contrast
+        // §14.3 high-contrast theme: the shell rendered in the high-contrast
         // token table (black ground, white text, bright accents, strong edges).
         function test_59_high_contrast() {
             DocumentManager.newDocument()
@@ -2758,7 +2758,7 @@ Item {
         }
 
         // Math render experiment canaries: exact inline baseline case, an
-        // inline-dense paragraph, display math, and light/dark Theme captures.
+        // inline-dense paragraph, display math, and light/dark theme captures.
         function test_62_math_render_canaries() {
             if (isHeadless) {
                 skip("Storyboard requires display")

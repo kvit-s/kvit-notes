@@ -180,7 +180,7 @@ Item {
             compare(delegate.isFocused, true,
                     "Focused delegate should expose its keyboard focus state")
             compare(focusIndicator.color.toString(), Theme.focusRing.toString(),
-                    "Focus indicator should use the Theme focus-ring color")
+                    "Focus indicator should use the theme focus-ring color")
         }
 
         function test_07_headingStylesApplied() {
@@ -566,6 +566,12 @@ Item {
         // Milestone 3: Formatting & Hybrid Rendering Tests
 
         function test_19_editorEngineAttached() {
+            // The lazy shell is about a row nobody has edited yet, and a
+            // delegate stays promoted once it has been. Earlier tests click
+            // into blocks 0 and 1, so start from a document whose rows have
+            // never been activated rather than asserting on theirs.
+            DocumentManager.newDocument()
+            wait(50)
             var delegate = findBlockDelegate(0)
             verify(delegate !== null, "Block delegate should exist")
             var readOnlyText = findReadOnlyText(delegate)
@@ -690,8 +696,11 @@ Item {
                 tryCompare(textArea, "activeFocus", false, 1000)
             }
 
-            compare(textArea.text, "Hello world",
-                    "Document should show display text (markers hidden)")
+            // Reveal transitions are evaluated on a clean stack (the
+            // engine defers them out of QQuickTextEdit's own dispatch), so
+            // the collapse lands a turn after focus leaves.
+            tryCompare(textArea, "text", "Hello world", 1000,
+                       "Document should show display text (markers hidden)")
             compare(delegate.editorEngine.markdown, "Hello **world**",
                     "Engine markdown should keep the full markdown")
         }
@@ -1882,7 +1891,7 @@ Item {
             var textArea = findTextArea(delegate)
             ensureFocus(textArea)
 
-            // Put known text on the real system Clipboard via the C++ helper
+            // Put known text on the real system clipboard via the C++ helper
             Clipboard.text = "pasted-plain"
             verify(Clipboard.hasText, "Clipboard should report text after setText")
 
@@ -1892,7 +1901,7 @@ Item {
             wait(100)
 
             compare(textArea.text, before + "pasted-plain",
-                    "Ctrl+Shift+V should insert Clipboard text at the cursor")
+                    "Ctrl+Shift+V should insert clipboard text at the cursor")
             compare(BlockModel.getContent(0), before + "pasted-plain",
                     "Pasted text should reach the model")
             compare(textArea.cursorPosition, (before + "pasted-plain").length,
@@ -2000,7 +2009,7 @@ Item {
         }
 
         function test_69e_ctrlCCopiesSelectionAsMarkdown() {
-            // Copy puts markdown on the Clipboard — selecting the
+            // Copy puts markdown on the clipboard — selecting the
             // rendered bold word copies "**world**".
             if (isHeadless) {
                 skip("Keyboard tests require display")
@@ -6622,14 +6631,14 @@ Item {
             var first = Qt.createQmlObject(
                 'import Kvit 1.0; SettingsStore {}', testCase)
             verify(first.open(path))
-            first.setValue("Theme", "dark")
+            first.setValue("theme", "dark")
             first.setValue("recent", ["alpha", "beta"])
             first.flush()
 
             var second = Qt.createQmlObject(
                 'import Kvit 1.0; SettingsStore {}', testCase)
             verify(second.open(path))
-            compare(second.value("Theme", ""), "dark")
+            compare(second.value("theme", ""), "dark")
             compare(second.value("recent", []).length, 2)
             compare(second.value("recent", [])[0], "alpha")
             first.destroy()
@@ -6664,19 +6673,27 @@ Item {
         }
 
         function test_z4_blockMenuRecencyPersists() {
+            // Recency is recorded per catalog ENTRY rather than per block
+            // type: five entries share Block.CodeBlock, so a type alone
+            // cannot name the choice. An entry's id is "<type>:<language>",
+            // which makes the plain entry for a type "<type>:".
             BlockMenuModel.setRecentTypes([])
             BlockMenuModel.noteUsed(Block.Quote)
             var saved = AppSettings.value("blockMenu.recent", [])
             compare(saved.length, 1)
-            compare(Number(saved[0]), Block.Quote)
+            compare(saved[0], String(Block.Quote) + ":")
 
+            // Settings written before entry ids existed hold plain type
+            // numbers. They still load, resolving to that type's plain
+            // entry, so an upgrade keeps the user's recency instead of
+            // silently dropping it.
             AppSettings.setValue("blockMenu.recent",
                                  [Block.Todo, Block.Divider])
             appLoader.item.applyPersistedSessionState()
             var loaded = BlockMenuModel.recentTypes()
             compare(loaded.length, 2)
-            compare(Number(loaded[0]), Block.Todo)
-            compare(Number(loaded[1]), Block.Divider)
+            compare(loaded[0], String(Block.Todo) + ":")
+            compare(loaded[1], String(Block.Divider) + ":")
 
             // Reset so menu-shape tests stay order-independent.
             BlockMenuModel.setRecentTypes([])
@@ -6727,19 +6744,23 @@ Item {
         // ============================================================
 
         function test_z7_themePersistsAndRestylesShell() {
-            compare(Theme.themeId, "light")
+            // Establish the theme rather than assuming one. With no
+            // persisted choice the app follows the OS scheme and reports
+            // "system"; that default has its own coverage in test_theme,
+            // where the settings store is actually fresh.
+            Theme.themeId = "light"
             // toString(): a bare `var x = item.color` keeps a LIVE
             // value-type reference that re-reads the property later.
             var lightBackground = appLoader.item.color.toString()
 
             Theme.themeId = "dark"
-            compare(AppSettings.value("Theme.id", ""), "dark")
+            compare(AppSettings.value("theme.id", ""), "dark")
             verify(Qt.colorEqual(appLoader.item.color,
                                  Theme.windowBackground))
             verify(!Qt.colorEqual(appLoader.item.color, lightBackground))
 
             Theme.themeId = "light"
-            compare(AppSettings.value("Theme.id", ""), "light")
+            compare(AppSettings.value("theme.id", ""), "light")
             verify(Qt.colorEqual(appLoader.item.color, lightBackground))
         }
 
@@ -6764,7 +6785,7 @@ Item {
             Typography.baseSize = 20
             compare(body.contentFontSize, 20)
             compare(heading.contentFontSize, 43)  // qRound(20 * 32/15)
-            compare(AppSettings.value("Typography.fontSize", 0), 20)
+            compare(AppSettings.value("typography.fontSize", 0), 20)
 
             Typography.baseSize = 15
         }
@@ -6812,14 +6833,14 @@ Item {
             dialog.open()
             tryCompare(dialog, "opened", true, 1000)
 
-            // The Theme cards switch the live Theme...
+            // The theme cards switch the live theme...
             var darkCard = findChild(dialog.contentItem, "themeCard_dark")
             verify(darkCard !== null)
             mouseClick(darkCard)
             compare(Theme.themeId, "dark")
             Theme.themeId = "light"
 
-            // ...and the Typography spin drives the setting.
+            // ...and the typography spin drives the setting.
             var typographyTab = findChild(appLoader.item, "typographyTab")
             verify(typographyTab !== null)
             mouseClick(typographyTab)
@@ -7675,7 +7696,7 @@ Item {
         }
 
         // ============================================================
-        // The custom date-range filter and the Theme-switch latency gate.
+        // The custom date-range filter and the theme-switch latency gate.
         // ============================================================
 
         function test_zr_customDateRangeFilters() {
@@ -7753,7 +7774,7 @@ Item {
                         + " ms on a 100-block document")
             Theme.themeId = "light"
             waitForRendering(listView)
-            verify(elapsed < 250, "Theme switch must stay under 250 ms "
+            verify(elapsed < 250, "theme switch must stay under 250 ms "
                    + "(measured " + elapsed + "ms)")
         }
 
@@ -8616,7 +8637,7 @@ Item {
         }
 
         function test_zzp_oversizedPasteConfirmAndPlaceholder() {
-            // Oversized-payload guard: a Clipboard payload over the
+            // Oversized-payload guard: a clipboard payload over the
             // open-size cap gets a confirm dialog before insertMarkdownAt
             // runs, instead of a silent multi-second stall.
             if (isHeadless) {

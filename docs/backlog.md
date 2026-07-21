@@ -43,33 +43,70 @@ specification they were built to:
   `sceneCurrent()` guard specified by the plan; the visible action itself is hidden while a
   render is pending or errored.
 
-## Six behaviours the Qt Quick suite reports as wrong
+## What the six Qt Quick failures turned out to be
 
-Established 2026-07-20, when the Qt Quick suites were repointed at the QML
-names the shell publishes. Before that, 284 of IntegrationTests' 312 cases
-were dying at the first line that touched a service, so nothing these six say
-had been visible. Each fails identically on the tree before the module split
-and after it, so they are existing defects rather than anything that work
-introduced.
+Recorded 2026-07-20, when the Qt Quick suites were repointed at the QML names
+the shell publishes and 284 previously-dead cases started running. Six failed.
+Investigated the same day: none was a defect in the application. Five were
+defects in the tests and are fixed; the sixth is the suite's own
+unreliability.
 
-- `test_19_editorEngineAttached`: a plain, unfocused text block instantiates a
-  `TextArea`. The lazy-delegate contract says it should not need one until it
-  is focused, and the cost of the extra item is the reason that contract
-  exists.
-- `test_22_markersHiddenWhenCursorOutside`: with the cursor outside the span,
-  the document holds `Hello **world**` where display text is expected. The
-  reveal transition is not collapsing.
-- `test_v5_shiftClickSelectsRange`: shift-clicking three rows apart selects one
-  block rather than three.
-- `test_z4_blockMenuRecencyPersists`: a persisted block-menu recency value
-  reads back as `NaN`.
-- `test_z7_themePersistsAndRestylesShell`: a theme saved as `light` is restored
-  as `system`.
-- `test_z8_typographyScalesLiveDelegates`: a live delegate's size stays 0 after
-  a typography change.
+Three tests asserted contracts the code had deliberately moved on from, which
+nobody noticed because the suite could not run:
 
-Neither Qt Quick suite is a merge gate, because both need a display and both
-are unreliable under this machine's compositor: consecutive runs of one binary
-have given 306, 305 and 306 passing, and also around 198, with inconsistent
-failure sets. The six above are stable across the good runs and reproduce in
-isolation, which is what separates them from that noise.
+- `test_z4_blockMenuRecencyPersists` asserted that block-menu recency is
+  stored as block-type numbers. It is stored per catalog entry, because five
+  catalog entries share `Block.CodeBlock` and recording the type alone brought
+  all of them back as plain Code Block. The test asserts entry ids now, and
+  still covers the documented path where a settings file written before entry
+  ids existed loads its plain type numbers.
+- `test_z7_themePersistsAndRestylesShell` opened by asserting that the theme
+  is `light` with nothing persisted. It is `system`: a first start follows the
+  OS colour scheme. The test sets the theme it needs now; the default has unit
+  coverage in `test_theme`, where the settings store is genuinely fresh.
+- `test_z8_typographyScalesLiveDelegates` read the settings key
+  `Typography.fontSize`. The key is `typography.fontSize`. That capitalisation
+  came from the rename that repointed the suites, which rewrote string
+  literals as well as identifiers; it damaged ten literals in all, and all ten
+  are restored.
+
+Two tests were order-dependent, passing alone and failing after their
+predecessors:
+
+- `test_19_editorEngineAttached` asserted that an unedited row instantiates no
+  TextArea, using block 0 — which earlier tests click into, and a delegate
+  stays promoted once it has been edited. It starts from a fresh document now.
+- `test_22_markersHiddenWhenCursorOutside` compared the document text
+  immediately after blurring. Reveal transitions are deferred to a clean stack
+  by design, so the collapse lands a turn later, and the assertion waits for
+  it.
+
+The sixth, `test_v5_shiftClickSelectsRange`, is not a defect in the note list.
+With roughly a hundred GUI tests ahead of it, synthesized clicks into the list
+are intermittently not delivered: the model holds the right three notes in the
+right order with no filter, the click resolves to the right delegate, and the
+same clicks select correctly when the test runs alone or in a small group.
+Which of the two clicks goes missing varies between runs of the same binary.
+That is the input-delivery problem described below rather than something the
+note list does wrong.
+
+## The Qt Quick suites are not a merge gate
+
+Neither suite is a merge gate, because both drive a real window with
+synthesized key and mouse events, and they need that window to keep keyboard
+focus for the whole three-minute run. Anything that takes focus — switching
+windows, a notification, another test binary starting — sends the rest of the
+run's input somewhere else. Consecutive runs of one binary have given 306, 305
+and 306 of 312 passing, and also 198 and 179, and in the low runs essentially
+every failure is a keyboard or mouse case while the pure-model cases still
+pass, which is the signature of that rather than of a defect.
+
+So a full-run number means little on its own. To judge a case, run it by name
+in its own process and leave the window alone:
+
+    QT_QUICK_BACKEND=software ./build/tests/test_integration \
+        -input tests/tst_integration.qml IntegrationTests::test_x
+
+Several names can go on one command line, which keeps it to one window. A case
+that fails in a full run and passes that way is focus loss; a case that fails
+both ways is worth investigating.
