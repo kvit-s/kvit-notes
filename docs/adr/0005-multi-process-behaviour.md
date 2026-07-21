@@ -59,9 +59,21 @@ without locking, a read-only directory, or any other kernel error opens the
 vault unlocked with a warning on the `kvit.vaultlock` logging category. A vault
 nobody can open is a worse failure than an unguarded one.
 
-**Ownership is reference counted per canonical path.** One process legitimately
-holds several `NoteCollection` objects on one root, and a POSIX `flock` on a
-second descriptor fails against the holder's own process.
+**One writer per canonical path, inside a process as well as between them.**
+A POSIX `flock` on a second descriptor succeeds against the holder's own
+process, so the kernel cannot answer this question and the process keeps its
+own table of which vault it is writing. A second write-capable
+`NoteCollection` on a root this process already writes is refused, because
+each one carries an independent in-memory snapshot and writes whole files:
+two of them reproduce, within one process, the last-writer-wins loss the
+cross-process lock exists to prevent. Read-only sessions are unaffected, take
+no lock, and are never refused. Re-acquiring a vault this process already
+holds, on the same terms, still succeeds, so a collection reopening its own
+root is unaffected.
+
+Registration happens for every write acquisition, including the ones that
+fail open, so the rule holds where the filesystem cannot lock. That is the
+case where it matters most: nothing else can catch a second writer there.
 
 **Behavior is identical on Windows and Linux.** POSIX uses
 `flock(fd, LOCK_EX | LOCK_NB)` and Windows uses
@@ -102,19 +114,20 @@ network filesystems, and the warning goes to a logging category rather than the
 user. That is the deliberate trade: refusing to open a vault because its
 filesystem lacks `flock` would be worse than proceeding without the guarantee.
 
-Ten tests in `VaultLockTests` drive real second processes, re-execing through
-`QProcess` rather than simulating contention. They cover the prevented lost
-update, the refusal and its message, a SIGKILLed owner's lock disappearing,
-release on close, several collections in one process sharing the lock,
-single-file mode
-taking none, an unlockable filesystem still opening, and a corrupt lock file
-still yielding a sane message.
+Eleven tests in `VaultLockTests` drive real second processes, re-execing
+through `QProcess` rather than simulating contention. They cover the prevented
+lost update, the refusal and its message, a SIGKILLed owner's lock
+disappearing, release on close, a second writing collection in one process
+being refused while read-only sessions are admitted alongside the writer,
+single-file mode taking none, an unlockable filesystem still opening while
+still holding the one-writer rule, and a corrupt lock file still yielding a
+sane message.
 
 ## Evidence in the tree
 
 - `src/repository/vaultlock.h`, `src/repository/vaultlock.cpp`: the lock, and the reasoning for a kernel lock over a PID file
-- `src/repository/notecollection.h`, `src/repository/notecollection.cpp`: acquisition, reference counting, `vaultInUse`
+- `src/repository/notecollection.h`, `src/repository/notecollection.cpp`: acquisition, the one-writer rule, `vaultInUse`
 - `qml/main.qml`: the message shown to the refused session
-- `tests/test_vaultlock.cpp`: the two-process lost-update demonstration and the ten behavioral tests
+- `tests/test_vaultlock.cpp`: the two-process lost-update demonstration and the behavioral tests
 - `devel.md`: the working notes on the lock
 - Commit `2e5ce05` "Hold one writer per vault, so a second session cannot overwrite the first"

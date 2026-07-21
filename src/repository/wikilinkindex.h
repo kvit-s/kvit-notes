@@ -46,6 +46,11 @@ public:
 
     using RevisionProvider = std::function<int()>;
     using AbsolutePathResolver = std::function<QString(const QString &)>;
+    // Where a note that no longer exists at a target's path lives now, or ""
+    // when nothing does. Consulted only for targets that name no real note,
+    // so a redirect can never shadow a file — see linkredirects.h. The
+    // argument is a normalized target, as normalizeTarget() produces.
+    using RedirectLookup = std::function<QString(const QString &)>;
     // Reads one note's body with front-matter stripped. Bodies are not
     // resident, so the queries that need text — headings, backlink context
     // lines — read the file for the notes they actually need.
@@ -56,8 +61,25 @@ public:
                   AbsolutePathResolver absolutePath,
                   BodyReader readBody);
 
+    // Set the redirect table this index consults for targets that name no
+    // note. Unset by default, which is resolution as it was before renames
+    // recorded redirects.
+    void setRedirectLookup(RedirectLookup lookup)
+    { m_redirects = std::move(lookup); }
+
     // Fence-aware scan of a body for [[...]] targets.
     static QStringList extractLinks(const QString &body);
+
+    // The comparable form of a [[target]]'s note-part: trimmed, anchor
+    // dropped, ".md" dropped, leading slashes dropped, lowercased. Public
+    // because the redirect table has to key on exactly the same form the
+    // resolver compares against.
+    static QString normalizeTarget(const QString &target);
+    // Obsidian's suffix rule for one candidate: whether `relPath` is what a
+    // normalized target names — the whole path, or a trailing run of its
+    // segments.
+    static bool pathMatchesTarget(const QString &relPath,
+                                  const QString &normalizedTarget);
     // Rewrite the note-part of matching [[...]] occurrences in `text`
     // (outside code fences, alias and #anchor preserved byte-exactly).
     // `oldKeys` holds the lowercased ".md"-stripped note-parts to replace.
@@ -76,11 +98,18 @@ public:
     // that suffix; matching is case-insensitive and the ".md" extension is
     // implied. `resolve` returns the note's relPath only for exactly one
     // suffix match, so ambiguous and missing targets both come back "".
-    QString resolve(const QString &target) const;
+    // A target naming no note is looked up in the redirect table, so a link
+    // to a note that was renamed keeps resolving; `followRedirects` false
+    // asks the narrower question of what the vault's files alone say, which
+    // is what the rewrite pass needs in order to tell a link it must rewrite
+    // from one that already resolves.
+    QString resolve(const QString &target, bool followRedirects = true) const;
     // The same resolution, keeping the distinction the caller needs when an
     // ambiguous target must not be mistaken for a missing one and
-    // auto-created: {status: unique|ambiguous|missing, relPath, candidates}.
-    QVariantMap resolution(const QString &target) const;
+    // auto-created: {status: unique|ambiguous|missing, relPath, candidates},
+    // plus `redirected` when a redirect answered rather than a file.
+    QVariantMap resolution(const QString &target,
+                           bool followRedirects = true) const;
 
     // Referrer relPath -> the lowercased note-part keys in it that resolve to
     // `relPath` right now.
@@ -105,6 +134,7 @@ private:
     void ensureIndex() const;
 
     const QHash<QString, NoteEntry> *m_notes;
+    RedirectLookup m_redirects;
     RevisionProvider m_revision;
     AbsolutePathResolver m_absolutePath;
     BodyReader m_readBody;

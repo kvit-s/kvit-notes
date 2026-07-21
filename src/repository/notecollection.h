@@ -20,6 +20,7 @@
 #include <functional>
 
 #include "cancellationtoken.h"
+#include "linkredirects.h"
 #include "notebackupstore.h"
 #include "collectionstatestore.h"
 #include "vaultscan.h"
@@ -163,6 +164,18 @@ public:
     static int rewriteWikiTargetsInText(QString *text,
                                         const QSet<QString> &oldKeys,
                                         const QString &replacement);
+
+    // Where a note that used to live at `relPath` lives now, or "" when
+    // nothing was renamed away from there. Renaming records a redirect
+    // instead of rewriting every linking note on the spot (linkredirects.h),
+    // so a `[[link]]` naming the old path keeps resolving from the moment of
+    // the rename; the linking notes are rewritten afterwards, a few at a
+    // time, and the redirect is dropped once none of them names it any more.
+    Q_INVOKABLE QString redirectedNotePath(const QString &oldRelPath) const;
+    // Test seam: the recorded redirects, oldRelPath -> newRelPath.
+    QVariantMap linkRedirectsForTesting() const;
+    // Test seam: whether the background rewrite still has notes to visit.
+    bool linkRewriteInProgressForTesting() const { return m_redirectTimer.isActive(); }
 
     // --- Index queries ---------------------------------------------------
     Q_INVOKABLE QStringList noteRelPaths() const;           // sorted
@@ -353,10 +366,15 @@ signals:
     // Direct repository writes (closed-note metadata, link rewrites,
     // recovery) use the same watcher own-write registration as session saves.
     void aboutToWrite(const QString &absPath);
-    // Rename-safe wiki-links (§3.3): after an in-app rename/move rewrote
-    // referring [[links]] in other notes — the "Updated N links in M
-    // notes" toast.
+    // Rename-safe wiki-links (§3.3): the background pass that follows an
+    // in-app rename or move has finished rewriting the referring [[links]] —
+    // the "Updated N links in M notes" toast. It arrives once the pass is
+    // done rather than as the rename returns, because the rename itself only
+    // records the redirect that keeps those links working meanwhile.
     void wikiLinksRewritten(int linkCount, int noteCount);
+    // Notes the pass could not rewrite: unreadable, or unwritable. Nothing
+    // is broken by that — the redirect stays and their links still resolve —
+    // and the next open tries them again.
     void wikiLinkRewriteIncomplete(const QStringList &skipped,
                                    const QStringList &failed);
     void operationFailed(const QString &message);
@@ -370,9 +388,11 @@ signals:
     // session ended, and could not be completed on this open. The listed
     // notes may still hold the pre-operation text.
     void operationIncomplete(const QStringList &relPaths);
-    // The vault is open in another process, so this session refused it rather
-    // than becoming a second writer whose saves would discard the other's.
-    // `detail` names the holder where the lock file said who it was.
+    // The vault is already open for editing — in another process, or in
+    // another collection here — so this session refused it rather than
+    // becoming a second writer whose saves would discard the other's.
+    // `detail` is the sentence to show: who holds it, where the lock file
+    // said, or that it is this application when the holder is one of ours.
     void vaultInUse(const QString &path, const QString &detail);
     // The vault opened, but locking is not available on the filesystem it
     // lives on, so nothing prevents a second session from writing to it.
@@ -579,10 +599,57 @@ private:
         const QString &relPath) const;
     QHash<QString, RewriteSnapshot> snapshotFolderReferrers(
         const QString &oldPrefix) const;
-    QVariantMap applyWikiLinkRewrites(const RenamePlan &plan,
-                                      const QString &openRelPath,
-                                      const QString &openBody);
     RenamePlan m_pendingRenamePlan;
+
+    // --- Rename redirects, and the rewrite they schedule -----------------
+    //
+    // Applying a rename plan with link updating records one redirect per
+    // moved note and returns. Resolution consults the table at once, so no
+    // link is ever broken; the files that hold those links are rewritten by
+    // a pass that yields to the event loop between short bursts, the same
+    // shape DocumentImporter's stepped folder import uses. The open note is
+    // the exception: its body belongs to the document session, so it is
+    // rewritten in memory here and handed back to the caller to apply.
+    // A note an existing redirect points at has moved again; the redirect
+    // follows it rather than being left on a path that holds nothing.
+    void followRenameInRedirects(const QString &oldRelPath,
+                                 const QString &newRelPath);
+    // True when something was recorded; the caller decides when to write
+    // the table out, so one rename costs one write however many notes moved.
+    bool recordRenameRedirects(const RenamePlan &plan);
+    QVariantMap startRedirectedLinkRewrite(const RenamePlan &plan,
+                                           const QString &openRelPath,
+                                           const QString &openBody);
+    // Where a link target points once the redirect table is consulted, for
+    // targets that name no note at all. "" for everything else, including a
+    // target that is ambiguous on its own.
+    QString redirectedTargetFor(const QString &rawTarget) const;
+    // The text to write in place of `notePart` for a note now at `newPath`:
+    // the bare title when that is unambiguous and the link was bare, the
+    // full path when the link was qualified or the title would not resolve.
+    QString redirectReplacementFor(const QString &notePart,
+                                   const QString &newPath) const;
+    // Rewrite every target in `text` that only resolves through a redirect,
+    // and return how many were rewritten.
+    int rewriteRedirectedTargetsInText(QString *text) const;
+    bool noteLinksThroughARedirect(const NoteEntry &entry) const;
+    // Queue the notes that still name a redirected path and start stepping.
+    // Cheap when there are no redirects, which is the normal case.
+    void scheduleRedirectRewrite();
+    void stepRedirectRewrite();
+    void finishRedirectRewrite();
+    void cancelRedirectRewrite();
+    // Drop the redirects nothing refers to any more. True when that changed
+    // the table; writing it out is the caller's.
+    bool pruneSettledRedirects();
+
+    LinkRedirects m_redirects;
+    QTimer m_redirectTimer;
+    QStringList m_redirectQueue;
+    int m_redirectIndex = 0;
+    int m_redirectLinkCount = 0;
+    int m_redirectNoteCount = 0;
+    QStringList m_redirectFailed;
 
     // The [[wiki-link]] graph over m_notes (§3.2/§3.3): target resolution,
     // referrers, backlinks and heading lists. Reads m_notes and never writes

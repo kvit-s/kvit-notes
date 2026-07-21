@@ -313,6 +313,7 @@ add_library(kvit-repository STATIC
     src/repository/vaultscan.cpp
     src/repository/wikilinkindex.cpp
     src/repository/opendocumentsession.h
+    src/repository/linkredirects.h
     src/repository/operationjournal.h
 )
 target_link_libraries(kvit-repository PUBLIC kvit-domain kvit-search)

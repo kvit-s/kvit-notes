@@ -125,7 +125,7 @@ private slots:
     void testBacklinks();
     void testWikiLinksReindexOnRefresh();
     void testRenameRewritesReferringLinks();
-    void testRenamePlanCancelAndConflictSkip();
+    void testRenameOnlyAndConcurrentEditDuringTheRewrite();
     void testFolderRenameRewritesQualifiedLinksOnly();
     void testMoveKeepsBareLinksUntouched();
     void testRewriteWikiTargetsInTextSurgical();
@@ -160,7 +160,14 @@ private slots:
     // Durable operation plans
     void testEqualLengthTagChangeSurvivesADeniedIndexWrite();
     void testInterruptedTagRenameFinishesAtTheNextOpen();
-    void testIncompleteLinkRewriteIsReportedAtTheNextOpen();
+    void testInterruptedLinkRewriteBecomesARedirect();
+
+    // Rename redirects (linkredirects.h)
+    void testRedirectChainCollapsesToOneHop();
+    void testANoteCreatedAtARedirectedPathWinsOverTheRedirect();
+    void testUnfinishedRedirectRewriteResumesAtTheNextOpen();
+    void testRedirectRewriteLeavesTheOpenNoteToItsSession();
+    void testRedirectFileIsOptionalAndStaysInsideTheVault();
 
     // Bounds
     void testOversizedNoteIsListedButNotParsed();
@@ -537,6 +544,9 @@ void TestNoteCollection::testPersistentIndexWarmStartSkipsUnchangedParse()
     QVERIFY(first.openRoot(m_dir->path()));
     QCOMPARE(firstParseCount, 2);
     QVERIFY(QFileInfo::exists(abs(".kvit/cache/index.json")));
+    // A warm start is a genuine reopen: the session that wrote the cache has
+    // finished with the vault before the next one takes it.
+    first.closeRoot();
 
     int warmParseCount = 0;
     NoteCollection warm;
@@ -548,6 +558,7 @@ void TestNoteCollection::testPersistentIndexWarmStartSkipsUnchangedParse()
     QCOMPARE(warm.note("Folder/B.md")->wordCount, 3);
     QCOMPARE(warm.note("Folder/B.md")->meta.tags,
              QStringList{QStringLiteral("cache")});
+    warm.closeRoot();
 
     writeNote("Folder/B.md", "---\ntags: [cache]\n---\nchanged body with six words\n");
     QStringList parsed;
@@ -566,6 +577,7 @@ void TestNoteCollection::testCorruptPersistentIndexFallsBackToFullParse()
 
     NoteCollection first;
     QVERIFY(first.openRoot(m_dir->path()));
+    first.closeRoot();
     writeNote(".kvit/cache/index.json", "{not json");
 
     QStringList parsed;
@@ -993,6 +1005,7 @@ void TestNoteCollection::testFolderStatePersists()
 
     m_collection->setFolderExpanded("Ideas", false);
     m_collection->setFolderColor("Ideas", QStringLiteral("#4090e0"));
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -1194,6 +1207,7 @@ void TestNoteCollection::testTagColorsPersist()
 {
     makeFixture();
     m_collection->setTagColor("books", QStringLiteral("#e07030"));
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -1270,6 +1284,7 @@ void TestNoteCollection::testSetManualPositionPersists()
 
     QVERIFY(m_collection->setManualPosition(last, 0));
     QCOMPARE(m_collection->notesInFolder("Ideas").first(), last);
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -1282,6 +1297,7 @@ void TestNoteCollection::testLastOpenNotePersists()
 {
     makeFixture();
     m_collection->setLastOpenNote("Ideas/Reading.md");
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -1289,6 +1305,7 @@ void TestNoteCollection::testLastOpenNotePersists()
 
     // A last-open note that no longer exists is dropped on load.
     QVERIFY(reopened.deleteNote("Ideas/Reading.md"));
+    reopened.closeRoot();
     NoteCollection again;
     QVERIFY(again.openRoot(m_dir->path()));
     QCOMPARE(again.lastOpenNote(), QString());
@@ -1299,6 +1316,7 @@ void TestNoteCollection::testCollectionFileCorruptionTolerated()
     makeFixture();
     m_collection->setFolderColor("Ideas", QStringLiteral("#4090e0"));
 
+    m_collection->closeRoot();
     writeNote(".kvit/collection.json", "{not json at all");
 
     NoteCollection reopened;
@@ -1407,6 +1425,7 @@ void TestNoteCollection::testRecoveryLifecycle()
 
     // Journals count as evidence only when found at openRoot.
     QCOMPARE(m_collection->recoveryEntries().size(), 0);
+    m_collection->closeRoot();
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
     const QVariantList entries = reopened.recoveryEntries();
@@ -1434,6 +1453,7 @@ void TestNoteCollection::testRecoveryLifecycle()
         QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
         file.write("Ghost edits\n");
     }
+    reopened.closeRoot();
     NoteCollection again;
     QVERIFY(again.openRoot(m_dir->path()));
     QCOMPARE(again.recoveryEntries().size(), 1);
@@ -1455,6 +1475,7 @@ void TestNoteCollection::testRecoveryRecreatesDeletedFolder()
     }
     // The whole folder vanished since the crash.
     QVERIFY(m_collection->deleteFolder("Ideas"));
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -1613,6 +1634,10 @@ void TestNoteCollection::testWikiLinksReindexOnRefresh()
     QCOMPARE(m_collection->resolveWikiTarget("Fresh"), QString("Fresh.md"));
 }
 
+// Renaming a note records where it went and returns. Every [[link]] to the
+// old name resolves through that redirect from the moment of the rename, and
+// the files holding those links are rewritten afterwards by a pass that
+// yields to the event loop between short bursts.
 void TestNoteCollection::testRenameRewritesReferringLinks()
 {
     writeNote("Target.md", "content, plus a self link [[Target]]\n");
@@ -1630,19 +1655,36 @@ void TestNoteCollection::testRenameRewritesReferringLinks()
         plan.value("id").toString(), true);
     QVERIFY(result.value("ok").toBool());
 
-    // Referrer rewritten: target text swapped, alias and anchor kept,
-    // fenced occurrence untouched.
+    // The rename itself wrote no other note, and no link is broken while
+    // that is true: the old name resolves through the recorded redirect.
     QCOMPARE(readNote("Ref.md"),
-             QString("One [[Renamed]] and [[Renamed#Head|alias]] here.\n"
+             QString("One [[Target]] and [[target#Head|alias]] here.\n"
                      "```\n[[Target]] stays untouched in a fence\n```\n"));
+    QCOMPARE(m_collection->redirectedNotePath("Target.md"),
+             QString("Renamed.md"));
+    QCOMPARE(m_collection->resolveWikiTarget("Target"), QString("Renamed.md"));
+    QCOMPARE(m_collection->resolveWikiTarget("target#Head"),
+             QString("Renamed.md"));
+
+    // Then the pass rewrites the referrer: target text swapped, alias and
+    // anchor kept, fenced occurrence untouched.
+    QTRY_COMPARE(readNote("Ref.md"),
+                 QString("One [[Renamed]] and [[Renamed#Head|alias]] here.\n"
+                         "```\n[[Target]] stays untouched in a fence\n```\n"));
     // The self link in the renamed note follows too.
-    QCOMPARE(readNote("Renamed.md"),
-             QString("content, plus a self link [[Renamed]]\n"));
+    QTRY_COMPARE(readNote("Renamed.md"),
+                 QString("content, plus a self link [[Renamed]]\n"));
     QCOMPARE(readNote("Unrelated.md"), QString("No links\n"));
 
-    QCOMPARE(spy.count(), 1);
+    QTRY_COMPARE(spy.count(), 1);
     QCOMPARE(spy.first().at(0).toInt(), 3); // links
     QCOMPARE(spy.first().at(1).toInt(), 2); // notes
+
+    // Nothing names the old path any more, so the redirect has done its job
+    // and is dropped -- file and all.
+    QCOMPARE(m_collection->redirectedNotePath("Target.md"), QString());
+    QVERIFY(m_collection->linkRedirectsForTesting().isEmpty());
+    QVERIFY(!QFileInfo::exists(abs(".kvit/redirects.json")));
 
     // The index followed the rewrite: backlinks resolve to the new path.
     const QVariantList backs = m_collection->backlinksTo("Renamed.md");
@@ -1651,40 +1693,42 @@ void TestNoteCollection::testRenameRewritesReferringLinks()
              QString("Ref.md"));
 }
 
-void TestNoteCollection::testRenamePlanCancelAndConflictSkip()
+// The two answers to "update wiki-links?", and what an edit arriving while
+// the rewrite is still owed does to it.
+void TestNoteCollection::testRenameOnlyAndConcurrentEditDuringTheRewrite()
 {
     writeNote("Target.md", "target\n");
     writeNote("Ref.md", "before [[Target]] after\n");
     QVERIFY(m_collection->openRoot(m_dir->path()));
 
-    // Rename-only is the explicit cancellation of link edits.
+    // Rename-only is the explicit cancellation of link edits: no rewrite,
+    // and no redirect either, so the link names something nothing answers --
+    // which is what asking for it means.
     QVariantMap plan = m_collection->planNoteRename("Target.md", "First");
     QCOMPARE(plan.value("linkCount").toInt(), 1);
     QVariantMap result = m_collection->applyRenamePlan(
         plan.value("id").toString(), false);
     QVERIFY(result.value("ok").toBool());
+    QTest::qWait(50); // long enough for a pass to have run, had one started
     QCOMPARE(readNote("Ref.md"), QString("before [[Target]] after\n"));
+    QCOMPARE(m_collection->resolveWikiTarget("Target"), QString());
+    QVERIFY(m_collection->linkRedirectsForTesting().isEmpty());
 
-    // A fresh plan snapshots bytes. An external edit after planning is never
-    // overwritten; it is named in the partial result.
+    // With link updating, a note changed between the rename and the rewrite
+    // reaching it keeps that change: the pass rewrites the bytes the file
+    // holds when it gets there rather than a snapshot taken earlier, so
+    // nothing is skipped and nothing is clobbered.
     writeNote("Ref.md", "before [[First]] after\n");
     m_collection->refreshPaths({abs("Ref.md")});
     plan = m_collection->planNoteRename("First.md", "Second");
     QCOMPARE(plan.value("linkCount").toInt(), 1);
+    result = m_collection->applyRenamePlan(plan.value("id").toString(), true);
+    QVERIFY(result.value("ok").toBool());
+    QVERIFY(result.value("skipped").toStringList().isEmpty());
     writeNote("Ref.md", "newer external text with [[First]]\n");
-    result = m_collection->applyRenamePlan(plan.value("id").toString(), true);
-    QVERIFY(result.value("ok").toBool());
-    QCOMPARE(result.value("skipped").toStringList(),
-             QStringList{QStringLiteral("Ref.md")});
-    QCOMPARE(readNote("Ref.md"),
-             QString("newer external text with [[First]]\n"));
 
-    // Retry uses the new snapshot and only changes targets still pointing at
-    // the old note, so repeating after a partial result is safe.
-    result = m_collection->applyRenamePlan(plan.value("id").toString(), true);
-    QVERIFY(result.value("ok").toBool());
-    QCOMPARE(readNote("Ref.md"),
-             QString("newer external text with [[Second]]\n"));
+    QTRY_COMPARE(readNote("Ref.md"),
+                 QString("newer external text with [[Second]]\n"));
 }
 
 void TestNoteCollection::testFolderRenameRewritesQualifiedLinksOnly()
@@ -1700,9 +1744,15 @@ void TestNoteCollection::testFolderRenameRewritesQualifiedLinksOnly()
     const QVariantMap result = m_collection->applyRenamePlan(
         plan.value("id").toString(), true);
     QVERIFY(result.value("ok").toBool());
-    QCOMPARE(readNote("Ref.md"),
-             QString("bare [[Target]] qualified [[Thoughts/Target#H|alias]]\n"
-                     "`[[Ideas/Target]]` $[[Ideas/Target]]$\n"));
+    // A folder rename records one redirect per note it carried, so the
+    // qualified link resolves before the pass reaches the file holding it.
+    QCOMPARE(m_collection->redirectedNotePath("Ideas/Target.md"),
+             QString("Thoughts/Target.md"));
+    QCOMPARE(m_collection->resolveWikiTarget("Ideas/Target"),
+             QString("Thoughts/Target.md"));
+    QTRY_COMPARE(readNote("Ref.md"),
+                 QString("bare [[Target]] qualified [[Thoughts/Target#H|alias]]\n"
+                         "`[[Ideas/Target]]` $[[Ideas/Target]]$\n"));
     QCOMPARE(m_collection->resolveWikiTarget("Target"),
              QString("Thoughts/Target.md"));
 }
@@ -2155,6 +2205,7 @@ void TestNoteCollection::testUnreadableRecoveryJournalIsNotResolved()
     const QString journal = m_collection->journalPathFor("Ideas/Plans.md");
     QVERIFY(!journal.isEmpty());
     QVERIFY(QFile::link(QString::fromLatin1(kUnreadableFile), journal));
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -2362,6 +2413,7 @@ void TestNoteCollection::testEqualLengthTagChangeSurvivesADeniedIndexWrite()
         QVERIFY(m_collection->indexDirtyForTesting());
     }
     QVERIFY(readNote("A.md").contains(QStringLiteral("draft")));
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -2393,6 +2445,7 @@ void TestNoteCollection::testInterruptedTagRenameFinishesAtTheNextOpen()
         QVERIFY(done.open(QIODevice::WriteOnly));
         done.write("A.md\n");
     }
+    m_collection->closeRoot();
 
     NoteCollection reopened;
     QVERIFY(reopened.openRoot(m_dir->path()));
@@ -2405,14 +2458,18 @@ void TestNoteCollection::testInterruptedTagRenameFinishesAtTheNextOpen()
     QCOMPARE(QDir(operations).entryList(QDir::Files).size(), 0);
 }
 
-// A link rewrite cannot be replayed — the rename it followed has already
-// happened — so what the plan buys is that the notes it did not reach are
-// named rather than silently left pointing at the old title.
-void TestNoteCollection::testIncompleteLinkRewriteIsReportedAtTheNextOpen()
+// A plan left behind by a version that rewrote every referring note before
+// the rename returned. The files it did not reach are the ones whose links
+// really are broken, and the plan names both ends of the move, so it becomes
+// the redirect this design records instead: resolution is repaired as the
+// vault opens and the pass finishes the rewrite. Nothing is left for the user
+// to be told about, so no incomplete-operation report is emitted.
+void TestNoteCollection::testInterruptedLinkRewriteBecomesARedirect()
 {
     writeNote("Target.md", "the target\n");
     writeNote("Referrer.md", "see [[Old Name]]\n");
     QVERIFY(m_collection->openRoot(m_dir->path()));
+    m_collection->closeRoot();
 
     const QString operations = m_dir->filePath(".kvit/operations");
     QVERIFY(QDir().mkpath(operations));
@@ -2425,9 +2482,174 @@ void TestNoteCollection::testIncompleteLinkRewriteIsReportedAtTheNextOpen()
     NoteCollection reopened;
     QSignalSpy incomplete(&reopened, &NoteCollection::operationIncomplete);
     QVERIFY(reopened.openRoot(m_dir->path()));
-    QCOMPARE(incomplete.count(), 1);
-    QCOMPARE(incomplete.first().at(0).toStringList(),
-             QStringList{QStringLiteral("Referrer.md")});
+    QCOMPARE(incomplete.count(), 0);
+    QCOMPARE(reopened.resolveWikiTarget("Old Name"), QString("Target.md"));
+    QTRY_COMPARE(readNote("Referrer.md"), QString("see [[Target]]\n"));
+    // Both records are gone: the plan it came from, and the redirect once
+    // nothing named the old path any more.
+    QCOMPARE(QDir(operations).entryList(QDir::Files).size(), 0);
+    QVERIFY(!QFileInfo::exists(abs(".kvit/redirects.json")));
+}
+
+// ----------------------------------------------------- rename redirects
+
+// Rename A to B and then B to C before the rewrite has run, and the table
+// holds one hop from A to C rather than two that resolution would have to
+// follow in turn.
+void TestNoteCollection::testRedirectChainCollapsesToOneHop()
+{
+    writeNote("A.md", "the note\n");
+    writeNote("Ref.md", "see [[A]]\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    QVariantMap plan = m_collection->planNoteRename("A.md", "B");
+    QVERIFY(m_collection->applyRenamePlan(plan.value("id").toString(), true)
+                .value("ok").toBool());
+    // No event-loop turn in between, so the rewrite has not run and the
+    // first redirect is still standing when the second rename arrives.
+    plan = m_collection->planNoteRename("B.md", "C");
+    QVERIFY(m_collection->applyRenamePlan(plan.value("id").toString(), true)
+                .value("ok").toBool());
+
+    const QVariantMap redirects = m_collection->linkRedirectsForTesting();
+    QCOMPARE(redirects.size(), 1);
+    QCOMPARE(redirects.value("A.md").toString(), QString("C.md"));
+    QCOMPARE(m_collection->resolveWikiTarget("A"), QString("C.md"));
+
+    QTRY_COMPARE(readNote("Ref.md"), QString("see [[C]]\n"));
+    QVERIFY(m_collection->linkRedirectsForTesting().isEmpty());
+}
+
+// A redirect stands in for a note that is not there. The moment one is,
+// the file wins and the redirect is over -- otherwise a new note could be
+// shadowed by the ghost of the one that used to have its name.
+void TestNoteCollection::testANoteCreatedAtARedirectedPathWinsOverTheRedirect()
+{
+    writeNote("A.md", "the note\n");
+    writeNote("Ref.md", "see [[A]]\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    const QVariantMap plan = m_collection->planNoteRename("A.md", "B");
+    QVERIFY(m_collection->applyRenamePlan(plan.value("id").toString(), true)
+                .value("ok").toBool());
+    QCOMPARE(m_collection->resolveWikiTarget("A"), QString("B.md"));
+
+    // A brand new note claims the old name before the rewrite gets there.
+    QCOMPARE(m_collection->createNote(QString(), QStringLiteral("A")),
+             QString("A.md"));
+    QCOMPARE(m_collection->resolveWikiTarget("A"), QString("A.md"));
+    QVERIFY(m_collection->linkRedirectsForTesting().isEmpty());
+
+    // And the pass leaves the referrer alone, because its link now names a
+    // note that exists.
+    QTest::qWait(50);
+    QCOMPARE(readNote("Ref.md"), QString("see [[A]]\n"));
+    QVERIFY(!QFileInfo::exists(abs(".kvit/redirects.json")));
+}
+
+// The rewrite is the part that can be interrupted, and the redirect is the
+// record that it is still owed: a session that ends mid-pass leaves the links
+// resolving and the next open finishes the job.
+void TestNoteCollection::testUnfinishedRedirectRewriteResumesAtTheNextOpen()
+{
+    writeNote("Target.md", "the target\n");
+    writeNote("Ref.md", "see [[Target]]\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    const QVariantMap plan = m_collection->planNoteRename("Target.md", "Renamed");
+    QVERIFY(m_collection->applyRenamePlan(plan.value("id").toString(), true)
+                .value("ok").toBool());
+    // Closing before the pass has had a turn is what a crash looks like from
+    // the next session's point of view.
+    m_collection->closeRoot();
+    QCOMPARE(readNote("Ref.md"), QString("see [[Target]]\n"));
+    QVERIFY(QFileInfo::exists(abs(".kvit/redirects.json")));
+
+    NoteCollection reopened;
+    QVERIFY(reopened.openRoot(m_dir->path()));
+    // Resolution is right immediately, and the rewrite follows.
+    QCOMPARE(reopened.resolveWikiTarget("Target"), QString("Renamed.md"));
+    QTRY_COMPARE(readNote("Ref.md"), QString("see [[Renamed]]\n"));
+    QVERIFY(!QFileInfo::exists(abs(".kvit/redirects.json")));
+}
+
+// The open note's authoritative text is the block model's, not the file's,
+// so the pass never writes it: it is rewritten in memory and handed back to
+// the caller, and the redirect stays until the file is somebody's to write.
+void TestNoteCollection::testRedirectRewriteLeavesTheOpenNoteToItsSession()
+{
+    writeNote("Target.md", "the target\n");
+    writeNote("Ref.md", "see [[Target]]\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    FakeOpenDocument session;
+    session.path = abs("Ref.md");
+    session.liveText = QStringLiteral("see [[Target]] and unsaved edits\n");
+    session.dirty = true;
+    m_collection->setOpenDocument(&session);
+
+    const QVariantMap plan = m_collection->planNoteRename("Target.md", "Renamed");
+    const QVariantMap result = m_collection->applyRenamePlan(
+        plan.value("id").toString(), true, QStringLiteral("Ref.md"),
+        session.liveText);
+    QVERIFY(result.value("ok").toBool());
+    // The caller gets the rewritten body to apply as one undoable change.
+    QCOMPARE(result.value("openRewriteCount").toInt(), 1);
+    QCOMPARE(result.value("openBody").toString(),
+             QString("see [[Renamed]] and unsaved edits\n"));
+
+    QTest::qWait(50);
+    // The file itself is untouched -- the unsaved edits in the session are
+    // still the newest revision -- and the link in it still resolves.
+    QCOMPARE(readNote("Ref.md"), QString("see [[Target]]\n"));
+    QCOMPARE(m_collection->redirectedNotePath("Target.md"),
+             QString("Renamed.md"));
+    QCOMPARE(m_collection->resolveWikiTarget("Target"), QString("Renamed.md"));
+
+    // Once the note is no longer open, the next pass finishes it.
+    session.path.clear();
+    m_collection->refresh();
+    QTRY_COMPARE(readNote("Ref.md"), QString("see [[Renamed]]\n"));
+    QVERIFY(m_collection->linkRedirectsForTesting().isEmpty());
+}
+
+// The table is a control file like any other: a vault written without one
+// opens unchanged, and an entry naming a path outside the vault is refused
+// rather than followed.
+void TestNoteCollection::testRedirectFileIsOptionalAndStaysInsideTheVault()
+{
+    writeNote("Target.md", "the target\n");
+    writeNote("Ref.md", "see [[Away]]\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    QVERIFY(!QFileInfo::exists(abs(".kvit/redirects.json")));
+    QCOMPARE(m_collection->resolveWikiTarget("Away"), QString());
+    m_collection->closeRoot();
+
+    // An entry whose old path climbs out of the vault would otherwise let a
+    // crafted control file decide what a link inside it means.
+    writeNote(".kvit/redirects.json",
+              "{\"version\":1,\"redirects\":["
+              "{\"from\":\"../../Away.md\",\"to\":\"Target.md\"}]}");
+    {
+        NoteCollection reopened;
+        QVERIFY(reopened.openRoot(m_dir->path()));
+        QVERIFY(reopened.linkRedirectsForTesting().isEmpty());
+        QCOMPARE(reopened.resolveWikiTarget("Away"), QString());
+        QTest::qWait(50);
+        QCOMPARE(readNote("Ref.md"), QString("see [[Away]]\n"));
+    }
+
+    // Nor may one name a destination outside it, which is where the rewrite
+    // would otherwise be pointed.
+    writeNote(".kvit/redirects.json",
+              "{\"version\":1,\"redirects\":["
+              "{\"from\":\"Away.md\",\"to\":\"../../elsewhere.md\"}]}");
+    NoteCollection again;
+    QVERIFY(again.openRoot(m_dir->path()));
+    QVERIFY(again.linkRedirectsForTesting().isEmpty());
+    QCOMPARE(again.resolveWikiTarget("Away"), QString());
+    QTest::qWait(50);
+    QCOMPARE(readNote("Ref.md"), QString("see [[Away]]\n"));
 }
 
 // --------------------------------------------------------------- bounds

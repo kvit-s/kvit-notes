@@ -78,7 +78,7 @@ private slots:
     void secondProcessIsRefusedWithAnExplanation();
     void lockIsReleasedWhenTheOwnerIsKilled();
     void lockIsReleasedOnClose();
-    void severalCollectionsInOneProcessShareTheVault();
+    void secondWritingCollectionInOneProcessIsRefused();
     void singleFileModeNeedsNoVault();
     void unlockableFilesystemStillOpens();
     void unlockableFilesystemTellsTheUser();
@@ -238,26 +238,41 @@ void TestVaultLock::lockIsReleasedOnClose()
     QCOMPARE(after.exitCode(), kExitOk);
 }
 
-// The lock is against other processes. One process holding several
-// NoteCollection objects on a root is normal (the warm-cache tests do it),
-// and a POSIX flock taken on a second descriptor would otherwise make the
-// process refuse itself.
-void TestVaultLock::severalCollectionsInOneProcessShareTheVault()
+// One writer per vault holds inside this process too. Two NoteCollection
+// objects on one root each load the whole state and write whole files back
+// from it, so the second one's saves discard the first one's exactly as a
+// second process's would -- and the kernel cannot see it, because a POSIX
+// flock belongs to the process rather than to the descriptor that took it.
+// Read-only sessions are unaffected: they take nothing and lose nothing.
+void TestVaultLock::secondWritingCollectionInOneProcessIsRefused()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
 
     NoteCollection first;
     QVERIFY(first.openRoot(dir.path()));
-    NoteCollection second;
-    QVERIFY2(second.openRoot(dir.path()),
-             "a second collection in the same process was refused");
-    NoteCollection third;
-    QVERIFY(third.openRoot(dir.path()));
+    QVERIFY(!first.createNote(QString(), QStringLiteral("Note")).isEmpty());
 
-    // The vault stays held until the last of them lets go.
-    first.closeRoot();
-    second.closeRoot();
+    NoteCollection second;
+    QSignalSpy inUse(&second, &NoteCollection::vaultInUse);
+    QVERIFY2(!second.openRoot(dir.path()),
+             "a second writing collection in the same process was admitted");
+    QVERIFY(!second.isOpen());
+    // The refusal says what happened rather than failing silently.
+    QCOMPARE(inUse.count(), 1);
+    QVERIFY(!inUse.first().at(1).toString().isEmpty());
+
+    // Reopening the vault a collection already holds is not a second
+    // acquisition, and neither is a session that only reads.
+    QVERIFY(first.openRoot(dir.path()));
+    NoteCollection reader;
+    reader.setReadOnly(true);
+    QVERIFY2(reader.openRoot(dir.path()),
+             "a read-only session was refused a vault this process writes");
+    QCOMPARE(reader.noteCount(), 1);
+
+    // The vault stays held against other processes for as long as the writer
+    // has it; the readers alongside it neither hold it nor extend that.
     QProcess probe;
     probe.start(program(), {QStringLiteral("--writer"), dir.path(),
                             QStringLiteral("x"), QStringLiteral("#333333"),
@@ -266,7 +281,15 @@ void TestVaultLock::severalCollectionsInOneProcessShareTheVault()
     QVERIFY(probe.waitForFinished(20000));
     QCOMPARE(probe.exitCode(), kExitRefused);
 
-    third.closeRoot();
+    // And once the writer lets go, the next one in gets it -- including
+    // another collection here, which is what makes this a refusal rather
+    // than a permanent claim.
+    first.closeRoot();
+    NoteCollection successor;
+    QVERIFY2(successor.openRoot(dir.path()),
+             "the vault stayed claimed after its writer closed it");
+    successor.closeRoot();
+
     QProcess after;
     after.start(program(), {QStringLiteral("--writer"), dir.path(),
                             QStringLiteral("y"), QStringLiteral("#444444"),
@@ -302,7 +325,10 @@ void TestVaultLock::singleFileModeNeedsNoVault()
 
 // Some network filesystems do not implement locking. Refusing to open the
 // vault there would make the app unusable for those users, so the lock
-// degrades to absent and the vault still opens.
+// degrades to absent and the vault still opens -- repeatedly, and for each
+// session that has it to itself. What does not degrade is this process's own
+// knowledge of what it has open, so a second writer here is still refused;
+// that answer never came from the filesystem.
 void TestVaultLock::unlockableFilesystemStillOpens()
 {
     QTemporaryDir dir;
@@ -312,8 +338,16 @@ void TestVaultLock::unlockableFilesystemStillOpens()
     NoteCollection first;
     QVERIFY2(first.openRoot(dir.path()),
              "an unlockable filesystem made the vault unopenable");
+
     NoteCollection second;
-    QVERIFY(second.openRoot(dir.path()));
+    QVERIFY2(!second.openRoot(dir.path()),
+             "a second writer was admitted because the filesystem could not "
+             "lock");
+
+    first.closeRoot();
+    QVERIFY2(second.openRoot(dir.path()),
+             "the unlockable vault could not be reopened after its writer "
+             "closed it");
     VaultLock::setForcedUnavailableForTests(false);
 }
 

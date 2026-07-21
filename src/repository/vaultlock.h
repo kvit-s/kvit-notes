@@ -47,9 +47,10 @@ public:
     VaultLock &operator=(const VaultLock &) = delete;
 
     enum class Result {
-        Acquired,        // this session owns the vault
-        HeldByAnother,   // another live process owns it; refuse to open
-        Unavailable,     // locking could not be attempted; proceed unlocked
+        Acquired,          // this session owns the vault
+        HeldByAnother,     // another live process owns it; refuse to open
+        HeldInThisProcess, // another collection here owns it; refuse to open
+        Unavailable,       // locking could not be attempted; proceed unlocked
     };
 
     // What the acquirer intends to do with the vault. A writer contends for
@@ -85,11 +86,18 @@ public:
     // vault that cannot be opened is a worse failure than one that is not
     // protected from a second session that probably does not exist.
     //
-    // Acquiring twice within one process succeeds: the lock is against other
-    // processes, and one process legitimately holds several NoteCollection
-    // objects on a root. Ownership is reference counted per canonical path,
-    // so a POSIX flock on a second descriptor cannot make a process refuse
-    // itself.
+    // A second write-capable acquisition of a vault this process already
+    // holds is refused with HeldInThisProcess. Two NoteCollection objects on
+    // one root each keep their own in-memory snapshot and write whole files
+    // back from it, which reproduces inside one process exactly the lost
+    // update the cross-process lock exists to prevent; the kernel cannot see
+    // it, because a POSIX flock is per process rather than per descriptor.
+    // The refusal does not depend on the platform being able to lock at all:
+    // whether this process holds a vault is something it always knows.
+    //
+    // Re-acquiring the same vault on the same terms is not a second
+    // acquisition and succeeds, so reopening a root a collection already has
+    // works as it did.
     //
     // A lock this object already holds is kept when the new vault cannot be
     // taken. Releasing first and then failing left the previous vault open in
@@ -122,6 +130,12 @@ private:
     QString m_root;                 // canonical, empty when not held
     Access m_access = Access::Write;
     bool m_holdsNativeLock = false;
+    // Whether this object is the one that registered m_root as held for
+    // writing by this process, and so the one that must unregister it.
+    bool m_ownsRegistration = false;
+    // What the last successful acquisition answered, so re-acquiring the
+    // same vault on the same terms repeats it rather than inventing one.
+    Result m_lastResult = Result::Acquired;
     Holder m_blockingHolder;
 };
 

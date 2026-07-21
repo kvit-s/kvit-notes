@@ -16,9 +16,12 @@ import Kvit 1.0
 // through DocumentManager as one undoable body replacement, so an unwanted
 // rewrite costs one Ctrl+Z.
 //
-// Notes changed on disk since the plan was made are skipped rather than
-// overwritten, and unwritable ones are reported; the second dialog lists both
-// and can retry against a fresh plan.
+// Applying the plan writes a redirect rather than the referring notes, so the
+// old targets resolve immediately and the rewrite happens in the background
+// afterwards. A note edited between the two is rewritten from its current
+// bytes rather than skipped. The second dialog reports only what the pass
+// could not read or write, which breaks nothing: the redirect stays and those
+// links keep resolving until the next open retries them.
 Item {
     id: workflow
 
@@ -83,11 +86,19 @@ Item {
         workflow.pendingAfterApply = null
         if (result && result.ok && after)
             after(result)
-        if (result && ((result.skipped && result.skipped.length > 0)
-                       || (result.failed && result.failed.length > 0))) {
-            rewriteResultDialog.planId = plan.id
-            rewriteResultDialog.skipped = result.skipped
-            rewriteResultDialog.failed = result.failed
+    }
+
+    // The rename itself no longer rewrites anything: it records a redirect so
+    // the old targets keep resolving, and a background pass rewrites the
+    // referring notes afterwards. So the result of applying a plan can no
+    // longer carry skipped or failed notes, and this reports what the pass
+    // could not do, whenever it finishes.
+    Connections {
+        target: NoteCollection
+        function onWikiLinkRewriteIncomplete(skipped, failed) {
+            if (!failed || failed.length === 0)
+                return
+            rewriteResultDialog.failed = failed
             rewriteResultDialog.open()
         }
     }
@@ -150,46 +161,23 @@ Item {
     Dialog {
         id: rewriteResultDialog
         objectName: "rewriteResultDialog"
-        title: qsTr("Some links were not updated")
+        title: qsTr("Some links are not rewritten yet")
         modal: true
         anchors.centerIn: parent
         width: 460
-        property string planId: ""
-        property var skipped: []
         property var failed: []
 
         contentItem: Label {
             width: 420
             padding: 18
             wrapMode: Text.WordWrap
-            text: {
-                var lines = []
-                if (rewriteResultDialog.skipped.length > 0)
-                    lines.push(qsTr("Changed externally (skipped):\n%1")
-                               .arg(rewriteResultDialog.skipped.join("\n")))
-                if (rewriteResultDialog.failed.length > 0)
-                    lines.push(qsTr("Could not write:\n%1")
-                               .arg(rewriteResultDialog.failed.join("\n")))
-                return lines.join("\n\n")
-            }
+            text: qsTr("These notes could not be read or written, so they "
+                       + "still spell the old name:\n%1\n\nTheir links "
+                       + "keep working in Kvit, and it will try them again "
+                       + "the next time this vault is opened.")
+                  .arg(rewriteResultDialog.failed.join("\n"))
         }
         footer: DialogButtonBox {
-            Button {
-                text: qsTr("Retry")
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-                onClicked: {
-                    var result = workflow.executeRenamePlan(
-                        rewriteResultDialog.planId, true)
-                    if (result && result.ok
-                            && result.skipped.length === 0
-                            && result.failed.length === 0)
-                        rewriteResultDialog.close()
-                    else if (result) {
-                        rewriteResultDialog.skipped = result.skipped || []
-                        rewriteResultDialog.failed = result.failed || []
-                    }
-                }
-            }
             Button {
                 text: qsTr("Close")
                 DialogButtonBox.buttonRole: DialogButtonBox.RejectRole

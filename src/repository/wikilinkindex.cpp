@@ -86,14 +86,7 @@ void WikiLinkIndex::ensureIndex() const
     m_indexNoteCount = m_notes->size();
 }
 
-QString WikiLinkIndex::resolve(const QString &target) const
-{
-    const QVariantMap result = resolution(target);
-    return result.value(QStringLiteral("status")) == QLatin1String("unique")
-        ? result.value(QStringLiteral("relPath")).toString() : QString();
-}
-
-QVariantMap WikiLinkIndex::resolution(const QString &target) const
+QString WikiLinkIndex::normalizeTarget(const QString &target)
 {
     QString wanted = target.trimmed();
     const int hash = wanted.indexOf(QLatin1Char('#'));
@@ -103,29 +96,61 @@ QVariantMap WikiLinkIndex::resolution(const QString &target) const
         wanted.chop(mdSuffix.size());
     while (wanted.startsWith(QLatin1Char('/')))
         wanted.remove(0, 1);
-    if (wanted.isEmpty())
+    return wanted.toLower();
+}
+
+bool WikiLinkIndex::pathMatchesTarget(const QString &relPath,
+                                      const QString &normalizedTarget)
+{
+    QString path = relPath;
+    if (path.endsWith(mdSuffix, Qt::CaseInsensitive))
+        path.chop(mdSuffix.size());
+    const QString lowerPath = path.toLower();
+    return lowerPath == normalizedTarget
+        || lowerPath.endsWith(QLatin1Char('/') + normalizedTarget);
+}
+
+QString WikiLinkIndex::resolve(const QString &target, bool followRedirects) const
+{
+    const QVariantMap result = resolution(target, followRedirects);
+    return result.value(QStringLiteral("status")) == QLatin1String("unique")
+        ? result.value(QStringLiteral("relPath")).toString() : QString();
+}
+
+QVariantMap WikiLinkIndex::resolution(const QString &target,
+                                      bool followRedirects) const
+{
+    const QString lowered = normalizeTarget(target);
+    if (lowered.isEmpty())
         return {{QStringLiteral("status"), QStringLiteral("missing")},
                 {QStringLiteral("relPath"), QString()},
                 {QStringLiteral("candidates"), QStringList()}};
 
     ensureIndex();
-    const QString lowered = wanted.toLower();
     const int slash = lowered.lastIndexOf(QLatin1Char('/'));
     const QString base = slash >= 0 ? lowered.mid(slash + 1) : lowered;
 
     QStringList matches;
     const QStringList candidates = m_basenames.value(base);
     for (const QString &relPath : candidates) {
-        QString path = relPath;
-        if (path.endsWith(mdSuffix, Qt::CaseInsensitive))
-            path.chop(mdSuffix.size());
-        const QString lowerPath = path.toLower();
-        if (lowerPath != lowered
-            && !lowerPath.endsWith(QLatin1Char('/') + lowered))
-            continue;
-        matches.append(relPath);
+        if (pathMatchesTarget(relPath, lowered))
+            matches.append(relPath);
     }
     matches.sort(Qt::CaseInsensitive);
+
+    // Only a target no file answers reaches the redirect table, so a note
+    // created at a name something was renamed away from wins over the
+    // redirect without anything having to notice that it appeared.
+    if (matches.isEmpty() && followRedirects && m_redirects) {
+        const QString redirected = m_redirects(lowered);
+        if (!redirected.isEmpty() && m_notes->contains(redirected)) {
+            return {{QStringLiteral("status"), QStringLiteral("unique")},
+                    {QStringLiteral("relPath"), redirected},
+                    {QStringLiteral("redirected"), true},
+                    {QStringLiteral("candidates"), QStringList{redirected}}};
+        }
+    }
+
     const QString status = matches.isEmpty() ? QStringLiteral("missing")
         : matches.size() == 1 ? QStringLiteral("unique")
                               : QStringLiteral("ambiguous");

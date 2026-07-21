@@ -683,9 +683,20 @@ Display when cursor moves into "information":
   back/forward buttons; history restores the saved scroll position
 - Ctrl+P opens a fuzzy quick switcher over note titles and paths; Enter opens the selected note
   and Shift+Enter creates a note from the typed title in the current folder scope
-- Renaming or moving a note through Kvit automatically rewrites stale matching wiki targets in
-  indexed note files while preserving aliases and heading anchors, then reports the changed
-  link and note counts in the status bar
+- Renaming or moving a note through Kvit keeps existing wiki targets working immediately: the
+  vault records a redirect from the old name to the new one, so every `[[old name]]` still
+  resolves from the moment the rename completes, however many notes point at it
+- The referring notes are then rewritten in the background, a few at a time, preserving aliases
+  and heading anchors, and the changed link and note counts are reported in the status bar when
+  the pass finishes. The redirect is dropped once nothing links through it. Because the rename
+  itself only writes one small control file, it takes the same time whether one note links to it
+  or a thousand, and an interrupted pass cannot break a link: the redirect outlives the crash and
+  the rewrite resumes at the next open
+- A redirect is recorded only when link updating was requested; a rename asked to leave links
+  alone still leaves them alone. A redirect never shadows a real note, so creating a note at the
+  old name takes that name back
+- Redirects are local to the vault, so a vault opened in another tool before the background pass
+  finishes sees the not-yet-rewritten links as unresolved
 - Graph view, unlinked mentions, and wiki transclusion are not included
 
 ---

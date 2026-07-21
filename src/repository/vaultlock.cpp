@@ -38,13 +38,14 @@ using NativeHandle = int;
 const NativeHandle kInvalidHandle = -1;
 #endif
 
-// One entry per vault this process holds, reference counted. Several
-// NoteCollection objects on one root are one owner as far as other processes
-// are concerned, and taking a second flock on a second descriptor would
-// otherwise fail against ourselves.
+// One entry per vault this process holds for writing, and at most one holder
+// per vault: the descriptor that carries the kernel lock, or an invalid one
+// when the filesystem could not provide it. The table is what makes a second
+// write-capable collection on the same root refusable, which a POSIX flock
+// cannot do on its own -- it is held per process, so this process would
+// never contend with itself.
 struct Owned {
     NativeHandle handle = kInvalidHandle;
-    int refCount = 0;
 };
 
 QMutex g_mutex;
@@ -201,52 +202,60 @@ VaultLock::Result VaultLock::acquire(const QString &vaultRoot, Access access)
             ? QDir(vaultRoot).absolutePath()
             : QFileInfo(vaultRoot).canonicalFilePath();
 
-    if (m_holdsNativeLock && m_root == canonical && m_access == access)
-        return Result::Acquired; // already ours, on the same terms
+    if (!m_root.isEmpty() && m_root == canonical && m_access == access)
+        return m_lastResult; // already ours, on the same terms
 
     // A reader states it will not write, so there is nothing for the lock to
     // protect and nothing to contend for: it opens a vault another process
-    // holds. Any lock this object held is dropped, because the vault it
-    // belonged to is being left.
+    // holds, and a vault this one is writing. Any lock this object held is
+    // dropped, because the vault it belonged to is being left.
     if (access == Access::Read) {
         release();
         m_root = canonical;
         m_access = Access::Read;
         m_holdsNativeLock = false;
+        m_lastResult = Result::Acquired;
         return Result::Acquired;
     }
 
     QMutexLocker locker(&g_mutex);
-    if (g_forcedUnavailable) {
-        releaseLocked();
-        m_root = canonical;
-        m_access = Access::Write;
-        m_holdsNativeLock = false;
-        return Result::Unavailable;
+
+    // Somebody in this process is already writing this vault. Admitting a
+    // second writer here would recreate the lost update the lock prevents
+    // between processes, and nothing else can catch it: the kernel lock is
+    // held per process, so this process never contends with itself. Like the
+    // cross-process refusal below, it changes nothing -- a caller whose
+    // switch is refused is left holding exactly what it had.
+    if (g_owned.contains(canonical)) {
+        m_blockingHolder = Holder{QSysInfo::machineHostName(),
+                                  QCoreApplication::applicationName(),
+                                  QCoreApplication::applicationPid(),
+                                  QDateTime::currentDateTime()};
+        return Result::HeldInThisProcess;
     }
 
-    // Already ours: another NoteCollection in this process holds it. The
-    // reference count goes up before the previous vault is let go, so no
-    // window exists in which this process holds neither.
-    auto existing = g_owned.find(canonical);
-    if (existing != g_owned.end()) {
-        ++existing->refCount;
+    // The three ways a write acquisition can succeed differ only in whether
+    // a kernel lock came with it. All three register the vault as held by
+    // this process, because that answer never depended on the filesystem.
+    const auto take = [this, &canonical](NativeHandle handle, Result result) {
         releaseLocked();
+        g_owned.insert(canonical, Owned{handle});
         m_root = canonical;
         m_access = Access::Write;
-        m_holdsNativeLock = true;
-        return Result::Acquired;
-    }
+        m_holdsNativeLock = handle != kInvalidHandle;
+        m_ownsRegistration = true;
+        m_lastResult = result;
+        return result;
+    };
+
+    if (g_forcedUnavailable)
+        return take(kInvalidHandle, Result::Unavailable);
 
     const QString path = lockFilePath(canonical);
     if (VaultPaths::ensureOwnedDir(canonical, QStringLiteral(".kvit")).isEmpty()) {
         qCWarning(lcVaultLock, "cannot create .kvit for %s; opening unlocked",
                   qPrintable(canonical));
-        releaseLocked();
-        m_root = canonical;
-        m_access = Access::Write;
-        m_holdsNativeLock = false;
-        return Result::Unavailable;
+        return take(kInvalidHandle, Result::Unavailable);
     }
 
     NativeHandle handle = kInvalidHandle;
@@ -263,20 +272,11 @@ VaultLock::Result VaultLock::acquire(const QString &vaultRoot, Access access)
         qCWarning(lcVaultLock,
                   "cannot lock %s; opening unlocked (a second session on this "
                   "vault will not be detected)", qPrintable(path));
-        releaseLocked();
-        m_root = canonical;
-        m_access = Access::Write;
-        m_holdsNativeLock = false;
-        return Result::Unavailable;
+        return take(kInvalidHandle, Result::Unavailable);
     }
 
     writeHolder(handle, describeThisProcess());
-    releaseLocked();
-    g_owned.insert(canonical, Owned{handle, 1});
-    m_root = canonical;
-    m_access = Access::Write;
-    m_holdsNativeLock = true;
-    return Result::Acquired;
+    return take(handle, Result::Acquired);
 }
 
 void VaultLock::release()
@@ -291,9 +291,9 @@ void VaultLock::releaseLocked()
 {
     if (m_root.isEmpty())
         return;
-    if (m_holdsNativeLock) {
+    if (m_ownsRegistration) {
         auto it = g_owned.find(m_root);
-        if (it != g_owned.end() && --it->refCount <= 0) {
+        if (it != g_owned.end()) {
             // Closing the descriptor drops the kernel lock. The file itself is
             // left in place: removing it would race another process that has
             // already opened it and is about to lock it, and an unlocked file
@@ -304,4 +304,6 @@ void VaultLock::releaseLocked()
     }
     m_root.clear();
     m_holdsNativeLock = false;
+    m_ownsRegistration = false;
+    m_lastResult = Result::Acquired;
 }

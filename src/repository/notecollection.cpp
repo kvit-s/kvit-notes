@@ -40,6 +40,10 @@ const QString indexFileName = QStringLiteral("index.json");
 const QString trashDirName = QStringLiteral("trash");
 const QString mdSuffix = QStringLiteral(".md");
 
+// How long one burst of the background link rewrite may hold the GUI thread
+// before it yields, matching the stepped folder import in documentimporter.
+constexpr qint64 kRedirectBurstMs = 12;
+
 // The four file primitives now live in notefileio.h, shared with the stores
 // split out of this class. Pulled in unqualified so every call site below
 // reads exactly as it did when they were defined here.
@@ -114,8 +118,21 @@ NoteCollection::NoteCollection(QObject *parent)
                   [this](const QString &relPath) { return absolutePath(relPath); },
                   [this](const QString &relPath) { return readNoteBody(relPath); })
 {
+    // A target naming no note is looked up among the notes renamed away from
+    // that path, so every [[link]] to a renamed note keeps working from the
+    // moment of the rename rather than from the moment the rewrite reaches
+    // the file holding it.
+    m_wikiLinks.setRedirectLookup([this](const QString &normalized) {
+        return m_redirects.targetFor(normalized);
+    });
     m_asyncRevisionTimer.setSingleShot(true);
     m_asyncRevisionTimer.setInterval(50);
+    // Zero-interval single shot: each burst runs on its own event-loop turn,
+    // as DocumentImporter's stepped folder import does.
+    m_redirectTimer.setSingleShot(true);
+    m_redirectTimer.setInterval(0);
+    connect(&m_redirectTimer, &QTimer::timeout,
+            this, &NoteCollection::stepRedirectRewrite);
     connect(&m_asyncListingWatcher, &QFutureWatcher<AsyncScanListing>::finished,
             this, &NoteCollection::applyAsyncScanListing);
     connect(&m_asyncWatcher, &QFutureWatcher<AsyncIndexResult>::resultReadyAt,
@@ -140,6 +157,7 @@ NoteCollection::NoteCollection(QObject *parent)
 
 NoteCollection::~NoteCollection()
 {
+    cancelRedirectRewrite();
     cancelAsyncScan();
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
@@ -181,6 +199,9 @@ bool NoteCollection::openRoot(const QString &path)
     // the open note's live journal.
     loadRecoveryEntries();
     resumePendingOperations();
+    // A redirect still on disk is a rename whose rewrite did not finish, so
+    // opening the vault picks it up where it stopped.
+    scheduleRedirectRewrite();
 
     emit rootChanged();
     bump();
@@ -226,6 +247,7 @@ void NoteCollection::closeRoot()
     m_collectionState.flushIfDirty();
     if (m_collectionState.isDirty())
         return;
+    cancelRedirectRewrite();
     cancelAsyncScan();
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
@@ -306,6 +328,18 @@ bool NoteCollection::prepareRootPath(const QString &path)
         emit vaultInUse(absolute, m_vaultLock.blockingHolder().describe());
         return false;
     }
+    if (lock == VaultLock::Result::HeldInThisProcess) {
+        // The same refusal, for the case the kernel cannot see. Each open
+        // collection holds its own snapshot of this vault and writes whole
+        // files back from it, so a second writing session here would discard
+        // the first one's work exactly as a second process would.
+        emit vaultInUse(
+            absolute,
+            tr("This vault is already open for editing in this application. "
+               "Only one editing session at a time can write to a vault; "
+               "close the other one first."));
+        return false;
+    }
 
     m_rootPath = absolute;
     m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
@@ -333,6 +367,7 @@ void NoteCollection::attachStoresToRoot()
     m_recoveryJournals.setRootPath(m_rootPath);
     m_indexFile.setRootPath(m_rootPath);
     m_operations.setRootPath(m_rootPath);
+    m_redirects.setRootPath(m_rootPath);
     m_collectionState.setRoot(m_rootPath, m_canonicalRoot);
 }
 
@@ -356,6 +391,10 @@ void NoteCollection::refresh()
     perf.addContext(QStringLiteral("folders"), m_folders.size());
     bump();
     syncSearchIndex();
+    // A rescan can reveal notes the rewrite has not visited — one that was
+    // open when the pass ran, one that arrived from outside — so the pass is
+    // offered the new listing.
+    scheduleRedirectRewrite();
 }
 
 void NoteCollection::fullRefreshAsync()
@@ -851,6 +890,11 @@ void NoteCollection::insertNoteEntry(const QString &relPath,
     m_notes.insert(relPath, entry);
     adjustFolderNoteCounts(entry.folder, 1);
     m_wikiLinks.invalidate();
+    // A note now stands where one was renamed away from, so the redirect
+    // that stood in for it is over. Resolution would prefer the file anyway;
+    // this stops the dead entry being carried into the next session.
+    if (!m_redirects.isEmpty() && m_redirects.dropFrom(relPath))
+        m_redirects.save();
     if (wasUnknown && entry.fileSize >= 0)
         emit noteMetadataReady(relPath);
 }
@@ -1010,13 +1054,23 @@ void NoteCollection::resumePendingOperations()
                     resumed = false;
                 }
             }
-        } else if (plan.kind == QLatin1String("wikiLinks")
-                   && !remaining.isEmpty()) {
-            // A link rewrite cannot be replayed from the plan alone — the
-            // rename it followed has already happened — so what the plan
-            // buys here is the report, plus the reparse above that keeps the
-            // index honest about the files it did reach.
-            resumed = false;
+        } else if (plan.kind == QLatin1String("wikiLinks")) {
+            // A plan left by a version that rewrote every referring note
+            // before the rename returned. Those are the vaults where an
+            // interrupted rename really did leave notes pointing at a name
+            // nothing answers, and the plan names both ends of the move, so
+            // it converts into the redirect this design would have recorded
+            // instead: the links resolve again at once and the pass
+            // scheduled after this finishes the rewrite. Nothing is left to
+            // report to the user, which is why no unfinished entry is added.
+            const QString oldPath =
+                plan.payload.value(QStringLiteral("oldPath")).toString();
+            const QString newPath =
+                plan.payload.value(QStringLiteral("newPath")).toString();
+            if (!m_notes.contains(oldPath) && m_notes.contains(newPath)
+                && m_redirects.record(oldPath, newPath)) {
+                m_redirects.save();
+            }
         }
         // Anything else — a single metadata edit interrupted before it wrote
         // — leaves nothing to finish. The file was not changed, and the
@@ -1143,6 +1197,7 @@ void NoteCollection::finishAsyncScan()
     // multi-file operation needs: the startup path cannot do it before the
     // background scan has caught up.
     resumePendingOperations();
+    scheduleRedirectRewrite();
     if (m_asyncSavedNotePendingFlush) {
         saveIndexFileIfDirtyAsync();
         m_asyncSavedNotePendingFlush = false;
@@ -1660,154 +1715,345 @@ QVariantMap NoteCollection::renamePlanMap(const RenamePlan &plan) const
             {QStringLiteral("files"), details}};
 }
 
-QVariantMap NoteCollection::applyWikiLinkRewrites(
+// ------------------------------------------------------ rename redirects
+
+void NoteCollection::followRenameInRedirects(const QString &oldRelPath,
+                                             const QString &newRelPath)
+{
+    if (m_redirects.isEmpty())
+        return;
+    if (m_redirects.retarget(oldRelPath, newRelPath))
+        m_redirects.save();
+}
+
+bool NoteCollection::recordRenameRedirects(const RenamePlan &plan)
+{
+    if (plan.oldPath == plan.newPath)
+        return false;
+    bool recorded = false;
+    if (plan.kind == QLatin1String("folderRename")) {
+        // A redirect names a note, never a directory, so a renamed folder
+        // records one per note it carried. That is what makes a qualified
+        // [[Old Folder/Note]] keep resolving; a bare [[Note]] never stopped.
+        const QString newPrefix = plan.newFolderPrefix + QLatin1Char('/');
+        for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+            if (!it.key().startsWith(newPrefix))
+                continue;
+            const QString oldPath = plan.oldFolderPrefix
+                + it.key().mid(plan.newFolderPrefix.size());
+            if (m_redirects.record(oldPath, it.key()))
+                recorded = true;
+        }
+    } else if (m_redirects.record(plan.oldPath, plan.newPath)) {
+        recorded = true;
+    }
+    return recorded;
+}
+
+QVariantMap NoteCollection::startRedirectedLinkRewrite(
     const RenamePlan &plan, const QString &openRelPath, const QString &openBody)
 {
-    if (plan.referrers.isEmpty())
-        return {{QStringLiteral("linkCount"), 0},
-                {QStringLiteral("noteCount"), 0}};
+    const bool recorded = recordRenameRedirects(plan);
+    // Both the renamed note's own name and the referrers' targets resolve
+    // differently now, and the cached basename map predates the move.
+    m_wikiLinks.invalidate();
 
-    QString title = nameOfRelPath(plan.newPath);
-    if (title.endsWith(mdSuffix, Qt::CaseInsensitive))
-        title.chop(mdSuffix.size());
-    QString replacement = title;
-    if (resolveWikiTarget(title) != plan.newPath) {
-        replacement = plan.newPath;
-        if (replacement.endsWith(mdSuffix, Qt::CaseInsensitive))
-            replacement.chop(mdSuffix.size());
-    }
-
-    int linkCount = 0;
-    int noteCount = 0;
-    int indexedNoteCount = 0;
-    QStringList skipped;
-    QStringList failed;
+    // The one file this cannot hand to the background pass: the open note's
+    // authoritative text is in the block model, not on disk, so its rewrite
+    // is returned to the caller to apply as one undoable body replacement.
     QString rewrittenOpenBody;
     int openRewriteCount = 0;
-    QStringList sorted = plan.referrers.keys();
-    sorted.sort();
-
-    // Every referrer is named before the first one is rewritten. A crash part
-    // way through used to leave some notes pointing at the new name and some
-    // at the old, with nothing on disk saying that one operation was meant to
-    // cover both; the next start can now at least reparse them all and tell
-    // the user which ones were not reached.
-    QJsonObject journalPayload;
-    journalPayload.insert(QStringLiteral("kind"), plan.kind);
-    journalPayload.insert(QStringLiteral("oldPath"), plan.oldPath);
-    journalPayload.insert(QStringLiteral("newPath"), plan.newPath);
-    journalPayload.insert(QStringLiteral("replacement"), replacement);
-    beginOperationPlan(QStringLiteral("wikiLinks"), journalPayload, sorted);
-    for (const QString &referrer : sorted) {
-        const RewriteSnapshot &snapshot = plan.referrers.value(referrer);
-        QString actual = referrer;
-        if ((plan.kind == QLatin1String("noteRename")
-             || plan.kind == QLatin1String("noteMove"))
-            && referrer == plan.oldPath) {
-            actual = plan.newPath;
-        } else if (plan.kind == QLatin1String("folderRename")
-                   && (referrer == plan.oldFolderPrefix
-                       || referrer.startsWith(plan.oldFolderPrefix
-                                              + QLatin1Char('/')))) {
-            actual = plan.newFolderPrefix
-                + referrer.mid(plan.oldFolderPrefix.size());
-        }
-
-        const bool isOpen = !openRelPath.isEmpty()
-            && (openRelPath == referrer || openRelPath == actual);
-        bool ok = false;
-        const QByteArray bytes = readFileBytes(absolutePath(actual), &ok);
-        if (!ok) {
-            failed.append(actual);
-            continue;
-        }
-        if (!isOpen && contentHash(bytes) != snapshot.hash) {
-            skipped.append(actual);
-            continue;
-        }
-
-        QString body;
-        QString frontMatter;
-        if (isOpen) {
-            body = openBody;
-        } else {
-            const NoteFrontMatter::Split split =
-                NoteFrontMatter::split(QString::fromUtf8(bytes));
-            frontMatter = split.block;
-            body = split.body;
-        }
-
-        int n = 0;
-        if (plan.kind == QLatin1String("folderRename")) {
-            QList<WikiLinkScanner::Occurrence> replacements;
-            const QString oldLower = plan.oldFolderPrefix.toLower()
-                + QLatin1Char('/');
-            for (const WikiLinkScanner::Occurrence &occurrence :
-                 WikiLinkScanner::scan(body)) {
-                QString note = occurrence.note;
-                bool leadingSlash = note.startsWith(QLatin1Char('/'));
-                while (note.startsWith(QLatin1Char('/')))
-                    note.remove(0, 1);
-                if (!note.toLower().startsWith(oldLower))
-                    continue;
-                WikiLinkScanner::Occurrence repl = occurrence;
-                repl.note = (leadingSlash ? QStringLiteral("/") : QString())
-                    + plan.newFolderPrefix
-                    + note.mid(plan.oldFolderPrefix.size());
-                replacements.append(repl);
-            }
-            for (int i = replacements.size() - 1; i >= 0; --i) {
-                const auto &repl = replacements.at(i);
-                body.replace(repl.noteStart, repl.noteLength, repl.note);
-            }
-            n = replacements.size();
-        } else {
-            QSet<QString> staleKeys;
-            for (const QString &key : snapshot.keys) {
-                if (resolveWikiTarget(key) != plan.newPath)
-                    staleKeys.insert(key);
-            }
-            n = rewriteWikiTargetsInText(&body, staleKeys, replacement);
-        }
-        if (n <= 0)
-            continue;
-
-        if (isOpen) {
+    if (!openRelPath.isEmpty() && !openBody.isEmpty()) {
+        QString body = openBody;
+        openRewriteCount = rewriteRedirectedTargetsInText(&body);
+        if (openRewriteCount > 0) {
             rewrittenOpenBody = body;
-            openRewriteCount = n;
-        } else {
-            emit aboutToWrite(absolutePath(actual));
-            if (!writeTextFileAtomic(absolutePath(actual), frontMatter + body)) {
-                failed.append(actual);
-                continue;
-            }
-            m_operations.markDone(m_activeOperationPlan, referrer);
-            indexNote(actual);
-            reindexNoteInSearch(actual);
-            ++indexedNoteCount;
+            m_redirectLinkCount += openRewriteCount;
+            ++m_redirectNoteCount;
         }
-        linkCount += n;
-        ++noteCount;
     }
-    if (noteCount > 0)
-        emit wikiLinksRewritten(linkCount, noteCount);
-    if (indexedNoteCount > 0) {
+
+    // A redirect nothing names is already settled: a rename in a vault where
+    // no note linked to the old title records nothing, and a folder rename
+    // keeps only the entries some qualified link actually needs.
+    const bool pruned = pruneSettledRedirects();
+    if (recorded || pruned)
+        m_redirects.save();
+
+    scheduleRedirectRewrite();
+
+    // What the dialog promised, which is what the plan measured. The pass
+    // reports what it actually wrote through wikiLinksRewritten when it is
+    // done.
+    int linkCount = 0;
+    for (auto it = plan.referrers.constBegin();
+         it != plan.referrers.constEnd(); ++it) {
+        linkCount += it.value().linkCount;
+    }
+    return {{QStringLiteral("linkCount"), linkCount},
+            {QStringLiteral("noteCount"), int(plan.referrers.size())},
+            {QStringLiteral("skipped"), QStringList()},
+            {QStringLiteral("failed"), QStringList()},
+            {QStringLiteral("openBody"), rewrittenOpenBody},
+            {QStringLiteral("openRewriteCount"), openRewriteCount}};
+}
+
+QString NoteCollection::redirectedTargetFor(const QString &rawTarget) const
+{
+    if (m_redirects.isEmpty())
+        return QString();
+    const QString normalized = WikiLinkIndex::normalizeTarget(rawTarget);
+    if (normalized.isEmpty())
+        return QString();
+    // Only a target that names no note at all is the table's business. One
+    // that resolves is already right, and one two notes answer at once is
+    // ambiguous on its own terms — picking a redirect for it would be this
+    // pass inventing a meaning the user never wrote.
+    if (m_wikiLinks.resolution(normalized, false)
+            .value(QStringLiteral("status")) != QLatin1String("missing")) {
+        return QString();
+    }
+    const QString target = m_redirects.targetFor(normalized);
+    return m_notes.contains(target) ? target : QString();
+}
+
+QString NoteCollection::redirectReplacementFor(const QString &notePart,
+                                               const QString &newPath) const
+{
+    const QString prefix = notePart.startsWith(QLatin1Char('/'))
+        ? QStringLiteral("/") : QString();
+    QString stripped = notePart;
+    while (stripped.startsWith(QLatin1Char('/')))
+        stripped.remove(0, 1);
+
+    QString path = newPath;
+    if (path.endsWith(mdSuffix, Qt::CaseInsensitive))
+        path.chop(mdSuffix.size());
+    // A qualified link keeps its shape: the user wrote a path because a bare
+    // name was not what they meant, and shortening it here would silently
+    // widen what the link can match.
+    if (stripped.contains(QLatin1Char('/')))
+        return prefix + path;
+
+    QString title = nameOfRelPath(newPath);
+    if (title.endsWith(mdSuffix, Qt::CaseInsensitive))
+        title.chop(mdSuffix.size());
+    return m_wikiLinks.resolve(title, false) == newPath ? prefix + title
+                                                        : prefix + path;
+}
+
+int NoteCollection::rewriteRedirectedTargetsInText(QString *text) const
+{
+    if (!text || m_redirects.isEmpty())
+        return 0;
+    // Keys grouped by what replaces them: two links in one note can lead
+    // through different redirects, and each group is one surgical pass that
+    // leaves alias, anchor and spacing byte-exact.
+    QHash<QString, QSet<QString>> byReplacement;
+    for (const WikiLinkScanner::Occurrence &occurrence :
+         WikiLinkScanner::scan(*text)) {
+        if (occurrence.note.isEmpty())
+            continue;
+        const QString target = redirectedTargetFor(occurrence.note);
+        if (target.isEmpty())
+            continue;
+        QString key = occurrence.note.toLower();
+        if (key.endsWith(mdSuffix))
+            key.chop(mdSuffix.size());
+        byReplacement[redirectReplacementFor(occurrence.note, target)]
+            .insert(key);
+    }
+    int rewritten = 0;
+    for (auto it = byReplacement.constBegin(); it != byReplacement.constEnd();
+         ++it) {
+        rewritten += WikiLinkIndex::rewriteTargetsInText(text, it.value(),
+                                                         it.key());
+    }
+    return rewritten;
+}
+
+bool NoteCollection::noteLinksThroughARedirect(const NoteEntry &entry) const
+{
+    for (const QString &target : entry.links) {
+        if (!redirectedTargetFor(target).isEmpty())
+            return true;
+    }
+    return false;
+}
+
+void NoteCollection::scheduleRedirectRewrite()
+{
+    // A read-only session writes nothing, so it honours the redirects it
+    // finds and leaves the rewrite to whoever holds the vault for writing.
+    if (!isOpen() || m_readOnly || m_redirects.isEmpty())
+        return;
+
+    // The index already knows which notes name a redirected path — each
+    // entry carries its outgoing targets — so deciding what the pass has to
+    // visit costs no reading at all.
+    m_redirectQueue.clear();
+    m_redirectIndex = 0;
+    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        // A placeholder stands for a note nothing has parsed yet; its links
+        // are unknown rather than absent, and the scan that reads it ends
+        // with another pass.
+        if (it->fileSize < 0)
+            continue;
+        if (openDocumentIs(it.key()))
+            continue;
+        if (noteLinksThroughARedirect(it.value()))
+            m_redirectQueue.append(it.key());
+    }
+    m_redirectQueue.sort();
+    if (m_redirectQueue.isEmpty()) {
+        finishRedirectRewrite();
+        return;
+    }
+    // Deliberately not rewriting anything yet: the rename returns to its
+    // caller first, and every link already resolves through the table.
+    m_redirectTimer.start();
+}
+
+void NoteCollection::stepRedirectRewrite()
+{
+    if (!isOpen() || m_readOnly) {
+        cancelRedirectRewrite();
+        return;
+    }
+
+    QElapsedTimer burst;
+    burst.start();
+    bool wrote = false;
+    while (m_redirectIndex < m_redirectQueue.size()) {
+        const QString relPath = m_redirectQueue.at(m_redirectIndex++);
+        if (!m_notes.contains(relPath))
+            continue;
+        // Opened, or edited, since the queue was built. The document session
+        // is the only writer for its note, and its in-memory body is what
+        // the user is looking at; rewriting the file underneath it would
+        // either be overwritten by the next save or overwrite the edits in
+        // it. The redirect simply stays until the note is closed.
+        if (openDocumentIs(relPath))
+            continue;
+
+        const QString absPath = absolutePath(relPath);
+        bool ok = false;
+        const QByteArray bytes = readFileBytes(absPath, &ok);
+        if (!ok) {
+            m_redirectFailed.append(relPath);
+            continue;
+        }
+        // Read immediately before writing rather than from a snapshot taken
+        // when the rename ran: whatever the file has gained since — a save,
+        // an external edit — is the text being rewritten, so no other
+        // change is discarded.
+        const NoteFrontMatter::Split split =
+            NoteFrontMatter::split(QString::fromUtf8(bytes));
+        QString body = split.body;
+        const int rewritten = rewriteRedirectedTargetsInText(&body);
+        if (rewritten <= 0)
+            continue;
+
+        emit aboutToWrite(absPath);
+        if (!writeTextFileAtomic(absPath, split.block + body)) {
+            m_redirectFailed.append(relPath);
+            continue;
+        }
+        indexNote(relPath);
+        reindexNoteInSearch(relPath);
+        m_redirectLinkCount += rewritten;
+        ++m_redirectNoteCount;
+        wrote = true;
+
+        if (burst.elapsed() >= kRedirectBurstMs)
+            break;
+    }
+
+    if (wrote) {
         markIndexDirty();
         saveIndexFileIfDirty();
         bump();
-    } else {
-        // Nothing was written, so there is no half-finished operation for the
-        // next start to hear about.
-        abandonOwnOperationPlan();
     }
-    if (!skipped.isEmpty() || !failed.isEmpty())
-        emit wikiLinkRewriteIncomplete(skipped, failed);
-    return {{QStringLiteral("linkCount"), linkCount},
-            {QStringLiteral("noteCount"), noteCount},
-            {QStringLiteral("skipped"), skipped},
-            {QStringLiteral("failed"), failed},
-            {QStringLiteral("openBody"), rewrittenOpenBody},
-            {QStringLiteral("openRewriteCount"), openRewriteCount}};
+    if (m_redirectIndex >= m_redirectQueue.size()) {
+        finishRedirectRewrite();
+        return;
+    }
+    m_redirectTimer.start();
+}
+
+void NoteCollection::finishRedirectRewrite()
+{
+    m_redirectTimer.stop();
+    m_redirectQueue.clear();
+    m_redirectIndex = 0;
+    if (pruneSettledRedirects())
+        m_redirects.save();
+
+    const int links = m_redirectLinkCount;
+    const int notes = m_redirectNoteCount;
+    const QStringList failed = m_redirectFailed;
+    m_redirectLinkCount = 0;
+    m_redirectNoteCount = 0;
+    m_redirectFailed.clear();
+    if (notes > 0)
+        emit wikiLinksRewritten(links, notes);
+    if (!failed.isEmpty())
+        emit wikiLinkRewriteIncomplete(QStringList(), failed);
+}
+
+void NoteCollection::cancelRedirectRewrite()
+{
+    m_redirectTimer.stop();
+    m_redirectQueue.clear();
+    m_redirectIndex = 0;
+    m_redirectLinkCount = 0;
+    m_redirectNoteCount = 0;
+    m_redirectFailed.clear();
+}
+
+bool NoteCollection::pruneSettledRedirects()
+{
+    if (m_redirects.isEmpty())
+        return false;
+    // A redirect exists to keep links working until the notes holding them
+    // have been rewritten, so the question that ends it — does any note
+    // still name the old path? — is answered from the resident link lists
+    // rather than by reading the vault again.
+    QSet<QString> stillNamed;
+    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        for (const QString &target : it->links) {
+            const QString normalized = WikiLinkIndex::normalizeTarget(target);
+            if (normalized.isEmpty())
+                continue;
+            if (m_wikiLinks.resolution(normalized, false)
+                    .value(QStringLiteral("status")) != QLatin1String("missing"))
+                continue;
+            if (const LinkRedirects::Entry *entry =
+                    m_redirects.lookup(normalized)) {
+                stillNamed.insert(entry->from);
+            }
+        }
+    }
+    // A redirect whose destination has itself gone has nothing left to
+    // offer; the links it covered are broken whatever the table says.
+    for (const LinkRedirects::Entry &entry : m_redirects.entries()) {
+        if (!m_notes.contains(entry.to))
+            stillNamed.remove(entry.from);
+    }
+    return m_redirects.retainFrom(stillNamed);
+}
+
+QString NoteCollection::redirectedNotePath(const QString &oldRelPath) const
+{
+    return m_redirects.targetFor(WikiLinkIndex::normalizeTarget(oldRelPath));
+}
+
+QVariantMap NoteCollection::linkRedirectsForTesting() const
+{
+    QVariantMap map;
+    for (const LinkRedirects::Entry &entry : m_redirects.entries())
+        map.insert(entry.from, entry.to);
+    return map;
 }
 
 
@@ -2173,35 +2419,15 @@ QVariantMap NoteCollection::applyRenamePlan(const QString &planId,
                        {QStringLiteral("linkCount"), 0},
                        {QStringLiteral("noteCount"), 0}};
     if (updateLinks) {
+        // Nothing else is written here. The redirect this records is what
+        // keeps every [[link]] to the old name resolving, from now until the
+        // background pass has rewritten the notes holding them; there is no
+        // window in which a link is broken and so nothing for the caller to
+        // retry.
         const QVariantMap rewrite =
-            applyWikiLinkRewrites(plan, openRelPath, openBody);
+            startRedirectedLinkRewrite(plan, openRelPath, openBody);
         for (auto it = rewrite.constBegin(); it != rewrite.constEnd(); ++it)
             result.insert(it.key(), it.value());
-        if (!rewrite.value(QStringLiteral("skipped")).toStringList().isEmpty()
-            || !rewrite.value(QStringLiteral("failed")).toStringList().isEmpty()) {
-            // An explicit Retry should operate on the latest bytes and is
-            // idempotent because the scanner only replaces still-old targets.
-            for (auto it = m_pendingRenamePlan.referrers.begin();
-                 it != m_pendingRenamePlan.referrers.end(); ++it) {
-                QString actual = it.key();
-                if ((plan.kind == QLatin1String("noteRename")
-                     || plan.kind == QLatin1String("noteMove"))
-                    && actual == plan.oldPath)
-                    actual = plan.newPath;
-                else if (plan.kind == QLatin1String("folderRename")
-                         && actual.startsWith(plan.oldFolderPrefix
-                                              + QLatin1Char('/')))
-                    actual = plan.newFolderPrefix
-                        + actual.mid(plan.oldFolderPrefix.size());
-                bool ok = false;
-                const QByteArray bytes = readFileBytes(absolutePath(actual), &ok);
-                if (ok) {
-                    it->hash = contentHash(bytes);
-                    it->modified = QFileInfo(absolutePath(actual)).lastModified();
-                }
-            }
-            return result;
-        }
     }
     m_pendingRenamePlan = RenamePlan();
     return result;
@@ -2244,6 +2470,7 @@ bool NoteCollection::renameNote(const QString &relPath, const QString &newTitle)
     moved.fileSize = QFileInfo(absolutePath(newRelPath)).size();
     insertNoteEntry(newRelPath, moved);
     markIndexDirty();
+    followRenameInRedirects(relPath, newRelPath);
 
     // Keep the manual-order position.
     QStringList &order = m_manualOrder[moved.folder];
@@ -2301,6 +2528,7 @@ bool NoteCollection::moveNote(const QString &relPath, const QString &targetFolde
     moved.fileSize = QFileInfo(absolutePath(newRelPath)).size();
     insertNoteEntry(newRelPath, moved);
     markIndexDirty();
+    followRenameInRedirects(relPath, newRelPath);
 
     m_manualOrder[oldFolder].removeAll(name);
     m_manualOrder[targetFolder].append(name);
@@ -2381,6 +2609,9 @@ bool NoteCollection::deleteNote(const QString &relPath)
     if (wasOpen)
         emit openNoteRemoved(relPath);
     dropNoteInSearch(relPath);
+    // A redirect pointing at a note that no longer exists is over, and one
+    // whose remaining referrer was this note has nothing left to cover.
+    scheduleRedirectRewrite();
     return true;
 }
 
@@ -2448,6 +2679,7 @@ void NoteCollection::renamePathsUnderFolder(const QString &oldPrefix,
             if (m_lastOpenNote == key)
                 m_lastOpenNote = newRelPath;
             rebindOpenDocument(key, newRelPath);
+            followRenameInRedirects(key, newRelPath);
             emit noteMoved(key, newRelPath);
         }
     }
@@ -2570,6 +2802,7 @@ bool NoteCollection::deleteFolder(const QString &relPath)
         emit openNoteRemoved(openRelPath);
     // Reconcile drops every note that moved into the trash.
     syncSearchIndex();
+    scheduleRedirectRewrite();
     return true;
 }
 
