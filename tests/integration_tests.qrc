@@ -5,6 +5,8 @@
         <file>tst_visual.qml</file>
         <file alias="qml/main.qml">../qml/main.qml</file>
         <file alias="qml/EditableBlock.qml">../qml/EditableBlock.qml</file>
+        <file alias="qml/MathEntryAssist.qml">../qml/MathEntryAssist.qml</file>
+        <file alias="qml/WikiLinkCompletion.qml">../qml/WikiLinkCompletion.qml</file>
         <file alias="qml/CrossBlockTextSelection.qml">../qml/CrossBlockTextSelection.qml</file>
         <file alias="qml/BlockGutter.qml">../qml/BlockGutter.qml</file>
         <file alias="qml/DropCapOverlay.qml">../qml/DropCapOverlay.qml</file>

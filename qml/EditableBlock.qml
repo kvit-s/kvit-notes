@@ -934,62 +934,24 @@ BlockDelegateBase {
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
     }
 
-    // ---- Math-entry assistance ----
-    // Tab slot-chain: armed by a menu insertion; Tab hops between the
-    // empty {} / [] pairs inside the current math span.
-    property bool mathSlotChain: false
-    // Transient $-pair tracking: document position of the opening $ of a
-    // freshly auto-paired $$, else -1. Governs Backspace-deletes-both,
-    // Delete-leaves-literal, and $-types-over while the caret stays
-    // inside the pair.
-    property int dollarPairOpenPos: -1
-
-    // The window's math command menu while it is open FOR THIS EDITOR,
-    // else null (the activeBlockMenu() pattern).
-    function activeMathMenu() {
-        return delegate.shell ? delegate.shell.activeMathMenu(textArea) : null
+    // ---- Assisted entry ----
+    // Two constructs a prose block helps type: inline mathematics, and
+    // wiki-links. Each owns its own transient state and its own share of the
+    // key handler, and each is opened against a menu the window keeps one of.
+    MathEntryAssist {
+        id: mathEntry
+        editor: textArea
+        engine: editorEngine
+        shell: delegate.shell
+        verbatim: delegate.verbatimEditing
     }
 
-    function openMathMenu() {
-
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var topLeft = textArea.mapToItem(null, rect.x, rect.y)
-        AppActions.requestMathCommandMenu(textArea,
-            Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height),
-            false /* inline context: single-line templates */)
-        textArea.syncMathMenuQuery()
-    }
-
-    // ---- Wiki-link completion ----
-    // The window's wiki-link menu while it is open FOR THIS EDITOR, else
-    // null (the activeMathMenu() pattern).
-    function activeWikiMenu() {
-        return delegate.shell ? delegate.shell.activeWikiMenu(textArea) : null
-    }
-
-    function openWikiMenu() {
-
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var topLeft = textArea.mapToItem(null, rect.x, rect.y)
-        AppActions.requestWikiLinkMenu(textArea,
-            Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
-        textArea.syncWikiMenuQuery()
-    }
-
-    // The pair's closing $ position while tracking is valid for the
-    // current caret, else -1: the opening $ still stands, the caret is
-    // inside the pair, and the next $ is at or right of the caret.
-    function dollarPairClosePos() {
-        var open = dollarPairOpenPos
-        if (open < 0 || open >= textArea.text.length
-            || textArea.text.charAt(open) !== "$")
-            return -1
-        if (textArea.cursorPosition <= open)
-            return -1
-        var close = textArea.text.indexOf("$", open + 1)
-        if (close < 0 || close < textArea.cursorPosition)
-            return -1
-        return close
+    WikiLinkCompletion {
+        id: wikiCompletion
+        editor: textArea
+        engine: editorEngine
+        shell: delegate.shell
+        verbatim: delegate.verbatimEditing
     }
 
     // The gutter plus-button (features.md §3.7): insert an empty
@@ -1852,10 +1814,9 @@ BlockDelegateBase {
                 onTextChanged: {
                     if (DocumentSelection.hasTextSelection && !activeFocus)
                         crossBlockSelection.applyTextPortionLater()
-                    if (delegate.activeMathMenu()
-                        || delegate.dollarPairOpenPos >= 0)
+                    if (mathEntry.tracking())
                         Qt.callLater(settleMathEntryState)
-                    if (delegate.activeWikiMenu())
+                    if (wikiCompletion.activeMenu())
                         Qt.callLater(syncWikiMenuQuery)
                 }
 
@@ -1867,197 +1828,30 @@ BlockDelegateBase {
                 // edit, so an immediate read sees an inconsistent
                 // snapshot and would mis-dismiss.
                 onCursorPositionChanged: {
-                    if (delegate.activeMathMenu()
-                        || delegate.dollarPairOpenPos >= 0)
+                    if (mathEntry.tracking())
                         Qt.callLater(settleMathEntryState)
-                    if (delegate.activeWikiMenu())
+                    if (wikiCompletion.activeMenu())
                         Qt.callLater(syncWikiMenuQuery)
                 }
 
-                function settleMathEntryState() {
-                    syncMathMenuQuery()
-                    if (delegate.dollarPairOpenPos >= 0
-                        && delegate.dollarPairClosePos() < 0)
-                        delegate.dollarPairOpenPos = -1
-                }
+                // Named here rather than passed straight through, so
+                // Qt.callLater sees one function per editor and collapses
+                // repeats of it the way it did before the split.
+                function settleMathEntryState() { mathEntry.settleState() }
+                function syncWikiMenuQuery() { wikiCompletion.syncQuery() }
 
                 onActiveFocusChanged: {
                     if (!activeFocus) {
-                        delegate.dollarPairOpenPos = -1
-                        delegate.mathSlotChain = false
-                        var mathMenu = delegate.activeMathMenu()
-                        if (mathMenu)
-                            mathMenu.dismiss()
-                        var wikiMenu = delegate.activeWikiMenu()
-                        if (wikiMenu)
-                            wikiMenu.dismiss()
+                        mathEntry.releaseOnFocusLoss()
+                        wikiCompletion.releaseOnFocusLoss()
                     }
                 }
 
-                // The backslash-word ending at the caret — {trigger,
-                // query} or null. Derived from content rather than a
-                // stored position: reveal transitions rewrite the
-                // document (the span materializing around the fresh
-                // "$\a$" bounces it), so any saved document offset goes
-                // stale mid-word; the content at the caret never does.
-                function mathWordAtCaret() {
-                    var pos = cursorPosition
-                    // TeX control symbols are one non-letter character.
-                    // These five are the symbol-style commands in the menu.
-                    if (pos >= 2 && text.charAt(pos - 2) === "\\"
-                        && /^[|,;:!]$/.test(text.charAt(pos - 1))) {
-                        return { trigger: pos - 2,
-                                 query: text.charAt(pos - 1) }
-                    }
-                    var s = pos
-                    while (s > 0 && /[A-Za-z]/.test(text.charAt(s - 1)))
-                        s--
-                    if (s === 0 || text.charAt(s - 1) !== "\\")
-                        return null
-                    // A second backslash right after the trigger is the
-                    // "\\" (row break) query.
-                    if (s === pos && s > 1 && text.charAt(s - 2) === "\\")
-                        return { trigger: s - 2, query: "\\" }
-                    return { trigger: s - 1, query: text.substring(s, pos) }
-                }
+                // The shared menus call these on their host editor, so both
+                // names have to live on the TextArea itself.
+                function applyMathCommand(row) { mathEntry.applyCommand(row) }
+                function applyWikiCompletion(row) { wikiCompletion.applyCompletion(row) }
 
-                // Recompute the math-menu query; when the caret no longer
-                // ends a backslash-word (trigger deleted, caret moved
-                // away, non-letter typed) the menu closes with the text
-                // kept.
-                function syncMathMenuQuery() {
-                    var menu = delegate.activeMathMenu()
-                    if (!menu)
-                        return
-                    var word = mathWordAtCaret()
-                    if (!word) {
-                        menu.dismiss()
-                        return
-                    }
-                    menu.updateQuery(word.query)
-                }
-
-                // The "[[…" run ending at the caret — {trigger, query} or
-                // null. Content-derived, like mathWordAtCaret: reveal
-                // transitions rewrite the document, so stored offsets go
-                // stale but the text at the caret never does (§3.5).
-                function wikiWordAtCaret() {
-                    var pos = cursorPosition
-                    var open = text.lastIndexOf("[[", Math.max(0, pos - 2))
-                    if (open < 0 || open + 2 > pos)
-                        return null
-                    var between = text.substring(open + 2, pos)
-                    if (between.indexOf("]]") >= 0
-                        || between.indexOf("[") >= 0
-                        || between.indexOf("\n") >= 0)
-                        return null
-                    return { trigger: open, query: between }
-                }
-
-                // Recompute the wiki-menu query; when the caret no longer
-                // sits in an open "[[…" run (trigger deleted, "]]" typed,
-                // caret moved away) the menu closes with the text kept.
-                function syncWikiMenuQuery() {
-                    var menu = delegate.activeWikiMenu()
-                    if (!menu)
-                        return
-                    var word = wikiWordAtCaret()
-                    if (!word) {
-                        menu.dismiss()
-                        return
-                    }
-                    menu.updateQuery(word.query)
-                }
-
-                // Insertion (the wiki menu hands the chosen row here):
-                // replace the whole "[[…" run with the completed link,
-                // caret after the closing "]]".
-                function applyWikiCompletion(row) {
-                    var word = wikiWordAtCaret()
-                    if (!word)
-                        return
-                    var insertText
-                    if (row.kind === "heading") {
-                        var hashIdx = word.query.indexOf("#")
-                        var targetPart = hashIdx >= 0
-                            ? word.query.substring(0, hashIdx) : ""
-                        insertText = "[[" + targetPart + "#"
-                                     + row.heading + "]]"
-                    } else {
-                        insertText = "[[" + row.target + "]]"
-                    }
-                    var start = word.trigger
-                    var end = cursorPosition
-                    remove(start, end)
-                    insert(start, insertText)
-                    cursorPosition = start + insertText.length
-                    forceActiveFocus()
-                }
-
-                // Insertion (the math menu hands the chosen row here):
-                // replace the backslash-word at the caret with the
-                // template, caret into the first slot, arm the Tab chain.
-                // Inline context always takes the single-line form.
-                function applyMathCommand(row) {
-                    var insertText = row.insert
-                    var offset = row.cursorOffset
-                    var word = mathWordAtCaret()
-                    var start = word ? word.trigger : cursorPosition
-                    var end = cursorPosition
-                    // A bare command fuses with a following letter
-                    // (\alphax); pad with a space.
-                    if (offset < 0 && end < text.length
-                        && /[A-Za-z]/.test(text.charAt(end))
-                        && /[A-Za-z]$/.test(insertText))
-                        insertText += " "
-                    remove(start, end)
-                    insert(start, insertText)
-                    cursorPosition = start
-                        + (offset >= 0 ? offset : insertText.length)
-                    delegate.mathSlotChain = insertText.indexOf("{}") >= 0
-                        || insertText.indexOf("[]") >= 0
-                    forceActiveFocus()
-                }
-
-                // The next (or previous) empty {} / [] pair inside the
-                // math span under the caret; false when none is left or
-                // the caret left the span — the chain ends there.
-                function jumpToNextMathSlot(backward) {
-                    var span = editorEngine.mathSpanRangeAt(cursorPosition)
-                    if (!span.found) {
-                        delegate.mathSlotChain = false
-                        return false
-                    }
-                    var from = span.docContentStart
-                    var to = Math.min(span.docContentEnd, text.length)
-                    var positions = []
-                    for (var i = from; i + 1 < to; ++i) {
-                        var two = text.substring(i, i + 2)
-                        if (two === "{}" || two === "[]")
-                            positions.push(i + 1)
-                    }
-                    if (positions.length === 0) {
-                        delegate.mathSlotChain = false
-                        return false
-                    }
-                    if (backward) {
-                        for (var j = positions.length - 1; j >= 0; --j) {
-                            if (positions[j] < cursorPosition) {
-                                cursorPosition = positions[j]
-                                return true
-                            }
-                        }
-                        return false
-                    }
-                    for (var k = 0; k < positions.length; ++k) {
-                        if (positions[k] > cursorPosition) {
-                            cursorPosition = positions[k]
-                            return true
-                        }
-                    }
-                    delegate.mathSlotChain = false
-                    return false
-                }
 
 
                 // Passive observer feeding the window's cross-block
@@ -2099,73 +1893,13 @@ BlockDelegateBase {
 
                 // Key handlers for Milestone 2, 3, 4, 5, and 7 features
                 Keys.onPressed: function(event) {
-                    // While the math command menu targets this editor it
-                    // owns navigation; Enter is claimed in handleReturn.
-                    // Everything else keeps typing, which feeds the query.
-                    var mathMenu = delegate.activeMathMenu()
-                    if (mathMenu) {
-                        if (event.key === Qt.Key_Down) {
-                            mathMenu.highlightNext()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Up) {
-                            mathMenu.highlightPrevious()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Left
-                            || event.key === Qt.Key_Right) {
-                            var consumed = event.key === Qt.Key_Left
-                                ? mathMenu.moveLeft() : mathMenu.moveRight()
-                            if (consumed) {
-                                event.accepted = true
-                                return
-                            }
-                            // Completion mode: the caret moves, menu closes.
-                            mathMenu.dismiss()
-                            return
-                        }
-                        if (event.key === Qt.Key_Tab) {
-                            mathMenu.applyHighlighted()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Escape) {
-                            // Closes the menu only; the editor keeps focus
-                            // and the next Escape behaves as before.
-                            mathMenu.dismiss()
-                            event.accepted = true
-                            return
-                        }
-                    }
-
-                    // While the wiki-link menu targets this editor it owns
-                    // navigation (§3.5); Enter is claimed in handleReturn.
-                    // Everything else keeps typing, which feeds the query.
-                    var wikiMenu = delegate.activeWikiMenu()
-                    if (wikiMenu) {
-                        if (event.key === Qt.Key_Down) {
-                            wikiMenu.highlightNext()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Up) {
-                            wikiMenu.highlightPrevious()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Tab) {
-                            wikiMenu.applyHighlighted()
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Escape) {
-                            wikiMenu.dismiss()
-                            event.accepted = true
-                            return
-                        }
-                    }
+                    // The open menus own their navigation keys; Enter is
+                    // claimed in handleReturn. Everything else keeps typing,
+                    // which is what filters them.
+                    if (mathEntry.handleMenuKey(event))
+                        return
+                    if (wikiCompletion.handleMenuKey(event))
+                        return
 
                     // While the block menu targets this block it owns
                     // Up/Down/Escape (features.md §4.1); Enter is claimed
@@ -2200,160 +1934,19 @@ BlockDelegateBase {
                             return
                     }
 
-                    // ---- Math-entry assistance ----
-
-                    // Backslash: the command-menu trigger — inside a math
-                    // context only. The gate pre-checks the span (the
-                    // transitional "$\$" state is not a parsed span, so a
-                    // post-insertion check would miss the primary flow) and
-                    // honors the fresh $-pair, which is not a span until it
-                    // has content. A second backslash right after the
-                    // trigger becomes the "\\" query instead of a new one.
-                    if (event.text === "\\" && !delegate.verbatimEditing) {
-                        var bsPos = selectionStart
-                        var inMathContext = delegate.dollarPairClosePos() >= 0
-                            || editorEngine.mathSpanRangeAt(bsPos).found
-                        if (mathMenu || inMathContext) {
-                            if (selectionEnd > selectionStart)
-                                remove(selectionStart, selectionEnd)
-                            insert(bsPos, "\\")
-                            cursorPosition = bsPos + 1
-                            // With the menu already open the sync derives
-                            // the new state (a "\\" query, or a fresh
-                            // trigger elsewhere in the formula).
-                            if (!mathMenu)
-                                delegate.openMathMenu()
-                            event.accepted = true
-                            return
-                        }
-                        // Plain prose: a literal backslash, default typing.
-                    }
-
-                    // "[[": the wiki-link completion trigger (§3.5) —
-                    // prose only (never in verbatim/code blocks), a
-                    // collection open, never inside a math span. The
-                    // second "[" is inserted by hand so the menu opens on
-                    // a settled document.
-                    if (event.text === "[" && !delegate.verbatimEditing
-                        && NoteCollection.isOpen
-                        && !delegate.activeWikiMenu()
-                        && selectionStart === selectionEnd
-                        && cursorPosition > 0
-                        && text.charAt(cursorPosition - 1) === "["
-                        && !editorEngine.mathSpanRangeAt(
-                               cursorPosition).found) {
-                        var bracketPos = cursorPosition
-                        insert(bracketPos, "[")
-                        cursorPosition = bracketPos + 1
-                        delegate.openWikiMenu()
-                        event.accepted = true
+                    // ---- Assisted entry ----
+                    // Order matters between these three. The backslash
+                    // trigger is checked before the wiki-link one so a
+                    // backslash inside a formula never reaches the bracket
+                    // test, and both run before the rest of math entry so a
+                    // menu that a keystroke has just opened is already
+                    // tracking by the time the $-pair and Tab rules look.
+                    if (mathEntry.handleBackslash(event))
                         return
-                    }
-
-                    // Ctrl+Space: re-trigger completion for the
-                    // backslash-word at the caret, inside a math span.
-                    if (event.key === Qt.Key_Space
-                        && (event.modifiers & Qt.ControlModifier)
-                        && !delegate.verbatimEditing
-                        && editorEngine.mathSpanRangeAt(cursorPosition).found) {
-                        var wordStart = cursorPosition
-                        while (wordStart > 0
-                               && /[A-Za-z]/.test(text.charAt(wordStart - 1)))
-                            wordStart--
-                        if (wordStart > 0
-                            && text.charAt(wordStart - 1) === "\\")
-                            delegate.openMathMenu()
-                        event.accepted = true
+                    if (wikiCompletion.handleBracket(event))
                         return
-                    }
-
-                    // Dollar auto-pair for entering inline math: type-over
-                    // the tracked closer, wrap a selection, or insert the
-                    // pair with the caret between — each gated by the
-                    // engine's suppression rules.
-                    if (event.text === "$" && !delegate.verbatimEditing) {
-                        var closePos = delegate.dollarPairClosePos()
-                        if (closePos >= 0 && closePos === cursorPosition
-                            && selectionStart === selectionEnd) {
-                            // Types over the auto-inserted $ instead of
-                            // inserting a third: "$x$" typed in full.
-                            delegate.dollarPairOpenPos = -1
-                            cursorPosition = closePos + 1
-                            event.accepted = true
-                            return
-                        }
-                        if (selectionEnd > selectionStart) {
-                            if (editorEngine.shouldAutoPairDollar(
-                                    selectionStart, true)) {
-                                var selStart = selectionStart
-                                var selEnd = selectionEnd
-                                var wrapped = "$"
-                                    + text.substring(selStart, selEnd) + "$"
-                                remove(selStart, selEnd)
-                                insert(selStart, wrapped)
-                                cursorPosition = selStart + wrapped.length
-                                event.accepted = true
-                                return
-                            }
-                            // Suppressed: default replace-selection typing.
-                        } else if (editorEngine.shouldAutoPairDollar(
-                                       cursorPosition)) {
-                            var pairPos = cursorPosition
-                            insert(pairPos, "$$")
-                            cursorPosition = pairPos + 1
-                            delegate.dollarPairOpenPos = pairPos
-                            event.accepted = true
-                            return
-                        }
-                        // Suppressed: a literal $, default typing.
-                    }
-
-                    // Backspace on the still-empty pair removes both
-                    // dollars — as if the keystroke never happened.
-                    if (event.key === Qt.Key_Backspace
-                        && selectionStart === selectionEnd
-                        && delegate.dollarPairOpenPos >= 0
-                        && cursorPosition === delegate.dollarPairOpenPos + 1
-                        && delegate.dollarPairClosePos()
-                           === delegate.dollarPairOpenPos + 1) {
-                        var openPos = delegate.dollarPairOpenPos
-                        delegate.dollarPairOpenPos = -1
-                        remove(openPos, openPos + 2)
-                        event.accepted = true
+                    if (mathEntry.handleEntryKey(event))
                         return
-                    }
-
-                    // Delete just before the tracked closer removes only
-                    // the auto-inserted $, leaving a literal dollar sign —
-                    // the escape hatch for typing $ as a character.
-                    if (event.key === Qt.Key_Delete
-                        && selectionStart === selectionEnd
-                        && delegate.dollarPairOpenPos >= 0) {
-                        var closer = delegate.dollarPairClosePos()
-                        if (closer >= 0 && closer === cursorPosition) {
-                            delegate.dollarPairOpenPos = -1
-                            remove(closer, closer + 1)
-                            event.accepted = true
-                            return
-                        }
-                    }
-
-                    // Tab slot-chain: hop between the empty {} / [] pairs
-                    // a template insertion left in the math span. Runs
-                    // before the list-indent Tab below.
-                    if (delegate.mathSlotChain && event.key === Qt.Key_Tab
-                        && !(event.modifiers & Qt.ControlModifier)) {
-                        if (jumpToNextMathSlot(false)) {
-                            event.accepted = true
-                            return
-                        }
-                    }
-                    if (delegate.mathSlotChain && event.key === Qt.Key_Backtab) {
-                        if (jumpToNextMathSlot(true)) {
-                            event.accepted = true
-                            return
-                        }
-                    }
 
                     // Escape drops an in-block selection (which also
                     // dismisses the formatting bar).
@@ -2728,29 +2321,13 @@ BlockDelegateBase {
                 //  - otherwise: continue/split (split inherits type and
                 //    indent; continuation type comes from createBlockBelow)
                 function handleReturn(event) {
-                    // Enter selects the highlighted entry while the math
-                    // command menu targets this editor.
-                    var mathMenu = delegate.activeMathMenu()
-                    if (mathMenu) {
-                        mathMenu.applyHighlighted()
-                        event.accepted = true
+                    // Enter takes the highlighted entry while either
+                    // assisted-entry menu targets this editor.
+                    if (mathEntry.handleReturn(event))
                         return
-                    }
+                    if (wikiCompletion.handleReturn(event))
+                        return
 
-                    // Enter completes the highlighted note/heading while
-                    // the wiki-link menu targets this editor (§3.5). With
-                    // no match the menu just closes and Enter splits as
-                    // usual — the typed link is already valid text.
-                    var wikiMenu = delegate.activeWikiMenu()
-                    if (wikiMenu) {
-                        if (wikiMenu.highlightIndex >= 0) {
-                            wikiMenu.applyHighlighted()
-                        } else {
-                            wikiMenu.dismiss()
-                        }
-                        event.accepted = true
-                        return
-                    }
 
                     // Enter selects the highlighted menu entry while the
                     // block menu targets this block (features.md §4.1)
