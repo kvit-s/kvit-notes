@@ -299,6 +299,7 @@ target_include_directories(kvit-platform PUBLIC src/platform)
 # and never through the class that implements it.
 add_library(kvit-repository STATIC
     src/repository/assetstore.cpp
+    src/repository/collectionstatestore.cpp
     src/repository/documentimporter.cpp
     src/repository/notebackupstore.cpp
     src/repository/notecollection.cpp
@@ -308,6 +309,7 @@ add_library(kvit-repository STATIC
     src/repository/notetrashstore.cpp
     src/repository/recoveryjournalstore.cpp
     src/repository/vaultlock.cpp
+    src/repository/vaultpaths.cpp
     src/repository/wikilinkindex.cpp
     src/repository/opendocumentsession.h
 )

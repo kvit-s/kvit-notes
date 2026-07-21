@@ -4,6 +4,7 @@
 #include "recoveryjournalstore.h"
 
 #include "notefileio.h"
+#include "vaultpaths.h"
 
 #include <QDir>
 #include <QFile>
@@ -54,15 +55,11 @@ void RecoveryJournalStore::reload()
 
 bool RecoveryJournalStore::isValidRelativeNotePath(const QString &relPath)
 {
-    if (relPath.isEmpty() || QDir::isAbsolutePath(relPath)
-        || relPath.contains(QLatin1Char('\\'))
-        || QDir::cleanPath(relPath) != relPath
-        || !relPath.endsWith(QLatin1String(".md"), Qt::CaseInsensitive))
-        return false;
-    const QStringList segments = relPath.split(QLatin1Char('/'));
-    return !segments.contains(QString())
-        && !segments.contains(QStringLiteral("."))
-        && !segments.contains(QStringLiteral(".."));
+    // The shape rule is the repository's, shared with every other place a
+    // persisted path arrives from outside; a journal additionally has to name
+    // a note, so a decoded value that is not Markdown is not one of ours.
+    return VaultPaths::isPlainRelativePath(relPath)
+        && relPath.endsWith(QLatin1String(".md"), Qt::CaseInsensitive);
 }
 
 bool RecoveryJournalStore::isPending(const QString &relPath) const

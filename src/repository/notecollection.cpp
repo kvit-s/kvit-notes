@@ -8,6 +8,7 @@
 #include "block.h"
 #include "collectionsearchindex.h"
 #include "notefileio.h"
+#include "vaultpaths.h"
 #include "noteindexfile.h"
 #include "perflog.h"
 #include "wikilinkscanner.h"
@@ -63,51 +64,12 @@ void restoreFileTime(const QString &path, const QDateTime &mtime)
     }
 }
 
-// ---- vault containment ----
-//
-// A vault is the directory subtree the user selected, and every path the
-// collection hands to the filesystem must land inside it. Textual prefix
-// tests are not enough: a symbolic link is a path inside the root that names
-// a file outside it, so containment is decided on canonical paths, with
-// every link along the way already resolved.
-
-// The canonical form of a path that need not exist yet. QFileInfo's own
-// canonicalFilePath returns an empty string for anything missing, which
-// would leave containment unanswerable for a note about to be created, so
-// the deepest existing ancestor is canonicalized and the remaining segments
-// are appended to it.
-QString canonicalizeMissingOk(const QString &path)
-{
-    QString head = QDir::cleanPath(path);
-    QStringList tail;  // segments trimmed off, nearest-last
-    forever {
-        const QString canonical = QFileInfo(head).canonicalFilePath();
-        if (!canonical.isEmpty()) {
-            QString result = canonical;
-            while (!tail.isEmpty())
-                result += QLatin1Char('/') + tail.takeLast();
-            return result;
-        }
-        const int slash = head.lastIndexOf(QLatin1Char('/'));
-        if (slash <= 0)
-            return QDir::cleanPath(path);  // nothing on the way exists
-        tail.append(head.mid(slash + 1));
-        head.truncate(slash);
-    }
-}
-
-// True when `absPath` resolves to `canonicalRoot` itself or to something
-// beneath it. Both sides are canonical, so a link pointing out of the vault
-// fails here however innocent its textual path looks.
-bool isWithinCanonicalRoot(const QString &canonicalRoot, const QString &absPath)
-{
-    if (canonicalRoot.isEmpty())
-        return false;
-    const QString canonical = canonicalizeMissingOk(absPath);
-    if (canonical == canonicalRoot)
-        return true;
-    return canonical.startsWith(canonicalRoot + QLatin1Char('/'));
-}
+// Vault containment lives in vaultpaths.h, shared with the stores split out
+// of this class and with the persisted-state validation that has to apply the
+// same rule. Pulled in unqualified so the call sites below read as they did
+// when the two functions were defined here.
+using VaultPaths::canonicalizeMissingOk;
+using VaultPaths::isWithinCanonicalRoot;
 
 QDateTime fileCreatedTime(const QFileInfo &info)
 {
@@ -170,10 +132,10 @@ NoteCollection::NoteCollection(QObject *parent)
             this, &NoteCollection::applyAsyncIndexSaveResult);
     connect(&m_asyncRevisionTimer, &QTimer::timeout,
             this, &NoteCollection::flushAsyncIndexUpdates);
-    m_collectionSaveRetryTimer.setSingleShot(true);
-    m_collectionSaveRetryTimer.setInterval(2000);
-    connect(&m_collectionSaveRetryTimer, &QTimer::timeout,
-            this, &NoteCollection::saveCollectionFile);
+    m_collectionState.setSnapshotProvider(
+        [this]() { return collectionStateSnapshot(); });
+    connect(&m_collectionState, &CollectionStateStore::saveFailed,
+            this, &NoteCollection::operationFailed);
 }
 
 NoteCollection::~NoteCollection()
@@ -182,8 +144,7 @@ NoteCollection::~NoteCollection()
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
     cancelAsyncIndexSave();
-    if (m_collectionFileDirty && isOpen())
-        saveCollectionFile();
+    m_collectionState.flushIfDirty();
 }
 
 void NoteCollection::setOpenDocument(OpenDocumentSession *session)
@@ -195,9 +156,10 @@ void NoteCollection::setOpenDocument(OpenDocumentSession *session)
 
 bool NoteCollection::openRoot(const QString &path)
 {
-    if (m_collectionFileDirty && isOpen())
-        saveCollectionFile();
-    if (m_collectionFileDirty)
+    // Workspace state still owed belongs to the root being left. Writing it
+    // after the root changes would put it in the new vault.
+    m_collectionState.flushIfDirty();
+    if (m_collectionState.isDirty())
         return false;
     PerfLog::ScopedTimer perf(QStringLiteral("startup.scan"),
                               QVariantMap{{QStringLiteral("path"), path}});
@@ -224,9 +186,10 @@ bool NoteCollection::openRoot(const QString &path)
 
 bool NoteCollection::openRootAsync(const QString &path)
 {
-    if (m_collectionFileDirty && isOpen())
-        saveCollectionFile();
-    if (m_collectionFileDirty)
+    // Workspace state still owed belongs to the root being left. Writing it
+    // after the root changes would put it in the new vault.
+    m_collectionState.flushIfDirty();
+    if (m_collectionState.isDirty())
         return false;
     cancelAsyncScan();
     cancelAsyncRefresh();
@@ -252,9 +215,8 @@ void NoteCollection::closeRoot()
 {
     if (!isOpen())
         return;
-    if (m_collectionFileDirty)
-        saveCollectionFile();
-    if (m_collectionFileDirty)
+    m_collectionState.flushIfDirty();
+    if (m_collectionState.isDirty())
         return;
     cancelAsyncScan();
     cancelAsyncRefresh();
@@ -271,8 +233,6 @@ void NoteCollection::closeRoot()
     m_lastOpenNote.clear();
     m_recoveryJournals.clear();
     m_indexDirty = false;
-    m_collectionFileDirty = false;
-    m_collectionSaveRetryTimer.stop();
     m_searchFeed.close();
     // Released last: nothing above may still be writing when another process
     // is allowed in.
@@ -323,6 +283,7 @@ void NoteCollection::attachStoresToRoot()
     m_backups.setRootPath(m_rootPath);
     m_recoveryJournals.setRootPath(m_rootPath);
     m_indexFile.setRootPath(m_rootPath);
+    m_collectionState.setRoot(m_rootPath, m_canonicalRoot);
 }
 
 void NoteCollection::loadRecoveryEntries()
@@ -532,15 +493,10 @@ bool NoteCollection::ensureWithinRoot(const QString &relPath)
         return false;
     if (relPath.isEmpty())
         return true;
-    const QString normalized = QString(relPath).replace(QLatin1Char('\\'),
-                                                        QLatin1Char('/'));
-    const QStringList segments = normalized.split(QLatin1Char('/'));
-    if (QDir::isAbsolutePath(relPath)
-        || normalized != relPath
-        || QDir::cleanPath(normalized) != normalized
-        || segments.contains(QStringLiteral("."))
-        || segments.contains(QStringLiteral(".."))
-        || segments.contains(QString())) {
+    // Shape first: a value that is absolute, dot-segmented or non-canonical
+    // is malformed, and saying so names the problem better than reporting it
+    // as being outside the vault.
+    if (!VaultPaths::isPlainRelativePath(relPath)) {
         emit operationFailed(tr("\"%1\" is not a safe relative path")
                                  .arg(relPath));
         return false;
@@ -2133,7 +2089,7 @@ QString NoteCollection::createNote(const QString &folder, const QString &title,
     indexNote(relPath);
     saveIndexFileIfDirty();
     m_manualOrder.insert(folder, names);
-    saveCollectionFile();
+    m_collectionState.save();
     bump();
     reindexNoteInSearch(relPath);
     return relPath;
@@ -2398,7 +2354,7 @@ bool NoteCollection::renameNote(const QString &relPath, const QString &newTitle)
     if (m_lastOpenNote == relPath)
         m_lastOpenNote = newRelPath;
 
-    saveCollectionFile();
+    m_collectionState.save();
     saveIndexFileIfDirty();
     emit noteMoved(relPath, newRelPath);
     bump();
@@ -2452,7 +2408,7 @@ bool NoteCollection::moveNote(const QString &relPath, const QString &targetFolde
     if (m_lastOpenNote == relPath)
         m_lastOpenNote = newRelPath;
 
-    saveCollectionFile();
+    m_collectionState.save();
     saveIndexFileIfDirty();
     emit noteMoved(relPath, newRelPath);
     bump();
@@ -2507,7 +2463,7 @@ bool NoteCollection::deleteNote(const QString &relPath)
     if (m_lastOpenNote == relPath)
         m_lastOpenNote.clear();
 
-    saveCollectionFile();
+    m_collectionState.save();
     markIndexDirty();
     saveIndexFileIfDirty();
     emit noteRemoved(relPath);
@@ -2634,7 +2590,7 @@ bool NoteCollection::renameFolder(const QString &relPath, const QString &newName
     }
 
     renamePathsUnderFolder(relPath, newRelPath);
-    saveCollectionFile();
+    m_collectionState.save();
     markIndexDirty();
     saveIndexFileIfDirty();
     bump();
@@ -2686,7 +2642,7 @@ bool NoteCollection::deleteFolder(const QString &relPath)
     }
     rebuildFolderNoteCounts();
 
-    saveCollectionFile();
+    m_collectionState.save();
     markIndexDirty();
     saveIndexFileIfDirty();
     bump();
@@ -2703,7 +2659,7 @@ void NoteCollection::setFolderExpanded(const QString &relPath, bool expanded)
     if (it == m_folders.end() || it->expanded == expanded)
         return;
     it->expanded = expanded;
-    saveCollectionFile();
+    m_collectionState.save();
     bump();
 }
 
@@ -2713,7 +2669,7 @@ void NoteCollection::setFolderColor(const QString &relPath, const QString &color
     if (it == m_folders.end() || it->color == color)
         return;
     it->color = color;
-    saveCollectionFile();
+    m_collectionState.save();
     bump();
 }
 
@@ -2824,7 +2780,7 @@ void NoteCollection::assignColorsToNewTags(const QStringList &tags)
         }
     }
     if (changed)
-        saveCollectionFile();
+        m_collectionState.save();
 }
 
 bool NoteCollection::addTag(const QString &relPath, const QString &tag)
@@ -2991,7 +2947,7 @@ void NoteCollection::setTagColor(const QString &tag, const QString &color)
         m_tagColors.remove(tag);
     else
         m_tagColors.insert(tag, color);
-    saveCollectionFile();
+    m_collectionState.save();
     bump();
 }
 
@@ -3035,7 +2991,7 @@ bool NoteCollection::renameTag(const QString &oldName, const QString &newName)
         m_tagColors.insert(target, m_tagColors.value(oldName));
     m_tagColors.remove(oldName);
 
-    saveCollectionFile();
+    m_collectionState.save();
     saveIndexFileIfDirty();
     bump();
     // Front-matter rewrites change file size, so reconcile reindexes every
@@ -3067,7 +3023,7 @@ bool NoteCollection::deleteTag(const QString &tag)
         }
     }
     m_tagColors.remove(tag);
-    saveCollectionFile();
+    m_collectionState.save();
     saveIndexFileIfDirty();
     bump();
     syncSearchIndex();
@@ -3122,7 +3078,7 @@ bool NoteCollection::setManualPosition(const QString &relPath, int position)
     for (const QString &path : order)
         names.append(nameOfRelPath(path));
     m_manualOrder.insert(entry->folder, names);
-    saveCollectionFile();
+    m_collectionState.save();
     bump();
     return true;
 }
@@ -3134,7 +3090,7 @@ void NoteCollection::setLastOpenNote(const QString &relPath)
     if (m_lastOpenNote == relPath)
         return;
     m_lastOpenNote = relPath;
-    saveCollectionFile();
+    m_collectionState.save();
     // Deliberately no bump: which note is open is not collection content.
 }
 
@@ -3321,128 +3277,51 @@ QString NoteCollection::frontMatterFor(const QString &relPath) const
 }
 
 // ------------------------------------------------------ collection.json
+//
+// The file itself is CollectionStateStore's; what stays here is the two
+// directions of the conversion between it and the live index.
 
 void NoteCollection::loadCollectionFile(bool indexSafeLastOpen)
 {
-    const QString path = m_rootPath + QLatin1Char('/') + kvitDirName
-        + QLatin1Char('/') + collectionFileName;
-    bool ok = false;
-    const QString text = readTextFile(path, &ok);
-    if (!ok)
-        return; // absent or unreadable: defaults (never touches notes)
+    const CollectionStateStore::Snapshot state = m_collectionState.load();
+    m_tagColors = state.tagColors;
+    m_manualOrder = state.manualOrder;
 
-    QJsonParseError error;
-    const QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8(), &error);
-    if (error.error != QJsonParseError::NoError || !doc.isObject())
-        return; // corrupt: defaults
-
-    const QJsonObject root = doc.object();
-
-    const QJsonObject tagColors = root.value(QStringLiteral("tagColors")).toObject();
-    for (auto it = tagColors.begin(); it != tagColors.end(); ++it)
-        m_tagColors.insert(it.key(), it.value().toString());
-
-    const QJsonObject folders = root.value(QStringLiteral("folders")).toObject();
-    for (auto it = folders.begin(); it != folders.end(); ++it) {
+    // Folder appearance is applied against the folders that actually exist.
+    // An entry for a folder deleted outside the app is simply dropped, and
+    // the next save stops carrying it.
+    for (auto it = state.folders.begin(); it != state.folders.end(); ++it) {
         auto folderIt = m_folders.find(it.key());
         if (folderIt == m_folders.end())
-            continue; // stale entry for a folder that no longer exists
-        const QJsonObject state = it.value().toObject();
-        folderIt->color = state.value(QStringLiteral("color")).toString();
-        folderIt->expanded =
-            state.value(QStringLiteral("expanded")).toBool(true);
+            continue;
+        folderIt->color = it.value().color;
+        folderIt->expanded = it.value().expanded;
     }
 
-    const QJsonObject order = root.value(QStringLiteral("manualOrder")).toObject();
-    for (auto it = order.begin(); it != order.end(); ++it) {
-        QStringList names;
-        const QJsonArray array = it.value().toArray();
-        for (const QJsonValue &value : array)
-            names.append(value.toString());
-        m_manualOrder.insert(it.key(), names);
-    }
-
-    m_lastOpenNote = root.value(QStringLiteral("lastOpenNote")).toString();
-    const bool safeLastOpen = m_lastOpenNote.isEmpty()
-        || (RecoveryJournalStore::isValidRelativeNotePath(m_lastOpenNote)
-            && isWithinCanonicalRoot(m_canonicalRoot,
-                                     absolutePath(m_lastOpenNote))
-            && QFileInfo(absolutePath(m_lastOpenNote)).isFile());
-    if (!safeLastOpen) {
+    // The store has already refused anything outside the vault. What remains
+    // is whether the index knows the note: during an asynchronous open the
+    // background listing has not reached it yet, and startup wants to open it
+    // now rather than after the scan, so it goes in as a placeholder entry.
+    m_lastOpenNote = state.lastOpenNote;
+    if (m_lastOpenNote.isEmpty() || m_notes.contains(m_lastOpenNote))
+        return;
+    if (!indexSafeLastOpen) {
         m_lastOpenNote.clear();
-    } else if (!m_lastOpenNote.isEmpty()
-               && !m_notes.contains(m_lastOpenNote)) {
-        if (indexSafeLastOpen) {
-            const QFileInfo info(absolutePath(m_lastOpenNote));
-            insertNoteEntry(m_lastOpenNote,
-                            placeholderEntry(m_lastOpenNote, info));
-        } else {
-            m_lastOpenNote.clear();
-        }
+        return;
     }
+    const QFileInfo info(absolutePath(m_lastOpenNote));
+    insertNoteEntry(m_lastOpenNote, placeholderEntry(m_lastOpenNote, info));
 }
 
-void NoteCollection::saveCollectionFile()
+CollectionStateStore::Snapshot NoteCollection::collectionStateSnapshot() const
 {
-    if (!isOpen())
-        return;
-
-    m_collectionFileDirty = true;
-
-    QJsonObject root;
-
-    QJsonObject tagColors;
-    for (auto it = m_tagColors.begin(); it != m_tagColors.end(); ++it)
-        tagColors.insert(it.key(), it.value());
-    root.insert(QStringLiteral("tagColors"), tagColors);
-
-    QJsonObject folders;
-    for (const FolderEntry &entry : m_folders) {
-        if (entry.color.isEmpty() && entry.expanded)
-            continue; // defaults need no entry
-        QJsonObject state;
-        if (!entry.color.isEmpty())
-            state.insert(QStringLiteral("color"), entry.color);
-        state.insert(QStringLiteral("expanded"), entry.expanded);
-        folders.insert(entry.relPath, state);
-    }
-    root.insert(QStringLiteral("folders"), folders);
-
-    QJsonObject order;
-    for (auto it = m_manualOrder.begin(); it != m_manualOrder.end(); ++it) {
-        if (it.value().isEmpty())
-            continue;
-        order.insert(it.key(), QJsonArray::fromStringList(it.value()));
-    }
-    root.insert(QStringLiteral("manualOrder"), order);
-
-    if (!m_lastOpenNote.isEmpty())
-        root.insert(QStringLiteral("lastOpenNote"), m_lastOpenNote);
-
-    const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
-    if (!QDir().mkpath(dir)) {
-        if (!m_collectionSaveRetryTimer.isActive())
-            m_collectionSaveRetryTimer.start();
-        emit operationFailed(
-            tr("Cannot create the collection settings folder \"%1\"")
-                .arg(dir));
-        return;
-    }
-    const QString path = dir + QLatin1Char('/') + collectionFileName;
-    if (writeTextFileAtomic(path,
-                            QString::fromUtf8(QJsonDocument(root).toJson(
-                                QJsonDocument::Indented)))) {
-        m_collectionFileDirty = false;
-        m_collectionSaveRetryTimer.stop();
-    } else {
-        if (!m_collectionSaveRetryTimer.isActive())
-            m_collectionSaveRetryTimer.start();
-        // Tag colours, folder expansion, manual order and the last-open
-        // note all live in this file. Silently dropping the write loses
-        // them at the next start with nothing shown to the user.
-        emit operationFailed(
-            tr("Cannot save collection settings to \"%1\"").arg(path));
-    }
+    CollectionStateStore::Snapshot snapshot;
+    snapshot.tagColors = m_tagColors;
+    snapshot.manualOrder = m_manualOrder;
+    snapshot.lastOpenNote = m_lastOpenNote;
+    for (const FolderEntry &entry : m_folders)
+        snapshot.folders.insert(entry.relPath, {entry.color, entry.expanded});
+    return snapshot;
 }
 
 // ----------------------------------------------------------------- misc

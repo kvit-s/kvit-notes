@@ -21,6 +21,7 @@
 
 #include "cancellationtoken.h"
 #include "notebackupstore.h"
+#include "collectionstatestore.h"
 #include "noteentry.h"
 #include "noteindexfile.h"
 #include "notefrontmatter.h"
@@ -281,7 +282,7 @@ public:
     // for a later retry rather than forgotten.
     bool indexDirtyForTesting() const { return m_indexDirty; }
     bool collectionFileDirtyForTesting() const
-    { return m_collectionFileDirty; }
+    { return m_collectionState.isDirty(); }
     // Test seam: whether the directory-listing future has actually been
     // picked up by a pool thread. Cancellation only waits on a watcher that
     // reports itself running, so measuring the cost of a cancel has to know
@@ -516,8 +517,14 @@ private:
     bool openDocumentIs(const QString &relPath) const;
     void renamePathsUnderFolder(const QString &oldPrefix, const QString &newPrefix);
 
+    // Read workspace state back into the index. indexSafeLastOpen keeps a
+    // remembered note the background listing has not reached yet, as a
+    // placeholder entry, so startup can open it before the scan finishes.
     void loadCollectionFile(bool indexSafeLastOpen = false);
-    void saveCollectionFile();
+    // Build the snapshot CollectionStateStore writes. Called by the store,
+    // including on a retry, so it reads live state rather than a copy taken
+    // when a failed write started.
+    CollectionStateStore::Snapshot collectionStateSnapshot() const;
 
     void bump();
 
@@ -539,6 +546,7 @@ private:
     QList<ReconcileEntry> searchReconcileListing() const;
 
     SearchIndexFeed m_searchFeed;
+    CollectionStateStore m_collectionState;
     OpenDocumentSession *m_openDocument = nullptr;
 
     QString m_rootPath;
@@ -599,7 +607,6 @@ private:
 
     std::function<void(const QString &)> m_indexParseObserver;
     bool m_indexDirty = false;
-    bool m_collectionFileDirty = false;
     bool m_scanInProgress = false;
     int m_asyncPendingUpdates = 0;
     quint64 m_asyncScanGeneration = 0;
@@ -624,7 +631,6 @@ private:
     bool m_indexSaveQueued = false;
     bool m_asyncSavedNotePendingFlush = false;
     QTimer m_asyncRevisionTimer;
-    QTimer m_collectionSaveRetryTimer;
 };
 
 #endif // NOTECOLLECTION_H
