@@ -3,6 +3,7 @@
     <qresource prefix="/">
         <file>qml/main.qml</file>
         <file>qml/EditableBlock.qml</file>
+        <file>qml/CrossBlockTextSelection.qml</file>
         <file>qml/BlockGutter.qml</file>
         <file>qml/DropCapOverlay.qml</file>
         <file>qml/CalloutBlockChrome.qml</file>

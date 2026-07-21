@@ -381,54 +381,46 @@ BlockDelegateBase {
         editorRequested = true
     }
 
-    // ---- Cross-block text selection support (features.md §2.5, §21.3).
-    // The per-block passive PointHandler feeds the window's drag
-    // coordinator through these per-delegate position helpers; the
-    // coordinator holds the range; this block renders its portion through
-    // its own TextArea selection. ----
+    // ---- Cross-block text selection (features.md §2.5, §21.3) ----
+    // A selection reaching past this block belongs to DocumentSelection, not
+    // to any one editor; the controller below converts this block's
+    // coordinates for it and renders the part of the range that falls in this
+    // block's text. The functions the shell calls on a row stay here as the
+    // interface BlockDelegateBase declares, and forward to it.
+    CrossBlockTextSelection {
+        id: crossBlockSelection
+        blockIndex: delegate.index
+        editor: textArea
+        engine: editorEngine
+        blockList: delegate.listView
+        pooled: delegate.isPooled
+        onRefocusRequested: function(index, markdownPos) {
+            delegate.refocusBlock(index, markdownPos)
+        }
+        onPasteRequested: function(index, markdownPos, text, stripFormatting) {
+            delegate.pasteMarkdownAtBlock(index, markdownPos, text, stripFormatting)
+        }
+    }
 
-    // Markdown position under a scene point (clamped into this block).
     function markdownPositionAt(sceneX, sceneY) {
-        var p = textArea.mapFromItem(null, sceneX, sceneY)
-        var cx = Math.max(0, Math.min(p.x, textArea.width - 1))
-        var cy = Math.max(0, Math.min(p.y, textArea.height - 1))
-        return editorEngine.toMarkdownPosition(textArea.positionAt(cx, cy))
+        return crossBlockSelection.markdownPositionAt(sceneX, sceneY)
     }
-
-    // Whether a scene point is over this block's text (a press in the
-    // gutter must not seed a text-selection drag).
     function pointInText(sceneX, sceneY) {
-        var p = textArea.mapFromItem(null, sceneX, sceneY)
-        return p.x >= 0 && p.x <= textArea.width
-            && p.y >= 0 && p.y <= textArea.height
+        return crossBlockSelection.pointInText(sceneX, sceneY)
     }
-
-    // Markdown position one visual line up/down from mdPos within this
-    // block, or -1 when that would leave the block.
     function lineStepPosition(mdPos, dir) {
-        var doc = Math.min(editorEngine.toDocumentPosition(mdPos), textArea.text.length)
-        var rect = textArea.positionToRectangle(doc)
-        var newY = rect.y + dir * rect.height + rect.height / 2
-        if (newY < 0)
-            return -1
-        var newDoc = textArea.positionAt(rect.x, newY)
-        var newRect = textArea.positionToRectangle(newDoc)
-        if (Math.abs(newRect.y - rect.y) < 1)
-            return -1 // same visual line: the step leaves the block
-        return editorEngine.toMarkdownPosition(newDoc)
+        return crossBlockSelection.lineStepPosition(mdPos, dir)
     }
-
-    // Entry position for a vertical crossing into this block at a given
-    // x (the first or last visual line).
     function entryPositionAtX(x, fromTop) {
-        var y = fromTop ? 2 : textArea.height - 2
-        var cx = Math.max(0, Math.min(x, textArea.width - 1))
-        return editorEngine.toMarkdownPosition(textArea.positionAt(cx, y))
+        return crossBlockSelection.entryPositionAtX(x, fromTop)
     }
-
     function xAtMarkdown(mdPos) {
-        var doc = Math.min(editorEngine.toDocumentPosition(mdPos), textArea.text.length)
-        return textArea.positionToRectangle(doc).x
+        return crossBlockSelection.xAtMarkdown(mdPos)
+    }
+    // TextBlockDelegate calls this when a row it owns comes back out of the
+    // list's reuse pool, since the row may land inside an active range.
+    function applyTextPortionLater() {
+        crossBlockSelection.applyTextPortionLater()
     }
 
     // ---- Find bar hooks (features.md §7) ----
@@ -454,221 +446,16 @@ BlockDelegateBase {
         return Qt.rect(p.x, p.y, rect.width, rect.height)
     }
 
-    // The Qt.callLater re-apply sites below can outlive this delegate:
-    // a selection clear immediately followed by a document reload
-    // (find-and-replace flows do this) tears the delegate down before
-    // the queued call fires, and calling into its invalidated context
-    // is a TypeError.
-    function applyTextPortionLater() {
-        Qt.callLater(function() {
-            if (delegate && typeof delegate.applyTextPortion === "function")
-                delegate.applyTextPortion()
-        })
-    }
-
-    // Apply this block's portion of the cross-block range to the
-    // TextArea (persistentSelection keeps it visible unfocused). The
-    // focused anchor block needs no help — its native selection IS its
-    // portion while the mouse drags, and the keyboard paths manage it.
-    function applyTextPortion() {
-        if (isPooled || textArea.activeFocus)
-            return
-        var p = DocumentSelection.portionForBlock(delegate.index)
-        if (p.selected === true && p.end > p.start) {
-            var docStart = editorEngine.toDocumentPosition(p.start)
-            var docEnd = editorEngine.toDocumentPosition(p.end)
-            // Fixed-point guard: re-select only when the TextArea does
-            // not already show the desired range, so the re-apply paths
-            // below cannot feed back through the engine indefinitely.
-            if (textArea.selectionStart !== docStart
-                || textArea.selectionEnd !== docEnd)
-                textArea.select(docStart, docEnd)
-        } else if (textArea.selectionEnd > textArea.selectionStart) {
-            textArea.deselect()
-        }
-    }
-
     Connections {
         target: DocumentSelection
         function onRevisionChanged() {
-            // Apply now, and once more on a clean stack: the engine's
-            // deferred reveal transitions (the blurred anchor block
-            // collapsing its markers) edit the document AFTER this
-            // handler and destroy a just-applied selection. A cleared
-            // selection needs no delayed pass — the synchronous call
-            // already deselected, and nothing re-selects afterwards.
-            delegate.applyTextPortion()
-            if (DocumentSelection.hasTextSelection)
-                delegate.applyTextPortionLater()
+            crossBlockSelection.onSelectionRevisionChanged()
         }
     }
 
     Component.onCompleted: {
         if (DocumentSelection.hasTextSelection)
-            delegate.applyTextPortionLater()
-    }
-
-    // Remove the coordinator's range from the model (one undo step) and
-    // return the {index, cursor} landing spot.
-    // Copy markdown in every Clipboard flavor (§5.1). Shared by the
-    // cross-block and in-block copy/cut paths.
-    function copyMarkdownToClipboard(md) {
-        Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
-    }
-
-    function crossBlockDeleteRange() {
-        var range = DocumentSelection.orderedTextRange()
-        DocumentSelection.clearTextSelection()
-        textArea.deselect()
-        return BlockModel.removeTextRange(range.startIndex, range.startPos,
-                                          range.endIndex, range.endPos)
-    }
-
-    // Move the cross-block head one step (Shift+Arrows, §21.3 keyboard
-    // extension). Vertical steps stay within the head block's visual
-    // lines until they must cross into the neighbor at the same x.
-    function moveCrossBlockHead(key) {
-        var headIdx = DocumentSelection.textHeadIndex()
-        var headMd = DocumentSelection.textHeadPosition()
-        if (headIdx < 0 || !delegate.listView)
-            return
-        var content = BlockModel.getContent(headIdx)
-        var headItem = (delegate.listView.itemAtIndex(headIdx) as BlockDelegateBase)
-        var newIdx = headIdx
-        var newMd = headMd
-
-        if (key === Qt.Key_Right) {
-            if (headMd < content.length) {
-                newMd = headMd + 1
-            } else if (headIdx < BlockModel.count - 1) {
-                newIdx = headIdx + 1
-                newMd = 0
-            }
-        } else if (key === Qt.Key_Left) {
-            if (headMd > 0) {
-                newMd = headMd - 1
-            } else if (headIdx > 0) {
-                newIdx = headIdx - 1
-                newMd = BlockModel.getContent(newIdx).length
-            }
-        } else if (key === Qt.Key_Down || key === Qt.Key_Up) {
-            var dir = key === Qt.Key_Down ? 1 : -1
-            var stepped = headItem && headItem.lineStepPosition
-                ? headItem.lineStepPosition(headMd, dir) : -1
-            if (stepped >= 0) {
-                newMd = stepped
-            } else {
-                var x = headItem && headItem.xAtMarkdown
-                    ? headItem.xAtMarkdown(headMd) : 0
-                if (dir > 0 && headIdx < BlockModel.count - 1) {
-                    newIdx = headIdx + 1
-                    var below = (delegate.listView.itemAtIndex(newIdx) as BlockDelegateBase)
-                    newMd = below && below.entryPositionAtX
-                        ? below.entryPositionAtX(x, true) : 0
-                } else if (dir < 0 && headIdx > 0) {
-                    newIdx = headIdx - 1
-                    var above = (delegate.listView.itemAtIndex(newIdx) as BlockDelegateBase)
-                    newMd = above && above.entryPositionAtX
-                        ? above.entryPositionAtX(x, false)
-                        : BlockModel.getContent(newIdx).length
-                }
-            }
-        }
-
-        if (newIdx === DocumentSelection.textAnchorIndex()
-            && newIdx === delegate.index) {
-            // The head returned into the anchor block: collapse back to
-            // a native in-block selection
-            var anchorMd = DocumentSelection.textAnchorPosition()
-            DocumentSelection.clearTextSelection()
-            textArea.select(editorEngine.toDocumentPosition(anchorMd),
-                            editorEngine.toDocumentPosition(newMd))
-            return
-        }
-        DocumentSelection.updateTextSelectionHead(newIdx, newMd)
-    }
-
-    // Keys while this block anchors an active cross-block selection.
-    // Returns true when the key was consumed.
-    function handleCrossBlockKey(event) {
-        var ctrl = event.modifiers & Qt.ControlModifier
-        var shift = event.modifiers & Qt.ShiftModifier
-        var isArrow = event.key === Qt.Key_Left || event.key === Qt.Key_Right
-                   || event.key === Qt.Key_Up || event.key === Qt.Key_Down
-
-        if (event.key === Qt.Key_Escape) {
-            DocumentSelection.clearTextSelection()
-            textArea.deselect()
-            event.accepted = true
-            return true
-        }
-        if (shift && !ctrl && isArrow) {
-            moveCrossBlockHead(event.key)
-            event.accepted = true
-            return true
-        }
-        if (!ctrl && !shift && isArrow) {
-            // Plain arrows collapse the selection to its edge
-            var range = DocumentSelection.orderedTextRange()
-            DocumentSelection.clearTextSelection()
-            textArea.deselect()
-            var goStart = event.key === Qt.Key_Left || event.key === Qt.Key_Up
-            refocusBlock(goStart ? range.startIndex : range.endIndex,
-                         goStart ? range.startPos : range.endPos)
-            event.accepted = true
-            return true
-        }
-        if (event.key === Qt.Key_C && ctrl) {
-            copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
-            event.accepted = true
-            return true
-        }
-        if (event.key === Qt.Key_X && ctrl) {
-            copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
-            var cutResult = crossBlockDeleteRange()
-            if (cutResult.index !== undefined)
-                refocusBlock(cutResult.index, cutResult.cursor)
-            event.accepted = true
-            return true
-        }
-        // Ctrl+V / Ctrl+Shift+V over a cross-block selection: the range goes
-        // first, exactly as every sibling operation here does, and the
-        // Clipboard lands at the collapsed caret. Without this branch the
-        // per-block handler would run instead and see only the head block's
-        // own selection, leaving the rest of the range in the document.
-        if (event.key === Qt.Key_V && ctrl) {
-            if (Clipboard && Clipboard.hasText) {
-                var stripPaste = (event.modifiers & Qt.ShiftModifier) ? true : false
-                var pasteRes = crossBlockDeleteRange()
-                if (pasteRes.index !== undefined)
-                    pasteMarkdownAtBlock(pasteRes.index, pasteRes.cursor,
-                                         Clipboard.text, stripPaste)
-            }
-            event.accepted = true
-            return true
-        }
-        if (event.key === Qt.Key_Delete || event.key === Qt.Key_Backspace) {
-            var delResult = crossBlockDeleteRange()
-            if (delResult.index !== undefined)
-                refocusBlock(delResult.index, delResult.cursor)
-            event.accepted = true
-            return true
-        }
-        // Printable text replaces the range; the deletion and the typed
-        // character are layered undo steps
-        if (!ctrl && event.text.length > 0 && event.text.charCodeAt(0) >= 32) {
-            var repResult = crossBlockDeleteRange()
-            if (repResult.index !== undefined) {
-                var md = BlockModel.getContent(repResult.index)
-                BlockModel.updateContent(repResult.index,
-                    md.substring(0, repResult.cursor) + event.text
-                    + md.substring(repResult.cursor))
-                refocusBlock(repResult.index, repResult.cursor + event.text.length)
-            }
-            event.accepted = true
-            return true
-        }
-        return false
+            crossBlockSelection.applyTextPortionLater()
     }
 
     // Get reference to the ListView
@@ -694,7 +481,7 @@ BlockDelegateBase {
         // A block scrolled back into view may sit inside an active
         // cross-block range; re-render its portion.
         if (DocumentSelection.hasTextSelection)
-            delegate.applyTextPortionLater()
+            crossBlockSelection.applyTextPortionLater()
     }
 
     // Toolbar / formatting-bar surface: the caret's combined span flags
@@ -870,19 +657,14 @@ BlockDelegateBase {
         })
     }
 
-    // Helper functions for cursor position detection
+    // Whether the caret sits on the block's first or last visual line, which
+    // is what turns an arrow key into a move to the neighbouring block.
     function isCursorOnFirstLine() {
-        if (textArea.text.indexOf('\n') === -1) return true
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var firstLineRect = textArea.positionToRectangle(0)
-        return Math.abs(rect.y - firstLineRect.y) < 1
+        return crossBlockSelection.cursorOnFirstLine()
     }
 
     function isCursorOnLastLine() {
-        if (textArea.text.indexOf('\n') === -1) return true
-        var rect = textArea.positionToRectangle(textArea.cursorPosition)
-        var lastLineRect = textArea.positionToRectangle(textArea.text.length)
-        return Math.abs(rect.y - lastLineRect.y) < 1
+        return crossBlockSelection.cursorOnLastLine()
     }
 
     // Refocus a block after an operation that may have recreated its
@@ -2069,7 +1851,7 @@ BlockDelegateBase {
                 // selection already matches.
                 onTextChanged: {
                     if (DocumentSelection.hasTextSelection && !activeFocus)
-                        delegate.applyTextPortionLater()
+                        crossBlockSelection.applyTextPortionLater()
                     if (delegate.activeMathMenu()
                         || delegate.dollarPairOpenPos >= 0)
                         Qt.callLater(settleMathEntryState)
@@ -2293,7 +2075,7 @@ BlockDelegateBase {
                         if (active) {
                             var sp = point.scenePosition
                             drag.beginPress(delegate.index,
-                                delegate.markdownPositionAt(sp.x, sp.y),
+                                crossBlockSelection.markdownPositionAt(sp.x, sp.y),
                                 sp.x, sp.y)
                         } else {
                             drag.endPress()
@@ -2414,7 +2196,7 @@ BlockDelegateBase {
                     // and typing-replaces all resolve against the range.
                     if (DocumentSelection.hasTextSelection
                         && DocumentSelection.textAnchorIndex() === delegate.index) {
-                        if (delegate.handleCrossBlockKey(event))
+                        if (crossBlockSelection.handleCrossBlockKey(event))
                             return
                     }
 
@@ -2589,45 +2371,7 @@ BlockDelegateBase {
                         && !(event.modifiers & Qt.ControlModifier)
                         && !(event.modifiers & Qt.AltModifier)
                         && !DocumentSelection.hasTextSelection) {
-                        var crossIdx = -1
-                        var crossMd = 0
-                        if (event.key === Qt.Key_Right
-                            && cursorPosition >= text.length
-                            && delegate.index < BlockModel.count - 1) {
-                            crossIdx = delegate.index + 1
-                            crossMd = 0
-                        } else if (event.key === Qt.Key_Left
-                                   && cursorPosition === 0 && delegate.index > 0) {
-                            crossIdx = delegate.index - 1
-                            crossMd = BlockModel.getContent(crossIdx).length
-                        } else if (event.key === Qt.Key_Down
-                                   && delegate.isCursorOnLastLine()
-                                   && delegate.index < BlockModel.count - 1) {
-                            crossIdx = delegate.index + 1
-                            var below = delegate.listView ? (delegate.listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
-                            crossMd = below && below.entryPositionAtX
-                                ? below.entryPositionAtX(
-                                      positionToRectangle(cursorPosition).x, true)
-                                : 0
-                        } else if (event.key === Qt.Key_Up
-                                   && delegate.isCursorOnFirstLine() && delegate.index > 0) {
-                            crossIdx = delegate.index - 1
-                            var above = delegate.listView ? (delegate.listView.itemAtIndex(crossIdx) as BlockDelegateBase) : null
-                            crossMd = above && above.entryPositionAtX
-                                ? above.entryPositionAtX(
-                                      positionToRectangle(cursorPosition).x, false)
-                                : BlockModel.getContent(crossIdx).length
-                        }
-                        if (crossIdx >= 0) {
-                            // The anchor is the far end of any native
-                            // selection, else the cursor
-                            var anchorDoc = selectionEnd > selectionStart
-                                ? (cursorPosition === selectionEnd
-                                       ? selectionStart : selectionEnd)
-                                : cursorPosition
-                            DocumentSelection.beginTextSelection(delegate.index,
-                                editorEngine.toMarkdownPosition(anchorDoc), 0)
-                            DocumentSelection.updateTextSelectionHead(crossIdx, crossMd)
+                        if (crossBlockSelection.beginSelectionAtEdge(event)) {
                             event.accepted = true
                             return
                         }
@@ -3022,7 +2766,7 @@ BlockDelegateBase {
                     // at the landing cursor
                     if (DocumentSelection.hasTextSelection
                         && DocumentSelection.textAnchorIndex() === delegate.index) {
-                        var repl = delegate.crossBlockDeleteRange()
+                        var repl = crossBlockSelection.crossBlockDeleteRange()
                         if (repl.index !== undefined) {
                             var splitIdx = repl.index
                             BlockModel.splitBlock(splitIdx, repl.cursor)
