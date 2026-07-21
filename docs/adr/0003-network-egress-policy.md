@@ -85,10 +85,10 @@ document-controlled URL reaches a second networking stack.
 
 ## Evidence in the tree
 
-- `src/egresspolicy.h`, `src/egresspolicy.cpp`: the decision object, consent model, address classification
-- `src/egressfetcher.h`, `src/egressfetcher.cpp`: the sole network access manager, DNS pinning, redirect re-checks, caps
-- `src/remotemediacache.h`, `src/remotemediacache.cpp`: bounded media download and local-only playback handoff
-- `src/updatechecker.h`: the disclosed opt-out update check
+- `src/platform/egresspolicy.h`, `src/platform/egresspolicy.cpp`: the decision object, consent model, address classification
+- `src/platform/egressfetcher.h`, `src/platform/egressfetcher.cpp`: the sole network access manager, DNS pinning, redirect re-checks, caps
+- `src/platform/remotemediacache.h`, `src/platform/remotemediacache.cpp`: bounded media download and local-only playback handoff
+- `src/platform/updatechecker.h`: the disclosed opt-out update check
 - `devel.md`, "Network egress goes through one policy": the working rules
 - `README.md`, "Privacy": the user-facing statement of the same behavior
 - `tests/test_egresspolicy.cpp`: drives a loopback `QTcpServer` rather than the real internet, covering refusals, redirect re-checks and the streaming cap

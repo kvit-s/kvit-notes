@@ -75,11 +75,11 @@ The decision rests entirely on extensions arriving at compile time. Revisit it
 
 ## Evidence in the tree
 
-- `src/extensionregistry.h`: the `KvitExtension` interface, `qmlNamespace()` and
+- `src/application/extensionregistry.h`: the `KvitExtension` interface, `qmlNamespace()` and
   `contextObjects()`, the `KvitSlots` names, the namespace rule and its reason,
   and the note that the registry is a list rather than a discovery mechanism
-- `src/extensionregistry.cpp`: namespace validation, collision refusal, dispatch
-- `src/qmlsingletons.h`: the `KVIT_QML_SINGLETONS` list, which generates both the
+- `src/application/extensionregistry.cpp`: namespace validation, collision refusal, dispatch
+- `src/qml/qmlsingletons.h`: the `KVIT_QML_SINGLETONS` list, which generates both the
   singleton registrations and the reserved-name set from one source
 - `tests/test_shell.cpp`: `aModuleCannotTakeACoreContextPropertyName` and the
   case-insensitive collision case, each with a negative case so the check cannot

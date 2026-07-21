@@ -128,10 +128,10 @@ hazard instead of guessing.
 
 ## Evidence in the tree
 
-- `src/cancellationtoken.h`: the token, and the reasoning about why Qt's own cancellation is insufficient
-- `src/persistencepool.h`: the separate pool for saves and journal writes
-- `src/notecollection.cpp`: the shared resultless-future guard and the token checks in the walk and refresh
-- `src/documentmanager.h`: write cancellation and its single safe point
-- `src/collectionsearchindex.h`, `src/collectionsearch.h`: query generations and the on-screen generation
+- `src/domain/cancellationtoken.h`: the token, and the reasoning about why Qt's own cancellation is insufficient
+- `src/domain/persistencepool.h`: the separate pool for saves and journal writes
+- `src/repository/notecollection.cpp`: the shared resultless-future guard and the token checks in the walk and refresh
+- `src/application/documentmanager.h`: write cancellation and its single safe point
+- `src/search/collectionsearchindex.h`, `src/application/collectionsearch.h`: query generations and the on-screen generation
 - `tests/test_asynccancellation.cpp`: the cancellation tests and the blocking-cost measurements
 - Commit `2fbdb9d` "Make background work cancellable and stop reading resultless futures"

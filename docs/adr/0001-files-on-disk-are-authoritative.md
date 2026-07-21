@@ -32,11 +32,11 @@ Concretely:
 
 - A note's body lives only in its file. Bodies are not held resident in memory
   across the collection; features that need one note's text read that file on
-  demand, and global search reads from the index (`src/notecollection.h`).
+  demand, and global search reads from the index (`src/repository/notecollection.h`).
 - Tags, pinned, favorite and created-at live in the note's front matter, and a
   rewrite preserves every line it does not understand. `NoteFrontMatter::split()`
   is byte-preserving, and keys written by other tools survive verbatim in
-  `Metadata::unknownLines` (`src/notefrontmatter.h`), so Kvit cannot destroy
+  `Metadata::unknownLines` (`src/content/notefrontmatter.h`), so Kvit cannot destroy
   metadata it was not designed to read.
 - Folder structure is directory structure. There is no separate hierarchy.
 - The full-text index is a SQLite FTS5 database keyed by a hash of the root path
@@ -108,9 +108,9 @@ a rule nobody has yet broken.
 
 ## Evidence in the tree
 
-- `src/notecollection.h`: ownership contract and the statement that bodies are not resident
-- `src/notefrontmatter.h`: byte-preserving split, `unknownLines`
-- `src/collectionsearchindex.cpp`: `databasePathForRoot`, cache location choice
-- `src/searchindexdb.cpp`: schema version gate, rebuild on corruption
-- `src/filewatcher.h`: watch coverage and the `watchDegraded` signal
+- `src/repository/notecollection.h`: ownership contract and the statement that bodies are not resident
+- `src/content/notefrontmatter.h`: byte-preserving split, `unknownLines`
+- `src/search/collectionsearchindex.cpp`: `databasePathForRoot`, cache location choice
+- `src/search/searchindexdb.cpp`: schema version gate, rebuild on corruption
+- `src/platform/filewatcher.h`: watch coverage and the `watchDegraded` signal
 - `usage.md`: the user-facing description of `.kvit/`

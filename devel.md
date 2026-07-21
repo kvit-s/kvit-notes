@@ -16,6 +16,56 @@ they see on screen.
 Optional CMake flags: `-DKVIT_AGENT=ON` (premium agent module),
 `-DKVIT_UI_DRIVER=ON` (the scriptable UI driver below).
 
+## Where a new file goes
+
+`src/` is seven libraries, one directory each, and they may only include
+downward:
+
+```text
+src/content/      format transforms with no dependency on anything else:
+                  markdown value parsers, inline-markdown mappings,
+                  diagrams, math, HTML to markdown
+src/domain/       the block document: model, serializer, undo, selection,
+                  in-document search, outline, statistics
+src/search/       the rebuildable note index (this is the only place
+                  Qt6::Sql is linked)
+src/platform/     settings, file watching, network policy, tray, hotkeys,
+                  appearance tokens (the only place Qt6::Network is linked)
+src/repository/   the vault: containment, note files, atomic persistence,
+                  trash, backups, recovery, templates, import, assets
+src/application/  the document session, startup, the view models, queries,
+                  export
+src/qml/          the QML type registrations, the editor engine, and the
+                  AppContext composition root
+```
+
+A file placed in the wrong directory usually announces itself at once,
+because each target sees only its own directory and those of the modules it
+links. `#include "notecollection.h"` from a `src/domain/` source does not
+resolve, and the error is "No such file or directory" rather than anything
+about layering. If a header you expect is not found, the question to ask is
+whether the include is pointing the wrong way rather than whether the path is
+misspelled.
+
+Three things the compiler cannot catch are checked by
+`python3 tools/check-layering.py`, which also runs as the `LayeringGuard`
+test: the intended dependency graph (so a widened `target_link_libraries`
+line cannot quietly legalise an upward include), Qt networking outside
+`src/platform/`, and filesystem mutation outside the files listed in that
+script. Adding a write means adding the file to `MAY_MUTATE` with the reason,
+which is deliberate — the list is the answer to "what can write, and on whose
+authority".
+
+Types QML needs are registered as `QML_FOREIGN` wrappers in
+`src/qml/qmlsingletons.h`, never with a macro on the class itself.
+`qmltyperegistrar` builds the `Kvit` module's type list from one target's own
+metatypes, so a macro on a class in any other module is silently ignored and
+QML reports "ReferenceError: <Type> is not defined" at runtime.
+
+The reasoning behind all of this, including where the split deviates from
+`code-plan.md` and what is still one large class, is
+[docs/adr/0008-module-boundary.md](docs/adr/0008-module-boundary.md).
+
 ## Building on Windows: the two-tree workflow
 
 Since 2026-07-19 the Windows port builds and passes the full unit suite
@@ -140,7 +190,7 @@ pixel-correct, and the performance-plan numbers
 were achieved on it.
 
 **What the app does.** `KvitApplication::applyPlatformWorkarounds()`
-(src/kvitapplication.cpp) runs before `QApplication` is constructed (the
+(src/qml/kvitapplication.cpp) runs before `QApplication` is constructed (the
 platform plugin initializes EGL immediately, so this is the last moment the
 driver choice can be influenced) and, when /proc/version says the kernel is
 WSL, sets `GALLIUM_DRIVER=llvmpipe`, overriding anything inherited from the

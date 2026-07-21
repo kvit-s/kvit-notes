@@ -36,7 +36,7 @@ looks for a `create()` factory. Every service takes `QObject *parent = nullptr`,
 so putting `QML_SINGLETON` on the class itself gets the factory ignored and Qt
 default-constructs an instance wired to nothing — no warning, no null, a valid
 object bound to a service that does not exist. The registrations live in
-`src/qmlsingletons.h` as `QML_FOREIGN` wrappers, whose branch Qt tests first.
+`src/qml/qmlsingletons.h` as `QML_FOREIGN` wrappers, whose branch Qt tests first.
 
 **Three declared QML types at the window/delegate boundary.** `BlockDelegateBase`
 is the interface every block delegate already implemented by convention;

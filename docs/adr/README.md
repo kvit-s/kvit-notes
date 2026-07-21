@@ -42,7 +42,7 @@ route around it in good faith.
 The security-relevant records describe defenses that are already legible in the
 source, against a threat model that README.md and devel.md already state in
 public. Publishing the reasoning alongside them adds no information an attacker
-could not obtain by reading `src/egresspolicy.cpp`, and it gives a reviewer the
+could not obtain by reading `src/platform/egresspolicy.cpp`, and it gives a reviewer the
 context to judge whether a change weakens the defense.
 
 Records that state an open question do advertise a gap, and ADRs 0004, 0005 and
@@ -80,3 +80,4 @@ clearly marked section rather than woven through the reasoning.
 | [0005](0005-multi-process-behaviour.md) | Two instances on one notes root | Accepted |
 | [0006](0006-extension-trust.md) | What an extension is trusted to do | Open |
 | [0007](0007-supported-release-platforms.md) | Which platforms a release supports | Accepted |
+| [0008](0008-module-boundary.md) | Seven modules, and the direction between them | Accepted, with a named remainder |

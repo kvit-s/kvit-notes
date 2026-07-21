@@ -52,7 +52,7 @@ The rules that follow from this:
 1. **Note bodies flow through `DocumentManager`; everything else flows through
    `NoteCollection`.** Metadata, create, rename, move, delete and trash are the
    collection's, and the collection's scan writes only the performance index
-   sidecar. This split is stated in `src/notecollection.h` and is the contract
+   sidecar. This split is stated in `src/repository/notecollection.h` and is the contract
    both objects are written against.
 2. **A metadata change is an edit to the open document.** Setting front matter
    advances the document revision, marks the document dirty and feeds the crash
@@ -103,10 +103,10 @@ root are outside its scope and are covered, as an open question, by
 
 ## Evidence in the tree
 
-- `src/documentmanager.h`, `src/documentmanager.cpp`: the document session, journal, flush and cancellation
-- `src/notecollection.h`: the ownership contract with `DocumentManager`
-- `src/filewatcher.h`: single note watch, renewal, `watchDegraded`
-- `src/blockmodel.h`: `updateContentById`
+- `src/application/documentmanager.h`, `src/application/documentmanager.cpp`: the document session, journal, flush and cancellation
+- `src/repository/notecollection.h`: the ownership contract with `DocumentManager`
+- `src/platform/filewatcher.h`: single note watch, renewal, `watchDegraded`
+- `src/domain/blockmodel.h`: `updateContentById`
 - Merge commit `1b72d73` "Merge the document-session cluster", and within it
   `e953dbd` (metadata as an edit), `1839c28` (flush before read), `0189d4c`
   (watch renewal and write cancellation), `6e93d36` (save result gates the

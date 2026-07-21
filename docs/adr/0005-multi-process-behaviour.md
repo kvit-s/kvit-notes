@@ -112,8 +112,8 @@ still yielding a sane message.
 
 ## Evidence in the tree
 
-- `src/vaultlock.h`, `src/vaultlock.cpp`: the lock, and the reasoning for a kernel lock over a PID file
-- `src/notecollection.h`, `src/notecollection.cpp`: acquisition, reference counting, `vaultInUse`
+- `src/repository/vaultlock.h`, `src/repository/vaultlock.cpp`: the lock, and the reasoning for a kernel lock over a PID file
+- `src/repository/notecollection.h`, `src/repository/notecollection.cpp`: acquisition, reference counting, `vaultInUse`
 - `qml/main.qml`: the message shown to the refused session
 - `tests/test_vaultlock.cpp`: the two-process lost-update demonstration and the ten behavioral tests
 - `devel.md`: the working notes on the lock
