@@ -11,8 +11,7 @@
 #include <QUrl>
 
 namespace {
-const QString kvitDirName = QStringLiteral(".kvit");
-const QString recoveryDirName = QStringLiteral("recovery");
+const QString recoveryRelDir = QStringLiteral(".kvit/recovery");
 }
 
 void RecoveryJournalStore::setRootPath(const QString &rootPath)
@@ -26,9 +25,13 @@ QString RecoveryJournalStore::journalPathFor(const QString &relPath) const
 {
     if (m_rootPath.isEmpty() || !isValidRelativeNotePath(relPath))
         return QString();
-    const QString dirPath = m_rootPath + QLatin1Char('/') + kvitDirName
-        + QLatin1Char('/') + recoveryDirName;
-    QDir().mkpath(dirPath);
+    // A journal is the only copy of edits a crash interrupted, so it must be
+    // written where this vault can find it again, not through a link into
+    // some other directory.
+    const QString dirPath =
+        VaultPaths::ensureOwnedDir(m_rootPath, recoveryRelDir);
+    if (dirPath.isEmpty())
+        return QString();
     // The file name IS the relPath, percent-encoded (flat directory).
     const QString encoded = QString::fromUtf8(
         QUrl::toPercentEncoding(relPath));
@@ -38,8 +41,10 @@ QString RecoveryJournalStore::journalPathFor(const QString &relPath) const
 void RecoveryJournalStore::reload()
 {
     m_pending.clear();
-    const QDir recoveryDir(m_rootPath + QLatin1Char('/') + kvitDirName
-                           + QLatin1Char('/') + recoveryDirName);
+    const QString dirPath = VaultPaths::ownedDir(m_rootPath, recoveryRelDir);
+    if (dirPath.isEmpty())
+        return;
+    const QDir recoveryDir(dirPath);
     const QStringList journals = recoveryDir.entryList(QDir::Files, QDir::Name);
     for (const QString &encoded : journals) {
         const QString decoded = QString::fromUtf8(
@@ -72,12 +77,21 @@ QString RecoveryJournalStore::readJournal(const QString &relPath, bool *ok) cons
     return NoteFileIo::readTextFile(journalPathFor(relPath), ok);
 }
 
-void RecoveryJournalStore::resolve(const QString &relPath)
+bool RecoveryJournalStore::resolve(const QString &relPath)
 {
     if (!isValidRelativeNotePath(relPath))
-        return;
-    QFile::remove(journalPathFor(relPath));
+        return false;
+    const QString path = journalPathFor(relPath);
+    if (path.isEmpty())
+        return false;
+    // Confirmed absence counts as resolved: the goal is that no journal is
+    // left behind, not that this call is the one that removed it.
+    if (QFile::exists(path) && !QFile::remove(path))
+        return false;
+    if (QFile::exists(path))
+        return false;
     m_pending.removeAll(relPath);
+    return true;
 }
 
 void RecoveryJournalStore::clear()

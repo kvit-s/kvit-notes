@@ -37,7 +37,32 @@ QDateTime fileCreatedTime(const QFileInfo &info)
     return birth.isValid() ? birth : info.lastModified();
 }
 
+// Not const: a test has to be able to lower it, since writing a 32 MiB
+// fixture to prove the cap works would itself be the problem the cap exists
+// to prevent.
+qint64 g_maxNoteBytes = 32LL * 1024 * 1024;
+
 } // namespace
+
+qint64 maxNoteBytes()
+{
+    return g_maxNoteBytes;
+}
+
+void setMaxNoteBytes(qint64 bytes)
+{
+    g_maxNoteBytes = bytes;
+}
+
+NoteEntry unparsedEntry(const QString &relPath, const QFileInfo &info)
+{
+    NoteEntry entry = placeholderEntry(relPath, info);
+    // Unlike a placeholder, this is the final answer for the file as it
+    // stands, so it carries the real size: the next scan compares size and
+    // modification time and leaves it alone until it changes.
+    entry.fileSize = info.size();
+    return entry;
+}
 
 NoteEntry placeholderEntry(
     const QString &relPath,
@@ -200,12 +225,18 @@ IndexResult parseIndexTask(
     result.relPath = task.relPath;
     result.generation = task.generation;
 
+    QFileInfo info(task.absPath);
+    if (maxNoteBytes() > 0 && info.size() > maxNoteBytes()) {
+        result.entry = unparsedEntry(task.relPath, info);
+        result.ok = true;
+        return result;
+    }
+
     bool ok = false;
     const QString fileText = readTextFile(task.absPath, &ok);
     if (!ok)
         return result;
 
-    QFileInfo info(task.absPath);
     result.entry = entryFromText(task.relPath, fileText, info);
     result.ok = true;
     return result;
@@ -266,6 +297,11 @@ RefreshResult buildRefreshResult(
                     && current->fileSize == info.size()
                     && dateTimeMs(current->modified)
                         == dateTimeMs(info.lastModified())) {
+                    continue;
+                }
+
+                if (maxNoteBytes() > 0 && info.size() > maxNoteBytes()) {
+                    result.entries.append(unparsedEntry(relPath, info));
                     continue;
                 }
 

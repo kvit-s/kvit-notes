@@ -149,6 +149,23 @@ NoteEntry cachedEntryForPath(const QString &relPath, const NoteEntry &cached,
 NoteEntry entryFromText(const QString &relPath, const QString &fileText,
                         const QFileInfo &info);
 
+// The largest note the scan will read into memory. A note is prose, and a
+// scan that reads whatever it finds turns one enormous file — a log someone
+// dropped in the vault, an export gone wrong — into a multi-second freeze or
+// an out-of-memory failure, once per session and again on every watcher
+// event. Beyond the cap a note is still listed, with its name, size and
+// dates, but its body is not read.
+//
+// 32 MiB by default: about thirty times the largest plausible hand-written
+// note, so nothing a person writes is ever affected.
+qint64 maxNoteBytes();
+void setMaxNoteBytes(qint64 bytes);
+
+// An index entry for a note too large to parse: real size and dates, so the
+// freshness check treats it as up to date and does not try again every scan,
+// but no body-derived data.
+NoteEntry unparsedEntry(const QString &relPath, const QFileInfo &info);
+
 // Walk the vault: folders, note entries from the cache where they are still
 // fresh, and a parse task for every note where they are not.
 ScanListing buildScanListing(const ScanRequest &request);

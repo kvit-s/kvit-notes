@@ -3,14 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "notetrashstore.h"
 
+#include "vaultpaths.h"
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 
 namespace {
-const QString kvitDirName = QStringLiteral(".kvit");
-const QString trashDirName = QStringLiteral("trash");
+const QString trashRelDir = QStringLiteral(".kvit/trash");
 }
 
 void NoteTrashStore::setRootPath(const QString &rootPath)
@@ -20,13 +21,15 @@ void NoteTrashStore::setRootPath(const QString &rootPath)
 
 QString NoteTrashStore::trashDirPath() const
 {
-    return m_rootPath + QLatin1Char('/') + kvitDirName + QLatin1Char('/')
-        + trashDirName;
+    // "" when .kvit or .kvit/trash is a link. empty() removes this directory
+    // recursively, so following one would delete a tree the user never asked
+    // this application to touch.
+    return VaultPaths::ownedDir(m_rootPath, trashRelDir);
 }
 
 int NoteTrashStore::itemCount() const
 {
-    if (m_rootPath.isEmpty())
+    if (m_rootPath.isEmpty() || trashDirPath().isEmpty())
         return 0;
     const QDir trashDir(trashDirPath());
     if (!trashDir.exists())
@@ -37,7 +40,7 @@ int NoteTrashStore::itemCount() const
 
 bool NoteTrashStore::empty()
 {
-    if (m_rootPath.isEmpty())
+    if (m_rootPath.isEmpty() || trashDirPath().isEmpty())
         return false;
     QDir trashDir(trashDirPath());
     if (!trashDir.exists()) {
@@ -50,8 +53,8 @@ bool NoteTrashStore::empty()
 
 bool NoteTrashStore::moveIn(const QString &absPath, const QString &name)
 {
-    const QString trashDir = trashDirPath();
-    if (!QDir().mkpath(trashDir))
+    const QString trashDir = VaultPaths::ensureOwnedDir(m_rootPath, trashRelDir);
+    if (trashDir.isEmpty())
         return false;
 
     const QString stamp =

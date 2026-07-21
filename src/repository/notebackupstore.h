@@ -4,7 +4,9 @@
 #ifndef NOTEBACKUPSTORE_H
 #define NOTEBACKUPSTORE_H
 
+#include <QByteArray>
 #include <QDateTime>
+#include <QHash>
 #include <QString>
 #include <QVariantList>
 
@@ -45,11 +47,28 @@ public:
     // QDateTime::currentDateTime.
     void setClockForTesting(std::function<QDateTime()> clock);
 
+    // Test seam: what to do with a snapshot instead of writing it on a pool
+    // thread. The rotation defect is about what happens while an earlier
+    // snapshot has not landed yet, which is unobservable when the write
+    // usually wins the race; holding the write is the only way to test the
+    // decision rather than the timing. Null restores the pool write.
+    void setSnapshotWriterForTesting(
+        std::function<void(const QString &dirPath, const QString &target,
+                           const QByteArray &bytes)> writer);
+
 private:
     QString dirFor(const QString &relPath) const;
 
     QString m_rootPath;
     std::function<QDateTime()> m_clock; // null = QDateTime::currentDateTime
+    std::function<void(const QString &, const QString &, const QByteArray &)>
+        m_writer; // null = pool write
+    // The window each note's last scheduled snapshot belongs to, recorded
+    // when the decision is made rather than when the file appears. Several
+    // saves in quick succession all used to look at a directory none of the
+    // queued writes had reached yet, so each of them decided it was the first
+    // and the rotation floor stopped meaning anything.
+    QHash<QString, QDateTime> m_scheduled;
 };
 
 #endif // NOTEBACKUPSTORE_H

@@ -74,8 +74,14 @@ QHash<QString, NoteEntry> NoteIndexFile::load(bool *ok) const
     if (filePath.isEmpty() || !QFileInfo::exists(filePath))
         return notes;
 
+    // The sidecar is a cache: it is entirely rebuildable from the notes, so a
+    // file too large to load comfortably is discarded rather than read. About
+    // a kilobyte per note, so this is a quarter of a million notes -- past
+    // any real vault and well short of a size that would stall a startup.
+    constexpr qint64 maxIndexBytes = 256LL * 1024 * 1024;
     bool readOk = false;
-    const QByteArray bytes = NoteFileIo::readFileBytes(filePath, &readOk);
+    const QByteArray bytes =
+        NoteFileIo::readFileBytes(filePath, &readOk, maxIndexBytes);
     if (!readOk)
         return notes;
 

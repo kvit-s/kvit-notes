@@ -163,18 +163,24 @@ bool NoteCollection::openRoot(const QString &path)
         return false;
     PerfLog::ScopedTimer perf(QStringLiteral("startup.scan"),
                               QVariantMap{{QStringLiteral("path"), path}});
+    // Nothing about the vault currently open is given up until the new one is
+    // known to be openable. A switch that fails because the other vault is
+    // held elsewhere leaves this collection exactly as it was, still locked
+    // and still scanning, rather than showing a vault whose lock and
+    // background work it has already thrown away.
+    if (!prepareRootPath(path))
+        return false;
     cancelAsyncScan();
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
     cancelAsyncIndexSave();
-    if (!prepareRootPath(path))
-        return false;
     scan();
 
     // Journal files present when a root OPENS are crash evidence: orderly
     // shutdown removes them, and a mid-session refresh() must not ingest
     // the open note's live journal.
     loadRecoveryEntries();
+    resumePendingOperations();
 
     emit rootChanged();
     bump();
@@ -191,12 +197,14 @@ bool NoteCollection::openRootAsync(const QString &path)
     m_collectionState.flushIfDirty();
     if (m_collectionState.isDirty())
         return false;
+    // As in openRoot(): the current vault is only given up once the new one
+    // has been taken.
+    if (!prepareRootPath(path))
+        return false;
     cancelAsyncScan();
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
     cancelAsyncIndexSave();
-    if (!prepareRootPath(path))
-        return false;
 
     // Open the search index for the new root at once so queries hit the warm
     // database from the previous session while the background scan runs; the
@@ -232,6 +240,10 @@ void NoteCollection::closeRoot()
     m_manualOrder.clear();
     m_lastOpenNote.clear();
     m_recoveryJournals.clear();
+    // A plan describes work in the vault being left; the next open reads
+    // whatever is still recorded there.
+    m_activeOperationPlan.clear();
+    m_pendingOperations.clear();
     m_indexDirty = false;
     m_searchFeed.close();
     // Released last: nothing above may still be writing when another process
@@ -253,14 +265,41 @@ bool NoteCollection::prepareRootPath(const QString &path)
         return false;
     }
 
+    const QString absolute = QDir(path).absolutePath();
+
+    // Establish the control directory before anything reads, writes or
+    // deletes through it. Attaching the stores alone deletes the legacy cache
+    // — one file and one recursive directory removal — and every later write
+    // of state, templates, journals, backups and trash goes through the same
+    // subtree. If `.kvit` is a link, all of that lands in a directory this
+    // application was never pointed at, so the vault is refused instead.
+    if (!VaultPaths::ownedDirIsSound(absolute, QStringLiteral(".kvit"))) {
+        emit operationFailed(
+            tr("\"%1\" cannot be opened: its .kvit folder is a link rather "
+               "than a folder inside the vault").arg(absolute));
+        return false;
+    }
+    // `assets` is owned in the same way, but only once it exists: a vault
+    // that has never stored an image has no assets directory, and creating
+    // one on open would be a write nobody asked for.
+    if (QFileInfo::exists(QDir(absolute).filePath(QStringLiteral("assets")))
+        && !VaultPaths::ownedDirIsSound(absolute, QStringLiteral("assets"))) {
+        emit operationFailed(
+            tr("\"%1\" cannot be opened: its assets folder is a link rather "
+               "than a folder inside the vault").arg(absolute));
+        return false;
+    }
+
     // Take the vault before reading any of its state. Everything below this
     // point loads files that will later be written back whole, so a second
     // process reaching the same point would set up the lost update
     // tests/test_vaultlock.cpp demonstrates. Unavailable (no locking on this
     // filesystem, read-only directory) opens unlocked rather than refusing:
     // an unopenable vault is a worse outcome than an unguarded one.
-    const QString absolute = QDir(path).absolutePath();
-    if (m_vaultLock.acquire(absolute) == VaultLock::Result::HeldByAnother) {
+    const VaultLock::Result lock = m_vaultLock.acquire(
+        absolute, m_readOnly ? VaultLock::Access::Read
+                             : VaultLock::Access::Write);
+    if (lock == VaultLock::Result::HeldByAnother) {
         // One signal, not operationFailed as well: the UI needs to say
         // something specific here rather than show a generic failure, and two
         // signals for one event invites handling it twice.
@@ -271,6 +310,16 @@ bool NoteCollection::prepareRootPath(const QString &path)
     m_rootPath = absolute;
     m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
     attachStoresToRoot();
+    // Fail-open is a deliberate choice, but it was only ever written to the
+    // log, where nobody sees it: the vault is open with nothing stopping a
+    // second session from saving over this one.
+    if (lock == VaultLock::Result::Unavailable && !m_readOnly) {
+        emit vaultUnprotected(
+            absolute,
+            tr("This folder does not support file locking, so Kvit cannot "
+               "stop another window or computer from writing to it at the "
+               "same time. Editing it from one place at a time is up to you."));
+    }
     return true;
 }
 
@@ -283,6 +332,7 @@ void NoteCollection::attachStoresToRoot()
     m_backups.setRootPath(m_rootPath);
     m_recoveryJournals.setRootPath(m_rootPath);
     m_indexFile.setRootPath(m_rootPath);
+    m_operations.setRootPath(m_rootPath);
     m_collectionState.setRoot(m_rootPath, m_canonicalRoot);
 }
 
@@ -442,7 +492,7 @@ void NoteCollection::refreshPaths(const QStringList &absPaths)
 
 void NoteCollection::initializeIfEmpty()
 {
-    if (!isOpen() || !m_notes.isEmpty())
+    if (!isOpen() || !m_notes.isEmpty() || refuseWhenReadOnly())
         return;
 
     const QString welcome = QStringLiteral(
@@ -487,10 +537,24 @@ QString NoteCollection::relativePath(const QString &absPath) const
     return canonical.mid(m_canonicalRoot.size() + 1);
 }
 
+bool NoteCollection::refuseWhenReadOnly()
+{
+    if (!m_readOnly)
+        return false;
+    emit operationFailed(tr("This vault is open for reading only"));
+    return true;
+}
+
 bool NoteCollection::ensureWithinRoot(const QString &relPath)
 {
     if (!isOpen())
         return false;
+    if (m_readOnly) {
+        emit operationFailed(
+            tr("This vault is open for reading only; \"%1\" was not changed")
+                .arg(relPath));
+        return false;
+    }
     if (relPath.isEmpty())
         return true;
     // Shape first: a value that is absolute, dot-segmented or non-canonical
@@ -524,6 +588,20 @@ bool NoteCollection::prepareOpenDocumentMutation(const QString &relPath)
     return true;
 }
 
+bool NoteCollection::persistOpenDocumentBeforeRemoval(const QString &relPath)
+{
+    if (!openDocumentIs(relPath))
+        return true;
+    // flushPendingEdits() has already brought delegate-local text into the
+    // document and cancelPendingWrites() has stopped anything older, so what
+    // the session holds now is the newest revision there is. Deletion moves
+    // the file to the trash and then closes the document, which is the last
+    // moment that revision exists anywhere.
+    if (!m_openDocument->hasUnsavedChanges())
+        return true;
+    return m_openDocument->persistCurrentRevision();
+}
+
 void NoteCollection::rebindOpenDocument(const QString &oldRelPath,
                                         const QString &newRelPath)
 {
@@ -545,7 +623,8 @@ void NoteCollection::scan()
     m_indexDirty = false;
 
     bool indexOk = false;
-    const QHash<QString, NoteEntry> cachedNotes = m_indexFile.load(&indexOk);
+    QHash<QString, NoteEntry> cachedNotes = m_indexFile.load(&indexOk);
+    dropJournalledEntriesFromCache(&cachedNotes);
     m_notes.reserve(cachedNotes.size());
     m_folderOwnNoteCounts.reserve(cachedNotes.size());
     m_folderRecursiveNoteCounts.reserve(cachedNotes.size());
@@ -576,6 +655,7 @@ void NoteCollection::scanAsync()
 
     bool indexOk = false;
     QHash<QString, NoteEntry> cachedNotes = m_indexFile.load(&indexOk);
+    dropJournalledEntriesFromCache(&cachedNotes);
     const bool indexFileExists = QFileInfo::exists(m_indexFile.path());
     m_notes.reserve(cachedNotes.size());
     m_folderOwnNoteCounts.reserve(cachedNotes.size());
@@ -652,6 +732,18 @@ void NoteCollection::indexNote(const QString &relPath,
         if (entry) {
             perf.addContext(QStringLiteral("words"), entry->wordCount);
         }
+        return;
+    }
+
+    if (VaultScan::maxNoteBytes() > 0
+        && info.size() > VaultScan::maxNoteBytes()) {
+        // Listed but not read: see VaultScan::maxNoteBytes(). The synchronous
+        // scan is the one that runs on the GUI thread, so it is the path
+        // where reading an enormous file is felt as a freeze.
+        ensureFolderEntriesFor(folderOfRelPath(relPath));
+        insertNoteEntry(relPath, VaultScan::unparsedEntry(relPath, info));
+        perf.addContext(QStringLiteral("ok"), true);
+        perf.addContext(QStringLiteral("oversized"), true);
         return;
     }
 
@@ -749,10 +841,24 @@ void NoteCollection::ensureFolderEntriesFor(const QString &folderPath)
 void NoteCollection::insertNoteEntry(const QString &relPath,
                                      const NoteEntry &entry)
 {
+    // A placeholder carries fileSize -1 (VaultScan::placeholderEntry): the
+    // note is listed but nothing has read it, so its metadata is unknown
+    // rather than empty.
+    const auto previous = m_notes.constFind(relPath);
+    const bool wasUnknown = previous == m_notes.constEnd()
+        || previous->fileSize < 0;
     removeNoteEntry(relPath);
     m_notes.insert(relPath, entry);
     adjustFolderNoteCounts(entry.folder, 1);
     m_wikiLinks.invalidate();
+    if (wasUnknown && entry.fileSize >= 0)
+        emit noteMetadataReady(relPath);
+}
+
+bool NoteCollection::hasParsedMetadata(const QString &relPath) const
+{
+    const NoteEntry *entry = note(relPath);
+    return entry && entry->fileSize >= 0;
 }
 
 void NoteCollection::removeNoteEntry(const QString &relPath)
@@ -804,14 +910,127 @@ void NoteCollection::clearFolderNoteCounts()
 
 void NoteCollection::saveIndexFileIfDirty()
 {
-    if (!m_indexDirty)
+    if (!m_indexDirty) {
+        finishOperationPlanAfterIndexSave();
         return;
+    }
     // Only a write that actually landed clears the flag. Clearing it
     // regardless left the sidecar stale with nothing remembering that it
     // needed rewriting, so the next session paid for a full rescan and any
     // later chance to retry was gone.
-    if (m_indexFile.save(m_notes))
+    if (m_indexFile.save(m_notes)) {
         m_indexDirty = false;
+        // The plan exists to say "these files may not match the sidecar". A
+        // sidecar that has just been written from the same state answers
+        // that, and only then is the operation over.
+        finishOperationPlanAfterIndexSave();
+    }
+}
+
+void NoteCollection::beginOperationPlan(const QString &kind,
+                                        const QJsonObject &payload,
+                                        const QStringList &files)
+{
+    if (files.isEmpty())
+        return;
+    m_activeOperationPlan = m_operations.begin(kind, payload, files);
+}
+
+void NoteCollection::abandonOwnOperationPlan()
+{
+    if (m_activeOperationPlan.isEmpty())
+        return;
+    m_operations.finish(m_activeOperationPlan);
+    m_activeOperationPlan.clear();
+}
+
+void NoteCollection::finishOperationPlanAfterIndexSave()
+{
+    if (m_activeOperationPlan.isEmpty() || m_indexDirty)
+        return;
+    m_operations.finish(m_activeOperationPlan);
+    m_activeOperationPlan.clear();
+}
+
+void NoteCollection::dropJournalledEntriesFromCache(
+    QHash<QString, NoteEntry> *cachedNotes)
+{
+    m_pendingOperations = m_operations.pending();
+    if (m_pendingOperations.isEmpty() || !cachedNotes)
+        return;
+    // Whatever the sidecar says about these notes was written before an
+    // operation that did not finish, so it is not evidence of anything. They
+    // are parsed from the file instead, which is the only durable answer.
+    for (const OperationJournal::Plan &plan : m_pendingOperations) {
+        for (const QString &relPath : plan.files) {
+            if (cachedNotes->remove(relPath) > 0)
+                markIndexDirty();
+        }
+    }
+}
+
+void NoteCollection::resumePendingOperations()
+{
+    if (m_pendingOperations.isEmpty())
+        return;
+    const QList<OperationJournal::Plan> plans = m_pendingOperations;
+    m_pendingOperations.clear();
+
+    QStringList unfinished;
+    for (const OperationJournal::Plan &plan : plans) {
+        const QStringList remaining = plan.remaining();
+        bool resumed = true;
+        if (plan.kind == QLatin1String("tagRename")
+            || plan.kind == QLatin1String("tagDelete")) {
+            // Both are the same shape and both are idempotent: applying the
+            // mapping again to a note that already has it changes nothing, so
+            // finishing an interrupted run is simply running it over what is
+            // left.
+            const QString from =
+                plan.payload.value(QStringLiteral("from")).toString();
+            const QString to =
+                plan.payload.value(QStringLiteral("to")).toString();
+            beginOperationPlan(plan.kind, plan.payload, remaining);
+            for (const QString &relPath : remaining) {
+                NoteEntry *entry = const_cast<NoteEntry *>(note(relPath));
+                if (!entry || !entry->meta.tags.contains(from))
+                    continue;
+                QStringList tags;
+                for (const QString &tag : entry->meta.tags) {
+                    const QString mapped = (tag == from) ? to : tag;
+                    if (!mapped.isEmpty() && !tags.contains(mapped))
+                        tags.append(mapped);
+                }
+                const NoteFrontMatter::Metadata before = entry->meta;
+                entry->meta.tags = tags;
+                if (rewriteFrontMatter(relPath, before)) {
+                    markIndexDirty();
+                } else {
+                    entry->meta = before;
+                    resumed = false;
+                }
+            }
+        } else if (plan.kind == QLatin1String("wikiLinks")
+                   && !remaining.isEmpty()) {
+            // A link rewrite cannot be replayed from the plan alone — the
+            // rename it followed has already happened — so what the plan
+            // buys here is the report, plus the reparse above that keeps the
+            // index honest about the files it did reach.
+            resumed = false;
+        }
+        // Anything else — a single metadata edit interrupted before it wrote
+        // — leaves nothing to finish. The file was not changed, and the
+        // cached entry for it has already been discarded above.
+        if (resumed)
+            m_operations.finish(plan.id);
+        else
+            unfinished += remaining;
+    }
+    saveIndexFileIfDirty();
+    if (!unfinished.isEmpty()) {
+        unfinished.removeDuplicates();
+        emit operationIncomplete(unfinished);
+    }
 }
 
 void NoteCollection::markIndexDirty()
@@ -920,6 +1139,10 @@ void NoteCollection::finishAsyncScan()
     m_asyncParseGeneration = 0;
     flushAsyncIndexUpdates();
     setScanInProgress(false);
+    // The index now holds every note, which is what finishing an interrupted
+    // multi-file operation needs: the startup path cannot do it before the
+    // background scan has caught up.
+    resumePendingOperations();
     if (m_asyncSavedNotePendingFlush) {
         saveIndexFileIfDirtyAsync();
         m_asyncSavedNotePendingFlush = false;
@@ -1013,6 +1236,15 @@ void NoteCollection::startAsyncDirectoryRefresh(const QStringList &relDirs)
     if (m_asyncRefreshWatcher.isRunning()) {
         const QSignalBlocker blocker(&m_asyncRefreshWatcher);
         ++m_asyncRefreshGeneration;
+        // Signal the worker's own token first. QFuture::cancel() on a future
+        // from QtConcurrent::run() only marks it cancelled for bookkeeping;
+        // the walk carries on regardless, and dropping the token reference
+        // without signalling it left that walk running to completion over a
+        // subtree whose result is already discarded. A burst of watcher
+        // events could accumulate one such walk per event.
+        if (m_refreshCancel)
+            m_refreshCancel->cancel();
+        m_refreshCancel.reset();
         m_asyncRefreshWatcher.cancel();
         m_asyncRefreshWatcher.waitForFinished();
     }
@@ -1454,6 +1686,18 @@ QVariantMap NoteCollection::applyWikiLinkRewrites(
     int openRewriteCount = 0;
     QStringList sorted = plan.referrers.keys();
     sorted.sort();
+
+    // Every referrer is named before the first one is rewritten. A crash part
+    // way through used to leave some notes pointing at the new name and some
+    // at the old, with nothing on disk saying that one operation was meant to
+    // cover both; the next start can now at least reparse them all and tell
+    // the user which ones were not reached.
+    QJsonObject journalPayload;
+    journalPayload.insert(QStringLiteral("kind"), plan.kind);
+    journalPayload.insert(QStringLiteral("oldPath"), plan.oldPath);
+    journalPayload.insert(QStringLiteral("newPath"), plan.newPath);
+    journalPayload.insert(QStringLiteral("replacement"), replacement);
+    beginOperationPlan(QStringLiteral("wikiLinks"), journalPayload, sorted);
     for (const QString &referrer : sorted) {
         const RewriteSnapshot &snapshot = plan.referrers.value(referrer);
         QString actual = referrer;
@@ -1537,6 +1781,7 @@ QVariantMap NoteCollection::applyWikiLinkRewrites(
                 failed.append(actual);
                 continue;
             }
+            m_operations.markDone(m_activeOperationPlan, referrer);
             indexNote(actual);
             reindexNoteInSearch(actual);
             ++indexedNoteCount;
@@ -1550,6 +1795,10 @@ QVariantMap NoteCollection::applyWikiLinkRewrites(
         markIndexDirty();
         saveIndexFileIfDirty();
         bump();
+    } else {
+        // Nothing was written, so there is no half-finished operation for the
+        // next start to hear about.
+        abandonOwnOperationPlan();
     }
     if (!skipped.isEmpty() || !failed.isEmpty())
         emit wikiLinkRewriteIncomplete(skipped, failed);
@@ -2075,7 +2324,7 @@ int NoteCollection::trashItemCount() const
 
 bool NoteCollection::emptyTrash()
 {
-    if (!isOpen())
+    if (!isOpen() || refuseWhenReadOnly())
         return false;
     const bool ok = m_trash.empty();
     bump();
@@ -2101,6 +2350,16 @@ bool NoteCollection::deleteNote(const QString &relPath)
     }
     const bool wasOpen = openDocumentIs(relPath);
     prepareOpenDocumentMutation(relPath);
+    // The trash is this application's undo for a deletion, so what lands in
+    // it has to be what the user last saw. An unsaved open note is written
+    // first, and a note whose newest revision cannot be written is not
+    // deleted at all.
+    if (!persistOpenDocumentBeforeRemoval(relPath)) {
+        emit operationFailed(
+            tr("\"%1\" has unsaved changes that could not be saved, so it was "
+               "not deleted").arg(entry->title));
+        return false;
+    }
     if (!moveToTrash(relPath)) {
         emit operationFailed(tr("Cannot delete \"%1\"").arg(entry->title));
         return false;
@@ -2261,8 +2520,18 @@ bool NoteCollection::deleteFolder(const QString &relPath)
     const QString openRelPath = m_openDocument
         ? relativePath(m_openDocument->openFilePath()) : QString();
     const bool removedOpen = openRelPath.startsWith(relPath + QLatin1Char('/'));
-    if (removedOpen)
+    if (removedOpen) {
         prepareOpenDocumentMutation(openRelPath);
+        // Same rule as deleting the note directly: the folder about to move
+        // into the trash contains the open note, so the trashed copy has to
+        // be the newest revision of it.
+        if (!persistOpenDocumentBeforeRemoval(openRelPath)) {
+            emit operationFailed(
+                tr("\"%1\" contains a note with unsaved changes that could not "
+                   "be saved, so it was not deleted").arg(entry->name));
+            return false;
+        }
+    }
     if (!moveToTrash(relPath)) {
         emit operationFailed(tr("Cannot delete folder \"%1\"").arg(entry->name));
         return false;
@@ -2307,7 +2576,7 @@ bool NoteCollection::deleteFolder(const QString &relPath)
 void NoteCollection::setFolderExpanded(const QString &relPath, bool expanded)
 {
     auto it = m_folders.find(relPath);
-    if (it == m_folders.end() || it->expanded == expanded)
+    if (it == m_folders.end() || it->expanded == expanded || refuseWhenReadOnly())
         return;
     it->expanded = expanded;
     m_collectionState.save();
@@ -2317,7 +2586,7 @@ void NoteCollection::setFolderExpanded(const QString &relPath, bool expanded)
 void NoteCollection::setFolderColor(const QString &relPath, const QString &color)
 {
     auto it = m_folders.find(relPath);
-    if (it == m_folders.end() || it->color == color)
+    if (it == m_folders.end() || it->color == color || refuseWhenReadOnly())
         return;
     it->color = color;
     m_collectionState.save();
@@ -2326,11 +2595,38 @@ void NoteCollection::setFolderColor(const QString &relPath, const QString &color
 
 // ------------------------------------------------------------ metadata
 
-bool NoteCollection::rewriteFrontMatter(const QString &relPath)
+// The three-way merge a metadata write performs. `disk` is what the file says
+// now, `before` is what this collection believed before the edit, and `after`
+// is what it believes now. Only the fields the edit actually changed are
+// taken from `after`; everything else keeps what the file says, so a tag
+// added by another tool between the last scan and this write survives an
+// unrelated pin, and foreign front-matter keys are never replaced by a cached
+// copy of themselves.
+static NoteFrontMatter::Metadata mergeMetadata(
+    const NoteFrontMatter::Metadata &disk,
+    const NoteFrontMatter::Metadata &before,
+    const NoteFrontMatter::Metadata &after)
+{
+    NoteFrontMatter::Metadata merged = disk;
+    if (after.tags != before.tags)
+        merged.tags = after.tags;
+    if (after.pinned != before.pinned)
+        merged.pinned = after.pinned;
+    if (after.favorite != before.favorite)
+        merged.favorite = after.favorite;
+    if (after.goal != before.goal)
+        merged.goal = after.goal;
+    if (after.created != before.created)
+        merged.created = after.created;
+    return merged;
+}
+
+bool NoteCollection::rewriteFrontMatter(const QString &relPath,
+                                        const NoteFrontMatter::Metadata &before)
 {
     if (!ensureWithinRoot(relPath))
         return false;
-    const NoteEntry *entry = note(relPath);
+    NoteEntry *entry = const_cast<NoteEntry *>(note(relPath));
     if (!entry)
         return false;
 
@@ -2351,19 +2647,67 @@ bool NoteCollection::rewriteFrontMatter(const QString &relPath)
     }
 
     // The file's bytes are authoritative for the body (the open note's
-    // unsaved edits flow through DocumentManager, not here).
+    // unsaved edits flow through DocumentManager, not here). Read as bytes,
+    // not as text: a metadata write must leave the body byte for byte as it
+    // was, and decoding to a QString and re-encoding it normalizes CRLF line
+    // endings and replaces every byte that is not valid UTF-8.
     bool ok = false;
-    const QString fileText = readTextFile(absPath, &ok);
+    const QByteArray bytes = readFileBytes(absPath, &ok);
     if (!ok)
         return false;
 
-    NoteFrontMatter::Split split = NoteFrontMatter::split(fileText);
-    const QString rewritten =
-        NoteFrontMatter::serialize(entry->meta) + split.body;
-    emit aboutToWrite(absPath);
-    if (!writeTextFileAtomic(absPath, rewritten))
+    const NoteFrontMatter::Split split =
+        NoteFrontMatter::split(QString::fromUtf8(bytes));
+    // split() is byte-preserving on the decoded text, so the encoded block is
+    // the file's leading bytes whenever the front matter itself decoded
+    // cleanly. When it did not, there is no offset to splice at and the file
+    // is left alone rather than rewritten from a lossy decode.
+    const QByteArray blockBytes = split.block.toUtf8();
+    if (!bytes.startsWith(blockBytes))
         return false;
+
+    // What is on disk wins for every field this edit did not touch.
+    const NoteFrontMatter::Metadata merged =
+        mergeMetadata(NoteFrontMatter::parse(split.block), before, entry->meta);
+    const QByteArray rewritten = NoteFrontMatter::serialize(merged).toUtf8()
+        + bytes.mid(blockBytes.size());
+
+    // Record the intent before touching the file. The write below restores
+    // the modification time, so an equal-length change leaves the file
+    // looking untouched to the freshness check: without this record, a crash
+    // before the index sidecar is written would leave the stale cached
+    // metadata trusted indefinitely, and later written back over the file.
+    const bool ownPlan = m_activeOperationPlan.isEmpty();
+    if (ownPlan) {
+        m_activeOperationPlan = m_operations.begin(
+            QStringLiteral("metadata"), QJsonObject(), {relPath});
+    }
+
+    // Announce the write first, then verify, then commit. Immediately before
+    // the replacement the same bytes must still be there; anything else means
+    // somebody wrote the file after it was read, and committing would
+    // silently drop their change. An abandoned write leaves an own-write
+    // registration behind for a write that never happened, which is why the
+    // conflict is reported directly rather than left for the watcher to
+    // notice.
+    emit aboutToWrite(absPath);
+    bool recheckOk = false;
+    const QByteArray current = readFileBytes(absPath, &recheckOk);
+    if (!recheckOk || current != bytes) {
+        if (ownPlan)
+            abandonOwnOperationPlan();
+        emit noteChangedExternally(relPath);
+        return false;
+    }
+
+    if (!writeFileBytesAtomic(absPath, rewritten)) {
+        if (ownPlan)
+            abandonOwnOperationPlan();
+        return false;
+    }
     restoreFileTime(absPath, mtime);
+    entry->meta = merged;
+    m_operations.markDone(m_activeOperationPlan, relPath);
     // The reconcile pass decides freshness from file size and mtime, and
     // this rewrite deliberately restores the mtime so metadata edits do not
     // reorder "recently modified". A same-length change — renaming a tag
@@ -2390,14 +2734,14 @@ bool NoteCollection::setTags(const QString &relPath, const QStringList &tags)
     if (entry->meta.tags == cleaned)
         return true;
 
-    const QStringList before = entry->meta.tags;
+    const NoteFrontMatter::Metadata before = entry->meta;
     entry->meta.tags = cleaned;
-    if (!rewriteFrontMatter(relPath)) {
-        entry->meta.tags = before;
+    if (!rewriteFrontMatter(relPath, before)) {
+        entry->meta = before;
         emit operationFailed(tr("Cannot write \"%1\"").arg(entry->title));
         return false;
     }
-    assignColorsToNewTags(cleaned);
+    assignColorsToNewTags(entry->meta.tags);
     {
         const QFileInfo info(absolutePath(relPath));
         entry->modified = info.lastModified();
@@ -2467,9 +2811,10 @@ bool NoteCollection::setPinned(const QString &relPath, bool pinned)
     }
     if (entry->meta.pinned == pinned)
         return true;
+    const NoteFrontMatter::Metadata before = entry->meta;
     entry->meta.pinned = pinned;
-    if (!rewriteFrontMatter(relPath)) {
-        entry->meta.pinned = !pinned;
+    if (!rewriteFrontMatter(relPath, before)) {
+        entry->meta = before;
         emit operationFailed(tr("Cannot write \"%1\"").arg(entry->title));
         return false;
     }
@@ -2493,9 +2838,10 @@ bool NoteCollection::setFavorite(const QString &relPath, bool favorite)
     }
     if (entry->meta.favorite == favorite)
         return true;
+    const NoteFrontMatter::Metadata before = entry->meta;
     entry->meta.favorite = favorite;
-    if (!rewriteFrontMatter(relPath)) {
-        entry->meta.favorite = !favorite;
+    if (!rewriteFrontMatter(relPath, before)) {
+        entry->meta = before;
         emit operationFailed(tr("Cannot write \"%1\"").arg(entry->title));
         return false;
     }
@@ -2520,10 +2866,10 @@ bool NoteCollection::setGoal(const QString &relPath, int goal)
     const int clamped = qMax(0, goal);
     if (entry->meta.goal == clamped)
         return true;
-    const int previous = entry->meta.goal;
+    const NoteFrontMatter::Metadata before = entry->meta;
     entry->meta.goal = clamped;
-    if (!rewriteFrontMatter(relPath)) {
-        entry->meta.goal = previous;
+    if (!rewriteFrontMatter(relPath, before)) {
+        entry->meta = before;
         emit operationFailed(tr("Cannot write \"%1\"").arg(entry->title));
         return false;
     }
@@ -2592,7 +2938,7 @@ QString NoteCollection::tagColor(const QString &tag) const
 
 void NoteCollection::setTagColor(const QString &tag, const QString &color)
 {
-    if (m_tagColors.value(tag) == color)
+    if (m_tagColors.value(tag) == color || refuseWhenReadOnly())
         return;
     if (color.isEmpty())
         m_tagColors.remove(tag);
@@ -2612,8 +2958,23 @@ bool NoteCollection::renameTag(const QString &oldName, const QString &newName)
     if (target == oldName)
         return true;
 
-    bool anyFailed = false;
+    // One plan for the whole rename. Every note that carries the tag is named
+    // before the first of them is rewritten, so a crash half way through is
+    // visible at the next start as an operation to finish rather than as a
+    // vault where some notes say `books` and some say `draft`.
+    QStringList affected;
     const QStringList keys = m_notes.keys();
+    for (const QString &key : keys) {
+        if (m_notes.value(key).meta.tags.contains(oldName))
+            affected.append(key);
+    }
+    affected.sort();
+    QJsonObject payload;
+    payload.insert(QStringLiteral("from"), oldName);
+    payload.insert(QStringLiteral("to"), target);
+    beginOperationPlan(QStringLiteral("tagRename"), payload, affected);
+
+    bool anyFailed = false;
     for (const QString &key : keys) {
         NoteEntry &entry = m_notes[key];
         if (!entry.meta.tags.contains(oldName))
@@ -2624,10 +2985,10 @@ bool NoteCollection::renameTag(const QString &oldName, const QString &newName)
             if (!tags.contains(mapped))
                 tags.append(mapped); // merge dedupes
         }
-        const QStringList before = entry.meta.tags;
+        const NoteFrontMatter::Metadata before = entry.meta;
         entry.meta.tags = tags;
-        if (!rewriteFrontMatter(key)) {
-            entry.meta.tags = before;
+        if (!rewriteFrontMatter(key, before)) {
+            entry.meta = before;
             anyFailed = true;
         } else {
             const QFileInfo info(absolutePath(key));
@@ -2655,16 +3016,26 @@ bool NoteCollection::renameTag(const QString &oldName, const QString &newName)
 
 bool NoteCollection::deleteTag(const QString &tag)
 {
-    bool anyFailed = false;
+    QStringList affected;
     const QStringList keys = m_notes.keys();
+    for (const QString &key : keys) {
+        if (m_notes.value(key).meta.tags.contains(tag))
+            affected.append(key);
+    }
+    affected.sort();
+    QJsonObject payload;
+    payload.insert(QStringLiteral("from"), tag);
+    beginOperationPlan(QStringLiteral("tagDelete"), payload, affected);
+
+    bool anyFailed = false;
     for (const QString &key : keys) {
         NoteEntry &entry = m_notes[key];
         if (!entry.meta.tags.contains(tag))
             continue;
-        const QStringList before = entry.meta.tags;
+        const NoteFrontMatter::Metadata before = entry.meta;
         entry.meta.tags.removeAll(tag);
-        if (!rewriteFrontMatter(key)) {
-            entry.meta.tags = before;
+        if (!rewriteFrontMatter(key, before)) {
+            entry.meta = before;
             anyFailed = true;
         } else {
             const QFileInfo info(absolutePath(key));
@@ -2714,6 +3085,8 @@ QStringList NoteCollection::manualOrder(const QString &folder) const
 
 bool NoteCollection::setManualPosition(const QString &relPath, int position)
 {
+    if (refuseWhenReadOnly())
+        return false;
     const NoteEntry *entry = note(relPath);
     if (!entry) {
         emit operationFailed(tr("No such note: %1").arg(relPath));
@@ -2738,7 +3111,7 @@ bool NoteCollection::setManualPosition(const QString &relPath, int position)
 
 void NoteCollection::setLastOpenNote(const QString &relPath)
 {
-    if (m_lastOpenNote == relPath)
+    if (m_lastOpenNote == relPath || m_readOnly)
         return;
     m_lastOpenNote = relPath;
     m_collectionState.save();
@@ -2758,6 +3131,13 @@ void NoteCollection::setClockForTesting(std::function<QDateTime()> clock)
     m_backups.setClockForTesting(std::move(clock));
 }
 
+void NoteCollection::setBackupWriterForTesting(
+    std::function<void(const QString &, const QString &, const QByteArray &)>
+        writer)
+{
+    m_backups.setSnapshotWriterForTesting(std::move(writer));
+}
+
 void NoteCollection::setClockOffsetForTesting(int secs)
 {
     if (secs == 0)
@@ -2769,6 +3149,8 @@ void NoteCollection::setClockOffsetForTesting(int secs)
 
 void NoteCollection::backupBeforeOverwrite(const QString &absPath)
 {
+    if (refuseWhenReadOnly())
+        return;
     m_backups.backupBeforeOverwrite(relativePath(absPath), absPath);
 }
 
@@ -2836,7 +3218,16 @@ bool NoteCollection::restoreRecovery(const QString &relPath)
         emit operationFailed(tr("Cannot restore \"%1\"").arg(relPath));
         return false;
     }
-    m_recoveryJournals.resolve(relPath);
+    if (!m_recoveryJournals.resolve(relPath)) {
+        // The note now holds the recovered text, but the journal is still on
+        // disk. Saying so is the whole point: a journal nobody could delete
+        // is offered again at the next launch as evidence of a crash that has
+        // already been dealt with, and accepting it then would put this same
+        // text back over whatever has been written since.
+        emit operationFailed(
+            tr("\"%1\" was restored, but its recovery file could not be "
+               "removed and will be offered again").arg(relPath));
+    }
 
     // The folder may be new to the index (recreated path).
     const QString folderPath = folderOfRelPath(relPath);
@@ -2867,7 +3258,12 @@ void NoteCollection::discardRecovery(const QString &relPath)
 {
     if (!m_recoveryJournals.isPending(relPath) || !ensureWithinRoot(relPath))
         return;
-    m_recoveryJournals.resolve(relPath);
+    if (!m_recoveryJournals.resolve(relPath)) {
+        // Still pending, deliberately: the user discarded it, but the file
+        // that says otherwise is still there.
+        emit operationFailed(
+            tr("The recovery file for \"%1\" could not be removed").arg(relPath));
+    }
     bump();
 }
 

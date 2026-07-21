@@ -36,6 +36,7 @@ private slots:
     void testDistinctNamesDoNotShareOneFile();
     void testDeleteDoesNotRemoveAliasedTemplate();
     void testShortWritePreservesExistingTemplate();
+    void testLinkedTemplatesDirectoryIsRefused();
 
 private:
     QTemporaryDir *m_dir = nullptr;
@@ -191,6 +192,42 @@ void TestNoteTemplates::testShortWritePreservesExistingTemplate()
         QVERIFY(!m_templates->writeTemplate("Quota", QString(64 * 1024, 'x')));
     }
     QCOMPARE(m_templates->readTemplate("Quota"), QString("original template"));
+}
+
+// Templates are files this module writes and deletes by name, so the
+// directory holding them has to be one the vault owns. Through a link, saving
+// a template wrote into another directory and deleting one removed a file
+// from it.
+void TestNoteTemplates::testLinkedTemplatesDirectoryIsRefused()
+{
+#ifdef Q_OS_WIN
+    QSKIP("real symbolic links require elevation on Windows; the junction "
+          "case is covered by NoteCollectionTests");
+#else
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QVERIFY(QDir().mkpath(outside.filePath("templates")));
+    QFile existing(outside.filePath("templates/Notes.md"));
+    QVERIFY(existing.open(QIODevice::WriteOnly));
+    existing.write("somebody else's file\n");
+    existing.close();
+
+    QVERIFY(QDir().mkpath(m_dir->filePath(".kvit")));
+    QDir(m_dir->filePath(".kvit")).removeRecursively();
+    QVERIFY(QDir().mkpath(m_dir->filePath(".kvit")));
+    QVERIFY(QFile::link(outside.filePath("templates"),
+                        m_dir->filePath(".kvit/templates")));
+
+    QVERIFY2(!m_templates->writeTemplate("Notes", "overwritten"),
+             "a template was written through a linked directory");
+    QCOMPARE(m_templates->templateNames(), QStringList());
+    QVERIFY(!m_templates->deleteTemplate("Notes"));
+
+    QFile check(outside.filePath("templates/Notes.md"));
+    QVERIFY(check.open(QIODevice::ReadOnly));
+    QCOMPARE(QString::fromUtf8(check.readAll()),
+             QStringLiteral("somebody else's file\n"));
+#endif
 }
 
 QTEST_MAIN(TestNoteTemplates)

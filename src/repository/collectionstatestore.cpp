@@ -46,8 +46,11 @@ void CollectionStateStore::setSnapshotProvider(std::function<Snapshot()> provide
 
 QString CollectionStateStore::filePath() const
 {
-    return m_rootPath + QLatin1Char('/') + kvitDirName + QLatin1Char('/')
-        + collectionFileName;
+    // "" when .kvit is not a directory this vault owns. The state file names
+    // tag colours and a note to reopen, and following a link out of the vault
+    // would both read somebody else's file and write this vault's state into
+    // it.
+    return VaultPaths::ownedFile(m_rootPath, kvitDirName, collectionFileName);
 }
 
 CollectionStateStore::Snapshot CollectionStateStore::load() const
@@ -56,8 +59,16 @@ CollectionStateStore::Snapshot CollectionStateStore::load() const
     if (m_rootPath.isEmpty())
         return snapshot;
 
+    const QString path = filePath();
+    if (path.isEmpty())
+        return snapshot; // refused by containment: defaults
+
+    // Tag colours, folder state and one note path. A file past this size is
+    // not state this application wrote, and loading it would only be a way to
+    // stall the open.
+    constexpr qint64 maxStateBytes = 64LL * 1024 * 1024;
     bool ok = false;
-    const QString text = NoteFileIo::readTextFile(filePath(), &ok);
+    const QString text = NoteFileIo::readTextFile(path, &ok, maxStateBytes);
     if (!ok)
         return snapshot; // absent or unreadable: defaults (never touches notes)
 
@@ -144,16 +155,27 @@ void CollectionStateStore::save()
     if (!snapshot.lastOpenNote.isEmpty())
         root.insert(QStringLiteral("lastOpenNote"), snapshot.lastOpenNote);
 
-    const QString dir = m_rootPath + QLatin1Char('/') + kvitDirName;
-    if (!QDir().mkpath(dir)) {
-        if (!m_retryTimer.isActive())
-            m_retryTimer.start();
-        emit saveFailed(tr("Cannot create the collection settings folder \"%1\"")
-                            .arg(dir));
+    const QString path = filePath();
+    if (path.isEmpty()) {
+        // Refused by containment rather than by the filesystem, so retrying
+        // can only fail the same way. The flag is cleared because closing and
+        // switching roots both wait for the state to stop being owed, and a
+        // write that will never be permitted must not wedge them.
+        m_dirty = false;
+        emit saveFailed(tr("Cannot save collection settings inside \"%1\"")
+                            .arg(m_rootPath));
         return;
     }
 
-    const QString path = filePath();
+    const QString dir = VaultPaths::ensureOwnedDir(m_rootPath, kvitDirName);
+    if (dir.isEmpty()) {
+        if (!m_retryTimer.isActive())
+            m_retryTimer.start();
+        emit saveFailed(tr("Cannot create the collection settings folder \"%1\"")
+                            .arg(m_rootPath + QLatin1Char('/') + kvitDirName));
+        return;
+    }
+
     if (NoteFileIo::writeTextFileAtomic(
             path, QString::fromUtf8(QJsonDocument(root).toJson(
                       QJsonDocument::Indented)))) {

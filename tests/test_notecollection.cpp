@@ -16,6 +16,13 @@
 
 #include "faultinjection.h"
 
+#include "notefileio.h"
+#include "opendocumentsession.h"
+#include "vaultpaths.h"
+#include "vaultscan.h"
+
+#include <QProcess>
+
 // Unit suite for the collection object, over real temporary
 // directories. The contracts under test: the scan reads and
 // never writes; every operation is reflected on disk and in the index;
@@ -127,6 +134,45 @@ private slots:
     void testNoteSavedRefreshesEntry();
     void testNoteSavedCanUseProvidedText();
     void testRevisionContract();
+
+    // Repository-owned directories (.kvit and its subtrees, assets) are the
+    // ones this module creates, rewrites and deletes on its own initiative,
+    // so a link standing in for one of them is a write outside the vault.
+    void testSymlinkedControlDirectoryRefusesToOpen();
+    void testSymlinkedControlDirectoryKeepsLegacyCacheOutside();
+    void testSymlinkedAssetsDirectoryRefusesToOpen();
+    void testOwnedSubtreesRefuseLinkedDirectories();
+    void testContainmentHandlesAFilesystemRoot();
+
+    // Reads that fail part way through
+    void testPartialReadIsNotReportedAsSuccess();
+    void testUnreadableRecoveryJournalIsNotResolved();
+
+    // Metadata writes against a file that changed underneath them
+    void testExternalFrontMatterChangeSurvivesMetadataWrite();
+    void testMetadataWriteAbortsWhenTheFileChangedFirst();
+    void testMetadataWritePreservesCrlfAndInvalidUtf8();
+
+    // Deleting a note whose newest revision is still in memory
+    void testDeletingADirtyOpenNoteTrashesTheNewestRevision();
+    void testDeletingAFolderWithADirtyOpenNoteIsRefusedWhenSaveFails();
+
+    // Durable operation plans
+    void testEqualLengthTagChangeSurvivesADeniedIndexWrite();
+    void testInterruptedTagRenameFinishesAtTheNextOpen();
+    void testIncompleteLinkRewriteIsReportedAtTheNextOpen();
+
+    // Bounds
+    void testOversizedNoteIsListedButNotParsed();
+
+    // Backups
+    void testRapidSavesDoNotStackBackupsInsideTheFloor();
+
+    // Read-only collections
+    void testReadOnlyCollectionRefusesEveryMutation();
+
+    // Telling "no metadata" apart from "not read yet"
+    void testPlaceholderMetadataIsDistinguishableAndAnnounced();
 
     // The adopted performance target — opening a 500-note collection
     // in under 1 second, measured.
@@ -1879,6 +1925,640 @@ void TestNoteCollection::testFailedCollectionWriteIsReported()
     const QByteArray json = state.readAll();
     QVERIFY(json.contains("#ff0000"));
     QVERIFY(json.contains("A.md"));
+}
+
+// --------------------------------------------- repository-owned directories
+//
+// The note tree belongs to the user, and a symbolic link inside it is theirs
+// to place: the scan simply does not follow it (the tests above). The control
+// directories are not theirs. Attaching the index store to a root deletes the
+// pre-split cache — one file and one recursive directory removal — before
+// anything has asked it to, and every later write of state, templates,
+// journals, trash and backups goes through the same subtree. A link standing
+// where `.kvit` should be therefore turned opening a vault into deleting
+// somebody else's directory.
+
+namespace {
+
+// A directory link, by whichever mechanism the platform gives an unprivileged
+// process. POSIX symbolic links need no privilege; Windows reserves those for
+// elevated processes but not junctions, which are what a user actually
+// encounters there.
+bool makeDirectoryLink(const QString &target, const QString &linkPath)
+{
+#ifdef Q_OS_WIN
+    QProcess mklink;
+    mklink.start(QStringLiteral("cmd"),
+                 {QStringLiteral("/c"), QStringLiteral("mklink"),
+                  QStringLiteral("/J"), QDir::toNativeSeparators(linkPath),
+                  QDir::toNativeSeparators(target)});
+    return mklink.waitForFinished(10000) && mklink.exitCode() == 0
+        && QFileInfo::exists(linkPath);
+#else
+    return QFile::link(target, linkPath);
+#endif
+}
+
+} // namespace
+
+void TestNoteCollection::testSymlinkedControlDirectoryRefusesToOpen()
+{
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QVERIFY(QDir().mkpath(outside.filePath("victim")));
+    QFile bystander(outside.filePath("victim/keep.txt"));
+    QVERIFY(bystander.open(QIODevice::WriteOnly));
+    bystander.write("not this application's file\n");
+    bystander.close();
+
+    writeNote("Welcome.md", "root note\n");
+    if (!makeDirectoryLink(outside.filePath("victim"), abs(".kvit")))
+        QSKIP("this platform does not let an unprivileged process link a directory");
+
+    QSignalSpy failed(m_collection, &NoteCollection::operationFailed);
+    QVERIFY2(!m_collection->openRoot(m_dir->path()),
+             "a vault whose .kvit is a link to another directory was opened");
+    QCOMPARE(failed.count(), 1);
+    QVERIFY(!m_collection->isOpen());
+    // Nothing was created or removed through the link.
+    QVERIFY(QFileInfo::exists(outside.filePath("victim/keep.txt")));
+    QVERIFY(!QFileInfo::exists(outside.filePath("victim/vault.lock")));
+    QVERIFY(!QFileInfo::exists(outside.filePath("victim/cache")));
+}
+
+// The automatic deletion path specifically: attaching the index store removes
+// <root>/.kvit/index.json and recursively removes <root>/.kvit/embedcache.
+// Through a link those are two directories nobody pointed this application at.
+void TestNoteCollection::testSymlinkedControlDirectoryKeepsLegacyCacheOutside()
+{
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QVERIFY(QDir().mkpath(outside.filePath("victim/embedcache")));
+    QFile legacy(outside.filePath("victim/index.json"));
+    QVERIFY(legacy.open(QIODevice::WriteOnly));
+    legacy.write("{\"version\":1}");
+    legacy.close();
+    QFile cached(outside.filePath("victim/embedcache/thumb.png"));
+    QVERIFY(cached.open(QIODevice::WriteOnly));
+    cached.write("PNG");
+    cached.close();
+
+    writeNote("Welcome.md", "root note\n");
+    if (!makeDirectoryLink(outside.filePath("victim"), abs(".kvit")))
+        QSKIP("this platform does not let an unprivileged process link a directory");
+
+    QVERIFY(!m_collection->openRoot(m_dir->path()));
+
+    QVERIFY2(QFileInfo::exists(outside.filePath("victim/index.json")),
+             "opening the vault deleted a file outside it");
+    QVERIFY2(QFileInfo::exists(outside.filePath("victim/embedcache/thumb.png")),
+             "opening the vault recursively deleted a directory outside it");
+}
+
+void TestNoteCollection::testSymlinkedAssetsDirectoryRefusesToOpen()
+{
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    QVERIFY(QDir().mkpath(outside.filePath("pictures")));
+
+    writeNote("Welcome.md", "root note\n");
+    if (!makeDirectoryLink(outside.filePath("pictures"), abs("assets")))
+        QSKIP("this platform does not let an unprivileged process link a directory");
+
+    QSignalSpy failed(m_collection, &NoteCollection::operationFailed);
+    QVERIFY2(!m_collection->openRoot(m_dir->path()),
+             "a vault whose assets directory is a link was opened");
+    QCOMPARE(failed.count(), 1);
+}
+
+// Each owned subtree decides for itself, so a link that appears after the
+// vault is open — .kvit itself is checked once, at open — still stops the
+// store that owns it from writing through it.
+void TestNoteCollection::testOwnedSubtreesRefuseLinkedDirectories()
+{
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    const QStringList subtrees = {QStringLiteral("trash"),
+                                  QStringLiteral("templates"),
+                                  QStringLiteral("recovery"),
+                                  QStringLiteral("backups"),
+                                  QStringLiteral("cache"),
+                                  QStringLiteral("operations")};
+    for (const QString &name : subtrees)
+        QVERIFY(QDir().mkpath(outside.filePath(name)));
+
+    writeNote("Welcome.md", "root note\n");
+    QVERIFY(QDir().mkpath(abs(".kvit")));
+    for (const QString &name : subtrees) {
+        if (!makeDirectoryLink(outside.filePath(name),
+                               abs(".kvit/" + name))) {
+            QSKIP("this platform does not let an unprivileged process link a "
+                  "directory");
+        }
+    }
+
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    // Trash: a deletion through a linked trash directory would move the note
+    // out of the vault, so it is refused and the note stays where it is.
+    QVERIFY(!m_collection->deleteNote("Welcome.md"));
+    QVERIFY(QFileInfo::exists(abs("Welcome.md")));
+    QCOMPARE(m_collection->trashItemCount(), 0);
+    QCOMPARE(QDir(outside.filePath("trash"))
+                 .entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 0);
+
+    // Recovery: no journal path is handed out at all.
+    QVERIFY(m_collection->journalPathFor("Welcome.md").isEmpty());
+
+    // Cache: the index sidecar is not written through the link.
+    QCOMPARE(QDir(outside.filePath("cache"))
+                 .entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 0);
+
+    // Backups: the snapshot taken before an overwrite goes nowhere.
+    m_collection->backupBeforeOverwrite(abs("Welcome.md"));
+    QTest::qWait(50);
+    QCOMPARE(QDir(outside.filePath("backups"))
+                 .entryList(QDir::AllEntries | QDir::NoDotAndDotDot).size(), 0);
+}
+
+// A vault at the root of a filesystem is legitimate, and appending a
+// separator to "/" or "C:/" produced "//" or "C://" — a prefix no child path
+// starts with, so every mutation inside such a vault was rejected as being
+// outside itself.
+void TestNoteCollection::testContainmentHandlesAFilesystemRoot()
+{
+    const QString root = QDir::rootPath(); // "/" on POSIX, "C:/" on Windows
+    QVERIFY(root.endsWith(QLatin1Char('/')));
+    QVERIFY2(VaultPaths::isWithinCanonicalRoot(root, root + QStringLiteral("etc")),
+             "a child of the filesystem root read as outside it");
+    QVERIFY(VaultPaths::isWithinCanonicalRoot(root, root));
+    // The ordinary case is unchanged, including the neighbour whose name
+    // merely starts with the root's.
+    QVERIFY(VaultPaths::isWithinCanonicalRoot(m_dir->path(), abs("note.md")));
+    QVERIFY(!VaultPaths::isWithinCanonicalRoot(m_dir->path(),
+                                               m_dir->path() + "-other/note.md"));
+}
+
+// ------------------------------------------------------------ failing reads
+
+namespace {
+
+// A path that opens and then fails to read. /proc/self/mem is readable by
+// this process and returns EIO for the unmapped page at offset zero, which is
+// exactly the shape of a disk or network filesystem failing part way through
+// a read: open succeeds, the bytes do not arrive, and the device records the
+// error where only QFile::error() reports it.
+const char *kUnreadableFile = "/proc/self/mem";
+
+bool unreadableFileAvailable()
+{
+    return QFileInfo::exists(QString::fromLatin1(kUnreadableFile));
+}
+
+} // namespace
+
+void TestNoteCollection::testPartialReadIsNotReportedAsSuccess()
+{
+    if (!unreadableFileAvailable())
+        QSKIP("no file on this platform that opens and then fails to read");
+
+    bool ok = true;
+    const QString text =
+        NoteFileIo::readTextFile(QString::fromLatin1(kUnreadableFile), &ok);
+    QVERIFY2(!ok, "a read that failed part way through reported success");
+    QVERIFY(text.isEmpty());
+
+    ok = true;
+    const QByteArray bytes =
+        NoteFileIo::readFileBytes(QString::fromLatin1(kUnreadableFile), &ok);
+    QVERIFY2(!ok, "a read that failed part way through reported success");
+    QVERIFY(bytes.isEmpty());
+
+    // An ordinary file still reads, so the check has not simply broken reads.
+    writeNote("A.md", "alpha\n");
+    ok = false;
+    QCOMPARE(NoteFileIo::readTextFile(abs("A.md"), &ok), QStringLiteral("alpha\n"));
+    QVERIFY(ok);
+}
+
+// The consequence of the above, at the destructive end: restoring recovery
+// reads the journal, writes what it read over the note, and then deletes the
+// journal. A read reported as complete when it was not therefore replaced a
+// note with nothing and destroyed the only copy of the edits.
+void TestNoteCollection::testUnreadableRecoveryJournalIsNotResolved()
+{
+    if (!unreadableFileAvailable())
+        QSKIP("no file on this platform that opens and then fails to read");
+    SKIP_WITHOUT_SYMLINKS();
+
+    makeFixture();
+    const QString journal = m_collection->journalPathFor("Ideas/Plans.md");
+    QVERIFY(!journal.isEmpty());
+    QVERIFY(QFile::link(QString::fromLatin1(kUnreadableFile), journal));
+
+    NoteCollection reopened;
+    QVERIFY(reopened.openRoot(m_dir->path()));
+    QSignalSpy failed(&reopened, &NoteCollection::operationFailed);
+
+    QVERIFY2(!reopened.restoreRecovery("Ideas/Plans.md"),
+             "a journal that could not be read was restored anyway");
+    QCOMPARE(failed.count(), 1);
+    QCOMPARE(readNote("Ideas/Plans.md"), QStringLiteral("Some plans\n"));
+    QVERIFY2(QFileInfo(journal).isSymLink() || QFileInfo::exists(journal),
+             "the journal was deleted after a failed read");
+}
+
+// ------------------------------------------------- metadata write conflicts
+
+void TestNoteCollection::testExternalFrontMatterChangeSurvivesMetadataWrite()
+{
+    writeNote("A.md", "---\ntags: [books]\n---\nbody\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    QCOMPARE(m_collection->note("A.md")->meta.tags, QStringList{"books"});
+
+    // Another tool edits the file's metadata while this session holds an
+    // older copy of it: a new tag and a key this application does not know.
+    writeNote("A.md", "---\ntags: [books, urgent]\nauthor: someone\n---\nbody\n");
+
+    // An unrelated metadata edit here must not roll their change back.
+    QVERIFY(m_collection->setPinned("A.md", true));
+
+    const QString written = readNote("A.md");
+    QVERIFY2(written.contains(QStringLiteral("urgent")),
+             qPrintable(QStringLiteral("the external tag was lost: ") + written));
+    QVERIFY2(written.contains(QStringLiteral("author: someone")),
+             qPrintable(QStringLiteral("the external key was lost: ") + written));
+    QVERIFY(written.contains(QStringLiteral("pinned: true")));
+    QVERIFY(written.endsWith(QStringLiteral("body\n")));
+    // The index agrees with the file rather than with the stale copy.
+    QCOMPARE(m_collection->note("A.md")->meta.tags,
+             (QStringList() << "books" << "urgent"));
+}
+
+// The other half of the race: the file changes after it has been read and
+// before the replacement is committed. The write is abandoned rather than
+// overwriting whatever arrived.
+void TestNoteCollection::testMetadataWriteAbortsWhenTheFileChangedFirst()
+{
+    writeNote("A.md", "---\ntags: [books]\n---\nbody\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    QSignalSpy changed(m_collection, &NoteCollection::noteChangedExternally);
+    QString newBody;
+    // aboutToWrite is emitted immediately before the commit, which is where
+    // an editor in another window would land.
+    connect(m_collection, &NoteCollection::aboutToWrite, this,
+            [&](const QString &absPath) {
+                Q_UNUSED(absPath);
+                newBody = QStringLiteral("---\ntags: [books]\n---\nrewritten "
+                                         "by somebody else\n");
+                QFile file(abs("A.md"));
+                QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+                file.write(newBody.toUtf8());
+            });
+
+    // The write is attempted, the file no longer matches what was read, and
+    // the operation reports failure rather than discarding the other change.
+    m_collection->setPinned("A.md", true);
+    QCOMPARE(readNote("A.md"), newBody);
+    QCOMPARE(changed.count(), 1);
+}
+
+void TestNoteCollection::testMetadataWritePreservesCrlfAndInvalidUtf8()
+{
+    // Mixed line endings and a byte sequence that is not valid UTF-8. Both
+    // are things a metadata-only write has no business changing, and both
+    // were changed by decoding the file to text and writing it back.
+    QByteArray original = QByteArray("---\r\ntags: [books]\r\n---\r\n")
+        + "first line\r\n" + "second line\n"
+        + "invalid: \xC3\x28 \xFF\xFE end\n";
+    {
+        QFile file(abs("A.md"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(original);
+    }
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    QVERIFY(m_collection->setPinned("A.md", true));
+
+    QFile written(abs("A.md"));
+    QVERIFY(written.open(QIODevice::ReadOnly));
+    const QByteArray after = written.readAll();
+    const int bodyStart = original.indexOf("first line");
+    QVERIFY(bodyStart > 0);
+    QCOMPARE(after.mid(after.indexOf("first line")), original.mid(bodyStart));
+    QVERIFY(after.contains("pinned: true"));
+}
+
+// ----------------------------------------- deleting a note with newer edits
+
+namespace {
+
+// A stand-in for DocumentManager: the repository asks an OpenDocumentSession
+// whether the live document is ahead of its file and, if so, to write it out
+// before the file is moved to the trash.
+class FakeOpenDocument : public OpenDocumentSession
+{
+public:
+    QString path;
+    QString liveText;       // what the editor holds
+    bool dirty = false;
+    bool persistSucceeds = true;
+    bool closed = false;
+    int persistCalls = 0;
+
+    QString openFilePath() const override { return path; }
+    void flushPendingEdits() override {}
+    void cancelPendingWrites() override {}
+    void rebindFilePath(const QString &newPath) override { path = newPath; }
+    bool saveWithFrontMatter(const QString &) override { return true; }
+    void closeDocument() override { closed = true; path.clear(); }
+
+    bool hasUnsavedChanges() const override { return dirty; }
+    bool persistCurrentRevision() override
+    {
+        ++persistCalls;
+        if (!persistSucceeds)
+            return false;
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            return false;
+        file.write(liveText.toUtf8());
+        dirty = false;
+        return true;
+    }
+};
+
+} // namespace
+
+void TestNoteCollection::testDeletingADirtyOpenNoteTrashesTheNewestRevision()
+{
+    writeNote("A.md", "last saved revision\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    FakeOpenDocument session;
+    session.path = abs("A.md");
+    session.liveText = QStringLiteral("the newest edits, never saved\n");
+    session.dirty = true;
+    m_collection->setOpenDocument(&session);
+
+    QVERIFY(m_collection->deleteNote("A.md"));
+    QCOMPARE(session.persistCalls, 1);
+    QVERIFY(session.closed);
+
+    // What is in the trash is what the user last saw, not the revision the
+    // file happened to hold when they pressed delete.
+    const QDir trash(m_dir->filePath(".kvit/trash"));
+    const QStringList trashed = trash.entryList(QDir::Files);
+    QCOMPARE(trashed.size(), 1);
+    QFile file(trash.filePath(trashed.first()));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(QString::fromUtf8(file.readAll()),
+             QStringLiteral("the newest edits, never saved\n"));
+}
+
+void TestNoteCollection::testDeletingAFolderWithADirtyOpenNoteIsRefusedWhenSaveFails()
+{
+    writeNote("Ideas/A.md", "last saved revision\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    FakeOpenDocument session;
+    session.path = abs("Ideas/A.md");
+    session.liveText = QStringLiteral("edits that cannot be written\n");
+    session.dirty = true;
+    session.persistSucceeds = false;
+    m_collection->setOpenDocument(&session);
+
+    QSignalSpy failed(m_collection, &NoteCollection::operationFailed);
+    QVERIFY2(!m_collection->deleteFolder("Ideas"),
+             "a folder holding unsaved edits that could not be written was "
+             "deleted anyway");
+    QCOMPARE(failed.count(), 1);
+    QVERIFY(QFileInfo::exists(abs("Ideas/A.md")));
+    QVERIFY(!session.closed);
+    QVERIFY(m_collection->note("Ideas/A.md"));
+}
+
+// ------------------------------------------------ durable operation plans
+
+// A metadata write restores the file's modification time so that tagging a
+// note does not reorder "recently modified", and the sidecar decides
+// freshness from size and modification time. Renaming `books` to `draft`
+// changes neither, so if the sidecar write fails the next session used to
+// trust its stale copy forever.
+void TestNoteCollection::testEqualLengthTagChangeSurvivesADeniedIndexWrite()
+{
+    writeNote("A.md", "---\ntags: [books]\n---\nbody\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    const QString cacheDir = m_dir->filePath(".kvit/cache");
+    QVERIFY(QDir().mkpath(cacheDir));
+
+    {
+        FaultInjection::DeniedWrites denied(cacheDir);
+        if (!denied.supported())
+            QSKIP(qPrintable(denied.skipReason()));
+        // Same length, so size and modification time both stay put.
+        QVERIFY(m_collection->renameTag("books", "draft"));
+        QVERIFY(m_collection->indexDirtyForTesting());
+    }
+    QVERIFY(readNote("A.md").contains(QStringLiteral("draft")));
+
+    NoteCollection reopened;
+    QVERIFY(reopened.openRoot(m_dir->path()));
+    QCOMPARE(reopened.note("A.md")->meta.tags, QStringList{"draft"});
+    QCOMPARE(reopened.allTags(), QStringList{"draft"});
+}
+
+// A tag rename spans every note carrying the tag. Interrupted half way, the
+// vault used to be left with some notes renamed and some not, and nothing on
+// disk recording that one operation was meant to cover both.
+void TestNoteCollection::testInterruptedTagRenameFinishesAtTheNextOpen()
+{
+    writeNote("A.md", "---\ntags: [books]\n---\nfirst\n");
+    writeNote("B.md", "---\ntags: [books]\n---\nsecond\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    // Exactly what a crash after the first file leaves: A rewritten, B not,
+    // and the plan naming both still on disk.
+    const QString operations = m_dir->filePath(".kvit/operations");
+    QVERIFY(QDir().mkpath(operations));
+    writeNote("A.md", "---\ntags: [draft]\n---\nfirst\n");
+    {
+        QFile plan(operations + QStringLiteral("/half-done.json"));
+        QVERIFY(plan.open(QIODevice::WriteOnly));
+        plan.write("{\"kind\":\"tagRename\",\"payload\":{\"from\":\"books\","
+                   "\"to\":\"draft\"},\"files\":[\"A.md\",\"B.md\"]}");
+        plan.close();
+        QFile done(operations + QStringLiteral("/half-done.done"));
+        QVERIFY(done.open(QIODevice::WriteOnly));
+        done.write("A.md\n");
+    }
+
+    NoteCollection reopened;
+    QVERIFY(reopened.openRoot(m_dir->path()));
+    QCOMPARE(reopened.note("A.md")->meta.tags, QStringList{"draft"});
+    QVERIFY2(readNote("B.md").contains(QStringLiteral("draft")),
+             qPrintable(QStringLiteral("the interrupted rename was not "
+                                       "finished: ") + readNote("B.md")));
+    QCOMPARE(reopened.note("B.md")->meta.tags, QStringList{"draft"});
+    // The plan is gone once it has been carried out.
+    QCOMPARE(QDir(operations).entryList(QDir::Files).size(), 0);
+}
+
+// A link rewrite cannot be replayed — the rename it followed has already
+// happened — so what the plan buys is that the notes it did not reach are
+// named rather than silently left pointing at the old title.
+void TestNoteCollection::testIncompleteLinkRewriteIsReportedAtTheNextOpen()
+{
+    writeNote("Target.md", "the target\n");
+    writeNote("Referrer.md", "see [[Old Name]]\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    const QString operations = m_dir->filePath(".kvit/operations");
+    QVERIFY(QDir().mkpath(operations));
+    QFile plan(operations + QStringLiteral("/interrupted.json"));
+    QVERIFY(plan.open(QIODevice::WriteOnly));
+    plan.write("{\"kind\":\"wikiLinks\",\"payload\":{\"oldPath\":\"Old Name.md\","
+               "\"newPath\":\"Target.md\"},\"files\":[\"Referrer.md\"]}");
+    plan.close();
+
+    NoteCollection reopened;
+    QSignalSpy incomplete(&reopened, &NoteCollection::operationIncomplete);
+    QVERIFY(reopened.openRoot(m_dir->path()));
+    QCOMPARE(incomplete.count(), 1);
+    QCOMPARE(incomplete.first().at(0).toStringList(),
+             QStringList{QStringLiteral("Referrer.md")});
+}
+
+// --------------------------------------------------------------- bounds
+
+void TestNoteCollection::testOversizedNoteIsListedButNotParsed()
+{
+    writeNote("Small.md", "a small note\n");
+    writeNote("Huge.md", QString(4096, QLatin1Char('x')) + QStringLiteral("\n"));
+
+    // The cap is 32 MiB in production; writing a fixture that size would be
+    // the very cost the cap exists to avoid, so the cap is lowered instead.
+    const qint64 previous = VaultScan::maxNoteBytes();
+    VaultScan::setMaxNoteBytes(1024);
+    int parsed = 0;
+    m_collection->setIndexParseObserverForTesting(
+        [&parsed](const QString &) { ++parsed; });
+    const bool opened = m_collection->openRoot(m_dir->path());
+    VaultScan::setMaxNoteBytes(previous);
+    QVERIFY(opened);
+
+    // Both are listed; only the small one was read.
+    QCOMPARE(m_collection->noteRelPaths(),
+             (QStringList() << "Huge.md" << "Small.md"));
+    QCOMPARE(parsed, 1);
+    QCOMPARE(m_collection->note("Huge.md")->wordCount, 0);
+    QCOMPARE(m_collection->note("Huge.md")->fileSize, qint64(4097));
+    QCOMPARE(m_collection->note("Small.md")->wordCount, 3);
+}
+
+// --------------------------------------------------------------- backups
+
+// Backups are written on a pool thread, so a burst of saves all used to look
+// at a directory none of the queued writes had reached yet and each conclude
+// it was the first: several snapshots inside a window meant to hold one.
+void TestNoteCollection::testRapidSavesDoNotStackBackupsInsideTheFloor()
+{
+    writeNote("A.md", "first revision\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+
+    // Hold every snapshot instead of writing it, which is what a busy pool
+    // does to the first job while the second is being decided.
+    QStringList held;
+    m_collection->setBackupWriterForTesting(
+        [&held](const QString &, const QString &target, const QByteArray &) {
+            held.append(target);
+        });
+
+    m_collection->backupBeforeOverwrite(abs("A.md"));
+    QCOMPARE(held.size(), 1);
+    // A minute later, still well inside the ten-minute rotation floor.
+    m_collection->setClockOffsetForTesting(60);
+    m_collection->backupBeforeOverwrite(abs("A.md"));
+    QVERIFY2(held.size() == 1,
+             "a second backup was scheduled inside the rotation floor "
+             "because the first had not been written yet");
+
+    // Past the floor, a new snapshot is taken as usual.
+    m_collection->setClockOffsetForTesting(11 * 60);
+    m_collection->backupBeforeOverwrite(abs("A.md"));
+    QCOMPARE(held.size(), 2);
+    m_collection->setClockOffsetForTesting(0);
+}
+
+// ------------------------------------------------------ read-only vaults
+
+void TestNoteCollection::testReadOnlyCollectionRefusesEveryMutation()
+{
+    makeFixture();
+    const QString before = readNote("Ideas/Plans.md");
+    m_collection->closeRoot();
+
+    NoteCollection reader;
+    reader.setReadOnly(true);
+    QVERIFY(reader.openRoot(m_dir->path()));
+    QVERIFY(reader.isReadOnly());
+    QCOMPARE(reader.noteCount(), 4);
+
+    QSignalSpy failed(&reader, &NoteCollection::operationFailed);
+    QVERIFY(reader.createNote(QString(), QStringLiteral("New")).isEmpty());
+    QVERIFY(!reader.deleteNote("Ideas/Plans.md"));
+    QVERIFY(!reader.setTags("Ideas/Plans.md", {"x"}));
+    QVERIFY(!reader.renameNote("Ideas/Plans.md", QStringLiteral("Other")));
+    reader.setTagColor(QStringLiteral("books"), QStringLiteral("#123456"));
+    QVERIFY(failed.count() >= 5);
+
+    QCOMPARE(readNote("Ideas/Plans.md"), before);
+    QVERIFY(!QFileInfo::exists(m_dir->filePath(".kvit/collection.json")));
+}
+
+// An asynchronous open publishes a placeholder entry for the remembered note
+// so it can be opened before the scan reaches it. Its metadata is empty
+// because nothing has read the file, and frontMatterFor() cannot say so: an
+// empty block is also what a note with no front matter serializes to. A
+// caller that projects that emptiness into the live document marks it dirty
+// and can save the note's real metadata away.
+void TestNoteCollection::testPlaceholderMetadataIsDistinguishableAndAnnounced()
+{
+    writeNote("A.md", "---\ntags: [books]\n---\nbody\n");
+    writeNote("Plain.md", "no front matter here\n");
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    m_collection->setLastOpenNote("A.md");
+    m_collection->closeRoot();
+
+    NoteCollection async;
+    QSignalSpy ready(&async, &NoteCollection::noteMetadataReady);
+    QVERIFY(async.openRootAsync(m_dir->path()));
+
+    // The remembered note is reachable at once, and both queries can be
+    // asked what that means: while it is a placeholder the front matter is
+    // empty and unknown, not empty and known.
+    QCOMPARE(async.lastOpenNote(), QStringLiteral("A.md"));
+    QVERIFY2(!async.hasParsedMetadata(QStringLiteral("A.md")),
+             "the placeholder entry claimed to hold parsed metadata");
+    QVERIFY(async.frontMatterFor(QStringLiteral("A.md")).isEmpty());
+
+    QTRY_VERIFY_WITH_TIMEOUT(!async.scanInProgress(), 30000);
+    QVERIFY(async.hasParsedMetadata(QStringLiteral("A.md")));
+    QVERIFY(async.frontMatterFor(QStringLiteral("A.md")).contains("books"));
+
+    // The announcement is per note and carries its path.
+    QStringList announced;
+    for (const QList<QVariant> &call : ready)
+        announced.append(call.at(0).toString());
+    QVERIFY2(announced.contains(QStringLiteral("A.md")),
+             "the note whose metadata became known was not announced");
+
+    // A note that genuinely has no front matter is parsed and known, which is
+    // the case that must not be confused with the placeholder above.
+    QVERIFY(async.hasParsedMetadata(QStringLiteral("Plain.md")));
+    QVERIFY(async.frontMatterFor(QStringLiteral("Plain.md")).isEmpty());
+    QVERIFY(!async.hasParsedMetadata(QStringLiteral("Missing.md")));
 }
 
 QTEST_MAIN(TestNoteCollection)

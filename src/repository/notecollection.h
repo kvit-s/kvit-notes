@@ -27,6 +27,7 @@
 #include "noteindexfile.h"
 #include "notefrontmatter.h"
 #include "notetrashstore.h"
+#include "operationjournal.h"
 #include "recoveryjournalstore.h"
 #include "searchindexfeed.h"
 #include "wikilinkindex.h"
@@ -82,6 +83,19 @@ public:
     // OpenDocumentSession interface (opendocumentsession.h), so the
     // repository does not depend on the class that implements it.
     void setOpenDocument(OpenDocumentSession *session);
+
+    // Open the next root for reading only. A read-only collection takes no
+    // vault lock — it cannot lose anybody's update because it writes
+    // nothing — and refuses every mutation with operationFailed.
+    //
+    // This exists because "one process, several collections on one root" is
+    // two different situations. A second editing session is the lost-update
+    // problem the cross-process lock prevents, reproduced inside one process;
+    // a preview, an exporter or a tool that only reads is not. Without a mode
+    // to say which it is, the reference-counted lock has to admit both.
+    // Set before openRoot(); changing it does not reopen the current root.
+    void setReadOnly(bool readOnly) { m_readOnly = readOnly; }
+    bool isReadOnly() const { return m_readOnly; }
 
     // --- Root -----------------------------------------------------------
     // Opens (creating if missing) a notes root and scans it. Loading may refresh
@@ -255,6 +269,12 @@ public:
     // is reachable from QML tests.
     void setClockForTesting(std::function<QDateTime()> clock);
     Q_INVOKABLE void setClockOffsetForTesting(int secs);
+    // Test seam: hold the snapshot write instead of dispatching it to the
+    // pool, so a test can drive what happens while an earlier backup has not
+    // landed yet (NoteBackupStore::setSnapshotWriterForTesting).
+    void setBackupWriterForTesting(
+        std::function<void(const QString &dirPath, const QString &target,
+                           const QByteArray &bytes)> writer);
 
     // --- Crash recovery ----------------------------------------------------
     // Where the open note's dirty-state journal lives (DocumentManager
@@ -272,7 +292,22 @@ public:
     Q_INVOKABLE void noteSaved(const QString &absPath,
                                const QString &fileText);
     // Canonical front-matter block for a note, from the index metadata.
+    //
+    // "" is ambiguous on its own and always has been: a note with no metadata
+    // and a note the index has not parsed yet both serialize to nothing. Ask
+    // hasParsedMetadata() before projecting this into a live document.
     Q_INVOKABLE QString frontMatterFor(const QString &relPath) const;
+
+    // Whether the index holds real, parsed metadata for `relPath`.
+    //
+    // False covers two situations that must not be mistaken for "this note
+    // has no front matter": there is no entry at all, and there is a
+    // placeholder entry standing in for a note the background scan has not
+    // read yet. An asynchronous open publishes such a placeholder for the
+    // remembered note so it can be opened before the scan finishes, and its
+    // metadata is empty because nothing has looked at the file, not because
+    // the file has none.
+    Q_INVOKABLE bool hasParsedMetadata(const QString &relPath) const;
 
     // Test seam: called when a note body is parsed for the collection index.
     void setIndexParseObserverForTesting(
@@ -304,6 +339,13 @@ signals:
     // (open document, selections, journal) rebind their paths.
     void noteMoved(const QString &oldRelPath, const QString &newRelPath);
     void noteRemoved(const QString &relPath);
+    // This note's index entry now holds metadata parsed from its file, where
+    // before there was none or only a placeholder. Path-bearing and targeted:
+    // a receiver holding one note open compares the path and ignores the
+    // rest, rather than re-reading everything on each revision bump. Emitted
+    // once per note as a scan reaches it, so a receiver should do no more
+    // than that comparison.
+    void noteMetadataReady(const QString &relPath);
     // The removed path was the live document and the session has already
     // detached it. QML only chooses the next note; it no longer participates
     // in persistence ordering.
@@ -318,10 +360,25 @@ signals:
     void wikiLinkRewriteIncomplete(const QStringList &skipped,
                                    const QStringList &failed);
     void operationFailed(const QString &message);
+    // A note this collection was about to rewrite changed on disk between
+    // being read and being written, so the write was abandoned rather than
+    // silently discarding the other change. The application layer decides
+    // what to offer the user; the repository's job is to refuse the write and
+    // say why.
+    void noteChangedExternally(const QString &relPath);
+    // An operation that spans several files did not finish before the last
+    // session ended, and could not be completed on this open. The listed
+    // notes may still hold the pre-operation text.
+    void operationIncomplete(const QStringList &relPaths);
     // The vault is open in another process, so this session refused it rather
     // than becoming a second writer whose saves would discard the other's.
     // `detail` names the holder where the lock file said who it was.
     void vaultInUse(const QString &path, const QString &detail);
+    // The vault opened, but locking is not available on the filesystem it
+    // lives on, so nothing prevents a second session from writing to it.
+    // Fail-open is deliberate — refusing to open the vault would be worse —
+    // and this is how the user gets told, rather than only the log.
+    void vaultUnprotected(const QString &path, const QString &detail);
     void scanInProgressChanged();
     void scanStarted();
     void scanFinished();
@@ -408,10 +465,25 @@ private:
     // nothing outside reaches the index — this is the second lock, for paths
     // that arrive from QML or a caller rather than from a scan.
     bool validName(const QString &name, QString *reason) const;
+    // True (having reported it) when this collection may not write. The
+    // containment gate above asks this first; the operations that change only
+    // collection.json do not go through it and ask here directly.
+    bool refuseWhenReadOnly();
     QString uniqueUntitled(const QString &folder) const;
     bool moveToTrash(const QString &relPath);
-    bool rewriteFrontMatter(const QString &relPath);
+    // Write `relPath`'s cached metadata into its file, merging it over what
+    // the file says now: `before` is what this collection believed the file's
+    // metadata was when the edit started, so the fields the edit did not
+    // touch keep whatever the file has gained since. The body is spliced back
+    // byte for byte, and the write is abandoned if the file changed between
+    // the read and the commit.
+    bool rewriteFrontMatter(const QString &relPath,
+                            const NoteFrontMatter::Metadata &before);
     bool prepareOpenDocumentMutation(const QString &relPath);
+    // Write the live document out before its file is moved away, so the trash
+    // holds the newest revision rather than the last saved one. True when
+    // there was nothing to write or the write succeeded.
+    bool persistOpenDocumentBeforeRemoval(const QString &relPath);
     void rebindOpenDocument(const QString &oldRelPath,
                             const QString &newRelPath);
     bool openDocumentIs(const QString &relPath) const;
@@ -427,6 +499,21 @@ private:
     CollectionStateStore::Snapshot collectionStateSnapshot() const;
 
     void bump();
+
+    // --- Durable operation plans (operationjournal.h) --------------------
+    // One plan covers one user-level operation, however many files it
+    // rewrites. It is recorded before the first write and removed once the
+    // index sidecar agrees with the files again.
+    void beginOperationPlan(const QString &kind, const QJsonObject &payload,
+                            const QStringList &files);
+    void abandonOwnOperationPlan();
+    void finishOperationPlanAfterIndexSave();
+    // Forget what the sidecar says about notes named by an unfinished plan,
+    // so they are read from disk instead of trusted.
+    void dropJournalledEntriesFromCache(QHash<QString, NoteEntry> *cachedNotes);
+    // Finish what an interrupted operation left, and report what could not be
+    // finished. Runs once per open, after the scan.
+    void resumePendingOperations();
 
     // --- Search-index feed -------------------------------------------------
     // Thin forwards onto SearchIndexFeed, which owns the channel and the
@@ -448,6 +535,9 @@ private:
     SearchIndexFeed m_searchFeed;
     CollectionStateStore m_collectionState;
     OpenDocumentSession *m_openDocument = nullptr;
+    OperationJournal m_operations;
+    QString m_activeOperationPlan;
+    QList<OperationJournal::Plan> m_pendingOperations;
 
     QString m_rootPath;
     // m_rootPath with every symbolic link resolved. Containment is decided
@@ -506,6 +596,7 @@ private:
     QString m_lastOpenNote;
 
     std::function<void(const QString &)> m_indexParseObserver;
+    bool m_readOnly = false;
     bool m_indexDirty = false;
     bool m_scanInProgress = false;
     int m_asyncPendingUpdates = 0;

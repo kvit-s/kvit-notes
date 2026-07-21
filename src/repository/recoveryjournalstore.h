@@ -39,8 +39,13 @@ public:
     // Read one journal's full file image. `ok` distinguishes an unreadable
     // journal from an empty one.
     QString readJournal(const QString &relPath, bool *ok) const;
-    // Delete the journal and drop it from the pending list.
-    void resolve(const QString &relPath);
+    // Delete the journal and drop it from the pending list. False means the
+    // file is still there — a read-only vault, a lock held by a backup
+    // agent — and the entry stays pending, because a journal that survives
+    // while the collection believes it is gone reappears at the next launch
+    // as crash evidence for edits that were already dealt with, and can be
+    // restored over newer content.
+    bool resolve(const QString &relPath);
     void clear();
 
     // Persisted journal names are untrusted vault content. Only canonical,

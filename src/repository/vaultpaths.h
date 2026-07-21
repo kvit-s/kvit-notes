@@ -38,6 +38,43 @@ bool isWithinCanonicalRoot(const QString &canonicalRoot, const QString &absPath)
 // because a value failing it is malformed rather than merely outside.
 bool isPlainRelativePath(const QString &relPath);
 
+// --- Repository-owned directories --------------------------------------
+//
+// The vault contains two kinds of directory. The note tree is the user's, and
+// a symbolic link inside it is theirs to place: the scan simply does not
+// follow it. The control directories — `.kvit` and everything under it, and
+// `assets` — are the repository's own, and it creates, rewrites and deletes
+// them without asking. A link standing where one of those should be therefore
+// turns a routine internal write into a write outside the vault, and the
+// legacy-cache cleanup into a recursive delete of somebody else's directory.
+//
+// The rule for those paths is stricter than containment: an owned directory
+// must be a real directory. A link is refused even when it points back inside
+// the vault, because "the repository owns this subtree" stops being true the
+// moment something else decides where it lives.
+
+// True when no component of `relDir` below `rootPath` is a symbolic link, a
+// Windows junction or a shortcut, and the whole path still resolves inside
+// the vault. `rootPath` itself may be reached through a link — that is the
+// user's choice of where the vault lives, and canonical containment is
+// decided against its resolved form.
+bool ownedDirIsSound(const QString &rootPath, const QString &relDir);
+
+// The absolute path of a repository-owned directory, or "" when it is not
+// sound. "" is a refusal: the caller must not fall back to the textual path.
+QString ownedDir(const QString &rootPath, const QString &relDir);
+
+// ownedDir(), creating the directory when it is missing. The soundness test
+// runs again after creation, so a link that appeared in between is still
+// caught before anything is written through it.
+QString ensureOwnedDir(const QString &rootPath, const QString &relDir);
+
+// A file inside a repository-owned directory: `<rootPath>/<relDir>/<name>`,
+// or "" when the directory is unsound or `name` is not a single plain
+// segment.
+QString ownedFile(const QString &rootPath, const QString &relDir,
+                  const QString &name);
+
 } // namespace VaultPaths
 
 #endif // VAULTPATHS_H

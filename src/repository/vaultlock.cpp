@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "vaultlock.h"
 
+#include "vaultpaths.h"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -190,9 +192,8 @@ void VaultLock::setForcedUnavailableForTests(bool forced)
     g_forcedUnavailable = forced;
 }
 
-VaultLock::Result VaultLock::acquire(const QString &vaultRoot)
+VaultLock::Result VaultLock::acquire(const QString &vaultRoot, Access access)
 {
-    release();
     m_blockingHolder = Holder{};
 
     const QString canonical =
@@ -200,22 +201,51 @@ VaultLock::Result VaultLock::acquire(const QString &vaultRoot)
             ? QDir(vaultRoot).absolutePath()
             : QFileInfo(vaultRoot).canonicalFilePath();
 
-    QMutexLocker locker(&g_mutex);
-    if (g_forcedUnavailable)
-        return Result::Unavailable;
+    if (m_holdsNativeLock && m_root == canonical && m_access == access)
+        return Result::Acquired; // already ours, on the same terms
 
-    // Already ours: another NoteCollection in this process holds it.
+    // A reader states it will not write, so there is nothing for the lock to
+    // protect and nothing to contend for: it opens a vault another process
+    // holds. Any lock this object held is dropped, because the vault it
+    // belonged to is being left.
+    if (access == Access::Read) {
+        release();
+        m_root = canonical;
+        m_access = Access::Read;
+        m_holdsNativeLock = false;
+        return Result::Acquired;
+    }
+
+    QMutexLocker locker(&g_mutex);
+    if (g_forcedUnavailable) {
+        releaseLocked();
+        m_root = canonical;
+        m_access = Access::Write;
+        m_holdsNativeLock = false;
+        return Result::Unavailable;
+    }
+
+    // Already ours: another NoteCollection in this process holds it. The
+    // reference count goes up before the previous vault is let go, so no
+    // window exists in which this process holds neither.
     auto existing = g_owned.find(canonical);
     if (existing != g_owned.end()) {
         ++existing->refCount;
+        releaseLocked();
         m_root = canonical;
+        m_access = Access::Write;
+        m_holdsNativeLock = true;
         return Result::Acquired;
     }
 
     const QString path = lockFilePath(canonical);
-    if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
+    if (VaultPaths::ensureOwnedDir(canonical, QStringLiteral(".kvit")).isEmpty()) {
         qCWarning(lcVaultLock, "cannot create .kvit for %s; opening unlocked",
                   qPrintable(canonical));
+        releaseLocked();
+        m_root = canonical;
+        m_access = Access::Write;
+        m_holdsNativeLock = false;
         return Result::Unavailable;
     }
 
@@ -224,18 +254,28 @@ VaultLock::Result VaultLock::acquire(const QString &vaultRoot)
     case NativeResult::Locked:
         break;
     case NativeResult::Contended:
+        // The one case that keeps the previous vault: this call changes
+        // nothing, so a caller that refuses to switch is left exactly as it
+        // was, still holding whatever it had.
         m_blockingHolder = readHolder(path);
         return Result::HeldByAnother;
     case NativeResult::Failed:
         qCWarning(lcVaultLock,
                   "cannot lock %s; opening unlocked (a second session on this "
                   "vault will not be detected)", qPrintable(path));
+        releaseLocked();
+        m_root = canonical;
+        m_access = Access::Write;
+        m_holdsNativeLock = false;
         return Result::Unavailable;
     }
 
     writeHolder(handle, describeThisProcess());
+    releaseLocked();
     g_owned.insert(canonical, Owned{handle, 1});
     m_root = canonical;
+    m_access = Access::Write;
+    m_holdsNativeLock = true;
     return Result::Acquired;
 }
 
@@ -244,14 +284,24 @@ void VaultLock::release()
     if (m_root.isEmpty())
         return;
     QMutexLocker locker(&g_mutex);
-    auto it = g_owned.find(m_root);
-    if (it != g_owned.end() && --it->refCount <= 0) {
-        // Closing the descriptor drops the kernel lock. The file itself is
-        // left in place: removing it would race another process that has
-        // already opened it and is about to lock it, and an unlocked file
-        // lying around costs nothing.
-        closeHandle(it->handle);
-        g_owned.erase(it);
+    releaseLocked();
+}
+
+void VaultLock::releaseLocked()
+{
+    if (m_root.isEmpty())
+        return;
+    if (m_holdsNativeLock) {
+        auto it = g_owned.find(m_root);
+        if (it != g_owned.end() && --it->refCount <= 0) {
+            // Closing the descriptor drops the kernel lock. The file itself is
+            // left in place: removing it would race another process that has
+            // already opened it and is about to lock it, and an unlocked file
+            // lying around costs nothing.
+            closeHandle(it->handle);
+            g_owned.erase(it);
+        }
     }
     m_root.clear();
+    m_holdsNativeLock = false;
 }

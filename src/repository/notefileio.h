@@ -14,8 +14,14 @@
 // empty note and an unreadable note have to be told apart.
 namespace NoteFileIo {
 
-QString readTextFile(const QString &path, bool *ok = nullptr);
-QByteArray readFileBytes(const QString &path, bool *ok = nullptr);
+// `maxBytes` bounds what the caller is willing to hold in memory: a file
+// larger than that is reported as a failed read rather than loaded, which is
+// the right answer for a control file whose size is a symptom rather than a
+// requirement. 0 means unbounded.
+QString readTextFile(const QString &path, bool *ok = nullptr,
+                     qint64 maxBytes = 0);
+QByteArray readFileBytes(const QString &path, bool *ok = nullptr,
+                         qint64 maxBytes = 0);
 bool writeTextFileAtomic(const QString &path, const QString &content);
 bool writeFileBytesAtomic(const QString &path, const QByteArray &content);
 

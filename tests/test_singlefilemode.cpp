@@ -11,6 +11,9 @@
 #include <QtTest>
 
 #include "appcontext.h"
+#include "assetstore.h"
+
+#include <QImage>
 
 namespace {
 
@@ -132,6 +135,40 @@ private slots:
         QVERIFY(ctx.noteCollection()->isOpen());
         QCOMPARE(QDir(ctx.noteCollection()->rootPath()).canonicalPath(),
                  QDir(dir.path()).canonicalPath());
+    }
+
+    // In single-file mode the assets directory sits beside the note rather
+    // than under a vault root, and it is the same repository-owned directory:
+    // ingesting an image creates files there under names this application
+    // chooses. A link standing in its place would put every pasted image into
+    // whatever directory the link named.
+    void assetsBesideTheFileMustNotBeALink()
+    {
+#ifdef Q_OS_WIN
+        QSKIP("real symbolic links require elevation on Windows; the junction "
+              "case is covered by NoteCollectionTests");
+#else
+        QTemporaryDir dir;
+        QTemporaryDir outside;
+        QVERIFY(QDir().mkpath(outside.filePath("elsewhere")));
+        {
+            QFile f(dir.filePath("note.md"));
+            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            f.write(kSample);
+        }
+        QVERIFY(QFile::link(outside.filePath("elsewhere"),
+                            dir.filePath("assets")));
+
+        AssetStore store;
+        QImage image(4, 4, QImage::Format_ARGB32);
+        image.fill(Qt::magenta);
+        // No vault is open, so the note's own directory is the base.
+        QVERIFY2(store.ingestImage(image, QStringLiteral("note"), QString(),
+                                   dir.path()).isEmpty(),
+                 "an image was stored through a linked assets directory");
+        QCOMPARE(QDir(outside.filePath("elsewhere"))
+                     .entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 0);
+#endif
     }
 };
 

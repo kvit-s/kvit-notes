@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "assetstore.h"
 
+#include "vaultpaths.h"
+
 #include <QClipboard>
 #include <QDateTime>
 #include <QDir>
@@ -60,7 +62,13 @@ QString AssetStore::assetsDir(const QString &root, const QString &noteDir)
     const QString base = !root.isEmpty() ? root : noteDir;
     if (base.isEmpty())
         return QString();
-    return QDir(base).filePath(QStringLiteral("assets"));
+    // `assets` is the repository's directory in the same sense .kvit is: it
+    // creates files there under names it chooses. A link standing in its
+    // place would write every pasted screenshot and every dropped file into
+    // whatever directory the link names, so it is refused, and the caller
+    // reports the ingest as failed rather than silently storing the asset
+    // somewhere the vault does not own.
+    return VaultPaths::ownedDir(base, QStringLiteral("assets"));
 }
 
 QString AssetStore::uniqueAssetName(const QString &dir, const QString &slug,
@@ -86,10 +94,10 @@ QString AssetStore::ingestImage(const QImage &image, const QString &noteSlug,
 {
     if (image.isNull())
         return QString();
-    const QString dir = assetsDir(root, noteDir);
+    const QString base = !root.isEmpty() ? root : noteDir;
+    const QString dir =
+        VaultPaths::ensureOwnedDir(base, QStringLiteral("assets"));
     if (dir.isEmpty())
-        return QString();
-    if (!QDir().mkpath(dir))
         return QString();
     const QString stamp =
         QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
@@ -118,10 +126,10 @@ QString AssetStore::ingestFile(const QString &sourcePath, const QString &noteSlu
     }
 
     // Otherwise copy into assets/.
-    const QString dir = assetsDir(root, noteDir);
+    const QString base = !root.isEmpty() ? root : noteDir;
+    const QString dir =
+        VaultPaths::ensureOwnedDir(base, QStringLiteral("assets"));
     if (dir.isEmpty())
-        return QString();
-    if (!QDir().mkpath(dir))
         return QString();
     const QString stamp =
         QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));

@@ -156,6 +156,45 @@ private slots:
         QVERIFY2(!stored.contains(QLatin1String("..")), qPrintable(stored));
         QVERIFY(QFileInfo(QDir(root).filePath(stored)).exists());
     }
+
+    // `assets` is the repository's directory in the same sense .kvit is: it
+    // creates files there under names it chooses. A link standing in its
+    // place sent every pasted screenshot and every dropped file into whatever
+    // directory the link named, and the note then stored a path that did not
+    // describe where the bytes actually were.
+    void ingestRefusesALinkedAssetsDirectory()
+    {
+#ifdef Q_OS_WIN
+        QSKIP("real symbolic links require elevation on Windows; the junction "
+              "case is covered by NoteCollectionTests");
+#else
+        QTemporaryDir dir;
+        QTemporaryDir outside;
+        const QString root = dir.path();
+        QVERIFY(QDir().mkpath(outside.filePath("elsewhere")));
+        QVERIFY(QFile::link(outside.filePath("elsewhere"),
+                            QDir(root).filePath("assets")));
+
+        AssetStore store;
+        QImage img(4, 4, QImage::Format_ARGB32);
+        img.fill(Qt::green);
+
+        QVERIFY2(store.ingestImage(img, QStringLiteral("note"), root, root)
+                     .isEmpty(),
+                 "an image was stored through a linked assets directory");
+        QCOMPARE(QDir(outside.filePath("elsewhere"))
+                     .entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 0);
+
+        // A file drop takes the same route and is refused the same way.
+        QTemporaryDir source;
+        const QString src = source.filePath(QStringLiteral("photo.png"));
+        { QFile f(src); f.open(QIODevice::WriteOnly); f.write("x"); f.close(); }
+        QVERIFY(store.ingestFile(src, QStringLiteral("note"), root, root)
+                    .isEmpty());
+        QCOMPARE(QDir(outside.filePath("elsewhere"))
+                     .entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 0);
+#endif
+    }
 };
 
 QTEST_MAIN(TestAssetStore)

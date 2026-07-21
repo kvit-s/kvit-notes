@@ -52,6 +52,18 @@ public:
         Unavailable,     // locking could not be attempted; proceed unlocked
     };
 
+    // What the acquirer intends to do with the vault. A writer contends for
+    // the lock; a reader states that it will not write and therefore takes no
+    // lock and is never refused. The distinction exists because "several
+    // collections on one root in one process" covers two different things: a
+    // second window that would save over the first, and a tool or a preview
+    // that only reads. Only the first is a correctness problem, and only an
+    // explicit mode can tell them apart.
+    enum class Access {
+        Write,
+        Read,
+    };
+
     // Who holds the vault, read from the lock file for the refusal message.
     // Advisory: the fields are whatever the other process wrote, and a
     // hostile or truncated file only degrades the wording.
@@ -78,11 +90,23 @@ public:
     // objects on a root. Ownership is reference counted per canonical path,
     // so a POSIX flock on a second descriptor cannot make a process refuse
     // itself.
-    Result acquire(const QString &vaultRoot);
+    //
+    // A lock this object already holds is kept when the new vault cannot be
+    // taken. Releasing first and then failing left the previous vault open in
+    // the application but unlocked on disk, which is the one state the lock
+    // exists to prevent: another process could open it and start writing
+    // whole-file snapshots underneath a session that is still showing it.
+    Result acquire(const QString &vaultRoot, Access access = Access::Write);
 
     void release();
     bool isHeld() const { return !m_root.isEmpty(); }
     QString root() const { return m_root; }
+    Access access() const { return m_access; }
+    // Whether a kernel lock is actually held. False for a read-only
+    // acquisition, and false when the platform could not lock at all — the
+    // deliberate fail-open case the user has to be told about, since the
+    // vault is then open with none of the protection the lock provides.
+    bool holdsNativeLock() const { return m_holdsNativeLock; }
 
     // Valid after acquire() returned HeldByAnother.
     Holder blockingHolder() const { return m_blockingHolder; }
@@ -92,7 +116,12 @@ public:
     static void setForcedUnavailableForTests(bool forced);
 
 private:
+    // Assumes the ownership table's mutex is already held.
+    void releaseLocked();
+
     QString m_root;                 // canonical, empty when not held
+    Access m_access = Access::Write;
+    bool m_holdsNativeLock = false;
     Holder m_blockingHolder;
 };
 

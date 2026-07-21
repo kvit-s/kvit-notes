@@ -34,6 +34,9 @@ private slots:
     void testNonImportableSkipped();
     void testTraversalAndAbsoluteTargetsAreRejected();
     void testTruncatedWriteIsNotCountedOrLeftBehind();
+    void testUnreadableSourceIsNotCountedAsImported();
+    void testOversizedSourceIsSkipped();
+    void testCancelledImportKeepsWhatItCommitted();
 
 private:
     QTemporaryDir *m_root = nullptr;   // the collection
@@ -206,6 +209,86 @@ void TestDocumentImporter::testTruncatedWriteIsNotCountedOrLeftBehind()
     // ...and leaves no truncated file for the collection to index.
     QVERIFY(!QFile::exists(m_collection->absolutePath("Long.md")));
     QVERIFY(!m_collection->noteRelPaths().contains("Long.md"));
+}
+
+// The import reader had the same defect as the collection's: it opened the
+// source, called readAll(), and reported success without asking whether the
+// read had finished. A source that fails part way through therefore became a
+// truncated note counted as a successful import, with nothing left to say
+// what had been lost.
+void TestDocumentImporter::testUnreadableSourceIsNotCountedAsImported()
+{
+#ifndef Q_OS_LINUX
+    QSKIP("no file on this platform that opens and then fails to read");
+#else
+    // /proc/self/mem opens for this process and returns EIO on read, which is
+    // what a failing disk or a dropped network mount looks like.
+    const QString unreadable = QStringLiteral("/proc/self/mem");
+    if (!QFileInfo::exists(unreadable))
+        QSKIP("no file on this platform that opens and then fails to read");
+    const QString src = QDir(m_src->path()).filePath(QStringLiteral("Broken.md"));
+    if (!QFile::link(unreadable, src))
+        QSKIP("real symbolic links require elevation on this platform");
+
+    QCOMPARE(m_importer->importFiles({src}, QString()), 0);
+    QVERIFY(!QFile::exists(m_collection->absolutePath("Broken.md")));
+    QCOMPARE(m_importer->lastSkippedCount(), 1);
+#endif
+}
+
+// A note is prose. Reading whatever the file dialog was pointed at into
+// memory turns one wrong selection — a disk image, a log — into a freeze or
+// an out-of-memory failure, so anything past the cap is skipped and counted.
+void TestDocumentImporter::testOversizedSourceIsSkipped()
+{
+    const QString small = writeSource("Small.md", QStringLiteral("# small\n"));
+    const QString large =
+        writeSource("Large.md", QString(64 * 1024, QLatin1Char('x')));
+
+    const qint64 previous = DocumentImporter::maxFileBytes();
+    DocumentImporter::setMaxFileBytes(1024);
+    const int imported = m_importer->importFiles({small, large}, QString());
+    const int skipped = m_importer->lastSkippedCount();
+    DocumentImporter::setMaxFileBytes(previous);
+
+    QCOMPARE(imported, 1);
+    QCOMPARE(skipped, 1);
+    QVERIFY(QFile::exists(m_collection->absolutePath("Small.md")));
+    QVERIFY(!QFile::exists(m_collection->absolutePath("Large.md")));
+}
+
+// Import runs until it is done, however many files were selected. A caller
+// driving it from a worker thread needs a way to stop it, and what it has
+// already committed stays committed: each file is one atomic copy.
+void TestDocumentImporter::testCancelledImportKeepsWhatItCommitted()
+{
+    QStringList sources;
+    for (int i = 0; i < 6; ++i) {
+        sources.append(writeSource(QStringLiteral("N%1.md").arg(i),
+                                   QStringLiteral("# note %1\n").arg(i)));
+    }
+
+    // Cancelled after the second file lands, from the progress report the
+    // asynchronous caller will be listening to anyway.
+    int seen = 0;
+    connect(m_importer, &DocumentImporter::importProgress, this,
+            [&](int done, int total) {
+                QCOMPARE(total, 6);
+                seen = done;
+                if (done == 2)
+                    m_importer->requestCancel();
+            });
+
+    const int imported = m_importer->importFiles(sources, QString());
+    QCOMPARE(seen, 2);
+    QCOMPARE(imported, 2);
+    QVERIFY(QFile::exists(m_collection->absolutePath("N0.md")));
+    QVERIFY(QFile::exists(m_collection->absolutePath("N1.md")));
+    QVERIFY(!QFile::exists(m_collection->absolutePath("N2.md")));
+
+    // A second run is not affected by the cancel that stopped the first.
+    disconnect(m_importer, &DocumentImporter::importProgress, this, nullptr);
+    QCOMPARE(m_importer->importFiles({sources.at(2)}, QString()), 1);
 }
 
 QTEST_MAIN(TestDocumentImporter)

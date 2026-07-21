@@ -53,6 +53,28 @@ public:
 
     // Detach from the note entirely — it no longer exists.
     virtual void closeDocument() = 0;
+
+    // Whether the in-memory document holds edits the file does not.
+    //
+    // Deleting a note moves the file into the trash and then closes the
+    // document, so with autosave off — or simply before the save debounce
+    // fires — the trashed file was the last saved revision and everything
+    // typed since went with the closed document. The repository has to be
+    // able to ask, because only the session knows.
+    //
+    // Defaulted rather than pure so a session that has not implemented it
+    // still compiles and behaves as it did; such a session reports no unsaved
+    // work and the repository proceeds exactly as before.
+    virtual bool hasUnsavedChanges() const { return false; }
+
+    // Write the live document to its file now and return only once the file
+    // holds it. False means the file does not, and the repository abandons
+    // whatever destructive operation asked — the point is that nothing is
+    // moved to the trash unless the trashed file is the newest revision.
+    //
+    // Synchronous by contract: an asynchronous save would be racing the
+    // rename that follows it.
+    virtual bool persistCurrentRevision() { return false; }
 };
 
 #endif // OPENDOCUMENTSESSION_H

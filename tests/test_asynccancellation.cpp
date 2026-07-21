@@ -44,6 +44,7 @@ private slots:
     void resultsFromTheAbandonedRootNeverApply();
     void savesDoNotQueueBehindBulkBackgroundWork();
     void cancellingAnIndexSaveLeavesTheIndexOwedARewrite();
+    void asupersededDirectoryRefreshStopsItsWorker();
 
 private:
     // A vault big enough that its scan is still running when the switch
@@ -504,6 +505,100 @@ void TestAsyncCancellation::cancellingAnIndexSaveLeavesTheIndexOwedARewrite()
     QVERIFY2(collection.indexDirtyForTesting(),
              "a cancelled index save must leave the index marked dirty, or "
              "nothing will ever rewrite it");
+}
+
+// A refresh that supersedes another one waits for the first to finish before
+// replacing it. Cancellation is cooperative — QFuture::cancel() cannot stop a
+// QtConcurrent::run worker — so unless the first worker's own token is
+// signalled first, that wait is the whole remaining walk, on the GUI thread,
+// and the abandoned walk goes on holding a pool thread while it happens. A
+// burst of watcher events turned that into one accumulated walk per event.
+void TestAsyncCancellation::asupersededDirectoryRefreshStopsItsWorker()
+{
+    // One folder heavy enough that walking and parsing it takes measurable
+    // time, and one trivial folder to supersede it with.
+    const QString bulk = m_dirA->path() + QStringLiteral("/bulk");
+    const QString tiny = m_dirA->path() + QStringLiteral("/tiny");
+    QDir().mkpath(bulk);
+    QDir().mkpath(tiny);
+    QString body;
+    for (int line = 0; line < 60; ++line) {
+        body += QStringLiteral(
+            "alpha beta gamma delta epsilon zeta eta theta iota kappa "
+            "lambda mu nu xi omicron pi rho sigma tau upsilon phi chi\n");
+    }
+    for (int i = 0; i < 4000; ++i) {
+        QFile f(QStringLiteral("%1/bulk%2.md").arg(bulk).arg(i));
+        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        f.write(QStringLiteral("# Bulk %1\n\n").arg(i).toUtf8());
+        f.write(body.toUtf8());
+    }
+    QFile small(tiny + QStringLiteral("/one.md"));
+    QVERIFY(small.open(QIODevice::WriteOnly | QIODevice::Text));
+    small.write("# one\n");
+    small.close();
+
+    NoteCollection collection;
+    QVERIFY(collection.openRoot(m_dirA->path()));
+    QVERIFY(!collection.scanInProgress());
+
+    auto touchBulk = [&]() {
+        QDirIterator it(bulk, QStringList{QStringLiteral("*.md")}, QDir::Files);
+        while (it.hasNext()) {
+            QFile f(it.next());
+            if (f.open(QIODevice::Append | QIODevice::Text))
+                f.write("\nchanged\n");
+        }
+    };
+
+    // How long the walk takes when nothing interrupts it. The comparison
+    // below is against this rather than against a fixed number of
+    // milliseconds, because what is being measured is the difference between
+    // "wait for the rest of the walk" and "tell it to stop".
+    touchBulk();
+    QElapsedTimer whole;
+    whole.start();
+    collection.refreshPaths(QStringList{bulk});
+    QTRY_VERIFY_WITH_TIMEOUT(!collection.refreshWatcherIsRunningForTesting(),
+                             60000);
+    const qint64 wholeWalkMs = whole.elapsed();
+    if (wholeWalkMs < 400) {
+        QSKIP("this machine parses the fixture faster than the measurement "
+              "needs; the superseded walk would be too short to observe");
+    }
+
+    // Now supersede a walk that is genuinely under way. A task that has not
+    // started yet can simply be dropped by the pool; it is the started one
+    // that has to be told to stop.
+    touchBulk();
+    collection.refreshPaths(QStringList{bulk});
+    QThread::msleep(100);
+    QVERIFY2(collection.refreshWatcherIsRunningForTesting(),
+             "the first refresh must still be running for this to be the case "
+             "under test");
+
+    QElapsedTimer timer;
+    timer.start();
+    collection.refreshPaths(QStringList{tiny});
+    const qint64 blockedMs = timer.elapsed();
+
+    qInfo() << "superseding a running directory refresh blocked the GUI thread"
+            << "for" << blockedMs << "ms; the whole walk takes" << wholeWalkMs
+            << "ms";
+    // Cancellation is cooperative, so the wait is bounded by the gap between
+    // two checks in the walk rather than by the rest of the vault. Half the
+    // whole walk is a generous line: without the token being signalled this
+    // is the entire remainder, and the abandoned worker goes on holding a
+    // pool thread for it.
+    QVERIFY2(blockedMs < wholeWalkMs / 2,
+             qPrintable(QStringLiteral("superseding a refresh waited %1 ms for "
+                                       "the abandoned walk (whole walk %2 ms)")
+                            .arg(blockedMs).arg(wholeWalkMs)));
+
+    QTRY_VERIFY_WITH_TIMEOUT(!collection.refreshWatcherIsRunningForTesting(),
+                             60000);
+    collection.closeRoot();
+    QTest::qWait(100);
 }
 
 QTEST_MAIN(TestAsyncCancellation)

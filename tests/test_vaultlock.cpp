@@ -81,7 +81,10 @@ private slots:
     void severalCollectionsInOneProcessShareTheVault();
     void singleFileModeNeedsNoVault();
     void unlockableFilesystemStillOpens();
+    void unlockableFilesystemTellsTheUser();
     void holderDescriptionSurvivesAGarbageLockFile();
+    void failedSwitchKeepsTheCurrentVaultLocked();
+    void readOnlySessionsShareAVaultWithAWriter();
 
 private:
     QProcess *startHolder(const QString &root);
@@ -338,6 +341,105 @@ void TestVaultLock::holderDescriptionSurvivesAGarbageLockFile()
 
     holder->kill();
     holder->waitForFinished(10000);
+}
+
+// Switching vaults releases the lock on the one being left. When the vault
+// being opened turns out to be held elsewhere the switch is refused, and the
+// application goes on showing and writing the previous vault -- which by then
+// had no lock, so another process could open it and start writing whole-file
+// snapshots underneath a live session. That is precisely the lost update the
+// lock exists to prevent, reached by the ordinary route of picking the wrong
+// vault from the menu.
+void TestVaultLock::failedSwitchKeepsTheCurrentVaultLocked()
+{
+    QTemporaryDir first;
+    QTemporaryDir second;
+    QVERIFY(first.isValid());
+    QVERIFY(second.isValid());
+
+    // Another process holds the vault we are about to try to switch to.
+    QProcess *holder = startHolder(second.path());
+    QVERIFY(holder);
+
+    NoteCollection collection;
+    QVERIFY(collection.openRoot(first.path()));
+
+    QSignalSpy inUse(&collection, &NoteCollection::vaultInUse);
+    QVERIFY2(!collection.openRoot(second.path()),
+             "a vault another process holds was opened");
+    QCOMPARE(inUse.count(), 1);
+    // The session is still on the vault it had.
+    QCOMPARE(QDir(collection.rootPath()).canonicalPath(),
+             QDir(first.path()).canonicalPath());
+    QVERIFY(collection.isOpen());
+
+    // And that vault is still unavailable to anybody else.
+    QProcess probe;
+    probe.start(program(), {QStringLiteral("--writer"), first.path(),
+                            QStringLiteral("x"), QStringLiteral("#555555"),
+                            QStringLiteral("0")});
+    QVERIFY(probe.waitForStarted(5000));
+    QVERIFY(probe.waitForFinished(20000));
+    QVERIFY2(probe.exitCode() == kExitRefused,
+             "the vault still open in this session lost its lock when a "
+             "switch to another vault failed");
+
+    holder->kill();
+    holder->waitForFinished(10000);
+}
+
+// The lock is what stops two writers. A consumer that only reads has nothing
+// to lose and nothing to take, so it says so and is admitted to a vault
+// another process is writing -- and refuses to write anything itself.
+void TestVaultLock::readOnlySessionsShareAVaultWithAWriter()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    {
+        NoteCollection seed;
+        QVERIFY(seed.openRoot(dir.path()));
+        QVERIFY(!seed.createNote(QString(), QStringLiteral("Note")).isEmpty());
+    }
+
+    QProcess *holder = startHolder(dir.path());
+    QVERIFY(holder);
+
+    NoteCollection reader;
+    reader.setReadOnly(true);
+    QVERIFY2(reader.openRoot(dir.path()),
+             "a read-only session was refused a vault it cannot write to");
+    QCOMPARE(reader.noteCount(), 1);
+
+    QSignalSpy failed(&reader, &NoteCollection::operationFailed);
+    QVERIFY(reader.createNote(QString(), QStringLiteral("Second")).isEmpty());
+    QVERIFY(!reader.deleteNote(QStringLiteral("Note.md")));
+    QVERIFY(failed.count() >= 2);
+
+    // A writing session is still refused while the holder has it.
+    NoteCollection writer;
+    QVERIFY(!writer.openRoot(dir.path()));
+
+    holder->kill();
+    holder->waitForFinished(10000);
+}
+
+// Opening unlocked is the right call on a filesystem that cannot lock, but
+// until now the user was never told: the vault opened looking exactly like a
+// protected one, and only the log said otherwise.
+void TestVaultLock::unlockableFilesystemTellsTheUser()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    VaultLock::setForcedUnavailableForTests(true);
+    NoteCollection collection;
+    QSignalSpy unprotected(&collection, &NoteCollection::vaultUnprotected);
+    const bool opened = collection.openRoot(dir.path());
+    VaultLock::setForcedUnavailableForTests(false);
+
+    QVERIFY(opened);
+    QCOMPARE(unprotected.count(), 1);
+    QVERIFY(!unprotected.first().at(1).toString().isEmpty());
 }
 
 int main(int argc, char *argv[])

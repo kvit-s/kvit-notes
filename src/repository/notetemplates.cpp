@@ -5,6 +5,7 @@
 #include "notecollection.h"
 #include "notefileio.h"
 #include "notefrontmatter.h"
+#include "vaultpaths.h"
 
 #include <QDir>
 #include <QFile>
@@ -95,8 +96,11 @@ QString NoteTemplates::templatesDir() const
 {
     if (!m_collection || !m_collection->isOpen())
         return QString();
-    return QDir(m_collection->rootPath())
-        .filePath(QStringLiteral(".kvit/templates"));
+    // Templates are user content the repository writes and deletes by name;
+    // "" here means .kvit/templates is a link and every operation below
+    // declines rather than reaching outside the vault.
+    return VaultPaths::ownedDir(m_collection->rootPath(),
+                                QStringLiteral(".kvit/templates"));
 }
 
 QString NoteTemplates::pathFor(const QString &name) const
@@ -136,12 +140,13 @@ QString NoteTemplates::readTemplate(const QString &name) const
 
 bool NoteTemplates::writeTemplate(const QString &name, const QString &content)
 {
-    const QString dir = templatesDir();
-    if (dir.isEmpty())
+    if (templatesDir().isEmpty())
         return false;
     if (sanitize(name).isEmpty())
         return false;
-    QDir().mkpath(dir);
+    if (VaultPaths::ensureOwnedDir(m_collection->rootPath(),
+                                   QStringLiteral(".kvit/templates")).isEmpty())
+        return false;
     if (!writeAll(pathFor(name), content))
         return false;
     bump();
