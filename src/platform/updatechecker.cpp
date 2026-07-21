@@ -26,6 +26,13 @@ ParsedVersion parseVersion(QString v)
     v = v.trimmed();
     if (v.startsWith(QLatin1Char('v')) || v.startsWith(QLatin1Char('V')))
         v.remove(0, 1);
+    // Build metadata ("1.2.3+linux") takes no part in precedence (semver
+    // §10), and it has to go before the release fields are split: left in,
+    // "3+linux" parses as a non-number and becomes 0, so 1.2.3+linux would
+    // order as 1.2.0 and a released build would look older than itself.
+    const int plus = v.indexOf(QLatin1Char('+'));
+    if (plus >= 0)
+        v.truncate(plus);
     ParsedVersion out;
     const int dash = v.indexOf(QLatin1Char('-'));
     const QString releasePart = dash < 0 ? v : v.left(dash);

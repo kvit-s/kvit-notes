@@ -5,15 +5,20 @@
 #define EGRESSFETCHER_H
 
 #include <QByteArray>
+#include <QHash>
 #include <QHostAddress>
 #include <QList>
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QSharedPointer>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
 
 #include <functional>
+#include <memory>
+
+class QTemporaryFile;
 
 #include "embedfetcher.h"
 #include "updatechecker.h"
@@ -77,6 +82,21 @@ public:
     void request(const QUrl &url, Purpose purpose,
                  std::function<void(bool, const QByteArray &, const QString &)> done);
 
+    // The same request, with the body written to a temporary file as it
+    // arrives instead of being accumulated in memory. Media is capped at tens
+    // of megabytes each, so buffering a handful of them at once costs more RAM
+    // than the rest of the app uses; the caller wants a file anyway, since
+    // QtMultimedia plays from one. `fileSuffix` (no dot) names the temporary
+    // file's extension so the multimedia backend can pick a demuxer.
+    //
+    // The callback owns the file: the last reference dropping deletes it from
+    // disk. On failure it receives a null pointer.
+    using FileDone = std::function<void(bool ok,
+                                        const QSharedPointer<QTemporaryFile> &file,
+                                        qint64 bytes, const QString &contentType)>;
+    void requestToFile(const QUrl &url, Purpose purpose,
+                       const QString &fileSuffix, FileDone done);
+
     // EmbedFetcher: a page's HTML for the preview card.
     void fetch(const QString &url,
                std::function<void(bool, const QString &)> done) override;
@@ -93,18 +113,55 @@ public:
     // A redirect chain longer than this is abandoned.
     static constexpr int MaxRedirects = 5;
 
+    // How many requests of one purpose may be in flight at once, and how many
+    // in total. A note naming two hundred distinct image URLs used to open two
+    // hundred requests, each entitled to its own byte cap, so peak memory,
+    // socket count and file descriptors were all set by the note rather than
+    // by the app. Everything past the budget waits in a queue.
+    static int maxConcurrentFor(Purpose purpose);
+    static constexpr int MaxConcurrentTotal = 8;
+    // Requests offered past this many already waiting are refused outright
+    // rather than queued, so a pathological document cannot grow the queue
+    // without limit either.
+    static constexpr int MaxQueued = 256;
+    // Addresses tried before a job gives up, when a name resolves to several
+    // and the first does not answer. All attempts share the one deadline.
+    static constexpr int MaxConnectAttempts = 3;
+
+    // ---- Test seams ----
+    // Shortens every purpose's deadline so a test can watch one expire.
+    void setTimeoutMsForTests(int ms) { m_timeoutOverrideMs = ms; }
+    // The largest body this fetcher has ever held in memory at once, so a
+    // test can show that a streamed request does not accumulate one.
+    qint64 peakBufferedBytesForTests() const { return m_peakBufferedBytes; }
+    int inFlightForTests() const { return m_inFlight; }
+    int queuedForTests() const { return m_queue.size(); }
+
 private:
     struct Job;
+    void begin(const std::shared_ptr<Job> &job, const QUrl &url);
     void startHop(const std::shared_ptr<Job> &job, const QUrl &url);
     void resolveAndConnect(const std::shared_ptr<Job> &job, const QUrl &url);
-    void issue(const std::shared_ptr<Job> &job, const QUrl &url,
-               const QHostAddress &address);
+    void issue(const std::shared_ptr<Job> &job, const QUrl &url);
     void finish(const std::shared_ptr<Job> &job, bool ok,
                 const QByteArray &body, const QString &contentType);
+    // Milliseconds left of the job's single overall deadline; <= 0 means it
+    // is spent.
+    int remainingMs(const std::shared_ptr<Job> &job) const;
+    void armDeadline(const std::shared_ptr<Job> &job);
+    bool acquireSlot(const std::shared_ptr<Job> &job);
+    void releaseSlot(const std::shared_ptr<Job> &job);
+    void pumpQueue();
 
     QNetworkAccessManager m_nam;
     EgressPolicy *m_policy = nullptr;
     Resolver m_resolver;
+    QList<QPair<std::shared_ptr<Job>, QUrl>> m_queue;
+    QHash<int, int> m_inFlightByPurpose;
+    int m_inFlight = 0;
+    int m_timeoutOverrideMs = 0;
+    qint64 m_peakBufferedBytes = 0;
+    bool m_pumpScheduled = false;
 };
 
 #endif // EGRESSFETCHER_H

@@ -38,6 +38,8 @@ private slots:
     void testReopenLandsPendingWriteOnOldPath();
     void testFailedWriteKeepsChangesPending();
     void testFailedWriteIsReported();
+    void testReopenAfterFailedWriteIsRefused();
+    void testReopenCanDiscardPendingValuesDeliberately();
 
 private:
     QString path(const QString &name = QStringLiteral("settings.json")) const
@@ -350,6 +352,65 @@ void TestSettingsStore::testFailedWriteIsReported()
 
     QCOMPARE(failures, 1);
     QCOMPARE(failedSpy.at(0).at(0).toString(), filePath);
+}
+
+// Rebinding to another file used to write the pending values to the old path,
+// ignore whether that worked, and then clear the path, the values and the
+// dirty flag regardless. On a read-only location that discarded settings the
+// store had just promised to keep -- the opposite of what every other write
+// failure does here.
+void TestSettingsStore::testReopenAfterFailedWriteIsRefused()
+{
+    const QString dirPath = m_dir->filePath(QStringLiteral("cfg3"));
+    QVERIFY(QDir().mkpath(dirPath));
+    const QString filePath = dirPath + QStringLiteral("/settings.json");
+    const QString elsewhere = path("elsewhere.json");
+
+    SettingsStore store;
+    QVERIFY(store.open(filePath));
+
+    {
+        FaultInjection::DeniedWrites denied(dirPath);
+        if (!denied.supported())
+            QSKIP(qPrintable(denied.skipReason()));
+        store.setValue("theme", "dark");
+
+        QVERIFY2(!store.open(elsewhere),
+                 "rebinding succeeded while the pending write was still stuck");
+        // Still bound to the old file, still holding the value.
+        QCOMPARE(store.filePath(), filePath);
+        QVERIFY(store.contains("theme"));
+        QCOMPARE(store.value("theme").toString(), QStringLiteral("dark"));
+        QVERIFY(!QFile::exists(elsewhere));
+    }
+
+    // Once the location is writable the same call goes through, and the
+    // pending value lands where it belonged.
+    QVERIFY(store.open(elsewhere));
+    QCOMPARE(store.filePath(), elsewhere);
+    QCOMPARE(readDisk(filePath).value("theme").toString(), QStringLiteral("dark"));
+    QVERIFY(!store.contains("theme"));
+}
+
+void TestSettingsStore::testReopenCanDiscardPendingValuesDeliberately()
+{
+    const QString dirPath = m_dir->filePath(QStringLiteral("cfg4"));
+    QVERIFY(QDir().mkpath(dirPath));
+    const QString filePath = dirPath + QStringLiteral("/settings.json");
+    const QString elsewhere = path("other.json");
+
+    SettingsStore store;
+    QVERIFY(store.open(filePath));
+
+    FaultInjection::DeniedWrites denied(dirPath);
+    if (!denied.supported())
+        QSKIP(qPrintable(denied.skipReason()));
+    store.setValue("theme", "dark");
+
+    // The caller says it would rather lose the value than stay bound.
+    QVERIFY(store.open(elsewhere, /*discardPendingWrite=*/true));
+    QCOMPARE(store.filePath(), elsewhere);
+    QVERIFY(!store.contains("theme"));
 }
 
 QTEST_MAIN(TestSettingsStore)

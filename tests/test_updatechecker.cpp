@@ -75,6 +75,45 @@ private slots:
         QVERIFY(UpdateChecker::compareVersions("1.0.1-rc1", "1.0.0") > 0);
     }
 
+    // Build metadata takes no part in precedence (semver §10), and it has to
+    // be stripped before the release fields are read: left in, the "3+linux"
+    // field parses as a non-number and becomes 0, so a packaged 1.2.3+linux
+    // ordered as 1.2.0 and the app offered its own build as an update.
+    void compareIgnoresBuildMetadata()
+    {
+        QCOMPARE(UpdateChecker::compareVersions("1.2.3+linux", "1.2.3"), 0);
+        QCOMPARE(UpdateChecker::compareVersions("1.2.3", "1.2.3+linux"), 0);
+        QVERIFY(UpdateChecker::compareVersions("1.2.3+linux", "1.2.0") > 0);
+        QVERIFY(UpdateChecker::compareVersions("1.2.3+build.7", "1.2.4") < 0);
+        // Metadata after a prerelease is stripped too, and the prerelease
+        // still orders below its release.
+        QVERIFY(UpdateChecker::compareVersions("1.2.3-rc1+build.7", "1.2.3") < 0);
+        QCOMPARE(UpdateChecker::compareVersions("1.2.3-rc1+a", "1.2.3-rc1+b"), 0);
+        QVERIFY(UpdateChecker::compareVersions("v1.2.3+linux", "1.2.2") > 0);
+    }
+
+    // A packaged release must not report itself as an update.
+    void aBuildTaggedReleaseIsNotNewerThanItself()
+    {
+        QTemporaryDir dir;
+        SettingsStore settings;
+        QVERIFY(settings.open(dir.filePath("settings.json")));
+
+        FakeUpdateFetcher fetcher;
+        fetcher.payload = latestPayload("v1.2.3");
+
+        UpdateChecker checker;
+        checker.setSettings(&settings);
+        checker.setFetcher(&fetcher);
+        checker.setCurrentVersion(QStringLiteral("1.2.3+linux"));
+        QSignalSpy spy(&checker, &UpdateChecker::stateChanged);
+
+        checker.maybeCheck();
+        QVERIFY2(!checker.updateAvailable(),
+                 "the running build was offered as an update to itself");
+        QCOMPARE(spy.count(), 0);
+    }
+
     void parsesLatestPayload()
     {
         QString version, url;

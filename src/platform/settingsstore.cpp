@@ -36,11 +36,16 @@ SettingsStore::~SettingsStore()
         writeFile();
 }
 
-bool SettingsStore::open(const QString &filePath)
+bool SettingsStore::open(const QString &filePath, bool discardPendingWrite)
 {
-    // A pending write belongs to the previous path; land it there first.
-    if (m_dirty)
-        writeFile();
+    // A pending write belongs to the previous path; land it there first. If
+    // it does not land, the values are still the only copy that exists, and
+    // replacing the path here would discard them -- the outcome the write
+    // path goes out of its way to avoid. Stay where we are and report the
+    // refusal; the caller retries once the location is writable, or asks
+    // explicitly to drop the values.
+    if (m_dirty && !writeFile() && !discardPendingWrite)
+        return false;
     m_writeTimer.stop();
 
     m_filePath = filePath;
@@ -123,12 +128,12 @@ void SettingsStore::scheduleWrite()
     m_writeTimer.start();  // restarts on every change: bursts coalesce
 }
 
-void SettingsStore::writeFile()
+bool SettingsStore::writeFile()
 {
     m_writeTimer.stop();
     if (m_filePath.isEmpty()) {
         m_dirty = false; // nowhere to write: nothing is being lost
-        return;
+        return true;
     }
 
     // The dirty flag is only cleared once the bytes are committed. Clearing
@@ -140,19 +145,20 @@ void SettingsStore::writeFile()
     QSaveFile file(m_filePath);
     if (!file.open(QIODevice::WriteOnly)) {
         reportWriteFailure(file.errorString());
-        return;
+        return false;
     }
     if (file.write(bytes) != bytes.size()) {
         const QString error = file.errorString();
         file.cancelWriting();
         reportWriteFailure(error);
-        return;
+        return false;
     }
     if (!file.commit()) {
         reportWriteFailure(file.errorString());
-        return;
+        return false;
     }
     m_dirty = false;
+    return true;
 }
 
 void SettingsStore::reportWriteFailure(const QString &error)

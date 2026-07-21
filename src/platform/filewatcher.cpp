@@ -30,33 +30,73 @@ FileWatcher::FileWatcher(QObject *parent)
     m_debounce.setInterval(400);
     connect(&m_debounce, &QTimer::timeout,
             this, &FileWatcher::emitDebouncedExternalChange);
+    m_discoverySlice.setSingleShot(true);
+    m_discoverySlice.setInterval(0);
+    connect(&m_discoverySlice, &QTimer::timeout,
+            this, &FileWatcher::continueDiscovery);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this,
             [this](const QString &path) { feedChange(path, false); });
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this,
             [this](const QString &path) { feedChange(path, true); });
 }
 
+FileWatcher::~FileWatcher() = default;
+
 void FileWatcher::watchRoot(const QString &root)
 {
     stop();
     m_root = root;
-    if (!root.isEmpty())
+    if (root.isEmpty())
+        return;               // stop() already reported the transition
+    // A root that does not exist watches nothing. Reporting `watching` while
+    // no registration exists tells the UI every outside edit is noticed, and
+    // none is.
+    if (!QFileInfo::exists(root))
+        setWatchDegraded(true);
+    else
         addTreeWatches(root);
     emit watchingChanged();
 }
 
-bool FileWatcher::addPathChecked(const QString &path)
+bool FileWatcher::addPathChecked(const QString &path, bool isDirectory)
 {
     if (path.isEmpty())
         return false;
+    QSet<QString> &registered = isDirectory ? m_watchedDirs : m_watchedFiles;
     // Already registered: QFileSystemWatcher returns false for a duplicate,
     // which is success as far as coverage is concerned.
-    if (m_watcher.files().contains(path) || m_watcher.directories().contains(path))
+    if (registered.contains(path))
         return true;
-    if (m_watcher.addPath(path))
+    if (m_watcher.addPath(path)) {
+        registered.insert(path);
         return true;
+    }
     setWatchDegraded(true);
     return false;
+}
+
+void FileWatcher::forgetPath(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+    m_watcher.removePath(path);
+    m_watchedFiles.remove(path);
+    m_watchedDirs.remove(path);
+}
+
+void FileWatcher::clearRegistrations()
+{
+    const QStringList files = m_watcher.files();
+    const QStringList dirs = m_watcher.directories();
+    if (!files.isEmpty())
+        m_watcher.removePaths(files);
+    if (!dirs.isEmpty())
+        m_watcher.removePaths(dirs);
+    m_watchedFiles.clear();
+    m_watchedDirs.clear();
+    m_discoveredDirs.clear();
+    m_discovery.reset();
+    m_discoverySlice.stop();
 }
 
 void FileWatcher::setWatchDegraded(bool degraded)
@@ -72,22 +112,56 @@ void FileWatcher::addTreeWatches(const QString &root)
     if (!QFileInfo::exists(root))
         return;
     ++m_treeWatchRefreshCount;
-    addPathChecked(root);
+    m_discoveredDirs.clear();
+    m_discoveredDirs.insert(root);
+    addPathChecked(root, true);
     // Watch every folder so an add/rename/delete anywhere in the tree fires a
     // directoryChanged. The .kvit control directory is skipped — the app owns it.
-    QDirIterator it(root, QDir::Dirs | QDir::NoDotAndDotDot,
-                    QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        const QString dir = it.next();
+    m_discovery = std::make_unique<QDirIterator>(
+        root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    continueDiscovery();
+}
+
+// One slice of the walk. A vault with thousands of folders takes long enough
+// to traverse and register that doing it in one go visibly stalls the window,
+// and this runs on every debounced refresh, not only at startup. Yielding to
+// the event loop between slices keeps the app responsive; the registrations
+// themselves must stay on this thread, since QFileSystemWatcher belongs to it.
+void FileWatcher::continueDiscovery()
+{
+    if (!m_discovery)
+        return;
+    int budget = DiscoverySliceEntries;
+    while (m_discovery->hasNext()) {
+        const QString dir = m_discovery->next();
         if (dir.contains(QStringLiteral("/.kvit")))
             continue;
-        addPathChecked(dir);
+        m_discoveredDirs.insert(dir);
+        addPathChecked(dir, true);
+        if (--budget <= 0) {
+            m_discoverySlice.start();
+            return;
+        }
     }
+    finishDiscovery();
+}
+
+void FileWatcher::finishDiscovery()
+{
+    m_discovery.reset();
+    m_discoverySlice.stop();
+    // Reconcile rather than rebuild: a directory that has gone away leaves a
+    // dead registration behind, and re-adding every surviving one on each
+    // refresh is what made a refresh cost O(N^2).
+    const QSet<QString> stale = m_watchedDirs - m_discoveredDirs;
+    for (const QString &dir : stale)
+        forgetPath(dir);
+    m_discoveredDirs.clear();
     // The open note lives inside the tree and is watched as a file in its own
     // right; a tree refresh is a good moment to confirm that registration is
     // still alive.
     if (!m_currentFile.isEmpty())
-        addPathChecked(m_currentFile);
+        addPathChecked(m_currentFile, false);
 }
 
 void FileWatcher::watchFile(const QString &absPath)
@@ -96,13 +170,13 @@ void FileWatcher::watchFile(const QString &absPath)
         // Same note: renew rather than return, since the caller reaches here
         // after a save that may have replaced the file underneath the watch.
         if (!absPath.isEmpty())
-            addPathChecked(absPath);
+            addPathChecked(absPath, false);
         return;
     }
 
     // Exactly one note is open, so the previous note's watch is dead weight.
     if (!m_currentFile.isEmpty())
-        m_watcher.removePath(m_currentFile);
+        forgetPath(m_currentFile);
 
     m_currentFile = absPath;
     if (absPath.isEmpty())
@@ -111,7 +185,7 @@ void FileWatcher::watchFile(const QString &absPath)
         setWatchDegraded(true);
         return;
     }
-    addPathChecked(absPath);
+    addPathChecked(absPath, false);
 }
 
 void FileWatcher::rewatchCurrentFile()
@@ -123,53 +197,98 @@ void FileWatcher::rewatchCurrentFile()
     // An atomic replacement leaves the watcher holding a registration against
     // the old inode. Dropping it first forces a genuinely new one; addPath
     // alone would see the path already listed and do nothing.
-    m_watcher.removePath(m_currentFile);
-    addPathChecked(m_currentFile);
+    forgetPath(m_currentFile);
+    addPathChecked(m_currentFile, false);
 }
 
 void FileWatcher::unwatchFile(const QString &absPath)
 {
     if (absPath.isEmpty())
         return;
-    m_watcher.removePath(absPath);
+    forgetPath(absPath);
     if (m_currentFile == absPath)
         m_currentFile.clear();
 }
 
 void FileWatcher::stop()
 {
-    const QStringList files = m_watcher.files();
-    const QStringList dirs = m_watcher.directories();
-    if (!files.isEmpty())
-        m_watcher.removePaths(files);
-    if (!dirs.isEmpty())
-        m_watcher.removePaths(dirs);
+    const bool wasWatching = watching();
+    clearRegistrations();
     m_debounce.stop();
     m_pendingExternalPaths.clear();
+    m_ownWrites.clear();
+    m_ownDirWrites.clear();
     m_root.clear();
     m_currentFile.clear();
     setWatchDegraded(false);
+    // stop() called directly is as much a transition as watchRoot("") is:
+    // `watching` just became false and a binding on it has to see that.
+    if (wasWatching)
+        emit watchingChanged();
 }
 
 void FileWatcher::noteOwnWrite(const QString &absPath)
 {
+    if (absPath.isEmpty())
+        return;
+    pruneExpiredGuards();
     m_ownWrites.insert(absPath, nowMs() + m_guardMs);
+    // The write mutates the containing directory too, and for every note but
+    // the open one that directory's notification is the only event the app
+    // receives. Guarding just the file leaves that event looking external.
+    noteOwnDirectoryChange(QFileInfo(absPath).absolutePath());
 }
 
-bool FileWatcher::isOwnWrite(const QString &path)
+void FileWatcher::noteOwnDirectoryChange(const QString &absDirPath)
 {
-    const auto it = m_ownWrites.constFind(path);
-    if (it == m_ownWrites.constEnd())
-        return false;
-    const qint64 expiry = it.value();
-    // Consume the guard: the app's write produces one change event.
-    m_ownWrites.remove(path);
-    return nowMs() <= expiry;
+    if (absDirPath.isEmpty())
+        return;
+    pruneExpiredGuards();
+    const qint64 expiry = nowMs() + m_guardMs;
+    const auto it = m_ownDirWrites.find(absDirPath);
+    if (it == m_ownDirWrites.end())
+        m_ownDirWrites.insert(absDirPath, expiry);
+    else
+        it.value() = qMax(it.value(), expiry);
+}
+
+// Guards that were never matched used to stay forever, one per path the app
+// ever wrote, so a long session accumulated an entry for every note it had
+// touched. A guard is only meaningful inside its window, so anything past it
+// is discarded here rather than waiting for an event that may never come.
+void FileWatcher::pruneExpiredGuards()
+{
+    const qint64 now = nowMs();
+    for (auto it = m_ownWrites.begin(); it != m_ownWrites.end();)
+        it = it.value() < now ? m_ownWrites.erase(it) : std::next(it);
+    for (auto it = m_ownDirWrites.begin(); it != m_ownDirWrites.end();)
+        it = it.value() < now ? m_ownDirWrites.erase(it) : std::next(it);
+}
+
+bool FileWatcher::isOwnChange(const QString &path, bool isFile)
+{
+    pruneExpiredGuards();
+    if (isFile) {
+        const auto it = m_ownWrites.constFind(path);
+        if (it == m_ownWrites.constEnd())
+            return false;
+        const qint64 expiry = it.value();
+        // Consume the guard: the app's write produces one change event.
+        m_ownWrites.remove(path);
+        return nowMs() <= expiry;
+    }
+    // A directory guard covers a batch, not a single event: one save writes a
+    // temporary file and renames it over the target, which is two
+    // notifications for the same directory, and a note collection operation
+    // can touch several entries. It therefore lapses on time rather than
+    // being consumed by the first event that matches it.
+    const auto it = m_ownDirWrites.constFind(path);
+    return it != m_ownDirWrites.constEnd() && nowMs() <= it.value();
 }
 
 void FileWatcher::feedChange(const QString &path, bool isFile)
 {
-    if (isOwnWrite(path)) {
+    if (isOwnChange(path, isFile)) {
         // The app's own write is not an external change, but it is exactly what
         // destroys the watch: saves go through QSaveFile, which renames a temp
         // file over the target, so the registration now refers to a replaced

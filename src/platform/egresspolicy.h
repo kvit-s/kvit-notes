@@ -92,13 +92,14 @@ public:
 
     // ---- Address rules (applied by EgressFetcher after DNS resolves) ----
 
-    // True for an address the app must never connect to: loopback, RFC1918
-    // and IPv6 unique-local, link-local (which covers the 169.254.169.254
-    // cloud metadata service), multicast, broadcast, unspecified, and the
-    // IPv4-mapped forms of all of those. The check exists because a URL in a
-    // note is chosen by whoever wrote the note, so without it the editor can
-    // be aimed at the reader's router, printer, or cloud credentials
-    // endpoint.
+    // True for an address the app must never connect to: every special-use
+    // prefix IANA registers as something other than ordinary public unicast
+    // (see kSpecialUsePrefixes in the .cpp), plus loopback, multicast,
+    // broadcast and the unspecified address, plus the IPv4-mapped, 6to4,
+    // Teredo and NAT64 encapsulations that carry one of those inside an IPv6
+    // address. The check exists because a URL in a note is chosen by whoever
+    // wrote the note, so without it the editor can be aimed at the reader's
+    // router, printer, or cloud credentials endpoint.
     bool addressIsBlocked(const QHostAddress &address) const;
 
     // Test seam: loopback is the only address family a hermetic test can
@@ -110,6 +111,19 @@ public:
     // Schemes the app will fetch. Anything else (file:, data:, ftp:, javascript:)
     // is refused before a request is built.
     static bool isFetchableScheme(const QUrl &url);
+
+    // The schemes a QML `source` may name without a request leaving the
+    // process: a local file, a Qt resource, an inline data: URI, a relative
+    // path, and the app's own in-process image providers (image://math,
+    // image://remote). Everything else is refused.
+    //
+    // This is an allowlist rather than a list of dangerous schemes because
+    // QNetworkAccessManager keeps gaining schemes: `local+http:` and
+    // `unix+http:` already send a real HTTP request over a local socket, so
+    // "not http(s), therefore local" hands an approved page a way to reach a
+    // unix socket without any of the checks on this class. A new Qt scheme
+    // must fail closed.
+    static bool isNonEgressSource(const QUrl &url);
 
 signals:
     void policyChanged();

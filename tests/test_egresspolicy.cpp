@@ -7,7 +7,11 @@
 #include <QtTest/QtTest>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QLocalServer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QSignalSpy>
@@ -15,6 +19,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QBuffer>
 #include <QImage>
 
@@ -35,16 +40,29 @@ class LocalServer : public QObject
     Q_OBJECT
 public:
     QStringList requests;
+    QList<QByteArray> requestHeads;   // the whole request head, for header checks
     qint64 bytesDelivered = 0;
     QByteArray body = "<html><head><meta property=\"og:title\" content=\"Local\">"
                       "</head></html>";
     QByteArray contentType = "text/html";
     QString redirectTo;          // non-empty: answer 302 to this Location
+    // How many more requests answer with that redirect; -1 is "every one".
+    // A finite count lets one test watch a redirect chain end in a body.
+    int redirectsRemaining = -1;
     // false: send no Content-Length and let the body run to EOF. Only a
     // streaming cap can stop that, so it is the case that tells the
     // enforcement mechanisms apart.
     bool declareLength = true;
     qint64 declaredLengthOverride = -1;
+    // false: omit the Content-Type header entirely.
+    bool sendContentType = true;
+    // false: accept the connection, read the request, and answer nothing --
+    // the shape a hung server has, and the only way to observe how many
+    // requests the client keeps open at once.
+    bool respond = true;
+    int responseDelayMs = 0;
+    int peakConnections = 0;
+    int liveConnections = 0;
 
     bool start()
     {
@@ -61,24 +79,42 @@ private slots:
     void onConnection()
     {
         QTcpSocket *sock = m_server.nextPendingConnection();
+        peakConnections = qMax(peakConnections, ++liveConnections);
+        connect(sock, &QTcpSocket::disconnected, this,
+                [this]() { --liveConnections; });
         connect(sock, &QTcpSocket::bytesWritten, this,
                 [this](qint64 n) { bytesDelivered += n; });
         connect(sock, &QTcpSocket::readyRead, this, [this, sock]() {
             const QByteArray req = sock->readAll();
             requests << QString::fromUtf8(req.left(req.indexOf('\r')));
+            requestHeads << req;
+            if (!respond)
+                return;
             QByteArray resp;
-            if (!redirectTo.isEmpty()) {
+            if (!redirectTo.isEmpty() && redirectsRemaining != 0) {
+                if (redirectsRemaining > 0)
+                    --redirectsRemaining;
                 resp = "HTTP/1.0 302 Found\r\nLocation: " + redirectTo.toUtf8()
                      + "\r\nContent-Length: 0\r\n\r\n";
-            } else if (declareLength) {
-                const qint64 declared = declaredLengthOverride >= 0
-                    ? declaredLengthOverride : body.size();
-                resp = "HTTP/1.0 200 OK\r\nContent-Type: " + contentType + "\r\n"
-                       "Content-Length: " + QByteArray::number(declared)
-                     + "\r\n\r\n" + body;
             } else {
-                resp = "HTTP/1.0 200 OK\r\nContent-Type: " + contentType
-                     + "\r\n\r\n" + body;
+                const QByteArray typeHeader = sendContentType
+                    ? "Content-Type: " + contentType + "\r\n" : QByteArray();
+                if (declareLength) {
+                    const qint64 declared = declaredLengthOverride >= 0
+                        ? declaredLengthOverride : body.size();
+                    resp = "HTTP/1.0 200 OK\r\n" + typeHeader
+                         + "Content-Length: " + QByteArray::number(declared)
+                         + "\r\n\r\n" + body;
+                } else {
+                    resp = "HTTP/1.0 200 OK\r\n" + typeHeader + "\r\n" + body;
+                }
+            }
+            if (responseDelayMs > 0) {
+                QTimer::singleShot(responseDelayMs, sock, [sock, resp]() {
+                    sock->write(resp);
+                    sock->disconnectFromHost();
+                });
+                return;
             }
             sock->write(resp);
             sock->disconnectFromHost();
@@ -109,7 +145,10 @@ private slots:
     void addressClassification_data();
     void addressClassification();
     void schemeAndCredentialRules();
+    void imageSourceSchemesAreAnAllowlist();
+    void aNetworkCapableSchemeReachesALocalSocketAndIsRefused();
     void originGranularity();
+    void ipv6OriginsRoundTripThroughSettings();
     void consentPersistsThroughSettings();
 
     // ---- Opening a note fetches nothing ----
@@ -125,8 +164,16 @@ private slots:
     void oversizedResponseIsCutOffWhileReceiving();
     void oversizedResponseWithNoDeclaredLengthIsCutOff();
     void wrongContentTypeIsRefused();
+    void absentContentTypeIsRefused();
+    void oneDeadlineCoversResolutionAndEveryRedirect();
+    void aDeadFirstAddressFallsBackToTheNext();
+    void hostHeaderCarriesTheWholeAuthority();
+    void updateRedirectsStayOnTheDisclosedOrigin();
+    void concurrentRequestsAreCappedAndQueued();
     void oversizedImageDimensionsAreRejectedBeforeDecode();
     void remoteMediaIsPlayedOnlyFromBoundedLocalCache();
+    void remoteMediaIsStreamedToDiskNotBuffered();
+    void remoteMediaCacheEvictsLeastRecentlyUsedPastItsBudget();
     void remoteMediaRevalidatesRedirectsAndSize();
 
     // ---- Metadata-selected images ----
@@ -167,6 +214,39 @@ void TestEgressPolicy::addressClassification_data()
     QTest::newRow("v4-mapped private") << "::ffff:10.0.0.5" << true;
     // 172.32 is outside the /12 and must stay reachable.
     QTest::newRow("just outside rfc1918") << "172.32.0.1" << false;
+
+    // ---- Special-use ranges that used to pass ----
+    // IPv6 site-local. Deprecated, but still routed inside networks that
+    // deployed it, so a note-driven request can reach a local service there.
+    QTest::newRow("site-local v6") << "fec0::1" << true;
+    QTest::newRow("site-local v6 top") << "feff:ffff::1" << true;
+    // 198.18.0.0/15, the benchmarking range, which lab and campus networks
+    // route internally.
+    QTest::newRow("benchmarking low") << "198.18.0.1" << true;
+    QTest::newRow("benchmarking high") << "198.19.255.254" << true;
+    // The boundaries either side of that /15 stay reachable.
+    QTest::newRow("just below benchmarking") << "198.17.255.254" << false;
+    QTest::newRow("just above benchmarking") << "198.20.0.1" << false;
+    // Documentation and test ranges: never a real destination.
+    QTest::newRow("test-net-1") << "192.0.2.1" << true;
+    QTest::newRow("test-net-2") << "198.51.100.7" << true;
+    QTest::newRow("test-net-3") << "203.0.113.5" << true;
+    QTest::newRow("v6 documentation") << "2001:db8::1" << true;
+    QTest::newRow("v6 discard") << "100::1" << true;
+
+    // An IPv6 address that carries an IPv4 one inside it delivers to that
+    // IPv4 host, so the payload is what has to be classified.
+    QTest::newRow("6to4 wrapping rfc1918") << "2002:0a00:0001::" << true;
+    QTest::newRow("6to4 wrapping public") << "2002:5db8:d822::" << false;
+    QTest::newRow("nat64 wrapping metadata") << "64:ff9b::a9fe:a9fe" << true;
+    QTest::newRow("nat64 wrapping public") << "64:ff9b::5db8:d822" << false;
+    // Teredo stores the client's IPv4 address inverted in the last 32 bits;
+    // 0xf5fffffe is ~10.0.0.1.
+    QTest::newRow("teredo wrapping rfc1918") << "2001:0:0:0:0:0:f5ff:fffe" << true;
+
+    // Ordinary public IPv6 that merely starts with the same nibbles as a
+    // special range must stay reachable.
+    QTest::newRow("public v6 near site-local") << "fe00::1" << false;
 }
 
 void TestEgressPolicy::addressClassification()
@@ -201,6 +281,87 @@ void TestEgressPolicy::schemeAndCredentialRules()
     QCOMPARE(policy.imageSourceFor("https://cdn.example.com/pic.png"), QString());
 }
 
+// What a QML `source` may name is an allowlist, not "anything that is not
+// http(s)". Qt keeps adding schemes its network stack can open, and the
+// delegates hand whatever comes back here straight to an Image.
+void TestEgressPolicy::imageSourceSchemesAreAnAllowlist()
+{
+    EgressPolicy policy;
+
+    // The four shapes that genuinely cannot leave the process pass through.
+    QCOMPARE(policy.imageSourceFor("file:///home/a/pic.png"),
+             QString("file:///home/a/pic.png"));
+    QCOMPARE(policy.imageSourceFor("qrc:/icons/x.svg"), QString("qrc:/icons/x.svg"));
+    QCOMPARE(policy.imageSourceFor("data:image/png;base64,AAAA"),
+             QString("data:image/png;base64,AAAA"));
+    QCOMPARE(policy.imageSourceFor("pictures/local.png"),
+             QString("pictures/local.png"));
+    // The app's own in-process providers, and only those.
+    QCOMPARE(policy.imageSourceFor("image://math/AAAA"),
+             QString("image://math/AAAA"));
+    QCOMPARE(policy.imageSourceFor("image://remote/x"), QString("image://remote/x"));
+    QCOMPARE(policy.imageSourceFor("image://elsewhere/x"), QString());
+
+    // Everything else yields nothing rather than being handed to QML, whether
+    // or not this test knows what Qt would do with it.
+    const QStringList refused = {
+        QStringLiteral("local+http://socketname/probe.png"),
+        QStringLiteral("unix+http://%2Ftmp%2Fdocker.sock/probe.png"),
+        QStringLiteral("local+https://socketname/probe.png"),
+        QStringLiteral("ftp://example.com/x.png"),
+        QStringLiteral("javascript:alert(1)"),
+        QStringLiteral("//tracker.example.net/pixel.gif"),   // protocol-relative
+        QStringLiteral("about:blank"),
+    };
+    for (const QString &url : refused) {
+        QVERIFY2(policy.imageSourceFor(url).isEmpty(),
+                 qPrintable(QStringLiteral("%1 was handed to QML as an image "
+                                           "source").arg(url)));
+    }
+}
+
+// The concrete case behind the rule above: `local+http:` is a scheme
+// QNetworkAccessManager speaks, and it sends a real HTTP request over a unix
+// socket. An approved page choosing that as its og:image would otherwise
+// reach a local service with no DNS check, no address check, no redirect
+// revalidation, no byte cap and no timeout, because none of those run for a
+// URL the policy classified as local.
+void TestEgressPolicy::aNetworkCapableSchemeReachesALocalSocketAndIsRefused()
+{
+    const QString name = QStringLiteral("kvit-egress-probe-%1")
+                             .arg(QCoreApplication::applicationPid());
+    QLocalServer::removeServer(name);
+    QLocalServer local;
+    QVERIFY(local.listen(name));
+
+    int connections = 0;
+    connect(&local, &QLocalServer::newConnection, &local, [&]() {
+        ++connections;
+        // Left parented to the server: destroying a socket from inside its
+        // own signal is not something this test needs to do.
+        local.nextPendingConnection();
+    });
+
+    const QString probe = QStringLiteral("local+http://%1/probe.png").arg(name);
+
+    // Qt's own stack opens the socket, which is what makes this a boundary
+    // question rather than a naming question.
+    QNetworkAccessManager nam;
+    QScopedPointer<QNetworkReply> reply(nam.get(QNetworkRequest(QUrl(probe))));
+    QTRY_VERIFY_WITH_TIMEOUT(connections > 0 || reply->isFinished(), 3000);
+    QVERIFY2(connections > 0,
+             "local+http: did not reach the local socket in this Qt build; the "
+             "regression below is then weaker than it looks");
+
+    // The policy hands QML nothing for it, so no Image ever names it.
+    EgressPolicy policy;
+    policy.setAutoLoadRemoteContent(true);   // no settings store: stays off
+    policy.allowOrigin(probe);               // not an http(s) origin: no-op
+    QCOMPARE(policy.imageSourceFor(probe), QString());
+    QVERIFY(!policy.isAllowed(probe));
+    QVERIFY(!policy.canRequestConsent(probe));
+}
+
 void TestEgressPolicy::originGranularity()
 {
     EgressPolicy policy;
@@ -221,6 +382,42 @@ void TestEgressPolicy::originGranularity()
 
     policy.forgetOrigin("https://example.com/anything");
     QVERIFY(!policy.isAllowed("https://example.com/other"));
+}
+
+// An origin is stored as a string and parsed back on the next launch, so an
+// IPv6 origin has to be written in a form that parses. Written bare, "https://
+// ::1:8443" is not a URL at all, and the reader's approval quietly vanished
+// between sessions.
+void TestEgressPolicy::ipv6OriginsRoundTripThroughSettings()
+{
+    QCOMPARE(EgressPolicy::originOf("http://[::1]:8443/x"),
+             QString("http://[::1]:8443"));
+    QCOMPARE(EgressPolicy::originOf("https://[2606:2800:220::1]/x"),
+             QString("https://[2606:2800:220::1]"));
+    // The serialized origin has to parse back to the same origin.
+    QCOMPARE(EgressPolicy::originOf(EgressPolicy::originOf("http://[::1]:8443/x")),
+             QString("http://[::1]:8443"));
+
+    QTemporaryDir dir;
+    const QString path = QDir(dir.path()).filePath("settings.json");
+    {
+        SettingsStore store;
+        QVERIFY(store.open(path));
+        EgressPolicy policy;
+        policy.setSettings(&store);
+        policy.allowOrigin("http://[::1]:8443/media.mp3");
+        QVERIFY(policy.isAllowed("http://[::1]:8443/other.mp3"));
+        store.flush();
+    }
+    {
+        SettingsStore store;
+        QVERIFY(store.open(path));
+        EgressPolicy policy;
+        policy.setSettings(&store);
+        QCOMPARE(policy.allowedOrigins(), QStringList{"http://[::1]:8443"});
+        QVERIFY2(policy.isAllowed("http://[::1]:8443/other.mp3"),
+                 "an approved IPv6 origin did not survive a reload");
+    }
 }
 
 void TestEgressPolicy::consentPersistsThroughSettings()
@@ -586,6 +783,289 @@ void TestEgressPolicy::wrongContentTypeIsRefused()
     QVERIFY2(!result, "a non-HTML response was accepted as a page");
 }
 
+// An absent Content-Type used to count as an acceptable one, so a server had
+// only to omit the header to hand the HTML parser, the image decoder or the
+// multimedia backend bytes the purpose contract says they never see.
+void TestEgressPolicy::absentContentTypeIsRefused()
+{
+    LocalServer server;
+    server.sendContentType = false;
+    server.body = "PK\x03\x04not-a-page";
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+
+    bool called = false, result = true;
+    fetcher.request(QUrl(server.url()), EgressFetcher::Purpose::EmbedPreview,
+                    [&](bool ok, const QByteArray &, const QString &) {
+                        called = true;
+                        result = ok;
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
+    QVERIFY2(!result,
+             "a response with no declared type was accepted as a page");
+}
+
+// The deadline belongs to the job, not to a connection. It starts before the
+// name is resolved, so a resolver that takes longer than the whole budget
+// spends it, and it is not renewed per redirect, so a chain of slow hops
+// cannot multiply it by the hop limit. Both halves are checked here because
+// each alone leaves jobs pending far past what the caller was promised.
+void TestEgressPolicy::oneDeadlineCoversResolutionAndEveryRedirect()
+{
+    // --- resolution is inside the budget ---
+    {
+        LocalServer server;
+        QVERIFY(server.start());
+
+        EgressPolicy policy;
+        allowLoopback(&policy);
+        policy.allowOrigin(server.url());
+
+        EgressFetcher fetcher;
+        fetcher.setPolicy(&policy);
+        fetcher.setTimeoutMsForTests(300);
+        // A resolver that takes longer than the whole job is allowed. Real
+        // resolution blocks in the OS for its own timeout, which is how a
+        // nominally eight-second job waited half a minute.
+        fetcher.setResolverForTests([](const QString &host) {
+            QThread::msleep(600);
+            return QList<QHostAddress>{QHostAddress(host)};
+        });
+
+        bool called = false, result = true;
+        fetcher.request(QUrl(server.url()), EgressFetcher::Purpose::EmbedPreview,
+                        [&](bool ok, const QByteArray &, const QString &) {
+                            called = true;
+                            result = ok;
+                        });
+        QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
+        QVERIFY2(!result, "a job whose resolution outlasted its deadline was "
+                          "still issued");
+        QTest::qWait(200);
+        QVERIFY2(server.requests.isEmpty(),
+                 "the connection was opened after the deadline had passed");
+    }
+
+    // --- redirects share that one budget ---
+    {
+        LocalServer server;
+        QVERIFY(server.start());
+        server.redirectTo = server.url("/next");   // redirects forever
+        server.responseDelayMs = 300;
+
+        EgressPolicy policy;
+        allowLoopback(&policy);
+        policy.allowOrigin(server.url());
+
+        EgressFetcher fetcher;
+        fetcher.setPolicy(&policy);
+        fetcher.setTimeoutMsForTests(400);
+        fetcher.setResolverForTests([](const QString &host) {
+            return QList<QHostAddress>{QHostAddress(host)};
+        });
+
+        bool called = false, result = true;
+        QElapsedTimer clock;
+        clock.start();
+        fetcher.request(QUrl(server.url()), EgressFetcher::Purpose::EmbedPreview,
+                        [&](bool ok, const QByteArray &, const QString &) {
+                            called = true;
+                            result = ok;
+                        });
+        QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
+        const qint64 elapsed = clock.elapsed();
+        QVERIFY(!result);
+        // Five hops at 300 ms apiece is what a per-hop timer allows; one
+        // budget of 400 ms is what the caller was promised.
+        QVERIFY2(elapsed < 1000,
+                 qPrintable(QStringLiteral("the redirect chain ran %1 ms on a "
+                                           "400 ms budget: each hop was given a "
+                                           "fresh timeout").arg(elapsed)));
+    }
+}
+
+// A name that answers with several addresses commonly has a dead one first --
+// an IPv6 answer on a host with no IPv6 route is the everyday case. Every
+// answer is validated before anything is dialled, so moving to the next one
+// crosses no boundary, and they share the single deadline.
+void TestEgressPolicy::aDeadFirstAddressFallsBackToTheNext()
+{
+    LocalServer server;
+    QVERIFY(server.start());   // IPv4 loopback only
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    // The v6 loopback first, where nothing is listening on this port, then
+    // the address that answers.
+    fetcher.setResolverForTests([](const QString &) {
+        return QList<QHostAddress>{QHostAddress(QStringLiteral("::1")),
+                                   QHostAddress(QStringLiteral("127.0.0.1"))};
+    });
+
+    bool called = false, result = false;
+    fetcher.request(QUrl(server.url()), EgressFetcher::Purpose::EmbedPreview,
+                    [&](bool ok, const QByteArray &, const QString &) {
+                        called = true;
+                        result = ok;
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 15000);
+    QVERIFY2(result,
+             "a dead first address failed the whole job even though a working "
+             "address followed it");
+    QCOMPARE(server.requests.size(), 1);
+}
+
+// The Host header tells the server which site is being asked for. Built from
+// the hostname alone it loses a non-default port and the brackets an IPv6
+// literal needs, so the server is told a name the URL never contained.
+void TestEgressPolicy::hostHeaderCarriesTheWholeAuthority()
+{
+    LocalServer server;
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+
+    bool called = false;
+    fetcher.request(QUrl(server.url()), EgressFetcher::Purpose::EmbedPreview,
+                    [&](bool ok, const QByteArray &, const QString &) {
+                        called = true;
+                        Q_UNUSED(ok);
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
+    QCOMPARE(server.requestHeads.size(), 1);
+    const QByteArray expected =
+        "Host: 127.0.0.1:" + QByteArray::number(server.port());
+    QVERIFY2(server.requestHeads.first().contains(expected),
+             qPrintable(QStringLiteral("the request did not carry %1:\n%2")
+                            .arg(QString::fromUtf8(expected),
+                                 QString::fromUtf8(server.requestHeads.first()))));
+}
+
+// The update check is the one request that needs no per-origin approval,
+// because the endpoint is fixed and disclosed. A redirect is chosen by
+// whoever answers, so following one anywhere would turn that disclosure into
+// a request to an undisclosed host.
+void TestEgressPolicy::updateRedirectsStayOnTheDisclosedOrigin()
+{
+    LocalServer endpoint;
+    LocalServer elsewhere;
+    QVERIFY(endpoint.start());
+    QVERIFY(elsewhere.start());
+    endpoint.redirectTo = elsewhere.url("/releases");
+    elsewhere.contentType = "application/json";
+    elsewhere.body = "{\"tag_name\":\"v9.9.9\"}";
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+
+    bool called = false, result = true;
+    fetcher.request(QUrl(endpoint.url("/latest")),
+                    EgressFetcher::Purpose::UpdateCheck,
+                    [&](bool ok, const QByteArray &, const QString &) {
+                        called = true;
+                        result = ok;
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
+    QVERIFY2(!result, "the update check followed a redirect off its origin");
+    QTest::qWait(200);
+    QVERIFY2(elsewhere.requests.isEmpty(),
+             "the update check reached a host the app never disclosed");
+
+    // A redirect that stays on the endpoint's own origin is still followed:
+    // the rule is about the destination, not about redirects.
+    LocalServer sameOrigin;
+    QVERIFY(sameOrigin.start());
+    sameOrigin.redirectTo = sameOrigin.url("/v2");
+    sameOrigin.redirectsRemaining = 1;
+    sameOrigin.contentType = "application/json";
+    sameOrigin.body = "{\"tag_name\":\"v9.9.9\"}";
+
+    bool called2 = false, result2 = false;
+    fetcher.request(QUrl(sameOrigin.url("/latest")),
+                    EgressFetcher::Purpose::UpdateCheck,
+                    [&](bool ok, const QByteArray &, const QString &) {
+                        called2 = true;
+                        result2 = ok;
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called2, 10000);
+    QVERIFY2(result2, "a same-origin redirect of the update check was refused");
+    QCOMPARE(sameOrigin.requests.size(), 2);
+}
+
+// A note names as many URLs as its author likes. Without a budget every one
+// of them became a request in flight, each entitled to its own byte cap, so
+// peak memory, socket count and descriptor count were all decided by the
+// document rather than by the app.
+void TestEgressPolicy::concurrentRequestsAreCappedAndQueued()
+{
+    LocalServer server;
+    server.respond = false;   // accept and hold, so nothing completes early
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setTimeoutMsForTests(600);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+
+    const int requested = 10;
+    int completed = 0;
+    for (int i = 0; i < requested; ++i) {
+        fetcher.request(QUrl(server.url(QStringLiteral("/clip%1.mp3").arg(i))),
+                        EgressFetcher::Purpose::RemoteMedia,
+                        [&](bool, const QByteArray &, const QString &) {
+                            ++completed;
+                        });
+    }
+
+    QTest::qWait(400);
+    const int cap = EgressFetcher::maxConcurrentFor(
+        EgressFetcher::Purpose::RemoteMedia);
+    QVERIFY2(server.peakConnections <= cap,
+             qPrintable(QStringLiteral("%1 connections were open at once for a "
+                                       "budget of %2")
+                            .arg(server.peakConnections).arg(cap)));
+    QVERIFY(fetcher.inFlightForTests() <= cap);
+    QVERIFY(fetcher.queuedForTests() > 0);
+
+    // Queued, not dropped: every caller still hears back once the ones ahead
+    // of it have given up.
+    QTRY_COMPARE_WITH_TIMEOUT(completed, requested, 30000);
+    QCOMPARE(fetcher.queuedForTests(), 0);
+}
+
 void TestEgressPolicy::oversizedImageDimensionsAreRejectedBeforeDecode()
 {
     QImage source(RemoteImageProvider::MaxDimension + 1, 1,
@@ -634,6 +1114,106 @@ void TestEgressPolicy::remoteMediaIsPlayedOnlyFromBoundedLocalCache()
     QCOMPARE(file.readAll(), server.body);
     QCOMPARE(EgressFetcher::maxBytesFor(EgressFetcher::Purpose::RemoteMedia),
              qint64(64 * 1024 * 1024));
+}
+
+// Media is capped at 64 MiB per download, so accumulating one in a QByteArray
+// before writing it out costs that much RAM per download on top of the file.
+// The bytes go to the file as they arrive instead.
+void TestEgressPolicy::remoteMediaIsStreamedToDiskNotBuffered()
+{
+    LocalServer server;
+    server.contentType = "audio/mpeg";
+    server.body = QByteArray(4 * 1024 * 1024, 'm');
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+    RemoteMediaCache cache;
+    cache.setFetcher(&fetcher);
+
+    const QString remote = server.url("/long.mp3");
+    QSignalSpy ready(&cache, &RemoteMediaCache::mediaReady);
+    cache.request(remote);
+    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 30000);
+
+    const QUrl local(cache.sourceFor(remote));
+    QVERIFY(local.isLocalFile());
+    QCOMPARE(QFileInfo(local.toLocalFile()).size(), qint64(server.body.size()));
+    QCOMPARE(cache.cachedBytes(), qint64(server.body.size()));
+    QVERIFY2(fetcher.peakBufferedBytesForTests() < 512 * 1024,
+             qPrintable(QStringLiteral("%1 bytes of media were accumulated in "
+                                       "memory on the way to the file")
+                            .arg(fetcher.peakBufferedBytesForTests())));
+}
+
+// Every finished download used to be retained until the cache was destroyed,
+// so a note naming enough distinct media URLs decided how much temporary disk
+// and how many descriptors the app held. Both budgets evict, oldest use first.
+void TestEgressPolicy::remoteMediaCacheEvictsLeastRecentlyUsedPastItsBudget()
+{
+    LocalServer server;
+    server.contentType = "audio/mpeg";
+    server.body = QByteArray(1000, 'x');
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+
+    RemoteMediaCache cache;
+    cache.setFetcher(&fetcher);
+    cache.setBudgetForTests(2, 10000);   // two entries, well inside the bytes
+    QSignalSpy released(&cache, &RemoteMediaCache::mediaReleased);
+
+    const QStringList urls = {server.url("/a.mp3"), server.url("/b.mp3"),
+                              server.url("/c.mp3")};
+    QSignalSpy ready(&cache, &RemoteMediaCache::mediaReady);
+    for (int i = 0; i < urls.size(); ++i) {
+        cache.request(urls.at(i));
+        QTRY_COMPARE_WITH_TIMEOUT(ready.count(), i + 1, 15000);
+        if (i == 1) {
+            // Touch the first one so the second becomes the oldest use: the
+            // rule is least-recently-used, not first-in.
+            QVERIFY(!cache.sourceFor(urls.at(0)).isEmpty());
+        }
+    }
+
+    QCOMPARE(cache.cachedCount(), 2);
+    QCOMPARE(cache.cachedBytes(), qint64(2 * server.body.size()));
+    QCOMPARE(released.count(), 1);
+    QCOMPARE(released.at(0).at(0).toString(), urls.at(1));
+    QVERIFY(cache.sourceFor(urls.at(1)).isEmpty());
+    QVERIFY(!cache.sourceFor(urls.at(0)).isEmpty());
+    QVERIFY(!cache.sourceFor(urls.at(2)).isEmpty());
+
+    // The evicted download's file is gone from disk, not merely forgotten.
+    const QString survivor = QUrl(cache.sourceFor(urls.at(2))).toLocalFile();
+    QVERIFY(QFileInfo::exists(survivor));
+
+    // The byte budget evicts on its own terms.
+    cache.setBudgetForTests(8, 1500);
+    QCOMPARE(cache.cachedCount(), 1);
+    QVERIFY(cache.cachedBytes() <= 1500);
+
+    // And the explicit release path empties it, deleting the file with it.
+    cache.clear();
+    QCOMPARE(cache.cachedCount(), 0);
+    QCOMPARE(cache.cachedBytes(), qint64(0));
+    QVERIFY2(!QFileInfo::exists(survivor),
+             "clearing the cache left its temporary file on disk");
 }
 
 void TestEgressPolicy::remoteMediaRevalidatesRedirectsAndSize()

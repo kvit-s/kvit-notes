@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest/QtTest>
+#include <QDir>
+#include <QElapsedTimer>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QFile>
@@ -27,6 +29,11 @@ private slots:
     void watchSurvivesAtomicReplacement();
     void watchingASecondFileDropsTheFirst();
     void failedRegistrationIsReported();
+    void ownWriteToANonCurrentNoteIsNotAnExternalChange();
+    void unusedGuardsExpireInsteadOfAccumulating();
+    void aLargeTreeIsDiscoveredWithoutBlockingTheEventLoop();
+    void aMissingRootReportsDegradedCoverage();
+    void stoppingAnnouncesThatWatchingEnded();
 };
 
 void TestFileWatcher::externalFileChangeIsAnnouncedAndRescans()
@@ -229,6 +236,173 @@ void TestFileWatcher::failedRegistrationIsReported()
     QVERIFY2(w.watchDegraded(),
              "a refused registration must surface as degraded coverage");
     QCOMPARE(degraded.count(), 1);
+}
+
+// Only the open note is watched as a file; every other note in the vault is
+// covered by its folder's watch. So when the app writes one of those -- a
+// link rewrite, closed-note metadata, a recovery write -- the only event it
+// receives is a directoryChanged, and a guard recorded against the file path
+// never matches it. The write was then classified as somebody else's and the
+// whole collection was re-scanned for it.
+void TestFileWatcher::ownWriteToANonCurrentNoteIsNotAnExternalChange()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString other = dir.filePath("other.md");
+    {
+        QFile f(other);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("body");
+    }
+
+    FileWatcher w;
+    w.setDebounceMs(30);
+    w.setGuardMs(400);
+    w.watchRoot(dir.path());     // the folder only: this note is not open
+    QVERIFY(w.watching());
+    QSignalSpy rescan(&w, &FileWatcher::externalChange);
+
+    // The app writes it, the way NoteCollection does: guard, then replace.
+    w.noteOwnWrite(other);
+    {
+        QSaveFile s(other);
+        QVERIFY(s.open(QIODevice::WriteOnly));
+        s.write("written by the app");
+        QVERIFY(s.commit());
+    }
+    QTest::qWait(700);
+    QCOMPARE(rescan.count(), 0);
+
+    // The guard covers a batch, not the folder forever: once it has lapsed,
+    // somebody else's change to the same folder is seen again.
+    QFile added(dir.filePath("added-by-someone-else.md"));
+    QVERIFY(added.open(QIODevice::WriteOnly));
+    added.write("outside");
+    added.close();
+    QVERIFY2(rescan.wait(3000),
+             "the directory guard outlived its window and hid a real change");
+}
+
+// A guard that never matched used to stay forever, one entry per path the app
+// had ever written, so a long session grew a map of every note it touched.
+void TestFileWatcher::unusedGuardsExpireInsteadOfAccumulating()
+{
+    FileWatcher w;
+    w.setGuardMs(20);
+    for (int i = 0; i < 200; ++i)
+        w.noteOwnWrite(QStringLiteral("/notes/n%1.md").arg(i));
+    QVERIFY(w.pendingGuardCountForTests() > 100);
+
+    QTest::qWait(80);   // every one of those windows has now lapsed
+    w.noteOwnWrite(QStringLiteral("/notes/current.md"));
+    // What is left is the new guard and the one for its folder.
+    QCOMPARE(w.pendingGuardCountForTests(), 2);
+}
+
+// Discovering a large vault used to run to completion inside watchRoot (and
+// inside every debounced refresh after it), searching the watcher's own path
+// lists once per folder along the way. The walk now yields to the event loop
+// between slices, so the window keeps repainting while a big tree is
+// registered, and membership is answered from a set rather than by scanning.
+//
+// The observable half is the yielding: after watchRoot returns, a tree larger
+// than one slice is still being discovered, and the timer below -- queued
+// before the walk started -- gets to run before it finishes.
+void TestFileWatcher::aLargeTreeIsDiscoveredWithoutBlockingTheEventLoop()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const int folders = FileWatcher::DiscoverySliceEntries * 4;
+    QDir root(dir.path());
+    for (int i = 0; i < folders; ++i)
+        QVERIFY(root.mkpath(QStringLiteral("folder-%1").arg(i)));
+
+    FileWatcher w;
+    w.setDebounceMs(10);
+
+    bool eventLoopRan = false;
+    bool ranBeforeDiscoveryEnded = false;
+    QTimer::singleShot(0, &w, [&]() {
+        eventLoopRan = true;
+        ranBeforeDiscoveryEnded = w.discoveryPending();
+    });
+
+    QElapsedTimer clock;
+    clock.start();
+    w.watchRoot(dir.path());
+    QVERIFY2(w.discoveryPending(),
+             "the whole tree was walked in one call: nothing else on the GUI "
+             "thread could run while it did");
+
+    QTRY_VERIFY_WITH_TIMEOUT(!w.discoveryPending(), 60000);
+    const qint64 firstPass = clock.elapsed();
+    QVERIFY(eventLoopRan);
+    QVERIFY2(ranBeforeDiscoveryEnded,
+             "queued work waited for the whole walk to finish");
+
+    // Yielding must not lose folders: every one of them is registered by the
+    // time discovery ends (the root itself included).
+    QCOMPARE(w.watchedDirectoryCountForTests(), folders + 1);
+
+    // A refresh with nothing changed happens on every external event. It
+    // reconciles rather than re-registering, and stays inside a budget a
+    // linear walk of this tree has no trouble meeting.
+    QSignalSpy rescan(&w, &FileWatcher::externalChange);
+    clock.restart();
+    w.feedChange(dir.path(), false);
+    QVERIFY(rescan.wait(60000));
+    QTRY_VERIFY_WITH_TIMEOUT(!w.discoveryPending(), 60000);
+    const qint64 refresh = clock.elapsed();
+    QCOMPARE(w.watchedDirectoryCountForTests(), folders + 1);
+
+    QVERIFY2(firstPass < 5000,
+             qPrintable(QStringLiteral("registering %1 folders took %2 ms")
+                            .arg(folders).arg(firstPass)));
+    QVERIFY2(refresh < 5000,
+             qPrintable(QStringLiteral("re-scanning %1 folders took %2 ms")
+                            .arg(folders).arg(refresh)));
+
+    // A folder that has gone away stops being watched, rather than leaving a
+    // registration behind for every folder the vault ever had.
+    QVERIFY(root.rmdir(QStringLiteral("folder-0")));
+    QSignalSpy second(&w, &FileWatcher::externalChange);
+    w.feedChange(dir.path(), false);
+    QVERIFY(second.wait(60000));
+    QTRY_VERIFY_WITH_TIMEOUT(!w.discoveryPending(), 60000);
+    QCOMPARE(w.watchedDirectoryCountForTests(), folders);
+}
+
+// A root that does not exist watches nothing. Reporting `watching` for it told
+// the UI every outside edit would be noticed, when none would.
+void TestFileWatcher::aMissingRootReportsDegradedCoverage()
+{
+    FileWatcher w;
+    QSignalSpy degraded(&w, &FileWatcher::watchDegradedChanged);
+    w.watchRoot(QStringLiteral("/nonexistent/kvit/vault"));
+    QVERIFY2(w.watchDegraded(),
+             "a root that cannot be watched must report degraded coverage");
+    QCOMPARE(degraded.count(), 1);
+    QVERIFY(w.watchedFilesForTests().isEmpty());
+}
+
+// stop() ends watching as much as watchRoot("") does, and a binding on
+// `watching` has to hear about it either way.
+void TestFileWatcher::stoppingAnnouncesThatWatchingEnded()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    FileWatcher w;
+    w.watchRoot(dir.path());
+    QVERIFY(w.watching());
+
+    QSignalSpy watching(&w, &FileWatcher::watchingChanged);
+    w.stop();
+    QVERIFY(!w.watching());
+    QCOMPARE(watching.count(), 1);
+
+    // Stopping again is not a transition.
+    w.stop();
+    QCOMPARE(watching.count(), 1);
 }
 
 QTEST_MAIN(TestFileWatcher)

@@ -33,9 +33,17 @@ public:
 
     // Binds the store to its file and loads it. An absent or corrupt
     // file yields defaults (empty store); the file is (re)created on
-    // the first write. Returns false only when the path's directory
-    // cannot be created.
-    Q_INVOKABLE bool open(const QString &filePath);
+    // the first write.
+    //
+    // Returns false, and leaves the store bound to its previous file with
+    // its values and pending write intact, when the path's directory cannot
+    // be created or when a pending write to the previous file fails. The
+    // second case is the one worth stating: rebinding would drop values the
+    // store has already told the caller it is holding, which contradicts the
+    // write-failure contract everywhere else. A caller that would rather
+    // lose them than stay bound passes discardPendingWrite.
+    Q_INVOKABLE bool open(const QString &filePath,
+                          bool discardPendingWrite = false);
     Q_INVOKABLE QString filePath() const { return m_filePath; }
 
     Q_INVOKABLE QVariant value(const QString &key,
@@ -61,7 +69,8 @@ signals:
 private:
     void bumpRevision();
     void scheduleWrite();
-    void writeFile();
+    // False when the bytes did not reach disk; the values then stay pending.
+    bool writeFile();
     void reportWriteFailure(const QString &error);
 
     QString m_filePath;
