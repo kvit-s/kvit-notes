@@ -341,7 +341,7 @@ BlockDelegateBase {
     // because its child MouseAreas occlude blockMouseArea; without this,
     // showing the buttons can make the block look un-hovered and start a
     // hide/show loop under the pointer.
-    property bool isHovered: blockMouseArea.containsMouse || gutterHover.hovered
+    property bool isHovered: blockMouseArea.containsMouse || blockHandle.hovered
 
     // Whether this block is in the document-level block selection
     // (features.md §3.1). The revision read makes the binding re-evaluate
@@ -1378,165 +1378,39 @@ BlockDelegateBase {
             border.width: 1
         }
 
-        // Block handle/gutter (widened for the plus-button) - visible
-        // on hover
-        Item {
+        // The gutter's plus-button and drag handle. It reports gestures; the
+        // reorder itself goes to the window's coordinator, which is the only
+        // thing that can see the rows a drag passes over.
+        BlockGutter {
             id: blockHandle
-            width: 40
             anchors.left: parent.left
             anchors.top: parent.top
-            height: 24
             anchors.topMargin: 4
 
-            HoverHandler {
-                id: gutterHover
+            rowHovered: delegate.isHovered
+            dragEnabled: delegate.shell !== null && delegate.shell.blockDrag !== null
+
+            onInsertRequested: delegate.insertBlockBelowAndOpenMenu()
+            onHandleMenuRequested: AppActions.requestBlockHandleMenu(delegate)
+            onBlockSelectRequested: {
+                if (delegate.listView)
+                    delegate.listView.currentIndex = delegate.index
+                DocumentSelection.selectBlock(delegate.index)
+                delegate.focusSelectionHandler()
             }
-
-            Row {
-                objectName: "gutterButtons"
-                anchors.centerIn: parent
-                spacing: 4
-                // Stays visible while the handle is pressed: hiding an
-                // item cancels its MouseArea's grab, which would kill a
-                // drag the moment the pointer left this block's hover
-                // area (bites multi-drags, whose source row does not
-                // follow the pointer).
-                opacity: delegate.isHovered || handleArea.pressed ? 1 : 0
-                visible: opacity > 0
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 150 }
-                }
-
-                // Plus-button: add a block below and open the block
-                // menu for it (features.md §3.7)
-                Rectangle {
-                    objectName: "plusButton"
-                    width: 18
-                    height: 18
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 4
-                    color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "+"
-                        color: Theme.textMuted
-                        font.pixelSize: 14
-                        font.bold: true
-                    }
-
-                    MouseArea {
-                        id: plusArea
-                        anchors.fill: parent
-                        anchors.margins: -2
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: delegate.insertBlockBelowAndOpenMenu()
-                    }
-                }
-
-                // Drag handle dots. Clicking selects the whole block
-                // (features.md §3.1 "click on block handle to select");
-                // the reorder drag lives on the same handle.
-                Item {
-                    width: 14
-                    height: 18
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        opacity: 0.6
-
-                        Repeater {
-                            model: 2
-
-                            Row {
-                                spacing: 2
-
-                                Repeater {
-                                    model: 2
-
-                                    Rectangle {
-                                        width: 3
-                                        height: 3
-                                        radius: 1.5
-                                        color: Theme.textFaint
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Below the drag threshold a press-release is the
-                    // §3.1 select-block click; past it the reorder drag
-                    // begins (§3.2). preventStealing keeps the Flickable
-                    // from grabbing the vertical movement.
-                    MouseArea {
-                        id: handleArea
-                        objectName: "dragHandle"
-                        anchors.fill: parent
-                        anchors.margins: -2
-                        hoverEnabled: true
-                        cursorShape: Qt.OpenHandCursor
-                        preventStealing: true
-                        // Right-click: the §9.5 block menu.
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                        property real pressX: 0
-                        property real pressY: 0
-                        property bool dragging: false
-
-                        onPressed: function(mouse) {
-                            if (mouse.button === Qt.RightButton) {
-                                    AppActions.requestBlockHandleMenu(delegate)
-                                return
-                            }
-                            pressX = mouse.x
-                            pressY = mouse.y
-                            dragging = false
-                        }
-                        onPositionChanged: function(mouse) {
-                            if (!pressed
-                                || (pressedButtons & Qt.RightButton))
-                                return
-                            if (!delegate.shell || !delegate.shell.blockDrag)
-                                return
-                            var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
-                            if (!dragging) {
-                                if (Math.abs(mouse.x - pressX) < 5
-                                    && Math.abs(mouse.y - pressY) < 5)
-                                    return
-                                dragging = true
-                                delegate.shell.blockDrag.begin(delegate.index, sp.x, sp.y)
-                            } else {
-                                delegate.shell.blockDrag.update(sp.x, sp.y)
-                            }
-                        }
-                        onReleased: function(mouse) {
-                            if (mouse.button === Qt.RightButton)
-                                return
-                            if (dragging) {
-                                dragging = false
-                                if (delegate.shell && delegate.shell.blockDrag)
-                                    delegate.shell.blockDrag.drop()
-                                return
-                            }
-                            if (delegate.listView)
-                                delegate.listView.currentIndex = delegate.index
-                            DocumentSelection.selectBlock(delegate.index)
-                            delegate.focusSelectionHandler()
-                        }
-                        onCanceled: {
-                            if (dragging) {
-                                dragging = false
-                                if (delegate.shell && delegate.shell.blockDrag)
-                                    delegate.shell.blockDrag.cancel()
-                            }
-                        }
-                    }
-                }
+            onDragStarted: function(sceneX, sceneY) {
+                delegate.shell.blockDrag.begin(delegate.index, sceneX, sceneY)
+            }
+            onDragMoved: function(sceneX, sceneY) {
+                delegate.shell.blockDrag.update(sceneX, sceneY)
+            }
+            onDragDropped: {
+                if (delegate.shell && delegate.shell.blockDrag)
+                    delegate.shell.blockDrag.drop()
+            }
+            onDragCanceled: {
+                if (delegate.shell && delegate.shell.blockDrag)
+                    delegate.shell.blockDrag.cancel()
             }
         }
 
