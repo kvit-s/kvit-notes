@@ -31,6 +31,29 @@ QString escapeInline(const QString &text)
     return out;
 }
 
+// Escaping in escapeInline() is per-character and position-blind, which is
+// right for the inline markers but says nothing about the constructs that only
+// mean something at the start of a block. A paragraph reading "# literal
+// heading" or "- literal" carried no structure in the HTML; emitted as-is it
+// becomes a heading or a list item the next time the markdown is read. Only
+// the first character can start such a construct, so escaping it is enough,
+// and only text that will be placed at a block-leading position gets this —
+// escaping "#" everywhere would put backslashes through ordinary prose.
+//
+// "*", "_" and "`" are already escaped everywhere by escapeInline(), which
+// covers the "***"/"___" dividers and fences; what is left is the set below.
+QString escapeBlockLeading(const QString &text)
+{
+    if (text.isEmpty())
+        return text;
+    const QChar first = text.at(0);
+    if (first == u'#' || first == u'-' || first == u'+' || first == u'>'
+        || first == u'|') {
+        return QLatin1Char('\\') + text;
+    }
+    return text;
+}
+
 // The longest run of backticks anywhere in text (0 when there is none).
 int longestBacktickRun(const QString &text)
 {
@@ -147,12 +170,25 @@ QString HtmlToMarkdown::inlineMarkdown(const QTextBlock &block,
         QString text = fragment.text();
         if (text.isEmpty())
             continue;
-        // Qt represents an embedded object (an image, say) with U+FFFC.
+
+        const QTextCharFormat fmt = fragment.charFormat();
+        // Qt represents an embedded object with U+FFFC and puts the object's
+        // description on the char format. For an <img> that is the source URL,
+        // which is a markdown image; dropping the placeholder instead turned
+        // "before<img>after" into "beforeafter" and lost the picture from a
+        // paste that hasStructure() had already accepted because of it. Qt's
+        // HTML importer keeps no alt text, so the alt is empty.
+        if (fmt.isImageFormat()) {
+            const QString source = fmt.toImageFormat().name();
+            if (!source.isEmpty()) {
+                out.append(QStringLiteral("![](%1)")
+                               .arg(encodeLinkDestination(source)));
+            }
+            continue;
+        }
         text.remove(QChar(0xFFFC));
         if (text.isEmpty())
             continue;
-
-        const QTextCharFormat fmt = fragment.charFormat();
         const bool code = isMonospace(fmt);
         text = code ? text : escapeInline(text);
 
@@ -229,9 +265,9 @@ QString HtmlToMarkdown::blockMarkdown(const QTextBlock &block) const
         if (ordered) {
             return QStringLiteral("%1%2. %3")
                 .arg(pad, QString::number(qMax(1, list->itemNumber(block) + 1)),
-                     content);
+                     escapeBlockLeading(content));
         }
-        return QStringLiteral("%1- %2").arg(pad, content);
+        return QStringLiteral("%1- %2").arg(pad, escapeBlockLeading(content));
     }
 
     if (content.isEmpty())
@@ -245,10 +281,10 @@ QString HtmlToMarkdown::blockMarkdown(const QTextBlock &block) const
     // block indent, so both count.
     if (blockFmt.indent() > 0
         || (blockFmt.leftMargin() > 0 && blockFmt.rightMargin() > 0)) {
-        return QStringLiteral("> %1").arg(content);
+        return QStringLiteral("> %1").arg(escapeBlockLeading(content));
     }
 
-    return content;
+    return escapeBlockLeading(content);
 }
 
 QString HtmlToMarkdown::frameMarkdown(QTextFrame *frame) const

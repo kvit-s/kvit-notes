@@ -41,10 +41,17 @@ QString extensionOf(const QString &path)
     return QFileInfo(p).suffix().toLower();
 }
 
+// A stored path addresses the network when its URL scheme is http or https.
+// Schemes are case-insensitive (RFC 3986 §3.1), so `HTTPS://host/x.png` is
+// just as remote as the lowercase spelling; comparing literal lowercase
+// prefixes would classify it as an image and then look for it on disk.
+// QUrl::scheme() rather than a prefix test, because it is the same reading of
+// the string every other caller gets.
 bool isRemote(const QString &stored)
 {
-    return stored.startsWith(QLatin1String("http://"))
-        || stored.startsWith(QLatin1String("https://"));
+    const QString scheme = QUrl(stored).scheme();
+    return scheme.compare(QLatin1String("http"), Qt::CaseInsensitive) == 0
+        || scheme.compare(QLatin1String("https"), Qt::CaseInsensitive) == 0;
 }
 
 } // namespace
@@ -165,9 +172,7 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
     // Image block; delegateKindForContent then renders it as a preview
     // card. Keeps kindForExtension pure so isEmbedUrl (which checks for
     // None) still distinguishes it from a remote image file.
-    if (result.kind == Kind::None
-        && (path.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
-            || path.startsWith(QLatin1String("https://"), Qt::CaseInsensitive)))
+    if (result.kind == Kind::None && isRemote(path))
         result.kind = Kind::Image;
     return result;
 }
@@ -175,8 +180,7 @@ ImageAssets::Parsed ImageAssets::parseLine(const QString &line)
 bool ImageAssets::isEmbedUrl(const QString &url)
 {
     const QString u = url.trimmed();
-    if (!(u.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
-          || u.startsWith(QLatin1String("https://"), Qt::CaseInsensitive)))
+    if (!isRemote(u))
         return false;
     // A remote image or media *file* stays an image/media block; a web page
     // or video host (no recognized media extension) is an embed.

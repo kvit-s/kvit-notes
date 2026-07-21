@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest/QtTest>
 
+#include "diagrams/diagrambudget.h"
 #include "diagrams/textcanvas.h"
 
 // Unit suite for the character-grid draw target: junction resolution for
@@ -23,6 +24,8 @@ private slots:
     void testLinesNeverEatText();
     void testArrowheads();
     void testToStringTrims();
+    void testCellBudgetClipsWideAndTallDrawing();
+    void testCellBudgetLeavesOrdinaryDrawingsIntact();
 };
 
 void TestTextCanvas::testGrowthAndPut()
@@ -168,6 +171,44 @@ void TestTextCanvas::testToStringTrims()
     canvas.put(1, 0, QChar(u'c'));
     canvas.put(3, 8, QChar(u' ')); // grows rows/cols with only spaces
     QCOMPARE(canvas.toString(), QString("a   b\nc"));
+}
+
+// The per-axis caps bound each dimension on its own, and their product is
+// 4 x 10^8 cells — about 1.6 GiB across the three dense per-row arrays. A box
+// that spans both axes reaches exactly that: every row it touches grows out to
+// the far column for the right-hand wall. The cell total is therefore the
+// limit that has to bind, and drawing past it clips.
+void TestTextCanvas::testCellBudgetClipsWideAndTallDrawing()
+{
+    TextCanvas canvas;
+    canvas.drawBox(0, 0, Diagram::kMaxTextCanvasRows - 1,
+                   Diagram::kMaxTextCanvasCols - 1);
+    QVERIFY2(canvas.cells() <= Diagram::kMaxTextCanvasCells,
+             qPrintable(QStringLiteral("materialized %1 cells")
+                            .arg(canvas.cells())));
+
+    // Clipped, not corrupted: what did fit is still the drawing that was
+    // asked for.
+    QCOMPARE(canvas.at(0, 0), QChar(u'┌'));
+    QCOMPARE(canvas.at(0, 1), QChar(u'─'));
+
+    // And the ceiling holds however the grid is filled, including one row at a
+    // time from a fresh canvas.
+    TextCanvas rows;
+    for (int row = 0; row < Diagram::kMaxTextCanvasRows; ++row)
+        rows.drawHLine(row, 0, Diagram::kMaxTextCanvasCols - 1);
+    QVERIFY(rows.cells() <= Diagram::kMaxTextCanvasCells);
+}
+
+void TestTextCanvas::testCellBudgetLeavesOrdinaryDrawingsIntact()
+{
+    // A diagram far larger than any real one still draws in full: the budget
+    // is a ceiling on pathological input, not a limit anyone meets.
+    TextCanvas canvas;
+    canvas.drawBox(0, 0, 400, 400);
+    QCOMPARE(canvas.at(400, 400), QChar(u'┘'));
+    QCOMPARE(canvas.rows(), 401);
+    QCOMPARE(canvas.cols(), 401);
 }
 
 QTEST_MAIN(TestTextCanvas)

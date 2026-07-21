@@ -35,12 +35,22 @@ constexpr qint64 kMaxRasterPixels = 64LL * 1024 * 1024;
 // Largest dimension, in pixels, for a rasterized diagram or formula.
 constexpr int kMaxRasterEdge = 32768;
 
-// Largest character-art export, in cells. Text export walks scene coordinates
-// into a row/column grid, so scene bounds bound this too, but the grid is
+// Largest character-art export. Text export walks scene coordinates into a
+// row/column grid, so scene bounds bound this too, but the grid is
 // materialized as real QString and QList storage per row and needs its own
 // ceiling.
+//
+// The per-axis caps alone do not bound the storage: two pinned nodes far apart
+// on both axes make a box whose side walls touch every row out to the far
+// column, and every touched row grows three dense per-column arrays. At the
+// 20000 x 20000 limits that is 4 x 10^8 cells, roughly 1.6 GiB. kMaxTextCanvas
+// Cells is therefore the binding limit — the total number of cells the grid may
+// materialize across all rows, about 8 MiB of backing store at four bytes per
+// cell. Drawing past it is clipped, which is the same degradation the per-axis
+// caps already apply.
 constexpr int kMaxTextCanvasRows = 20000;
 constexpr int kMaxTextCanvasCols = 20000;
+constexpr qint64 kMaxTextCanvasCells = 2LL * 1000 * 1000;
 
 // Largest TeX source accepted for layout or rasterization, in characters.
 // Real formulas are a line or two; this admits a very generous one while

@@ -10,6 +10,11 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+// Nesting depth and scan-work accounting for one inline parse. Defined in the
+// implementation: nothing outside it needs the fields, and the public entry
+// points create it themselves.
+struct MarkdownParseState;
+
 // Character-format flags a span imposes on its content. Defined here — with
 // the span-type registry — because they are properties of the span types;
 // BlockEditorEngine::FormatRange mirrors these values for rendering. A range
@@ -163,6 +168,18 @@ private:
     QString escapeHtml(const QString &text) const;
     QString convertSpanToHtml(const QString &text, const QString &type) const;
     QString extractInnerText(const QString &rawText, const QString &type) const;
+    // The recursive worker behind parseSpans(). The state is threaded through
+    // every level so nesting depth and total scanning work are properties of
+    // the whole parse rather than of one substring.
+    QList<FormattedSpan> parseSpans(const QString &markdown,
+                                    MarkdownParseState &state) const;
+    // HTML for a span and for the plain text between spans. Containers render
+    // from the parsed child tree, so a link inside bold stays a link.
+    QString renderSpanHtml(const QString &markdown,
+                           const FormattedSpan &span) const;
+    QString renderRangeHtml(const QString &markdown,
+                            const QList<FormattedSpan> &spans,
+                            int from, int to) const;
 };
 
 #endif // MARKDOWNFORMATTER_H

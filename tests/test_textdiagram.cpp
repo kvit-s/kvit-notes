@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest/QtTest>
 
+#include "diagrams/diagrambudget.h"
 #include "diagrams/diagramclassifier.h"
 #include "diagrams/diagramrepair.h"
 #include "diagrams/mermaidrenderer.h"
@@ -50,6 +51,7 @@ private slots:
     void testStateFixture();
     void testErFixture();
     void testDeterminism();
+    void testExtremePinnedCoordinatesStayBounded();
 };
 
 void TestTextDiagram::testEmptyScene()
@@ -193,6 +195,37 @@ void TestTextDiagram::testDeterminism()
     const QString twice = renderSource(source);
     QVERIFY(!once.isEmpty());
     QCOMPARE(once, twice);
+}
+
+// A note's own arrangement comment decides where nodes sit, so it decides how
+// large a grid "Copy as text" builds. Two nodes pinned far apart on both axes
+// are two lines of Mermaid, and they used to produce a canvas of roughly
+// 2 x 10^8 cells: about 500 MiB of resident memory, and std::bad_alloc under a
+// modest virtual-memory cap. The export now clips to a cell budget, so the
+// work and the result are both bounded by the budget rather than by the
+// coordinates.
+void TestTextDiagram::testExtremePinnedCoordinatesStayBounded()
+{
+    QElapsedTimer timer;
+    timer.start();
+    const QString out = renderSource(
+        "flowchart TD\n"
+        "  A[Start] --> B[End]\n"
+        "%% mermaid-flow:pos A=0,0 B=170000,200000\n");
+    const qint64 elapsed = timer.elapsed();
+
+    // Bounded work: the ceiling is far above what the clipped export costs and
+    // far below the seconds the unclipped one took, so it does not turn on how
+    // fast the machine is.
+    QVERIFY2(elapsed < 5000,
+             qPrintable(QStringLiteral("export took %1 ms").arg(elapsed)));
+    // Bounded result: at most one character per budgeted cell, plus its line
+    // separators.
+    QVERIFY2(out.size() <= 2 * Diagram::kMaxTextCanvasCells,
+             qPrintable(QStringLiteral("export produced %1 characters")
+                            .arg(out.size())));
+    // Still a drawing, not a failure: the first node came out.
+    QVERIFY(out.contains(QChar(u'┌')));
 }
 
 QTEST_MAIN(TestTextDiagram)

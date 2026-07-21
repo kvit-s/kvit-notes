@@ -60,6 +60,14 @@ bool TextCanvas::ensure(int row, int col)
     // put()/at() already treat out-of-range cells as absent.
     if (row >= Diagram::kMaxTextCanvasRows || col >= Diagram::kMaxTextCanvasCols)
         return false;
+    // The per-axis caps bound each dimension but not their product: a box
+    // spanning both axes grows every row it touches out to the far column.
+    // The cell total is what the three dense per-row arrays actually cost, so
+    // it is the limit that has to hold.
+    const qint64 wanted = qint64(col) + 1 - (row < m_lines.size()
+                                             ? m_lines.at(row).size() : 0);
+    if (wanted > 0 && m_cells + wanted > Diagram::kMaxTextCanvasCells)
+        return false;
     while (m_lines.size() <= row) {
         m_lines.append(QString());
         m_arms.append(QList<quint8>());
@@ -73,6 +81,8 @@ bool TextCanvas::ensure(int row, int col)
         arms.append(0);
         doubles.append(false);
     }
+    if (wanted > 0)
+        m_cells += wanted;
     return true;
 }
 
@@ -113,24 +123,25 @@ QChar TextCanvas::charForArms(int arms, bool doubleVertical)
     }
 }
 
-void TextCanvas::mergeArms(int row, int col, int arms, bool doubleVertical)
+bool TextCanvas::mergeArms(int row, int col, int arms, bool doubleVertical)
 {
     if (row < 0 || col < 0)
-        return;
+        return false;
     if (!ensure(row, col))
-        return;
+        return false;
     const QChar existing = m_lines.at(row).at(col);
     int current = m_arms.at(row).at(col);
     if (current == 0)
         current = armsForChar(existing); // adopt pre-drawn glyphs
     // Lines never eat text: a non-line, non-space cell stays as it is.
     if (current == 0 && existing != QLatin1Char(' '))
-        return;
+        return true;
     const int merged = current | arms;
     const bool dbl = m_doubles.at(row).at(col) || doubleVertical;
     m_lines[row][col] = charForArms(merged, dbl);
     m_arms[row][col] = quint8(merged);
     m_doubles[row][col] = dbl;
+    return true;
 }
 
 void TextCanvas::drawHLine(int row, int col1, int col2)
@@ -141,9 +152,12 @@ void TextCanvas::drawHLine(int row, int col1, int col2)
         mergeArms(row, from, ArmLeft | ArmRight);
         return;
     }
-    mergeArms(row, from, ArmRight);
-    for (int col = from + 1; col < to; ++col)
-        mergeArms(row, col, ArmLeft | ArmRight);
+    if (!mergeArms(row, from, ArmRight))
+        return;
+    for (int col = from + 1; col < to; ++col) {
+        if (!mergeArms(row, col, ArmLeft | ArmRight))
+            return;   // the rest of this row is outside the budget too
+    }
     mergeArms(row, to, ArmLeft);
 }
 

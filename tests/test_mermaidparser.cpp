@@ -232,6 +232,60 @@ private slots:
         QCOMPARE(r.flowchart.nodes.size(), 2);
     }
 
+    // The source-size budget covers the whole source, front matter included.
+    // Checking only what is left after the front matter was split off let a
+    // multi-megabyte `---` block in front of a two-line diagram through: the
+    // block was copied and scanned in full, and then excluded from the only
+    // size anyone measured.
+    void frontmatterCountsTowardTheSourceBudget()
+    {
+        const QString padding(kMaxSourceChars + 1024, QLatin1Char('x'));
+        MermaidParser p;
+        const ParseResult r = p.parse(
+            QStringLiteral("---\ncomment: %1\n---\nflowchart LR\nA --> B\n")
+                .arg(padding));
+        QVERIFY(r.hasErrors());
+        bool rejectedForSize = false;
+        for (const Diagnostic &d : r.diagnostics) {
+            if (d.message.contains(QLatin1String("exceeds")))
+                rejectedForSize = true;
+        }
+        QVERIFY2(rejectedForSize, "oversized source must be refused by size");
+        QCOMPARE(r.flowchart.nodes.size(), 0);
+    }
+
+    // A title inside the budget is still capped on its own: it becomes the
+    // diagram's accessible title, which is a label, not a document.
+    void frontmatterTitleIsCapped()
+    {
+        const QString longTitle(kMaxFrontMatterTitleChars * 2,
+                                QLatin1Char('t'));
+        MermaidParser p;
+        const ParseResult r = p.parse(
+            QStringLiteral("---\ntitle: %1\n---\nflowchart LR\nA --> B\n")
+                .arg(longTitle));
+        QVERIFY(!r.hasErrors());
+        QCOMPARE(r.flowchart.accTitle.size(), kMaxFrontMatterTitleChars);
+    }
+
+    // Past the front-matter budget the closing fence is not looked for at all,
+    // so the block is treated as unterminated and handed to the lexer whole
+    // rather than being split off and scanned as "not the body".
+    void oversizedFrontmatterIsNotStripped()
+    {
+        const QString padding(kMaxFrontMatterChars + 16, QLatin1Char('y'));
+        const QString src =
+            QStringLiteral("---\ncomment: %1\n---\nflowchart LR\nA --> B\n")
+                .arg(padding);
+        QVERIFY(src.size() <= kMaxSourceChars);
+        MermaidParser p;
+        const ParseResult r = p.parse(src);
+        // Whatever the lexer makes of it, the header is no longer a flowchart
+        // header, so no diagram is produced and nothing was silently excluded
+        // from the budget.
+        QCOMPARE(r.flowchart.nodes.size(), 0);
+    }
+
     // ---- limits / robustness ----
     void deterministicNodeOrder()
     {

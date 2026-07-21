@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "kanbandata.h"
 
+#include <QDate>
 #include <QRegularExpression>
+
+#include <algorithm>
 
 namespace {
 const QString kCalendar = QString::fromUtf8("\xF0\x9F\x93\x85"); // 📅
@@ -14,11 +17,88 @@ const QString kCalendar = QString::fromUtf8("\xF0\x9F\x93\x85"); // 📅
 // run of backslashes may precede the hash; an odd-length run escapes it into a
 // literal hash, and the run itself halves (the usual escaping convention), so
 // `\#` is the literal `#` and `\\#tag` is a backslash followed by the label.
+//
+// The label itself comes in two spellings. The bare one — everything up to the
+// next space or hash — is what boards written by hand and by every earlier
+// version of Kvit contain, and it still reads exactly as it did. It cannot
+// express a label containing a space or a hash, so `client work` written bare
+// comes back as the label `client` plus the title word `work`. The quoted
+// spelling `#"client work"` closes that gap: inside it a backslash escapes the
+// next character, so `"` and `\` survive too. serialize() writes the bare form
+// whenever it fits, so ordinary boards keep their ordinary syntax.
 const QRegularExpression &labelRe()
 {
     static const QRegularExpression re(
-        QStringLiteral("(^|\\s)(\\\\*)#([^\\s#]*)"));
+        QStringLiteral("(^|\\s)(\\\\*)#(?:\"((?:\\\\.|[^\"\\\\])*)\""
+                       "|([^\\s#]*))"));
     return re;
+}
+
+// The due-date marker, with the same backslash-escape convention as the hash:
+// a title that genuinely reads "📅 2026-07-15" is written with the marker
+// escaped, so it stays title text instead of being read back as the due date.
+const QRegularExpression &dueRe()
+{
+    static const QRegularExpression re(
+        QStringLiteral("(\\\\*)") + kCalendar
+        + QStringLiteral("\\s*(\\d{4}-\\d{2}-\\d{2})"));
+    return re;
+}
+
+// A date the calendar has: 2026-02-30 has the shape but not the day. Reader
+// and writer both ask this, so what serialize() is willing to write after the
+// marker is exactly what parseCardBody() reads back from it — otherwise a
+// value that survived one direction would be dropped in the other.
+bool isRealDate(const QString &text)
+{
+    return QDate::fromString(text, QStringLiteral("yyyy-MM-dd")).isValid();
+}
+
+// Undo the escaping writeLabel() applies inside a quoted label: the two
+// characters it escapes, and no others, so a hand-written `#"a\b"` keeps its
+// backslash rather than losing it to an escape nobody wrote.
+QString unescapeLabel(const QString &text)
+{
+    QString out;
+    out.reserve(text.size());
+    for (int i = 0; i < text.size(); ++i) {
+        const QChar c = text.at(i);
+        if (c == u'\\' && i + 1 < text.size()
+            && (text.at(i + 1) == u'\\' || text.at(i + 1) == u'"')) {
+            out.append(text.at(++i));
+            continue;
+        }
+        out.append(c);
+    }
+    return out;
+}
+
+// A label as it goes on the card line, without the leading hash. Empty for a
+// label that cannot be written at all (the empty string), which serialize()
+// then omits.
+QString writeLabel(const QString &label)
+{
+    if (label.isEmpty())
+        return QString();
+    bool bare = true;
+    for (const QChar c : label) {
+        if (c.isSpace() || c == u'#' || c == u'"' || c == u'\\') {
+            bare = false;
+            break;
+        }
+    }
+    if (bare)
+        return label;
+    QString out;
+    out.reserve(label.size() + 2);
+    out.append(u'"');
+    for (const QChar c : label) {
+        if (c == u'"' || c == u'\\')
+            out.append(u'\\');
+        out.append(c);
+    }
+    out.append(u'"');
+    return out;
 }
 
 // One deferred text replacement, applied back to front so earlier offsets stay
@@ -40,22 +120,35 @@ void parseCardBody(const QString &rest, KanbanData::Card &card)
 {
     QString body = rest;
 
-    // Due date (📅 <date>).
-    static const QRegularExpression dueRe(
-        kCalendar + QStringLiteral("\\s*(\\d{4}-\\d{2}-\\d{2})"));
-    const QRegularExpressionMatch dm = dueRe.match(body);
-    if (dm.hasMatch()) {
-        card.due = dm.captured(1);
-        body.remove(dm.capturedStart(0), dm.capturedLength(0));
+    // Due date (📅 <date>). The first unescaped marker is the card's; an
+    // escaped one keeps its text and halves its backslash run, exactly as the
+    // hash does.
+    QList<Edit> edits;
+    QRegularExpressionMatchIterator dueIt = dueRe().globalMatch(body);
+    while (dueIt.hasNext()) {
+        const QRegularExpressionMatch m = dueIt.next();
+        const qsizetype slashes = m.capturedLength(1);
+        const QString keptSlashes(slashes / 2, QLatin1Char('\\'));
+        if (slashes % 2 == 1) {
+            edits.append({ m.capturedStart(1), slashes, keptSlashes });
+            continue;
+        }
+        if (!card.due.isEmpty() || !isRealDate(m.captured(2)))
+            continue;   // later or unreal dates stay part of the title
+        card.due = m.captured(2);
+        edits.append({ m.capturedStart(1),
+                       m.capturedEnd(0) - m.capturedStart(1), keptSlashes });
     }
+    applyEdits(body, edits);
+    edits.clear();
 
     // Labels, collected in order and removed from the title.
     QRegularExpressionMatchIterator it = labelRe().globalMatch(body);
-    QList<Edit> edits;
     while (it.hasNext()) {
         const QRegularExpressionMatch m = it.next();
         const qsizetype slashes = m.capturedLength(2);
-        const QString label = m.captured(3);
+        const QString label = m.hasCaptured(3) ? unescapeLabel(m.captured(3))
+                                               : m.captured(4);
         // The escape run always halves, whatever follows it.
         const QString keptSlashes(slashes / 2, QLatin1Char('\\'));
         if (slashes % 2 == 1 || label.isEmpty()) {
@@ -72,12 +165,24 @@ void parseCardBody(const QString &rest, KanbanData::Card &card)
     card.title = body.simplified();
 }
 
-// Inverse of the label rule above: a hash that would be read back as a label
-// gets escaped so the title survives a round trip as text.
+// Inverse of the rules above: a hash or a due marker that would be read back
+// as structure gets escaped so the title survives a round trip as text.
+// Doubling the run and adding one backslash leaves an odd run, which is what
+// parseCardBody reads as "literal", and halving there restores the original.
 QString escapeTitle(const QString &title)
 {
-    QRegularExpressionMatchIterator it = labelRe().globalMatch(title);
     QList<Edit> edits;
+    QRegularExpressionMatchIterator dueIt = dueRe().globalMatch(title);
+    while (dueIt.hasNext()) {
+        const QRegularExpressionMatch m = dueIt.next();
+        const qsizetype slashes = m.capturedLength(1);
+        if (!isRealDate(m.captured(2)))
+            continue;   // the reader leaves this as text, so leave it alone
+        edits.append({ m.capturedStart(1), slashes + kCalendar.size(),
+                       QString(slashes * 2, QLatin1Char('\\'))
+                           + QLatin1Char('\\') + kCalendar });
+    }
+    QRegularExpressionMatchIterator it = labelRe().globalMatch(title);
     while (it.hasNext()) {
         const QRegularExpressionMatch m = it.next();
         const qsizetype slashes = m.capturedLength(2);
@@ -85,6 +190,10 @@ QString escapeTitle(const QString &title)
                        QString(slashes * 2, QLatin1Char('\\'))
                            + QStringLiteral("\\#") });
     }
+    // applyEdits works back to front, so the two disjoint sets have to arrive
+    // in source order.
+    std::sort(edits.begin(), edits.end(),
+              [](const Edit &a, const Edit &b) { return a.start < b.start; });
     QString out = title;
     applyEdits(out, edits);
     return out;
@@ -139,6 +248,14 @@ QStringList *triviaSlotBefore(KanbanData::Column &col, int index)
 } // namespace
 
 namespace KanbanData {
+
+bool isValidDue(const QString &due)
+{
+    // The stored form is the todo convention's ISO date and nothing else. The
+    // same test the parser applies, so a value this accepts is a value the
+    // next parse reads back.
+    return isRealDate(due);
+}
 
 Board parse(const QString &content)
 {
@@ -230,9 +347,17 @@ QString serialize(const Board &b)
                 QString line = (card.done ? QStringLiteral("- [x] ")
                                           : QStringLiteral("- [ ] "))
                                + escapeTitle(card.title);
-                for (const QString &label : card.labels)
-                    line += QStringLiteral(" #") + label;
-                if (!card.due.isEmpty())
+                for (const QString &label : card.labels) {
+                    const QString token = writeLabel(label);
+                    if (!token.isEmpty())
+                        line += QStringLiteral(" #") + token;
+                }
+                // Only a real calendar date goes after the marker: the storage
+                // grammar reads nothing else back, so writing "📅 tomorrow"
+                // would silently move the text into the title and clear the
+                // field. setCard() rejects such a value at the boundary; this
+                // is the invariant restated where the line is built.
+                if (isValidDue(card.due))
                     line += QLatin1Char(' ') + kCalendar + QLatin1Char(' ')
                             + card.due;
                 out << line;
@@ -394,8 +519,18 @@ QString setCard(const QString &content, int col, int index,
     Card &c = b.columns[col].cards[index];
     c.title = title;
     c.done = done;
-    c.labels = labels;
-    c.due = due;
+    // Normalize what the editor hands over to what the storage grammar can
+    // hold, so the board in memory is the board the next parse produces. An
+    // empty label has no `#token` to write, and a due value that is not an ISO
+    // date has nowhere to go: keeping either would make the card read back
+    // differently from the card just saved. isValidDue() is public so the
+    // editor can refuse the date before the user loses it.
+    c.labels.clear();
+    for (const QString &label : labels) {
+        if (!label.isEmpty())
+            c.labels.append(label);
+    }
+    c.due = isValidDue(due) ? due : QString();
     c.description = description;
     // Every modelled field is overwritten, so the source line and description
     // lines have to be rebuilt from them.

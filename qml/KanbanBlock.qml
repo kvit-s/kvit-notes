@@ -488,6 +488,12 @@ BlockDelegateBase {
         padding: 12
         property int col: -1
         property int idx: -1
+        // A due value the storage grammar cannot hold is refused here rather
+        // than dropped on save: the board line only carries `📅 YYYY-MM-DD`,
+        // so anything else would come back as title text with the due date
+        // cleared. Empty means "no due date", which is always allowed.
+        readonly property bool dueValid: dueField.text.trim().length === 0
+                                         || KanbanTools.isValidDue(dueField.text.trim())
         background: Rectangle { color: Theme.popupBackground; border.color: Theme.borderStrong; border.width: 1; radius: 8 }
         function openFor(c, i) {
             col = c; idx = i
@@ -500,6 +506,8 @@ BlockDelegateBase {
             open()
         }
         function save() {
+            if (!dueValid)
+                return
             var labels = labelsField.text.split(",").map(function(s){return s.trim()}).filter(function(s){return s.length})
             root.writeBoard(KanbanTools.setCard(root.content, col, idx,
                 titleField.text.trim(), doneBox.checked, labels, dueField.text.trim(), descField.text.trim()))
@@ -521,6 +529,13 @@ BlockDelegateBase {
             CheckBox { id: doneBox; text: qsTr("Done") }
             TextField { id: labelsField; width: parent.width; placeholderText: qsTr("Labels (comma separated)") }
             TextField { id: dueField; width: parent.width; placeholderText: qsTr("Due date (YYYY-MM-DD)") }
+            Text {
+                objectName: "kanbanDueError"
+                visible: !cardEditor.dueValid
+                text: qsTr("Enter a date as YYYY-MM-DD, or leave it empty")
+                font.pixelSize: 11
+                color: Theme.textMuted
+            }
             TextArea { id: descField; width: parent.width; placeholderText: qsTr("Description")
                 background: Rectangle { border.color: Theme.border; border.width: 1; radius: 3 } }
             Text { text: qsTr("Move to column"); font.pixelSize: 11; color: Theme.textMuted }
@@ -541,7 +556,7 @@ BlockDelegateBase {
             }
             Row {
                 spacing: 6
-                Button { text: qsTr("Save"); onClicked: cardEditor.save() }
+                Button { text: qsTr("Save"); enabled: cardEditor.dueValid; onClicked: cardEditor.save() }
                 Button { text: qsTr("Delete card"); onClicked: {
                     root.writeBoard(KanbanTools.removeCard(root.content, cardEditor.col, cardEditor.idx))
                     cardEditor.close() } }

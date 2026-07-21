@@ -8,6 +8,16 @@ class TestMarkdownFormatter : public QObject
 {
     Q_OBJECT
 
+    // How many levels of span the parse tree carries below (and including)
+    // this one.
+    static int nestingDepth(const FormattedSpan &span)
+    {
+        int deepest = 0;
+        for (const FormattedSpan &child : span.children)
+            deepest = qMax(deepest, nestingDepth(child));
+        return deepest + 1;
+    }
+
 private slots:
     // Basic HTML conversion tests
     void testPlainText();
@@ -63,6 +73,13 @@ private slots:
     // leak the markdown source of the ones with per-instance markers.
     void testToHtmlRendersParameterizedSpans_data();
     void testToHtmlRendersParameterizedSpans();
+    void testToHtmlRendersNestedContainers_data();
+    void testToHtmlRendersNestedContainers();
+
+    // Bounded parsing
+    void testUnclosedBacktickRunIsScannedOnce();
+    void testDeepNestingIsCapped();
+    void testDeepNestingCompletesPromptly();
 
     void testParseSpansLink();
     void testParseSpansLinkEdges();
@@ -1368,6 +1385,139 @@ void TestMarkdownFormatter::testToHtmlRendersParameterizedSpans()
     const QString html = formatter.toHtml(markdown);
     QVERIFY2(html.contains(visibleText), qPrintable(html));
     QVERIFY2(!html.contains(mustNotAppear), qPrintable(html));
+}
+
+// ---- Nested containers in the HTML flavor ----
+//
+// The parser records what is inside a span, but HTML generation used to read
+// most containers' content back out of the raw markdown and escape it. Bold
+// and italic had hand-written special cases for each other; everything else —
+// links, color spans, and every combination crossing them — came out as
+// literal markdown syntax inside the right tag. Rendering from the child tree
+// makes the combinations work by construction.
+void TestMarkdownFormatter::testToHtmlRendersNestedContainers_data()
+{
+    QTest::addColumn<QString>("markdown");
+    QTest::addColumn<QString>("html");
+
+    QTest::newRow("link inside bold")
+        << "**[docs](http://x/a)**"
+        << "<b><a href=\"http://x/a\">docs</a></b>";
+    QTest::newRow("bold inside link")
+        << "[**docs**](http://x/a)"
+        << "<a href=\"http://x/a\"><b>docs</b></a>";
+    QTest::newRow("italic inside link")
+        << "[*docs*](http://x/a)"
+        << "<a href=\"http://x/a\"><i>docs</i></a>";
+    QTest::newRow("code inside bold")
+        << "**`ls -l`**"
+        << "<b><code>ls -l</code></b>";
+    QTest::newRow("link inside color")
+        << "<span style=\"color:red\">[docs](http://x/a)</span>"
+        << "<span style=\"color:red\"><a href=\"http://x/a\">docs</a></span>";
+    QTest::newRow("color inside bold")
+        << "**<span style=\"color:red\">hot</span>**"
+        << "<b><span style=\"color:red\">hot</span></b>";
+    QTest::newRow("bold inside color")
+        << "<span style=\"color:red\">a **b** c</span>"
+        << "<span style=\"color:red\">a <b>b</b> c</span>";
+    QTest::newRow("bold italic link")
+        << "***[d](http://x/a)***"
+        << "<b><i><a href=\"http://x/a\">d</a></i></b>";
+    // Plain gaps around and between children are still escaped.
+    QTest::newRow("escaped gap")
+        << "**a <b> [d](http://x/a)**"
+        << "<b>a &lt;b&gt; <a href=\"http://x/a\">d</a></b>";
+}
+
+void TestMarkdownFormatter::testToHtmlRendersNestedContainers()
+{
+    QFETCH(QString, markdown);
+    QFETCH(QString, html);
+
+    MarkdownFormatter formatter;
+    QCOMPARE(formatter.toHtml(markdown), html);
+}
+
+// ---- Bounded parsing ----
+//
+// Block text is untrusted, and two shapes used to cost far more than their
+// size suggested. Both tests assert bounded completion against a ceiling far
+// above what the fixed parser needs and far below what the old one took, so
+// neither turns on how fast the machine is.
+
+// A run of N backticks made every position in the run rescan the whole
+// remainder for a closing run of its own length: quadratic, measured at about
+// twenty seconds for the run below. The run is now scanned once, because every
+// position in it searches the same region, and the same input parses in well
+// under a tenth of a second.
+void TestMarkdownFormatter::testUnclosedBacktickRunIsScannedOnce()
+{
+    MarkdownFormatter formatter;
+    const QString markdown(400000, QLatin1Char('`'));
+
+    QElapsedTimer timer;
+    timer.start();
+    const QList<FormattedSpan> spans = formatter.parseSpans(markdown);
+    const qint64 elapsed = timer.elapsed();
+
+    // Nothing closes anything, so nothing is a span — and finding that out is
+    // linear work.
+    QVERIFY(spans.isEmpty());
+    QVERIFY2(elapsed < 5000,
+             qPrintable(QStringLiteral("parse took %1 ms").arg(elapsed)));
+}
+
+// Nested color spans made each level rescan and then reparse almost the whole
+// suffix, which measured about thirty seconds at depth 1,600 and risked
+// exhausting the stack. Nesting now stops at a fixed depth: the outer spans
+// still parse, and content below the cap stays plain text.
+void TestMarkdownFormatter::testDeepNestingIsCapped()
+{
+    MarkdownFormatter formatter;
+    const QString open = QStringLiteral("<span style=\"color:red\">");
+    const QString close = QStringLiteral("</span>");
+    QString markdown;
+    const int depth = 1600;
+    for (int i = 0; i < depth; ++i)
+        markdown += open;
+    markdown += QStringLiteral("x");
+    for (int i = 0; i < depth; ++i)
+        markdown += close;
+
+    const QList<FormattedSpan> spans = formatter.parseSpans(markdown);
+    QCOMPARE(spans.size(), 1);
+    QCOMPARE(spans.first().type, QStringLiteral("color"));
+
+    const int parsed = nestingDepth(spans.first());
+    QVERIFY2(parsed < depth,
+             qPrintable(QStringLiteral("nested %1 levels deep").arg(parsed)));
+}
+
+// The cap is also what keeps the recursion off the stack. Each level copies
+// its content and calls parseSpans again, so nesting this deep meant 20,000
+// live frames each holding most of a 600 KiB string — hundreds of gigabytes of
+// copies and a stack overflow long before that. With the cap the work is a
+// fixed number of passes over the input.
+void TestMarkdownFormatter::testDeepNestingCompletesPromptly()
+{
+    MarkdownFormatter formatter;
+    const QString open = QStringLiteral("<span style=\"color:red\">");
+    const QString close = QStringLiteral("</span>");
+    QString markdown;
+    for (int i = 0; i < 20000; ++i)
+        markdown += open;
+    markdown += QStringLiteral("x");
+    for (int i = 0; i < 20000; ++i)
+        markdown += close;
+
+    QElapsedTimer timer;
+    timer.start();
+    const QString html = formatter.toHtml(markdown);
+    const qint64 elapsed = timer.elapsed();
+    QVERIFY(!html.isEmpty());
+    QVERIFY2(elapsed < 5000,
+             qPrintable(QStringLiteral("toHtml took %1 ms").arg(elapsed)));
 }
 
 QTEST_MAIN(TestMarkdownFormatter)

@@ -46,38 +46,57 @@ void parseStyleDeclarations(ClassDef &def, const QString &styles)
 
 namespace {
 
+// The trimmed line starting at `from`, and where the next line starts.
+// Scanning with this keeps the prefix walk free of a QStringList copy of the
+// whole source, which is what let a large front-matter block cost far more
+// than its share before anything checked a size.
+QStringView frontMatterLine(QStringView src, int from, int *next)
+{
+    const int nl = int(src.indexOf(u'\n', from));
+    const int end = nl < 0 ? int(src.size()) : nl;
+    *next = nl < 0 ? int(src.size()) : nl + 1;
+    return src.mid(from, end - from).trimmed();
+}
+
 // Strip a leading YAML frontmatter block (`---` ... `---`) before lexing so its
 // `---` fences are never mis-read as edges. Only the allowlisted `title` is
 // used; other keys are ignored.
 QString stripFrontmatter(const QString &src, QString *title, int *bodyOffset)
 {
     *bodyOffset = 0;
-    const QStringList lines = src.split(u'\n');
-    if (lines.isEmpty() || lines.first().trimmed() != QLatin1String("---"))
+    const QStringView view(src);
+    int pos = 0;
+    if (frontMatterLine(view, 0, &pos) != QLatin1String("---"))
         return src;
+
+    // Look for the closing fence only within the front-matter budget. Past it
+    // the block is treated as unterminated, so a multi-megabyte prefix is
+    // never split off and handed on as "not part of the body".
+    const int limit = qMin(int(src.size()),
+                           pos + Mermaid::kMaxFrontMatterChars);
     int close = -1;
-    for (int i = 1; i < lines.size(); ++i) {
-        if (lines.at(i).trimmed() == QLatin1String("---")) {
-            close = i;
+    QStringView titleValue;
+    while (pos < limit) {
+        int next = 0;
+        const QStringView line = frontMatterLine(view, pos, &next);
+        if (line == QLatin1String("---")) {
+            close = next;
             break;
         }
+        if (line.startsWith(QLatin1String("title:")))
+            titleValue = line.mid(6).trimmed();
+        pos = next;
     }
     if (close < 0)
-        return src;   // unterminated: leave it to the lexer
+        return src;   // unterminated (or oversized): leave it to the lexer
     if (title) {
-        for (int i = 1; i < close; ++i) {
-            const QString l = lines.at(i).trimmed();
-            if (l.startsWith(QLatin1String("title:")))
-                *title = l.mid(6).trimmed();
-        }
+        *title = titleValue.left(Mermaid::kMaxFrontMatterTitleChars)
+                     .toString();
     }
     // The body is a literal suffix of the source, so spans recorded
     // against it shift by one constant.
-    int offset = 0;
-    for (int i = 0; i <= close; ++i)
-        offset += lines.at(i).size() + 1;
-    *bodyOffset = offset;
-    return src.mid(offset);
+    *bodyOffset = close;
+    return src.mid(close);
 }
 
 Direction directionFromWord(const QString &w, bool *ok)
@@ -787,16 +806,22 @@ ParseResult MermaidParser::parse(const QString &source) const
 {
     ParseResult result;
 
-    QString frontTitle;
-    int bodyOffset = 0;
-    QString body = stripFrontmatter(source, &frontTitle, &bodyOffset);
-    if (body.size() > kMaxSourceChars) {
+    // The budget covers the whole source, and it is spent before anything
+    // splits or copies it. Checking the post-front-matter body instead let a
+    // multi-megabyte `---` block in front of a two-line diagram pass: the
+    // block was copied and scanned in full, and then excluded from the only
+    // size anyone looked at.
+    if (source.size() > kMaxSourceChars) {
         result.diagnostics.append(
             { 1, 1,
               QStringLiteral("Diagram source exceeds %1 KiB")
                   .arg(kMaxSourceChars / 1024), Diagnostic::Error });
         return result;
     }
+
+    QString frontTitle;
+    int bodyOffset = 0;
+    QString body = stripFrontmatter(source, &frontTitle, &bodyOffset);
 
     // Find the header keyword on the first substantive line BEFORE any
     // family-specific lexing — the families tokenize very differently.

@@ -14,7 +14,52 @@
 // Adding a symmetric type is one row; only a genuinely new *shape* of
 // syntax adds a matcher.
 
+// ---- Bounding the parse ----
+//
+// A block's text is untrusted: it arrives by import, paste or sync. Two shapes
+// used to cost far more than their size suggested. A run of N backticks made
+// every position in the run rescan the whole remainder for a closing run of
+// its own length, which is quadratic; and nested color spans made each level
+// rescan and then recursively reparse almost the entire suffix, which measured
+// about thirty seconds at depth 1,600 (roughly 50 KiB) and risked exhausting
+// the stack besides.
+//
+// Three things hold the cost down. Backtick runs are now scanned once per run
+// instead of once per position (CodeRunScan). Nesting stops at
+// kMaxSpanDepth, so content deeper than that stays plain text rather than
+// being parsed again per level. And every scanning loop spends from one work
+// budget shared by the whole parse, including its nested levels; once that is
+// gone the remaining matchers decline, which leaves the rest of the text
+// literal — a degradation, but a bounded one, and only reachable by input far
+// past anything a person writes.
+//
+// The budget is generous on purpose. Ordinary parsing is close to linear, and
+// the quadratic term only matters for large inputs, so a constant floor plus a
+// per-character allowance keeps every realistic block far inside it.
+struct MarkdownParseState {
+    int depth = 0;
+    qint64 steps = 0;
+    qint64 budget = 0;
+
+    bool exhausted() const { return steps > budget; }
+    // Charge `n` units of scanning work; true while the budget holds.
+    bool spend(qint64 n = 1)
+    {
+        steps += n;
+        return steps <= budget;
+    }
+};
+
 namespace {
+
+constexpr int kMaxSpanDepth = 24;
+constexpr qint64 kParseStepFloor = 2'000'000;
+constexpr qint64 kParseStepsPerChar = 512;
+
+qint64 parseBudgetFor(const QString &markdown)
+{
+    return kParseStepFloor + kParseStepsPerChar * markdown.length();
+}
 
 enum MatcherKind {
     DelimiterPair,    // symmetric marker, e.g. ** ... **
@@ -100,6 +145,26 @@ const SpanTypeDef kSpanTypes[] = {
     {"autolink",   AutolinkMatcher, "",  true,  false, SpanFormat::Link},
 };
 
+// The color-span grammar's character classes. ASCII, deliberately: a CSS
+// named color and a hex triplet are both ASCII, and so is the whitespace the
+// HTML attribute syntax allows around a value.
+bool isColorSpace(QChar c)
+{
+    return c == u' ' || c == u'\t' || c == u'\n' || c == u'\r' || c == u'\f'
+        || c == u'\v';
+}
+
+bool isHexDigit(QChar c)
+{
+    return (c >= u'0' && c <= u'9') || (c >= u'a' && c <= u'f')
+        || (c >= u'A' && c <= u'F');
+}
+
+bool isAsciiLetter(QChar c)
+{
+    return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z');
+}
+
 // Recognize a color-span opening marker at `pos`:
 //   <span style="color:VALUE">  (double- or single-quoted, one property)
 // VALUE is #rgb, #rrggbb, or a run of ASCII letters (a CSS named color),
@@ -108,20 +173,61 @@ const SpanTypeDef kSpanTypes[] = {
 // every near-miss (extra attributes, other properties, other tags) literal.
 int matchColorOpen(const QString &md, int pos, QString *valueOut = nullptr)
 {
-    static const QRegularExpression re(
-        QStringLiteral("<span style=([\"'])color:\\s*"
-                       "(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}|[A-Za-z]+)"
-                       "\\s*\\1>"));
-    // AnchoredMatchOption pins the match to start exactly at `pos` (not \A,
-    // which would anchor to the whole string's start and only ever fire at
-    // position 0).
-    const QRegularExpressionMatch m = re.match(md, pos,
-        QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
-    if (!m.hasMatch())
+    // Read by hand rather than with a regular expression. A color span's
+    // balancing scan asks this question at every character of its content and
+    // at every nesting level, so the cost of one call is multiplied by the
+    // whole input: the prefix test below answers no for almost every position
+    // in a single comparison, and the rest of the grammar is a short walk.
+    // The regular expression it replaces cost tens of microseconds per call
+    // once the subject string was large.
+    static const QLatin1String kPrefix("<span style=");
+    static const QLatin1String kProperty("color:");
+    const QStringView view(md);
+    if (!view.mid(pos).startsWith(kPrefix))
         return -1;
+    int i = pos + kPrefix.size();
+    if (i >= md.size())
+        return -1;
+    const QChar quote = md.at(i);          // the closing quote must match
+    if (quote != u'"' && quote != u'\'')
+        return -1;
+    ++i;
+    if (!view.mid(i).startsWith(kProperty))
+        return -1;
+    i += kProperty.size();
+    while (i < md.size() && isColorSpace(md.at(i)))
+        ++i;
+
+    // VALUE is #rgb, #rrggbb, or a run of ASCII letters (a CSS named color).
+    const int valueStart = i;
+    if (i < md.size() && md.at(i) == u'#') {
+        ++i;
+        int digits = 0;
+        while (i < md.size() && isHexDigit(md.at(i))) {
+            ++i;
+            ++digits;
+        }
+        if (digits != 3 && digits != 6)
+            return -1;
+    } else {
+        while (i < md.size() && isAsciiLetter(md.at(i)))
+            ++i;
+        if (i == valueStart)
+            return -1;
+    }
+    const int valueEnd = i;
+
+    while (i < md.size() && isColorSpace(md.at(i)))
+        ++i;
+    if (i >= md.size() || md.at(i) != quote)
+        return -1;
+    ++i;
+    if (i >= md.size() || md.at(i) != u'>')
+        return -1;
+    ++i;
     if (valueOut)
-        *valueOut = m.captured(2);
-    return m.capturedLength(0);
+        *valueOut = md.mid(valueStart, valueEnd - valueStart);
+    return i - pos;
 }
 
 const SpanTypeDef *findTypeDef(const QString &name)
@@ -174,7 +280,7 @@ bool familyHasDouble(QChar c)
 //    taken when no later single marker could close us past that pair
 //    ("*a **b** c*" keeps the whole italic).
 int matchDelimiter(const QString &md, int pos, const QString &marker, bool wordBoundary,
-                   bool noSpaceContent = false)
+                   MarkdownParseState &state, bool noSpaceContent = false)
 {
     const QChar c = marker.at(0);
     const int n = marker.length();
@@ -201,6 +307,8 @@ int matchDelimiter(const QString &md, int pos, const QString &marker, bool wordB
         int from = pos + 3;
         while (true) {
             const int closePos = md.indexOf(marker, from);
+            if (!state.spend((closePos < 0 ? md.length() : closePos) - from + 1))
+                return -1;
             if (closePos == -1)
                 return -1;
             if (isEscapedAt(md, closePos)) {
@@ -220,6 +328,8 @@ int matchDelimiter(const QString &md, int pos, const QString &marker, bool wordB
     int contentLimit = md.length();
     if (noSpaceContent) {
         for (int i = pos + n; i < md.length(); ++i) {
+            if (!state.spend())
+                return -1;
             if (md.at(i).isSpace()) {
                 contentLimit = i;
                 break;
@@ -230,6 +340,8 @@ int matchDelimiter(const QString &md, int pos, const QString &marker, bool wordB
     int searchStart = pos + n;
     while (searchStart < md.length()) {
         const int cand = md.indexOf(marker, searchStart);
+        if (!state.spend((cand < 0 ? md.length() : cand) - searchStart + 1))
+            return -1;
         if (cand == -1 || cand > contentLimit)
             return -1;
         if (cand > pos + n) {
@@ -263,10 +375,65 @@ int matchDelimiter(const QString &md, int pos, const QString &marker, bool wordB
     return -1;
 }
 
+// One backtick run's closing candidates, computed once for the whole run.
+//
+// Every position inside a run of L backticks opens a candidate code span, of
+// length L, L-1, … 1, and all of them start looking for their closing run at
+// the same place: the first character after the run. So the search region is
+// identical for the whole run, and one pass over it answers for every position
+// at once — where the first run of each length is, or that there is none.
+// Scanning per position instead made a run of N backticks cost O(N^2).
+struct CodeRunScan {
+    int runStart = -1;          // [runStart, runEnd) is the run this describes
+    int runEnd = -1;
+    QList<int> firstClose;      // by open length: first closing run, or -1
+
+    bool covers(int pos) const { return pos >= runStart && pos < runEnd; }
+
+    void build(const QString &md, int pos, MarkdownParseState &state)
+    {
+        int start = pos;
+        while (start > 0 && md.at(start - 1) == QLatin1Char('`'))
+            --start;
+        int end = pos;
+        while (end < md.length() && md.at(end) == QLatin1Char('`'))
+            ++end;
+        runStart = start;
+        runEnd = end;
+        const int longest = end - start;
+        firstClose.assign(longest + 1, -1);
+        state.spend(longest);
+        int i = end;
+        while (i < md.length()) {
+            if (md.at(i) != QLatin1Char('`')) {
+                ++i;
+                if (!state.spend())
+                    return;
+                continue;
+            }
+            int run = 0;
+            while (i + run < md.length() && md.at(i + run) == QLatin1Char('`'))
+                ++run;
+            if (run <= longest && firstClose[run] < 0)
+                firstClose[run] = i;
+            i += run;
+            if (!state.spend(run))
+                return;
+        }
+    }
+};
+
 // Match one registry row at `pos`; fills `span` (start/end/type/markers/
 // flags) and returns true on a complete match.
-bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSpan &span)
+bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos,
+                 FormattedSpan &span, MarkdownParseState &state,
+                 CodeRunScan &codeRuns)
 {
+    // Past the budget nothing matches, so the remaining text stays literal and
+    // the outer scan walks out in linear time.
+    if (state.exhausted())
+        return false;
+
     // Fix 5: a delimiter preceded by a backslash never opens a span — the
     // old \$-only rule generalized to the whole registry. The escape row
     // itself passes (an even backslash run before "\X" leaves that
@@ -278,7 +445,7 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
     case DelimiterPair: {
         const QString marker = QLatin1String(def.openMarker);
         const int end = matchDelimiter(md, pos, marker, def.wordBoundary,
-                                       def.noSpaceContent);
+                                       state, def.noSpaceContent);
         if (end < 0)
             return false;
         span.openLen = marker.length();
@@ -293,28 +460,13 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
         // mis-split every such span it met.
         if (md.at(pos) != QLatin1Char('`'))
             return false;
-        int openLen = 0;
-        while (pos + openLen < md.length()
-               && md.at(pos + openLen) == QLatin1Char('`'))
-            ++openLen;
-        // Scan for a run of the same length, skipping longer runs (a run of
-        // 3 does not close a run of 2).
-        int i = pos + openLen;
-        int closeAt = -1;
-        while (i < md.length()) {
-            if (md.at(i) != QLatin1Char('`')) {
-                ++i;
-                continue;
-            }
-            int run = 0;
-            while (i + run < md.length() && md.at(i + run) == QLatin1Char('`'))
-                ++run;
-            if (run == openLen) {
-                closeAt = i;
-                break;
-            }
-            i += run;
-        }
+        // The closing candidates for every position in this run, scanned once
+        // (see CodeRunScan) and reused as the outer parse walks through it.
+        if (!codeRuns.covers(pos))
+            codeRuns.build(md, pos, state);
+        const int openLen = codeRuns.runEnd - pos;
+        const int closeAt = openLen < codeRuns.firstClose.size()
+                                ? codeRuns.firstClose.at(openLen) : -1;
         if (closeAt < 0 || closeAt == pos + openLen)
             return false;   // unclosed, or an empty span
         span.openLen = openLen;
@@ -328,6 +480,8 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
         if (md.at(pos) != QLatin1Char('['))
             return false;
         const int closeBracket = md.indexOf(QLatin1String("]("), pos + 1);
+        if (!state.spend((closeBracket < 0 ? md.length() : closeBracket) - pos))
+            return false;
         if (closeBracket <= pos + 1)
             return false;
         const QString text = md.mid(pos + 1, closeBracket - pos - 1);
@@ -335,6 +489,9 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
             || text.contains(QLatin1Char('\n')))
             return false;
         const int closeParen = md.indexOf(QLatin1Char(')'), closeBracket + 2);
+        if (!state.spend((closeParen < 0 ? md.length() : closeParen)
+                         - closeBracket))
+            return false;
         if (closeParen == -1)
             return false;
         const QString url = md.mid(closeBracket + 2, closeParen - closeBracket - 2);
@@ -361,6 +518,8 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
         int i = pos + openLen;
         int closeAt = -1;
         while (i < md.length()) {
+            if (!state.spend())
+                return false;
             const int nestOpen = matchColorOpen(md, i);
             if (nestOpen > 0) {
                 ++depth;
@@ -405,6 +564,8 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
             return false;                        // no space after $; $$ is block
         int close = -1;
         for (int i = contentStart; i < md.length(); ++i) {
+            if (!state.spend())
+                return false;
             const QChar c = md.at(i);
             if (c == QLatin1Char('\n'))
                 return false;                    // inline math is single-line
@@ -477,8 +638,11 @@ bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos, FormattedSp
             return false;
         int end = pos + schemeLen;
         while (end < md.length() && !md.at(end).isSpace()
-               && md.at(end) != QLatin1Char(')') && md.at(end) != QLatin1Char(']'))
+               && md.at(end) != QLatin1Char(')') && md.at(end) != QLatin1Char(']')) {
             ++end;
+            if (!state.spend())
+                return false;
+        }
         while (end > pos + schemeLen
                && QLatin1String(".,;:!?").contains(md.at(end - 1)))
             --end;
@@ -583,6 +747,14 @@ QString MarkdownFormatter::getMarkerString(const QString &type) const
 
 QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown) const
 {
+    MarkdownParseState state;
+    state.budget = parseBudgetFor(markdown);
+    return parseSpans(markdown, state);
+}
+
+QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown,
+                                                   MarkdownParseState &state) const
+{
     QList<FormattedSpan> spans;
 
     if (markdown.isEmpty()) {
@@ -591,23 +763,29 @@ QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown) cons
 
     int pos = 0;
     int displayOffset = 0; // Marker chars skipped so far in display coords
+    CodeRunScan codeRuns;  // valid for this string only, so it lives here
 
     while (pos < markdown.length()) {
         bool matched = false;
         for (const SpanTypeDef &def : kSpanTypes) {
             FormattedSpan span;
-            if (!matchTypeAt(def, markdown, pos, span))
+            if (!matchTypeAt(def, markdown, pos, span, state, codeRuns))
                 continue;
 
             span.displayStart = pos - displayOffset;
 
             // Nested spans: the content parses recursively — except inside
             // inline code, whose content is verbatim. Display text strips
-            // markers at every level.
-            if (!def.verbatimContent && span.contentLength() > 0) {
+            // markers at every level. Past kMaxSpanDepth the content is left
+            // as plain text: markup that deep is not something anyone wrote,
+            // and each further level costs another scan of the whole content.
+            if (!def.verbatimContent && span.contentLength() > 0
+                && state.depth < kMaxSpanDepth) {
                 const QString content =
                     markdown.mid(pos + span.openLen, span.contentLength());
-                span.children = parseSpans(content);
+                ++state.depth;
+                span.children = parseSpans(content, state);
+                --state.depth;
                 for (FormattedSpan &child : span.children)
                     shiftSpan(child, span.start + span.openLen, span.displayStart);
             }
@@ -622,11 +800,80 @@ QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown) cons
             matched = true;
             break;
         }
-        if (!matched)
+        if (!matched) {
             pos++;
+            state.spend();
+        }
     }
 
     return spans;
+}
+
+// One span's HTML, with its content rendered from the parsed child tree.
+//
+// The parser already knows what is inside a span: children carries it, in
+// absolute markdown coordinates. Reading each container's content back out of
+// the raw text instead — which is what this used to do everywhere except bold
+// and italic — meant the nested markup was escaped as literal characters, so
+// `**[docs](https://x)**` came out as bold text reading "[docs](https://x)"
+// rather than a bold link. Rendering from the tree makes every combination
+// work by construction, and there is one place that decides what a type looks
+// like.
+QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
+                                          const FormattedSpan &span) const
+{
+    const int contentStart = span.start + span.openLen;
+    const int contentEnd = span.end - span.closeLen;
+    // Verbatim types (inline code, math, escapes, wiki links, autolinks) have
+    // no children, so this is exactly their escaped raw content.
+    const QString inner =
+        renderRangeHtml(markdown, span.children, contentStart, contentEnd);
+
+    if (span.type == QLatin1String("bolditalic"))
+        return QStringLiteral("<b><i>") + inner + QStringLiteral("</i></b>");
+    if (span.type == QLatin1String("bold"))
+        return QStringLiteral("<b>") + inner + QStringLiteral("</b>");
+    if (span.type == QLatin1String("italic"))
+        return QStringLiteral("<i>") + inner + QStringLiteral("</i>");
+    if (span.type == QLatin1String("code"))
+        return QStringLiteral("<code>") + inner + QStringLiteral("</code>");
+    if (span.type == QLatin1String("link")
+        || span.type == QLatin1String("autolink")) {
+        return QStringLiteral("<a href=\"") + escapeHtml(span.url)
+             + QStringLiteral("\">") + inner + QStringLiteral("</a>");
+    }
+    if (span.type == QLatin1String("color")) {
+        return QStringLiteral("<span style=\"color:") + escapeHtml(span.color)
+             + QStringLiteral("\">") + inner + QStringLiteral("</span>");
+    }
+    // "escape" and "wikilink" conceal their markers and show the content: "\*"
+    // displays as "*", and a wiki link shows the alias when it has one (which
+    // the opening marker already swallowed) or else the target.
+    // Every remaining type shows its text unstyled rather than being dropped —
+    // table cells render through this path, and the fix-1 repair puts inline
+    // code spans in cells.
+    return inner;
+}
+
+// The HTML for markdown[from, to): each span rendered by type, the plain gaps
+// between them escaped.
+QString MarkdownFormatter::renderRangeHtml(const QString &markdown,
+                                           const QList<FormattedSpan> &spans,
+                                           int from, int to) const
+{
+    QString html;
+    int pos = from;
+    for (const FormattedSpan &span : spans) {
+        if (span.start < pos || span.end > to)
+            continue;   // defensive: a span outside the range it belongs to
+        if (pos < span.start)
+            html += escapeHtml(markdown.mid(pos, span.start - pos));
+        html += renderSpanHtml(markdown, span);
+        pos = span.end;
+    }
+    if (pos < to)
+        html += escapeHtml(markdown.mid(pos, to - pos));
+    return html;
 }
 
 QString MarkdownFormatter::toHtml(const QString &markdown) const
@@ -635,80 +882,13 @@ QString MarkdownFormatter::toHtml(const QString &markdown) const
         return QString();
     }
 
-    QList<FormattedSpan> spans = parseSpans(markdown);
+    const QList<FormattedSpan> spans = parseSpans(markdown);
 
     if (spans.isEmpty()) {
         return escapeHtml(markdown);
     }
 
-    QString html;
-    int pos = 0;
-
-    for (const FormattedSpan &span : spans) {
-        // Add text before this span
-        if (pos < span.start) {
-            html += escapeHtml(markdown.mid(pos, span.start - pos));
-        }
-
-        // Add the formatted span. The markers come off per instance: a
-        // link's "](url)" and a color span's opening tag vary with their
-        // parameter, so the type-level marker length is 0 for them and would
-        // hand the raw markdown through as if it were text.
-        QString innerText =
-            span.rawText.mid(span.openLen, span.contentLength());
-
-        if (span.type == "bolditalic") {
-            html += "<b><i>" + escapeHtml(innerText) + "</i></b>";
-        } else if (span.type == "bold") {
-            // Check for nested italic
-            if (innerText.contains('*')) {
-                // Recursively convert nested formatting
-                html += "<b>" + toHtml(innerText) + "</b>";
-            } else {
-                html += "<b>" + escapeHtml(innerText) + "</b>";
-            }
-        } else if (span.type == "italic") {
-            // Check for nested bold
-            if (innerText.contains("**")) {
-                html += "<i>" + toHtml(innerText) + "</i>";
-            } else {
-                html += "<i>" + escapeHtml(innerText) + "</i>";
-            }
-        } else if (span.type == "escape") {
-            // Conceal the backslash (fix 5): "\*" shows as "*".
-            html += escapeHtml(span.rawText.mid(1));
-        } else if (span.type == "code") {
-            html += "<code>" + escapeHtml(
-                markdown.mid(span.start + span.openLen, span.contentLength()))
-                 + "</code>";
-        } else if (span.type == "link" || span.type == "autolink") {
-            html += "<a href=\"" + escapeHtml(span.url) + "\">"
-                  + escapeHtml(innerText) + "</a>";
-        } else if (span.type == "wikilink") {
-            // A note reference has no address outside Kvit, so the rich-text
-            // flavor carries what the editor shows: the alias when there is
-            // one, otherwise the target.
-            const int bar = innerText.lastIndexOf(QLatin1Char('|'));
-            html += escapeHtml(bar >= 0 ? innerText.mid(bar + 1) : innerText);
-        } else if (span.type == "color") {
-            html += "<span style=\"color:" + escapeHtml(span.color) + "\">"
-                  + escapeHtml(innerText) + "</span>";
-        } else {
-            // Every other type shows its text unstyled rather than being
-            // dropped — table cells render through this path, and the fix-1
-            // repair puts inline code spans in cells.
-            html += escapeHtml(innerText);
-        }
-
-        pos = span.end;
-    }
-
-    // Add remaining text after last span
-    if (pos < markdown.length()) {
-        html += escapeHtml(markdown.mid(pos));
-    }
-
-    return html;
+    return renderRangeHtml(markdown, spans, 0, markdown.length());
 }
 
 QString MarkdownFormatter::toMarkdown(const QString &html) const

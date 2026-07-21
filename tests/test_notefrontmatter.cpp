@@ -44,6 +44,8 @@ private slots:
     void testSerializeCanonicalOrder();
     void testSerializeTagQuoting_data();
     void testSerializeTagQuoting();
+    void testParseTagsWrittenByOlderVersions_data();
+    void testParseTagsWrittenByOlderVersions();
     void testSerializeUnknownLinesAfterKnown();
     void testSerializeKeylessDegradesToVisibleBody();
 
@@ -404,6 +406,23 @@ void TestNoteFrontMatter::testSerializeTagQuoting_data()
     QTest::newRow("hash") << QStringLiteral("#tag") << QStringLiteral("\"#tag\"");
     QTest::newRow("leading space")
         << QStringLiteral(" pad") << QStringLiteral("\" pad\"");
+    // Quoting alone is not enough once the tag carries the quote character
+    // itself: `a",b` used to serialize as "a",b", which closes after `a` and
+    // reparses as the two tags `a` and `b"`. The quote and the backslash are
+    // escaped inside the quoted form, which is what makes writer and reader
+    // inverses.
+    QTest::newRow("quote and comma")
+        << QStringLiteral("a\",b") << QStringLiteral("\"a\\\",b\"");
+    QTest::newRow("quote only")
+        << QStringLiteral("a\"b") << QStringLiteral("\"a\\\"b\"");
+    QTest::newRow("backslash")
+        << QStringLiteral("a\\b") << QStringLiteral("\"a\\\\b\"");
+    QTest::newRow("trailing backslash")
+        << QStringLiteral("a\\") << QStringLiteral("\"a\\\\\"");
+    QTest::newRow("escaped-looking quote")
+        << QStringLiteral("a\\\",b") << QStringLiteral("\"a\\\\\\\",b\"");
+    QTest::newRow("single quotes")
+        << QStringLiteral("'q'") << QStringLiteral("\"'q'\"");
 }
 
 void TestNoteFrontMatter::testSerializeTagQuoting()
@@ -420,6 +439,43 @@ void TestNoteFrontMatter::testSerializeTagQuoting()
     NoteFrontMatter::Metadata back =
         NoteFrontMatter::parse(NoteFrontMatter::serialize(meta));
     QCOMPARE(back.tags, QStringList{tag});
+}
+
+void TestNoteFrontMatter::testParseTagsWrittenByOlderVersions_data()
+{
+    QTest::addColumn<QString>("value");
+    QTest::addColumn<QStringList>("tags");
+
+    // Front matter already on disk was written without escaping, and it has to
+    // keep reading the way it always did. Only the two escapes this writer
+    // emits are undone, so a backslash that was never an escape survives.
+    QTest::newRow("bare list")
+        << QStringLiteral("[a, b]") << QStringList{"a", "b"};
+    QTest::newRow("quoted comma")
+        << QStringLiteral("[\"a,b\"]") << QStringList{"a,b"};
+    QTest::newRow("single quoted")
+        << QStringLiteral("['a,b']") << QStringList{"a,b"};
+    QTest::newRow("windows path keeps its backslash")
+        << QStringLiteral("[\"C:\\Users\"]") << QStringList{"C:\\Users"};
+    // The old writer never quoted for a backslash, so this is the shape a
+    // backslash tag already has on disk.
+    QTest::newRow("unquoted backslash")
+        << QStringLiteral("[a\\b]") << QStringList{"a\\b"};
+    // The old writer's output for a tag holding a quote: broken syntax it
+    // could not express, which must keep reading the way it always did.
+    QTest::newRow("old unescaped inner quote")
+        << QStringLiteral("[\"a\"b\"]") << QStringList{"a\"b"};
+    QTest::newRow("scalar")
+        << QStringLiteral("solo") << QStringList{"solo"};
+}
+
+void TestNoteFrontMatter::testParseTagsWrittenByOlderVersions()
+{
+    QFETCH(QString, value);
+    QFETCH(QStringList, tags);
+    const NoteFrontMatter::Metadata meta = NoteFrontMatter::parse(
+        QStringLiteral("---\ntags: %1\n---\n").arg(value));
+    QCOMPARE(meta.tags, tags);
 }
 
 void TestNoteFrontMatter::testSerializeUnknownLinesAfterKnown()

@@ -24,10 +24,21 @@
 // [x]); `#label` tokens on the card line are its labels, recognized only at the
 // start of the text or after whitespace so that a URL fragment such as
 // https://example.com/#intro is left alone, with `\#` writing a literal hash in
-// that position; 📅 <date> is the due date (the todo convention); indented
-// plain lines under a card are its
-// description. This pure component maps that to a board and back, and applies
-// every mutation as a whole-content rewrite (one undo step).
+// that position; 📅 <date> is the due date (the todo convention), and `\📅`
+// writes a literal marker the same way; indented plain lines under a card are
+// its description. This pure component maps that to a board and back, and
+// applies every mutation as a whole-content rewrite (one undo step).
+//
+// Every value the card editor can produce survives that round trip. A label
+// that does not fit the bare `#token` spelling — one containing a space, a
+// hash, a quote or a backslash — is written quoted, as `#"client work"`, with
+// `\` and `"` escaped inside; the bare spelling is used wherever it fits, so
+// boards written by hand or by earlier versions keep their ordinary syntax and
+// still read the same way. The due date is the one field with no escape: the
+// grammar holds an ISO `YYYY-MM-DD` naming a real day and nothing else, so
+// setCard() drops anything else rather than writing a marker the next parse
+// would read back as title text. isValidDue() is the same test, exposed so the
+// editor can refuse the value while the user can still fix it.
 //
 // The board model does not describe everything a `kanban` fence may contain: an
 // introductory paragraph, an HTML comment, a blank line, a stray list item. So
@@ -77,6 +88,12 @@ struct Board {
 Board parse(const QString &content);
 QString serialize(const Board &b);
 
+// Whether a due value is one the storage grammar can hold: an ISO `YYYY-MM-DD`
+// naming a date that exists. setCard() drops anything else rather than writing
+// a marker the next parse would read back as title text, and the card editor
+// uses the same test to refuse the value while the user can still fix it.
+bool isValidDue(const QString &due);
+
 // True when this is the content of a `kanban` fence worth rendering as a board
 // (at least one column). Used to decide the delegate kind.
 bool looksLikeBoard(const QString &content);
@@ -111,6 +128,8 @@ public:
     Q_INVOKABLE QVariantMap parse(const QString &content) const;
     Q_INVOKABLE bool looksLikeBoard(const QString &content) const
     { return KanbanData::looksLikeBoard(content); }
+    Q_INVOKABLE bool isValidDue(const QString &due) const
+    { return KanbanData::isValidDue(due); }
 
     Q_INVOKABLE QString addColumn(const QString &c, const QString &name) const
     { return KanbanData::addColumn(c, name); }

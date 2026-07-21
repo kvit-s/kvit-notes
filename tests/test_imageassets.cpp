@@ -171,6 +171,44 @@ private slots:
         // Unresolved → empty (the placeholder).
         QVERIFY(ImageAssets::resolveSource("missing.png", noteDir, root).isEmpty());
     }
+
+    // URL schemes are case-insensitive, so every stage has to read them the
+    // same way. Classification always did; resolution compared literal
+    // lowercase prefixes, so `HTTPS://…` was accepted as an image and then
+    // hunted for on disk, where it resolved to nothing and rendered as the
+    // broken-path placeholder.
+    void uppercaseSchemeResolvesAsRemote_data()
+    {
+        QTest::addColumn<QString>("url");
+        QTest::newRow("lowercase") << QStringLiteral("https://h/a.png");
+        QTest::newRow("uppercase") << QStringLiteral("HTTPS://h/a.png");
+        QTest::newRow("mixed") << QStringLiteral("HtTp://h/a.png");
+    }
+
+    void uppercaseSchemeResolvesAsRemote()
+    {
+        QFETCH(QString, url);
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QCOMPARE(ImageAssets::resolveSource(url, dir.path(), dir.path()), url);
+
+        // And the same URL with no media extension is still an embed, so the
+        // two classifications stay consistent with each other.
+        const QString page = url.left(url.size() - 5);   // drop "a.png"
+        QVERIFY(ImageAssets::isEmbedUrl(page));
+    }
+
+    void uppercaseSchemeInAnImageExpression()
+    {
+        const auto p = ImageAssets::parseLine(
+            QStringLiteral("![alt](HTTPS://h/pic.png)"));
+        QVERIFY(p.valid);
+        QCOMPARE(p.kind, Kind::Image);
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QCOMPARE(ImageAssets::resolveSource(p.path, dir.path(), dir.path()),
+                 QStringLiteral("HTTPS://h/pic.png"));
+    }
 };
 
 QTEST_MAIN(TestImageAssets)

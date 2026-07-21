@@ -4,6 +4,7 @@
 #include <QtTest/QtTest>
 
 #include "htmltomarkdown.h"
+#include "imageassets.h"
 #include "markdownformatter.h"
 
 #include <QUrl>
@@ -37,6 +38,12 @@ private slots:
     void testInlineCodeChoosesFenceLongerThanContent();
     void testCodeFenceChoosesFenceLongerThanContent();
     void testLinkDestinationWithParenthesesSurvives();
+
+    // Structure the payload did not have must not appear in the result, and
+    // structure it did have must not disappear.
+    void testBlockLeadingConstructsAreEscaped_data();
+    void testBlockLeadingConstructsAreEscaped();
+    void testImagesBecomeMarkdownImages();
 
 private:
     HtmlToMarkdown converter;
@@ -243,6 +250,70 @@ void TestHtmlToMarkdown::testLinkDestinationWithParenthesesSurvives()
     QCOMPARE(link->url, QString("http://x/a_%28b%29_c"));
     QCOMPARE(QUrl::fromPercentEncoding(link->url.toUtf8()),
              QString("http://x/a_(b)_c"));
+}
+
+// A paragraph reading "# literal heading" carried no structure in the HTML.
+// Emitted verbatim it becomes a heading the next time the markdown is read,
+// and "- literal" becomes a list item, "---" a divider. Only the first
+// character of a block can start such a construct, so escaping it there is
+// what the escape is for.
+void TestHtmlToMarkdown::testBlockLeadingConstructsAreEscaped_data()
+{
+    QTest::addColumn<QString>("html");
+    QTest::addColumn<QString>("markdown");
+
+    QTest::newRow("heading") << "<p># literal heading</p>"
+                             << "\\# literal heading";
+    QTest::newRow("hash tag") << "<p>#tag</p>" << "\\#tag";
+    QTest::newRow("dash list") << "<p>- literal</p>" << "\\- literal";
+    QTest::newRow("plus list") << "<p>+ literal</p>" << "\\+ literal";
+    QTest::newRow("quote") << "<p>&gt; not a quote</p>" << "\\> not a quote";
+    QTest::newRow("divider") << "<p>---</p>" << "\\---";
+    QTest::newRow("pipe row") << "<p>| a | b |</p>" << "\\| a | b |";
+    // Inside a list item and a blockquote the content is block-leading again.
+    QTest::newRow("inside list item") << "<ul><li># literal</li></ul>"
+                                      << "- \\# literal";
+    QTest::newRow("inside quote") << "<blockquote># literal</blockquote>"
+                                  << "> \\# literal";
+    // A hash that is not block-leading carried no risk and keeps its text.
+    QTest::newRow("mid-paragraph hash") << "<p>issue #42</p>" << "issue #42";
+}
+
+void TestHtmlToMarkdown::testBlockLeadingConstructsAreEscaped()
+{
+    QFETCH(QString, html);
+    QFETCH(QString, markdown);
+    QCOMPARE(converter.convert(html), markdown);
+}
+
+// An <img> is what makes a payload count as structured, so the converter has
+// to have something to say about it. Qt represents the image with U+FFFC and
+// the source on the char format; dropping the placeholder turned
+// "before<img>after" into "beforeafter" and lost the picture from a paste that
+// had been accepted because of it.
+void TestHtmlToMarkdown::testImagesBecomeMarkdownImages()
+{
+    QVERIFY(converter.hasStructure("<p>a<img src=\"x.png\">b</p>"));
+
+    const QString md =
+        converter.convert("<p>before<img src=\"http://h/pic.png\">after</p>");
+    QVERIFY2(md.contains("![](http://h/pic.png)"), qPrintable(md));
+    QVERIFY2(md.startsWith("before"), qPrintable(md));
+    QVERIFY2(md.endsWith("after"), qPrintable(md));
+
+    // A source with spaces or parentheses fits the destination grammar the
+    // same way a link's does.
+    const QString spaced =
+        converter.convert("<p><img src=\"a b(c).png\"></p>");
+    QVERIFY2(spaced.contains("![](a%20b%28c%29.png)"), qPrintable(spaced));
+
+    // And a paragraph that is nothing but the image reads back as one: the
+    // block form Kvit stores pictures in, not as text.
+    const QString lone = converter.convert("<p><img src=\"pic.png\"></p>");
+    const ImageAssets::Parsed parsed = ImageAssets::classifyLine(lone);
+    QVERIFY2(parsed.valid, qPrintable(lone));
+    QCOMPARE(parsed.kind, ImageAssets::Kind::Image);
+    QCOMPARE(parsed.path, QStringLiteral("pic.png"));
 }
 
 QTEST_MAIN(TestHtmlToMarkdown)

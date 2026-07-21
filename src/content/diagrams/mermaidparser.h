@@ -22,7 +22,17 @@ constexpr int kMaxNodes = 1000;
 constexpr int kMaxEdges = 2000;
 constexpr int kMaxDepth = 32;
 constexpr int kMaxLabelChars = 16 * 1024;
+// The ceiling on the WHOLE source, front matter included. Anything the parser
+// splits, copies or scans is a piece of that string, so the check has to come
+// before the first split or a large enough prefix pays for itself several
+// times over before anyone looks at its size.
 constexpr int kMaxSourceChars = 256 * 1024;
+// Ceilings inside the leading `---` … `---` front-matter block: how far the
+// closing fence is looked for, and how much of a `title:` is kept. Mermaid's
+// front matter carries a handful of short keys; these admit a very generous
+// one while keeping the accepted title comparable to a node label.
+constexpr int kMaxFrontMatterChars = 8 * 1024;
+constexpr int kMaxFrontMatterTitleChars = 1024;
 
 class MermaidParser
 {

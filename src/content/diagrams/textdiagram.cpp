@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <new>
 
 #include "textcanvas.h"
 
@@ -843,8 +844,17 @@ QString renderText(const Scene &scene)
 {
     if (scene.isEmpty())
         return QString();
-    Builder builder(scene);
-    QString text = builder.build();
+    QString text;
+    // TextCanvas keeps the grid inside kMaxTextCanvasCells, so the export
+    // cannot ask for an unbounded allocation. The catch is the backstop for
+    // everything else this path allocates (the joined string, the line list):
+    // "Copy as text" on one pathological note must not take the process down.
+    try {
+        Builder builder(scene);
+        text = builder.build();
+    } catch (const std::bad_alloc &) {
+        return QString();
+    }
 
     // Normalize the frame: no leading blank lines, no common left margin
     // (routing offsets and quantization leave both behind).

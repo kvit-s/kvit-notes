@@ -332,6 +332,122 @@ private slots:
         QCOMPARE(c.due, QString("2026-01-01"));
         QCOMPARE(c.description, QString("notes"));
     }
+
+    // What the card editor accepts has to survive being written to the board
+    // and read back. Labels used to go out unescaped: `client work` came back
+    // as the label `client` plus the title word `work`, and `a#b` lost its
+    // tail. The quoted spelling closes that, and the bare spelling is still
+    // used wherever it fits.
+    void labelsAcceptedByTheEditorRoundTrip_data()
+    {
+        QTest::addColumn<QStringList>("labels");
+        QTest::newRow("plain") << QStringList{"urgent"};
+        QTest::newRow("space") << QStringList{"client work"};
+        QTest::newRow("hash inside") << QStringList{"a#b"};
+        QTest::newRow("leading hash") << QStringList{"#nested"};
+        QTest::newRow("quote") << QStringList{"say \"hi\""};
+        QTest::newRow("backslash") << QStringList{"a\\b"};
+        QTest::newRow("escaped quote") << QStringList{"a\\\"b"};
+        QTest::newRow("tab") << QStringList{"a\tb"};
+        QTest::newRow("several")
+            << QStringList{"client work", "plain", "a \"b\" c"};
+    }
+
+    void labelsAcceptedByTheEditorRoundTrip()
+    {
+        QFETCH(QStringList, labels);
+        const QString md = setCard("## A\n- [ ] x", 0, 0, "the title", false,
+                                   labels, "", "");
+        const Card c = parse(md).columns[0].cards[0];
+        QVERIFY2(c.labels == labels,
+                 qPrintable(QStringLiteral("labels came back as [%1] "
+                                           "(source %2)")
+                                .arg(c.labels.join(QLatin1Char('|')), md)));
+        QCOMPARE(c.title, QString("the title"));
+        // And the board text itself round-trips unchanged.
+        QCOMPARE(serialize(parse(md)), md);
+    }
+
+    // The bare spelling stays the default, so boards written by hand or by
+    // earlier versions are not rewritten into quoted syntax.
+    void ordinaryLabelsKeepTheBareSpelling()
+    {
+        const QString md = setCard("## A\n- [ ] x", 0, 0, "t", false,
+                                   QStringList{"urgent", "home"}, "", "");
+        QCOMPARE(md, QString("## A\n- [ ] t #urgent #home"));
+    }
+
+    // A board written before quoting existed still reads exactly as it did.
+    void quotedLabelSyntaxDoesNotDisturbOlderBoards()
+    {
+        const Board b = parse("## A\n- [ ] t #urgent #a\\b #c\"d");
+        QCOMPARE(b.columns[0].cards[0].labels,
+                 QStringList({"urgent", "a\\b", "c\"d"}));
+    }
+
+    // A due value the grammar cannot hold used to be written after the
+    // calendar marker anyway, where the parser did not recognize it: the text
+    // reappeared in the title and the due field came back empty. It is now
+    // refused at the boundary, and isValidDue() lets the editor say so before
+    // the user loses it. Reader and writer apply the same test, so a value one
+    // accepts is a value the other accepts.
+    void invalidDueValuesAreRefusedRatherThanCorrupted_data()
+    {
+        QTest::addColumn<QString>("due");
+        QTest::addColumn<bool>("valid");
+        QTest::newRow("iso") << QStringLiteral("2026-07-15") << true;
+        QTest::newRow("word") << QStringLiteral("tomorrow") << false;
+        QTest::newRow("us order") << QStringLiteral("07/15/2026") << false;
+        QTest::newRow("no such day") << QStringLiteral("2026-02-30") << false;
+        QTest::newRow("month 13") << QStringLiteral("2026-13-01") << false;
+        QTest::newRow("empty") << QString() << false;
+    }
+
+    void invalidDueValuesAreRefusedRatherThanCorrupted()
+    {
+        QFETCH(QString, due);
+        QFETCH(bool, valid);
+        QCOMPARE(KanbanData::isValidDue(due), valid);
+
+        const QString md = setCard("## A\n- [ ] x", 0, 0, "the title", false,
+                                   {}, due, "");
+        const Card c = parse(md).columns[0].cards[0];
+        QCOMPARE(c.due, valid ? due : QString());
+        // Either way the title is the title: a rejected value never leaks
+        // into it.
+        QCOMPARE(c.title, QString("the title"));
+
+        // And a card line carrying that value directly reads back the same
+        // way, so what the writer refuses is exactly what the reader refuses.
+        const Card direct = parse("## A\n- [ ] the title " + cal() + " " + due)
+                                .columns[0].cards[0];
+        QCOMPARE(direct.due, valid ? due : QString());
+    }
+
+    // The mirror of the hash rule: a title that genuinely reads like a due
+    // date keeps its text, because the marker is escaped on the way out.
+    void dueMarkersInTitlesRoundTripThroughTheEscape()
+    {
+        const QStringList titles{
+            cal() + " 2026-07-15",
+            "due " + cal() + " 2026-07-15 for real",
+            "\\" + cal() + " 2026-07-15",
+            cal() + " not a date",
+            // Shape of a date, but not a day the calendar has. The reader
+            // leaves it as text, so the writer must not escape it either.
+            cal() + " 2026-02-30",
+        };
+        for (const QString &title : titles) {
+            const QString md = setCard("## A\n- [ ] x", 0, 0, title, false, {},
+                                       "2026-01-01", "");
+            const Card c = parse(md).columns[0].cards[0];
+            QVERIFY2(c.title == title,
+                     qPrintable(QStringLiteral("title %1 came back as %2 "
+                                               "(source %3)")
+                                    .arg(title, c.title, md)));
+            QCOMPARE(c.due, QString("2026-01-01"));
+        }
+    }
 };
 
 QTEST_MAIN(TestKanbanData)

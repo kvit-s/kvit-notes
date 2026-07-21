@@ -27,6 +27,10 @@ public:
 
     int rows() const { return m_lines.size(); }
     int cols() const;
+    // Cells actually materialized across all rows. The grid clips rather than
+    // grows once this reaches Diagram::kMaxTextCanvasCells, so callers and
+    // tests can check the export stayed inside its storage budget.
+    qint64 cells() const { return m_cells; }
 
     QChar at(int row, int col) const; // QChar() outside the grid
 
@@ -57,12 +61,17 @@ private:
     // Grow the grid to cover (row, col). False when the cell lies outside
     // the export budget and the caller must skip it.
     bool ensure(int row, int col);
-    void mergeArms(int row, int col, int arms, bool doubleVertical = false);
+    // False when the cell lay outside the budget and was not drawn. Within one
+    // row that answer only ever goes from true to false — a further column
+    // costs strictly more storage — so a horizontal run can stop at the first
+    // refusal instead of walking the rest of a clipped span cell by cell.
+    bool mergeArms(int row, int col, int arms, bool doubleVertical = false);
     static QChar charForArms(int arms, bool doubleVertical);
 
     QStringList m_lines;
     QList<QList<quint8>> m_arms;      // parallel to m_lines
     QList<QList<bool>> m_doubles;     // cell renders with double vertical
+    qint64 m_cells = 0;               // sum of the row lengths above
 };
 
 #endif // TEXTCANVAS_H

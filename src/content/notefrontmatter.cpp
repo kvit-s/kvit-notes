@@ -90,15 +90,39 @@ bool isMappingShapedLine(const QString &line)
         || isContinuationLine(line) || splitKeyLine(line, &k, &v);
 }
 
+// Undo the escaping serializeTag() applies inside a double-quoted scalar.
+// YAML's double-quoted style defines many more escapes (\n, \uXXXX, …); only
+// the two this writer emits are undone, so a hand-written `"C:\Users"` from an
+// existing note keeps its backslash instead of losing it to an escape nobody
+// wrote. That is a deliberately smaller grammar than YAML's, chosen because it
+// round-trips everything Kvit writes without reinterpreting what it did not.
+QString unescapeDoubleQuoted(const QString &s)
+{
+    QString out;
+    out.reserve(s.size());
+    for (int i = 0; i < s.size(); ++i) {
+        const QChar c = s.at(i);
+        if (c == QLatin1Char('\\') && i + 1 < s.size()
+            && (s.at(i + 1) == QLatin1Char('\\')
+                || s.at(i + 1) == QLatin1Char('"'))) {
+            out.append(s.at(i + 1));
+            ++i;
+            continue;
+        }
+        out.append(c);
+    }
+    return out;
+}
+
 QString stripMatchingQuotes(const QString &s)
 {
     if (s.size() >= 2) {
         const QChar first = s.front();
         const QChar last = s.back();
-        if ((first == QLatin1Char('"') && last == QLatin1Char('"'))
-            || (first == QLatin1Char('\'') && last == QLatin1Char('\''))) {
+        if (first == QLatin1Char('"') && last == QLatin1Char('"'))
+            return unescapeDoubleQuoted(s.mid(1, s.size() - 2));
+        if (first == QLatin1Char('\'') && last == QLatin1Char('\''))
             return s.mid(1, s.size() - 2);
-        }
     }
     return s;
 }
@@ -200,8 +224,19 @@ bool NoteFrontMatter::parseTagsValue(const QString &value, QStringList *tags)
         QStringList parts;
         QString part;
         QChar quote; // null when outside a quoted run
-        for (const QChar &c : inner) {
+        for (int i = 0; i < inner.size(); ++i) {
+            const QChar c = inner.at(i);
             if (!quote.isNull()) {
+                // Inside a double-quoted run a backslash takes the next
+                // character with it, so the `"` of an escaped quote does not
+                // end the run and the comma after it is still part of the
+                // tag. Single-quoted YAML has no backslash escapes.
+                if (c == QLatin1Char('\\') && quote == QLatin1Char('"')
+                    && i + 1 < inner.size()) {
+                    part.append(c);
+                    part.append(inner.at(++i));
+                    continue;
+                }
                 if (c == quote)
                     quote = QChar();
                 part.append(c);
@@ -371,7 +406,11 @@ QString NoteFrontMatter::serializeTag(const QString &tag)
 {
     // Quote when the flow-list syntax or the quote stripping could
     // misread the tag; the parser strips exactly one matching outer pair.
-    static const QString needsQuoting = QStringLiteral(",[]#:'\"");
+    // A quote or backslash inside the tag is then escaped as well: without
+    // that, a tag such as `a",b` closes its own quoting and comes back as two
+    // tags. `\` and `"` are the two escapes unescapeDoubleQuoted() knows,
+    // which is what makes writer and reader inverses of each other.
+    static const QString needsQuoting = QStringLiteral(",[]#:'\"\\");
     bool quote = tag != tag.trimmed();
     for (const QChar &c : tag) {
         if (needsQuoting.contains(c)) {
@@ -381,7 +420,14 @@ QString NoteFrontMatter::serializeTag(const QString &tag)
     }
     if (!quote)
         return tag;
-    return QLatin1Char('"') + tag + QLatin1Char('"');
+    QString escaped;
+    escaped.reserve(tag.size() + 2);
+    for (const QChar &c : tag) {
+        if (c == QLatin1Char('\\') || c == QLatin1Char('"'))
+            escaped.append(QLatin1Char('\\'));
+        escaped.append(c);
+    }
+    return QLatin1Char('"') + escaped + QLatin1Char('"');
 }
 
 QString NoteFrontMatter::serialize(const Metadata &meta)
