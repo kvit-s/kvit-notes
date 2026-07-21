@@ -68,6 +68,8 @@
         <file alias="qml/LinkDialog.qml">../qml/LinkDialog.qml</file>
         <file alias="qml/EditorDropArea.qml">../qml/EditorDropArea.qml</file>
         <file alias="qml/SystemIntegration.qml">../qml/SystemIntegration.qml</file>
+        <file alias="qml/TocFenceSync.qml">../qml/TocFenceSync.qml</file>
+        <file alias="qml/SessionPersistence.qml">../qml/SessionPersistence.qml</file>
         <file alias="qml/AppShortcuts.qml">../qml/AppShortcuts.qml</file>
     </qresource>
 </RCC>

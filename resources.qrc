@@ -66,6 +66,8 @@
         <file>qml/LinkDialog.qml</file>
         <file>qml/EditorDropArea.qml</file>
         <file>qml/SystemIntegration.qml</file>
+        <file>qml/TocFenceSync.qml</file>
+        <file>qml/SessionPersistence.qml</file>
         <file>qml/AppShortcuts.qml</file>
     </qresource>
 </RCC>

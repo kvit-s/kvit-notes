@@ -62,29 +62,14 @@ KvitShell {
     onNoteListCollapsedChanged:
         AppSettings.setValue("panels.noteListCollapsed", noteListCollapsed)
 
-    // Window geometry, persisted like the panel layout. Saves debounce
-    // through a timer (move/resize fire per-event) and record only the
-    // normal windowed geometry, so a maximized session restores maximized
-    // over the last windowed size. Nothing saves until the persisted
-    // geometry has been applied, or the defaults would overwrite it.
+    // Window geometry is persisted like the panel layout, by the component
+    // below; nothing is saved until the stored geometry has been applied, or
+    // the defaults would overwrite it.
     property bool geometryRestored: false
-    Timer {
-        id: geometrySaveTimer
-        interval: 400
-        onTriggered: {
-            if (!root.geometryRestored
-                || root.visibility !== Window.Windowed)
-                return
-            AppSettings.setValue("window.width", root.width)
-            AppSettings.setValue("window.height", root.height)
-            AppSettings.setValue("window.x", root.x)
-            AppSettings.setValue("window.y", root.y)
-        }
-    }
-    onWidthChanged: geometrySaveTimer.restart()
-    onHeightChanged: geometrySaveTimer.restart()
-    onXChanged: geometrySaveTimer.restart()
-    onYChanged: geometrySaveTimer.restart()
+    onWidthChanged: sessionPersistence.scheduleGeometrySave()
+    onHeightChanged: sessionPersistence.scheduleGeometrySave()
+    onXChanged: sessionPersistence.scheduleGeometrySave()
+    onYChanged: sessionPersistence.scheduleGeometrySave()
     onVisibilityChanged: {
         if (!geometryRestored)
             return
@@ -93,26 +78,6 @@ KvitShell {
             AppSettings.setValue("window.maximized", true)
         else if (visibility === Window.Windowed)
             AppSettings.setValue("window.maximized", false)
-    }
-    // A stored position is only reapplied when its rect still lands on a
-    // connected screen; monitors change between sessions.
-    function savedRectOnScreen(sx, sy, sw, sh) {
-        // Qt.application.screens is documented QML API, but the type
-        // description Qt ships for QQmlApplication does not list it, so the
-        // linter cannot see it. The suppression below is scoped to this one
-        // line rather than disabling the category or excluding this file.
-        // qmllint disable missing-property
-        var screens = Qt.application.screens
-        // qmllint enable missing-property
-        for (var i = 0; i < screens.length; i++) {
-            var s = screens[i]
-            if (sx + sw > s.virtualX + 40
-                && sx < s.virtualX + s.width - 40
-                && sy + 24 > s.virtualY
-                && sy < s.virtualY + s.height - 40)
-                return true
-        }
-        return false
     }
 
     // §9.7 status-bar visibility (view menu), persisted.
@@ -322,65 +287,22 @@ KvitShell {
         })
     }
 
-    // ---- Persisted session state --------------------------------------
-    // The states earlier phases left session-scoped, read back from the
-    // settings store once at startup. A separate function (rather than
-    // inline onCompleted code) so integration tests can preset values
-    // and exercise the read path. Writes happen where each state
-    // changes: the handlers and Connections below.
-    function applyPersistedSessionState() {
-        panelsVisible = AppSettings.value("panels.visible", true)
-        BlockMenuModel.setRecentTypes(
-            AppSettings.value("blockMenu.recent", []))
-        MathCommandModel.setRecentCommands(
-            AppSettings.value("math.recentCommands", []))
-        // Read both sort keys before assigning either: the first
-        // assignment fires projectionChanged, whose save handler below
-        // would overwrite the not-yet-read second key.
-        var sortMode = AppSettings.value("noteList.sortMode", "modified")
-        var sortAscending = AppSettings.value("noteList.ascending", false)
-        NoteListModel.sortMode = sortMode
-        NoteListModel.ascending = sortAscending
-        sidebar.applyPersistedSearchHistory()
-        findBar.applyPersistedOptions()
-        sidebarWidth = AppSettings.value("panels.sidebarWidth", 200)
-        noteListWidth = AppSettings.value("panels.noteListWidth", 260)
-        sidebarCollapsed =
-            AppSettings.value("panels.sidebarCollapsed", false)
-        noteListCollapsed =
-            AppSettings.value("panels.noteListCollapsed", false)
-        statusBarVisible = AppSettings.value("view.statusBar", true)
-        outlineVisible = AppSettings.value("view.outline", false)
-        backlinksVisible = AppSettings.value("view.backlinks", false)
-        DocumentOutline.levelMask =
-            AppSettings.value("view.outlineLevels", 0xF)
-        // Focus/typewriter modes (view states). Focus mode is NOT restored on
-        // launch (starting full-screen with no chrome would disorient); it is
-        // a per-session toggle. Typewriter mode does restore.
-        typewriterMode = AppSettings.value("view.typewriterMode", false)
-        appToolbar.applyPersistedCustomization()
-        // Oversized-file guard cap: adjustable without a rebuild, next
-        // to the autosave settings.
-        DocumentManager.maxOpenFileSizeMiB =
-            AppSettings.value("maxOpenFileSizeMiB", 10)
-        // Window geometry: size restores unconditionally (with a sanity
-        // floor), position only when still on a connected screen.
-        var winW = Number(AppSettings.value("window.width", 0))
-        var winH = Number(AppSettings.value("window.height", 0))
-        if (winW >= 500 && winH >= 350) {
-            width = winW
-            height = winH
-        }
-        var winX = Number(AppSettings.value("window.x", -1e9))
-        var winY = Number(AppSettings.value("window.y", -1e9))
-        if (winX > -1e8 && savedRectOnScreen(winX, winY, width, height)) {
-            x = winX
-            y = winY
-        }
-        if (AppSettings.value("window.maximized", false))
-            root.visibility = Window.Maximized
-        geometryRestored = true
+    // ---- Session state that outlives the window --------------------------
+    // Reading the settings store back at startup, and the writes driven by
+    // the models rather than by this window, are in SessionPersistence.qml.
+    // The one-line writes above stay beside the properties they persist.
+    SessionPersistence {
+        id: sessionPersistence
+        appWindow: root
+        toolbar: appToolbar
+        findBar: root.findBar
+        sidebarPanel: sidebar
     }
+
+    // The integration suite presets values and calls this to exercise the
+    // read path, so the name stays on the window.
+    function applyPersistedSessionState() { sessionPersistence.restore() }
+
     Component.onCompleted: {
         applyPersistedSessionState()
         refreshSessionBaseline()
@@ -389,96 +311,14 @@ KvitShell {
     onPanelsVisibleChanged:
         AppSettings.setValue("panels.visible", panelsVisible)
 
-    Connections {
-        target: BlockMenuModel
-        function onRecentChanged() {
-            AppSettings.setValue("blockMenu.recent",
-                                 BlockMenuModel.recentTypes())
-        }
-    }
+    // A table-of-contents fence's stored body is derived from the headings,
+    // and TocFenceSync.qml keeps it current.
+    TocFenceSync {}
 
-    Connections {
-        target: MathCommandModel
-        function onRecentChanged() {
-            AppSettings.setValue("math.recentCommands",
-                                 MathCommandModel.recentCommands())
-        }
-    }
-
-    // Persist the outline level filter; keep the caret's section lit as the
-    // current block changes (the section highlight is off the keystroke path).
-    Connections {
-        target: DocumentOutline
-        function onLevelMaskChanged() {
-            AppSettings.setValue("view.outlineLevels", DocumentOutline.levelMask)
-        }
-        // A table-of-contents fence's stored body is derived from the
-        // headings: keep it current so the file reads correctly
-        // elsewhere and export/serialize see the right list. The delegate
-        // renders the live outline directly, so this is persistence only —
-        // and it bypasses the undo stack (updateContentSilently), so it never
-        // spawns undo entries or dirties a freshly-loaded note.
-        function onRevisionChanged() { tocSyncTimer.restart() }
-    }
-    Connections {
-        target: BlockModel
-        function onTocBlockIndexesChanged() { tocSyncTimer.restart() }
-    }
-    Timer {
-        id: tocSyncTimer
-        interval: 50
-        onTriggered: root.syncTocBlocks()
-    }
-    function syncTocBlocks() {
-        if (!BlockModel || BlockModel.tocBlockCount === 0)
-            return
-        var tocIndexes = BlockModel.tocBlockIndexes()
-        if (tocIndexes.length === 0)
-            return
-
-        var perfOn = PerfLog && PerfLog.enabled
-        var scanned = 0
-        var updated = 0
-        if (perfOn)
-            PerfLog.begin("toc.sync", {
-                "blocks": BlockModel.count,
-                "tocBlocks": tocIndexes.length
-            })
-        try {
-            var toc = DocumentOutline.tocMarkdown()
-            for (var n = 0; n < tocIndexes.length; n++) {
-                var i = tocIndexes[n]
-                scanned++
-                var b = BlockModel.blockAt(i)
-                if (b && b.blockType === 8 && b.language === "toc"
-                    && b.content !== toc) {
-                    BlockModel.updateContentSilently(i, toc)
-                    updated++
-                }
-            }
-        } finally {
-            if (perfOn)
-                PerfLog.end("toc.sync", {
-                    "scanned": scanned,
-                    "updated": updated
-                })
-        }
-    }
     Connections {
         target: blockListView
         function onCurrentIndexChanged() {
             DocumentOutline.setCurrentBlock(blockListView.currentIndex)
-        }
-    }
-
-    // projectionChanged also fires for scope and tag-filter changes;
-    // setValue no-ops when the value is unchanged, so saving both sort
-    // keys on every projection change is idempotent.
-    Connections {
-        target: NoteListModel
-        function onProjectionChanged() {
-            AppSettings.setValue("noteList.sortMode", NoteListModel.sortMode)
-            AppSettings.setValue("noteList.ascending", NoteListModel.ascending)
         }
     }
 
