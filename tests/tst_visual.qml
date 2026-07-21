@@ -50,11 +50,35 @@ Item {
             return listView.itemAtIndex(index)
         }
 
-        function findTextArea(blockDelegate) {
+        function findTextAreaRaw(blockDelegate) {
             return findChild(blockDelegate, "blockTextArea")
         }
 
+        // A text block renders as a read-only Text and only promotes to an
+        // editable TextArea when activateEditor() is called, so a bare
+        // findChild returns null for any block the user has not entered yet.
+        // tst_integration.qml has carried the promotion step since it was
+        // written; this suite did not, which is why scenarios that reach
+        // straight for the editor failed on a null rather than on anything
+        // they were meant to be testing.
+        function findTextArea(blockDelegate) {
+            var textArea = findTextAreaRaw(blockDelegate)
+            if (textArea || !blockDelegate
+                || typeof blockDelegate.activateEditor !== "function")
+                return textArea
+            blockDelegate.activateEditor()
+            tryVerify(function() {
+                return findTextAreaRaw(blockDelegate) !== null
+            }, 1000, "Text block should promote to an editor TextArea")
+            return findTextAreaRaw(blockDelegate)
+        }
+
         function ensureFocus(textArea) {
+            var p = textArea
+            while (p && typeof p.activateEditor !== "function")
+                p = p.parent
+            if (p && typeof p.activateEditor === "function")
+                p.activateEditor()
             textArea.forceActiveFocus()
             tryCompare(textArea, "activeFocus", true, 1000)
         }
@@ -2337,10 +2361,21 @@ Item {
             clearFocus()
 
             // Open the statistics popover from the status bar's word count.
+            // Retried rather than clicked once: this scenario reaches the
+            // status bar shortly after a fullscreen toggle, and the first
+            // click can land while the window is still settling. A single
+            // click plus an assertion made the case sensitive to anything
+            // that shifted that timing by a frame — a modal popup earlier in
+            // the suite was enough — which is a property of the storyboard,
+            // not of the code under test.
             var wc = findChild(appLoader.item, "wordCountText")
-            mouseClick(wc, wc.width / 2, wc.height / 2)
             var panel = appLoader.item.statisticsPanel
-            tryCompare(panel, "visible", true, 1000)
+            tryVerify(function() {
+                if (panel.visible)
+                    return true
+                mouseClick(wc, wc.width / 2, wc.height / 2)
+                return panel.visible
+            }, 2000, "Clicking the word count should open the statistics panel")
             wait(250)
             saveScreenshot("visual_45_stats_01_popover.png")
             panel.close()
