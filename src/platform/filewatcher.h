@@ -115,6 +115,14 @@ public:
 
 private:
     bool isOwnChange(const QString &path, bool isFile);
+    // Guards are keyed by canonical path. The path the app announces and the
+    // path the notification carries do not have to be spelled the same: macOS
+    // watches directories through FSEvents, which reports every path in its
+    // canonical form, so a vault under /var - where a temporary directory
+    // lives - is announced as /var/... and reported as /private/var/..., and
+    // a guard keyed by the announced string never matched a single one of its
+    // own writes.
+    static QString guardKey(const QString &path);
     void pruneExpiredGuards();
     void addTreeWatches(const QString &root);
     void continueDiscovery();

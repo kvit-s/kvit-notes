@@ -769,6 +769,15 @@ void TestCollectionSearch::testUnchangedNotesAreNotReadOnReconcile()
     }
     QCOMPARE(QFileInfo(path).size(), qint64(before.toUtf8().size()));
     QCOMPARE(QFileInfo(path).lastModified(), originalMtime);
+    // Reported, not asserted: this case turns on whether the change token
+    // moved when the content did, and the answer is a filesystem's rather
+    // than the code's. A failure here should say which field stood still.
+    const CollectionSearchIndex::FileStamp rewritten =
+        CollectionSearchIndex::stampOf(path);
+    qInfo("STAMP after equal-size rewrite: size %lld, modified %lld, token %lld"
+          " (token trusted: %d)",
+          rewritten.fileSize, rewritten.modifiedMs, rewritten.changeToken,
+          int(CollectionSearchIndex::changeTokenIsTrustworthy()));
 
     SearchIndexOps::reset();
     m_index->reconcile(listingFor(m_dir->path()));
@@ -831,6 +840,15 @@ void TestCollectionSearch::testRewriteImmediatelyAfterIndexingIsStillSeen()
     }
     QCOMPARE(QFileInfo(path).size(), qint64(before.toUtf8().size()));
     QCOMPARE(QFileInfo(path).lastModified(), originalMtime);
+    // Reported, not asserted: this case turns on whether the change token
+    // moved when the content did, and the answer is a filesystem's rather
+    // than the code's. A failure here should say which field stood still.
+    const CollectionSearchIndex::FileStamp rewritten =
+        CollectionSearchIndex::stampOf(path);
+    qInfo("STAMP after equal-size rewrite: size %lld, modified %lld, token %lld"
+          " (token trusted: %d)",
+          rewritten.fileSize, rewritten.modifiedMs, rewritten.changeToken,
+          int(CollectionSearchIndex::changeTokenIsTrustworthy()));
 
     SearchIndexOps::reset();
     m_index->reconcile(listingFor(m_dir->path()));

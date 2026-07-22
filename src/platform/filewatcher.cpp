@@ -228,6 +228,18 @@ void FileWatcher::stop()
         emit watchingChanged();
 }
 
+QString FileWatcher::guardKey(const QString &path)
+{
+    if (path.isEmpty())
+        return path;
+    const QString canonical = QFileInfo(path).canonicalFilePath();
+    // A path that does not exist has no canonical form - a delete guard is
+    // recorded after the entry is gone - so the cleaned absolute path stands
+    // in, and both sides of the comparison reach it the same way.
+    return canonical.isEmpty() ? QDir::cleanPath(QFileInfo(path).absoluteFilePath())
+                               : canonical;
+}
+
 void FileWatcher::noteOwnWrite(const QString &absPath)
 {
     if (absPath.isEmpty())
@@ -236,7 +248,7 @@ void FileWatcher::noteOwnWrite(const QString &absPath)
     OwnWrite guard;
     guard.createdMs = nowMs();
     guard.expiryMs = guard.createdMs + m_guardMs;
-    m_ownWrites.insert(absPath, guard);
+    m_ownWrites.insert(guardKey(absPath), guard);
     // The write mutates the containing directory too, and for every note but
     // the open one that directory's notification is the only event the app
     // receives. Guarding just the file leaves that event looking external.
@@ -249,9 +261,10 @@ void FileWatcher::noteOwnDirectoryChange(const QString &absDirPath)
         return;
     pruneExpiredGuards();
     const qint64 expiry = nowMs() + m_guardMs;
-    const auto it = m_ownDirWrites.find(absDirPath);
+    const QString key = guardKey(absDirPath);
+    const auto it = m_ownDirWrites.find(key);
     if (it == m_ownDirWrites.end())
-        m_ownDirWrites.insert(absDirPath, expiry);
+        m_ownDirWrites.insert(key, expiry);
     else
         it.value() = qMax(it.value(), expiry);
 }
@@ -286,7 +299,7 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
         // notification that finds them unchanged is another report of the
         // same write. A reading that differs means somebody else has written
         // the file, so the guard is finished and the change is external.
-        const auto it = m_ownWrites.find(path);
+        const auto it = m_ownWrites.find(guardKey(path));
         if (it == m_ownWrites.end())
             return false;
         if (nowMs() > it.value().expiryMs) {
@@ -323,7 +336,7 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
     // notifications for the same directory, and a note collection operation
     // can touch several entries. It therefore lapses on time rather than
     // being consumed by the first event that matches it.
-    const auto it = m_ownDirWrites.constFind(path);
+    const auto it = m_ownDirWrites.constFind(guardKey(path));
     return it != m_ownDirWrites.constEnd() && nowMs() <= it.value();
 }
 
