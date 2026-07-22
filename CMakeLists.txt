@@ -45,6 +45,14 @@ set(CMAKE_AUTORCC ON)
 # internally even though the app does not.
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTest Widgets Multimedia Network Concurrent Sql)
 
+# Where the Kvit QML module's generated files live in the resource system:
+# `:/qt/qml/Kvit`, which is Qt's standard location and on the engine's default
+# import path, rather than the pre-6.5 `:/Kvit`. Unset, the policy makes every
+# configure print a QTP0001 warning. Only the generated qmldir and .qmltypes
+# move: the QML itself ships through resources.qrc, and the types are
+# registered from C++ (see the NO_PLUGIN note on qt_add_qml_module below).
+qt_policy(SET QTP0001 NEW)
+
 # The premium agent module. OFF is the open editor: nothing under
 # src/agent/ or qml/agent/ is compiled, no KVIT_AGENT define is set, and the
 # two guarded fragments in src/main.cpp vanish with the preprocessor. Exporting
