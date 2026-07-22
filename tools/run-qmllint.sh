@@ -198,8 +198,12 @@ fi
 # here, so adding a harness handle needs no edit to this script and removing
 # one cannot leave a stale exemption behind.
 if [ ${#TESTQML[@]} -gt 0 ]; then
-    mapfile -t HARNESS < <(
-        grep -oP 'setContextProperty\("\K[A-Za-z0-9_]+' tests/testsetup.h |
+    # sed rather than grep -oP: BSD grep, which is what macOS ships, has no
+    # -P, and the read loop stands in for mapfile there for the same reason.
+    HARNESS=()
+    while IFS= read -r name; do HARNESS+=("$name"); done < <(
+        sed -n 's/.*setContextProperty("\([A-Za-z0-9_]*\)".*/\1/p' \
+            tests/testsetup.h |
         sort -u)
     if [ ${#HARNESS[@]} -eq 0 ]; then
         echo "no harness context properties found in tests/testsetup.h;" \

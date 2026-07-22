@@ -1338,33 +1338,42 @@ void TestNoteCollection::testBackupRotationFloorAndPrune()
     QDateTime now(QDate(2026, 7, 7), QTime(10, 0, 0));
     m_collection->setClockForTesting([&now]() { return now; });
 
+    // Snapshots are written through QSaveFile, which keeps its partial copy
+    // beside the target under a name of its own until the commit. Counting
+    // every file in the directory therefore counts writes in flight as
+    // backups, which on a slow machine reads as a rotation that let one extra
+    // through. The rotation is about the snapshots, so the count is too.
+    const QStringList snapshots{QStringLiteral("*.md")};
+
     // First save of the window: one backup of the CURRENT file.
     m_collection->backupBeforeOverwrite(absPath);
     QDir backupDir(abs(".kvit/backups/Ideas/Plans.md"));
-    QTRY_COMPARE_WITH_TIMEOUT(backupDir.entryList(QDir::Files).size(), 1, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        backupDir.entryList(snapshots, QDir::Files).size(), 1, 5000);
     QCOMPARE(readNote(".kvit/backups/Ideas/Plans.md/"
-                      + backupDir.entryList(QDir::Files).first()),
+                      + backupDir.entryList(snapshots, QDir::Files).first()),
              QStringLiteral("Some plans\n"));
 
     // Within the 10-minute floor: no new copy, whatever the cadence.
     now = now.addSecs(5 * 60);
     m_collection->backupBeforeOverwrite(absPath);
-    QCOMPARE(backupDir.entryList(QDir::Files).size(), 1);
+    QCOMPARE(backupDir.entryList(snapshots, QDir::Files).size(), 1);
 
     // Past the floor: a second copy.
     now = now.addSecs(6 * 60);
     m_collection->backupBeforeOverwrite(absPath);
-    QTRY_COMPARE_WITH_TIMEOUT(backupDir.entryList(QDir::Files).size(), 2, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        backupDir.entryList(snapshots, QDir::Files).size(), 2, 5000);
 
     // The cap prunes the oldest beyond 10.
     for (int i = 0; i < 12; ++i) {
         now = now.addSecs(11 * 60);
         m_collection->backupBeforeOverwrite(absPath);
     }
-    QTRY_COMPARE_WITH_TIMEOUT(backupDir.entryList(QDir::Files, QDir::Name).size(),
-                              10, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        backupDir.entryList(snapshots, QDir::Files, QDir::Name).size(), 10, 5000);
     // The very first stamp (10:00:00) was pruned.
-    QVERIFY(!backupDir.entryList(QDir::Files, QDir::Name)
+    QVERIFY(!backupDir.entryList(snapshots, QDir::Files, QDir::Name)
                  .first()
                  .startsWith(QStringLiteral("20260707-1000")));
 

@@ -68,8 +68,21 @@ void writeBackupSnapshot(const QString &dirPath,
     QDir dir(dirPath);
     QStringList existing = dir.entryList({QStringLiteral("*.md")},
                                          QDir::Files, QDir::Name);
-    while (existing.size() > backupKeep)
-        QFile::remove(dirPath + QLatin1Char('/') + existing.takeFirst());
+    // A removal that fails leaves the directory over the cap, and dropping
+    // the name from the list regardless would report a rotation that did not
+    // happen. The count is what survives on disk, and a failure is carried
+    // into the perf record rather than passing silently.
+    int kept = existing.size();
+    int failed = 0;
+    while (kept > backupKeep && !existing.isEmpty()) {
+        if (QFile::remove(dirPath + QLatin1Char('/') + existing.takeFirst()))
+            --kept;
+        else
+            ++failed;
+    }
+    perf.addContext(QStringLiteral("kept"), kept);
+    if (failed > 0)
+        perf.addContext(QStringLiteral("unremovable"), failed);
 }
 } // namespace
 
