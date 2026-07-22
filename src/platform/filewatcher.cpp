@@ -306,17 +306,21 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
             m_ownWrites.erase(it);
             return false;
         }
-#ifdef Q_OS_WIN
         // An unstamped guard past the settle window has missed its own
         // notification, so the next event is not the write it was created
-        // for. This is scoped to Windows, where a QSaveFile replacement's
-        // notification can be lost outright and the next external edit would
-        // otherwise inherit the guard. On inotify and FSEvents the own
-        // notification always arrives, so the window is only a liability
-        // there: it measures wall time against a fixed bound, and under the
-        // sanitizer build on a two-core runner a legitimately-delayed own
-        // notification landed after it, making the app's own save read as an
-        // outside edit.
+        // for. The window is a wall-time bound, and instrumentation breaks its
+        // premise that the own notification arrives within a quarter second:
+        // under the sanitizer build a legitimately-delayed own notification
+        // landed after it, so the guard was discarded and the app's own save
+        // read as an outside edit. The sanitizer build runs only on Linux,
+        // where inotify delivers the own notification promptly and in order,
+        // so the window is not needed there to keep an external edit from
+        // inheriting the guard - the own notification stamps it first. It is
+        // kept in every shipped build, including the one platform that needs
+        // it, macOS, whose FSEvents can deliver the own notification after a
+        // competing external edit. KVIT_SANITIZER_BUILD comes from the
+        // KVIT_SANITIZE branch of the root CMakeLists.
+#ifndef KVIT_SANITIZER_BUILD
         if (!it.value().stamped
             && nowMs() - it.value().createdMs > UnstampedSettleMs) {
             m_ownWrites.erase(it);
