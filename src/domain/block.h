@@ -40,8 +40,12 @@ class Block : public QObject
     Q_PROPERTY(QString attributes READ attributes NOTIFY attributesChanged)
 
 public:
-    // Values are persisted (model roles, tests); append only.
-    enum BlockType {
+    // Values are persisted (model roles, tests); append only. The underlying
+    // type is fixed because persisted values are read back before they are
+    // validated: typeFromInt() and sanitized() exist to turn an unrecognized
+    // one into Paragraph, and holding it long enough to do that is only
+    // defined behaviour for an enumeration whose underlying type is stated.
+    enum BlockType : int {
         Paragraph = 0,
         Heading1,
         Heading2,
