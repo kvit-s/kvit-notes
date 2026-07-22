@@ -192,6 +192,70 @@ int main(int argc, char *argv[])
             qInfo("uidriver: block1 content=[%s] attrs=[%s]",
                   qPrintable(model->getContent(1)),
                   qPrintable(model->getAttributes(1)));
+        } else if (scenario == QStringLiteral("settings")) {
+            // The settings dialog: one frame per tab, then a drag of the title
+            // bar, which is the only handle a Popup gets for moving.
+            QMetaObject::invokeMethod(window, "openSettingsDialog");
+            settle(900);
+            auto *appearance =
+                window->findChild<QQuickItem *>(
+                    QStringLiteral("appearanceTab"));
+            QQuickItem *dialogItem = appearance;
+            while (dialogItem && dialogItem->parentItem()
+                   && dialogItem->objectName()
+                          != QStringLiteral("SettingsDialog"))
+                dialogItem = dialogItem->parentItem();
+            if (!dialogItem) {
+                qWarning("uidriver: settings dialog not on screen");
+                app.exit(3);
+                return;
+            }
+            auto *bar = appearance->parentItem();       // ListView content row
+            while (bar && !bar->inherits("QQuickTabBar"))
+                bar = bar->parentItem();
+            qInfo("uidriver: dialog w=%.0f, tab bar w=%.0f (overflow %.0f)",
+                  dialogItem->width(), bar ? bar->width() : 0.0,
+                  (bar ? bar->width() : 0.0) - dialogItem->width());
+
+            const char *tabs[] = {"appearanceTab", "typographyTab",
+                                  "generalTab"};
+            const char *shots[] = {"settings_appearance", "settings_typography",
+                                   "settings_general"};
+            for (int t = 0; t < 3; ++t) {
+                auto *tab = window->findChild<QQuickItem *>(
+                    QString::fromLatin1(tabs[t]));
+                if (!tab) {
+                    qWarning("uidriver: no %s", tabs[t]);
+                    continue;
+                }
+                const QPointF c = tab->mapToScene(
+                    QPointF(tab->width() / 2, tab->height() / 2));
+                QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                                  c.toPoint(), 50);
+                settle(400);
+                grab(window, outDir + QStringLiteral("/")
+                                 + QString::fromLatin1(shots[t])
+                                 + QStringLiteral(".png"));
+            }
+
+            // Drag the title bar down and to the right, then grab: the dialog
+            // should have followed the cursor exactly.
+            const QPointF before = dialogItem->mapToScene(QPointF(0, 0));
+            const QPoint grip = dialogItem->mapToScene(QPointF(120, 14))
+                                    .toPoint();
+            QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, grip, 30);
+            for (int step = 1; step <= 6; ++step) {
+                QTest::mouseMove(window, grip + QPoint(20 * step, 10 * step),
+                                 20);
+            }
+            QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier,
+                                grip + QPoint(120, 60), 30);
+            settle(400);
+            const QPointF after = dialogItem->mapToScene(QPointF(0, 0));
+            qInfo("uidriver: dialog moved from (%.0f,%.0f) to (%.0f,%.0f), "
+                  "expected +120,+60",
+                  before.x(), before.y(), after.x(), after.y());
+            grab(window, outDir + QStringLiteral("/settings_dragged.png"));
         } else if (scenario == QStringLiteral("htmlpaste")) {
             while (model->count() > 1)
                 model->removeBlock(model->count() - 1);

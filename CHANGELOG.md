@@ -27,6 +27,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 - The project is licensed under MPL-2.0 (LICENSE, per-file headers).
 
+### Fixed
+
+- Settings dialog: the title bar now drags the dialog, so it can be pushed
+  aside to watch a theme or typography change land in the document behind
+  it. The tab strip no longer spills past the dialog's right border — the
+  theme cards had demanded more width than the dialog had, and now wrap.
+
 ## [1.0.0] - unreleased
 
 The first public release: the full block editor (hybrid live-preview

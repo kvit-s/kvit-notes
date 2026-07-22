@@ -6860,6 +6860,42 @@ Item {
             tryCompare(dialog, "visible", false, 1000)
         }
 
+        // The settings dialog has a fixed width, so any page that cannot
+        // shrink to it pushes the tab bar out past the dialog's own frame —
+        // the tab strip is the widest thing in the layout and nothing clips
+        // it. The dialog is also the one a reader wants moved aside while
+        // watching a theme change land in the document, so the title bar
+        // drags it.
+        function test_zb2_settingsDialogFitsAndMoves() {
+            var dialog = findChild(appLoader.item, "settingsDialog")
+            verify(dialog !== null)
+            dialog.open()
+            tryCompare(dialog, "opened", true, 1000)
+
+            var tabBar = findChild(dialog.contentItem, "settingsTabBar")
+            verify(tabBar !== null)
+            verify(tabBar.width <= dialog.width)
+
+            if (!isHeadless) {
+                var titleBar = findChild(appLoader.item, "settingsTitleBar")
+                verify(titleBar !== null)
+                var startX = dialog.x
+                var startY = dialog.y
+                // One move per press: mouseDrag would send a second move
+                // whose item-relative coordinates are already measured from
+                // the title bar's new position, and the dialog would travel
+                // further than the cursor did.
+                mousePress(titleBar, 60, 10)
+                mouseMove(titleBar, 130, 50)
+                mouseRelease(titleBar, 130, 50)
+                compare(dialog.x, startX + 70)
+                compare(dialog.y, startY + 40)
+            }
+
+            dialog.close()
+            tryCompare(dialog, "visible", false, 1000)
+        }
+
         // ============================================================
         // Resizable panels and independent collapse
         // ============================================================

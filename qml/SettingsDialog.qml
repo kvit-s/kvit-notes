@@ -18,10 +18,29 @@ Dialog {
     modal: true
     title: qsTr("Settings")
     standardButtons: Dialog.Close
-    width: 540
+    width: 560
     height: 480
-    anchors.centerIn: parent
     padding: 0
+
+    // The position is plain x/y rather than anchors.centerIn, because the
+    // title bar below drags the dialog by assigning to them, and an anchor
+    // would win over that assignment. onAboutToShow centres the first
+    // opening and afterwards only keeps the dropped position on screen.
+    property bool everPlaced: false
+    onAboutToShow: {
+        if (!parent)
+            return
+        var limitX = Math.max(0, parent.width - width)
+        var limitY = Math.max(0, parent.height - height)
+        if (!everPlaced) {
+            x = Math.round(limitX / 2)
+            y = Math.round(limitY / 2)
+            everPlaced = true
+        } else {
+            x = Math.max(0, Math.min(x, limitX))
+            y = Math.max(0, Math.min(y, limitY))
+        }
+    }
 
     background: Rectangle {
         color: Theme.popupBackground
@@ -30,11 +49,51 @@ Dialog {
         radius: 6
     }
 
+    // The title doubles as the drag handle: a Popup does not move on its own,
+    // and a settings dialog is one a reader wants pushed aside to see the
+    // document it is previewing changes on.
+    header: Label {
+        objectName: "settingsTitleBar"
+        text: settingsDialog.title
+        font.pixelSize: 16
+        font.bold: true
+        color: Theme.textPrimary
+        padding: 12
+
+        MouseArea {
+            id: titleDrag
+            anchors.fill: parent
+            cursorShape: Qt.SizeAllCursor
+            // Where in the title bar the press landed, so the dialog keeps
+            // that point under the cursor for the whole drag.
+            property real grabX: 0
+            property real grabY: 0
+
+            onPressed: function(mouse) {
+                titleDrag.grabX = mouse.x
+                titleDrag.grabY = mouse.y
+            }
+            onPositionChanged: function(mouse) {
+                if (!titleDrag.pressed || !settingsDialog.parent)
+                    return
+                var limitX = Math.max(
+                    0, settingsDialog.parent.width - settingsDialog.width)
+                var limitY = Math.max(
+                    0, settingsDialog.parent.height - settingsDialog.height)
+                settingsDialog.x = Math.max(0, Math.min(
+                    settingsDialog.x + mouse.x - titleDrag.grabX, limitX))
+                settingsDialog.y = Math.max(0, Math.min(
+                    settingsDialog.y + mouse.y - titleDrag.grabY, limitY))
+            }
+        }
+    }
+
     contentItem: ColumnLayout {
         spacing: 0
 
         TabBar {
             id: pageBar
+            objectName: "settingsTabBar"
             Layout.fillWidth: true
             TabButton { text: qsTr("Appearance"); objectName: "appearanceTab" }
             TabButton { text: qsTr("Typography"); objectName: "typographyTab" }
@@ -57,13 +116,18 @@ Dialog {
                     color: Theme.textSecondary
                 }
 
-                RowLayout {
+                // A Flow, not a RowLayout: a row would demand the width of
+                // every theme card at once, and a dialog narrower than that
+                // sum has its tab bar pushed out past its own frame. Cards
+                // wrap onto a second line instead.
+                Flow {
+                    Layout.fillWidth: true
                     spacing: 10
                     Repeater {
                         model: Theme.availableThemes
                         // A theme card: swatch above the name, the
                         // active one ringed in accent.
-                        ColumnLayout {
+                        Column {
                             // Named so the children below reach it directly.
                             // Through `parent` they cannot be typed: qmllint
                             // sees only QQuickItem and cannot know `preview`
@@ -76,8 +140,8 @@ Dialog {
 
                             Rectangle {
                                 objectName: "themeCard_" + card.modelData
-                                Layout.preferredWidth: 96
-                                Layout.preferredHeight: 60
+                                width: 96
+                                height: 60
                                 radius: 5
                                 color: card.preview.background
                                 border.width:
@@ -115,7 +179,8 @@ Dialog {
                                 }
                             }
                             Label {
-                                Layout.alignment: Qt.AlignHCenter
+                                width: 96
+                                horizontalAlignment: Text.AlignHCenter
                                 text: {
                                     var name = card.modelData
                                     return name.charAt(0).toUpperCase()
