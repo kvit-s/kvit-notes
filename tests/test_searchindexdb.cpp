@@ -1303,12 +1303,12 @@ void TestSearchIndexDb::testSnapshotReadIsSelfConsistentUnderRewrite()
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("racy.md"));
-    const QByteArray small(200, 'a');
+    const QByteArray shortBody(200, 'a');
     const QByteArray large(9000, 'b');
     {
         QFile f(path);
         QVERIFY(f.open(QIODevice::WriteOnly));
-        f.write(small);
+        f.write(shortBody);
     }
 
     std::atomic_bool stop{false};
@@ -1320,7 +1320,7 @@ void TestSearchIndexDb::testSnapshotReadIsSelfConsistentUnderRewrite()
             QFile f(path);
             if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
                 continue;
-            f.write(useSmall ? small : large);
+            f.write(useSmall ? shortBody : large);
             f.close();
             useSmall = !useSmall;
         }
@@ -1424,9 +1424,9 @@ void TestSearchIndexDb::testFailedCommitLeavesTheConnectionUsable()
 
     // The failure must not poison the connection. A commit that fails leaves
     // the transaction open, and every later write then fails to even begin.
-    const IndexedNote small = CollectionSearchIndex::parseNote(
+    const IndexedNote tinyNote = CollectionSearchIndex::parseNote(
         QStringLiteral("Small.md"), QStringLiteral("tiny note\n"), 10, 0);
-    QVERIFY2(db.replaceNote(small),
+    QVERIFY2(db.replaceNote(tinyNote),
              "the connection was still inside the failed transaction");
     QCOMPARE(db.noteRowCount(), 2);
     QVERIFY(db.integrityOk());

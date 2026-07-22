@@ -244,13 +244,13 @@ void TestDocumentImporter::testUnreadableSourceIsNotCountedAsImported()
 // an out-of-memory failure, so anything past the cap is skipped and counted.
 void TestDocumentImporter::testOversizedSourceIsSkipped()
 {
-    const QString small = writeSource("Small.md", QStringLiteral("# small\n"));
+    const QString withinCap = writeSource("Small.md", QStringLiteral("# small\n"));
     const QString large =
         writeSource("Large.md", QString(64 * 1024, QLatin1Char('x')));
 
     const qint64 previous = DocumentImporter::maxFileBytes();
     DocumentImporter::setMaxFileBytes(1024);
-    const int imported = m_importer->importFiles({small, large}, QString());
+    const int imported = m_importer->importFiles({withinCap, large}, QString());
     const int skipped = m_importer->lastSkippedCount();
     DocumentImporter::setMaxFileBytes(previous);
 

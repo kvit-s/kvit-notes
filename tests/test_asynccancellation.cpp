@@ -533,10 +533,10 @@ void TestAsyncCancellation::asupersededDirectoryRefreshStopsItsWorker()
         f.write(QStringLiteral("# Bulk %1\n\n").arg(i).toUtf8());
         f.write(body.toUtf8());
     }
-    QFile small(tiny + QStringLiteral("/one.md"));
-    QVERIFY(small.open(QIODevice::WriteOnly | QIODevice::Text));
-    small.write("# one\n");
-    small.close();
+    QFile lone(tiny + QStringLiteral("/one.md"));
+    QVERIFY(lone.open(QIODevice::WriteOnly | QIODevice::Text));
+    lone.write("# one\n");
+    lone.close();
 
     NoteCollection collection;
     QVERIFY(collection.openRoot(m_dirA->path()));
