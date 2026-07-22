@@ -260,10 +260,24 @@ void TestFileWatcher::ownWriteToANonCurrentNoteIsNotAnExternalChange()
 
     FileWatcher w;
     w.setDebounceMs(30);
-    w.setGuardMs(400);
+    // The guard window has to outlive the platform's delivery latency, or the
+    // app's own write is reported as an outside edit for no reason but the
+    // clock. 400 ms was an artificial tightening to keep this case quick, and
+    // it is under what macOS takes to deliver a directory notification. This
+    // is still well under the 1500 ms the app ships with.
+    const int guardMs = 1200;
+    w.setGuardMs(guardMs);
     w.watchRoot(dir.path());     // the folder only: this note is not open
     QVERIFY(w.watching());
     QSignalSpy rescan(&w, &FileWatcher::externalChange);
+    QElapsedTimer sinceWrite;
+    QObject::connect(&w, &FileWatcher::externalChange, &w, [&sinceWrite]() {
+        // How long after the app's own write the notification that was not
+        // recognised arrived: the number that says whether the guard window
+        // is the problem.
+        qInfo("external change %lld ms after the app's own write",
+              sinceWrite.elapsed());
+    });
 
     // The app writes it, the way NoteCollection does: guard, then replace.
     w.noteOwnWrite(other);
@@ -273,7 +287,8 @@ void TestFileWatcher::ownWriteToANonCurrentNoteIsNotAnExternalChange()
         s.write("written by the app");
         QVERIFY(s.commit());
     }
-    QTest::qWait(700);
+    sinceWrite.start();
+    QTest::qWait(guardMs + 300);
     QCOMPARE(rescan.count(), 0);
 
     // The guard covers a batch, not the folder forever: once it has lapsed,

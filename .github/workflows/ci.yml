@@ -293,8 +293,13 @@ jobs:
           cmake -S . -B build-asan -DKVIT_SANITIZE=ON \
                 -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
+      # --parallel 2, not the runner's four: the instrumented build was killed
+      # with SIGTERM six minutes in, which is the out-of-memory killer rather
+      # than the job timeout. Compiling with ASan and UBSan costs far more
+      # memory per translation unit, and four of them at once do not fit in a
+      # standard runner. Two do, and the job has 120 minutes to use.
       - name: Build
-        run: cmake --build build-asan --parallel
+        run: cmake --build build-asan --parallel 2
 
       # Qt's own libraries are not instrumented, so their allocations look
       # like leaks to LSan; detect_leaks=0 keeps the run about memory errors

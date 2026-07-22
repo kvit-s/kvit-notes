@@ -1376,24 +1376,29 @@ void TestNoteCollection::testBackupRotationFloorAndPrune()
         now = now.addSecs(11 * 60);
         m_collection->backupBeforeOverwrite(absPath);
     }
+    // Both halves of the rotation, waited for together. Snapshots are written
+    // on a pool thread and pruned after each commit, so a directory holding
+    // ten of them is not yet the end state: while the first ten writes are
+    // still landing the count passes through ten with nothing pruned, and the
+    // oldest is still there. The end state is ten snapshots of which the
+    // first is gone, and a slower machine reaches it later rather than
+    // differently.
+    const auto snapshotNames = [&] {
+        return backupDir.entryList(snapshots, QDir::Files, QDir::Name);
+    };
     const bool settled = QTest::qWaitFor(
         [&] {
-            return backupDir.entryList(snapshots, QDir::Files).size() == 10;
+            const QStringList names = snapshotNames();
+            return names.size() == 10
+                && !names.first().startsWith(QStringLiteral("20260707-1000"));
         },
         5000);
     if (!settled) {
-        // Which snapshots survived, so a rotation that leaves one too many on
-        // a slower filesystem says which stamp it kept rather than only that
-        // the count was wrong.
         qInfo("backups left: %s",
-              qPrintable(backupDir.entryList(snapshots, QDir::Files, QDir::Name)
-                             .join(QStringLiteral(", "))));
+              qPrintable(snapshotNames().join(QStringLiteral(", "))));
     }
-    QVERIFY2(settled, "the rotation left more snapshots than its cap");
-    // The very first stamp (10:00:00) was pruned.
-    QVERIFY(!backupDir.entryList(snapshots, QDir::Files, QDir::Name)
-                 .first()
-                 .startsWith(QStringLiteral("20260707-1000")));
+    QVERIFY2(settled,
+             "the rotation did not settle at its cap with the oldest pruned");
 
     // Paths outside the root are ignored.
     m_collection->backupBeforeOverwrite(QStringLiteral("/tmp/elsewhere.md"));
