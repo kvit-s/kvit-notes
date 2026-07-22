@@ -412,7 +412,16 @@ sptr<Box> MatrixAtom::createBox(Environment& e) {
   float drt = env.getTeXFont()->getDefaultRuleThickness(env.getStyle());
 
   if (_matType == MatrixType::smallMatrix) {
-    env = *(e.copy());
+    // Local fix, not upstream: Environment::copy() does not return an
+    // independent object, it stores the new one in the caller's own _copy
+    // member and returns a reference to that member. Assigning straight
+    // through it (`env = *(e.copy())`, where env is a reference to e) makes
+    // the assignment overwrite e._copy - the only owner of the source -
+    // partway through reading the source, so the rest of the copy reads
+    // freed memory. Owning a copy first makes the source outlive the
+    // assignment.
+    const Environment source = *(e.copy());
+    env = source;
     env.setStyle(TexStyle::script);
   } /* else if (_matType == MatrixType::matrix) {
     env = *(e.copy());

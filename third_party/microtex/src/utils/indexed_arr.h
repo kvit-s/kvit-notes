@@ -47,7 +47,12 @@ public:
   const T* operator()(const Ks&... keys) const {
     if (_raw == nullptr) return nullptr;
     const T k[] = {keys...};
-    int     l = 0, h = _rows;
+    // Local fix, not upstream: the search bound is the last row, not the row
+    // count. With h = _rows the midpoint can land on _rows itself, which
+    // reads one whole row past the end of the table - a global buffer
+    // overflow AddressSanitizer reports on ligature and next-larger lookups
+    // during ordinary rendering.
+    int     l = 0, h = (int) _rows - 1;
     while (l <= h) {
       const int  m   = l + ((h - l) >> 1);
       const T*   r   = _raw + (m * N);

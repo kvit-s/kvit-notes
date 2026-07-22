@@ -7,7 +7,7 @@ manifest, not this file.
 
 ## MicroTeX (cLaTeXMath)
 
-- **Version:** pinned commit 0e3707f6
+- **Version:** pinned commit 0e3707f6, with three local memory fixes found by AddressSanitizer (src/latex.cpp released an asprintf buffer with delete instead of free; src/utils/indexed_arr.h searched one row past the end of every indexed table; src/atom/atom_matrix.cpp assigned an Environment from a copy the assignment itself destroyed)
 - **License:** MIT
 - **Origin:** https://github.com/NanoMichael/cLaTeXMath
 - **Files:** third_party/microtex/src, third_party/microtex/res (excluding the font sub-licenses listed separately below)

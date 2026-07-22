@@ -53,10 +53,17 @@ string LaTeX::queryResourceLocation(string& custom_path) {
   // to potential paths.
   char* home = getenv("HOME");
   if (home != NULL && strcmp(home, "") != 0) {
-    char* userdata_fallback;
-    asprintf(&userdata_fallback, "%s/.local/share/clatexmath/", home);
-    paths.push(string(userdata_fallback));
-    delete userdata_fallback;
+    // Local fix, not upstream: asprintf allocates through malloc, so the
+    // buffer has to be released with free. Releasing it with delete is an
+    // allocator mismatch - undefined behaviour, and reported by
+    // AddressSanitizer on every render, since HOME is set in any normal
+    // session. The return value is also checked, because on failure
+    // asprintf leaves the pointer indeterminate.
+    char* userdata_fallback = NULL;
+    if (asprintf(&userdata_fallback, "%s/.local/share/clatexmath/", home) >= 0) {
+      paths.push(string(userdata_fallback));
+      free(userdata_fallback);
+    }
   }
   paths.push("/usr/share/clatexmath/");
   paths.push("/usr/local/share/clatexmath/");
