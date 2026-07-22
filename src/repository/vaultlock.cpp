@@ -57,6 +57,12 @@ QString lockFilePath(const QString &vaultRoot)
     return QDir(vaultRoot).filePath(QStringLiteral(".kvit/vault.lock"));
 }
 
+#ifdef Q_OS_WIN
+// Where the Windows byte-range lock is taken: one byte, 1 GiB into the file,
+// which is past any holder description and need not exist on disk.
+constexpr quint32 kHolderLockOffset = 0x40000000u;
+#endif
+
 QByteArray describeThisProcess()
 {
     QJsonObject object;
@@ -115,7 +121,16 @@ NativeResult nativeAcquire(const QString &path, NativeHandle *out)
         nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (handle == INVALID_HANDLE_VALUE)
         return NativeResult::Failed;
+    // The locked byte sits far past the holder description, not at offset 0.
+    // A Windows byte-range lock denies reads of the range to every other
+    // process, so locking the first byte - where the JSON lives - left the
+    // second session unable to read who was holding the vault, and its
+    // refusal said only "Another Kvit window has this vault open." The
+    // range does not have to exist in the file, so nothing is written there
+    // and the payload stays readable. POSIX advisory locks never had this
+    // problem, which is why only Windows showed it.
     OVERLAPPED overlapped = {};
+    overlapped.Offset = kHolderLockOffset;
     if (!LockFileEx(handle, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
                     0, 1, 0, &overlapped)) {
         const DWORD error = GetLastError();
