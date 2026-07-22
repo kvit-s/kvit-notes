@@ -1,8 +1,8 @@
-# CI: one workflow. Merges are gated by three things — the `unit` CTest label
-# and the `shell` label on all three OSes, and qmllint on Linux. Performance
-# and xvfb GUI runs stay informational, because loaded shared runners make
-# timings advisory and xvfb cannot deliver real window focus. v* tags run the
-# packaging steps into a draft release.
+# CI: one workflow. Merges are gated by the secret scan, the `unit` and
+# `shell` CTest labels on all three OSes, and qmllint on Linux. Performance and
+# xvfb GUI runs stay informational, because loaded shared runners make timings
+# advisory and xvfb cannot deliver real window focus. v* tags run the packaging
+# steps into a draft release.
 #
 # The `shell` label is a gate rather than a smoke test: those suites load the
 # production resources.qrc, so they are what stops a QML syntax error, a
@@ -33,6 +33,25 @@ env:
   QT_VERSION: "6.10.1"
 
 jobs:
+  secret-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan Git history for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
   build-test:
     strategy:
       fail-fast: false
@@ -286,7 +305,7 @@ jobs:
   # environment carries signing secrets and requires manual approval.
   package:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-test, qmllint, optional-targets]
+    needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release

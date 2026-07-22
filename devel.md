@@ -226,6 +226,12 @@ cmake -DKVIT_UI_DRIVER=ON . && make kvit-uidriver
 ./build/kvit-uidriver --scenario=dropcap --out=/tmp/shots
 ```
 
+For screenshots that will be committed, stage the demo vault under a neutral
+path such as `/tmp/kvit-demo/vault`. The status bar renders the note's absolute
+path, so capturing from a home directory or an agent scratch directory exposes
+that machine-specific path in the image pixels. Inspect the full frame,
+including the status bar, before adding it to `screenshots/press/`.
+
 The UI driver (tools/uidriver.cpp) composes the app exactly as main() does,
 drives the live window with real input, and saves frames with
 `QQuickWindow::grabWindow()`. Note its limits: it runs against the real

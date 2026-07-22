@@ -1,0 +1,5 @@
+# Historical prose in this test comment is misclassified by generic-api-key.
+# These fingerprints scope the exceptions to that exact finding and line for
+# both Git-history and working-directory scans.
+2490ff816e694bba4771994a27be8026b0f21e81:tests/test_settingsstore.cpp:generic-api-key:13
+tests/test_settingsstore.cpp:generic-api-key:15
