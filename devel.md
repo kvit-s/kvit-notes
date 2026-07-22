@@ -62,8 +62,8 @@ Types QML needs are registered as `QML_FOREIGN` wrappers in
 metatypes, so a macro on a class in any other module is silently ignored and
 QML reports "ReferenceError: <Type> is not defined" at runtime.
 
-The reasoning behind all of this, including where the split deviates from
-`code-plan.md` and what is still one large class, is
+The reasoning behind all of this, including the three placements a first
+reading of the layout would not predict and what is still one large class, is
 [docs/adr/0008-module-boundary.md](docs/adr/0008-module-boundary.md).
 
 ## Building on Windows: the two-tree workflow

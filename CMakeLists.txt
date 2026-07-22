@@ -129,7 +129,7 @@ endif()
 # behind the MathRenderer seam. Built as a static `microtex` target.
 add_subdirectory(third_party/microtex)
 
-# ── The module boundary (code-plan.md §6.1)
+# ── The module boundary (docs/adr/0008-module-boundary.md)
 #
 # Seven static libraries, one directory under src/ each, linked in one
 # direction only:
@@ -634,7 +634,7 @@ if(KVIT_UI_DRIVER)
 endif()
 
 # Enable testing. Only when this project is the top-level build: a consumer that adds
-# this repo as a subdirectory to link kvit-core (the kvit-hub portfolio dashboard) brings
+# this repo as a subdirectory to link kvit-core brings
 # its own suite, and the test targets here resolve their paths against CMAKE_SOURCE_DIR,
 # which under a subdirectory build points at the consumer's root rather than this one.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)

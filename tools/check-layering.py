@@ -4,7 +4,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Check the module boundary the tree is built on.
 
-src/ is seven modules (code-plan.md §6.1, docs/adr/0008-module-boundary.md).
+src/ is seven modules (docs/adr/0008-module-boundary.md).
 CMake enforces the include direction already — each target publishes only its
 own directory and inherits the modules it links, so an upward include fails to
 compile. This script exists for the two things that cannot express:

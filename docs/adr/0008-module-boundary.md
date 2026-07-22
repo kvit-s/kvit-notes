@@ -109,20 +109,20 @@ layer furthest from being allowed to. That half is `AssetStore` in
 asset's file name is built from a caller-supplied slug, and nothing had stopped
 that slug from carrying `../`.
 
-Three placements are not what a first reading of the plan suggests, and are
+Three placements are not what a first reading of the layout suggests, and are
 deliberate.
 
-Import and export are named together under content in `code-plan.md` §6.1.
-Export is in `kvit-application` because it orchestrates the collection, the
-theme and the format writers; import is in `kvit-repository` because copying a
-file into the vault is a repository write. What both share — the format
-transforms themselves — is in `kvit-content` where the plan puts it.
+Import and export read as one subject, which argues for keeping them together
+under content. Export is in `kvit-application` because it orchestrates the
+collection, the theme and the format writers; import is in `kvit-repository`
+because copying a file into the vault is a repository write. What both share —
+the format transforms themselves — is in `kvit-content`.
 
 `AppContext` and `KvitApplication` are in `kvit-qml` rather than
 `kvit-application`. A composition root depends on everything by definition:
 `AppContext`'s entire job is to construct the object graph and publish it to a
-QQmlEngine, and `kvit-application` holds the use-case orchestration the plan
-describes. Putting the composition root at the top is what keeps the layer
+QQmlEngine, while `kvit-application` holds the use-case orchestration
+underneath it. Putting the composition root at the top is what keeps the layer
 below it free of QML.
 
 `kvit-content` is the bottom layer rather than a middle one. The markdown value
@@ -171,4 +171,3 @@ record covers.
 - `src/repository/vaultpaths.h`: the containment rule, in one place
 - `src/repository/assetstore.h`: asset ingestion, moved to the module allowed to write
 - `src/qml/qmlsingletons.h`: every `Kvit` type and singleton, as foreign wrappers
-- `code-plan.md` §6.1 and §6.2: the plan this implements

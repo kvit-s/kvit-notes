@@ -113,9 +113,10 @@ class Theme : public QObject
     // accent/warning/success/danger/textMuted; tip needs its own hue.
     Q_PROPERTY(QColor calloutTip READ calloutTip NOTIFY themeChanged)
 
-    // Portfolio-dashboard vocabulary (kvit-hub new-UI spec §2). The two effort
-    // axes own two hues used for nothing else; discovered scope and hygiene
-    // signals share violet. Defined here so the dashboard and the editor stay
+    // Portfolio-dashboard vocabulary, for a separate application that links
+    // this library and draws project dashboards. The two effort axes own two
+    // hues used for nothing else; discovered scope and hygiene signals share
+    // violet. They are defined here so that application and the editor stay
     // one token system; the editor itself does not draw with them.
     Q_PROPERTY(QColor axisAttention READ axisAttention NOTIFY themeChanged)
     Q_PROPERTY(QColor axisAttentionText READ axisAttentionText NOTIFY themeChanged)
