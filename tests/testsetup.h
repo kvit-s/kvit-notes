@@ -54,7 +54,7 @@ public:
     Q_INVOKABLE bool writeFile(const QString &path, const QString &text)
     {
         QFile file(path);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        if (!file.open(QIODevice::WriteOnly))
             return false;
         file.write(text.toUtf8());
         return true;

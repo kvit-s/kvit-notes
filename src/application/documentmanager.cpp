@@ -457,7 +457,8 @@ bool DocumentManager::saveToFile(const QString &filePath, SaveKind kind)
     {
         PerfLog::ScopedTimer split(operation + QStringLiteral(".open"),
                                    context);
-        opened = file.open(QIODevice::WriteOnly | QIODevice::Text);
+        // No QIODevice::Text: see NoteFileIo::writeTextFileAtomic.
+        opened = file.open(QIODevice::WriteOnly);
         split.addContext(QStringLiteral("ok"), opened);
     }
     if (!opened) {
@@ -754,7 +755,8 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
     QSaveFile file(filePath);
     QElapsedTimer timer;
     timer.start();
-    result.opened = file.open(QIODevice::WriteOnly | QIODevice::Text);
+    // No QIODevice::Text: see NoteFileIo::writeTextFileAtomic.
+    result.opened = file.open(QIODevice::WriteOnly);
     result.openMs = double(timer.nsecsElapsed()) / 1000000.0;
     if (!result.opened) {
         result.error = file.errorString();

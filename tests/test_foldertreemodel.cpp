@@ -29,7 +29,7 @@ void TestFolderTreeModel::writeNote(const QString &path, const QString &content)
     QFileInfo info(path);
     QVERIFY(QDir().mkpath(info.absolutePath()));
     QFile file(path);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(content.toUtf8());
 }
 

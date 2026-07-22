@@ -113,7 +113,7 @@ void TestNoteListModel::writeNote(const QString &relPath, const QString &content
 {
     const QString path = m_dir->filePath(relPath);
     QFile file(path);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write((content + QStringLiteral("\n")).toUtf8());
     file.close();
     if (mtime.isValid()) {

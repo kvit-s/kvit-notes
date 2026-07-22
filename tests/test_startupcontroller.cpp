@@ -39,7 +39,7 @@ void writeText(const QString &path, const QString &text)
     QFileInfo info(path);
     QVERIFY(QDir().mkpath(info.absolutePath()));
     QFile file(path);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(text.toUtf8());
 }
 

@@ -52,7 +52,7 @@ private:
         const QString abs = QDir(m_src->path()).filePath(relPath);
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QFile f(abs);
-        f.open(QIODevice::WriteOnly | QIODevice::Text);
+        f.open(QIODevice::WriteOnly);
         QTextStream(&f) << content;
         f.close();
         return abs;

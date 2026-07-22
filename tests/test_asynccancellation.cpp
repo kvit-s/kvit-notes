@@ -87,7 +87,7 @@ void TestAsyncCancellation::buildVault(const QString &root, int noteCount)
                                 .arg(i % 16);
         QDir().mkpath(dir);
         QFile file(QStringLiteral("%1/note%2.md").arg(dir).arg(i));
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write(QStringLiteral("# Note %1\n\n").arg(i).toUtf8());
         file.write(body.toUtf8());
     }
@@ -118,7 +118,7 @@ void TestAsyncCancellation::closingDuringDirectoryRefreshDoesNotCrash()
     }
     for (int i = 0; i < 800; ++i) {
         QFile f(QStringLiteral("%1/bulk%2.md").arg(bulk).arg(i));
-        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(f.open(QIODevice::WriteOnly));
         f.write(QStringLiteral("# Bulk %1\n\n").arg(i).toUtf8());
         f.write(body.toUtf8());
     }
@@ -130,7 +130,7 @@ void TestAsyncCancellation::closingDuringDirectoryRefreshDoesNotCrash()
     QDirIterator it(bulk, QStringList{QStringLiteral("*.md")}, QDir::Files);
     while (it.hasNext()) {
         QFile f(it.next());
-        if (f.open(QIODevice::Append | QIODevice::Text))
+        if (f.open(QIODevice::Append))
             f.write("\nchanged\n");
     }
 
@@ -247,7 +247,7 @@ void TestAsyncCancellation::reportBlockingCostPerStage()
         }
         for (int i = 0; i < 1500; ++i) {
             QFile f(QStringLiteral("%1/bulk%2.md").arg(bulk).arg(i));
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            QVERIFY(f.open(QIODevice::WriteOnly));
             f.write(QStringLiteral("# Bulk %1\n\n").arg(i).toUtf8());
             f.write(body.toUtf8());
         }
@@ -259,7 +259,7 @@ void TestAsyncCancellation::reportBlockingCostPerStage()
         QDirIterator it(bulk, QStringList{QStringLiteral("*.md")}, QDir::Files);
         while (it.hasNext()) {
             QFile f(it.next());
-            if (f.open(QIODevice::Append | QIODevice::Text))
+            if (f.open(QIODevice::Append))
                 f.write("\nchanged\n");
         }
 
@@ -529,12 +529,12 @@ void TestAsyncCancellation::asupersededDirectoryRefreshStopsItsWorker()
     }
     for (int i = 0; i < 4000; ++i) {
         QFile f(QStringLiteral("%1/bulk%2.md").arg(bulk).arg(i));
-        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(f.open(QIODevice::WriteOnly));
         f.write(QStringLiteral("# Bulk %1\n\n").arg(i).toUtf8());
         f.write(body.toUtf8());
     }
     QFile lone(tiny + QStringLiteral("/one.md"));
-    QVERIFY(lone.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(lone.open(QIODevice::WriteOnly));
     lone.write("# one\n");
     lone.close();
 
@@ -546,7 +546,7 @@ void TestAsyncCancellation::asupersededDirectoryRefreshStopsItsWorker()
         QDirIterator it(bulk, QStringList{QStringLiteral("*.md")}, QDir::Files);
         while (it.hasNext()) {
             QFile f(it.next());
-            if (f.open(QIODevice::Append | QIODevice::Text))
+            if (f.open(QIODevice::Append))
                 f.write("\nchanged\n");
         }
     };

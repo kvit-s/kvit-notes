@@ -103,7 +103,7 @@ void TestPerformanceBigFiles::measureCorpora()
     timer.restart();
     {
         QFile file(path);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         QTextStream stream(&file);
         stream.setEncoding(QStringConverter::Utf8);
         stream << serialized;

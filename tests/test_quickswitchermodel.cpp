@@ -30,7 +30,7 @@ private:
         QFileInfo info(m_dir->filePath(relPath));
         QVERIFY(QDir().mkpath(info.absolutePath()));
         QFile file(m_dir->filePath(relPath));
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write(content.toUtf8());
     }
 

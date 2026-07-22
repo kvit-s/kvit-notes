@@ -49,7 +49,7 @@ bool writeCollectionState(const QString &rootPath, const QString &lastOpenNote)
         return false;
 
     QFile file(QDir(kvitPath).filePath(QStringLiteral("collection.json")));
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    if (!file.open(QIODevice::WriteOnly))
         return false;
 
     QTextStream stream(&file);
@@ -114,7 +114,7 @@ void TestPerformanceApp::guiStartupSamples()
     QVERIFY(dir.isValid());
     const QString notePath = dir.filePath(QStringLiteral("wp.md"));
     QFile file(notePath);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     QTextStream stream(&file);
     stream.setEncoding(QStringConverter::Utf8);
     stream << PerfCorpus::warAndPeace().markdown;
@@ -261,7 +261,7 @@ void TestPerformanceApp::guiScrollWarAndPeaceFrameSample()
     QVERIFY(dir.isValid());
     const QString notePath = dir.filePath(QStringLiteral("wp.md"));
     QFile file(notePath);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     QTextStream stream(&file);
     stream.setEncoding(QStringConverter::Utf8);
     stream << fixture.markdown;

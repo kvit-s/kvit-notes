@@ -55,7 +55,7 @@ private slots:
         const QString file = dir.filePath("note.md");
         {
             QFile f(file);
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            QVERIFY(f.open(QIODevice::WriteOnly));
             f.write(kSample);
         }
 
@@ -87,13 +87,13 @@ private slots:
         const QString file = dir.filePath("note.md");
         {
             QFile f(file);
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            QVERIFY(f.open(QIODevice::WriteOnly));
             f.write(kSample);
         }
         // A sibling so the new vault has something else to index.
         {
             QFile f(dir.filePath("other.md"));
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            QVERIFY(f.open(QIODevice::WriteOnly));
             f.write("# Other\n");
         }
 
@@ -123,7 +123,7 @@ private slots:
         QTemporaryDir dir;
         {
             QFile f(dir.filePath("a.md"));
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            QVERIFY(f.open(QIODevice::WriteOnly));
             f.write("# A\n");
         }
 
@@ -153,7 +153,7 @@ private slots:
         QVERIFY(QDir().mkpath(outside.filePath("elsewhere")));
         {
             QFile f(dir.filePath("note.md"));
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            QVERIFY(f.open(QIODevice::WriteOnly));
             f.write(kSample);
         }
         QVERIFY(QFile::link(outside.filePath("elsewhere"),

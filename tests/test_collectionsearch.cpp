@@ -197,7 +197,7 @@ void TestCollectionSearch::writeNote(const QString &relPath,
     QFileInfo info(m_dir->filePath(relPath));
     QVERIFY(QDir().mkpath(info.absolutePath()));
     QFile file(m_dir->filePath(relPath));
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(content.toUtf8());
 }
 
@@ -597,7 +597,7 @@ void TestCollectionSearch::testRestoredRecoveryReachesSearchIndex()
     QVERIFY(!journal.isEmpty());
     {
         QFile file(journal);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Recovered zarfblat content\n");
     }
     // Pending recovery is detected when the collection opens.
@@ -623,7 +623,7 @@ void TestCollectionSearch::testTwoIndexesOnTwoRootsStayApart()
     QVERIFY(other.isValid());
     {
         QFile file(other.filePath(QStringLiteral("Other.md")));
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("zarfblat lives only here\n");
     }
 
@@ -1130,7 +1130,7 @@ void TestCollectionSearch::testVaultSwitchReleasesTheOldIndexWithoutBlocking()
             const QString path =
                 QDir(root).filePath(QStringLiteral("Note%1.md").arg(i));
             QFile file(path);
-            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+            QVERIFY(file.open(QIODevice::WriteOnly));
             file.write(QStringLiteral("# Note %1\n\n%2 body %1\n")
                            .arg(i).arg(word).toUtf8());
         }

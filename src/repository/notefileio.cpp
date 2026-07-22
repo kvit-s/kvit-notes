@@ -120,7 +120,14 @@ QByteArray readFileBytes(const QString &path, bool *ok, qint64 maxBytes)
 bool writeTextFileAtomic(const QString &path, const QString &content)
 {
     QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    // No QIODevice::Text: notes are written with the line endings the
+    // serializer produced, on every platform. Text mode rewrote every "\n"
+    // as "\r\n" on Windows, which made a note authored anywhere else change
+    // on its first save there, moved every byte offset the diagram editing
+    // paths compute from verbatim source, and disagreed with the other write
+    // path in this file, which has always written bytes as given. Reading
+    // still accepts both, and collapses CRLF where it finds it.
+    if (!file.open(QIODevice::WriteOnly))
         return false;
     QTextStream stream(&file);
     stream.setEncoding(QStringConverter::Utf8);

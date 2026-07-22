@@ -68,7 +68,7 @@ bool writeText(const QString &path, const QString &text)
     if (!QDir().mkpath(info.absolutePath()))
         return false;
     QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    if (!file.open(QIODevice::WriteOnly))
         return false;
     QTextStream stream(&file);
     stream.setEncoding(QStringConverter::Utf8);

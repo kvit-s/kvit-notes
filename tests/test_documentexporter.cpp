@@ -88,7 +88,7 @@ private:
         const QString abs = coll->absolutePath(relPath);
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QFile f(abs);
-        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(f.open(QIODevice::WriteOnly));
         f.write(body.toUtf8());
         f.close();
     }
@@ -439,7 +439,7 @@ void TestDocumentExporter::testShortTextWritePreservesExistingExport()
     const QString path = dir.filePath("out.txt");
     {
         QFile original(path);
-        QVERIFY(original.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(original.open(QIODevice::WriteOnly));
         QCOMPARE(original.write("original export\n"), qint64(16));
     }
     {

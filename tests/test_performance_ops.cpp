@@ -64,7 +64,7 @@ bool writeCollectionState(const QString &rootPath, const QString &lastOpenNote)
         return false;
 
     QFile file(QDir(kvitPath).filePath(QStringLiteral("collection.json")));
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    if (!file.open(QIODevice::WriteOnly))
         return false;
 
     QTextStream stream(&file);

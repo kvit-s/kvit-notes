@@ -589,7 +589,7 @@ void TestDocumentManager::testOpenFile()
     // Create a test file
     QString filePath = m_tempDir->filePath("open_test.md");
     QFile file(filePath);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write("# Opened Title\n\nOpened content.\n");
     file.close();
 
@@ -613,7 +613,7 @@ void TestDocumentManager::testOpenAsyncFile()
         QStringLiteral("---\ntags: [async]\n---\n");
     QString filePath = m_tempDir->filePath("open_async_test.md");
     QFile file(filePath);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write((frontMatter
                 + QStringLiteral("# Async Title\n\nAsync content.\n"))
                    .toUtf8());
@@ -665,7 +665,7 @@ void TestDocumentManager::testOpenClearsUndo()
     // Create and open a file
     QString filePath = m_tempDir->filePath("clear_undo_test.md");
     QFile file(filePath);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write("New content.\n");
     file.close();
 
@@ -788,7 +788,7 @@ namespace {
 void writeRawFile(const QString &path, const QString &content)
 {
     QFile file(path);
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(content.toUtf8());
     file.close();
 }
@@ -933,7 +933,7 @@ void TestDocumentManager::testForeignFrontMatterPreservedThroughEdit()
     QString filePath = m_tempDir->filePath("foreign_meta.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write((frontMatter + QStringLiteral("Original body\n")).toUtf8());
     }
 
@@ -955,7 +955,7 @@ void TestDocumentManager::testFileWithoutFrontMatterGainsNone()
     QString filePath = m_tempDir->filePath("plain_body.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Plain paragraph\n");
     }
 
@@ -976,7 +976,7 @@ void TestDocumentManager::testDividerLedFileIsNotEatenAsFrontMatter()
     QString filePath = m_tempDir->filePath("divider_led.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write(content.toUtf8());
     }
 
@@ -997,7 +997,7 @@ void TestDocumentManager::testNewDocumentClearsFrontMatter()
     QString filePath = m_tempDir->filePath("with_meta.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write((frontMatter + QStringLiteral("Body\n")).toUtf8());
     }
     QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
@@ -1018,13 +1018,13 @@ void TestDocumentManager::testOpenReplacesFrontMatter()
     QString pathA = m_tempDir->filePath("meta_a.md");
     {
         QFile file(pathA);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write((metaA + QStringLiteral("A\n")).toUtf8());
     }
     QString pathB = m_tempDir->filePath("meta_b.md");
     {
         QFile file(pathB);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("B\n");
     }
 
@@ -1048,7 +1048,7 @@ void TestDocumentManager::testFailedSaveLeavesExistingFileIntact()
     QString filePath = dirPath + QStringLiteral("/note.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Original content\n");
     }
 
@@ -1085,7 +1085,7 @@ void TestDocumentManager::testShortSynchronousSavePreservesFileJournalAndDirtySt
     const QString journalPath = m_tempDir->filePath("short_sync.journal");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         QCOMPARE(file.write("Original content\n"), qint64(17));
     }
 
@@ -1115,7 +1115,7 @@ void TestDocumentManager::testShortAsynchronousSavePreservesFileJournalAndDirtyS
     const QString journalPath = m_tempDir->filePath("short_async.journal");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         QCOMPARE(file.write("Original content\n"), qint64(17));
     }
 
@@ -1146,7 +1146,7 @@ QString writeBigFile(QTemporaryDir *dir, const QString &name)
 {
     const QString path = dir->filePath(name);
     QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    if (!file.open(QIODevice::WriteOnly))
         return QString();
     const QByteArray line("A line of ordinary prose to bulk the file up.\n");
     qint64 written = 0;
@@ -1220,7 +1220,7 @@ void TestDocumentManager::testJournalWritesOnDirtAndClearsOnSave()
     QString filePath = m_tempDir->filePath("journaled.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Original\n");
     }
     QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
@@ -1254,7 +1254,7 @@ void TestDocumentManager::testJournalTimingSplitsRecorded()
     QString filePath = m_tempDir->filePath("timed_journal_source.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Original\n");
     }
     QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
@@ -1303,7 +1303,7 @@ void TestDocumentManager::testJournalSkipsUnchangedSnapshot()
     QString filePath = m_tempDir->filePath("hash_guard_source.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Original\n");
     }
     QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
@@ -1501,7 +1501,7 @@ void TestDocumentManager::testDeletingADirtyOpenNoteTrashesTheNewestText()
     {
         QFile file(collection.absolutePath(rel));
         QVERIFY(QDir().mkpath(QFileInfo(file.fileName()).absolutePath()));
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Saved text\n");
     }
     collection.refresh();
@@ -1537,7 +1537,7 @@ void TestDocumentManager::testDeletingAFolderHoldingADirtyOpenNoteTrashesTheNewe
     {
         QFile file(collection.absolutePath(rel));
         QVERIFY(QDir().mkpath(QFileInfo(file.fileName()).absolutePath()));
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Saved text\n");
     }
     collection.refresh();
@@ -1602,7 +1602,7 @@ void TestDocumentManager::testWholeModelReplacementIsDirtyAndJournaled()
     const QString filePath = m_tempDir->filePath("replaced_body.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Original\n");
     }
     QVERIFY(m_manager->open(QUrl::fromLocalFile(filePath)));
@@ -1638,7 +1638,7 @@ void TestDocumentManager::testReplacementDuringAnInFlightSaveIsStillUnsaved()
     const QString path = m_tempDir->filePath("replace_during_save.md");
     {
         QFile file(path);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Original body\n");
     }
     QVERIFY(m_manager->open(QUrl::fromLocalFile(path)));
@@ -1680,7 +1680,7 @@ void TestDocumentManager::testBaselineLoadIsNotAUserReplacement()
     const QString filePath = m_tempDir->filePath("baseline_load.md");
     {
         QFile file(filePath);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Loaded from disk\n");
     }
 

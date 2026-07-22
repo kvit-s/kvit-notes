@@ -1332,7 +1332,7 @@ void TestBlockEditorEngine::testWikiLinkRangesAndUnresolvedStyle()
     QVERIFY(dir.isValid());
     {
         QFile f(dir.filePath("Exists.md"));
-        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(f.open(QIODevice::WriteOnly));
         f.write("hi\n");
     }
     NoteCollection collection;
@@ -1353,7 +1353,7 @@ void TestBlockEditorEngine::testWikiLinkRangesAndUnresolvedStyle()
     // Creating the missing note flips the style on the revision bump.
     {
         QFile f(dir.filePath("Missing.md"));
-        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(f.open(QIODevice::WriteOnly));
         f.write("now\n");
     }
     collection.refresh();
