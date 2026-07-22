@@ -359,6 +359,11 @@ void TestFileWatcher::anAppDeleteIsNotAnExternalChange()
     w.setDebounceMs(30);
     w.watchRoot(dir.path());
     QSignalSpy rescan(&w, &FileWatcher::externalChange);
+    QStringList reportedPaths;
+    QObject::connect(&w, &FileWatcher::externalChangePaths, &w,
+                     [&reportedPaths](const QStringList &paths) {
+                         reportedPaths += paths;
+                     });
 
     // The NoteCollection::noteRemoved handler's shape: delete, then guard the
     // folder the note was in.
@@ -366,6 +371,15 @@ void TestFileWatcher::anAppDeleteIsNotAnExternalChange()
     w.noteOwnDirectoryChange(QFileInfo(note).absolutePath());
 
     QTest::qWait(700);
+    // Which path arrived, when one arrives: the guard is recorded against the
+    // note's folder, and a platform that reports the change against some
+    // other directory of the tree - the vault root, say - is guarded for a
+    // path its notification never carries.
+    if (rescan.count() != 0) {
+        qInfo("guarded %s; reported %s",
+              qPrintable(QFileInfo(note).absolutePath()),
+              qPrintable(reportedPaths.join(QStringLiteral(", "))));
+    }
     QCOMPARE(rescan.count(), 0);
 }
 

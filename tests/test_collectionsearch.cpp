@@ -640,8 +640,13 @@ void TestCollectionSearch::testTwoIndexesOnTwoRootsStayApart()
     // The first vault still answers, and answers about its own notes.
     m_search->setQuery(QStringLiteral("fox"));
     QTRY_COMPARE(m_search->noteCount(), 2);
+    // Wait for the result to be delivered rather than for a fixed 200 ms:
+    // the search is asynchronous, and on a two-core runner the answer had not
+    // arrived yet, so the assertion read the previous query's count and
+    // reported the index as holding notes it had never held.
+    const int beforeSecondQuery = m_search->revision();
     m_search->setQuery(QStringLiteral("zarfblat"));
-    QTest::qWait(200);
+    QTRY_VERIFY(m_search->revision() != beforeSecondQuery);
     QCOMPARE(m_search->noteCount(), 0);
 
     // And the second vault holds exactly its own note.
@@ -698,8 +703,11 @@ void TestCollectionSearch::testEqualSizeSameMtimeRewriteIsReindexed()
 
     m_search->setQuery(QStringLiteral("zarfblats"));
     QTRY_COMPARE(m_search->noteCount(), 1);
+    // Delivered, not merely waited for; see the note on the asynchronous
+    // search above.
+    const int beforeStaleQuery = m_search->revision();
     m_search->setQuery(QStringLiteral("mechanics"));
-    QTest::qWait(200);
+    QTRY_VERIFY(m_search->revision() != beforeStaleQuery);
     QCOMPARE(m_search->noteCount(), 0);
 }
 
@@ -787,8 +795,11 @@ void TestCollectionSearch::testUnchangedNotesAreNotReadOnReconcile()
              "defect the fingerprint was introduced to close");
     m_search->setQuery(QStringLiteral("zarfblats"));
     QTRY_COMPARE(m_search->noteCount(), 1);
+    // Delivered, not merely waited for; see the note on the asynchronous
+    // search above.
+    const int beforeStaleQuery = m_search->revision();
     m_search->setQuery(QStringLiteral("mechanics"));
-    QTest::qWait(200);
+    QTRY_VERIFY(m_search->revision() != beforeStaleQuery);
     QCOMPARE(m_search->noteCount(), 0);
 
     // And the notes that did not change were still left unread.

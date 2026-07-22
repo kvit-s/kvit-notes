@@ -126,6 +126,13 @@ private slots:
 
         g_warnings.clear();
         g_expectedWarnings.clear();
+        // Not the shell's warnings: Qt's multimedia backend reports a missing
+        // PipeWire on any machine without one, which a headless runner is.
+        // This gate is about the composition - a renamed context property, a
+        // QML file missing from the resources, an import that does not
+        // resolve - and an audio stack the test never asked for is noise
+        // that would make it fail wherever the runner image lacks a library.
+        g_expectedWarnings << QRegularExpression(QStringLiteral("pipewire"));
         g_previousHandler = qInstallMessageHandler(capturingHandler);
         m_engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
         // Bindings evaluate as the scene is built; let the queue drain so a

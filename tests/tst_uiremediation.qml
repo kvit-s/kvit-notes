@@ -81,7 +81,12 @@ Item {
             verify(NoteCollection.createNote("Ideas", "Reading") !== "")
             verify(NoteCollection.createNote("Ideas/Projects", "Kvit") !== "")
             NoteListModel.scope = "all"
-            wait(20)
+            // Wait for the model to hold the notes just created rather than
+            // for a fixed 20 ms. The collection's indexing is asynchronous,
+            // and on a two-core runner it had not finished, so every case
+            // that then asked the pane to focus a row found an empty list.
+            tryVerify(function() { return NoteListModel.count >= 3 }, 5000,
+                      "the note list filled after the collection opened")
             return dir
         }
 
