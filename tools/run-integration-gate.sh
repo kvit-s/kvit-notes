@@ -21,7 +21,9 @@ if [[ ${KVIT_INTEGRATION_VISIBLE:-0} != 1 ]]; then
     export QT_QPA_PLATFORM=offscreen
 fi
 
-mapfile -t cases < <(
+# read -r in a loop rather than mapfile, which macOS's bash 3.2 does not have.
+cases=()
+while IFS= read -r case_name; do cases+=("$case_name"); done < <(
     "$binary" -input "$input" -functions 2>&1 \
         | sed -n 's/^IntegrationTests::\(.*\)()$/\1/p'
 )

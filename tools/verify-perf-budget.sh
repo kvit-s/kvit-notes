@@ -70,12 +70,15 @@ for spec in "${CASES[@]}"; do
     echo "-- $description"
 
     build "$binary"
-    mapfile -t clean < <(run_case "$binary" "$fn")
+    # read -r loops rather than mapfile, absent from macOS's bash 3.2.
+    clean=()
+    while IFS= read -r line; do clean+=("$line"); done < <(run_case "$binary" "$fn")
     echo "   unchanged:  ${clean[0]}   ${clean[1]:-}"
 
     python3 tools/inject-perf-regression.py "$file"
     build "$binary"
-    mapfile -t regressed < <(run_case "$binary" "$fn")
+    regressed=()
+    while IFS= read -r line; do regressed+=("$line"); done < <(run_case "$binary" "$fn")
     echo "   regressed:  ${regressed[0]}   ${regressed[1]:-}"
 
     git checkout -- "$file"

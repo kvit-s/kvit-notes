@@ -147,8 +147,11 @@ if [ $# -gt 0 ]; then
         esac
     done
 else
-    mapfile -t SHIPPING < <(find qml -name '*.qml' | sort)
-    mapfile -t TESTQML < <(find tests -maxdepth 1 -name '*.qml' | sort)
+    # read -r in a loop rather than mapfile: macOS ships bash 3.2, where
+    # mapfile does not exist, and this script runs from a ctest entry on
+    # every platform.
+    while IFS= read -r f; do SHIPPING+=("$f"); done < <(find qml -name '*.qml' | sort)
+    while IFS= read -r f; do TESTQML+=("$f"); done < <(find tests -maxdepth 1 -name '*.qml' | sort)
 fi
 
 # -W 0 turns "any warning at all" into a non-zero exit; without it qmllint
