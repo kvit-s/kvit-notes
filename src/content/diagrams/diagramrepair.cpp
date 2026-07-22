@@ -427,18 +427,21 @@ void straightenConnectors(QStringList &lines)
     QSet<QPair<int, int>> used;
 
     for (int row = 0; row < lines.size(); ++row) {
-        const QString &line = lines.at(row);
-        for (int col = 0; col < line.size(); ++col) {
+        // The row is read through `lines` on every column rather than bound
+        // to a reference once: a successful straighten below assigns to
+        // `lines`, which releases the buffer any reference into it points
+        // at, and the next column would then read freed memory.
+        for (int col = 0; col < lines.at(row).size(); ++col) {
             // A run starts at a junction on an edge, or at a free connector
             // with no connector above it.
             RunCell start{row, col, map.onEdgeSpan(row, col)};
             if (used.contains({row, col}))
                 continue;
             if (start.onEdge) {
-                if (!isEdgeJunction(line.at(col)))
+                if (!isEdgeJunction(lines.at(row).at(col)))
                     continue;
             } else {
-                if (!isConnector(line.at(col)) || map.isBoxWall(row, col))
+                if (!isConnector(lines.at(row).at(col)) || map.isBoxWall(row, col))
                     continue;
                 RunCell above;
                 if (connectorNear(lines, map, row - 1, col, &above))
