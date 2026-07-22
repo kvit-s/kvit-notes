@@ -145,6 +145,36 @@
 // of headroom does not flake, and tightening them would invent a precision
 // they were never meant to have.
 
+// The smallest step the CPU clock below can report, in milliseconds. It is
+// not a detail: GetProcessTimes advances once per scheduler tick, about
+// 15.6 ms, so on Windows an operation costing 11 ms is reported as 0, 15.6 or
+// 31.25 ms and never as itself. The 1000-note query budget of 20 ms sat
+// inside that step, and its nine samples all read exactly 31.250 ms - a
+// number describing the clock, not the query. A measurement worth asserting
+// against has to be several ticks long, which is what kvitCpuBatchSize is
+// for. clock_gettime(CLOCK_PROCESS_CPUTIME_ID) is nanosecond-grained, so
+// nothing here changes on Unix.
+inline double kvitProcessCpuTickMs()
+{
+#if defined(Q_OS_WIN)
+    return 15.625;
+#else
+    return 0.001;
+#endif
+}
+
+// How many repetitions to time together so the clock's step is a small part
+// of the answer. Ten ticks puts the quantization error under about 10% of
+// one repetition, and the caller divides the total by this to report a
+// per-repetition cost.
+inline int kvitCpuBatchSize(double expectedMsPerRun)
+{
+    if (expectedMsPerRun <= 0.0)
+        return 1;
+    const double wanted = 10.0 * kvitProcessCpuTickMs() / expectedMsPerRun;
+    return wanted <= 1.0 ? 1 : int(wanted + 0.999);
+}
+
 // Process CPU time consumed so far, in milliseconds, summed across threads.
 // Monotonic, and unaffected by time the process spends waiting for a core.
 inline double kvitProcessCpuMs()
