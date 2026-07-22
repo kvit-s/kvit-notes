@@ -36,6 +36,7 @@ private slots:
     void collectionScanVault10K();
     void collectionAsyncOpenVault10K();
     void collectionWarmStartVault10K();
+    void collectionMetadataAndNoteSwitchVault10K();
     void collectionAsyncOpenSmallVaultHugeNote();
     void collectionAsyncRefreshDirectoryHugeNote();
     void startupControllerRememberedHugeNoteStartsAsync();
@@ -260,6 +261,70 @@ void TestPerformanceOps::collectionWarmStartVault10K()
     KVIT_ASSERT_WALL_BUDGET(loggedMs, "startup.scan VAULT-10K warm", 300.0);
     qInfo("PERF startup.scan VAULT-10K warm: %.2f ms (wall %.2f ms)",
           loggedMs, elapsedMs);
+}
+
+// Two files scale with the vault rather than with what the user touched: the
+// note index carries every note's metadata, and the collection state file
+// carries the manual order of every folder. Actions that change one note or
+// one folder used to serialise and write one of them in full before
+// returning, so pinning a note or switching notes cost O(vault) on the GUI
+// thread. Both are now handed to a pool thread, and the state file coalesces
+// bursts behind a short timer.
+//
+// Measured in CPU time on the calling thread, which is the point: the work
+// has not disappeared, it has moved off the thread that draws frames.
+void TestPerformanceOps::collectionMetadataAndNoteSwitchVault10K()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QCOMPARE(PerfCorpus::writeVault10K(dir.path()), 10003);
+
+    NoteCollection collection;
+    QVERIFY(collection.openRoot(dir.path()));
+    QCOMPARE(collection.noteCount(), 10003);
+
+    // A note that certainly exists in the corpus, taken from the collection
+    // rather than assumed, so a corpus change cannot make this vacuous.
+    const QStringList notes = collection.noteRelPaths();
+    QVERIFY(notes.size() >= 20);
+
+    // (1) Pinning one note. The front-matter rewrite is inherent and stays;
+    // what must not be here is the whole-index serialize-and-write.
+    KvitOpTimer pinTimer;
+    QVERIFY(collection.setPinned(notes.at(0), true));
+    KVIT_REPORT_OP("collection.setPinned VAULT-10K", pinTimer);
+    KVIT_ASSERT_CPU_BUDGET(pinTimer, "collection.setPinned VAULT-10K",
+                           40.0, 120.0);
+
+    // (2) Switching notes, twenty times. Each one used to rebuild and write
+    // the whole collection-state file; they now coalesce into as few writes
+    // as the debounce allows.
+    KvitOpTimer switchTimer;
+    for (int i = 0; i < 20; ++i)
+        collection.setLastOpenNote(notes.at(i));
+    KVIT_REPORT_OP("collection.setLastOpenNote x20 VAULT-10K", switchTimer);
+    KVIT_ASSERT_CPU_BUDGET(switchTimer,
+                           "collection.setLastOpenNote x20 VAULT-10K",
+                           20.0, 80.0);
+
+    // (3) Expanding and collapsing a folder, twenty times, for the same
+    // reason.
+    const QStringList folders = collection.folderRelPaths();
+    if (!folders.isEmpty()) {
+        KvitOpTimer folderTimer;
+        for (int i = 0; i < 20; ++i)
+            collection.setFolderExpanded(folders.first(), (i % 2) == 0);
+        KVIT_REPORT_OP("collection.setFolderExpanded x20 VAULT-10K",
+                       folderTimer);
+        KVIT_ASSERT_CPU_BUDGET(folderTimer,
+                               "collection.setFolderExpanded x20 VAULT-10K",
+                               20.0, 80.0);
+    }
+
+    // The deferred writes are still owed, and closing the vault is what
+    // guarantees they land. Without this the temporary directory would go
+    // away underneath a pool thread.
+    collection.closeRoot();
 }
 
 void TestPerformanceOps::collectionAsyncOpenSmallVaultHugeNote()

@@ -4,6 +4,7 @@
 #ifndef COLLECTIONSTATESTORE_H
 #define COLLECTIONSTATESTORE_H
 
+#include <QFutureWatcher>
 #include <QHash>
 #include <QObject>
 #include <QString>
@@ -68,16 +69,36 @@ public:
     // Build a snapshot through the provider and write it. On failure the
     // dirty flag stays set, a retry is scheduled, and saveFailed carries a
     // message the user can act on.
+    //
+    // The snapshot is taken here, on the caller's thread, because it reads
+    // live collection state. Serialising it and writing the file happen on a
+    // pool thread: the manual note order alone carries every note in every
+    // folder, so both grow with the vault, and this used to run on the GUI
+    // thread inside actions as small as expanding a folder.
     void save();
+
+    // Same, but coalesced behind a short timer. Note switches, folder
+    // expand/collapse and manual reordering all arrive in bursts where only
+    // the final state is worth writing, and each one used to write the whole
+    // file. Callers that need the state on disk before continuing use
+    // flushIfDirty() instead.
+    void saveDeferred();
 
     // Whether a write is still owed. Exposed for the I/O-failure tests, and
     // consulted by the owner before it closes or reopens a root.
     bool isDirty() const { return m_dirty; }
 
-    // Write now if anything is owed, cancelling any pending retry. Called on
-    // close and from the destructor, so an orderly exit does not lose state
-    // a retry timer was still waiting to write.
+    // Write now if anything is owed, cancelling any pending debounce or
+    // retry and waiting for a write already in flight. Called on close and
+    // from the destructor, so an orderly exit does not lose state a timer was
+    // still waiting to write. This one is synchronous by contract: closing a
+    // root and reopening another both depend on the state being on disk, in
+    // the vault it belongs to, before they continue.
     void flushIfDirty();
+
+    // Waits for any write still in flight, so a store is never destroyed
+    // while a pool thread is still reading the snapshot it was handed.
+    ~CollectionStateStore() override;
 
 signals:
     // Wired to the collection's operationFailed, so the message reaches the
@@ -85,13 +106,28 @@ signals:
     void saveFailed(const QString &message);
 
 private:
+    // What the pool thread does with a snapshot, and what it reports back.
+    struct WriteResult {
+        bool ok = false;
+        QString path;
+    };
+    static WriteResult writeSnapshot(Snapshot snapshot, QString path);
+
     QString filePath() const;
+    // The shared body of save() and flushIfDirty(). Blocking runs the write
+    // on the calling thread; the caller is then guaranteed it has happened.
+    enum class Mode { Deferred, Blocking };
+    void writeNow(Mode mode);
+    void applyWriteResult(const WriteResult &result);
+    void awaitInFlightWrite();
 
     QString m_rootPath;
     QString m_canonicalRoot;
     std::function<Snapshot()> m_provider;
     bool m_dirty = false;
     QTimer m_retryTimer;
+    QTimer m_debounceTimer;
+    QFutureWatcher<WriteResult> m_writeWatcher;
 };
 
 #endif // COLLECTIONSTATESTORE_H

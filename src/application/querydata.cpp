@@ -376,7 +376,24 @@ ParseResult parse(const QString &body)
     return result;
 }
 
+Snapshot snapshotOf(const NoteCollection &collection)
+{
+    Snapshot snapshot;
+    const QStringList paths = collection.noteRelPaths();   // sorted
+    snapshot.notes.reserve(paths.size());
+    for (const QString &relPath : paths) {
+        if (const NoteCollection::NoteEntry *entry = collection.note(relPath))
+            snapshot.notes.append(*entry);
+    }
+    return snapshot;
+}
+
 Result evaluate(const Spec &spec, const NoteCollection &collection)
+{
+    return evaluate(spec, snapshotOf(collection));
+}
+
+Result evaluate(const Spec &spec, const Snapshot &snapshot)
 {
     Result result;
     result.columns = spec.columns;
@@ -387,11 +404,8 @@ Result evaluate(const Spec &spec, const NoteCollection &collection)
         const NoteCollection::NoteEntry *entry;
     };
     QList<Match> matches;
-    const QStringList paths = collection.noteRelPaths();
-    for (const QString &relPath : paths) {
-        const NoteCollection::NoteEntry *entry = collection.note(relPath);
-        if (!entry)
-            continue;
+    for (const NoteCollection::NoteEntry &note : snapshot.notes) {
+        const NoteCollection::NoteEntry *entry = &note;
         if (!spec.from.isEmpty()
             && entry->folder.compare(spec.from, Qt::CaseInsensitive) != 0
             && !entry->folder.startsWith(spec.from + QLatin1Char('/'),

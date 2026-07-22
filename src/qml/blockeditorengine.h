@@ -301,6 +301,9 @@ private:
     int effectiveContentFontPixelSize() const;
     QFont contentFontForFlags(quint32 flags) const;
     QVariantMap mathReservationMetrics(const QString &tex, quint32 flags) const;
+    // The markdown-derived half of inlineMathBoxes(), which is what the
+    // cache below holds.
+    QVariantList buildInlineMathSegments() const;
 
     QPointer<QQuickTextDocument> m_quickDocument;
     QPointer<QTextDocument> m_doc;
@@ -324,7 +327,27 @@ private:
     bool m_hadVerticalFormats = false;
     QVariantList m_searchMatchesVariant;
     QList<HighlightRange> m_searchMatches;
+    // Rendered-equation metrics, keyed by TeX and size. Bounded, because
+    // every intermediate string typed while editing a formula is a distinct
+    // key: "$x", "$x^", "$x^2" and so on all measure, and the cache used to
+    // keep every one of them for as long as the editor stayed loaded. Oldest
+    // out first — a formula being edited is re-measured at most once after
+    // it falls off the end, and the entries worth keeping are the ones the
+    // block is currently showing.
+    static constexpr int MaxMathMetricsEntries = 256;
     mutable QHash<QString, QVariantMap> m_mathMetricsCache;
+    mutable QStringList m_mathMetricsOrder;   // insertion order, oldest first
+
+    // hiddenMathSegments() re-scans the whole markdown, and the QML overlay
+    // asks for the box list again on every relayout and caret move within a
+    // block that has math. The scan only depends on the markdown and which
+    // spans are revealed, so its result is kept until one of those changes;
+    // the per-box line positions are the part that must be re-read from the
+    // live layout, and they still are.
+    mutable QString m_mathSegmentsMarkdown;
+    mutable QList<int> m_mathSegmentsRevealed;
+    mutable QVariantList m_mathSegmentsCache;
+    mutable bool m_mathSegmentsValid = false;
     // Single guard flag: set around every programmatic
     // document edit so the engine can tell its own edits from the user's.
     bool m_internalEdit = false;

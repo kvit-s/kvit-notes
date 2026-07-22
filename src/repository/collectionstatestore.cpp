@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QtConcurrent/QtConcurrentRun>
 
 namespace {
 const QString kvitDirName = QStringLiteral(".kvit");
@@ -19,6 +20,10 @@ const QString collectionFileName = QStringLiteral("collection.json");
 // Long enough that a full disk or a briefly-locked file has a chance to
 // clear, short enough that the state is on disk before the user moves on.
 constexpr int retryIntervalMs = 2000;
+// Long enough to swallow a burst of note switches or folder toggles, short
+// enough that a user who quits straight after one is not relying on the
+// flush to save it.
+constexpr int debounceIntervalMs = 250;
 }
 
 CollectionStateStore::CollectionStateStore(QObject *parent) : QObject(parent)
@@ -26,6 +31,39 @@ CollectionStateStore::CollectionStateStore(QObject *parent) : QObject(parent)
     m_retryTimer.setSingleShot(true);
     m_retryTimer.setInterval(retryIntervalMs);
     connect(&m_retryTimer, &QTimer::timeout, this, &CollectionStateStore::save);
+
+    m_debounceTimer.setSingleShot(true);
+    m_debounceTimer.setInterval(debounceIntervalMs);
+    connect(&m_debounceTimer, &QTimer::timeout, this,
+            &CollectionStateStore::save);
+
+    connect(&m_writeWatcher, &QFutureWatcher<WriteResult>::finished, this,
+            [this] {
+                if (m_writeWatcher.future().resultCount() == 0)
+                    return; // cancelled; the dirty flag is already restored
+                applyWriteResult(m_writeWatcher.result());
+            });
+}
+
+CollectionStateStore::~CollectionStateStore()
+{
+    // The worker holds a copy of the snapshot, not a reference to this
+    // object, but the watcher does refer to it, so it cannot outlive it.
+    awaitInFlightWrite();
+}
+
+void CollectionStateStore::awaitInFlightWrite()
+{
+    if (!m_writeWatcher.isRunning())
+        return;
+    // The result is applied here rather than left to the queued signal. That
+    // signal would arrive after the caller had moved on — after a root
+    // switch, in the worst case — and clear a dirty flag belonging to the
+    // vault it had moved on to.
+    const QSignalBlocker blocker(&m_writeWatcher);
+    m_writeWatcher.waitForFinished();
+    if (m_writeWatcher.future().resultCount() > 0)
+        applyWriteResult(m_writeWatcher.result());
 }
 
 void CollectionStateStore::setRoot(const QString &rootPath,
@@ -36,6 +74,10 @@ void CollectionStateStore::setRoot(const QString &rootPath,
     if (rootPath.isEmpty()) {
         m_dirty = false;
         m_retryTimer.stop();
+        // A pending debounce belongs to the root being dropped. Left armed it
+        // would fire with no root and do nothing, but it would also make
+        // applyWriteResult treat a landed write as still owed.
+        m_debounceTimer.stop();
     }
 }
 
@@ -115,15 +157,30 @@ CollectionStateStore::Snapshot CollectionStateStore::load() const
     return snapshot;
 }
 
-void CollectionStateStore::save()
+void CollectionStateStore::saveDeferred()
 {
     if (m_rootPath.isEmpty() || !m_provider)
         return;
-
-    // Set before the attempt, cleared only by a successful commit, so an
-    // exception-free early return anywhere below still leaves the write owed.
+    // Owed from this moment, whether or not the timer ever gets to run: a
+    // close arriving first must still see that a write is outstanding.
     m_dirty = true;
-    const Snapshot snapshot = m_provider();
+    if (!m_debounceTimer.isActive())
+        m_debounceTimer.start();
+}
+
+void CollectionStateStore::save()
+{
+    writeNow(Mode::Deferred);
+}
+
+// Serialising the snapshot and writing the file, with nothing of the store
+// touched: this runs on a pool thread. The snapshot is a value, and its
+// containers were copied on the owning thread before it was handed over.
+CollectionStateStore::WriteResult
+CollectionStateStore::writeSnapshot(Snapshot snapshot, QString path)
+{
+    WriteResult result;
+    result.path = path;
 
     QJsonObject root;
 
@@ -155,6 +212,23 @@ void CollectionStateStore::save()
     if (!snapshot.lastOpenNote.isEmpty())
         root.insert(QStringLiteral("lastOpenNote"), snapshot.lastOpenNote);
 
+    result.ok = NoteFileIo::writeTextFileAtomic(
+        path, QString::fromUtf8(QJsonDocument(root).toJson(
+                  QJsonDocument::Indented)));
+    return result;
+}
+
+void CollectionStateStore::writeNow(Mode mode)
+{
+    m_debounceTimer.stop();
+
+    if (m_rootPath.isEmpty() || !m_provider)
+        return;
+
+    // Set before the attempt, cleared only by a successful commit, so an
+    // exception-free early return anywhere below still leaves the write owed.
+    m_dirty = true;
+
     const QString path = filePath();
     if (path.isEmpty()) {
         // Refused by containment rather than by the filesystem, so retrying
@@ -176,22 +250,59 @@ void CollectionStateStore::save()
         return;
     }
 
-    if (NoteFileIo::writeTextFileAtomic(
-            path, QString::fromUtf8(QJsonDocument(root).toJson(
-                      QJsonDocument::Indented)))) {
-        m_dirty = false;
+    // One writer at a time. A second request while one is in flight leaves
+    // the dirty flag set and re-arms the debounce, so the state that lands is
+    // the state as of the later request rather than a queue of stale ones.
+    if (m_writeWatcher.isRunning()) {
+        if (mode == Mode::Deferred) {
+            if (!m_debounceTimer.isActive())
+                m_debounceTimer.start();
+            return;
+        }
+        awaitInFlightWrite();
+    }
+
+    // Taken here because the provider reads live collection state. Everything
+    // past this point is a value copy the worker owns.
+    Snapshot snapshot = m_provider();
+
+    if (mode == Mode::Blocking) {
+        applyWriteResult(writeSnapshot(std::move(snapshot), path));
+        return;
+    }
+
+    m_writeWatcher.setFuture(QtConcurrent::run(&CollectionStateStore::writeSnapshot,
+                                               std::move(snapshot), path));
+}
+
+void CollectionStateStore::applyWriteResult(const WriteResult &result)
+{
+    if (result.ok) {
         m_retryTimer.stop();
+        // A request that arrived while this write was in flight re-armed the
+        // debounce. What just landed is older than that request, so the write
+        // is still owed and the flag has to stay set — otherwise a close in
+        // the gap before the timer fires would see nothing outstanding.
+        if (!m_debounceTimer.isActive())
+            m_dirty = false;
         return;
     }
 
     if (!m_retryTimer.isActive())
         m_retryTimer.start();
-    emit saveFailed(tr("Cannot save collection settings to \"%1\"").arg(path));
+    emit saveFailed(
+        tr("Cannot save collection settings to \"%1\"").arg(result.path));
 }
 
 void CollectionStateStore::flushIfDirty()
 {
+    // Awaited before the timers are stopped, on purpose: applyWriteResult
+    // decides whether the landed write settles the debt by asking whether a
+    // newer request has re-armed the debounce. Stopping it first would make
+    // an older write look like it had settled a newer one.
+    awaitInFlightWrite();
     m_retryTimer.stop();
+    m_debounceTimer.stop();
     if (m_dirty)
-        save();
+        writeNow(Mode::Blocking);
 }

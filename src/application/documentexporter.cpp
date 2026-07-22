@@ -910,11 +910,36 @@ DocumentExporter::buildOutputPlan(NoteCollection *collection,
     const QString canonicalDest = canonicalTarget(destDir);
     const QString canonicalRoot = canonicalTarget(collection->rootPath());
 
-    // Every source, resolved once, so an output can be compared against all
-    // of them and not merely against the note it came from.
+    // The sources an output could land on, resolved once, so an output can
+    // be compared against all of them and not merely against the note it
+    // came from.
+    //
+    // This used to canonicalise every note in the collection — one
+    // filesystem call each, before any export work, in the asynchronous job
+    // path as well as the synchronous one — so the prologue cost the size of
+    // the vault however few notes were being exported. An output is written
+    // inside the destination directory, so the only notes it can overwrite
+    // are the ones that live there; the rest cannot collide with any path
+    // this plan will produce. Deciding which those are is string work
+    // against the vault-relative paths, and only the survivors are resolved.
+    QStringList candidates = relPaths;   // always: these are being read
+    if (isInsideDirectory(canonicalDest, canonicalRoot)) {
+        // The destination is inside the vault, so notes under it are exactly
+        // the ones an output can reach.
+        QString prefix = canonicalDest.mid(canonicalRoot.size());
+        while (prefix.startsWith(QLatin1Char('/')))
+            prefix.remove(0, 1);
+        for (const QString &rel : collection->noteRelPaths()) {
+            if (prefix.isEmpty()
+                || rel.startsWith(prefix + QLatin1Char('/'))) {
+                candidates.append(rel);
+            }
+        }
+    }
+
     QSet<QString> sources;
-    sources.reserve(relPaths.size());
-    for (const QString &rel : collection->noteRelPaths())
+    sources.reserve(candidates.size());
+    for (const QString &rel : candidates)
         sources.insert(canonicalTarget(collection->absolutePath(rel)));
 
     if (singleFile) {

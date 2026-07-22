@@ -114,7 +114,6 @@ NoteCollection::NoteCollection(QObject *parent)
           [this]() { return searchReconcileListing(); },
           [this](const QString &relPath) { return absolutePath(relPath); })
     , m_wikiLinks(&m_notes,
-                  [this]() { return m_revision; },
                   [this](const QString &relPath) { return absolutePath(relPath); },
                   [this](const QString &relPath) { return readNoteBody(relPath); })
 {
@@ -257,7 +256,7 @@ void NoteCollection::closeRoot()
     attachStoresToRoot();
     m_notes.clear();
     m_folders.clear();
-    clearFolderNoteCounts();
+    clearDerivedIndexes();
     m_tagColors.clear();
     m_manualOrder.clear();
     m_lastOpenNote.clear();
@@ -655,7 +654,7 @@ void NoteCollection::scan()
     cancelAsyncScan();
     m_notes.clear();
     m_folders.clear();
-    clearFolderNoteCounts();
+    clearDerivedIndexes();
     m_tagColors.clear();
     m_manualOrder.clear();
     m_lastOpenNote.clear();
@@ -683,7 +682,7 @@ void NoteCollection::scanAsync()
     cancelAsyncScan();
     m_notes.clear();
     m_folders.clear();
-    clearFolderNoteCounts();
+    clearDerivedIndexes();
     m_tagColors.clear();
     m_manualOrder.clear();
     m_lastOpenNote.clear();
@@ -889,7 +888,9 @@ void NoteCollection::insertNoteEntry(const QString &relPath,
     removeNoteEntry(relPath);
     m_notes.insert(relPath, entry);
     adjustFolderNoteCounts(entry.folder, 1);
-    m_wikiLinks.invalidate();
+    m_folderNotes[entry.folder].insert(relPath);
+    m_tagCountsValid = false;
+    m_wikiLinks.noteAdded(relPath);
     // A note now stands where one was renamed away from, so the redirect
     // that stood in for it is over. Resolution would prefer the file anyway;
     // this stops the dead entry being carried into the next session.
@@ -911,8 +912,15 @@ void NoteCollection::removeNoteEntry(const QString &relPath)
     if (it == m_notes.constEnd())
         return;
     adjustFolderNoteCounts(it.value().folder, -1);
+    const auto folderIt = m_folderNotes.find(it.value().folder);
+    if (folderIt != m_folderNotes.end()) {
+        folderIt->remove(relPath);
+        if (folderIt->isEmpty())
+            m_folderNotes.erase(folderIt);
+    }
+    m_tagCountsValid = false;
     m_notes.remove(relPath);
-    m_wikiLinks.invalidate();
+    m_wikiLinks.noteRemoved(relPath);
 }
 
 void NoteCollection::adjustFolderNoteCounts(const QString &folderPath, int delta)
@@ -936,17 +944,57 @@ void NoteCollection::adjustFolderNoteCounts(const QString &folderPath, int delta
     }
 }
 
-void NoteCollection::rebuildFolderNoteCounts()
+void NoteCollection::rebuildDerivedIndexes()
 {
-    clearFolderNoteCounts();
-    for (const NoteEntry &entry : m_notes)
-        adjustFolderNoteCounts(entry.folder, 1);
+    clearDerivedIndexes();
+    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        adjustFolderNoteCounts(it.value().folder, 1);
+        m_folderNotes[it.value().folder].insert(it.key());
+    }
+    m_tagCountsValid = false;
 }
 
-void NoteCollection::clearFolderNoteCounts()
+// How many notes carry each tag, counted once and kept until the collection
+// changes.
+//
+// The tag panel used to ask allTags() for the distinct tags — a pass over
+// every note — and then tagCount() for each one, another pass each. Opening
+// it therefore cost the number of distinct tags times the size of the vault,
+// on the GUI thread, and again on every collection revision if the panel was
+// bound to one. This is a single pass, and most revisions do not need even
+// that because nothing asked.
+//
+// Invalidation is deliberately coarse: entries arriving or leaving, and
+// bump(), which every mutation that changes a note's metadata already calls
+// to tell the views something changed. Tying it to the individual metadata
+// setters instead would mean a tag edit through a path nobody thought of
+// leaves the panel showing a stale count.
+const QHash<QString, int> &NoteCollection::tagCounts() const
+{
+    if (m_tagCountsValid)
+        return m_tagCounts;
+    m_tagCounts.clear();
+    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        for (const QString &tag : it.value().meta.tags)
+            m_tagCounts[tag] += 1;
+    }
+    m_tagCountsValid = true;
+    return m_tagCounts;
+}
+
+void NoteCollection::clearDerivedIndexes()
 {
     m_folderOwnNoteCounts.clear();
     m_folderRecursiveNoteCounts.clear();
+    m_folderNotes.clear();
+    m_tagCounts.clear();
+    m_tagCountsValid = false;
+    // Every site that empties or replaces m_notes wholesale — closing a root,
+    // opening one, a rescan — comes through here, which makes this the place
+    // the path-keyed wiki-link map has to be dropped. It is maintained note
+    // by note otherwise, so nothing else would tell it the collection it was
+    // built from is gone.
+    m_wikiLinks.invalidate();
 }
 
 
@@ -1120,7 +1168,7 @@ void NoteCollection::applyAsyncScanListing()
         return;
 
     m_folders.clear();
-    clearFolderNoteCounts();
+    clearDerivedIndexes();
     for (const FolderEntry &folder : listing.folders)
         m_folders.insert(folder.relPath, folder);
 
@@ -1623,6 +1671,16 @@ void NoteCollection::applyAsyncIndexSaveResult()
         && !result.ok && !m_indexSaveQueued)
         m_indexDirty = true;
 
+    // A plan says "these files may not match the sidecar", so it is over once
+    // a sidecar written from the same state has landed — the same reasoning
+    // the synchronous save applies, and the reason that save existed in the
+    // metadata setters. Only an actually successful write counts: a failed
+    // one with another request queued leaves m_indexDirty false, which alone
+    // would let the plan finish over a sidecar nothing had written.
+    if (hasResult && result.generation == m_asyncIndexSaveGeneration
+        && result.ok)
+        finishOperationPlanAfterIndexSave();
+
     if (m_indexSaveQueued) {
         AsyncIndexSaveRequest request = std::move(m_pendingIndexSaveRequest);
         m_indexSaveQueued = false;
@@ -1971,7 +2029,12 @@ void NoteCollection::stepRedirectRewrite()
 
     if (wrote) {
         markIndexDirty();
-        saveIndexFileIfDirty();
+        // The burst above is time-sliced to keep the GUI thread responsive,
+        // which a synchronous whole-index write at the end of each burst
+        // undid: the slice bounded the rewriting and then paid an O(vault)
+        // serialize-and-write anyway. The coalescing async save collapses
+        // the bursts into as few writes as the disk keeps up with.
+        saveIndexFileIfDirtyAsync();
         bump();
     }
     if (m_redirectIndex >= m_redirectQueue.size()) {
@@ -2684,7 +2747,7 @@ void NoteCollection::renamePathsUnderFolder(const QString &oldPrefix,
         }
     }
     m_wikiLinks.invalidate();
-    rebuildFolderNoteCounts();
+    rebuildDerivedIndexes();
 
     // Manual-order keys.
     const QStringList orderKeys = m_manualOrder.keys();
@@ -2792,7 +2855,7 @@ bool NoteCollection::deleteFolder(const QString &relPath)
         if (key == relPath || key.startsWith(prefix))
             m_manualOrder.remove(key);
     }
-    rebuildFolderNoteCounts();
+    rebuildDerivedIndexes();
 
     m_collectionState.save();
     markIndexDirty();
@@ -2812,7 +2875,7 @@ void NoteCollection::setFolderExpanded(const QString &relPath, bool expanded)
     if (it == m_folders.end() || it->expanded == expanded || refuseWhenReadOnly())
         return;
     it->expanded = expanded;
-    m_collectionState.save();
+    m_collectionState.saveDeferred();
     bump();
 }
 
@@ -2822,7 +2885,7 @@ void NoteCollection::setFolderColor(const QString &relPath, const QString &color
     if (it == m_folders.end() || it->color == color || refuseWhenReadOnly())
         return;
     it->color = color;
-    m_collectionState.save();
+    m_collectionState.saveDeferred();
     bump();
 }
 
@@ -2981,7 +3044,7 @@ bool NoteCollection::setTags(const QString &relPath, const QStringList &tags)
         entry->fileSize = info.size();
     }
     markIndexDirty();
-    saveIndexFileIfDirty();
+    saveIndexFileIfDirtyAsync();
     bump();
     // A metadata write restores the file's mtime, so a reconcile would not see
     // it as changed; reindex explicitly to keep the tag filter current.
@@ -3008,7 +3071,7 @@ void NoteCollection::assignColorsToNewTags(const QStringList &tags)
         }
     }
     if (changed)
-        m_collectionState.save();
+        m_collectionState.saveDeferred();
 }
 
 bool NoteCollection::addTag(const QString &relPath, const QString &tag)
@@ -3057,7 +3120,7 @@ bool NoteCollection::setPinned(const QString &relPath, bool pinned)
         entry->fileSize = info.size();
     }
     markIndexDirty();
-    saveIndexFileIfDirty();
+    saveIndexFileIfDirtyAsync();
     bump();
     return true;
 }
@@ -3084,7 +3147,7 @@ bool NoteCollection::setFavorite(const QString &relPath, bool favorite)
         entry->fileSize = info.size();
     }
     markIndexDirty();
-    saveIndexFileIfDirty();
+    saveIndexFileIfDirtyAsync();
     bump();
     return true;
 }
@@ -3112,7 +3175,7 @@ bool NoteCollection::setGoal(const QString &relPath, int goal)
         entry->fileSize = info.size();
     }
     markIndexDirty();
-    saveIndexFileIfDirty();
+    saveIndexFileIfDirtyAsync();
     bump();
     return true;
 }
@@ -3127,13 +3190,7 @@ int NoteCollection::goalFor(const QString &relPath) const
 
 QStringList NoteCollection::allTags() const
 {
-    QStringList tags;
-    for (const NoteEntry &entry : m_notes) {
-        for (const QString &tag : entry.meta.tags) {
-            if (!tags.contains(tag))
-                tags.append(tag);
-        }
-    }
+    QStringList tags = tagCounts().keys();
     std::sort(tags.begin(), tags.end(), [](const QString &a, const QString &b) {
         return a.compare(b, Qt::CaseInsensitive) < 0;
     });
@@ -3156,12 +3213,7 @@ QVariantList NoteCollection::tagListing() const
 
 int NoteCollection::tagCount(const QString &tag) const
 {
-    int count = 0;
-    for (const NoteEntry &entry : m_notes) {
-        if (entry.meta.tags.contains(tag))
-            ++count;
-    }
-    return count;
+    return tagCounts().value(tag);
 }
 
 QString NoteCollection::tagColor(const QString &tag) const
@@ -3177,7 +3229,7 @@ void NoteCollection::setTagColor(const QString &tag, const QString &color)
         m_tagColors.remove(tag);
     else
         m_tagColors.insert(tag, color);
-    m_collectionState.save();
+    m_collectionState.saveDeferred();
     bump();
 }
 
@@ -3300,10 +3352,20 @@ QStringList NoteCollection::manualOrder(const QString &folder) const
             relPaths.append(relPath);
     }
     // ...then everything unlisted, oldest first (stable for new files).
+    //
+    // Both halves used to scale with the whole vault rather than with the
+    // folder: every note was visited to find the ones in this folder, and
+    // each was then checked against the already-ordered list with a linear
+    // contains(). Listing one folder therefore cost O(all notes x notes
+    // listed), and this backs the note list, setManualPosition and
+    // createNote.
+    const QSet<QString> listed(relPaths.constBegin(), relPaths.constEnd());
     QList<const NoteEntry *> rest;
-    for (const NoteEntry &entry : m_notes) {
-        if (entry.folder == folder && !relPaths.contains(entry.relPath))
-            rest.append(&entry);
+    for (const QString &relPath : m_folderNotes.value(folder)) {
+        if (listed.contains(relPath))
+            continue;
+        if (const auto it = m_notes.constFind(relPath); it != m_notes.constEnd())
+            rest.append(&it.value());
     }
     std::sort(rest.begin(), rest.end(),
               [](const NoteEntry *a, const NoteEntry *b) {
@@ -3335,7 +3397,7 @@ bool NoteCollection::setManualPosition(const QString &relPath, int position)
     for (const QString &path : order)
         names.append(nameOfRelPath(path));
     m_manualOrder.insert(entry->folder, names);
-    m_collectionState.save();
+    m_collectionState.saveDeferred();
     bump();
     return true;
 }
@@ -3347,7 +3409,7 @@ void NoteCollection::setLastOpenNote(const QString &relPath)
     if (m_lastOpenNote == relPath || m_readOnly)
         return;
     m_lastOpenNote = relPath;
-    m_collectionState.save();
+    m_collectionState.saveDeferred();
     // Deliberately no bump: which note is open is not collection content.
 }
 
@@ -3609,6 +3671,10 @@ CollectionStateStore::Snapshot NoteCollection::collectionStateSnapshot() const
 void NoteCollection::bump()
 {
     ++m_revision;
+    // Every mutation that changes a note's metadata announces itself here,
+    // which makes this the one place that cannot be forgotten when a new
+    // one is added. See tagCounts().
+    m_tagCountsValid = false;
     emit revisionChanged();
 }
 

@@ -28,6 +28,7 @@
 #include "egresspolicy.h"
 #include "embedmetadata.h"
 #include "notecollection.h"
+#include "localimageprovider.h"
 #include "remoteimageprovider.h"
 #include "remotemediacache.h"
 #include "settingsstore.h"
@@ -171,6 +172,7 @@ private slots:
     void updateRedirectsStayOnTheDisclosedOrigin();
     void concurrentRequestsAreCappedAndQueued();
     void oversizedImageDimensionsAreRejectedBeforeDecode();
+    void oversizedLocalImageIsRejectedBeforeDecode();
     void remoteMediaIsPlayedOnlyFromBoundedLocalCache();
     void remoteMediaIsStreamedToDiskNotBuffered();
     void remoteMediaCacheEvictsLeastRecentlyUsedPastItsBudget();
@@ -274,10 +276,12 @@ void TestEgressPolicy::schemeAndCredentialRules()
     QVERIFY(!policy.isAllowed("https://user:pw@example.com/x"));
     QVERIFY(!policy.canRequestConsent("https://user:pw@example.com/x"));
 
-    // A local path is not an egress question at all: imageSourceFor passes
-    // it through so ordinary note images keep working.
+    // A local path is not an egress question at all, and it still reaches
+    // QML. It goes by way of the app's own in-process provider, which holds
+    // it to the same decoded-size budget as a remote image; what matters here
+    // is that it resolves to something loadable rather than to "".
     QCOMPARE(policy.imageSourceFor("file:///home/a/pic.png"),
-             QString("file:///home/a/pic.png"));
+             QString("image://local/%2Fhome%2Fa%2Fpic.png"));
     QCOMPARE(policy.imageSourceFor("https://cdn.example.com/pic.png"), QString());
 }
 
@@ -288,9 +292,12 @@ void TestEgressPolicy::imageSourceSchemesAreAnAllowlist()
 {
     EgressPolicy policy;
 
-    // The four shapes that genuinely cannot leave the process pass through.
+    // The four shapes that genuinely cannot leave the process are the ones
+    // allowed through. A file: URL is rewritten onto the app's own local
+    // provider on the way — still in-process, and now size-checked before it
+    // is decoded — while the rest are handed over unchanged.
     QCOMPARE(policy.imageSourceFor("file:///home/a/pic.png"),
-             QString("file:///home/a/pic.png"));
+             QString("image://local/%2Fhome%2Fa%2Fpic.png"));
     QCOMPARE(policy.imageSourceFor("qrc:/icons/x.svg"), QString("qrc:/icons/x.svg"));
     QCOMPARE(policy.imageSourceFor("data:image/png;base64,AAAA"),
              QString("data:image/png;base64,AAAA"));
@@ -1080,6 +1087,49 @@ void TestEgressPolicy::oversizedImageDimensionsAreRejectedBeforeDecode()
     const QImage decoded = RemoteImageProvider::decodeForDisplay(compressed);
     QVERIFY2(decoded.isNull(),
              "an over-dimension image was fully decoded before rejection");
+}
+
+// The same budget for a file on disk. A note is untrusted input and so is
+// what it points at, and Image.sourceSize does not help here: it bounds the
+// pixmap that is kept, but Qt's PNG handler still allocates the image at its
+// stored size and scales afterwards, so the peak is the same either way.
+// Refusing it from the header is what avoids the allocation.
+void TestEgressPolicy::oversizedLocalImageIsRejectedBeforeDecode()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    // Over the dimension limit in one axis, and tiny once compressed, so the
+    // test does not depend on being able to allocate what it is refusing.
+    const QString tooLarge = dir.filePath(QStringLiteral("huge.png"));
+    {
+        QImage source(RemoteImageProvider::MaxDimension + 1, 1,
+                      QImage::Format_ARGB32_Premultiplied);
+        source.fill(Qt::transparent);
+        QVERIFY(source.save(tooLarge, "PNG"));
+    }
+    QVERIFY2(LocalImageProvider::decodeFile(tooLarge).isNull(),
+             "an over-dimension local image was decoded instead of refused");
+
+    // An ordinary image still loads, and a requested size scales it down
+    // rather than being ignored or upscaling it.
+    const QString ordinary = dir.filePath(QStringLiteral("ok.png"));
+    {
+        QImage source(800, 400, QImage::Format_ARGB32_Premultiplied);
+        source.fill(Qt::red);
+        QVERIFY(source.save(ordinary, "PNG"));
+    }
+    QCOMPARE(LocalImageProvider::decodeFile(ordinary).size(), QSize(800, 400));
+    QCOMPARE(LocalImageProvider::decodeFile(ordinary, QSize(200, 200)).size(),
+             QSize(200, 100));
+    QCOMPARE(LocalImageProvider::decodeFile(ordinary, QSize(4000, 4000)).size(),
+             QSize(800, 400));
+
+    // A path that is not a file at all resolves to nothing rather than to a
+    // broken half-image.
+    QVERIFY(LocalImageProvider::decodeFile(dir.filePath(QStringLiteral("nope.png")))
+                .isNull());
+    QVERIFY(LocalImageProvider::decodeFile(dir.path()).isNull());
 }
 
 void TestEgressPolicy::remoteMediaIsPlayedOnlyFromBoundedLocalCache()

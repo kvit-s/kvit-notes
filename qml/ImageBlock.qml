@@ -366,9 +366,26 @@ BlockDelegateBase {
             Image {
                 id: image
                 anchors.fill: parent
-                source: delegate.displaySource
+                // Dropped while pooled so the delegate does not sit in the
+                // recycle pool holding a decoded pixmap and its texture for a
+                // row nobody is looking at. cache: true below means the
+                // reload on reuse comes from the pixmap cache.
+                source: delegate.isPooled ? "" : delegate.displaySource
                 asynchronous: true
                 cache: true
+                // width/height are display geometry; sourceSize is what asks
+                // the reader for a scaled decode. Without it a photo shown
+                // 600 px wide is decoded at its full camera resolution — tens
+                // of megabytes of pixmap before the texture.
+                //
+                // For a raster image this is a ceiling and never an upscale:
+                // a source smaller than the box still loads at its own size,
+                // so only oversized images change. Setting the width alone
+                // keeps the aspect ratio, which the frame height below reads
+                // back out of implicitHeight/implicitWidth.
+                sourceSize.width: Math.max(
+                    1, Math.ceil(delegate.effectiveWidth
+                                 * imageFrame.Screen.devicePixelRatio))
                 // Maintain aspect by default (§1.2.8); `aspect=stretch` fills.
                 fillMode: delegate.imgStretch ? Image.Stretch : Image.PreserveAspectFit
                 // Hidden while the MultiEffect renders it rounded/shadowed.
@@ -379,13 +396,16 @@ BlockDelegateBase {
                 ToolTip.text: delegate.img.alt
             }
 
-            // Rounded-corner mask source (offscreen).
+            // Rounded-corner mask source (offscreen). The layer is a
+            // full-size offscreen texture, so it is only worth having when
+            // something actually masks against it — which is a minority of
+            // images, and never one that is pooled.
             Rectangle {
                 id: roundMask
                 anchors.fill: parent
                 radius: delegate.imgRadius
                 visible: false
-                layer.enabled: true
+                layer.enabled: delegate.imgRounded && !delegate.isPooled
             }
 
             // Rounded corners and/or drop shadow (§1.2.8) via one MultiEffect.

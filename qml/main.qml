@@ -452,7 +452,7 @@ KvitShell {
     // one and its buffer holds edits the journal does not: the dialog offers
     // replace / keep / cancel and calls back into the session.
     function confirmRecoveryOverwrite(relPath) {
-        documentDialogs.confirmRecoveryOverwrite(relPath)
+        root.documentDialogs().confirmRecoveryOverwrite(relPath)
     }
     function replaceEditsWithRecovery(relPath) {
         return noteSession.replaceEditsWithRecovery(relPath)
@@ -462,7 +462,7 @@ KvitShell {
     }
     // A failure the session has to put in front of the user. Named here so the
     // session does not have to know which child owns the error dialog.
-    function showDocumentError(message) { documentDialogs.showError(message) }
+    function showDocumentError(message) { root.documentDialogs().showError(message) }
     // The conflict banner's two buttons (§12.1), and the one entry point that
     // raises it — both the file watcher and the collection report an external
     // change, and both arrive here.
@@ -703,13 +703,24 @@ KvitShell {
     // The transitions that can lose work, and the dialogs that ask before
     // they do, are in DocumentSessionDialogs.qml. The error dialog lives
     // there too, because a failed save or open is the same conversation.
-    DocumentSessionDialogs {
-        id: documentDialogs
+    // Seven dialogs — recovery, unsaved-close, errors, vault creation and
+    // the rest — none of which a session needs unless something goes wrong
+    // or the user asks. Built on first use, like the context menus above.
+    Loader {
+        id: documentDialogsLoader
         // Its dialogs centre on this window, so it spans it.
         anchors.fill: parent
-        appWindow: root
+        active: false
+        sourceComponent: DocumentSessionDialogs {
+            anchors.fill: parent
+            appWindow: root
 
-        onImportRequested: importDialog.openDialog()
+            onImportRequested: importDialog.openDialog()
+        }
+    }
+    function documentDialogs() {
+        documentDialogsLoader.active = true
+        return documentDialogsLoader.item as DocumentSessionDialogs
     }
 
     SettingsDialog {
@@ -819,24 +830,41 @@ KvitShell {
     // is the shell-level surface they answer. contextMenuHoldsSelection is a
     // KvitShell query a delegate makes on itself, and the three open calls
     // arrive from AppActions, so both have to be reachable on the window.
-    EditorContextMenus {
-        id: contextMenus
+    // Built on the first right-click rather than at startup. These are five
+    // full menus with their items, actions and separators — measured at
+    // about 800 QObjects, the largest single thing the shell was creating
+    // before the user had done anything — and a session that never opens a
+    // context menu never needs any of it.
+    Loader {
+        id: contextMenusLoader
         anchors.fill: parent
-        toolbar: appToolbar
-        selectionKeys: selectionKeyHandler
+        active: false
+        sourceComponent: EditorContextMenus {
+            anchors.fill: parent
+            toolbar: appToolbar
+            selectionKeys: selectionKeyHandler
+        }
+    }
+    function contextMenus() {
+        contextMenusLoader.active = true
+        return contextMenusLoader.item
     }
 
     function contextMenuHoldsSelection(target) {
-        return contextMenus.holdsSelection(target)
+        // Asked on every right-click before deciding which menu to open, so
+        // it must not be the thing that builds them: with no menu yet there
+        // is no menu holding a selection.
+        var menus = contextMenusLoader.item as EditorContextMenus
+        return menus ? menus.holdsSelection(target) : false
     }
     function openTextContextMenu(target) {
-        contextMenus.openTextMenu(target)
+        root.contextMenus().openTextMenu(target)
     }
     function openLinkContextMenu(target) {
-        contextMenus.openLinkMenu(target)
+        root.contextMenus().openLinkMenu(target)
     }
     function openBlockHandleMenu(target) {
-        contextMenus.openHandleMenu(target)
+        root.contextMenus().openHandleMenu(target)
     }
 
     // KvitShell query overrides: a delegate asks whether its completion menu
@@ -869,15 +897,25 @@ KvitShell {
     // dialogs and the conversion they perform are in BlockInsertDialogs.qml.
     // A delegate asks for these through AppActions, so the window keeps the
     // three names.
-    BlockInsertDialogs {
-        id: blockInserts
+    // The image, embed and table insertion pickers, built when one is asked
+    // for.
+    Loader {
+        id: blockInsertsLoader
         anchors.fill: parent
-        listView: blockListView
+        active: false
+        sourceComponent: BlockInsertDialogs {
+            anchors.fill: parent
+            listView: blockListView
+        }
+    }
+    function blockInserts() {
+        blockInsertsLoader.active = true
+        return blockInsertsLoader.item as BlockInsertDialogs
     }
 
-    function insertImageIntoBlock(idx) { blockInserts.insertImage(idx) }
-    function insertEmbedIntoBlock(idx) { blockInserts.insertEmbed(idx) }
-    function insertTableIntoBlock(idx) { blockInserts.insertTable(idx) }
+    function insertImageIntoBlock(idx) { root.blockInserts().insertImage(idx) }
+    function insertEmbedIntoBlock(idx) { root.blockInserts().insertEmbed(idx) }
+    function insertTableIntoBlock(idx) { root.blockInserts().insertTable(idx) }
 
     // The folder holding the open file. Two workflows ask for it: a drop
     // ingests its assets beside the note, and the create-a-vault offer turns
@@ -1001,7 +1039,7 @@ KvitShell {
         // A dirty document that has never been saved had no handling at all:
         // closing simply discarded it. Ask, and treat cancel as "do not close".
         close.accepted = false
-        documentDialogs.confirmCloseUnsaved()
+        root.documentDialogs().confirmCloseUnsaved()
     }
 
     // Settings that cannot reach disk (read-only location, full disk).
@@ -1030,14 +1068,14 @@ KvitShell {
             })
         }
         function onOperationFailed(message) {
-            documentDialogs.showError(message)
+            root.documentDialogs().showError(message)
         }
         // The vault is open in another Kvit process. Only one session may
         // write a vault: both would load the same state and the second to
         // save would discard the first's work. This window keeps running as
         // a plain editor, so File > Open still works on individual notes.
         function onVaultInUse(path, detail) {
-            documentDialogs.showError(
+            root.documentDialogs().showError(
                 qsTr("%1\n\nOnly one Kvit window can have a vault open, "
                      + "because two would overwrite each other's changes. "
                      + "Close the other window and reopen this folder, or "
@@ -1705,6 +1743,6 @@ KvitShell {
         statisticsPanel: root.statisticsPanel
 
         onWritingGoalRequested: goalDialog.openFor(root.currentNoteRelPath)
-        onCreateVaultRequested: documentDialogs.offerVaultFromCurrentFolder()
+        onCreateVaultRequested: root.documentDialogs().offerVaultFromCurrentFolder()
     }
 }

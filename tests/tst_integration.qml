@@ -6222,8 +6222,12 @@ Item {
                 var current = appLoader.item.currentNoteRelPath
                 return current !== "" && current !== "Welcome.md"
             }, 1000)
+            // The session dialogs are built on first use, so no dialog at
+            // all is the strongest form of "no error was reported"; if one
+            // exists it must not be showing.
             var errorDialog = findChild(appLoader.item, "errorDialog")
-            verify(!errorDialog.visible, "no failed-open error dialog")
+            verify(!errorDialog || !errorDialog.visible,
+                   "no failed-open error dialog")
             verify(!NoteCollection.noteInfo("Welcome.md").title,
                    "the deleted note stays deleted")
 
@@ -7250,6 +7254,111 @@ Item {
                       1000, "one undo reverts the sort")
         }
 
+        // A table is laid out inline, so it has no viewport to virtualise
+        // against and every rendered row is a live row of cells. Two things
+        // used to scale badly and are gated here: each cell asked TableTools
+        // for its value, which re-parsed the entire table markdown, so the
+        // work was cells x table size; and every row was built regardless of
+        // how many there were. Both are invisible to the prose corpus the
+        // other performance tests use.
+        function test_zx2_largeTableStaysBounded() {
+            function buildTable(rows, cols) {
+                var header = [], delim = []
+                for (var c = 0; c < cols; c++) {
+                    header.push("h" + c)
+                    delim.push("---")
+                }
+                var lines = ["| " + header.join(" | ") + " |",
+                             "| " + delim.join(" | ") + " |"]
+                for (var r = 0; r < rows; r++) {
+                    var cells = []
+                    for (var c2 = 0; c2 < cols; c2++)
+                        cells.push("r" + r + "c" + c2)
+                    lines.push("| " + cells.join(" | ") + " |")
+                }
+                return lines.join("\n")
+            }
+
+            function countItems(item) {
+                if (!item)
+                    return 0
+                var n = 1
+                var kids = item.children
+                for (var i = 0; i < kids.length; i++)
+                    n += countItems(kids[i])
+                return n
+            }
+
+            function createTable(rows, cols) {
+                DocumentManager.newDocument()
+                wait(50)
+                var t0 = Date.now()
+                BlockModel.convertBlock(0, 15, buildTable(rows, cols))
+                tryVerify(function() {
+                    var d = findBlockDelegate(0)
+                    return d !== null && findChild(d, "tableGrid") !== null
+                }, 5000, rows + "x" + cols + " table renders")
+                var ms = Date.now() - t0
+                // Counted now: the next newDocument() recycles this delegate,
+                // so a reference kept past here reports an empty grid.
+                var d = findBlockDelegate(0)
+                return { ms: ms, delegate: d,
+                         items: countItems(findChild(d, "tableGrid")),
+                         hidden: d.hiddenRows }
+            }
+
+            // (1) Creation cost must not grow with the square of the table.
+            // The 100x100 case is 10,000 cells; before the row window and the
+            // O(1) cell lookup it did ~10,000 full parses of a ~500 KB string.
+            var small = createTable(10, 10)
+            console.log("TABLE CREATE 10x10: " + small.ms + " ms")
+            var tall = createTable(100, 10)
+            console.log("TABLE CREATE 100x10: " + tall.ms + " ms")
+            var huge = createTable(100, 100)
+            console.log("TABLE CREATE 100x100: " + huge.ms + " ms")
+            verify(huge.ms < 3000,
+                   "a 100x100 table must render in under 3s (measured "
+                   + huge.ms + "ms)")
+
+            // (2) Rows past the window are not built, so the item count of a
+            // 1,000-row table tracks the window rather than the row count.
+            var wide = createTable(1000, 5)
+            console.log("TABLE CREATE 1000x5: " + wide.ms + " ms")
+            verify(wide.ms < 3000,
+                   "a 1000-row table must render in under 3s (measured "
+                   + wide.ms + "ms)")
+            console.log("TABLE ITEMS 1000x5: " + wide.items
+                        + " vs 100x10: " + tall.items)
+            verify(wide.hidden > 0,
+                   "a 1000-row table holds rows back (hidden: "
+                   + wide.hidden + ")")
+            verify(wide.items < tall.items,
+                   "a 1000-row 5-column table must not build more items than a "
+                   + "100-row 10-column one (" + wide.items + " vs "
+                   + tall.items + ")")
+
+            // (3) The held-back rows stay reachable.
+            wide.delegate.revealAllRows()
+            tryVerify(function() { return wide.delegate.hiddenRows === 0 },
+                      5000, "Show all reveals every row")
+
+            // (4) Editing one cell of a large table must not re-parse the
+            // table once per rendered cell.
+            var edit = createTable(100, 10)
+            var content0 = BlockModel.getContent(0)
+            var tEdit = Date.now()
+            edit.delegate.commitCell(0, 0, "edited")
+            tryVerify(function() {
+                return BlockModel.getContent(0).indexOf("edited") >= 0
+            }, 5000, "the cell edit lands")
+            wait(0)
+            var editMs = Date.now() - tEdit
+            console.log("TABLE CELL EDIT 100x10: " + editMs + " ms")
+            verify(editMs < 500,
+                   "one cell edit in a 100x10 table must settle under 500ms "
+                   + "(measured " + editMs + "ms)")
+        }
+
         function test_zy_todoMetaAndQuoteNesting() {
             if (isHeadless) {
                 skip("Focus tests require display")
@@ -8199,6 +8308,71 @@ Item {
             ta.cursorPosition = 0
             tryVerify(function() { return para.inlineMathBoxes.length === 1 },
                       2000, "caret outside restores the equation overlay")
+        }
+
+        // Moving the caret through a formula-heavy paragraph used to cost
+        // more the more formulas it held, in two compounding ways: every
+        // caret rectangle change re-asked the engine for the box list, which
+        // re-scanned the markdown; and each overlay image then worked out its
+        // line's baseline by scanning every other box and asking the editor
+        // for two caret rectangles per box, which is quadratic in the number
+        // of formulas. Neither is exercised by the prose corpus the other
+        // performance tests use.
+
+        function test_zzg2_formulaHeavyCaretMotionStaysLinear() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+
+            function paragraphWith(formulas) {
+                var parts = []
+                for (var i = 0; i < formulas; i++)
+                    parts.push("term $a_" + i + "+b^" + i + "$ end")
+                return parts.join(" ")
+            }
+
+            // Milliseconds per arrow-key caret move, averaged.
+            function caretMoveCost(formulas) {
+                DocumentManager.newDocument()
+                DocumentSerializer.loadIntoModel(BlockModel,
+                                                 paragraphWith(formulas))
+                wait(400)
+                var para = findBlockDelegate(0)
+                verify(para !== null, formulas + "-formula paragraph exists")
+                tryVerify(function() {
+                    return para.inlineMathBoxes.length === formulas
+                }, 8000, "all " + formulas + " overlays are reported")
+                var ta = findTextArea(para)
+                ensureFocus(ta)
+                ta.cursorPosition = 0
+                wait(100)
+                var moves = 40
+                var t0 = Date.now()
+                for (var k = 0; k < moves; k++)
+                    keyClick(Qt.Key_Right)
+                return (Date.now() - t0) / moves
+            }
+
+            var few = caretMoveCost(10)
+            var many = caretMoveCost(100)
+            console.log("CARET MOVE 10 formulas: " + few.toFixed(3)
+                        + " ms, 100 formulas: " + many.toFixed(3) + " ms")
+
+            // The 60 Hz frame budget, which is what a caret move has to fit
+            // inside to feel attached to the key. Measured on this machine at
+            // 1.5 ms for ten formulas and 10.6 ms for a hundred; the same
+            // paragraphs cost 3.7 ms and 43.9 ms before the box list was
+            // cached, the per-line baselines were computed once instead of
+            // once per image, and caret movement stopped ticking the overlay
+            // layer at all. The hundred-formula case is the one that
+            // separates: it was two and a half frames and is now well inside
+            // one.
+            verify(few < 16,
+                   "caret motion in a 10-formula paragraph must stay under "
+                   + "16ms/key (measured " + few.toFixed(2) + "ms)")
+            verify(many < 16,
+                   "caret motion in a 100-formula paragraph must stay under "
+                   + "16ms/key (measured " + many.toFixed(2) + "ms)")
         }
 
         // ---- Embed blocks ----

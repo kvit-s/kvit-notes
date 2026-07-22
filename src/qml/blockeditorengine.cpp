@@ -597,6 +597,8 @@ void BlockEditorEngine::setContentFontPixelSize(int size)
         return;
     m_contentFontPixelSize = value;
     m_mathMetricsCache.clear();
+    m_mathMetricsOrder.clear();
+    m_mathSegmentsValid = false;
     emit contentFontChanged();
     requestRehighlight();
 }
@@ -632,6 +634,10 @@ QVariantMap BlockEditorEngine::cachedMathMetrics(const QString &tex,
     const QVariantMap metrics =
         mathMetricsMap(MathRenderer::measure(tex, size));
     m_mathMetricsCache.insert(key, metrics);
+    m_mathMetricsOrder.append(key);
+    while (m_mathMetricsOrder.size() > MaxMathMetricsEntries) {
+        m_mathMetricsCache.remove(m_mathMetricsOrder.takeFirst());
+    }
     return metrics;
 }
 
@@ -925,6 +931,53 @@ QVariantList BlockEditorEngine::inlineMathBoxes() const
     QVariantList out;
     if (m_verbatim)
         return out;
+
+    // Everything except the line positions depends only on the markdown and
+    // the reveal state. The overlay asks for this list again on every
+    // relayout and every caret move, so re-scanning the markdown and
+    // re-merging the metric maps each time was the bulk of the cost of
+    // having math in a paragraph at all.
+    if (!m_mathSegmentsValid || m_mathSegmentsMarkdown != m_markdown
+        || m_mathSegmentsRevealed != m_revealedSpans) {
+        m_mathSegmentsCache = buildInlineMathSegments();
+        m_mathSegmentsMarkdown = m_markdown;
+        m_mathSegmentsRevealed = m_revealedSpans;
+        m_mathSegmentsValid = true;
+    }
+
+    out = m_mathSegmentsCache;
+    if (!m_doc)
+        return out;
+
+    // The line each span sits on has to come from the live layout: a width
+    // change rewraps the text without changing a character of it.
+    for (int i = 0; i < out.size(); ++i) {
+        QVariantMap box = out.at(i).toMap();
+        const int docStart = box.value(QStringLiteral("docStart")).toInt();
+        const QTextBlock block = m_doc->findBlock(docStart);
+        if (block.isValid()) {
+            if (QTextLayout *layout = block.layout()) {
+                const QTextLine line =
+                    layout->lineForTextPosition(docStart - block.position());
+                if (line.isValid()) {
+                    box.insert(QStringLiteral("lineStart"),
+                               block.position() + line.textStart());
+                    box.insert(QStringLiteral("lineEnd"),
+                               block.position() + line.textStart()
+                                   + line.textLength());
+                }
+            }
+        }
+        out[i] = box;
+    }
+    return out;
+}
+
+// The markdown-derived half of a box list: which spans are hidden, what they
+// render as, and what was reserved for them.
+QVariantList BlockEditorEngine::buildInlineMathSegments() const
+{
+    QVariantList out;
     for (const InlineMarkdown::MathSegment &seg :
          InlineMarkdown::hiddenMathSegments(m_markdown, m_revealedSpans)) {
         QVariantMap box{
@@ -932,26 +985,8 @@ QVariantList BlockEditorEngine::inlineMathBoxes() const
             {QStringLiteral("docStart"), seg.docStart},
             {QStringLiteral("docEnd"), seg.docEnd},
         };
-        // The line the reservation sits on, so the delegate can position the
-        // overlay after a relayout. Needs the live document, which is why the
-        // measurement half of this stays here rather than in InlineMarkdown.
-        if (m_doc) {
-            const QTextBlock block = m_doc->findBlock(seg.docStart);
-            if (block.isValid()) {
-                if (QTextLayout *layout = block.layout()) {
-                    const QTextLine line =
-                        layout->lineForTextPosition(seg.docStart
-                                                    - block.position());
-                    if (line.isValid()) {
-                        box.insert(QStringLiteral("lineStart"),
-                                   block.position() + line.textStart());
-                        box.insert(QStringLiteral("lineEnd"),
-                                   block.position() + line.textStart()
-                                       + line.textLength());
-                    }
-                }
-            }
-        }
+        // No line positions here: those come from the live layout, which
+        // this result outlives, and inlineMathBoxes() fills them in.
         const QVariantMap metrics =
             cachedMathMetrics(seg.tex, mathFontPixelSize());
         for (auto it = metrics.constBegin(); it != metrics.constEnd(); ++it)

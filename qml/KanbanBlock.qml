@@ -45,6 +45,21 @@ BlockDelegateBase {
     property var collapsed: ({})
     property string labelFilter: ""
 
+    // How many cards a column renders before the rest need asking for, and
+    // the per-column overrides a "show all" writes. A board is laid out
+    // inline, so every rendered card is a live card.
+    readonly property int cardWindowStep: 100
+    property var cardReveal: ({})
+    function revealedCardsIn(columnName) {
+        var n = cardReveal[columnName]
+        return n !== undefined ? n : cardWindowStep
+    }
+    function revealAllCardsIn(columnName, total) {
+        var r = Object.assign({}, cardReveal)
+        r[columnName] = total
+        cardReveal = r
+    }
+
     // All labels across the board (for the filter row and palette coloring).
     readonly property var allLabels: {
         var seen = []
@@ -234,6 +249,11 @@ BlockDelegateBase {
                         readonly property int colIndex: index
                         readonly property var colData: root.columns[colIndex]
                         readonly property bool isCollapsed: root.collapsed[colData.name] === true
+                        readonly property int renderedCards:
+                            Math.min(colData.cards.length,
+                                     root.revealedCardsIn(colData.name))
+                        readonly property int hiddenCards:
+                            colData.cards.length - renderedCards
                         width: 220
                         implicitHeight: colHeader.height + (isCollapsed ? 8 : colCards.implicitHeight + 16)
                         height: implicitHeight
@@ -328,7 +348,18 @@ BlockDelegateBase {
                             spacing: 6
 
                             Repeater {
-                                model: columnItem.colData.cards.length
+                                // Collapsing a column used to hide the Column
+                                // and leave every card built underneath it:
+                                // invisible is not the same as absent, and the
+                                // cards kept their items, their text layouts
+                                // and their drag handlers. An empty model is
+                                // what actually releases them.
+                                //
+                                // The window on the rest is for the same
+                                // reason the table has one — a board is drawn
+                                // inline, so nothing virtualises its cards.
+                                model: columnItem.isCollapsed
+                                    ? 0 : columnItem.renderedCards
                                 delegate: Rectangle {
                                     id: cardItem
                                     required property int index
@@ -459,6 +490,30 @@ BlockDelegateBase {
                                         onDoubleTapped: cardEditor.openFor(
                                             cardItem.cardColIndex, cardItem.cardIndex)
                                     }
+                                }
+                            }
+
+                            // What the card window is holding back in this
+                            // column, and the way past it.
+                            Text {
+                                objectName: "kanbanCardWindowNotice"
+                                visible: columnItem.hiddenCards > 0
+                                width: parent.width
+                                wrapMode: Text.Wrap
+                                text: qsTr("%n more card(s) — show all", "",
+                                           columnItem.hiddenCards)
+                                font.pixelSize: 11
+                                color: showAllCards.containsMouse ? Theme.accent
+                                                                  : Theme.link
+                                font.underline: showAllCards.containsMouse
+                                MouseArea {
+                                    id: showAllCards
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.revealAllCardsIn(
+                                        columnItem.colData.name,
+                                        columnItem.colData.cards.length)
                                 }
                             }
                         }

@@ -23,9 +23,9 @@
 //
 // Everything here is derived from state the note repository already holds —
 // each entry's outgoing link targets and the set of note paths — so it is
-// rebuildable and holds no truth of its own. Resolution runs off a lazily
-// built lowercased-basename map that is thrown away whenever the collection's
-// revision or note count moves.
+// rebuildable and holds no truth of its own. Resolution runs off a
+// lowercased-basename map built on first use and then maintained as note
+// paths are added and removed.
 //
 // The index reads the repository through the accessors handed to the
 // constructor rather than owning any of it, so nothing in this file can
@@ -44,7 +44,6 @@ public:
         int linkCount = 0;
     };
 
-    using RevisionProvider = std::function<int()>;
     using AbsolutePathResolver = std::function<QString(const QString &)>;
     // Where a note that no longer exists at a target's path lives now, or ""
     // when nothing does. Consulted only for targets that name no real note,
@@ -57,7 +56,6 @@ public:
     using BodyReader = std::function<QString(const QString &)>;
 
     WikiLinkIndex(const QHash<QString, NoteEntry> *notes,
-                  RevisionProvider revision,
                   AbsolutePathResolver absolutePath,
                   BodyReader readBody);
 
@@ -88,10 +86,22 @@ public:
                                     const QSet<QString> &oldKeys,
                                     const QString &replacement);
 
-    // Drop the basename map. The revision check catches most staleness on its
-    // own; this is for the changes that move neither the revision nor the
-    // note count, such as a note renamed within the same folder.
-    void invalidate() const { m_indexRevision = -1; }
+    // Drop the basename map, for wholesale changes: a root closing or
+    // opening, a rescan, a bulk path rewrite. Everything narrower should use
+    // the two below.
+    void invalidate() const { m_indexValid = false; }
+
+    // One note's path entering or leaving the collection.
+    //
+    // The map is keyed on note paths and nothing else, so a note's body or
+    // metadata changing cannot affect it — but every applied index update
+    // used to invalidate the whole thing, and the staleness check was keyed
+    // on the collection revision, which moves on every edit. Between them,
+    // the first link resolution, backlinks query or heading lookup after any
+    // save rebuilt a map over every note in the vault. Adding and removing
+    // the one path that actually changed keeps it warm.
+    void noteAdded(const QString &relPath) const;
+    void noteRemoved(const QString &relPath) const;
 
     // Obsidian-compatible resolution: a target matches a note by path
     // suffix — bare "note" matches any **/note.md, "folder/note" requires
@@ -132,17 +142,20 @@ public:
 
 private:
     void ensureIndex() const;
+    // The map key for a note path: its basename, ".md" dropped, lowercased.
+    static QString basenameKey(const QString &relPath);
 
     const QHash<QString, NoteEntry> *m_notes;
     RedirectLookup m_redirects;
-    RevisionProvider m_revision;
     AbsolutePathResolver m_absolutePath;
     BodyReader m_readBody;
 
     // Lazy resolution cache: lowercased basename -> relPaths. Mutable
-    // because resolving a target is a const query.
+    // because resolving a target is a const query. Built on first use and
+    // then maintained in place; the note count is a cheap self-check that
+    // catches a path change that reached m_notes without telling this index.
     mutable QHash<QString, QStringList> m_basenames;
-    mutable int m_indexRevision = -1;
+    mutable bool m_indexValid = false;
     mutable int m_indexNoteCount = -1;
 };
 

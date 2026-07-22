@@ -1937,6 +1937,11 @@ void TestNoteCollection::testFailedIndexWriteKeepsIndexDirty()
             QSKIP(qPrintable(denied.skipReason()));
         // The note itself is written; only the index sidecar fails.
         m_collection->setTags("A.md", {"one"});
+        // The sidecar write is handed to a pool thread, so the failure that
+        // puts the dirty flag back arrives through the watcher rather than
+        // before setTags() returns. What is under test is that it arrives at
+        // all, not when.
+        QTRY_VERIFY_WITH_TIMEOUT(m_collection->indexDirtyForTesting(), 5000);
         stillDirty = m_collection->indexDirtyForTesting();
     }
 
@@ -1959,6 +1964,10 @@ void TestNoteCollection::testFailedCollectionWriteIsReported()
         if (!denied.supported())
             QSKIP(qPrintable(denied.skipReason()));
         m_collection->setTagColor("one", "#ff0000"); // writes collection.json
+        // A tag colour is one of the state writes that is coalesced behind a
+        // short timer and then written off the GUI thread, so the report
+        // follows both rather than the call.
+        QTRY_VERIFY_WITH_TIMEOUT(failedSpy.count() > 0, 5000);
         failures = failedSpy.count();
     }
 
@@ -1969,7 +1978,8 @@ void TestNoteCollection::testFailedCollectionWriteIsReported()
     // The next mutation after writability returns retries the whole current
     // snapshot, including the tag colour that failed above.
     m_collection->setLastOpenNote("A.md");
-    QVERIFY(!m_collection->collectionFileDirtyForTesting());
+    QTRY_VERIFY_WITH_TIMEOUT(!m_collection->collectionFileDirtyForTesting(),
+                             5000);
     QFile state(m_dir->filePath(".kvit/collection.json"));
     QVERIFY(state.open(QIODevice::ReadOnly));
     const QByteArray json = state.readAll();

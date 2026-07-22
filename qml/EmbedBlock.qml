@@ -315,6 +315,13 @@ BlockDelegateBase {
                     source: EgressPolicy.imageSourceFor(root.loaded ? root.meta.image : "")
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
+                    // The tile is 120x74. Without this the remote provider is
+                    // told nothing about the size wanted and decodes whatever
+                    // the page linked, which its own guard permits up to 32
+                    // million pixels — around 128 MiB of pixmap for a card
+                    // thumbnail.
+                    sourceSize.width: thumb.width
+                    sourceSize.height: thumb.height
                 }
                 // Play affordance for a video host.
                 Rectangle {
@@ -409,6 +416,9 @@ BlockDelegateBase {
                         width: 14; height: 14
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
+                        // A site is free to serve a 1024-pixel icon here.
+                        sourceSize.width: 14
+                        sourceSize.height: 14
                     }
                     Text {
                         text: {

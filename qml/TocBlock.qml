@@ -49,6 +49,19 @@ BlockDelegateBase {
         return headings.length > 0 ? m : 1
     }
 
+    // A table of contents is drawn inline and in full, and every entry is an
+    // Item, a Text and a MouseArea. A heavily sectioned document has hundreds
+    // of headings, and a note can hold several TOC blocks, each rendering its
+    // own copy of the same projection. Only a window is built; the rest are
+    // one button away.
+    readonly property int entryWindowStep: 100
+    property int revealedEntries: entryWindowStep
+    readonly property int renderedEntries:
+        Math.min(headings.length, revealedEntries)
+    readonly property int hiddenEntries:
+        Math.max(0, headings.length - renderedEntries)
+    function revealAllEntries() { revealedEntries = headings.length }
+
     readonly property bool blockSelected: {
         var revision = DocumentSelection.revision // dependency only
         return DocumentSelection.isBlockSelected(delegate.index)
@@ -90,6 +103,9 @@ BlockDelegateBase {
     ListView.onReused: {
         isPooled = false
         opacity = 1
+        // A reused delegate is a different block; it must not inherit however
+        // far the previous one had been expanded.
+        revealedEntries = entryWindowStep
     }
 
     function focusAtStart() { focusTarget.forceActiveFocus() }
@@ -272,19 +288,26 @@ BlockDelegateBase {
             }
 
             Repeater {
-                model: delegate.headings
+                model: delegate.renderedEntries
                 Item {
                     id: headingRow
-                    required property var modelData
                     required property int index
+                    // The model is a count rather than the list itself, so
+                    // the entry is looked up here. An index past the end is
+                    // possible for one binding pass while the outline shrinks.
+                    readonly property var heading: {
+                        var h = delegate.headings[headingRow.index]
+                        return h !== undefined ? h
+                             : { level: 1, text: "", blockIndex: -1 }
+                    }
                     width: cardColumn.width
                     height: entry.implicitHeight + 4
 
                     Text {
                         id: entry
-                        x: (headingRow.modelData.level - delegate.minLevel) * 16
-                        text: headingRow.modelData.text === "" ? qsTr("(untitled)")
-                                                    : headingRow.modelData.text
+                        x: (headingRow.heading.level - delegate.minLevel) * 16
+                        text: headingRow.heading.text === "" ? qsTr("(untitled)")
+                                                    : headingRow.heading.text
                         font.pixelSize: 13
                         color: linkArea.containsMouse ? Theme.accent
                                                       : Theme.link
@@ -298,8 +321,39 @@ BlockDelegateBase {
                         // No window lookup any more: the request goes to
                         // AppActions, and an unconnected signal is a no-op
                         // exactly as the old `if (window)` guard was.
-                        onClicked: AppActions.requestScrollToBlock(
-                                       headingRow.modelData.blockIndex)
+                        onClicked: {
+                            if (headingRow.heading.blockIndex >= 0)
+                                AppActions.requestScrollToBlock(
+                                    headingRow.heading.blockIndex)
+                        }
+                    }
+                }
+            }
+
+            Row {
+                objectName: "tocEntryWindowNotice"
+                visible: delegate.hiddenEntries > 0
+                spacing: 6
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("%n more heading(s) not shown", "",
+                               delegate.hiddenEntries)
+                    font.pixelSize: 11
+                    color: Theme.textFaint
+                }
+                Text {
+                    objectName: "tocShowAllEntries"
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Show all")
+                    font.pixelSize: 11
+                    color: showAllArea.containsMouse ? Theme.accent : Theme.link
+                    font.underline: showAllArea.containsMouse
+                    MouseArea {
+                        id: showAllArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: delegate.revealAllEntries()
                     }
                 }
             }

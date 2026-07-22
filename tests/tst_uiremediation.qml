@@ -743,8 +743,10 @@ Item {
         function test_app3_documentErrorReachesTheUser() {
             verify(typeof win().showDocumentError === "function",
                    "the window exposes an error surface for the session")
-            var dialog = childNamed("errorDialog")
+            // The session dialogs are built on first use, so the error is
+            // raised before the dialog is looked up.
             win().showDocumentError("the template content could not be saved")
+            var dialog = childNamed("errorDialog")
             tryCompare(dialog, "visible", true, 1000)
             compare(dialog.errorMessage,
                     "the template content could not be saved")
@@ -771,8 +773,10 @@ Item {
 
             var spy = signalSpy.createObject(
                 root, { target: AppActions, signalName: "openVaultRequested" })
+            // Built on first use; offerVaultFromCurrentFolder is the path
+            // the shell itself takes to reach this dialog.
+            win().documentDialogs().offerVaultFromCurrentFolder()
             var dialog = childNamed("createVaultDialog")
-            dialog.open()
             tryCompare(dialog, "visible", true, 1000)
             childNamed("createVaultConfirmButton").clicked()
             tryCompare(dialog, "visible", false, 1000)

@@ -188,7 +188,12 @@ BlockDelegateBase {
     MediaPlayer {
         id: player
         objectName: "mediaPlayer"
-        source: root.playbackSource
+        // Dropped while pooled. Pausing stopped playback but left the
+        // player holding its source — a decoder, its buffers and an open
+        // file — for a row nobody is looking at, so scrolling past a run of
+        // media blocks accumulated them. The binding restores the source
+        // when the delegate is reused.
+        source: root.isPooled ? "" : root.playbackSource
         audioOutput: AudioOutput { id: audioOut; volume: 0.8 }
         videoOutput: root.isVideo ? videoFrame : null
     }

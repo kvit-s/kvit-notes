@@ -277,6 +277,7 @@ add_library(kvit-platform STATIC
     src/platform/egresspolicy.cpp
     src/platform/filewatcher.cpp
     src/platform/globalhotkey.cpp
+    src/platform/localimageprovider.cpp
     src/platform/remoteimageprovider.cpp
     src/platform/remotemediacache.cpp
     src/platform/settingsstore.cpp

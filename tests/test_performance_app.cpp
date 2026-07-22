@@ -17,11 +17,13 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QQuickWindow>
+#include <QMultiMap>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QUrl>
 
 #include <algorithm>
+#include <functional>
 
 #include "timingbudget.h"
 
@@ -31,6 +33,7 @@ class TestPerformanceApp : public QObject
 
 private slots:
     void guiStartupSamples();
+    void guiColdStartObjectCount();
     void guiScrollWarAndPeaceFrameSample();
     void guiCollectionStartupDeferredVault10K();
     void guiCollectionStartupDeferredSmallVaultHugeNote();
@@ -54,6 +57,41 @@ bool writeCollectionState(const QString &rootPath, const QString &lastOpenNote)
     stream << QStringLiteral("{\"lastOpenNote\":\"") << lastOpenNote
            << QStringLiteral("\"}\n");
     return true;
+}
+
+// Every QObject reachable from `root`, itself included. The QML object tree
+// is a QObject parent tree, so this counts what the shell actually built.
+int objectTreeSize(const QObject *root)
+{
+    if (!root)
+        return 0;
+    int count = 1;
+    for (const QObject *child : root->children())
+        count += objectTreeSize(child);
+    return count;
+}
+
+// Peak resident set size in kilobytes, or -1 where the platform does not
+// report it. Peak rather than current, because what matters is the high-water
+// mark a cold start reaches.
+qint64 peakResidentKb()
+{
+#if defined(Q_OS_LINUX)
+    QFile status(QStringLiteral("/proc/self/status"));
+    if (!status.open(QIODevice::ReadOnly | QIODevice::Text))
+        return -1;
+    // readAll() rather than atEnd()/readLine(): a /proc file reports size 0,
+    // so atEnd() is true before a byte has been read.
+    const QList<QByteArray> lines = status.readAll().split('\n');
+    for (const QByteArray &line : lines) {
+        if (!line.startsWith("VmHWM:"))
+            continue;
+        const QList<QByteArray> parts = line.simplified().split(' ');
+        if (parts.size() >= 2)
+            return parts.at(1).toLongLong();
+    }
+#endif
+    return -1;
 }
 
 } // namespace
@@ -115,6 +153,93 @@ void TestPerformanceApp::guiStartupSamples()
           log.samples(QStringLiteral("startup.first_frame")).last().durationMs);
     qInfo("PERF GUI statusbar.count: %.2f ms",
           log.samples(QStringLiteral("statusbar.count")).last().durationMs);
+}
+
+// What an empty document costs before the user has done anything: how many
+// QObjects the shell built, and the peak memory reaching that point.
+//
+// This is the measurement the audit's cold-start finding asked for. main.qml
+// creates most dialogs, popups and side panels eagerly rather than on first
+// use, and the question was whether that is worth changing. A number here
+// makes the answer checkable rather than arguable, and pins it so a new
+// eagerly-created dialog shows up as a step change instead of drifting in
+// unnoticed.
+void TestPerformanceApp::guiColdStartObjectCount()
+{
+    QQmlApplicationEngine engine;
+    Setup setup;
+    setup.qmlEngineAvailable(&engine);
+
+    QElapsedTimer startup;
+    startup.start();
+    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    engine.load(url);
+    if (engine.rootObjects().isEmpty())
+        QSKIP("QML window did not load in this environment");
+
+    QQuickWindow *window =
+        qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    if (!window)
+        QSKIP("Root QML object is not a QQuickWindow");
+
+    window->show();
+    if (!QTest::qWaitForWindowExposed(window, 5000))
+        QSKIP("No exposed Qt Quick window available for GUI performance sample");
+    const double firstFrameMs = startup.elapsed();
+
+    const int objects = objectTreeSize(window);
+    const qint64 rssKb = peakResidentKb();
+
+    // Where they are, so the answer to "is eager creation worth changing?"
+    // names the specific things worth changing.
+    if (qEnvironmentVariableIsSet("KVIT_COLD_START_BREAKDOWN")) {
+        QMultiMap<int, QString> bySize;
+        const QObject *contentItem = window->findChild<QObject *>(
+            QString(), Qt::FindDirectChildrenOnly);
+        Q_UNUSED(contentItem);
+        std::function<void(const QObject *, int)> walk =
+            [&](const QObject *node, int depth) {
+                for (const QObject *child : node->children()) {
+                    const int size = objectTreeSize(child);
+                    if (size >= 40 && depth < 3) {
+                        const QString name = child->objectName().isEmpty()
+                            ? QString::fromLatin1(child->metaObject()->className())
+                            : child->objectName() + QStringLiteral(" [")
+                                  + QString::fromLatin1(
+                                        child->metaObject()->className())
+                                  + QStringLiteral("]");
+                        bySize.insert(size, QString(depth * 2, QLatin1Char(' '))
+                                                + name);
+                    }
+                    walk(child, depth + 1);
+                }
+            };
+        walk(window, 0);
+        auto it = bySize.constEnd();
+        int shown = 0;
+        while (it != bySize.constBegin() && shown < 30) {
+            --it;
+            qInfo("PERF GUI cold_start.subtree %5d  %s", it.key(),
+                  qPrintable(it.value()));
+            ++shown;
+        }
+    }
+
+    qInfo("PERF GUI cold_start.objects: %d", objects);
+    qInfo("PERF GUI cold_start.peak_rss: %lld KiB", rssKb);
+    qInfo("PERF GUI cold_start.first_frame: %.2f ms", firstFrameMs);
+
+    // A ceiling, not a target. Measured at about 4,360 objects on an empty
+    // document, down from 5,750 before the context menus, session dialogs
+    // and insertion pickers were moved behind Loaders. The bound sits above
+    // the current figure so ordinary shell work does not trip it, and below
+    // where it started so another set of eagerly-built dialogs would.
+    QVERIFY2(objects < 5200,
+             qPrintable(QStringLiteral(
+                 "cold start built %1 QObjects, which is more than the shell "
+                 "should need before the user has done anything. Something "
+                 "was probably added to main.qml eagerly that belongs behind "
+                 "a Loader.").arg(objects)));
 }
 
 void TestPerformanceApp::guiScrollWarAndPeaceFrameSample()

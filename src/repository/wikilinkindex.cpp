@@ -24,11 +24,9 @@ QByteArray sha256Of(const QByteArray &content)
 } // namespace
 
 WikiLinkIndex::WikiLinkIndex(const QHash<QString, NoteEntry> *notes,
-                             RevisionProvider revision,
                              AbsolutePathResolver absolutePath,
                              BodyReader readBody)
     : m_notes(notes)
-    , m_revision(std::move(revision))
     , m_absolutePath(std::move(absolutePath))
     , m_readBody(std::move(readBody))
 {
@@ -69,20 +67,48 @@ int WikiLinkIndex::rewriteTargetsInText(QString *text,
     return replacements.size();
 }
 
+QString WikiLinkIndex::basenameKey(const QString &relPath)
+{
+    QString base = nameOfRelPath(relPath);
+    if (base.endsWith(mdSuffix, Qt::CaseInsensitive))
+        base.chop(mdSuffix.size());
+    return base.toLower();
+}
+
+void WikiLinkIndex::noteAdded(const QString &relPath) const
+{
+    if (!m_indexValid)
+        return;                 // the next ensureIndex() will include it
+    QStringList &paths = m_basenames[basenameKey(relPath)];
+    if (!paths.contains(relPath))
+        paths.append(relPath);
+    m_indexNoteCount = m_notes->size();
+}
+
+void WikiLinkIndex::noteRemoved(const QString &relPath) const
+{
+    if (!m_indexValid)
+        return;
+    const auto it = m_basenames.find(basenameKey(relPath));
+    if (it == m_basenames.end())
+        return;
+    it->removeAll(relPath);
+    if (it->isEmpty())
+        m_basenames.erase(it);
+    m_indexNoteCount = m_notes->size();
+}
+
 void WikiLinkIndex::ensureIndex() const
 {
-    const int revision = m_revision();
-    if (m_indexRevision == revision
-        && m_indexNoteCount == m_notes->size())
+    // The note count is a backstop, not the primary check: the map is
+    // maintained by noteAdded/noteRemoved, and a disagreement here means a
+    // path reached m_notes without going through them.
+    if (m_indexValid && m_indexNoteCount == m_notes->size())
         return;
     m_basenames.clear();
-    for (auto it = m_notes->constBegin(); it != m_notes->constEnd(); ++it) {
-        QString base = nameOfRelPath(it.key());
-        if (base.endsWith(mdSuffix, Qt::CaseInsensitive))
-            base.chop(mdSuffix.size());
-        m_basenames[base.toLower()].append(it.key());
-    }
-    m_indexRevision = revision;
+    for (auto it = m_notes->constBegin(); it != m_notes->constEnd(); ++it)
+        m_basenames[basenameKey(it.key())].append(it.key());
+    m_indexValid = true;
     m_indexNoteCount = m_notes->size();
 }
 

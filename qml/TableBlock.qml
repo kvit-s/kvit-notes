@@ -40,14 +40,36 @@ BlockDelegateBase {
     property bool isFocused: activeRow !== -2 || focusTarget.activeFocus
     property bool isHovered: hoverArea.containsMouse
 
-    // Parsed grid (re-evaluates on content change).
+    // Parsed grid (re-evaluates on content change). Cell text is read out of
+    // this map rather than re-parsed per cell: the grid already holds every
+    // header and row, so a lookup is an array index.
     readonly property var grid: TableTools.parse(content)
     readonly property int columns: grid.valid ? grid.columns : 0
     readonly property int dataRows: grid.valid ? grid.rowCount : 0
 
+    // A table is laid out inline in the document, so it has no viewport of
+    // its own to virtualise against: every rendered row is a live row of
+    // cells. Only a window of rows is built, and the rest are one button
+    // away. Editing or navigating into a row past the window widens it,
+    // so nothing becomes unreachable.
+    readonly property int rowWindowStep: 100
+    property int revealedRows: rowWindowStep
+    readonly property int renderedRows: Math.min(dataRows, revealedRows)
+    readonly property int hiddenRows: Math.max(0, dataRows - renderedRows)
+
+    function revealThrough(row) {
+        if (row >= revealedRows)
+            revealedRows = row + 1
+    }
+    function revealAllRows() { revealedRows = dataRows }
+
     // The one live cell: activeRow -2 = none, -1 = header row, 0..n data row.
     property int activeRow: -2
     property int activeCol: -1
+
+    // The cell rectangle the single editor is parented into, set by whichever
+    // cell is active. One editor exists per table, not one Loader per cell.
+    property Item activeCellItem: null
 
     readonly property int tableWidth: Math.max(240, root.width - 96)
     readonly property int colWidth: columns > 0 ? Math.floor(tableWidth / columns) : 80
@@ -84,7 +106,9 @@ BlockDelegateBase {
     implicitHeight: gridColumn.implicitHeight + 16
 
     ListView.onPooled: { isPooled = true; activeRow = -2; opacity = 0 }
-    ListView.onReused: { isPooled = false; opacity = 1 }
+    // A reused delegate is a different table, so it must not inherit however
+    // far the previous one had been expanded.
+    ListView.onReused: { isPooled = false; opacity = 1; revealedRows = rowWindowStep }
 
     function focusAtStart() { editCell(-1, 0) }
     function focusAtEnd() { editCell(dataRows > 0 ? dataRows - 1 : -1, Math.max(0, columns - 1)) }
@@ -95,6 +119,7 @@ BlockDelegateBase {
     // ---- Mutations, each one model content update (one undo step) ----
     function writeTable(md) { BlockModel.updateContent(root.index, md) }
     function editCell(r, c) {
+        revealThrough(r)
         activeRow = r
         activeCol = c
         focusTarget.forceActiveFocus()  // keep the block "focused" for the shell
@@ -104,8 +129,19 @@ BlockDelegateBase {
         if (md !== content)
             writeTable(md)
     }
+    // O(1) against the grid parsed once above. Asking TableTools for a cell
+    // re-parsed the whole table markdown, which every rendered cell then paid
+    // on every edit.
     function cellText(r, c) {
-        return TableTools.cellValue(content, r, c)
+        if (!root.grid.valid || c < 0 || c >= root.columns)
+            return ""
+        if (r === -1)
+            return root.grid.headers[c] !== undefined ? root.grid.headers[c] : ""
+        if (r >= 0 && r < root.dataRows) {
+            var row = root.grid.rows[r]
+            return (row && row[c] !== undefined) ? row[c] : ""
+        }
+        return ""
     }
     function moveCell(forward) {
         var r = activeRow, c = activeCol
@@ -234,9 +270,10 @@ BlockDelegateBase {
         width: root.tableWidth
         opacity: root.isDragSource ? 0.35 : 1
 
-        // Header row + data rows via a Repeater over row indices (-1..dataRows-1).
+        // Header row + the rendered window of data rows, as row indices
+        // -1..renderedRows-1.
         Repeater {
-            model: root.dataRows + 1
+            model: root.renderedRows + 1
             delegate: Row {
                 id: rowItem
                 required property int index
@@ -283,16 +320,18 @@ BlockDelegateBase {
                             verticalAlignment: Text.AlignVCenter
                         }
 
-                        // The single live editor, loaded only for the active cell.
-                        Loader {
-                            active: cell.isActive
-                            anchors.fill: parent
-                            anchors.margins: 3
-                            sourceComponent: cellEditorComponent
-                            onLoaded: {
-                                item.rowIndex = rowItem.rowIndex
-                                item.colIndex = cell.colIndex
-                            }
+                        // The table-scope editor parents itself here while
+                        // this cell is the active one. A Loader per cell
+                        // bought nothing: only one can ever be active.
+                        onIsActiveChanged: {
+                            if (isActive)
+                                root.activeCellItem = cell
+                            else if (root.activeCellItem === cell)
+                                root.activeCellItem = null
+                        }
+                        Component.onDestruction: {
+                            if (root.activeCellItem === cell)
+                                root.activeCellItem = null
                         }
 
                         MouseArea {
@@ -328,6 +367,28 @@ BlockDelegateBase {
             }
         }
 
+        // What the row window is holding back, and the way past it. Without
+        // this the omitted rows would simply look deleted.
+        Row {
+            objectName: "tableRowWindowNotice"
+            visible: root.hiddenRows > 0
+            spacing: 6
+            topPadding: 4
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("%n more row(s) not shown", "", root.hiddenRows)
+                font.pixelSize: 11
+                color: Theme.textMuted
+            }
+            Button {
+                objectName: "tableShowAllRows"
+                text: qsTr("Show all")
+                focusPolicy: Qt.NoFocus
+                font.pixelSize: 11
+                onClicked: root.revealAllRows()
+            }
+        }
+
         // Add-row / add-column buttons.
         Row {
             spacing: 6
@@ -337,8 +398,13 @@ BlockDelegateBase {
                 text: qsTr("+ Row")
                 focusPolicy: Qt.NoFocus
                 font.pixelSize: 11
-                onClicked: root.writeTable(
-                    TableTools.insertRow(root.content, root.dataRows - 1))
+                onClicked: {
+                    // The appended row is the last one, so it has to be inside
+                    // the window or the button would look like it did nothing.
+                    root.revealThrough(root.dataRows)
+                    root.writeTable(
+                        TableTools.insertRow(root.content, root.dataRows - 1))
+                }
             }
             Button {
                 objectName: "tableAddColumn"
@@ -351,12 +417,40 @@ BlockDelegateBase {
         }
     }
 
+    // One editor for the whole table, reparented into whichever cell is
+    // active. It carries the block's only BlockEditorEngine.
+    Loader {
+        id: cellEditor
+        parent: root.activeCellItem !== null ? root.activeCellItem : root
+        active: root.activeCellItem !== null
+        anchors.fill: parent
+        anchors.margins: 3
+        sourceComponent: cellEditorComponent
+    }
+
     Component {
         id: cellEditorComponent
         Item {
             id: editorRoot
-            property int rowIndex: -1
-            property int colIndex: 0
+            readonly property int rowIndex: root.activeRow
+            readonly property int colIndex: root.activeCol
+
+            // Focus and caret placement used to come with a freshly created
+            // per-cell editor. One editor for the whole table stays loaded
+            // while it moves between cells, so it re-applies them itself:
+            // on creation for the first cell, and on every move after that.
+            function beginEditing() {
+                cellArea.forceActiveFocus()
+                cellArea.cursorPosition = cellArea.length
+            }
+            Component.onCompleted: beginEditing()
+            Connections {
+                target: root
+                function onActiveCellItemChanged() {
+                    if (root.activeCellItem !== null)
+                        editorRoot.beginEditing()
+                }
+            }
 
             BlockEditorEngine {
                 id: cellEngine
@@ -377,7 +471,6 @@ BlockDelegateBase {
                 wrapMode: TextEdit.Wrap
                 font.pixelSize: Typography.baseSize - 1
                 color: Theme.textPrimary
-                Component.onCompleted: { forceActiveFocus(); cursorPosition = length }
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Tab) {
                         root.moveCell(true); event.accepted = true; return

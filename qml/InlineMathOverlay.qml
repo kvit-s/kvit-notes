@@ -70,6 +70,49 @@ Item {
         font: root.editorFont
     }
 
+    // Where one span sits, and how far above that its baseline is. Both are
+    // asked of the editor, which is the only thing that knows how the text
+    // was laid out.
+    function rectFor(entry) {
+        var r1 = root.editor.positionToRectangle(entry.docStart)
+        var r2 = root.editor.positionToRectangle(entry.docEnd)
+        var sameLine = Math.abs(r2.y - r1.y) < 2
+        var w = sameLine ? Math.max(2, r2.x - r1.x) : Math.max(2, r1.width)
+        return Qt.rect(r1.x, r1.y, w, r1.height)
+    }
+    function ascentFor(entry) {
+        return entry.reservationValid
+            && entry.reservationAscent > 0
+            && entry.reservationHeight > 0
+            ? entry.reservationAscent
+            : editorMetrics.ascent
+    }
+    function lineStartOf(entry) {
+        return entry.lineStart !== undefined ? entry.lineStart : entry.docStart
+    }
+
+    // The lowest baseline any span on a line asks for, keyed by line start.
+    //
+    // Each image used to work this out for itself by scanning every box and
+    // asking the editor for two caret rectangles per box, so a paragraph with
+    // M equations did M*M rectangle queries on every relayout and every caret
+    // move. The answer is the same for every image on a line, so it is
+    // computed once here in a single pass and looked up.
+    readonly property var lineBaselines: {
+        var t = root.tick   // recompute on relayout and caret movement
+        var map = ({})
+        if (!root.editor)
+            return map
+        for (var i = 0; i < root.boxes.length; ++i) {
+            var entry = root.boxes[i]
+            var key = String(root.lineStartOf(entry))
+            var baseline = root.rectFor(entry).y + root.ascentFor(entry)
+            if (map[key] === undefined || baseline > map[key])
+                map[key] = baseline
+        }
+        return map
+    }
+
     Repeater {
         model: root.boxes
         Image {
@@ -77,41 +120,14 @@ Item {
             objectName: "inlineMathImage"
             required property var modelData
 
-            function boxFor(entry) {
-                var r1 = root.editor.positionToRectangle(entry.docStart)
-                var r2 = root.editor.positionToRectangle(entry.docEnd)
-                var sameLine = Math.abs(r2.y - r1.y) < 2
-                var w = sameLine ? Math.max(2, r2.x - r1.x)
-                                 : Math.max(2, r1.width)
-                return Qt.rect(r1.x, r1.y, w, r1.height)
-            }
-            function reservationAscentFor(entry) {
-                return entry.reservationValid
-                    && entry.reservationAscent > 0
-                    && entry.reservationHeight > 0
-                    ? entry.reservationAscent
-                    : editorMetrics.ascent
-            }
             function lineBaselineY() {
-                var t = root.tick  // reposition on change
-                var lineStart = modelData.lineStart !== undefined
-                    ? modelData.lineStart : modelData.docStart
-                var baseline = box.y + reservationAscentFor(modelData)
-                for (var i = 0; i < root.boxes.length; ++i) {
-                    var entry = root.boxes[i]
-                    var entryLineStart = entry.lineStart !== undefined
-                        ? entry.lineStart : entry.docStart
-                    if (entryLineStart !== lineStart)
-                        continue
-                    var r = boxFor(entry)
-                    baseline = Math.max(baseline,
-                                        r.y + reservationAscentFor(entry))
-                }
-                return baseline
+                var shared = root.lineBaselines[String(root.lineStartOf(modelData))]
+                var own = box.y + root.ascentFor(modelData)
+                return shared !== undefined ? Math.max(shared, own) : own
             }
             property rect box: {
                 var t = root.tick  // reposition on change
-                return boxFor(modelData)
+                return root.rectFor(modelData)
             }
             property bool metricsValid: modelData.valid
                 && modelData.width > 0

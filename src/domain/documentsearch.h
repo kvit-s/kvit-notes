@@ -158,6 +158,12 @@ public:
     static QList<Match> scanText(const QString &text, const QString &query,
                                  bool caseSensitive, bool wholeWord,
                                  bool useRegex, bool *patternError = nullptr);
+    // The regex scan against a pattern the caller has already compiled.
+    // The per-block loop compiles once per recompute and uses this, rather
+    // than rebuilding the identical QRegularExpression for every block on
+    // every keystroke in the find bar.
+    static QList<Match> scanText(const QString &text,
+                                 const QRegularExpression &re);
     // $1–$9, $& (whole match), $$ (literal dollar); anything else is
     // literal. captures[0] is the whole match.
     static QString substituteCaptures(const QString &replacement,

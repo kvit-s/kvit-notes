@@ -48,8 +48,53 @@ BlockDelegateBase {
     property var queryResult: ({ ok: false, error: "", view: "table",
                                  columns: [], rows: [], groups: [] })
 
+    // A query's `limit` defaults to unlimited, and results are drawn inline
+    // with one Rectangle, Text, HoverHandler and TapHandler per cell, so a
+    // broad query over a large vault builds a subtree the size of the vault.
+    // Only a window is rendered; the count of what is held back is shown
+    // next to the way past it. An explicit limit in the query still applies
+    // first, and can be lower or higher than this.
+    readonly property int rowWindowStep: 100
+    property int revealedRows: rowWindowStep
+    readonly property int totalRows:
+        queryResult.ok && queryResult.rows ? queryResult.rows.length : 0
+    readonly property int renderedRows: Math.min(totalRows, revealedRows)
+    readonly property int hiddenRows: Math.max(0, totalRows - renderedRows)
+    function revealAllRows() { revealedRows = totalRows }
+
+    // The board view draws the same rows as cards grouped into columns, so
+    // the window is shared out between the groups rather than applied to
+    // each: twenty groups of a hundred would be two thousand cards, which is
+    // the thing being avoided. A small floor keeps every group showing
+    // something.
+    readonly property int boardCardCap: {
+        var groups = (queryResult.ok && queryResult.groups)
+            ? queryResult.groups.length : 0
+        if (groups <= 0)
+            return revealedRows
+        return Math.max(5, Math.ceil(revealedRows / groups))
+    }
+
     function refresh() {
-        queryResult = QueryTools.run(root.content)
+        // A new result is a new set of rows, so the window starts over.
+        revealedRows = rowWindowStep
+        // Evaluating scans the whole collection, so it runs on a worker and
+        // answers through resultReady below. A result already computed for
+        // this collection revision comes back from the cache here, which
+        // keeps a re-render from flashing empty.
+        var cached = QueryTools.cachedResult(root.content)
+        if (cached && cached.ok !== undefined)
+            queryResult = cached
+        QueryTools.requestRun(root.blockId, root.content)
+    }
+
+    Connections {
+        target: QueryTools
+        enabled: !root.isPooled
+        function onResultReady(token, result) {
+            if (token === root.blockId)
+                root.queryResult = result
+        }
     }
     function scheduleRefresh() {
         refreshTimer.restart()
@@ -71,6 +116,12 @@ BlockDelegateBase {
     }
     Connections {
         target: NoteCollection
+        // Disabled while pooled. Stopping the timer on pooling was not
+        // enough: the connection stayed live, so a collection revision
+        // arriving afterwards restarted it and ran a whole-vault query for a
+        // delegate nobody was looking at. The reuse path re-runs the query
+        // for whatever block the delegate is given, so nothing is missed.
+        enabled: !root.isPooled
         function onRevisionChanged() { root.scheduleRefresh() }
         function onRootChanged() { root.scheduleRefresh() }
     }
@@ -110,11 +161,21 @@ BlockDelegateBase {
         refreshTimer.stop()
         isPooled = true
         opacity = 0
+        // An unlimited query over a large vault produces a large structure,
+        // and holding it for a row that is off screen is holding it for
+        // nothing. onBlockIdChanged already re-runs the query on reuse.
+        queryResult = ({ ok: false, error: "", view: "table",
+                         columns: [], rows: [], groups: [] })
     }
     ListView.onReused: {
         isPooled = false
         opacity = 1
         sourceArea.text = Qt.binding(function() { return root.content })
+        // Pooling released the results, and a delegate reused for the same
+        // block never sees blockId change, so this is the only thing that
+        // asks for them back. Usually a cache hit, since the collection has
+        // not moved while the row was off screen.
+        refresh()
     }
 
     function focusAtStart() { sourceArea.forceActiveFocus(); sourceArea.cursorPosition = 0 }
@@ -311,7 +372,7 @@ BlockDelegateBase {
                                 return []
                             var flat = []
                             var rows = root.queryResult.rows
-                            for (var r = 0; r < rows.length; ++r) {
+                            for (var r = 0; r < root.renderedRows; ++r) {
                                 var cells = rows[r].cells
                                 for (var c = 0;
                                      c < root.queryResult.columns.length; ++c)
@@ -357,6 +418,25 @@ BlockDelegateBase {
                     text: qsTr("No matching notes")
                     font.pixelSize: 12
                     color: Theme.textFaint
+                }
+
+                // What the row window is holding back. Shown for both views,
+                // since both draw from the same result rows.
+                Text {
+                    objectName: "queryRowWindowNotice"
+                    visible: root.hiddenRows > 0
+                    text: qsTr("%n more result(s) — show all", "",
+                               root.hiddenRows)
+                    font.pixelSize: 11
+                    color: showAllRows.containsMouse ? Theme.accent : Theme.link
+                    font.underline: showAllRows.containsMouse
+                    MouseArea {
+                        id: showAllRows
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.revealAllRows()
+                    }
                 }
 
                 // ---- Board view ----
@@ -412,7 +492,11 @@ BlockDelegateBase {
                                     }
 
                                     Repeater {
-                                        model: boardGroup.modelData.cards
+                                        model: boardGroup.modelData.cards.length
+                                                   <= root.boardCardCap
+                                            ? boardGroup.modelData.cards
+                                            : boardGroup.modelData.cards.slice(
+                                                  0, root.boardCardCap)
                                         Rectangle {
                                             id: boardCard
                                             required property var modelData

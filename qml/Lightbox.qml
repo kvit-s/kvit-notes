@@ -83,6 +83,12 @@ Popup {
             source: lightbox.source
             asynchronous: true
             fillMode: Image.PreserveAspectFit
+            // Nothing here can show more than the window, so nothing here
+            // needs to decode more than the window. This is a ceiling: an
+            // image smaller than the viewport still loads at its own size,
+            // which is what the Math.min sizing below expects.
+            sourceSize.width: Math.max(1, lightbox.width - 80)
+            sourceSize.height: Math.max(1, lightbox.height - 80)
             width: Math.min(implicitWidth, lightbox.width - 80)
             height: Math.min(implicitHeight, lightbox.height - 80)
             // The image is what this dialog is about, so it is what a screen

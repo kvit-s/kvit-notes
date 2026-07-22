@@ -49,10 +49,21 @@ Item {
         opacity: 0.85
 
         function grabShot(slot, sourceItem) {
+            // Without a target size the grab renders the item at full
+            // resolution, and a tall table, code fence or kanban delegate is
+            // a large temporary image to make for a 300-pixel-wide proxy.
+            // The scale below is the one the proxy displays at anyway: the
+            // Image fits the shot into 300 x (height * 0.6), so grabbing
+            // larger only produces pixels that are thrown away.
+            var scale = Math.min(1,
+                                 dragProxy.width / Math.max(1, sourceItem.width),
+                                 0.6)
+            var target = Qt.size(Math.max(1, Math.round(sourceItem.width * scale)),
+                                 Math.max(1, Math.round(sourceItem.height * scale)))
             sourceItem.grabToImage(function(result) {
                 if (slot < proxyImages.count)
                     proxyImages.setProperty(slot, "shotUrl", result.url.toString())
-            })
+            }, target)
         }
 
         function buildFrom(indexes) {

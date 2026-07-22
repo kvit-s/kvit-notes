@@ -531,9 +531,13 @@ void DocumentSearch::recompute()
 
     if (m_model && m_active && !m_query.isEmpty()) {
         // Compile once up front so an invalid pattern is one error state,
-        // not one per block.
-        if (m_useRegex && !compiledPattern(m_query, m_caseSensitive,
-                                           m_wholeWord).isValid()) {
+        // not one per block — and keep the compiled object, because the
+        // per-block scan below used to build an identical one for every
+        // block on every keystroke in the find bar.
+        const QRegularExpression regex = m_useRegex
+            ? compiledPattern(m_query, m_caseSensitive, m_wholeWord)
+            : QRegularExpression();
+        if (m_useRegex && !regex.isValid()) {
             patternError = true;
         } else {
             const int count = m_model->count();
@@ -622,8 +626,7 @@ void DocumentSearch::recompute()
                         }
                     }
                 } else {
-                    QList<Match> found = scanText(text, m_query, m_caseSensitive,
-                                                  m_wholeWord, m_useRegex);
+                    QList<Match> found = scanText(text, regex);
                     for (Match &m : found) {
                         m.blockIndex = i;
                         if (matchInDomain(m)) {
@@ -721,6 +724,29 @@ int DocumentSearch::displayPosition(int blockIndex, int mdPos) const
 // ---- pure helpers ----
 
 QList<DocumentSearch::Match> DocumentSearch::scanText(
+    const QString &text, const QRegularExpression &re)
+{
+    QList<Match> matches;
+    if (text.isEmpty() || !re.isValid() || re.pattern().isEmpty())
+        return matches;
+
+    auto it = re.globalMatch(text);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        // A match must cover at least one character; zero-length matches
+        // would never terminate navigation or replace.
+        if (m.capturedLength(0) == 0)
+            continue;
+        Match match;
+        match.start = static_cast<int>(m.capturedStart(0));
+        match.length = static_cast<int>(m.capturedLength(0));
+        match.captures = m.capturedTexts();
+        matches.append(match);
+    }
+    return matches;
+}
+
+QList<DocumentSearch::Match> DocumentSearch::scanText(
     const QString &text, const QString &query, bool caseSensitive,
     bool wholeWord, bool useRegex, bool *patternError)
 {
@@ -738,20 +764,7 @@ QList<DocumentSearch::Match> DocumentSearch::scanText(
                 *patternError = true;
             return matches;
         }
-        auto it = re.globalMatch(text);
-        while (it.hasNext()) {
-            const QRegularExpressionMatch m = it.next();
-            // A match must cover at least one character; zero-length
-            // matches would never terminate navigation or replace.
-            if (m.capturedLength(0) == 0)
-                continue;
-            Match match;
-            match.start = static_cast<int>(m.capturedStart(0));
-            match.length = static_cast<int>(m.capturedLength(0));
-            match.captures = m.capturedTexts();
-            matches.append(match);
-        }
-        return matches;
+        return scanText(text, re);
     }
 
     const Qt::CaseSensitivity cs = caseSensitive ? Qt::CaseSensitive

@@ -8,7 +8,10 @@
 #include <QStringList>
 #include <QList>
 
-class NoteCollection;
+// For NoteEntry, which Snapshot below holds by value. A nested type cannot
+// be forward-declared, and the snapshot is the whole point of this header
+// being usable from a worker thread.
+#include "notecollection.h"
 
 // The collection query block's pure core,
 // following the TableData/KanbanData pattern: parse/evaluate functions
@@ -84,6 +87,27 @@ struct Result {
     QList<Group> groups;  // board view only
 };
 
+// Everything evaluate() reads out of the collection, copied. A query scans
+// every note, which is too much work to do on the thread that draws frames,
+// and the collection's own entries cannot be read from another thread while
+// the GUI thread is free to mutate them. A snapshot is the handover: the
+// entries are value copies in the same sorted order noteRelPaths() gives,
+// so evaluating against one is indistinguishable from evaluating against
+// the collection it was taken from.
+//
+// Copying is cheap relative to evaluating — the strings inside are
+// implicitly shared, so a copy is refcount work — and one snapshot serves
+// every query taken at the same collection revision.
+struct Snapshot {
+    QList<NoteCollection::NoteEntry> notes;   // sorted by relPath
+};
+
+Snapshot snapshotOf(const NoteCollection &collection);
+
+Result evaluate(const Spec &spec, const Snapshot &snapshot);
+
+// Convenience for callers already on the collection's thread; takes a
+// snapshot and evaluates against it.
 Result evaluate(const Spec &spec, const NoteCollection &collection);
 
 } // namespace QueryData

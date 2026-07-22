@@ -319,6 +319,10 @@ BlockDelegateBase {
         var dep2 = mathTick
         return editorEngine.inlineMathBoxes()
     }
+    // Whether this block has any inline-math overlay at all, which is what
+    // decides whether caret and relayout ticks are worth taking. Reading it
+    // costs nothing: inlineMathBoxes is a cached binding.
+    readonly property bool hasInlineMath: delegate.inlineMathBoxes.length > 0
     // The ratio the equation bitmaps are rendered at, so they are sharp on a
     // scaled display.
     readonly property real screenDevicePixelRatio: {
@@ -1793,12 +1797,23 @@ BlockDelegateBase {
                         && delegate.shell.typewriterMode && textArea.activeFocus
                         && !delegate.isPooled)
                         AppActions.requestCenterCaretLine(delegate)
-                    // A caret move can reveal/hide a math span and shifts
-                    // rectangles; reposition the inline-math overlays.
-                    delegate.mathTick++
+                    // No math tick here. Moving the caret does not reflow the
+                    // text, so every overlay rectangle is exactly where it
+                    // was; the tick only ever mattered because a caret move
+                    // can reveal or hide a span. That changes the document
+                    // text, which inlineMathBoxes already depends on, so the
+                    // overlays are rebuilt from the new box list either way.
+                    //
+                    // Ticking on caret movement instead meant every arrow key
+                    // in a formula-heavy paragraph re-asked the engine for
+                    // the whole box list and re-queried the editor for two
+                    // caret rectangles per overlay.
                 }
-                onContentHeightChanged: delegate.mathTick++
-                onContentWidthChanged: delegate.mathTick++
+                // A relayout does move the rectangles without changing a
+                // character, so these do still tick — but only where there is
+                // something to reposition.
+                onContentHeightChanged: if (delegate.hasInlineMath) delegate.mathTick++
+                onContentWidthChanged: if (delegate.hasInlineMath) delegate.mathTick++
 
                 // Cross-block portions must stay visible on unfocused
                 // blocks; the focus-loss deselect in

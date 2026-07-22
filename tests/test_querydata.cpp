@@ -43,6 +43,7 @@ private slots:
     void testBoardGroups();
     void testPseudoFields();
     void testQueryToolsCache();
+    void testQueryToolsRunsOffTheCallingThread();
     void testEvaluate1000NoteBudget();
 
 private:
@@ -329,6 +330,82 @@ void TestQueryData::testQueryToolsCache()
     QCOMPARE(tools.cacheSize(), 0); // rootChanged advances collection generation
     QCOMPARE(tools.run(spec).value("rows").toList().size(), 1);
     QCOMPARE(tools.evaluationCount(), 4);
+}
+
+// A query scans every note, sorts the matches and builds a QVariant tree, so
+// it runs on a pool thread and answers with a signal. Three properties matter
+// beyond "the right rows come back": the call returns before the work is
+// done, several blocks asking the same question at the same revision cost one
+// scan rather than one each, and a result whose revision has been superseded
+// is dropped instead of being shown.
+void TestQueryData::testQueryToolsRunsOffTheCallingThread()
+{
+    makeFixture();
+    QueryTools tools;
+    tools.setCollection(m_collection);
+    tools.clearCache();
+
+    const QString spec = QStringLiteral(
+        "where: status = active\ncolumns: title\nsort: title asc");
+
+    QList<QPair<QString, QVariantMap>> delivered;
+    connect(&tools, &QueryTools::resultReady, &tools,
+            [&delivered](const QString &token, const QVariantMap &result) {
+                delivered.append({token, result});
+            });
+
+    // Three blocks, one question, one revision. The answer arrives for all
+    // three and the vault is scanned once.
+    tools.requestRun(QStringLiteral("a"), spec);
+    tools.requestRun(QStringLiteral("b"), spec);
+    tools.requestRun(QStringLiteral("c"), spec);
+    QVERIFY2(delivered.isEmpty(),
+             "requestRun answered before returning, so it evaluated on the "
+             "calling thread");
+
+    QTRY_COMPARE_WITH_TIMEOUT(delivered.size(), 3, 5000);
+    QCOMPARE(tools.evaluationCount(), 1);
+    QStringList tokens;
+    for (const auto &entry : delivered) {
+        tokens << entry.first;
+        QVERIFY(entry.second.value("ok").toBool());
+        QCOMPARE(entry.second.value("rows").toList().size(), 3);
+    }
+    tokens.sort();
+    QCOMPARE(tokens, QStringList({"a", "b", "c"}));
+
+    // Cached for that revision, so a later request is answered at once.
+    delivered.clear();
+    tools.requestRun(QStringLiteral("d"), spec);
+    QCOMPARE(delivered.size(), 1);
+    QCOMPARE(tools.evaluationCount(), 1);
+
+    // A parse error needs no scan and no thread.
+    delivered.clear();
+    tools.requestRun(QStringLiteral("e"), QStringLiteral("unknown: key"));
+    QCOMPARE(delivered.size(), 1);
+    QVERIFY(!delivered.first().second.value("ok").toBool());
+
+    // A result whose revision has been superseded is not delivered. The
+    // request below is issued, then the collection changes underneath it;
+    // whatever the worker produced describes a state nothing is showing.
+    delivered.clear();
+    writeNote("projects/New.md", "---\nstatus: active\n---\nnew\n");
+    m_collection->refreshPaths({m_dir->filePath("projects/New.md")});
+    tools.requestRun(QStringLiteral("f"), spec);
+    writeNote("projects/Newer.md", "---\nstatus: active\n---\nnewer\n");
+    m_collection->refreshPaths({m_dir->filePath("projects/Newer.md")});
+    QTest::qWait(200);
+    for (const auto &entry : delivered) {
+        QCOMPARE(entry.second.value("rows").toList().size(), 5);
+    }
+
+    // And asking again against the current revision does answer, with the
+    // row the superseded run would have missed.
+    delivered.clear();
+    tools.requestRun(QStringLiteral("g"), spec);
+    QTRY_VERIFY_WITH_TIMEOUT(!delivered.isEmpty(), 5000);
+    QCOMPARE(delivered.first().second.value("rows").toList().size(), 5);
 }
 
 void TestQueryData::testEvaluate1000NoteBudget()

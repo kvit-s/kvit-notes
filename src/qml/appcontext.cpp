@@ -16,6 +16,7 @@
 #include "diagrams/diagramcanvas.h"
 #include "extensionregistry.h"
 #include "perflog.h"
+#include "localimageprovider.h"
 #include "remoteimageprovider.h"
 
 AppContext::AppContext(QObject *parent)
@@ -497,6 +498,10 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // to an Image's `source` would bypass every one of them.
     engine->addImageProvider(QStringLiteral("remote"),
                              new RemoteImageProvider(m_egressFetcher.get()));
+    // The same treatment for a file on disk: image://local/<path> checks the
+    // decoded size against the same budget before allocating. QML's own file
+    // loader would allocate whatever the header claimed.
+    engine->addImageProvider(QStringLiteral("local"), new LocalImageProvider);
 
     // The two extension seams: block-kind registration and QML slot
     // injection. Both are inert in the open build: no module is installed,

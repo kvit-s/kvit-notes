@@ -142,7 +142,8 @@ bool EgressPolicy::isNonEgressSource(const QUrl &url)
     if (scheme == QLatin1String("image")) {
         const QString provider = url.host().toLower();
         return provider == QLatin1String("math")
-            || provider == QLatin1String("remote");
+            || provider == QLatin1String("remote")
+            || provider == QLatin1String("local");
     }
     return false;
 }
@@ -201,7 +202,20 @@ QString EgressPolicy::imageSourceFor(const QString &url) const
         // QML, because QML's Image would give it to QNetworkAccessManager,
         // which speaks more schemes than this class checks -- `local+http:`
         // reaches a unix socket, and the next Qt release may add another.
-        return isNonEgressSource(parsed) ? url : QString();
+        if (!isNonEgressSource(parsed))
+            return QString();
+        // A file on disk goes through the app's own provider, which refuses
+        // an image whose header says it would decode larger than the same
+        // budget a remote one is held to. QML's own file loader has no such
+        // check, so a note naming a 20000x20000 PNG used to be a way to
+        // exhaust memory just by opening it. qrc: and data: are the app's own
+        // bytes and a bounded literal, and pass through unchanged.
+        if (parsed.isLocalFile()) {
+            return QStringLiteral("image://local/")
+                 + QString::fromUtf8(
+                       QUrl::toPercentEncoding(parsed.toLocalFile()));
+        }
+        return url;
     }
     if (!isAllowed(url))
         return QString();       // inert placeholder, no request

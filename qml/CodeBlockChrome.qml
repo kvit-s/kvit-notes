@@ -65,27 +65,45 @@ Item {
         border.color: Theme.border
     }
 
-    Column {
+    // One Text holding every line number, not one Text per line. The gutter
+    // used to be a Repeater over lineCount, so a 10,000-line fence built
+    // 10,000 QML items — each with its own geometry, font and scene-graph
+    // node — to draw 10,000 short numbers that share one font and one column.
+    // A single Text with a fixed line height puts them at the same positions
+    // for one item.
+    Item {
         id: gutter
         objectName: "codeGutter"
         visible: root.lineNumbers
         width: root.gutterWidth
+        height: root.textContentHeight
         x: 0
         y: root.textTop
         z: 2
-        Repeater {
-            model: root.lineNumbers ? root.lineCount : 0
-            delegate: Text {
-                required property int index
-                width: root.gutterWidth - 8
-                height: root.lineCount > 0
-                    ? root.textContentHeight / root.lineCount : 0
-                horizontalAlignment: Text.AlignRight
-                verticalAlignment: Text.AlignVCenter
-                text: index + 1
-                color: Theme.textFaint
-                font.family: root.fontFamily
-                font.pixelSize: root.fontPixelSize
+
+        // The row height the numbers are spaced on, which is what the
+        // per-line Text heights used to be set to.
+        readonly property real rowHeight:
+            root.lineCount > 0 ? root.textContentHeight / root.lineCount : 0
+
+        Text {
+            objectName: "codeGutterNumbers"
+            width: root.gutterWidth - 8
+            horizontalAlignment: Text.AlignRight
+            color: Theme.textFaint
+            font.family: root.fontFamily
+            font.pixelSize: root.fontPixelSize
+            lineHeightMode: Text.FixedHeight
+            lineHeight: gutter.rowHeight
+            // Built only while the gutter is shown, so a fence with numbers
+            // turned off does not pay for the string either.
+            text: {
+                if (!root.lineNumbers || root.lineCount <= 0)
+                    return ""
+                var parts = []
+                for (var i = 1; i <= root.lineCount; i++)
+                    parts.push(i)
+                return parts.join("\n")
             }
         }
     }

@@ -462,8 +462,9 @@ private:
     void insertNoteEntry(const QString &relPath, const NoteEntry &entry);
     void removeNoteEntry(const QString &relPath);
     void adjustFolderNoteCounts(const QString &folderPath, int delta);
-    void rebuildFolderNoteCounts();
-    void clearFolderNoteCounts();
+    void rebuildDerivedIndexes();
+    void clearDerivedIndexes();
+    const QHash<QString, int> &tagCounts() const;
 
 
     // Read one note file from disk and return its body (front-matter stripped).
@@ -657,6 +658,15 @@ private:
     WikiLinkIndex m_wikiLinks;
     QHash<QString, int> m_folderOwnNoteCounts;
     QHash<QString, int> m_folderRecursiveNoteCounts;
+    // Which notes are directly in each folder. Listing one folder used to
+    // walk every note in the vault to find them, so drawing the note list
+    // for a folder of ten cost the whole collection; kept alongside the
+    // counts above, which are maintained at the same two places.
+    QHash<QString, QSet<QString>> m_folderNotes;
+    // Notes per tag, rebuilt on demand. See tagCounts() for why this is a
+    // lazily invalidated cache rather than a running total.
+    mutable QHash<QString, int> m_tagCounts;
+    mutable bool m_tagCountsValid = false;
 
     QHash<QString, QString> m_tagColors;
     QHash<QString, QStringList> m_manualOrder; // folder -> file names
