@@ -306,14 +306,23 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
             m_ownWrites.erase(it);
             return false;
         }
+#ifdef Q_OS_WIN
         // An unstamped guard past the settle window has missed its own
         // notification, so the next event is not the write it was created
-        // for.
+        // for. This is scoped to Windows, where a QSaveFile replacement's
+        // notification can be lost outright and the next external edit would
+        // otherwise inherit the guard. On inotify and FSEvents the own
+        // notification always arrives, so the window is only a liability
+        // there: it measures wall time against a fixed bound, and under the
+        // sanitizer build on a two-core runner a legitimately-delayed own
+        // notification landed after it, making the app's own save read as an
+        // outside edit.
         if (!it.value().stamped
             && nowMs() - it.value().createdMs > UnstampedSettleMs) {
             m_ownWrites.erase(it);
             return false;
         }
+#endif
         const QFileInfo info(path);
         const qint64 size = info.exists() ? info.size() : -1;
         const qint64 modifiedMs = info.exists()
