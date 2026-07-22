@@ -220,7 +220,7 @@ void TestNoteCollection::writeNote(const QString &relPath, const QString &conten
     QFileInfo info(abs(relPath));
     QVERIFY(QDir().mkpath(info.absolutePath()));
     QFile file(abs(relPath));
-    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(content.toUtf8());
 }
 
@@ -405,6 +405,12 @@ void TestNoteCollection::testRefreshPathsExcludesSymlinkedNote()
 // canonicalizing before comparing rejects it.
 void TestNoteCollection::testCanonicalContainmentRejectsLinksOutOfTheRoot()
 {
+    // The QFile::link() fallback below cannot stand in for the guard the
+    // other symlink cases use: on Windows that call succeeds by writing a
+    // .lnk shortcut, which is an ordinary file, so the case would assert
+    // that containment rejects something no filesystem here treats as a
+    // link.
+    SKIP_WITHOUT_SYMLINKS();
     makeFixture();
 
     QTemporaryDir outside;
@@ -1119,7 +1125,7 @@ void TestNoteCollection::testDirtyOpenNoteMetadataUsesProductionWatcherGraph()
     const QString path = vault.filePath("Open.md");
     {
         QFile noteFile(path);
-        QVERIFY(noteFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(noteFile.open(QIODevice::WriteOnly));
         QCOMPARE(noteFile.write("saved body\n"), qint64(11));
     }
 
@@ -1428,7 +1434,7 @@ void TestNoteCollection::testRecoveryLifecycle()
     QVERIFY(!journal.isEmpty());
     {
         QFile file(journal);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Unsaved plans content\n");
     }
 
@@ -1459,7 +1465,7 @@ void TestNoteCollection::testRecoveryLifecycle()
     const QString journal2 = reopened.journalPathFor("Welcome.md");
     {
         QFile file(journal2);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Ghost edits\n");
     }
     reopened.closeRoot();
@@ -1479,7 +1485,7 @@ void TestNoteCollection::testRecoveryRecreatesDeletedFolder()
         m_collection->journalPathFor("Ideas/Projects/Kvit.md");
     {
         QFile file(journal);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("Recovered editor notes\n");
     }
     // The whole folder vanished since the crash.
@@ -1504,7 +1510,7 @@ void TestNoteCollection::testRefreshDoesNotIngestLiveJournals()
     const QString journal = m_collection->journalPathFor("Welcome.md");
     {
         QFile file(journal);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("In-flight edits\n");
     }
     m_collection->refresh();
@@ -1521,7 +1527,7 @@ void TestNoteCollection::testHostileRecoveryFilenameCannotEscapeVault()
     const QString hostile = QDir(vault).filePath(
         ".kvit/recovery/..%2Fvictim.md");
     QFile journal(hostile);
-    QVERIFY(journal.open(QIODevice::WriteOnly | QIODevice::Text));
+    QVERIFY(journal.open(QIODevice::WriteOnly));
     QCOMPARE(journal.write("attacker-controlled recovery\n"), qint64(29));
     journal.close();
 
@@ -2162,9 +2168,14 @@ void TestNoteCollection::testContainmentHandlesAFilesystemRoot()
              "a child of the filesystem root read as outside it");
     QVERIFY(VaultPaths::isWithinCanonicalRoot(root, root));
     // The ordinary case is unchanged, including the neighbour whose name
-    // merely starts with the root's.
-    QVERIFY(VaultPaths::isWithinCanonicalRoot(m_dir->path(), abs("note.md")));
-    QVERIFY(!VaultPaths::isWithinCanonicalRoot(m_dir->path(),
+    // merely starts with the root's. The root argument has to be canonical,
+    // which is what the name says and what every caller in the tree passes:
+    // a macOS temporary directory arrives as /var/... and canonicalizes to
+    // /private/var/..., so handing the raw path in compares two spellings of
+    // one directory and answers that the vault does not contain its own note.
+    const QString canonicalRoot = QFileInfo(m_dir->path()).canonicalFilePath();
+    QVERIFY(VaultPaths::isWithinCanonicalRoot(canonicalRoot, abs("note.md")));
+    QVERIFY(!VaultPaths::isWithinCanonicalRoot(canonicalRoot,
                                                m_dir->path() + "-other/note.md"));
 }
 

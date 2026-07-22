@@ -704,12 +704,18 @@ void TestEgressPolicy::oversizedResponseIsCutOffWhileReceiving()
                     });
     QTRY_VERIFY_WITH_TIMEOUT(called, 20000);
     QVERIFY2(!result, "an oversized response was accepted");
-    // The point of a streaming cap: the transfer stops early instead of the
-    // whole body being buffered and then truncated.
-    QVERIFY2(server.bytesDelivered < 8 * 1024 * 1024,
-             qPrintable(QStringLiteral("server delivered %1 bytes before the "
-                                       "transfer was abandoned")
-                            .arg(server.bytesDelivered)));
+    // The point of a streaming cap: the whole body is never buffered and then
+    // truncated. Measured in this process rather than at the server, because
+    // the server's counter says only how many bytes the operating system
+    // accepted from it. Loopback buffering decides that, and Windows takes
+    // all 32 MB of them the moment they are written, whatever the client
+    // does - which is why this used to read as a failure there.
+    QVERIFY2(fetcher.peakBufferedBytesForTests()
+                 <= EgressFetcher::maxBytesFor(
+                        EgressFetcher::Purpose::EmbedPreview) + 1,
+             qPrintable(QStringLiteral("%1 bytes were buffered in memory for a "
+                                       "response the cap should have stopped")
+                            .arg(fetcher.peakBufferedBytesForTests())));
 }
 
 // The case that separates a streaming cap from a declared-length check. With
@@ -750,17 +756,16 @@ void TestEgressPolicy::oversizedResponseWithNoDeclaredLengthIsCutOff()
                              EgressFetcher::Purpose::EmbedPreview) + 1,
              qPrintable(QStringLiteral("buffered %1 bytes past the cap")
                             .arg(received)));
-    // Well under the whole body, rather than near the cap: kernel socket
-    // buffers and Qt's own read-ahead absorb several megabytes before any
-    // handler can act, measured around 8.5 MB here. The property worth
-    // asserting is that the transfer is abandoned rather than completed; the
-    // in-process bound is the assertion above.
-    QVERIFY2(server.bytesDelivered < server.body.size() / 2,
-             qPrintable(QStringLiteral("server delivered %1 of %2 bytes: the "
-                                       "transfer ran to completion instead of "
-                                       "being abandoned")
-                            .arg(server.bytesDelivered)
-                            .arg(server.body.size())));
+    // The same in-process measure as the declared-length case, and for the
+    // same reason: what the server managed to write into a loopback socket is
+    // a property of the operating system, not of the cap.
+    QVERIFY2(fetcher.peakBufferedBytesForTests()
+                 <= EgressFetcher::maxBytesFor(
+                        EgressFetcher::Purpose::EmbedPreview) + 1,
+             qPrintable(QStringLiteral("%1 bytes were buffered in memory for an "
+                                       "undeclared response the cap should have "
+                                       "stopped")
+                            .arg(fetcher.peakBufferedBytesForTests())));
 }
 
 void TestEgressPolicy::wrongContentTypeIsRefused()

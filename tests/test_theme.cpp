@@ -349,14 +349,19 @@ void TestTheme::testInvalidPersistedOverrideIgnored()
     Theme theme;
     theme.setSettings(&store);
 
-    // The junk is discarded and the theme's own tokens stand.
+    // The junk is discarded and the theme's own tokens stand. Which tokens
+    // those are depends on the desktop: the default theme id is "system", and
+    // it resolves to dark on a machine set to dark, which is what made this
+    // case fail on Windows while passing on a session that reports no
+    // preference. The assertion is about the override being ignored, so it
+    // reads the tokens of whatever theme resolved.
     QCOMPARE(theme.accentOverride(), QString());
     QCOMPARE(theme.highlightOverride(), QString());
-    const Theme::Tokens light = Theme::tokensFor(QStringLiteral("light"));
+    const Theme::Tokens resolved = Theme::tokensFor(theme.resolvedTheme());
     QVERIFY(theme.accent().isValid());
     QVERIFY(theme.highlightBackground().isValid());
-    QCOMPARE(theme.accent(), light.accent);
-    QCOMPARE(theme.highlightBackground(), light.highlightBackground);
+    QCOMPARE(theme.accent(), resolved.accent);
+    QCOMPARE(theme.highlightBackground(), resolved.highlightBackground);
 }
 
 void TestTheme::testPersistsThroughSettings()
