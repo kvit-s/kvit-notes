@@ -318,6 +318,11 @@ inline bool kvitMachineIsQuiet(double contention)
                   label);                                                      \
             break;                                                             \
         }                                                                      \
+        if (!kvitTimingBudgetsEnforced()) {                                    \
+            qInfo("PERF %s: budget and ceiling both deferred - %s",            \
+                  label, KVIT_TIMING_BUDGET_SKIP_REASON);                      \
+            break;                                                             \
+        }                                                                      \
         QVERIFY2(kvit_cpu < (ceilingMs),                                       \
                  qPrintable(                                                   \
                      QStringLiteral(                                           \
@@ -422,8 +427,21 @@ inline bool kvitMachineIsQuiet(double contention)
 // that label as an informational, non-blocking job, so a real regression
 // still shows up in the trend.
 //
-// CPU-time budgets do not need this escape hatch and do not use it: they
-// hold on a loaded runner, which is the point of measuring them that way.
+// CPU-time budgets take the same escape hatch, which is a correction. They
+// were expected not to need it, on the reasoning that CPU time is what
+// survives a loaded machine. It survives contention, which is a different
+// thing from a slower core: the first hosted run of the 1000-note query
+// evaluation measured 180.7 ms of CPU on the two-core Linux runner and
+// 56.6 ms on macOS, against a 55 ms ceiling that the 28-core development
+// machine meets at about 20 ms, all three at contention 1.0x. The runner
+// does the same work with the same number of instructions and takes three
+// times the CPU to do it, so the number describes the machine.
+//
+// The two macros decline differently, which is deliberate. A wall-clock
+// budget is the whole point of the case it sits in, so that case skips. A
+// CPU budget usually sits among correctness assertions in a case that is
+// worth running anyway, so it reports the measurement and lets the rest of
+// the case run.
 //
 // Set KVIT_ENFORCE_TIMING_BUDGETS=1 to enforce anywhere, including CI.
 inline bool kvitTimingBudgetsEnforced()

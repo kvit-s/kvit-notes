@@ -245,14 +245,19 @@ jobs:
   # while this checks that the C++ underneath it is memory- and
   # UB-clean while the same tests run.
   #
-  # It is informational for now. The suites pass under it today, but the
+  # It is informational for now. The suites pass under it locally, but the
   # instrumentation is new to this repo and shared runners are slower and
   # more loaded than a workstation; a first failure should be read and
   # triaged rather than block an unrelated merge. Flip continue-on-error off
   # once it has a few weeks of green history.
+  #
+  # The timeout is 120 minutes because 60 was not enough: the first hosted
+  # attempt was killed mid-build. The instrumented tree takes roughly twice
+  # as long to compile as the ordinary one and the runner has two cores,
+  # against the 28 the same build has locally.
   sanitizers:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
