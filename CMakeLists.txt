@@ -470,6 +470,33 @@ foreach(_module content domain search platform repository application)
     qt_extract_metatypes(kvit-${_module})
 endforeach()
 
+# Those descriptions have to exist before the registrar reads them, which
+# under the Visual Studio generator does not happen on its own.
+#
+# CMake writes each metatypes.json as an empty placeholder at configure time
+# and fills it during the build. Inside kvit-qml's own project the two steps
+# are ordered correctly - the fill is a custom-build item ahead of the
+# registration - but Qt also creates a standalone `_qmltyperegistration`
+# target so qmllint can have the description without building the module,
+# and under this generator that target becomes a project carrying a second
+# copy of the registration rule with no dependency on the fill. `kvit-qmltypes`
+# below puts that target in ALL, so every Windows build ran the registrar
+# first, against seven zero-byte files, and died with "Failed to parse JSON:
+# 5 illegal value" - a message no log ever carried, because qmltyperegistrar
+# is a GUI-subsystem binary on Windows and puts its diagnostics in a message
+# box that a CI runner has no way to show.
+#
+# Making the convenience target depend on the module itself is the same
+# remedy Qt applies for the Xcode generator, and for the same reason: one
+# target has to drive the generation. Qt6QmlMacros.cmake does it there
+# explicitly (QTBUG-95763) and leaves the other multi-config generator alone.
+# It is scoped to Visual Studio because on Ninja the file dependency already
+# orders this correctly, and the dependency would make the qmllint path build
+# the whole library it exists to avoid building.
+if(CMAKE_GENERATOR MATCHES "Visual Studio" AND TARGET kvit-qml_qmltyperegistration)
+    add_dependencies(kvit-qml_qmltyperegistration kvit-qml)
+endif()
+
 # ── kvit-core — "the editor", as one name.
 #
 # The stock executable below is a thin main() linking it; a superset build
