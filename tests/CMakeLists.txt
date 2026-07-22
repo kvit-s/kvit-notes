@@ -678,8 +678,32 @@ set(KVIT_VISUAL_TESTS
     IntegrationTests
     IntegrationTestsIsolated
     VisualTests)
+# Test binaries are console programs on Windows. qt_add_executable() marks a
+# target WIN32_EXECUTABLE there, which is right for the app and wrong for a
+# test: a GUI-subsystem process has no console, so everything QTest prints -
+# every PASS, every FAIL and the values it compared - goes nowhere. CTest's
+# own log recorded "<end of output>" for all 80 entries, which is why a
+# Windows-only failure has been arriving as a suite name and nothing else.
+get_property(_kvit_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(_target IN LISTS _kvit_test_targets)
+    if(_target MATCHES "^test_")
+        set_target_properties(${_target} PROPERTIES WIN32_EXECUTABLE FALSE)
+    endif()
+endforeach()
+
 get_property(_kvit_tests DIRECTORY PROPERTY TESTS)
 foreach(_t IN LISTS _kvit_tests)
+    # Windows: make the suite's own output readable. Qt decides at startup
+    # whether a console exists and, when it decides there is none, sends every
+    # message to the debugger, where neither CTest nor a redirect can see it.
+    # A process started by CTest on a runner is exactly that case, which is
+    # why CTest's log recorded "<end of output>" for all 80 entries and every
+    # Windows-only failure arrived as a suite name with no values, no compared
+    # line and no file. This is the documented override.
+    if(WIN32)
+        set_property(TEST ${_t} APPEND PROPERTY
+                     ENVIRONMENT "QT_FORCE_STDERR_LOGGING=1")
+    endif()
     if(_t IN_LIST KVIT_PERFORMANCE_TESTS)
         set_property(TEST ${_t} APPEND PROPERTY LABELS performance)
     elseif(_t IN_LIST KVIT_SHELL_TESTS)
