@@ -130,9 +130,33 @@ private:
     void clearRegistrations();
     void setWatchDegraded(bool degraded);
 
+    // A file guard, which has to recognize the app's own write across as many
+    // notifications as the platform chooses to send for it. `stamped` records
+    // whether the file's size and modification time have been read yet; from
+    // the second notification on, matching that reading means nothing has
+    // happened to the file since the app's own write, and a different one
+    // means somebody else has written it and the guard is done.
+    struct OwnWrite {
+        qint64 expiryMs = 0;
+        qint64 createdMs = 0;
+        bool stamped = false;
+        qint64 size = -1;
+        qint64 modifiedMs = -1;
+    };
+
+    // How long an unstamped guard may wait for the notification belonging to
+    // the write it was created for. Past it the guard stops claiming events:
+    // the app announces a write and then performs it, so its own notification
+    // arrives within milliseconds, and a first notification arriving a quarter
+    // of a second later is somebody else's edit. Windows needs this because
+    // the notification for a QSaveFile replacement can fail to arrive at all,
+    // and without the limit the next external edit inherited the guard and
+    // vanished - the conflict banner the watcher exists to raise.
+    static constexpr qint64 UnstampedSettleMs = 250;
+
     QFileSystemWatcher m_watcher;
     QTimer m_debounce;
-    QHash<QString, qint64> m_ownWrites;      // file absPath -> guard expiry (ms)
+    QHash<QString, OwnWrite> m_ownWrites;    // file absPath -> guard
     QHash<QString, qint64> m_ownDirWrites;   // dir absPath  -> guard expiry (ms)
     QStringList m_pendingExternalPaths;
     QSet<QString> m_watchedFiles;

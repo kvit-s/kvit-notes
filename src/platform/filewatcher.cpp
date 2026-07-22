@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QDateTime>
 #include <QElapsedTimer>
 
 namespace {
@@ -232,7 +233,10 @@ void FileWatcher::noteOwnWrite(const QString &absPath)
     if (absPath.isEmpty())
         return;
     pruneExpiredGuards();
-    m_ownWrites.insert(absPath, nowMs() + m_guardMs);
+    OwnWrite guard;
+    guard.createdMs = nowMs();
+    guard.expiryMs = guard.createdMs + m_guardMs;
+    m_ownWrites.insert(absPath, guard);
     // The write mutates the containing directory too, and for every note but
     // the open one that directory's notification is the only event the app
     // receives. Guarding just the file leaves that event looking external.
@@ -260,7 +264,7 @@ void FileWatcher::pruneExpiredGuards()
 {
     const qint64 now = nowMs();
     for (auto it = m_ownWrites.begin(); it != m_ownWrites.end();)
-        it = it.value() < now ? m_ownWrites.erase(it) : std::next(it);
+        it = it.value().expiryMs < now ? m_ownWrites.erase(it) : std::next(it);
     for (auto it = m_ownDirWrites.begin(); it != m_ownDirWrites.end();)
         it = it.value() < now ? m_ownDirWrites.erase(it) : std::next(it);
 }
@@ -269,14 +273,51 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
 {
     pruneExpiredGuards();
     if (isFile) {
-        const auto it = m_ownWrites.constFind(path);
-        if (it == m_ownWrites.constEnd())
+        // The guard is not spent by the first notification, because one save
+        // does not produce one notification everywhere: a save replaces the
+        // file through QSaveFile, and Windows reports the replacement and the
+        // write separately against the same path, which left the second event
+        // looking like an outside edit of a note the app had just written.
+        //
+        // Nor does it swallow everything inside its window, which would hide
+        // a real edit arriving moments after a save - the case the conflict
+        // banner exists for. What it compares is the file itself: the first
+        // notification reads the size and modification time, and any further
+        // notification that finds them unchanged is another report of the
+        // same write. A reading that differs means somebody else has written
+        // the file, so the guard is finished and the change is external.
+        const auto it = m_ownWrites.find(path);
+        if (it == m_ownWrites.end())
             return false;
-        const qint64 expiry = it.value();
-        // Consume the guard: the app's write produces one change event.
-        m_ownWrites.remove(path);
-        return nowMs() <= expiry;
+        if (nowMs() > it.value().expiryMs) {
+            m_ownWrites.erase(it);
+            return false;
+        }
+        // An unstamped guard past the settle window has missed its own
+        // notification, so the next event is not the write it was created
+        // for.
+        if (!it.value().stamped
+            && nowMs() - it.value().createdMs > UnstampedSettleMs) {
+            m_ownWrites.erase(it);
+            return false;
+        }
+        const QFileInfo info(path);
+        const qint64 size = info.exists() ? info.size() : -1;
+        const qint64 modifiedMs = info.exists()
+            ? info.lastModified().toMSecsSinceEpoch()
+            : -1;
+        if (!it.value().stamped) {
+            it.value().stamped = true;
+            it.value().size = size;
+            it.value().modifiedMs = modifiedMs;
+            return true;
+        }
+        if (it.value().size == size && it.value().modifiedMs == modifiedMs)
+            return true;
+        m_ownWrites.erase(it);
+        return false;
     }
+
     // A directory guard covers a batch, not a single event: one save writes a
     // temporary file and renames it over the target, which is two
     // notifications for the same directory, and a note collection operation
