@@ -139,10 +139,15 @@ Item {
                    label + " line reserves padded renderer height: "
                    + img.box.height.toFixed(2) + " vs "
                    + expectedHeight.toFixed(2))
-            verify(Math.abs(img.width - box.width) <= 1,
-                   label + " image keeps renderer width: "
+            // The image is the renderer width plus the transparent side
+            // margin that keeps overhanging glyphs (an italic `f`) inside the
+            // bitmap, and it is shifted left by that same margin, so the
+            // formula still starts where the reserved box does.
+            var sideMargin = 2 * img.parent.horizontalPadding
+            verify(Math.abs(img.width - (box.width + sideMargin)) <= 1,
+                   label + " image keeps renderer width plus side margin: "
                    + img.width.toFixed(2) + " vs "
-                   + box.width.toFixed(2))
+                   + (box.width + sideMargin).toFixed(2))
             verify(Math.abs(img.height - expectedHeight) <= 1,
                    label + " image keeps padded renderer height: "
                    + img.height.toFixed(2) + " vs "

@@ -308,8 +308,9 @@ QString DocumentExporter::dataUriForMath(const QString &tex) const
     QString error;
     const int textSize = 18;
     const int verticalPadding = qMax(2, qCeil(textSize * 0.12));
-    const QImage img = MathRenderer::render(tex, textSize, fg, 2.0, &error,
-                                            verticalPadding);
+    const QImage img = MathRenderer::render(
+        tex, textSize, fg, 2.0, &error, verticalPadding,
+        MathRenderer::sideBearingPaddingPx(textSize));
     if (img.isNull())
         return QString();
     QByteArray png;

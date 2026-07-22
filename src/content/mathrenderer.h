@@ -44,9 +44,22 @@ struct Metrics {
 // result stays crisp on high-DPI displays. `verticalPaddingPx` adds transparent
 // logical pixels above and below the formula; inline overlays use this to keep
 // antialiasing away from the image edge without changing display math.
+// `horizontalPaddingPx` does the same left and right — see
+// sideBearingPaddingPx for why a formula needs it at all. A caller that places
+// the image against a reserved box must shift it left by the same amount.
 QImage render(const QString &tex, int textSizePx, const QColor &fg,
               qreal dpr = 1.0, QString *error = nullptr,
-              int verticalPaddingPx = 0);
+              int verticalPaddingPx = 0, int horizontalPaddingPx = 0);
+
+// Transparent margin, in logical pixels, that keeps a formula's glyphs from
+// being cut off at the left and right edges of its own raster.
+//
+// MicroTeX sizes a formula to its typographic advance width, which is not the
+// same as the area its glyphs paint over: an italic `f` in the math face
+// carries its tail left of the origin and its hook right of the advance, and
+// several other letters overhang by a smaller amount. Painted into a raster
+// exactly the advance wide, those parts fall outside the image and are lost.
+int sideBearingPaddingPx(int textSizePx);
 
 // Paint directly into an existing QPainter, keeping MicroTeX setup and
 // locking centralized. Retained as a diagnostics/embedding seam; the rejected
@@ -135,6 +148,12 @@ public:
 
     // MicroTeX layout metrics for inline placement experiments.
     Q_INVOKABLE QVariantMap measure(const QString &tex, int textSizePx) const;
+
+    // Transparent side margin the rendered image needs so glyphs that
+    // overhang their advance box are not cut off
+    // (MathRenderer::sideBearingPaddingPx). A caller that aligns the image
+    // with a reserved text box shifts it left by this much.
+    Q_INVOKABLE int sideBearingPadding(int textSizePx) const;
 
     // The enumerated command corpus (MathRenderer::availableCommands).
     Q_INVOKABLE QStringList availableCommands() const;

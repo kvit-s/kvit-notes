@@ -21,6 +21,8 @@
 #include <QUrl>
 #include <QtTest/QTest>
 
+#include <functional>
+
 #include "blockmodel.h"
 #include "extensionregistry.h"
 #include "kvitapplication.h"
@@ -256,6 +258,66 @@ int main(int argc, char *argv[])
                   "expected +120,+60",
                   before.x(), before.y(), after.x(), after.y());
             grab(window, outDir + QStringLiteral("/settings_dragged.png"));
+        } else if (scenario == QStringLiteral("inlinemath")) {
+            // The same formula inline and as display math, so the two
+            // rasterizations can be compared pixel for pixel. Inline images
+            // are placed by the overlay layer at whatever sub-pixel offset
+            // the text layout puts the span at; display math is centred in
+            // its own block.
+            while (model->count() > 1)
+                model->removeBlock(model->count() - 1);
+            model->updateType(0, Block::Paragraph);
+            model->updateContent(
+                0, QStringLiteral("Let $f$ be given, and note that "
+                                  "$\\int_0^\\infty x^2 dx$ converges."));
+            model->insertBlock(1, Block::MathBlock,
+                               QStringLiteral("\\int_0^\\infty x^2 dx"));
+            model->insertBlock(2, Block::Paragraph, QString());
+            settle(800);
+            clickEditorBlock(window, 2);
+            settle(1200);
+
+            QList<QQuickItem *> shots;
+            std::function<void(QQuickItem *)> walk = [&](QQuickItem *it) {
+                const QString n = it->objectName();
+                if ((n == QStringLiteral("inlineMathImage")
+                     || n == QStringLiteral("mathRenderedImage"))
+                    && it->isVisible() && it->width() > 0
+                    && it->mapToScene(QPointF(0, 0)).x() > 0)
+                    shots.append(it);
+                for (QQuickItem *k : it->childItems())
+                    walk(k);
+            };
+            walk(window->contentItem());
+
+            const QImage frame = window->grabWindow();
+            qInfo("uidriver: frame %dx%d dpr=%.2f", frame.width(),
+                  frame.height(), frame.devicePixelRatio());
+            int n = 0;
+            for (QQuickItem *item : shots) {
+                const QPointF p = item->mapToScene(QPointF(0, 0));
+                qInfo("uidriver: %s scene=(%.2f,%.2f) size=%.2fx%.2f "
+                      "implicit=%.2fx%.2f",
+                      qPrintable(item->objectName()), p.x(), p.y(),
+                      item->width(), item->height(), item->implicitWidth(),
+                      item->implicitHeight());
+                const qreal fdpr = frame.devicePixelRatio();
+                QRect crop(qRound((p.x() - 3) * fdpr),
+                           qRound((p.y() - 3) * fdpr),
+                           qRound((item->width() + 6) * fdpr),
+                           qRound((item->height() + 6) * fdpr));
+                crop = crop.intersected(frame.rect());
+                if (crop.isEmpty())
+                    continue;
+                const QImage zoom = frame.copy(crop).scaled(
+                    crop.width() * 6, crop.height() * 6, Qt::IgnoreAspectRatio,
+                    Qt::FastTransformation);
+                zoom.save(outDir + QStringLiteral("/zoom_")
+                          + item->objectName() + QString::number(n++)
+                          + QStringLiteral(".png"));
+            }
+            frame.save(outDir + QStringLiteral("/inlinemath.png"));
+            qInfo("uidriver: wrote %s/inlinemath.png", qPrintable(outDir));
         } else if (scenario == QStringLiteral("htmlpaste")) {
             while (model->count() > 1)
                 model->removeBlock(model->count() - 1);

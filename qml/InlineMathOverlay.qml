@@ -45,6 +45,13 @@ Item {
     property int pixelSize: 15
     property int verticalPadding: 2
     property real devicePixelRatio: 1
+    // Transparent margin the renderer leaves on each side of the formula, so
+    // glyphs that overhang their advance box (an italic `f` most of all) are
+    // not cut off at the edge of their own bitmap. The image is that much
+    // wider than the box the text reserved, and is shifted left by the same
+    // amount so the formula still starts where the box does.
+    readonly property int horizontalPadding:
+        MathRenderer.sideBearingPadding(root.pixelSize)
 
     objectName: "mathOverlayLayer"
     z: 3
@@ -63,6 +70,28 @@ Item {
              + "?fg=" + fg + "&size=" + root.pixelSize
              + "&dpr=" + dpr.toFixed(2)
              + "&vpad=" + root.verticalPadding
+             + "&hpad=" + root.horizontalPadding
+    }
+
+    // Where this layer sits in the scene, so a coordinate inside it can be
+    // snapped against the real pixel grid rather than against the layer's own
+    // origin, which is itself off the grid as often as not.
+    readonly property point sceneOrigin: {
+        var t = root.tick        // recompute on relayout and caret movement
+        var w = root.width       // and when the block itself moves or resizes
+        var h = root.height
+        return root.mapToItem(null, 0, 0)
+    }
+
+    // Round a coordinate to a whole device pixel. An equation bitmap drawn at
+    // a fractional offset is resampled across neighbouring pixels, which is
+    // what made inline math look soft next to display math: the text layout
+    // puts a span at whatever sub-pixel position its advances add up to,
+    // whereas a display block sits at a whole pixel. Snapping moves an image
+    // by less than one pixel and lets its texture land on the pixel grid.
+    function snapToPixel(v, sceneOffset) {
+        var dpr = root.devicePixelRatio > 0 ? root.devicePixelRatio : 1
+        return Math.round((v + sceneOffset) * dpr) / dpr - sceneOffset
     }
 
     FontMetrics {
@@ -151,10 +180,21 @@ Item {
                   + mathVerticalPadding
                 : measuredHeight
             property real lineBaseline: root.editor.y + lineBaselineY()
-            x: root.editor.x + box.x
-            y: lineBaseline - mathBaseline
-            width: measuredWidth
-            height: measuredHeight
+            x: root.snapToPixel(root.editor.x + box.x
+                                - root.horizontalPadding,
+                                root.sceneOrigin.x)
+            y: root.snapToPixel(lineBaseline - mathBaseline,
+                                root.sceneOrigin.y)
+            // The loaded bitmap's own logical size, which on a fractional
+            // device pixel ratio is not exactly the measured size rounded:
+            // the provider rasterizes whole physical pixels. Drawing it at
+            // any other size resamples it, so the item takes the image's
+            // size and falls back to the measurement only until it loads.
+            width: mathImg.implicitWidth > 0
+                ? mathImg.implicitWidth
+                : measuredWidth + 2 * root.horizontalPadding
+            height: mathImg.implicitHeight > 0
+                ? mathImg.implicitHeight : measuredHeight
             fillMode: Image.PreserveAspectFit
             horizontalAlignment: Image.AlignLeft
             verticalAlignment: Image.AlignTop

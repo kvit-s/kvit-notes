@@ -73,6 +73,11 @@ BlockDelegateBase {
         Typography.fontFamily, Typography.sizeForBlockType(Block.Paragraph))
     readonly property int pngMathVerticalPadding:
         Math.max(2, Math.ceil(root.mathPixelSize * 0.12))
+    // Transparent side margin so glyphs that overhang their advance box are
+    // not cut off at the edge of the bitmap. The image is centred, so the
+    // extra width needs no counter-offset here.
+    readonly property int mathSideBearingPadding:
+        MathRenderer.sideBearingPadding(root.mathPixelSize)
     readonly property bool numbered: {
         var r = AppSettings.revision // re-evaluate when a setting changes
         return AppSettings.value("view.equationNumbers", false) === true
@@ -114,6 +119,7 @@ BlockDelegateBase {
              + "&size=" + root.mathPixelSize
              + "&dpr=" + root.currentDpr().toFixed(2)
              + "&vpad=" + root.pngMathVerticalPadding
+             + "&hpad=" + root.mathSideBearingPadding
     }
 
     readonly property bool blockSelected: {

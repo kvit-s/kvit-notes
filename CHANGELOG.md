@@ -33,6 +33,13 @@ uses [Semantic Versioning](https://semver.org/).
   aside to watch a theme or typography change land in the document behind
   it. The tab strip no longer spills past the dialog's right border — the
   theme cards had demanded more width than the dialog had, and now wrap.
+- Inline math is no longer cut off or blurred. Equation bitmaps were exactly
+  as wide as the formula's advance, so glyphs that paint outside it lost
+  their ends (an italic `f` lost both its hook and its tail), and they were
+  drawn at whatever sub-pixel offset the line's text advances added up to,
+  which filtered them across neighbouring pixels. The renderer now leaves a
+  transparent side margin, and the overlay places each image on a whole
+  device pixel at its bitmap's own size.
 
 ## [1.0.0] - unreleased
 

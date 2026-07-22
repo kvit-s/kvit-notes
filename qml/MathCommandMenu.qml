@@ -58,6 +58,12 @@ Popup {
     property int highlightIndex: -1
 
     readonly property int glyphPixelSize: 15
+    // Transparent margin the renderer leaves on each side of a glyph so an
+    // overhanging one is not cut off at the edge of its bitmap. The preview's
+    // size cap is raised by it, so the glyph itself stays the size it was and
+    // only the margin hangs over the gap to the label.
+    readonly property int glyphSidePadding:
+        MathRenderer.sideBearingPadding(menu.glyphPixelSize)
 
     modal: false
     dim: false
@@ -94,6 +100,7 @@ Popup {
              + "&size=" + menu.glyphPixelSize
              + "&dpr=" + (Screen.devicePixelRatio > 0
                           ? Math.round(Screen.devicePixelRatio * 100) / 100 : 1)
+             + "&hpad=" + menu.glyphSidePadding
     }
 
     function openForHost(hostItem, rect, display) {
@@ -292,7 +299,8 @@ Popup {
                         Image {
                             anchors.centerIn: parent
                             source: menu.glyphSource(completionRow.modelData.preview)
-                            width: Math.min(implicitWidth, 32)
+                            width: Math.min(implicitWidth,
+                                            32 + 2 * menu.glyphSidePadding)
                             height: Math.min(implicitHeight, 26)
                             fillMode: Image.PreserveAspectFit
                             smooth: true

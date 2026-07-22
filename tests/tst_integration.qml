@@ -8346,6 +8346,49 @@ Item {
                       2000, "caret outside restores the equation overlay")
         }
 
+        // Two things decide whether an equation drawn over the text looks as
+        // sharp as the same equation in a display block. The bitmap has to be
+        // drawn at its own size, because any other size resamples it; and it
+        // has to land on a whole device pixel, because a texture drawn at a
+        // fractional offset is filtered across the pixels either side of it.
+        // Text layout puts a span at whatever sub-pixel position its advances
+        // add up to, so the second one has to be imposed.
+        function test_zzg1_inlineMathImageIsUnscaledAndPixelAligned() {
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "Let $f$ be given, and note that $\\int_0^\\infty x^2 dx$ "
+                + "converges.")
+            wait(400)
+
+            var para = findBlockDelegate(0)
+            verify(para !== null, "math paragraph exists")
+            tryVerify(function() { return para.inlineMathBoxes.length === 2 },
+                      4000, "both equations are reported")
+            var img = findChild(para, "inlineMathImage")
+            verify(img !== null, "inline-math overlay image present")
+            tryVerify(function() { return img.status === Image.Ready }, 4000,
+                      "overlay image loads")
+
+            compare(img.width, img.implicitWidth)
+            compare(img.height, img.implicitHeight)
+
+            var overlay = findChild(para, "mathOverlayLayer")
+            verify(overlay !== null, "overlay layer present")
+            var dpr = overlay.devicePixelRatio > 0
+                ? overlay.devicePixelRatio : 1
+            var scene = img.mapToItem(null, 0, 0)
+            var offGridX = Math.abs(scene.x * dpr
+                                    - Math.round(scene.x * dpr))
+            var offGridY = Math.abs(scene.y * dpr
+                                    - Math.round(scene.y * dpr))
+            verify(offGridX < 0.02,
+                   "image x sits on a device pixel: " + scene.x.toFixed(3)
+                   + " at dpr " + dpr)
+            verify(offGridY < 0.02,
+                   "image y sits on a device pixel: " + scene.y.toFixed(3)
+                   + " at dpr " + dpr)
+        }
+
         // Moving the caret through a formula-heavy paragraph used to cost
         // more the more formulas it held, in two compounding ways: every
         // caret rectangle change re-asked the engine for the box list, which

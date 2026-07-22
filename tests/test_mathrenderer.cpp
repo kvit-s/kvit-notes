@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest>
+#include <QRegularExpression>
 #include <QGuiApplication>
 #include <QImage>
 #include <QPainter>
@@ -382,13 +383,74 @@ class TestMathRenderer : public QObject
     }
 
 private slots:
-    // ---- M11: raster budget ----
+    // MicroTeX sizes a formula to its advance width, which is not where its
+    // glyphs stop painting: the italic `f` carries its tail left of the origin
+    // and its hook right of the advance, and a script-size `f` overhangs by a
+    // fifth of the text size. Rendered into a raster exactly the advance wide,
+    // those parts were cut off — `$f$` in a note lost the ends of the letter.
+    // The side-bearing margin is what keeps them inside the image.
+    void sideBearingMarginKeepsGlyphsInsideTheRaster()
+    {
+        const QStringList corpus = {
+            QStringLiteral("f"), QStringLiteral("f(x)"), QStringLiteral("A_f"),
+            QStringLiteral("x^2"), QStringLiteral("g"), QStringLiteral("y"),
+            QStringLiteral("\\frac{f}{g}"),
+            QStringLiteral("\\int_0^\\infty x^2 dx"),
+        };
+        for (const QString &tex : corpus) {
+            for (int size : {15, 17, 20, 32}) {
+                const int pad = MathRenderer::sideBearingPaddingPx(size);
+                QVERIFY(pad > 0);
+                QString error;
+                const QImage image = MathRenderer::render(
+                    tex, size, QColor(Qt::black), 1.0, &error, 2, pad);
+                QVERIFY2(!image.isNull(),
+                         qPrintable(QStringLiteral("render failed for '%1': %2")
+                                        .arg(tex, error)));
+                int leftInk = 0;
+                int rightInk = 0;
+                for (int y = 0; y < image.height(); ++y) {
+                    if (qAlpha(image.pixel(0, y)) > 0)
+                        ++leftInk;
+                    if (qAlpha(image.pixel(image.width() - 1, y)) > 0)
+                        ++rightInk;
+                }
+                QVERIFY2(leftInk == 0 && rightInk == 0,
+                         qPrintable(QStringLiteral(
+                             "'%1' at %2px paints on its own edge "
+                             "(left %3, right %4 pixels)")
+                                        .arg(tex).arg(size)
+                                        .arg(leftInk).arg(rightInk)));
+            }
+        }
+    }
 
-    // A formula a note can carry must not be able to ask for an unbounded
-    // backing store. Before the cap, 400,000 characters of `x` laid out to
-    // 3,906,817 x 9 pixels — a 134 MiB image that took six seconds to build,
-    // and errorFor() built one of its own before the image provider built a
-    // second for display.
+    // The margin is transparent padding, not a re-layout: the formula keeps
+    // its measured width and gains the margin on each side, so a caller that
+    // shifts the image left by the padding puts it back where the unpadded
+    // one sat.
+    void sideBearingMarginOnlyWidensTheRaster()
+    {
+        const QString tex = QStringLiteral("\\int_0^\\infty x^2 dx");
+        const int size = 20;
+        const int pad = MathRenderer::sideBearingPaddingPx(size);
+        const QImage bare = MathRenderer::render(tex, size, QColor(Qt::black),
+                                                 1.0, nullptr, 2, 0);
+        const QImage padded = MathRenderer::render(tex, size, QColor(Qt::black),
+                                                   1.0, nullptr, 2, pad);
+        QVERIFY(!bare.isNull() && !padded.isNull());
+        QCOMPARE(padded.width(), bare.width() + 2 * pad);
+        QCOMPARE(padded.height(), bare.height());
+        // The formula itself is rasterized identically, `pad` further right:
+        // every pixel of the unpadded image reappears at the same offset.
+        // (Only "reappears" — the unpadded raster is the one losing the
+        // overhang at its edges, which is the defect this margin exists for.)
+        for (int y = 0; y < bare.height(); ++y) {
+            for (int x = 0; x < bare.width(); ++x)
+                QCOMPARE(padded.pixel(x + pad, y), bare.pixel(x, y));
+        }
+    }
+
     void overlongFormulaIsRefusedNotRasterized()
     {
         QElapsedTimer t;

@@ -265,8 +265,20 @@ int runSelfTest()
     return ok ? 0 : 1;
 }
 
+int sideBearingPaddingPx(int textSizePx)
+{
+    // Measured across the NewTX/XCharter reference corpus at 15, 17, 20 and
+    // 32 px: the ink reaches at most 0.067 of the text size left of the
+    // advance box (`x^2`) and 0.200 right of it (the script-size `f` in
+    // `A_f`). The margin is symmetric and a little above the measured worst
+    // case, and scales with the size so it holds at every zoom level.
+    constexpr qreal kMaxOverhangPerEm = 0.22;
+    return qMax(2, qCeil(qMax(1, textSizePx) * kMaxOverhangPerEm));
+}
+
 QImage render(const QString &tex, int textSizePx, const QColor &fg,
-              qreal dpr, QString *error, int verticalPaddingPx)
+              qreal dpr, QString *error, int verticalPaddingPx,
+              int horizontalPaddingPx)
 {
     if (error)
         error->clear();
@@ -297,12 +309,13 @@ QImage render(const QString &tex, int textSizePx, const QColor &fg,
     const int w = qMax(1, render->getWidth());
     const int h = qMax(1, render->getHeight());
     const int vpad = qMax(0, verticalPaddingPx);
+    const int hpad = qMax(0, horizontalPaddingPx);
     qreal ratio = dpr > 0 ? qMin(dpr, Diagram::kMaxDevicePixelRatio) : 1.0;
     // Formula extent, text size and device pixel ratio all multiply into the
     // backing store, and a note controls the first of them outright. Shrink
     // the ratio until the raster fits the budget rather than asking for a
     // buffer the process cannot serve.
-    const qreal logicalW = w;
+    const qreal logicalW = w + 2 * hpad;
     const qreal logicalH = h + 2 * vpad;
     const qreal maxRatioByEdge =
         qMin(Diagram::kMaxRasterEdge / qMax(logicalW, 1.0),
@@ -323,7 +336,7 @@ QImage render(const QString &tex, int textSizePx, const QColor &fg,
         // canvas. An extra scale here would double-apply the ratio and crop
         // the formula to its magnified top-left quadrant.
         QPainter painter(&image);
-        drawRender(render.get(), &painter, QPointF(), vpad,
+        drawRender(render.get(), &painter, QPointF(hpad, 0), vpad,
                    TextDrawingMode::OutlinedText);
     }
     return image;
@@ -490,6 +503,11 @@ int MathTools::opticalMathPixelSize(const QString &family, int pixelSize) const
     return MathRenderer::opticalMathPixelSize(font);
 }
 
+int MathTools::sideBearingPadding(int textSizePx) const
+{
+    return MathRenderer::sideBearingPaddingPx(textSizePx);
+}
+
 QStringList MathTools::availableCommands() const
 {
     return MathRenderer::availableCommands();
@@ -528,6 +546,7 @@ QImage MathImageProvider::requestImage(const QString &id, QSize *size,
     QColor fg(Qt::black);
     int textSize = 20;
     int verticalPadding = 0;
+    int horizontalPadding = 0;
     qreal dpr = 1.0;
     const QUrlQuery params(query);
     if (params.hasQueryItem(QStringLiteral("fg"))) {
@@ -552,10 +571,15 @@ QImage MathImageProvider::requestImage(const QString &id, QSize *size,
         if (pad > 0)
             verticalPadding = qMin(pad, textSize);
     }
+    if (params.hasQueryItem(QStringLiteral("hpad"))) {
+        const int pad = params.queryItemValue(QStringLiteral("hpad")).toInt();
+        if (pad > 0)
+            horizontalPadding = qMin(pad, textSize);
+    }
     Q_UNUSED(requestedSize);
 
     QImage image = MathRenderer::render(tex, textSize, fg, dpr, nullptr,
-                                        verticalPadding);
+                                        verticalPadding, horizontalPadding);
     if (image.isNull()) {
         // Keep the provider contract (a valid image) even on parse failure;
         // the delegate detects the error via errorFor and shows the source.
