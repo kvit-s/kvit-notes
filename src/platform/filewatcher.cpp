@@ -340,12 +340,21 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
     const auto it = m_ownDirWrites.constFind(key);
     if (it != m_ownDirWrites.constEnd() && nowMs() <= it.value())
         return true;
-    // A platform may report the change against a directory above the one that
-    // changed: macOS watches through FSEvents and named the vault root for a
-    // note the app had just deleted from a folder inside it, so a guard on
-    // that folder matched nothing. A guarded directory under the reported one
-    // is the same write seen from higher up - writing inside a folder changes
-    // every folder above it - so it answers for the event.
+#ifdef Q_OS_MACOS
+    // macOS reports a change against a directory above the one that changed:
+    // FSEvents named the vault root for a note the app had just deleted from
+    // a folder inside it, so a guard on that folder matched nothing.
+    //
+    //   guarded  .../test_filewatcher-tnGWIm/from
+    //   reported .../test_filewatcher-tnGWIm
+    //
+    // A guarded directory under the reported one therefore answers for the
+    // event there: writing inside a folder changes every folder above it, and
+    // the app had just said it was writing there. It costs a real change to
+    // the reported directory made by somebody else while a guard below it is
+    // live, which is why it is not done on the platforms that name the
+    // directory that actually changed - on Linux it swallowed the external
+    // changes the Qt Quick suites wait for and hung them.
     const QString prefix = key.endsWith(QLatin1Char('/'))
         ? key
         : key + QLatin1Char('/');
@@ -355,6 +364,7 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
         if (now <= guard.value() && guard.key().startsWith(prefix))
             return true;
     }
+#endif
     return false;
 }
 
