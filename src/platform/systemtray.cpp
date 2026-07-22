@@ -18,7 +18,16 @@ SystemTray::SystemTray(QObject *parent)
 {
     // Build the real tray icon only where the platform provides one; otherwise
     // the seam still routes actions through its signals (documented WSLg gap).
-    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+    //
+    // A tray being available is not enough: the menu below is a QWidget, and a
+    // QWidget cannot be constructed unless the application object is a
+    // QApplication. Windows reports a tray as available even to a process
+    // running under QCoreApplication or QGuiApplication - every test binary
+    // that builds an AppContext, and any headless embedding of the core - and
+    // there the menu is a fatal error rather than a degraded tray. Linux never
+    // showed it because the WSL and offscreen sessions report no tray at all.
+    if (QSystemTrayIcon::isSystemTrayAvailable()
+        && qobject_cast<QApplication *>(qApp) != nullptr) {
         m_tray = new QSystemTrayIcon(this);
         m_tray->setIcon(QIcon::fromTheme(QStringLiteral("accessories-text-editor"),
                                          QApplication::windowIcon()));
