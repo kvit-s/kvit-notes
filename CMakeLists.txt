@@ -118,6 +118,10 @@ if(KVIT_SANITIZE)
         add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer
                             -fno-sanitize-recover=undefined)
         add_link_options(-fsanitize=address,undefined)
+        # Tells the timing budgets they are measuring an instrumented build.
+        # No compiler predefines a macro for UBSan under GCC, and the ASan
+        # one does not cover the pair, so the build system states it.
+        add_compile_definitions(KVIT_SANITIZER_BUILD)
     endif()
 endif()
 

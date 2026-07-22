@@ -289,14 +289,15 @@ jobs:
           QT_QUICK_BACKEND: software
           ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
-        # The instrumentation roughly doubles runtime, which the two hard
-        # timing budgets in the unit label cannot absorb — they measure
-        # wall-clock work, so under ASan they report the slowdown rather than
-        # a defect. Excluded by name so this job reports memory errors and
-        # undefined behaviour only.
+        # The instrumentation roughly doubles measured time, so no timing
+        # budget calibrated on an ordinary build means anything here. The
+        # budgets know it themselves — tests/timingbudget.h reports the
+        # measurement and asserts nothing when KVIT_SANITIZER_BUILD is
+        # defined — so every suite runs and this job reports memory errors
+        # and undefined behaviour only. That replaces excluding the two
+        # heaviest suites by name, which also lost their ASan coverage.
         run: |
-          ctest --test-dir build-asan -L unit --output-on-failure \
-                -E "NoteCollectionTests|SearchIndexDbTests"
+          ctest --test-dir build-asan -L unit --output-on-failure
           ctest --test-dir build-asan -L shell --output-on-failure
 
   # Tag-triggered packaging: produces every artifact

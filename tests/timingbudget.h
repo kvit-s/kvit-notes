@@ -246,6 +246,25 @@ inline double kvitLoadPerCore()
 #endif
 }
 
+// Whether this binary carries sanitizer instrumentation, which every budget
+// here has to decline to judge. AddressSanitizer intercepts each allocation
+// and memory access and UndefinedBehaviorSanitizer adds a check per
+// operation, so the same code measures roughly twice its uninstrumented
+// cost - the budgets would then be measuring the instrumentation rather than
+// the code they were calibrated against. The measurement is still reported,
+// and the sanitizer build is run for what it is good at, which is memory
+// errors and undefined behaviour. KVIT_SANITIZER_BUILD comes from the
+// KVIT_SANITIZE branch of the root CMakeLists: no compiler predefines a
+// macro covering the ASan/UBSan pair.
+inline bool kvitInstrumentedBuild()
+{
+#if defined(KVIT_SANITIZER_BUILD) || defined(__SANITIZE_ADDRESS__)
+    return true;
+#else
+    return false;
+#endif
+}
+
 // Explicitly forced enforcement, regardless of how busy the machine is. This
 // is what the performance-labelled ctest entries set, and what a dedicated
 // benchmarking runner would set.
@@ -261,7 +280,11 @@ inline bool kvitMachineIsQuiet(double contention)
     if (contention > KVIT_TRUSTWORTHY_CONTENTION)
         return false;
 #if defined(Q_OS_UNIX)
-    if (getloadavg(nullptr, 0) < 0)
+    // Probe with a real destination: glibc declares getloadavg's first
+    // argument non-null, so passing nullptr to ask "is load available?" is
+    // undefined behaviour that UndefinedBehaviorSanitizer reports.
+    double probe[1] = {0.0};
+    if (getloadavg(probe, 1) < 0)
         return true;   // unknown load: fall back to enforcing
     return kvitLoadPerCore() <= KVIT_QUIET_LOAD_PER_CORE;
 #else
@@ -288,6 +311,13 @@ inline bool kvitMachineIsQuiet(double contention)
         const double kvit_contention = double(contentionIn);                   \
         qInfo("PERF %s: cpu %.2f ms (wall %.2f ms, contention %.1fx)", label,   \
               kvit_cpu, kvit_wall, kvit_contention);                           \
+        if (kvitInstrumentedBuild()) {                                         \
+            qInfo("PERF %s: budget and ceiling both deferred - this binary "   \
+                  "is sanitizer-instrumented, so the measurement is of the "   \
+                  "instrumentation as much as the code.",                      \
+                  label);                                                      \
+            break;                                                             \
+        }                                                                      \
         QVERIFY2(kvit_cpu < (ceilingMs),                                       \
                  qPrintable(                                                   \
                      QStringLiteral(                                           \
@@ -351,7 +381,11 @@ inline bool kvitMachineIsQuiet(double contention)
 #define KVIT_ASSERT_WALL_BUDGET(measuredMs, label, budgetMs)                   \
     do {                                                                       \
         const double kvit_ms = double(measuredMs);                             \
-        if (kvitMachineIsQuiet(1.0) || kvitTimingBudgetsForced()) {            \
+        if (kvitInstrumentedBuild()) {                                         \
+            qInfo("PERF %s: %.2f ms, budget not judged - this binary is "      \
+                  "sanitizer-instrumented.",                                   \
+                  label, kvit_ms);                                             \
+        } else if (kvitMachineIsQuiet(1.0) || kvitTimingBudgetsForced()) {     \
             QVERIFY2(kvit_ms <= (budgetMs),                                    \
                      qPrintable(                                               \
                          QStringLiteral(                                       \
