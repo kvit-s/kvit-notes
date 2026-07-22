@@ -49,7 +49,7 @@ KvitApplication::KvitApplication(QApplication &app, QObject *parent)
 
     PerfLog::instance().configureFromEnvironment();
 
-    QQuickStyle::setStyle("Fusion");
+    AppContext::applyQuickStyle();
 }
 
 KvitApplication::~KvitApplication() = default;

@@ -119,6 +119,11 @@ private slots:
     {
         // Nothing to reset: the context owns its registries, so this suite
         // starts from the built-ins whatever else ran in the process.
+        // The style the launcher applies. Without it this suite loads the
+        // shipped shell under whatever style the platform defaults to, which
+        // on macOS is the native one, and reports the theme's own backgrounds
+        // as warnings for a configuration the app never runs in.
+        AppContext::applyQuickStyle();
         AppContext::registerQmlTypes();
         m_context = std::make_unique<AppContext>();
         m_context->openSettings(m_dir.filePath(QStringLiteral("settings.json")));
@@ -133,6 +138,10 @@ private slots:
         // resolve - and an audio stack the test never asked for is noise
         // that would make it fail wherever the runner image lacks a library.
         g_expectedWarnings << QRegularExpression(QStringLiteral("pipewire"));
+        // Also the runner's, not the shell's: a machine with no "Sans Serif"
+        // family makes Qt populate its alias table and say how long it took.
+        g_expectedWarnings << QRegularExpression(
+            QStringLiteral("Populating font family aliases"));
         g_previousHandler = qInstallMessageHandler(capturingHandler);
         m_engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
         // Bindings evaluate as the scene is built; let the queue drain so a

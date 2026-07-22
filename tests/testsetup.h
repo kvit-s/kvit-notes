@@ -98,7 +98,7 @@ public:
 public slots:
     void qmlEngineAvailable(QQmlEngine *engine)
     {
-        QQuickStyle::setStyle("Fusion");
+        AppContext::applyQuickStyle();
         AppContext::registerQmlTypes();
 
         // The two places production reaches out to the desktop session.

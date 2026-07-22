@@ -125,6 +125,16 @@ public:
     // it touches the process-wide QML type registry, not this instance.
     static void registerQmlTypes();
 
+    // The Qt Quick Controls style the shell is written against. Every control
+    // in qml/ styles its own background from the theme tokens, which a native
+    // style refuses to let anything customise: under the macOS style Qt
+    // rejected the backgrounds of the tag strip, the quick switcher and the
+    // quick-capture window and drew its own. The app has always set this in
+    // its launcher; it lives here so that anything loading the shell without
+    // that launcher - the shell test does exactly that - cannot end up
+    // exercising a configuration the app never runs in.
+    static void applyQuickStyle();
+
     // Opens the per-user settings file, defaulting to settings.json under the
     // platform's application-config location, and applies the settings that
     // configure logging. A test or a second binary can pass its own path.

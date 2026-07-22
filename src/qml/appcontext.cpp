@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "appcontext.h"
 
+#include <QQuickStyle>
+
 #include <QDir>
 #include <QFileInfo>
 #include <QQmlContext>
@@ -55,6 +57,11 @@ AppContext::~AppContext() = default;
 // Emitted by qmltyperegistrar from the QML_ELEMENT macros on the types
 // themselves; see the generated build/kvit-core_qmltyperegistrations.cpp.
 extern void qml_register_types_Kvit();
+
+void AppContext::applyQuickStyle()
+{
+    QQuickStyle::setStyle(QStringLiteral("Fusion"));
+}
 
 void AppContext::registerQmlTypes()
 {
