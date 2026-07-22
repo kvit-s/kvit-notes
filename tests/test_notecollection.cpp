@@ -1376,8 +1376,20 @@ void TestNoteCollection::testBackupRotationFloorAndPrune()
         now = now.addSecs(11 * 60);
         m_collection->backupBeforeOverwrite(absPath);
     }
-    QTRY_COMPARE_WITH_TIMEOUT(
-        backupDir.entryList(snapshots, QDir::Files, QDir::Name).size(), 10, 5000);
+    const bool settled = QTest::qWaitFor(
+        [&] {
+            return backupDir.entryList(snapshots, QDir::Files).size() == 10;
+        },
+        5000);
+    if (!settled) {
+        // Which snapshots survived, so a rotation that leaves one too many on
+        // a slower filesystem says which stamp it kept rather than only that
+        // the count was wrong.
+        qInfo("backups left: %s",
+              qPrintable(backupDir.entryList(snapshots, QDir::Files, QDir::Name)
+                             .join(QStringLiteral(", "))));
+    }
+    QVERIFY2(settled, "the rotation left more snapshots than its cap");
     // The very first stamp (10:00:00) was pruned.
     QVERIFY(!backupDir.entryList(snapshots, QDir::Files, QDir::Name)
                  .first()

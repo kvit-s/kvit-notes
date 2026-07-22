@@ -117,6 +117,18 @@ jobs:
           QT_QPA_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || 'offscreen' }}
         run: ctest --preset ${{ matrix.test-preset }} --output-on-failure
 
+      # --output-on-failure prints nothing for a failing suite on the Windows
+      # runner: the child's output does not reach the step log there, so a
+      # Windows-only failure arrives as a suite name and nothing else. CTest
+      # writes the same output to a file whatever the platform, so the file is
+      # what gets printed when the gate fails.
+      - name: Test log for a failing gate
+        if: failure()
+        shell: bash
+        run: |
+          log=build-${{ matrix.preset }}/Testing/Temporary/LastTest.log
+          if [ -f "$log" ]; then tail -c 200000 "$log"; else echo "no $log"; fi
+
       # Non-blocking trend data; loaded shared runners make timings advisory.
       - name: Performance tests (informational)
         if: runner.os == 'Linux'

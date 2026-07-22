@@ -336,8 +336,26 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
     // notifications for the same directory, and a note collection operation
     // can touch several entries. It therefore lapses on time rather than
     // being consumed by the first event that matches it.
-    const auto it = m_ownDirWrites.constFind(guardKey(path));
-    return it != m_ownDirWrites.constEnd() && nowMs() <= it.value();
+    const QString key = guardKey(path);
+    const auto it = m_ownDirWrites.constFind(key);
+    if (it != m_ownDirWrites.constEnd() && nowMs() <= it.value())
+        return true;
+    // A platform may report the change against a directory above the one that
+    // changed: macOS watches through FSEvents and named the vault root for a
+    // note the app had just deleted from a folder inside it, so a guard on
+    // that folder matched nothing. A guarded directory under the reported one
+    // is the same write seen from higher up - writing inside a folder changes
+    // every folder above it - so it answers for the event.
+    const QString prefix = key.endsWith(QLatin1Char('/'))
+        ? key
+        : key + QLatin1Char('/');
+    const qint64 now = nowMs();
+    for (auto guard = m_ownDirWrites.constBegin();
+         guard != m_ownDirWrites.constEnd(); ++guard) {
+        if (now <= guard.value() && guard.key().startsWith(prefix))
+            return true;
+    }
+    return false;
 }
 
 void FileWatcher::feedChange(const QString &path, bool isFile)
