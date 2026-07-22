@@ -395,6 +395,11 @@ add_test(NAME FolderTreeModelTests COMMAND test_foldertreemodel)
 qt_add_executable(test_collectionsearch test_collectionsearch.cpp)
 target_link_libraries(test_collectionsearch PRIVATE kvit-core Qt6::Test)
 add_test(NAME CollectionSearchTests COMMAND test_collectionsearch)
+# The warm-reconcile case indexes two thousand notes from cold twice over,
+# which took 220 seconds of this suite's time on a two-core runner against
+# about 20 here. CTest's default is 1500 seconds, so this is headroom for the
+# case rather than a change of policy.
+set_tests_properties(CollectionSearchTests PROPERTIES TIMEOUT 900)
 
 # SearchIndexDb tests (SQLite FTS5 engine + differential oracle)
 qt_add_executable(test_searchindexdb test_searchindexdb.cpp)

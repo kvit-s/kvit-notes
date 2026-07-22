@@ -942,11 +942,17 @@ void TestCollectionSearch::testWarmReconcileCostWithAndWithoutTheStamp()
     // Cold build, then one settling pass once the files are old enough for
     // their change tokens to be recorded, so what follows measures a warm
     // start over a vault the index already holds.
+    // Indexing two thousand notes from cold is minutes of work on a shared
+    // two-core runner and seconds on a workstation, so the wait is sized for
+    // the work rather than left at QTRY's default five seconds - which is
+    // what failed there, reporting a suite that was still indexing as a
+    // suite that had broken.
+    static const int kColdIndexTimeoutMs = 180000;
     m_index->reconcile(listing);
-    QTRY_VERIFY(!m_index->isIndexing());
+    QTRY_VERIFY_WITH_TIMEOUT(!m_index->isIndexing(), kColdIndexTimeoutMs);
     QTest::qWait(int(CollectionSearchIndex::changeTokenSettleMs()) + 150);
     m_index->reconcile(listing);
-    QTRY_VERIFY(!m_index->isIndexing());
+    QTRY_VERIFY_WITH_TIMEOUT(!m_index->isIndexing(), kColdIndexTimeoutMs);
 
     SearchIndexOps::reset();
     const qint64 withStampUs = timedReconcileUs(listing);
