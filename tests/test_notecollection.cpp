@@ -1417,9 +1417,14 @@ void TestNoteCollection::testBackupsListingAndBody()
     now = now.addSecs(20 * 60);
     m_collection->backupBeforeOverwrite(absPath);
 
+    // Wait on the committed snapshots, not on every file in the directory:
+    // a snapshot is written through QSaveFile, whose in-flight temp is a file
+    // too, so entryList(Files) reaches two while one snapshot is still a temp.
+    // backupsFor counts only the *.md snapshots, so it would then see one and
+    // the assertion below would read a rotation still in progress as a defect
+    // - which is what failed on the slow macOS runner.
     QTRY_COMPARE_WITH_TIMEOUT(
-        QDir(abs(".kvit/backups/Ideas/Reading.md")).entryList(QDir::Files).size(),
-        2, 5000);
+        m_collection->backupsFor("Ideas/Reading.md").size(), 2, 5000);
     const QVariantList listing = m_collection->backupsFor("Ideas/Reading.md");
     QCOMPARE(listing.size(), 2);
     // Newest first, with the front-matter-free preview.
