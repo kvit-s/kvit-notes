@@ -57,9 +57,11 @@ Thumbs.db
 # The canonical output location is build/screenshots; these entries cover
 # runs that wrote into the source tree instead. screenshots/press/ is the
 # exception: curated, committed capture assets referenced by the README
-# and the AppStream metadata.
+# and the AppStream metadata, and screenshots/demo-vault/, the checked-in
+# vault those stills are captured from (tools/capture-press-stills.sh).
 /screenshots/*
 !/screenshots/press/
+!/screenshots/demo-vault/
 /tests/screenshots/
 # Packaging outputs
 dist/

@@ -91,7 +91,7 @@ jobs:
             libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev \
             libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 \
-            libxcb-xinerama0 libfontconfig1 xvfb
+            libxcb-xinerama0 libfontconfig1 xvfb tesseract-ocr
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -176,6 +176,14 @@ jobs:
         run: |
           pip install pyyaml
           tools/generate-notices.py --check
+
+      # Text scans and gitleaks never look inside an image; this OCRs the
+      # shipped rasters so a leaked path or the old product name rendered into
+      # a screenshot cannot ship. The press stills are reproducible from a
+      # checked-in demo vault (tools/capture-press-stills.sh).
+      - name: Screenshot leak scan
+        if: runner.os == 'Linux'
+        run: tools/check-image-leaks.sh
 
   # Static QML analysis, blocking. Complements the runtime ShellTests gate
   # above: qmllint reads every file in qml/, including the ones no test
