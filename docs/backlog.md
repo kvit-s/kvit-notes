@@ -13,35 +13,50 @@ Entries here are differences from a written specification, established by audit.
 An entry being listed does not mean the feature is broken or absent; the sections
 below say what does work before saying what is missing.
 
-## Pre-launch implementation follow-ups
+## Pre-launch implementation follow-ups (resolved)
 
-Moved verbatim from features.md section 21.9. The audit date and wording are
-unchanged from the original. The "three additions" it opens by referring to are
-the query block, wiki-links with backlinks, and Mermaid text export, which are
-the three subjects of the entries below.
+This section originated as features.md section 21.9. A 2026-07-12 audit of the
+three then-new additions — the collection query block, wiki-links with
+backlinks, and Mermaid text export — recorded six differences from the
+specification they were built to. A re-audit on 2026-07-23 against the current
+tree found all six implemented; the section is kept, rather than deleted, so a
+reader following the features.md pointer sees what those follow-ups were and
+where each now lives.
 
-The launch-facing behavior of all three additions is implemented and covered by focused unit
-and integration tests. The 2026-07-12 audit found these remaining differences from the
-specification they were built to:
-
-- Query blocks currently evaluate synchronously on every relevant content or collection
-  revision. The planned 150 ms coalescing timer, `(spec, revision)` result cache, and explicit
-  1,000-note / 25 ms performance gate have not been implemented.
-- Wiki-link backlink extraction skips fenced code, but does not yet share the formatter's full
-  opaque-region rules for inline code and inline/display math. Those literal examples can be
-  indexed or rewritten as links even though the editor does not render them as wiki-links.
-- Rename-safe rewriting is atomic per file but currently automatic: there is no preflight
-  confirmation, modified-stamp conflict check, partial-failure report, open-document undo path,
-  or folder-rename target rewrite.
-- Bare duplicate wiki targets currently resolve deterministically to the shortest path instead
-  of remaining unresolved until the user supplies enough path to make the suffix unique.
-- The backlinks integration test covers revision-driven live updates, but not the plan's exact
-  external `FileWatcher::feedChange` panel path. The query-block integration test does cover that
-  external watcher path.
-- Mermaid text export is unit-tested across all five families and exposed in QML, but
-  `DiagramCanvas::textDiagram()` checks for a non-empty scene rather than using the stricter
-  `sceneCurrent()` guard specified by the plan; the visible action itself is hidden while a
-  render is pending or errored.
+- **Query-block evaluation is coalesced, cached, and budgeted.** `QueryBlock.qml`
+  debounces re-evaluation with a 150 ms single-shot timer (`scheduleRefresh` →
+  `refreshTimer`, restarted on every content or collection revision).
+  `QueryTools` holds a `(body, revision)` result cache that coalesces identical
+  requests and prunes entries from superseded revisions, bounded by
+  `MaxCacheEntries`/`MaxCacheRows`. `TestQueryData::testEvaluate1000NoteBudget`
+  enforces the 1,000-note evaluation budget (expressed in CPU time under the
+  timing-budget policy in `tests/timingbudget.h`).
+- **Wiki-link scanning shares the formatter's opaque regions.** `WikiLinkScanner`
+  excludes fenced code, variable-length inline-code backticks, inline math and
+  display math; `inlineMathEnd`/`displayMathEnd` mirror `MarkdownFormatter`'s
+  Pandoc-style adjacency rule. Those literals are therefore neither indexed as
+  backlinks nor rewritten into links.
+- **Renaming is a confirmed plan, not an automatic rewrite.** A rename builds a
+  `RenamePlan` (note rename, note move, or folder rename) that the UI confirms
+  before applying (`NoteRenameWorkflow.qml`). Each referrer is snapshotted with
+  its content hash and modification time, so a file edited since the plan was
+  built is detected rather than overwritten; the open note's rewrite is returned
+  to the editor as one undoable body replacement; a rewrite pass that cannot
+  finish a file reports it through `wikiLinkRewriteIncomplete`; and a folder
+  rename rewrites the qualified links beneath the moved prefix.
+- **Ambiguous wiki targets stay unresolved.** `WikiLinkIndex` resolution returns
+  `{status: unique|ambiguous|missing, candidates}` and leaves a bare target that
+  two notes answer unresolved together with its candidates, rather than binding
+  the shortest path or auto-creating a note.
+- **The backlinks panel is tested through the external watcher.**
+  `test_wiki2_backlinksPanelListsAndUpdatesLive` drives `FileWatcher.feedChange`
+  for the panel, and `test_zzn_externalChangeConflictBanner` exercises the
+  guarded and unguarded external-change paths, so the panel's live update is
+  covered on the same `feedChange` route as the query block.
+- **Mermaid text export uses the stricter scene guard.**
+  `DiagramCanvas::textDiagram()` returns empty unless `sceneCurrent()` holds and
+  the scene is non-empty, and the QML action stays hidden while a render is
+  pending or errored.
 
 ## What the six Qt Quick failures turned out to be
 
