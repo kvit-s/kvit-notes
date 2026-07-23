@@ -43,6 +43,10 @@ on:
         type: choice
         default: all
         options: [all, linux, windows, macos]
+      skip_tests:
+        description: "Skip the build/test/scan gate and package directly (faster; the gate still runs on v* tags and pushes)."
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -53,6 +57,8 @@ env:
 
 jobs:
   secret-scan:
+    # Skipped only on a manual packaging dry-run that opted out of the gate.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -72,6 +78,8 @@ jobs:
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
   build-test:
+    # Skipped only on a manual packaging dry-run that opted out of the gate.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     strategy:
       fail-fast: false
       matrix:
@@ -211,6 +219,8 @@ jobs:
   # the header comment of tools/run-qmllint.sh, which explains why the
   # context-property categories are switched off.
   qmllint:
+    # Skipped only on a manual packaging dry-run that opted out of the gate.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -269,6 +279,8 @@ jobs:
   # Compiling is the whole check. Running it needs a display, which is what
   # the visual suites are for.
   optional-targets:
+    # Skipped only on a manual packaging dry-run that opted out of the gate.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -305,6 +317,8 @@ jobs:
   # as long to compile as the ordinary one and the runner has two cores,
   # against the 28 the same build has locally.
   sanitizers:
+    # Skipped only on a manual packaging dry-run that opted out of the gate.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     continue-on-error: true
@@ -365,12 +379,21 @@ jobs:
   # (docs/release-rollback.md). On a manual workflow_dispatch it skips that
   # environment and uploads the AppImage as a downloadable run artifact.
   package:
+    # Runs when the gate passed (tag/push) or was deliberately skipped
+    # (skip_tests dry-run), but not when it failed. !cancelled() plus the
+    # per-need result checks are what let a skipped gate through while a failed
+    # one still blocks the release path.
     if: >-
-      startsWith(github.ref, 'refs/tags/v') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux'))
+      !cancelled()
+      && (needs.secret-scan.result == 'success' || needs.secret-scan.result == 'skipped')
+      && (needs.build-test.result == 'success' || needs.build-test.result == 'skipped')
+      && (needs.qmllint.result == 'success' || needs.qmllint.result == 'skipped')
+      && (needs.optional-targets.result == 'success' || needs.optional-targets.result == 'skipped')
+      && (startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' &&
+           (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux')))
     needs: [secret-scan, build-test, qmllint, optional-targets]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     # No protected environment on a manual dry-run: it publishes no release and
     # needs no signing secrets. A tag push keeps the release gate.
@@ -418,13 +441,19 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Packaging $VERSION (base $BASE, from $SRC)"
 
+      # Built on ubuntu-22.04, not 24.04: the Qt 6.10 imageformats plugin qtiff
+      # links libtiff.so.5, which 24.04 dropped in favour of libtiff6, so
+      # linuxdeploy could not bundle it and the AppImage build failed. 22.04
+      # ships libtiff.so.5, and building on the older base also widens the
+      # AppImage's glibc compatibility. libfuse2 is the 22.04 package name
+      # (24.04 renamed it libfuse2t64 in the 64-bit time_t transition).
       - name: Linux system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev \
             libxkbcommon-x11-0 libxcb-cursor0 libfontconfig1 \
-            libfuse2t64 file sqlite3
+            libfuse2 file sqlite3
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -490,10 +519,17 @@ jobs:
   # artifacts. It runs in the same protected release environment, so it takes
   # its own manual approval. The macOS DMG is the package-macos job below.
   package-windows:
+    # See the package job: runs on a passed or a deliberately skipped gate,
+    # never on a failed one.
     if: >-
-      startsWith(github.ref, 'refs/tags/v') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows'))
+      !cancelled()
+      && (needs.secret-scan.result == 'success' || needs.secret-scan.result == 'skipped')
+      && (needs.build-test.result == 'success' || needs.build-test.result == 'skipped')
+      && (needs.qmllint.result == 'success' || needs.qmllint.result == 'skipped')
+      && (needs.optional-targets.result == 'success' || needs.optional-targets.result == 'skipped')
+      && (startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' &&
+           (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows')))
     needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: windows-2022
     timeout-minutes: 90
@@ -589,10 +625,17 @@ jobs:
   # from the release-environment secrets. The empty defaults below take the
   # unsigned path today and the signed path unchanged once the secrets exist.
   package-macos:
+    # See the package job: runs on a passed or a deliberately skipped gate,
+    # never on a failed one.
     if: >-
-      startsWith(github.ref, 'refs/tags/v') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos'))
+      !cancelled()
+      && (needs.secret-scan.result == 'success' || needs.secret-scan.result == 'skipped')
+      && (needs.build-test.result == 'success' || needs.build-test.result == 'skipped')
+      && (needs.qmllint.result == 'success' || needs.qmllint.result == 'skipped')
+      && (needs.optional-targets.result == 'success' || needs.optional-targets.result == 'skipped')
+      && (startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' &&
+           (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos')))
     needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: macos-14
     timeout-minutes: 90
