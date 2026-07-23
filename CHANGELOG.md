@@ -33,6 +33,10 @@ uses [Semantic Versioning](https://semver.org/).
   aside to watch a theme or typography change land in the document behind
   it. The tab strip no longer spills past the dialog's right border — the
   theme cards had demanded more width than the dialog had, and now wrap.
+- Diagram labels now use the same font as the text around them. With no
+  editor font chosen — the default — the diagram canvas was handed an empty
+  family name, which Qt matches against nothing and resolves to whatever the
+  font database offers first, a serif face on a stock Linux install.
 - Inline math is no longer cut off or blurred. Equation bitmaps were exactly
   as wide as the formula's advance, so glyphs that paint outside it lost
   their ends (an italic `f` lost both its hook and its tail), and they were

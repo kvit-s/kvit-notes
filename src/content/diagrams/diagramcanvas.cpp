@@ -9,6 +9,7 @@
 #include "mermaidparser.h"
 #include "textdiagram.h"
 
+#include <QGuiApplication>
 #include <QImage>
 #include <QPainter>
 #include <QtConcurrent>
@@ -32,9 +33,17 @@ void DiagramCanvas::setSource(const QString &s)
 
 void DiagramCanvas::setFontFamily(const QString &f)
 {
-    if (m_fontFamily == f)
+    // An empty family is how the typography settings say "the application
+    // font", and that is what the text blocks fall back to. QFont("") does
+    // not mean that: an empty family matches nothing, so the font database
+    // returns its first match instead, which on a stock Linux install is a
+    // serif face. Diagram labels then came out serif next to sans-serif body
+    // text. Resolve the empty case here, so layout measurement and painting
+    // both see a real family.
+    const QString family = f.isEmpty() ? QGuiApplication::font().family() : f;
+    if (m_fontFamily == family)
         return;
-    m_fontFamily = f;
+    m_fontFamily = family;
     emit fontChanged();
     scheduleRender();
 }
