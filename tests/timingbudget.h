@@ -405,8 +405,13 @@ inline bool kvitMachineIsQuiet(double contention)
 // promptly, a worker finishing, a figure a production PerfLog sample already
 // measured on the wall clock - CPU time is the wrong metric and this is the
 // right one. It cannot be made load-proof the way a CPU budget can, so
-// instead of loosening the number it declines to judge a sample taken on a
-// busy machine, and says so. The measurement is always reported.
+// instead of loosening the number it declines to judge when the sample
+// cannot be trusted: on a shared CI runner it defers to the same
+// KVIT_ENFORCE_TIMING_BUDGETS escape hatch the CPU macro uses (there a slow
+// core, not a busy one, inflates the wall time, and no threshold separates
+// that from a regression), and on a developer machine it also defers a
+// sample taken while the machine was busy. Either way it says so, and the
+// measurement is always reported.
 //
 // Unlike KVIT_ASSERT_CPU_BUDGET there is no always-enforced ceiling here,
 // because a wall-clock ceiling loose enough to survive contention would sit
@@ -420,6 +425,9 @@ inline bool kvitMachineIsQuiet(double contention)
             qInfo("PERF %s: %.2f ms, budget not judged - this binary is "      \
                   "sanitizer-instrumented.",                                   \
                   label, kvit_ms);                                             \
+        } else if (!kvitTimingBudgetsEnforced()) {                             \
+            qInfo("PERF %s: %.2f ms, budget deferred - %s",                    \
+                  label, kvit_ms, KVIT_TIMING_BUDGET_SKIP_REASON);             \
         } else if (kvitMachineIsQuiet(1.0) || kvitTimingBudgetsForced()) {     \
             QVERIFY2(kvit_ms <= (budgetMs),                                    \
                      qPrintable(                                               \
