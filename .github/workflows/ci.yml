@@ -2,7 +2,8 @@
 # `shell` CTest labels on all three OSes, and qmllint on Linux. Performance and
 # xvfb GUI runs stay informational, because loaded shared runners make timings
 # advisory and xvfb cannot deliver real window focus. v* tags run the packaging
-# steps into a draft release.
+# steps into a draft release; a manual workflow_dispatch runs the same steps as
+# a dry-run, uploading the artifacts to the run instead of publishing them.
 #
 # The `shell` label is a gate rather than a smoke test: those suites load the
 # production resources.qrc, so they are what stops a QML syntax error, a
@@ -24,6 +25,24 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  # Manual packaging dry-run. The three package jobs also run on a
+  # workflow_dispatch, without the protected release environment or a draft
+  # release: they build the artifacts, run their license and self-test gates,
+  # and upload the result as downloadable run artifacts. This is for iterating
+  # on the packaging scripts (the macOS DMG in particular is unproven on real
+  # hardware) before committing to a v* tag. macOS stays unsigned here, because
+  # the signing secrets live in the release environment a dispatch does not
+  # enter.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version stamped on the artifacts (SemVer; numeric core must equal PROJECT_VERSION, e.g. 1.0.0-rc1)."
+        default: "1.0.0-rc1"
+      platforms:
+        description: "Which platform(s) to package."
+        type: choice
+        default: all
+        options: [all, linux, windows, macos]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -340,43 +359,53 @@ jobs:
           ctest --test-dir build-asan -L unit --output-on-failure
           ctest --test-dir build-asan -L shell --output-on-failure
 
-  # Tag-triggered packaging: produces every artifact
-  # into a draft release for inspection; publishing the release is a manual
-  # step of the release procedure (docs/release-rollback.md). The protected
-  # environment carries signing secrets and requires manual approval.
+  # Linux packaging (AppImage). On a v* tag it produces the artifact into a
+  # draft release for inspection through the protected release environment;
+  # publishing the release is a manual step of the release procedure
+  # (docs/release-rollback.md). On a manual workflow_dispatch it skips that
+  # environment and uploads the AppImage as a downloadable run artifact.
   package:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux'))
     needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    environment: release
+    # No protected environment on a manual dry-run: it publishes no release and
+    # needs no signing secrets. A tag push keeps the release gate.
+    environment: ${{ github.event_name != 'workflow_dispatch' && 'release' || '' }}
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Validate the tag before anything is built, so a bad tag costs seconds
-      # rather than a full packaging run. `v*` matches any tag, including one
-      # whose version has nothing to do with the source being built; the
-      # release version must be a SemVer string whose numeric core equals
-      # PROJECT_VERSION, with the prerelease suffix preserved so an RC
-      # identifies itself as an RC. build-appimage.sh applies the same rules
-      # and derives the same value; this step surfaces a mismatch early and
-      # publishes it as an output for the steps below.
+      # Validate the version before anything is built, so a bad one costs
+      # seconds rather than a full packaging run. On a tag the version is the
+      # tag; on a manual run it is the `version` input. Either way it must be a
+      # SemVer string whose numeric core equals PROJECT_VERSION, with the
+      # prerelease suffix preserved so an RC identifies itself as an RC.
+      # build-appimage.sh applies the same rules and derives the same value;
+      # this step surfaces a mismatch early and publishes it for the steps below.
       - name: Validate release version against PROJECT_VERSION
         id: version
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            SRC="workflow_dispatch input"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            SRC="tag ${GITHUB_REF_NAME}"
+          fi
           BASE=$(grep -oP 'project\(kvit-notes VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
 
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Tag '$TAG' is not a SemVer version (expected v1.0.0 or v1.0.0-rc1)."
+            echo "::error::Version '$VERSION' (from $SRC) is not SemVer (expected 1.0.0 or 1.0.0-rc1)."
             exit 1
           fi
           if [[ "$VERSION" != "$BASE" && "$VERSION" != "$BASE"-* && "$VERSION" != "$BASE"+* ]]; then
-            echo "::error::Tag '$TAG' has base version '${VERSION%%[-+]*}' but CMakeLists.txt declares '$BASE'."
+            echo "::error::Version '$VERSION' (from $SRC) has base '${VERSION%%[-+]*}' but CMakeLists.txt declares '$BASE'."
             exit 1
           fi
 
@@ -387,7 +416,7 @@ jobs:
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION (base $BASE)"
+          echo "Packaging $VERSION (base $BASE, from $SRC)"
 
       - name: Linux system dependencies
         run: |
@@ -436,6 +465,7 @@ jobs:
       # 1.0.0-rc1 are both flagged, and the binary inside reports the same
       # suffixed version rather than claiming to be the final release.
       - name: Draft release with artifacts
+        if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true
@@ -444,45 +474,65 @@ jobs:
             dist/*
             THIRD-PARTY-NOTICES.md
 
+      # Manual dry-run: no release, just downloadable run artifacts.
+      - name: Upload artifacts (dry-run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-${{ steps.version.outputs.version }}
+          path: |
+            dist/*
+            THIRD-PARTY-NOTICES.md
+          if-no-files-found: error
+
   # Tag-triggered Windows packaging: the windeployqt portable zip and the Inno
   # Setup per-user installer, uploaded into the same draft release as the Linux
   # artifacts. It runs in the same protected release environment, so it takes
   # its own manual approval. The macOS DMG is the package-macos job below.
   package-windows:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows'))
     needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: windows-2022
     timeout-minutes: 90
-    environment: release
+    environment: ${{ github.event_name != 'workflow_dispatch' && 'release' || '' }}
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The same rule as the Linux package job, in PowerShell: the tag's
-      # numeric core must equal PROJECT_VERSION, and any SemVer suffix marks a
-      # prerelease. build-windows.ps1 re-derives and re-checks the same value;
-      # this step surfaces a bad tag early and feeds `prerelease` below.
+      # The same rule as the Linux package job, in PowerShell: on a tag the
+      # version is the tag, on a manual run it is the `version` input, and
+      # either way its numeric core must equal PROJECT_VERSION with any SemVer
+      # suffix marking a prerelease. build-windows.ps1 re-derives and re-checks
+      # the same value; this surfaces a mismatch early and feeds the steps below.
       - name: Validate release version against PROJECT_VERSION
         id: version
         shell: pwsh
         run: |
-          $tag = $env:GITHUB_REF_NAME
-          $version = $tag -replace '^v', ''
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ github.event.inputs.version }}'
+            $src = 'workflow_dispatch input'
+          } else {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+            $src = "tag $($env:GITHUB_REF_NAME)"
+          }
           $m = Select-String -Path CMakeLists.txt -Pattern 'project\(kvit-notes VERSION (\d+\.\d+\.\d+)'
           $base = $m.Matches[0].Groups[1].Value
           if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$') {
-            Write-Host "::error::Tag '$tag' is not a SemVer version (expected v1.0.0 or v1.0.0-rc1)."
+            Write-Host "::error::Version '$version' (from $src) is not SemVer (expected 1.0.0 or 1.0.0-rc1)."
             exit 1
           }
           if ($version -ne $base -and $version -notmatch ('^' + [regex]::Escape($base) + '[-+]')) {
-            Write-Host "::error::Tag '$tag' base version differs from CMakeLists.txt '$base'."
+            Write-Host "::error::Version '$version' (from $src) base differs from CMakeLists.txt '$base'."
             exit 1
           }
           $prerelease = if ($version -eq $base) { 'false' } else { 'true' }
           "version=$version"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Releasing $version (base $base)"
+          Write-Host "Packaging $version (base $base, from $src)"
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -506,19 +556,31 @@ jobs:
         run: ./packaging/windows/build-windows.ps1
 
       - name: Draft release with artifacts
+        if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true
           prerelease: ${{ steps.version.outputs.prerelease }}
           files: dist/*
 
-  # Tag-triggered macOS packaging: the macdeployqt bundle inside a compressed
-  # DMG, uploaded into the same draft release as the Linux and Windows
-  # artifacts. It runs in the same protected release environment and takes its
-  # own manual approval.
+      - name: Upload artifacts (dry-run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-${{ steps.version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  # macOS packaging: the macdeployqt bundle inside a compressed DMG. On a v*
+  # tag it uploads into the same draft release as the Linux and Windows
+  # artifacts, through the protected release environment. On a manual
+  # workflow_dispatch it skips that environment and uploads the DMG as a
+  # downloadable run artifact instead.
   #
-  # Signing and notarization are gated on credentials. Until the Apple Developer
-  # account is active, none are present, so build-macos.sh produces a complete,
+  # Signing and notarization are gated on credentials. On a dispatch there is no
+  # release environment, so its secrets are absent and the DMG is always
+  # ad-hoc-signed. On a tag, until the Apple Developer account is active the
+  # secrets are still empty, so build-macos.sh produces a complete,
   # self-contained, ad-hoc-signed DMG and skips notarization; the packaging
   # mechanism is exercised end to end regardless. To enable signing at launch,
   # add a step before "Build macOS package" that imports the Developer ID
@@ -527,34 +589,42 @@ jobs:
   # from the release-environment secrets. The empty defaults below take the
   # unsigned path today and the signed path unchanged once the secrets exist.
   package-macos:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos'))
     needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: macos-14
     timeout-minutes: 90
-    environment: release
+    environment: ${{ github.event_name != 'workflow_dispatch' && 'release' || '' }}
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The same rule as the other package jobs: the tag's numeric core must
-      # equal PROJECT_VERSION, and any SemVer suffix marks a prerelease.
-      # build-macos.sh re-derives and re-checks the same value; this surfaces a
-      # bad tag early and feeds `prerelease` below.
+      # The same rule as the other package jobs: on a tag the version is the
+      # tag, on a manual run it is the `version` input, and either way its
+      # numeric core must equal PROJECT_VERSION with any SemVer suffix marking a
+      # prerelease. build-macos.sh re-derives and re-checks the same value.
       - name: Validate release version against PROJECT_VERSION
         id: version
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            SRC="workflow_dispatch input"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            SRC="tag ${GITHUB_REF_NAME}"
+          fi
           BASE=$(grep -oE 'project\(kvit-notes VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
 
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Tag '$TAG' is not a SemVer version (expected v1.0.0 or v1.0.0-rc1)."
+            echo "::error::Version '$VERSION' (from $SRC) is not SemVer (expected 1.0.0 or 1.0.0-rc1)."
             exit 1
           fi
           if [[ "$VERSION" != "$BASE" && "$VERSION" != "$BASE"-* && "$VERSION" != "$BASE"+* ]]; then
-            echo "::error::Tag '$TAG' has base version '${VERSION%%[-+]*}' but CMakeLists.txt declares '$BASE'."
+            echo "::error::Version '$VERSION' (from $SRC) has base '${VERSION%%[-+]*}' but CMakeLists.txt declares '$BASE'."
             exit 1
           fi
           if [ "$VERSION" = "$BASE" ]; then
@@ -563,7 +633,7 @@ jobs:
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION (base $BASE)"
+          echo "Packaging $VERSION (base $BASE, from $SRC)"
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -586,8 +656,17 @@ jobs:
         run: ./packaging/macos/build-macos.sh
 
       - name: Draft release with artifacts
+        if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true
           prerelease: ${{ steps.version.outputs.prerelease }}
           files: dist/*
+
+      - name: Upload artifacts (dry-run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-${{ steps.version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
