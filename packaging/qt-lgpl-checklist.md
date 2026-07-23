@@ -21,11 +21,11 @@ packaging pipeline produces a real artifact, then re-verified per release.
       matching `LICENSE.LGPL*`, so the previous glob copied nothing and left
       an empty directory behind.
 - [ ] The artifact carries `THIRD-PARTY-NOTICES.md`, the project's own
-      MPL-2.0 `LICENSE`, and the MicroTeX and tinyxml2 texts. On Linux this
-      is enforced: `tools/check-license-payload.sh` runs inside
-      `packaging/linux/build-appimage.sh` and fails the build when any
-      required notice is missing or empty. Wire the same call into the
-      Windows and macOS packaging scripts when they are written.
+      MPL-2.0 `LICENSE`, and the MicroTeX and tinyxml2 texts. This is
+      enforced on every platform: `tools/check-license-payload.sh` runs inside
+      `packaging/linux/build-appimage.sh`, `packaging/windows/build-windows.ps1`
+      and `packaging/macos/build-macos.sh`, and fails the build when any
+      required notice is missing or empty.
 - [ ] The download page / README states where the exact Qt sources for the
       shipped version can be obtained (https://download.qt.io/official_releases/qt/
       plus the version), satisfying the source-availability obligation.

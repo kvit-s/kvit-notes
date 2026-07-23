@@ -447,8 +447,7 @@ jobs:
   # Tag-triggered Windows packaging: the windeployqt portable zip and the Inno
   # Setup per-user installer, uploaded into the same draft release as the Linux
   # artifacts. It runs in the same protected release environment, so it takes
-  # its own manual approval. The macOS packaging job (macdeployqt + notarized
-  # DMG) joins here once that port is packaged.
+  # its own manual approval. The macOS DMG is the package-macos job below.
   package-windows:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [secret-scan, build-test, qmllint, optional-targets]
@@ -505,6 +504,86 @@ jobs:
         env:
           KVIT_VERSION_FULL: ${{ steps.version.outputs.version }}
         run: ./packaging/windows/build-windows.ps1
+
+      - name: Draft release with artifacts
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          draft: true
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: dist/*
+
+  # Tag-triggered macOS packaging: the macdeployqt bundle inside a compressed
+  # DMG, uploaded into the same draft release as the Linux and Windows
+  # artifacts. It runs in the same protected release environment and takes its
+  # own manual approval.
+  #
+  # Signing and notarization are gated on credentials. Until the Apple Developer
+  # account is active, none are present, so build-macos.sh produces a complete,
+  # self-contained, ad-hoc-signed DMG and skips notarization; the packaging
+  # mechanism is exercised end to end regardless. To enable signing at launch,
+  # add a step before "Build macOS package" that imports the Developer ID
+  # Application certificate into a temporary keychain and stores a notarytool
+  # profile, then set KVIT_CODESIGN_IDENTITY and KVIT_NOTARY_KEYCHAIN_PROFILE
+  # from the release-environment secrets. The empty defaults below take the
+  # unsigned path today and the signed path unchanged once the secrets exist.
+  package-macos:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [secret-scan, build-test, qmllint, optional-targets]
+    runs-on: macos-14
+    timeout-minutes: 90
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same rule as the other package jobs: the tag's numeric core must
+      # equal PROJECT_VERSION, and any SemVer suffix marks a prerelease.
+      # build-macos.sh re-derives and re-checks the same value; this surfaces a
+      # bad tag early and feeds `prerelease` below.
+      - name: Validate release version against PROJECT_VERSION
+        id: version
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          BASE=$(grep -oE 'project\(kvit-notes VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not a SemVer version (expected v1.0.0 or v1.0.0-rc1)."
+            exit 1
+          fi
+          if [[ "$VERSION" != "$BASE" && "$VERSION" != "$BASE"-* && "$VERSION" != "$BASE"+* ]]; then
+            echo "::error::Tag '$TAG' has base version '${VERSION%%[-+]*}' but CMakeLists.txt declares '$BASE'."
+            exit 1
+          fi
+          if [ "$VERSION" = "$BASE" ]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (base $BASE)"
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: clang_64
+          modules: qtmultimedia qtshadertools qtimageformats
+          cache: true
+
+      # Configures and installs the macos-release preset, bundles Qt with
+      # macdeployqt and the offscreen plugin, verifies the license payload and a
+      # headless --math-selftest, then writes the DMG and the checksum into
+      # dist/. Signing and notarization are skipped when their env vars are
+      # empty (see the job comment above).
+      - name: Build macOS package
+        env:
+          KVIT_VERSION_FULL: ${{ steps.version.outputs.version }}
+          KVIT_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          KVIT_NOTARY_KEYCHAIN_PROFILE: ${{ secrets.MACOS_NOTARY_KEYCHAIN_PROFILE }}
+        run: ./packaging/macos/build-macos.sh
 
       - name: Draft release with artifacts
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
