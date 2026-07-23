@@ -37,7 +37,7 @@ fi
 VERSION=${1#v}
 SUMS=${2:-}
 PKGBUILD=packaging/aur/kvit-notes-bin/PKGBUILD
-ASSET="Kvit_Editor-${VERSION}-x86_64.AppImage"
+ASSET="Kvit_Notes-${VERSION}-x86_64.AppImage"
 
 if [ ! -f "$PKGBUILD" ]; then
     echo "not found: $PKGBUILD" >&2

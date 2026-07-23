@@ -13,7 +13,7 @@ provides=('kvit-notes')
 conflicts=('kvit-notes')
 depends=('fontconfig' 'glibc' 'hicolor-icon-theme')
 options=('!strip')
-source=("https://github.com/kvit-s/kvit-notes/releases/download/v${pkgver}/Kvit_Editor-${pkgver}-x86_64.AppImage")
+source=("https://github.com/kvit-s/kvit-notes/releases/download/v${pkgver}/Kvit_Notes-${pkgver}-x86_64.AppImage")
 # Pinned to the exact release artifact. Set by tools/update-aur-digest.sh,
 # which reads the digest from the release's SHA256SUMS.txt; never edit by
 # hand and never set back to SKIP. SKIP would make makepkg accept whatever
@@ -24,8 +24,8 @@ source=("https://github.com/kvit-s/kvit-notes/releases/download/v${pkgver}/Kvit_
 sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
 
 prepare() {
-    chmod +x "Kvit_Editor-${pkgver}-x86_64.AppImage"
-    ./"Kvit_Editor-${pkgver}-x86_64.AppImage" --appimage-extract > /dev/null
+    chmod +x "Kvit_Notes-${pkgver}-x86_64.AppImage"
+    ./"Kvit_Notes-${pkgver}-x86_64.AppImage" --appimage-extract > /dev/null
 }
 
 package() {

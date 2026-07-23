@@ -5,7 +5,7 @@
 #
 # Run the finished AppImage and prove the packaged runtime works.
 #
-#   tools/check-appimage.sh dist/Kvit_Editor-1.0.0-x86_64.AppImage
+#   tools/check-appimage.sh dist/Kvit_Notes-1.0.0-x86_64.AppImage
 #
 # tools/check-appdir-runtime.sh already probes the AppDir before it is
 # packed. This runs the artifact users actually download, after packing, so

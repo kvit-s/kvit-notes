@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the Linux AppImage: configure and install the linux-release preset
 # into an AppDir, bundle Qt with linuxdeploy-plugin-qt, and emit
-# dist/Kvit_Editor-<version>-x86_64.AppImage.
+# dist/Kvit_Notes-<version>-x86_64.AppImage.
 #
 # Run from anywhere; the script works from the repo root. It is self-contained:
 # a clean checkout needs only Qt on QT_ROOT_DIR, network access to fetch the
@@ -188,7 +188,7 @@ export QMAKE="$(pwd)/$BUILD_DIR/qmake-staged"
 # No embedded AppImageUpdate info (LDAI_UPDATE_INFORMATION deliberately
 # unset - an empty string is rejected as malformed); the in-app check
 # covers release discovery.
-export LDAI_OUTPUT="$DIST/Kvit_Editor-$VERSION-x86_64.AppImage"
+export LDAI_OUTPUT="$DIST/Kvit_Notes-$VERSION-x86_64.AppImage"
 
 # Pass 1: deploy Qt into the AppDir (no packing yet).
 "$TOOLS/$(basename "$LINUXDEPLOY_URL")" \
