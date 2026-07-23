@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report security problems privately to **security@kvit.app** rather than in a
+Report security problems privately to **info@kvit.app** rather than in a
 public issue. Include the version, platform, and a reproduction; a proof of
 concept helps but is not required.
 
