@@ -122,7 +122,10 @@ fi
 # work: it checks out fresh and calls this script directly. The BUNDLE install
 # rule (CMakeLists.txt) drops kvit-notes.app at the prefix root with math-res
 # and the project's own license texts already inside Contents/Resources.
-cmake --preset macos-release -DKVIT_VERSION_FULL="$VERSION" "${ARCH_ARGS[@]}"
+# ${ARCH_ARGS[@]+...} expands to nothing when the array is empty. macOS runs
+# bash 3.2, where a bare "${ARR[@]}" over an empty array trips `set -u`.
+cmake --preset macos-release -DKVIT_VERSION_FULL="$VERSION" \
+    ${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"}
 cmake --build --preset macos-release -j "$(sysctl -n hw.ncpu)" --target kvit-notes
 rm -rf "$STAGE"
 cmake --install "$BUILD_DIR" --prefix "$STAGE"
