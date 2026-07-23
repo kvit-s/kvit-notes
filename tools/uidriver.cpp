@@ -51,6 +51,16 @@ void grab(QQuickWindow *window, const QString &path)
               frame.width(), frame.height());
 }
 
+// Take the pointer off the shell, so nothing renders hovered in the frame
+// about to be grabbed. A synthetic move to a point outside the window is what
+// does it: hover tracking follows delivered events, and warping the real
+// cursor away is not portable (Wayland refuses it without the pointer-warp
+// protocol, which is the capture environment here).
+void clearHover(QQuickWindow *window)
+{
+    QTest::mouseMove(window, QPoint(-20, -20));
+}
+
 // Click a block in the live editor list, so focus lands where a user's click
 // would put it. Finds the real delegate through the ListView rather than
 // guessing at pixel coordinates.
@@ -152,6 +162,11 @@ int main(int argc, char *argv[])
                     QUrl::fromLocalFile(note));
             }
             settle(2500);
+            // These frames are grabbed from a real desktop, so whatever the
+            // mouse happens to be resting on is hovered: a block under the
+            // cursor grabs with its hover tint and its insert and drag handles
+            // showing, in one still and not the next.
+            clearHover(window);
             grab(window, outDir + QStringLiteral("/") + shotName
                              + QStringLiteral(".png"));
         } else if (scenario == QStringLiteral("dropcap")) {
