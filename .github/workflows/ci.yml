@@ -444,6 +444,71 @@ jobs:
             dist/*
             THIRD-PARTY-NOTICES.md
 
-      # Windows (windeployqt zip + Inno installer) and macOS (macdeployqt +
-      # notarized DMG) packaging jobs are added once those ports are
-      # packaged; they run in this same protected environment.
+  # Tag-triggered Windows packaging: the windeployqt portable zip and the Inno
+  # Setup per-user installer, uploaded into the same draft release as the Linux
+  # artifacts. It runs in the same protected release environment, so it takes
+  # its own manual approval. The macOS packaging job (macdeployqt + notarized
+  # DMG) joins here once that port is packaged.
+  package-windows:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [secret-scan, build-test, qmllint, optional-targets]
+    runs-on: windows-2022
+    timeout-minutes: 90
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same rule as the Linux package job, in PowerShell: the tag's
+      # numeric core must equal PROJECT_VERSION, and any SemVer suffix marks a
+      # prerelease. build-windows.ps1 re-derives and re-checks the same value;
+      # this step surfaces a bad tag early and feeds `prerelease` below.
+      - name: Validate release version against PROJECT_VERSION
+        id: version
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag -replace '^v', ''
+          $m = Select-String -Path CMakeLists.txt -Pattern 'project\(kvit-notes VERSION (\d+\.\d+\.\d+)'
+          $base = $m.Matches[0].Groups[1].Value
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$') {
+            Write-Host "::error::Tag '$tag' is not a SemVer version (expected v1.0.0 or v1.0.0-rc1)."
+            exit 1
+          }
+          if ($version -ne $base -and $version -notmatch ('^' + [regex]::Escape($base) + '[-+]')) {
+            Write-Host "::error::Tag '$tag' base version differs from CMakeLists.txt '$base'."
+            exit 1
+          }
+          $prerelease = if ($version -eq $base) { 'false' } else { 'true' }
+          "version=$version"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Releasing $version (base $base)"
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          modules: qtmultimedia qtshadertools qtimageformats
+          cache: true
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      # Configures and installs the windows-msvc-release preset, deploys Qt and
+      # the MSVC runtime, verifies the license payload and a headless
+      # --math-selftest, then writes the zip, the installer, and the checksums
+      # into dist/.
+      - name: Build Windows package
+        shell: pwsh
+        env:
+          KVIT_VERSION_FULL: ${{ steps.version.outputs.version }}
+        run: ./packaging/windows/build-windows.ps1
+
+      - name: Draft release with artifacts
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          draft: true
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: dist/*
