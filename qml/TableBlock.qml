@@ -77,7 +77,63 @@ BlockDelegateBase {
     property Item activeCellItem: null
 
     readonly property int tableWidth: Math.max(240, root.width - 96)
-    readonly property int colWidth: columns > 0 ? Math.floor(tableWidth / columns) : 80
+    // Column widths follow content instead of splitting evenly: each column's
+    // weight is the longest cell it holds (header included), clamped so one
+    // long column can't starve the others and a short one keeps a usable
+    // minimum. Widths are handed out from tableWidth by weight; the frame then
+    // spans their exact sum (gridWidth) so the right edge stays flush.
+    readonly property var colWidths: {
+        var cols = root.columns
+        if (cols <= 0 || !root.grid.valid)
+            return []
+        var weights = []
+        var total = 0
+        for (var c = 0; c < cols; c++) {
+            var longest = (root.grid.headers[c] !== undefined)
+                ? String(root.grid.headers[c]).length : 1
+            var n = Math.min(root.dataRows, root.renderedRows)
+            for (var r = 0; r < n; r++) {
+                var cells = root.grid.rows[r]
+                var len = (cells && cells[c] !== undefined) ? String(cells[c]).length : 0
+                if (len > longest)
+                    longest = len
+            }
+            var w = Math.max(8, Math.min(40, longest))
+            weights.push(w)
+            total += w
+        }
+        var out = []
+        for (var i = 0; i < cols; i++)
+            // A floor so a short column beside long paragraph columns still
+            // reads on one line rather than wrapping a single word.
+            out.push(Math.max(92, Math.round(root.tableWidth * weights[i] / total)))
+        return out
+    }
+    function colWidthAt(c) {
+        return (c >= 0 && c < root.colWidths.length) ? root.colWidths[c] : 80
+    }
+    // Left edge of column c: the running sum of the widths before it. The
+    // column separators are drawn once from this rather than per cell.
+    function columnLeft(c) {
+        var x = 0
+        for (var i = 0; i < c && i < root.colWidths.length; i++)
+            x += root.colWidths[i]
+        return x
+    }
+    readonly property int gridWidth: {
+        var sum = 0
+        for (var i = 0; i < root.colWidths.length; i++)
+            sum += root.colWidths[i]
+        return sum > 0 ? sum : root.tableWidth
+    }
+
+    // Height of the live cell editor's text, so the active cell can grow to fit
+    // what is being typed instead of clipping it.
+    property real activeEditorHeight: 0
+
+    // The cell a right-click context menu is acting on.
+    property int menuRow: -2
+    property int menuCol: -1
 
     readonly property bool blockSelected: {
         var revision = DocumentSelection.revision // dependency only
@@ -176,6 +232,26 @@ BlockDelegateBase {
     property int _lastSortCol: -1
     property bool _lastSortAsc: false
 
+    // Right-click cell menu (below) acts on this cell.
+    function openCellMenu(r, c) {
+        root.menuRow = r
+        root.menuCol = c
+        cellMenu.popup()
+    }
+    // The live cell lost focus. If focus is still somewhere inside this table
+    // (Tab moved between cells), keep editing; otherwise leave edit mode, so
+    // the add controls fold away and the table reads cleanly again.
+    function endEditingIfFocusLeft() {
+        var p = Window.activeFocusItem
+        while (p) {
+            if (p === root)
+                return
+            p = p.parent
+        }
+        root.activeRow = -2
+        root.activeCol = -1
+    }
+
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
         BlockModel.removeBlock(root.index)
@@ -208,6 +284,30 @@ BlockDelegateBase {
             var item = (lv.itemAtIndex(newIndex) as BlockDelegateBase)
             if (item) { item.focusAtStart(); if (item.openBlockMenu) item.openBlockMenu("insert") }
         })
+    }
+
+    // A flat chip-style button matching the app's in-block affordances
+    // (transparent until hovered), used for the table's add / show-all
+    // controls instead of the OS-styled QtQuick Controls Button.
+    component TableChipButton: Rectangle {
+        id: chip
+        property string label: ""
+        signal clicked()
+        implicitWidth: chipText.implicitWidth + 18
+        implicitHeight: 22
+        radius: 4
+        color: chipHover.hovered ? Theme.hoverTint : "transparent"
+        border.width: 1
+        border.color: Theme.border
+        Text {
+            id: chipText
+            anchors.centerIn: parent
+            text: chip.label
+            color: Theme.textMuted
+            font.pixelSize: 11
+        }
+        HoverHandler { id: chipHover }
+        TapHandler { onTapped: chip.clicked() }
     }
 
     Item {
@@ -266,109 +366,189 @@ BlockDelegateBase {
         border.width: root.blockSelected ? 1 : 0
     }
 
-    // The grid.
+    // The grid: a rounded, clipped frame holding the header and the rendered
+    // window of data rows, then the row-window notice and the add controls
+    // beneath it. Gridlines are drawn once per row and once per column rather
+    // than per cell, so a large table does not pay an extra item per cell.
     Column {
         id: gridColumn
         objectName: "tableGrid"
         x: 36
         y: 8
-        width: root.tableWidth
+        spacing: 6
         opacity: root.isDragSource ? 0.35 : 1
 
-        // Header row + the rendered window of data rows, as row indices
-        // -1..renderedRows-1.
-        Repeater {
-            model: root.renderedRows + 1
-            delegate: Row {
-                id: rowItem
-                required property int index
-                readonly property int rowIndex: index - 1   // -1 = header
+        Item {
+            id: tableFrame
+            width: root.gridWidth
+            implicitHeight: rowsColumn.implicitHeight
+            height: implicitHeight
 
-                Repeater {
-                    model: root.columns
-                    delegate: Rectangle {
-                        id: cell
-                        required property int index
-                        readonly property int colIndex: index
-                        width: root.colWidth
-                        implicitHeight: Math.max(30, cellContent.implicitHeight + 12)
-                        height: implicitHeight
-                        color: rowItem.rowIndex === -1 ? Theme.chipBackground
-                             : (root.activeRow === rowItem.rowIndex
-                                && root.activeCol === colIndex ? Theme.focusTint
-                                : Theme.windowBackground)
-                        border.width: 1
-                        border.color: Theme.border
+            // Rounds the corners of the cell fills and clips the gridlines.
+            Rectangle {
+                id: clipRect
+                anchors.fill: parent
+                radius: 6
+                color: Theme.windowBackground
+                clip: true
 
-                        readonly property bool isActive:
-                            root.activeRow === rowItem.rowIndex
-                            && root.activeCol === cell.colIndex
-                        readonly property int align: {
-                            var a = root.grid.valid ? root.grid.alignments[cell.colIndex] : "none"
-                            return a === "center" ? Text.AlignHCenter
-                                 : a === "right" ? Text.AlignRight : Text.AlignLeft
-                        }
+                Column {
+                    id: rowsColumn
+                    width: parent.width
 
-                        // Static rendering (markdown → styled rich text).
-                        Text {
-                            id: cellContent
-                            visible: !cell.isActive
-                            anchors.fill: parent
-                            anchors.margins: 6
-                            text: MarkdownFormatter.toHtml(
-                                root.cellText(rowItem.rowIndex, cell.colIndex))
-                            textFormat: Text.RichText
-                            wrapMode: Text.Wrap
-                            font.bold: rowItem.rowIndex === -1
-                            color: Theme.textPrimary
-                            horizontalAlignment: cell.align
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                    // Header row + the rendered window of data rows, as row
+                    // indices -1..renderedRows-1. Each row is a Column so it
+                    // can carry both its cells and the rule drawn beneath them.
+                    Repeater {
+                        model: root.renderedRows + 1
+                        delegate: Column {
+                            id: rowGroup
+                            required property int index
+                            readonly property int rowIndex: index - 1   // -1 = header
+                            readonly property bool isHeader: rowGroup.rowIndex === -1
+                            readonly property bool isLastRow: rowGroup.index === root.renderedRows
 
-                        // The table-scope editor parents itself here while
-                        // this cell is the active one. A Loader per cell
-                        // bought nothing: only one can ever be active.
-                        onIsActiveChanged: {
-                            if (isActive)
-                                root.activeCellItem = cell
-                            else if (root.activeCellItem === cell)
-                                root.activeCellItem = null
-                        }
-                        Component.onDestruction: {
-                            if (root.activeCellItem === cell)
-                                root.activeCellItem = null
-                        }
+                            Row {
+                                id: rowItem
+                                Repeater {
+                                    model: root.columns
+                                    delegate: Rectangle {
+                                        id: cell
+                                        required property int index
+                                        readonly property int colIndex: index
+                                        readonly property int hPad: 10
+                                        readonly property int vPad: 6
+                                        readonly property real baseHeight:
+                                            Math.max(32, cellContent.implicitHeight + cell.vPad * 2)
+                                        width: root.colWidthAt(cell.colIndex)
+                                        implicitHeight: cell.isActive
+                                            ? Math.max(cell.baseHeight,
+                                                       root.activeEditorHeight + cell.vPad * 2)
+                                            : cell.baseHeight
+                                        // The cell's own height, never the row's:
+                                        // a Row derives its implicitHeight from
+                                        // its children's heights, so a cell that
+                                        // read the row height back would be a
+                                        // binding loop that collapses the table.
+                                        // A short data cell simply shows the
+                                        // frame's matching windowBackground for
+                                        // the rest of a taller row.
+                                        height: cell.implicitHeight
+                                        color: rowGroup.isHeader ? Theme.chipBackground
+                                             : (cell.isActive ? Theme.focusTint
+                                                : Theme.windowBackground)
 
-                        MouseArea {
-                            anchors.fill: parent
-                            acceptedButtons: Qt.LeftButton
-                            onClicked: function(mouse) {
-                                if (rowItem.rowIndex === -1
-                                    && (mouse.modifiers & Qt.NoModifier) === 0) {
-                                    // plain click on header edits it
+                                        readonly property bool isActive:
+                                            root.activeRow === rowGroup.rowIndex
+                                            && root.activeCol === cell.colIndex
+                                        readonly property int align: {
+                                            var a = root.grid.valid ? root.grid.alignments[cell.colIndex] : "none"
+                                            return a === "center" ? Text.AlignHCenter
+                                                 : a === "right" ? Text.AlignRight : Text.AlignLeft
+                                        }
+
+                                        // Static rendering (markdown → styled rich text).
+                                        Text {
+                                            id: cellContent
+                                            visible: !cell.isActive
+                                            anchors.fill: parent
+                                            anchors.leftMargin: cell.hPad
+                                            anchors.rightMargin: cell.hPad
+                                            anchors.topMargin: cell.vPad
+                                            anchors.bottomMargin: cell.vPad
+                                            text: MarkdownFormatter.toHtml(
+                                                root.cellText(rowGroup.rowIndex, cell.colIndex))
+                                            textFormat: Text.RichText
+                                            wrapMode: Text.Wrap
+                                            font.bold: rowGroup.isHeader
+                                            font.pixelSize: Typography.baseSize
+                                            color: Theme.textPrimary
+                                            horizontalAlignment: cell.align
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        // The table-scope editor parents itself here while
+                                        // this cell is the active one. A Loader per cell
+                                        // bought nothing: only one can ever be active.
+                                        onIsActiveChanged: {
+                                            if (isActive)
+                                                root.activeCellItem = cell
+                                            else if (root.activeCellItem === cell)
+                                                root.activeCellItem = null
+                                        }
+                                        Component.onDestruction: {
+                                            if (root.activeCellItem === cell)
+                                                root.activeCellItem = null
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            onClicked: function(mouse) {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    root.openCellMenu(rowGroup.rowIndex, cell.colIndex)
+                                                    return
+                                                }
+                                                root.editCell(rowGroup.rowIndex, cell.colIndex)
+                                            }
+                                            // A header cell has a sort affordance on double-click.
+                                            onDoubleClicked: {
+                                                if (rowGroup.isHeader)
+                                                    root.sortBy(cell.colIndex)
+                                            }
+                                        }
+
+                                        // Header sort indicator.
+                                        Text {
+                                            visible: rowGroup.isHeader
+                                                     && root._lastSortCol === cell.colIndex
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 4
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: root._lastSortAsc ? "▲" : "▼"
+                                            font.pixelSize: 8
+                                            color: Theme.textFaint
+                                        }
+                                    }
                                 }
-                                root.editCell(rowItem.rowIndex, cell.colIndex)
                             }
-                            // A header cell has a sort affordance on hover.
-                            onDoubleClicked: {
-                                if (rowItem.rowIndex === -1)
-                                    root.sortBy(cell.colIndex)
-                            }
-                        }
 
-                        // Header sort indicator.
-                        Text {
-                            visible: rowItem.rowIndex === -1
-                                     && root._lastSortCol === cell.colIndex
-                            anchors.right: parent.right
-                            anchors.rightMargin: 3
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: root._lastSortAsc ? "▲" : "▼"
-                            font.pixelSize: 8
-                            color: Theme.textFaint
+                            // The rule beneath this row: a heavier one under the
+                            // header so it reads as a header, and none under the
+                            // last row (the frame outline closes it off).
+                            Rectangle {
+                                visible: !rowGroup.isLastRow
+                                width: root.gridWidth
+                                height: rowGroup.isHeader ? 2 : 1
+                                color: rowGroup.isHeader ? Theme.borderStrong : Theme.border
+                            }
                         }
                     }
                 }
+
+                // Column separators, one per interior boundary, spanning the
+                // full grid height. Drawn over the cells so they read as a grid.
+                Repeater {
+                    model: Math.max(0, root.columns - 1)
+                    delegate: Rectangle {
+                        required property int index
+                        x: root.columnLeft(index + 1)
+                        y: 0
+                        width: 1
+                        height: rowsColumn.height
+                        color: Theme.border
+                    }
+                }
+            }
+
+            // The frame outline, drawn over the cell edges so the fills beneath
+            // do not hide it.
+            Rectangle {
+                anchors.fill: parent
+                radius: 6
+                color: "transparent"
+                border.width: 1
+                border.color: Theme.borderStrong
             }
         }
 
@@ -378,31 +558,31 @@ BlockDelegateBase {
             objectName: "tableRowWindowNotice"
             visible: root.hiddenRows > 0
             spacing: 6
-            topPadding: 4
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("%n more row(s) not shown", "", root.hiddenRows)
                 font.pixelSize: 11
                 color: Theme.textMuted
             }
-            Button {
+            TableChipButton {
                 objectName: "tableShowAllRows"
-                text: qsTr("Show all")
-                focusPolicy: Qt.NoFocus
-                font.pixelSize: 11
+                anchors.verticalCenter: parent.verticalCenter
+                label: qsTr("Show all")
                 onClicked: root.revealAllRows()
             }
         }
 
-        // Add-row / add-column buttons.
+        // Add-row / add-column controls. Kept out of the read-only rendered
+        // view: they show only while a cell of this table is being edited, so a
+        // table that is just being read is not cluttered by them. Removing rows
+        // and columns is on the right-click cell menu.
         Row {
+            objectName: "tableAddControls"
             spacing: 6
-            topPadding: 4
-            Button {
+            visible: root.activeRow !== -2
+            TableChipButton {
                 objectName: "tableAddRow"
-                text: qsTr("+ Row")
-                focusPolicy: Qt.NoFocus
-                font.pixelSize: 11
+                label: qsTr("+ Row")
                 onClicked: {
                     // The appended row is the last one, so it has to be inside
                     // the window or the button would look like it did nothing.
@@ -411,11 +591,9 @@ BlockDelegateBase {
                         TableTools.insertRow(root.content, root.dataRows - 1))
                 }
             }
-            Button {
+            TableChipButton {
                 objectName: "tableAddColumn"
-                text: qsTr("+ Column")
-                focusPolicy: Qt.NoFocus
-                font.pixelSize: 11
+                label: qsTr("+ Column")
                 onClicked: root.writeTable(
                     TableTools.insertColumn(root.content, root.columns - 1))
             }
@@ -429,7 +607,6 @@ BlockDelegateBase {
         parent: root.activeCellItem !== null ? root.activeCellItem : root
         active: root.activeCellItem !== null
         anchors.fill: parent
-        anchors.margins: 3
         sourceComponent: cellEditorComponent
     }
 
@@ -457,6 +634,14 @@ BlockDelegateBase {
                 }
             }
 
+            // Drive the active cell's height off what is being typed, so a cell
+            // grows to fit its editor rather than clipping the text.
+            Binding {
+                target: root
+                property: "activeEditorHeight"
+                value: cellArea.contentHeight
+            }
+
             BlockEditorEngine {
                 id: cellEngine
                 document: cellArea.textDocument
@@ -474,8 +659,21 @@ BlockDelegateBase {
                 anchors.fill: parent
                 background: null
                 wrapMode: TextEdit.Wrap
-                font.pixelSize: Typography.baseSize - 1
+                // Match the static cell's inset and size so text does not shift
+                // or clip when a cell goes live.
+                leftPadding: 10
+                rightPadding: 10
+                topPadding: 6
+                bottomPadding: 6
+                font.pixelSize: Typography.baseSize
                 color: Theme.textPrimary
+                onActiveFocusChanged: {
+                    // Deferred: Tab between cells briefly drops focus before the
+                    // next cell's editor takes it. endEditingIfFocusLeft keeps
+                    // editing if focus stayed inside the table.
+                    if (!activeFocus)
+                        Qt.callLater(root.endEditingIfFocusLeft)
+                }
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Tab) {
                         root.moveCell(true); event.accepted = true; return
@@ -486,6 +684,7 @@ BlockDelegateBase {
                     }
                     if (event.key === Qt.Key_Escape) {
                         root.activeRow = -2
+                        root.activeCol = -1
                         focusTarget.forceActiveFocus()
                         event.accepted = true; return
                     }
@@ -496,6 +695,52 @@ BlockDelegateBase {
     // theme reference for the cell engine (a bare `theme` inside the engine
     // resolves to the engine's own property).
     readonly property var appThemeRef: Theme
+
+    // Right-click cell menu: insert and delete rows and columns. Removing was
+    // previously unreachable — the table had add buttons but no way back.
+    // TableTools already provides the whole-markdown rewrites, so each item is
+    // one undo step just like the add controls.
+    Menu {
+        id: cellMenu
+        objectName: "tableCellMenu"
+        MenuItem {
+            objectName: "tableInsertRowAbove"
+            text: qsTr("Insert row above")
+            enabled: root.menuRow >= 0
+            onTriggered: root.writeTable(TableTools.insertRow(root.content, root.menuRow - 1))
+        }
+        MenuItem {
+            objectName: "tableInsertRowBelow"
+            text: qsTr("Insert row below")
+            onTriggered: {
+                root.revealThrough(root.menuRow + 1)
+                root.writeTable(TableTools.insertRow(root.content, root.menuRow))
+            }
+        }
+        MenuItem {
+            objectName: "tableDeleteRow"
+            text: qsTr("Delete row")
+            enabled: root.menuRow >= 0 && root.dataRows > 0
+            onTriggered: root.writeTable(TableTools.removeRow(root.content, root.menuRow))
+        }
+        MenuSeparator {}
+        MenuItem {
+            objectName: "tableInsertColumnLeft"
+            text: qsTr("Insert column left")
+            onTriggered: root.writeTable(TableTools.insertColumn(root.content, root.menuCol - 1))
+        }
+        MenuItem {
+            objectName: "tableInsertColumnRight"
+            text: qsTr("Insert column right")
+            onTriggered: root.writeTable(TableTools.insertColumn(root.content, root.menuCol))
+        }
+        MenuItem {
+            objectName: "tableDeleteColumn"
+            text: qsTr("Delete column")
+            enabled: root.columns > 1
+            onTriggered: root.writeTable(TableTools.removeColumn(root.content, root.menuCol))
+        }
+    }
 
     MouseArea {
         id: hoverArea
