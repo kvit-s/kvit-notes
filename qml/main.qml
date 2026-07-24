@@ -1020,26 +1020,35 @@ KvitShell {
     // Orderly shutdown saves (features.md §12.2). Crash recovery relies
     // on this — the recovery journal only survives real crashes.
     onClosing: function(close) {
-        if (!DocumentManager)
-            return
-        DocumentManager.flushPendingEdits()
-        if (!DocumentManager.isDirty)
-            return
-
-        if (DocumentManager.hasFile) {
-            // A save that fails on the way out is the worst case for data loss:
-            // there is no next attempt, and the recovery journal is not meant
-            // to cover an orderly quit. Keep the window open so the error is
-            // visible and the user can act on it.
-            if (!DocumentManager.save())
-                close.accepted = false
-            return
+        if (DocumentManager) {
+            DocumentManager.flushPendingEdits()
+            if (DocumentManager.isDirty) {
+                if (DocumentManager.hasFile) {
+                    // A save that fails on the way out is the worst case for
+                    // data loss: there is no next attempt, and the recovery
+                    // journal is not meant to cover an orderly quit. Keep the
+                    // window open so the error is visible and the user can act.
+                    if (!DocumentManager.save()) {
+                        close.accepted = false
+                        return
+                    }
+                } else {
+                    // A dirty document that has never been saved: ask rather
+                    // than discard, and treat cancel as "do not close". The
+                    // dialog's Save/Discard re-close the window, re-entering
+                    // here once the document is clean.
+                    close.accepted = false
+                    root.documentDialogs().confirmCloseUnsaved()
+                    return
+                }
+            }
         }
-
-        // A dirty document that has never been saved had no handling at all:
-        // closing simply discarded it. Ask, and treat cancel as "do not close".
-        close.accepted = false
-        root.documentDialogs().confirmCloseUnsaved()
+        // The close is going through. If close-to-tray keeps the app resident
+        // the window only hides, so this vault stays open; otherwise the window
+        // is really going away, so tell the registry to release its vault.
+        if (!(typeof SystemTray !== "undefined" && SystemTray.available
+              && SystemTray.closeToTray))
+            AppActions.notifyWindowClosing()
     }
 
     // Settings that cannot reach disk (read-only location, full disk).
@@ -1070,16 +1079,20 @@ KvitShell {
         function onOperationFailed(message) {
             root.documentDialogs().showError(message)
         }
-        // The vault is open in another Kvit process. Only one session may
-        // write a vault: both would load the same state and the second to
-        // save would discard the first's work. This window keeps running as
-        // a plain editor, so File > Open still works on individual notes.
+        // The vault is held by another Kvit process (a separate instance, or
+        // another computer sharing the folder). Within this process the window
+        // registry raises the window already showing a vault instead of
+        // reaching this refusal, so this only fires across processes. Only one
+        // session may write a vault: both would load the same state and the
+        // second to save would discard the first's work. This window keeps
+        // running as a plain editor, so File > Open still works on notes.
         function onVaultInUse(path, detail) {
             root.documentDialogs().showError(
-                qsTr("%1\n\nOnly one Kvit window can have a vault open, "
-                     + "because two would overwrite each other's changes. "
-                     + "Close the other window and reopen this folder, or "
-                     + "keep working here on single files.\n\n%2")
+                qsTr("%1\n\nThis vault is already open in another Kvit "
+                     + "process, or on another computer sharing this folder, "
+                     + "and only one can write to it at a time. Close it there "
+                     + "and reopen, or keep working here on individual "
+                     + "files.\n\n%2")
                     .arg(detail).arg(path))
         }
         function onWikiLinksRewritten(linkCount, noteCount) {

@@ -17,6 +17,7 @@
 #include "codelanguages.h"
 #include "diagrams/diagramcanvas.h"
 #include "extensionregistry.h"
+#include "windowrouter.h"
 #include "perflog.h"
 #include "localimageprovider.h"
 #include "remoteimageprovider.h"
@@ -28,8 +29,16 @@ AppContext::AppContext(QObject *parent)
 
 AppContext::AppContext(const Options &options, QObject *parent)
     : QObject(parent)
-    , m_options(options)
-    , m_egressFetcher(std::make_unique<EgressFetcher>())
+    , m_ownedGlobals(std::make_unique<ProcessServices>(options))
+    , m_globals(*m_ownedGlobals)
+{
+    wire();
+}
+
+AppContext::AppContext(ProcessServices &globals, QObject *parent)
+    : QObject(parent)
+    , m_ownedGlobals(nullptr)
+    , m_globals(globals)
 {
     wire();
 }
@@ -39,14 +48,15 @@ void AppContext::setEmbedFetcher(std::unique_ptr<EmbedFetcher> fetcher)
     if (!fetcher)
         return;
     // EmbedMetadata borrows its fetcher, so hand it the new one before the
-    // previous override is destroyed at the end of this scope. The default
-    // it is replacing is the EgressFetcher, which owns the only
-    // QNetworkAccessManager in the tree — so a harness that does not call
-    // this reaches the network for real.
+    // previous override is destroyed at the end of this scope. The default it
+    // is replacing is the process-global EgressFetcher (ProcessServices), which
+    // owns the only QNetworkAccessManager in the tree — so a harness that does
+    // not call this reaches the network for real.
     //
-    // Only the wire is swapped. EgressPolicy still sits in front of it, and
-    // m_egressFetcher stays wired to the remote image provider, so consent
-    // and address validation behave under test exactly as they ship.
+    // Only this context's embed wire is swapped. EgressPolicy still sits in
+    // front of the transport, and the shared fetcher stays wired to the remote
+    // image provider, so consent and address validation behave under test
+    // exactly as they ship.
     std::unique_ptr<EmbedFetcher> previous = std::move(m_embedFetcherOverride);
     m_embedFetcherOverride = std::move(fetcher);
     m_embedMetadata.setFetcher(m_embedFetcherOverride.get());
@@ -84,10 +94,10 @@ void AppContext::registerQmlTypes()
 void AppContext::wire()
 {
     m_blockModel.setUndoStack(&m_undoStack);
-    // The model resolves fence kinds against this context's registry, so a
-    // module's kinds are visible to it and a second AppContext in one process
-    // keeps its own.
-    m_blockModel.setBlockKindRegistry(&m_blockKinds);
+    // The model resolves fence kinds against the process-global registry, so a
+    // module's kinds are visible in every window and every window agrees on the
+    // one kind numbering.
+    m_blockModel.setBlockKindRegistry(m_globals.blockKinds());
 
     m_documentManager.setBlockModel(&m_blockModel);
     m_documentManager.setUndoStack(&m_undoStack);
@@ -100,8 +110,8 @@ void AppContext::wire()
     m_documentOutline.setModel(&m_blockModel);
     // Document statistics (features.md §19.1).
     m_documentStats.setModel(&m_blockModel);
-    // Export (features.md §12.5).
-    m_documentExporter.setTheme(&m_theme);
+    // Export (features.md §12.5). Theme is process-global (ProcessServices).
+    m_documentExporter.setTheme(m_globals.theme());
 
     // Disk-backed global search: one SQLite FTS5 index the collection feeds
     // and the search facade queries, off the GUI thread.
@@ -122,15 +132,13 @@ void AppContext::wire()
     m_noteTemplates.setCollection(&m_noteCollection);
     // Import into the collection (features.md §12.6).
     m_documentImporter.setCollection(&m_noteCollection);
-    // Every outbound request in the app runs over one fetcher, which asks one
-    // policy. Embed previews, the images those previews name, remote images
-    // and media in a note, and the update check all pass through here.
-    m_egressFetcher->setPolicy(&m_egressPolicy);
-    m_remoteMediaCache.setFetcher(m_egressFetcher.get());
-    // Embed preview cards (features.md §1.2.14). The card is inert until the
-    // reader approves the origin, so a note cannot fetch by being opened.
-    m_embedMetadata.setFetcher(m_egressFetcher.get());
-    m_embedMetadata.setPolicy(&m_egressPolicy);
+    // The one transport and the one policy are process-global (ProcessServices);
+    // the embed cache borrows them. Embed preview cards (features.md §1.2.14)
+    // stay inert until the reader approves the origin, so a note cannot fetch by
+    // being opened. Remote images/media and the update check share the same
+    // transport.
+    m_embedMetadata.setFetcher(m_globals.egressFetcher());
+    m_embedMetadata.setPolicy(m_globals.egressPolicy());
     m_embedMetadata.setCollection(&m_noteCollection);
     // The update check shares this transport, but the launcher hands it over
     // (KvitApplication::start), so composing an AppContext in a test still
@@ -141,20 +149,8 @@ void AppContext::wire()
     m_startupController.setBlockModel(&m_blockModel);
     m_startupController.setUndoStack(&m_undoStack);
 
-    // System integration seams. The tray shows only where a status-notifier
-    // host exists; both route their actions through their signals so the
-    // in-app path (quick capture, tray menu) works regardless.
-    if (m_options.showSystemTray)
-        m_systemTray.show();
-    // No system-wide grab is registered on ANY platform: GlobalHotkey is a
-    // seam with no backend behind it (X11 XGrabKey, the GlobalShortcuts
-    // portal, RegisterHotKey, and the macOS equivalent are all unwritten), so
-    // this is false everywhere rather than a WSLg-specific limitation as the
-    // previous comment implied. The configured chord still works while the
-    // window has focus, through the Shortcut in main.qml that reads the same
-    // setting. features.md §15.1 describes the system-wide behavior as
-    // intended, not as shipped.
-    m_globalHotkey.setSupported(false);
+    // System integration seams (the tray and the system-wide hotkey) are
+    // process-global and wired in ProcessServices, not here.
 
     // External file watching (features.md §12.1). Debounced outside
     // changes refresh the affected note paths when possible; directory-level
@@ -271,8 +267,31 @@ void AppContext::wire()
     // parse/evaluate module.
     m_queryTools.setCollection(&m_noteCollection);
 
+    // Open actions route through the window registry when one is installed, so
+    // an already-open vault raises its window instead of opening a duplicate.
+    // Without a registry (single-composition tests) they fall back to the
+    // in-place behaviour this context had before the multi-window split.
     connect(&m_appActions, &AppActions::openVaultRequested, this,
-            [this](const QString &path) { openVaultRoot(path); });
+            [this](const QString &path) {
+                if (m_router)
+                    m_router->openVaultInWindow(this, path);
+                else
+                    openVaultRoot(path);
+            });
+    connect(&m_appActions, &AppActions::openVaultInNewWindowRequested, this,
+            [this](const QString &path) {
+                if (m_router)
+                    m_router->openVaultInNewWindow(path);
+                else
+                    openVaultRoot(path);
+            });
+    connect(&m_appActions, &AppActions::openFileInNewWindowRequested, this,
+            [this](const QString &path) {
+                if (m_router)
+                    m_router->openFileInNewWindow(path);
+                else
+                    m_documentManager.open(QUrl::fromLocalFile(path));
+            });
 
     // Repository conditions that the user has to hear about. Each was raised
     // by the repository and heard by nothing, so the only record was the log.
@@ -337,62 +356,12 @@ bool AppContext::openVaultRoot(const QString &path)
 
 void AppContext::openSettings(const QString &settingsPath)
 {
-    // Per-user settings. The store flushes any pending debounced write when
-    // it is destroyed with this context.
-    const QString path = settingsPath.isEmpty()
-        ? QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation))
-              .filePath(QStringLiteral("settings.json"))
-        : settingsPath;
-    m_settingsStore.open(path);
-
-    // Theme and typography snapshot the store's values when attached, so
-    // they attach here, after open() — attaching in wire() would read an
-    // empty store and discard the persisted theme.id and type.* values.
-    m_theme.setSettings(&m_settingsStore);
-    // Typography settings (features.md §10.2).
-    m_typography.setSettings(&m_settingsStore);
-
-    PerfLog &perfLog = PerfLog::instance();
-    if (m_options.configureLoggingFromSettings
-        && !perfLog.hasEnvironmentOverride())
-        perfLog.configureFromSetting(
-            m_settingsStore.value(QStringLiteral("perf.logging"), QVariant()));
-    if (m_options.configureLoggingFromSettings && perfLog.enabled()
-        && !perfLog.hasLogFilePath()) {
-        perfLog.setLogFilePath(
-            QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation))
-                .filePath(QStringLiteral("perf.log")));
-    }
-
-    // The quick-capture chord, both now and whenever it is edited. The
-    // in-app Shortcut in main.qml reads the same key, so the two never
-    // disagree about which chord the user chose.
-    const auto applyQuickCaptureChord = [this]() {
-        m_globalHotkey.registerShortcut(
-            m_settingsStore.value(QStringLiteral("hotkey.quickCapture"),
-                                  QStringLiteral("Ctrl+Alt+N")).toString());
-    };
-    applyQuickCaptureChord();
-    connect(&m_settingsStore, &SettingsStore::valueChanged,
-            &m_globalHotkey, [applyQuickCaptureChord](const QString &key) {
-                if (key == QLatin1String("hotkey.quickCapture"))
-                    applyQuickCaptureChord();
-            });
-
-    // The disclosed opt-out update check reads its enabled flag and
-    // once-per-day stamp from the same store.
-    m_updateChecker.setSettings(&m_settingsStore);
-
-    // Remote-content consent: the master switch and the origins the reader
-    // has approved. Attached here rather than in wire() for the same reason
-    // Theme is — the policy reads its stored values on attach, and a store
-    // that has not been opened yet would answer with defaults and drop every
-    // approval the reader made in an earlier session.
-    m_egressPolicy.setSettings(&m_settingsStore);
-
-    // Close-to-tray is opt-in (tray.closeToTray, default off): closing the
-    // last window quits unless the user chose to stay resident in the tray.
-    m_systemTray.setSettings(&m_settingsStore);
+    // Opening the settings store and attaching everything that reads it is a
+    // process-level action that lives on ProcessServices. A context that owns
+    // its ProcessServices (the single-composition tests) reaches it through
+    // here; the application opens settings on the shared ProcessServices once,
+    // directly, before any window is built.
+    m_globals.openSettings(settingsPath);
 }
 
 void AppContext::applyStartupArguments(const QStringList &arguments)
@@ -434,7 +403,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // shell loads, because the first binding that touches a singleton
     // resolves it.
     m_services.add(&m_queryTools);
-    m_services.add(&m_globalHotkey);
+    m_services.add(m_globals.globalHotkey());
     m_services.add(&m_fileWatcher);
     m_services.add(&m_shortcutCatalog);
     m_services.add(&m_quickSwitcherModel);
@@ -447,9 +416,9 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_documentSerializer);
     m_services.add(&m_documentImporter);
     m_services.add(&m_embedMetadata);
-    m_services.add(&m_systemTray);
+    m_services.add(m_globals.systemTray());
     m_services.add(&m_navigationHistory);
-    m_services.add(&m_updateChecker);
+    m_services.add(m_globals.updateChecker());
     m_services.add(&m_tableTools);
     m_services.add(&m_kanbanTools);
     m_services.add(&m_todoMeta);
@@ -458,24 +427,24 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_documentOutline);
     m_services.add(&m_collectionSearch);
     m_services.add(&m_noteTemplates);
-    m_services.add(&m_egressPolicy);
-    m_services.add(&m_remoteMediaCache);
-    m_services.add(&m_typography);
+    m_services.add(m_globals.egressPolicy());
+    m_services.add(m_globals.remoteMediaCache());
+    m_services.add(m_globals.typography());
     m_services.add(&m_imageAssets);
     m_services.add(&m_assetStore);
     m_services.add(&m_blockAttributes);
     m_services.add(&m_clipboardHelper);
     m_services.add(&m_a11y);
-    m_services.add(&m_extensions);
-    m_services.add(&m_blockKinds);
+    m_services.add(m_globals.extensions());
+    m_services.add(m_globals.blockKinds());
     m_services.add(&m_documentSearch);
     m_services.add(&m_noteListModel);
-    m_services.add(&m_settingsStore);
+    m_services.add(m_globals.settings());
     m_services.add(&m_documentManager);
     m_services.add(&m_noteCollection);
     m_services.add(&m_blockModel);
     m_services.add(&m_documentSelection);
-    m_services.add(&m_theme);
+    m_services.add(m_globals.theme());
     m_services.add(&m_appActions);
     KvitQml::attachServices(engine, &m_services);
 
@@ -504,7 +473,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // revalidation and the byte cap all apply. Binding a remote URL straight
     // to an Image's `source` would bypass every one of them.
     engine->addImageProvider(QStringLiteral("remote"),
-                             new RemoteImageProvider(m_egressFetcher.get()));
+                             new RemoteImageProvider(m_globals.egressFetcher()));
     // The same treatment for a file on disk: image://local/<path> checks the
     // decoded size against the same budget before allocating. QML's own file
     // loader would allocate whatever the header claimed.
@@ -521,6 +490,6 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // and the QML names of its module singletons. The singleton half is what
     // stops a module taking `theme` while the core owns `Theme`; see
     // ExtensionRegistry::installContextProperties.
-    m_extensions.installContextProperties(
+    m_globals.extensions()->installContextProperties(
         context, m_installedProperties + KvitQml::singletonNames());
 }

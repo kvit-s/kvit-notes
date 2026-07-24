@@ -38,11 +38,18 @@ int main(int argc, char *argv[])
     KvitApplication kvit(app);
 
 #ifdef KVIT_AGENT
-    KvitAgent::install(*kvit.context().extensions());
+    KvitAgent::install(*kvit.processServices().extensions());
 #endif
 
-    if (!kvit.start(app.arguments()))
+    switch (kvit.start(app.arguments())) {
+    case KvitApplication::StartOutcome::Failed:
         return -1;
+    case KvitApplication::StartOutcome::AlreadyRunning:
+        // Our request was handed to the already-running instance; exit cleanly.
+        return 0;
+    case KvitApplication::StartOutcome::RunEventLoop:
+        break;
+    }
 
     return app.exec();
 }

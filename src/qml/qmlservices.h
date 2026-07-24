@@ -55,6 +55,14 @@ private:
 // comparison is case-insensitive.
 QStringList singletonNames();
 
+// The same list, split by whether the singleton resolves to one shared
+// process-global instance or to the calling engine's own per-vault instance.
+// singletonNames() is their concatenation. Generated from the same two macro
+// lists in qmlsingletons.h that declare the wrappers, so they cannot drift; the
+// shell test asserts each side's resolution behaviour against them.
+QStringList globalSingletonNames();
+QStringList perVaultSingletonNames();
+
 // Publish `table` on `engine`. The table must outlive the engine; AppContext
 // owns both ends of that.
 void attachServices(QQmlEngine *engine, ServiceTable *table);

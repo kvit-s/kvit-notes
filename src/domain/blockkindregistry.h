@@ -66,12 +66,13 @@ public:
     // value and every built-in kind, so a module can never collide with core.
     static constexpr int FirstRegisteredKind = 200;
 
-    // Instance owned, deliberately. AppContext holds the one the application
-    // runs on and publishes it as the `blockKinds` context property; a test
-    // constructs its own and cannot disturb, or be disturbed by, anything
-    // else in the process. There is no instance() and there should not be:
-    // a process-global registry made every test that touched a fence kind
-    // depend on reset() being called in the right order.
+    // Instance owned, deliberately. It is one-per-process, so ProcessServices
+    // holds the one the application runs on and every window publishes it as
+    // the `blockKinds` context property; a test constructs its own (via an
+    // AppContext that owns its ProcessServices) and cannot disturb, or be
+    // disturbed by, anything else in the process. There is no instance() and
+    // there should not be: a static registry made every test that touched a
+    // fence kind depend on reset() being called in the right order.
     explicit BlockKindRegistry(QObject *parent = nullptr);
 
     // Registers `language` as a block kind of its own, rendered by the QML

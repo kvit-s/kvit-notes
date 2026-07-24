@@ -85,14 +85,17 @@ process can still read the holder description for its message.
 
 **The second session refuses and explains.** `NoteCollection::openRoot()`
 returns false and emits `vaultInUse(path, detail)`, where the detail names the
-holder in a sentence, and the shell shows that alongside an explanation that one
-vault can be open in one window. It does not open read-only and does not hand
-off. Read-only would mean auditing every mutation path to be certain nothing
-slips through, and half-enforced read-only is worse than a refusal. Handing off
-to the running instance is a better experience and a deliberately deferred
-feature, needing single-instance IPC through `QLocalServer` and a window-raise
-protocol. The refused window stays usable, so opening individual files still
-works.
+holder in a sentence, and the shell shows that alongside an explanation that a
+vault can be written by only one session at a time. It does not open read-only.
+Read-only would mean auditing every mutation path to be certain nothing slips
+through, and half-enforced read-only is worse than a refusal. Handing off to the
+running instance (single-instance IPC through `QLocalServer` and a window-raise
+protocol) was originally deferred and has since been built; see the Update
+below. Within one process the window registry raises the window already showing
+a vault rather than reaching this refusal, and a second launch forwards its
+request to the running instance, so this refusal now fires only across processes
+(a separate instance, or another computer sharing the folder). The refused
+session stays usable, so opening individual files still works.
 
 **Single-file mode takes no lock** and creates no lock file, because it opens no
 collection and none of the shared state above exists. Two editors on one file
@@ -106,9 +109,11 @@ one process, for vault mode. The lost-update scenario is prevented rather than
 merely unlikely, and the failure a user meets is a refusal with an explanation
 instead of silently vanishing work.
 
-The costs are the ones a lock always carries. Two windows on one vault is no
-longer possible, which some users expect from other editors; the handoff that
-would restore that experience is unbuilt and needs single-instance IPC. Fail-open
+The costs are the ones a lock always carries. Two windows on one vault is not
+possible, which some users expect from other editors. Within a single process
+the window registry now gives that expected experience by raising the window
+already showing the vault (see the Update below), so only a genuinely separate
+process meets the refusal. Fail-open
 means the guarantee is absent exactly where locking is unavailable, such as some
 network filesystems, and the warning goes to a logging category rather than the
 user. That is the deliberate trade: refusing to open a vault because its
@@ -123,11 +128,40 @@ single-file mode taking none, an unlockable filesystem still opening while
 still holding the one-writer rule, and a corrupt lock file still yielding a
 sane message.
 
+## Update — multi-window handoff and single-instance launch (2026-07)
+
+The deferred handoff is now built, so the accepted decision here still holds but
+its user-visible edges have moved.
+
+One process now hosts a window per open vault, each its own composition sharing
+one set of process-global services. A process-wide window registry maps each
+open vault (by the same canonical path the lock keys on) to its window. Every
+open request goes through the registry, so a request for a vault already open in
+this process raises its window instead of constructing a second composition that
+would meet the in-process one-writer refusal. That is the handoff this ADR
+listed as unbuilt.
+
+A single-instance channel (`QLocalServer`, a per-user, per-install endpoint)
+carries the same handoff between launches. The first process owns the endpoint;
+a later launch connects, forwards its request (a folder, a file, or a bare
+launch), and exits, so the running process opens or raises the right window
+rather than a second tray-resident process accumulating. This retires the
+Windows watch-list item in `docs/qa-checklist.md` about launches piling up.
+
+What is unchanged is the guarantee itself. The kernel lock is still the
+cross-process backstop, and a vault genuinely held by another process (a
+separate instance, or another machine on a shared filesystem) is still refused
+with the holder message. The registry answers "already open in this process";
+the lock answers "already open in another process".
+
 ## Evidence in the tree
 
 - `src/repository/vaultlock.h`, `src/repository/vaultlock.cpp`: the lock, and the reasoning for a kernel lock over a PID file
 - `src/repository/notecollection.h`, `src/repository/notecollection.cpp`: acquisition, the one-writer rule, `vaultInUse`
-- `qml/main.qml`: the message shown to the refused session
+- `src/qml/windowregistry.*`, `src/qml/vaultwindow.*`: the per-vault window registry and the in-process handoff
+- `src/platform/singleinstance.*`: the `QLocalServer` single-instance channel
+- `qml/main.qml`: the message shown to the refused session (now only across processes)
 - `tests/test_vaultlock.cpp`: the two-process lost-update demonstration and the behavioral tests
+- `tests/test_multivault.cpp`, `tests/test_singleinstance.cpp`: the window-registry raise-vs-create and the single-instance handshake
 - `devel.md`: the working notes on the lock
 - Commit `2e5ce05` "Hold one writer per vault, so a second session cannot overwrite the first"

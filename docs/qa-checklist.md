@@ -85,15 +85,17 @@ pass.
        the window, then launch it again. Repeat three times, watching the
        tray overflow area.
 
-       *Expect:* documented, decided behavior, whichever the owner picks.
+       *Expect:* one process and one tray icon. The second and third
+       launches forward their request to the running instance and exit, so
+       no extra processes and no extra tray icons accumulate. A launch
+       naming a different folder opens (or raises) that vault's window in
+       the running instance; a bare launch raises the existing window.
 
-       *Known issue, decision pending:* there is no single-instance
-       guard, and Windows is the first platform where close-to-tray
-       actually engages. Each launch starts a new process and each closed
-       window parks another icon in the tray; three accumulated within
-       minutes of ordinary use. It is data-safe, since the file watcher
-       and conflict banner cover concurrent edits, but it reads as "the
-       app will not close". Record how many processes accumulate.
+       *Resolved (2026-07):* the single-instance channel
+       (`src/platform/singleinstance.*`) routes every launch to the first
+       process, which the window registry turns into open-or-raise (see
+       ADR 0005's Update). The earlier "decision pending" pile-up is
+       retired; confirm no extra processes accumulate.
 
 2. [ ] **Hover chrome on every block type.** Hover slowly over each block
        type in turn, moving onto the block's own controls (the plus

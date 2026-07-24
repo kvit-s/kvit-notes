@@ -234,20 +234,29 @@ private slots:
         // An empty registry would make the loop below vacuous and still green,
         // which is the one failure mode driving the list from code introduces.
         QVERIFY(!singletons.isEmpty());
-        qInfo("checking %lld Kvit singletons", qint64(singletons.size()));
 
-        // A second composition, wired exactly like the one under test.
-        QTemporaryDir otherDir;
-        AppContext other;
-        other.openSettings(otherDir.filePath(QStringLiteral("settings.json")));
+        // The partition: a per-vault singleton resolves to each composition's
+        // own instance, a global one to the single ProcessServices instance
+        // both compositions share. Both sets come from the same macro lists in
+        // qmlsingletons.h that declare the wrappers, so a service in the wrong
+        // list fails here rather than becoming a silent shared-state bug.
+        const QSet<QString> globals(KvitQml::globalSingletonNames().cbegin(),
+                                    KvitQml::globalSingletonNames().cend());
+        QVERIFY(!globals.isEmpty());
+        qInfo("checking %lld Kvit singletons (%lld global, %lld per-vault)",
+              qint64(singletons.size()), qint64(globals.size()),
+              qint64(KvitQml::perVaultSingletonNames().size()));
+
+        // A second composition that SHARES this one's process globals — exactly
+        // what a second window is. It borrows m_context's ProcessServices, so
+        // it must NOT open settings itself: that would re-point the shared
+        // store at a different file underneath the first composition.
+        AppContext other(*m_context->processServices());
         QQmlEngine otherEngine;
         other.installContextProperties(&otherEngine);
 
-        // PerfLog is the exception the loop below would get wrong. It is a
-        // process-global that every composition shares, so it resolves
-        // through PerfLog::instance() rather than the per-engine table, and
-        // both engines are SUPPOSED to see one object. Asserting that
-        // directly pins the sharing rather than leaving it untested.
+        // PerfLog is shared through PerfLog::instance() rather than the
+        // per-engine table, so both engines are SUPPOSED to see one object.
         QObject *minePerfLog = m_engine.singletonInstance<QObject *>(
             QStringLiteral("Kvit"), QStringLiteral("PerfLog"));
         QCOMPARE(minePerfLog, static_cast<QObject *>(&PerfLog::instance()));
@@ -266,7 +275,9 @@ private slots:
             // a valid object of the right class, distinct per engine, wired
             // to nothing — so every cheaper assertion here passes while the
             // shell renders empty. Comparing against what this composition
-            // registered for that same type is what catches it.
+            // registered for that same type is what catches it. Holds for both
+            // halves: a global is registered as the shared instance, a
+            // per-vault one as this composition's own.
             QObject *registered =
                 m_context->services()->lookup(mine->metaObject());
             QVERIFY2(mine == registered,
@@ -279,11 +290,18 @@ private slots:
             QVERIFY2(theirs, qPrintable(type + QStringLiteral(" resolved to null "
                                                              "in the second context")));
 
-            QVERIFY2(mine != theirs,
-                     qPrintable(type + QStringLiteral(" is shared between two "
-                                                      "AppContexts; the singleton "
-                                                      "is process-global rather "
-                                                      "than per-engine")));
+            if (globals.contains(type)) {
+                QVERIFY2(mine == theirs,
+                         qPrintable(type + QStringLiteral(" is a process-global "
+                             "singleton but resolved to a different instance in "
+                             "each composition; every window must share the one "
+                             "ProcessServices instance")));
+            } else {
+                QVERIFY2(mine != theirs,
+                         qPrintable(type + QStringLiteral(" is a per-vault "
+                             "singleton but is shared between two compositions; "
+                             "each window must get its own")));
+            }
         }
     }
 

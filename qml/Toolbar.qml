@@ -7,6 +7,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import Kvit 1.0
 
@@ -161,6 +162,72 @@ Rectangle {
         anchors.rightMargin: 8
         anchors.bottomMargin: 1
         spacing: 2
+
+        // File menu: open a folder as a vault (in this window or a new one),
+        // open a loose file, and reopen a recent vault. Always visible, since
+        // it is the only in-app way to change where notes live.
+        ToolButton {
+            id: fileButton
+            objectName: "toolbarFileButton"
+            focusPolicy: Qt.TabFocus
+            text: qsTr("File")
+            font.pixelSize: 12
+            implicitHeight: 28
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("File")
+            background: BarBackground { control: fileButton }
+            onClicked: fileMenu.popup(this, 0, height)
+
+            Menu {
+                id: fileMenu
+                objectName: "toolbarFileMenu"
+
+                MenuItem {
+                    objectName: "fileMenuOpenFile"
+                    text: qsTr("Open File…")
+                    // Opens in this window, replacing the current document —
+                    // the existing single-file open path.
+                    onTriggered: DocumentManager.openFileDialog()
+                }
+                MenuItem {
+                    objectName: "fileMenuOpenFolder"
+                    text: qsTr("Open Folder…")
+                    // Switches this window to the chosen vault (raising an
+                    // existing window if that vault is already open).
+                    onTriggered: {
+                        openFolderDialog.inNewWindow = false
+                        openFolderDialog.open()
+                    }
+                }
+                MenuItem {
+                    objectName: "fileMenuOpenFolderNewWindow"
+                    text: qsTr("Open Folder in New Window…")
+                    onTriggered: {
+                        openFolderDialog.inNewWindow = true
+                        openFolderDialog.open()
+                    }
+                }
+                MenuSeparator {}
+                Menu {
+                    id: recentVaultsMenu
+                    objectName: "fileMenuRecent"
+                    title: qsTr("Open Recent")
+                    enabled: recentVaultsRepeater.count > 0
+                    Repeater {
+                        id: recentVaultsRepeater
+                        model: {
+                            var r = AppSettings.revision  // reactive dependency
+                            return AppSettings.value("session.recentVaults", [])
+                        }
+                        MenuItem {
+                            required property string modelData
+                            text: modelData
+                            onTriggered: AppActions.requestOpenVault(modelData)
+                        }
+                    }
+                }
+            }
+        }
 
         // Back/forward over the note history; collection mode only, like
         // the shortcuts they mirror.
@@ -679,6 +746,25 @@ Rectangle {
         else if (kind === "kanban")
             BlockModel.convertBlock(newIdx, 8,   // Block.CodeBlock, kanban fence
                 "## To do\n## In progress\n## Done", false, "kanban")
+    }
+
+    // Native folder picker for "Open Folder…" / "Open Folder in New Window…".
+    // inNewWindow chooses which route the chosen folder takes; both raise an
+    // already-open window instead of duplicating it.
+    FolderDialog {
+        id: openFolderDialog
+        objectName: "toolbarOpenFolderDialog"
+        property bool inNewWindow: false
+        title: qsTr("Open Folder as Vault")
+        onAccepted: {
+            var path = DocumentManager.toLocalPath(openFolderDialog.selectedFolder)
+            if (path === "")
+                return
+            if (openFolderDialog.inNewWindow)
+                AppActions.requestOpenVaultInNewWindow(path)
+            else
+                AppActions.requestOpenVault(path)
+        }
     }
 
     // §9.2 "toolbar customization (show/hide buttons)": right-click.

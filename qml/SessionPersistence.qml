@@ -20,6 +20,17 @@ import Kvit 1.0
 // Writing is split by what drives it. The writes a model drives are here; the
 // one-line writes the window makes when its own state changes stay beside the
 // properties they persist, where a reader of that property can see them.
+//
+// Multi-window note: these keys are process-global (one settings store shared
+// by every window), so with several windows open the geometry and panel-layout
+// keys are last-writer-wins rather than per-vault. Panel widths and view
+// toggles read naturally as shared preferences; window geometry does not, and
+// per-vault geometry is a deliberate follow-up. It cannot use a context
+// property (the shell reaches C++ only through `Kvit` singletons, so qmllint
+// can check it; see everyPublishedContextPropertyIsAccountedFor in
+// tests/test_shell.cpp), so it would key off NoteCollection.rootPath and
+// re-apply once the vault opens — display-dependent behaviour left for a pass
+// that can verify it on a real window.
 Item {
     id: persistence
 

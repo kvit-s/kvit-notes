@@ -5,16 +5,18 @@
 
 #include <QApplication>
 #include <QFile>
-#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTimer>
 
-#include <memory>
-
+#include "appcontext.h"
 #include "blockkindregistry.h"
 #include "extensionregistry.h"
 #include "perflog.h"
+#include "singleinstance.h"
+#include "systemtray.h"
 #include "updatechecker.h"
+#include "vaultwindow.h"
+#include "windowregistry.h"
 
 #ifndef KVIT_VERSION
 #define KVIT_VERSION "0.0.0"
@@ -54,98 +56,100 @@ KvitApplication::KvitApplication(QApplication &app, QObject *parent)
 
 KvitApplication::~KvitApplication() = default;
 
-bool KvitApplication::start(const QStringList &arguments)
+KvitApplication::StartOutcome KvitApplication::start(const QStringList &arguments)
 {
     AppContext::registerQmlTypes();
 
-    // Installed modules claim their fence languages before anything renders,
-    // so the first block the shell lays out already resolves to the right
-    // delegate. The open build installs no module, and this is a no-op.
-    m_context.extensions()->registerBlockKinds(*m_context.blockKinds());
+    const QString target = arguments.size() > 1 ? arguments.at(1) : QString();
 
-    m_context.openSettings();
-    m_context.applyStartupArguments(arguments);
+    // Single-instance: a later launch forwards its request to the already
+    // running process and exits, so tray-resident processes never accumulate.
+    // Disabled for the in-process UI driver and by KVIT_NO_SINGLE_INSTANCE.
+    if (m_singleInstanceEnabled
+        && qEnvironmentVariableIsEmpty("KVIT_NO_SINGLE_INSTANCE")) {
+        m_single = std::make_unique<SingleInstance>(
+            SingleInstance::defaultServerName());
+        if (!m_single->tryBecomePrimary()) {
+            m_single->forwardToPrimary(target);
+            return StartOutcome::AlreadyRunning;
+        }
+        connect(m_single.get(), &SingleInstance::requestReceived, this,
+                [this](const QString &t) {
+                    if (!m_registry)
+                        return;
+                    // A bare relaunch (no path) just brings the app forward.
+                    if (t.isEmpty()) {
+                        if (VaultWindow *w = m_registry->activeWindow()) {
+                            w->raiseWindow();
+                            return;
+                        }
+                    }
+                    m_registry->openStartup(t);
+                    if (VaultWindow *w = m_registry->activeWindow())
+                        w->raiseWindow();
+                });
+    }
 
-    // Closing the last window quits unless the user opted into staying
-    // resident in the tray (tray.closeToTray) and a tray actually exists.
-    // Applied live so the Settings toggle takes effect without a restart.
+    // Installed modules claim their fence languages before anything renders, so
+    // the first block a window lays out already resolves to the right delegate.
+    // The registries are process-global; this runs once. The open build
+    // installs no module, and this is a no-op.
+    m_processServices.extensions()->registerBlockKinds(
+        *m_processServices.blockKinds());
+
+    m_processServices.openSettings();
+
+    // Closing the last window quits unless the user opted into staying resident
+    // in the tray (tray.closeToTray) and a tray exists. Qt's
+    // quitOnLastWindowClosed already generalizes from one window to the set, so
+    // the policy is unchanged from the single-window launcher. Applied live so
+    // the Settings toggle takes effect without a restart.
     const auto applyQuitPolicy = [this]() {
         m_app.setQuitOnLastWindowClosed(
-            !(m_context.systemTray()->available()
-              && m_context.systemTray()->closeToTray()));
+            !(m_processServices.systemTray()->available()
+              && m_processServices.systemTray()->closeToTray()));
     };
     applyQuitPolicy();
-    connect(m_context.systemTray(), &SystemTray::closeToTrayChanged,
+    connect(m_processServices.systemTray(), &SystemTray::closeToTrayChanged,
             &m_app, applyQuitPolicy);
-    connect(m_context.systemTray(), &SystemTray::quitRequested,
+    connect(m_processServices.systemTray(), &SystemTray::quitRequested,
             &m_app, &QApplication::quit);
 
-    m_context.installContextProperties(&m_engine);
+    m_registry = std::make_unique<WindowRegistry>(m_processServices, m_shellUrl);
 
-    const QUrl url = m_shellUrl;
-    connect(&m_engine, &QQmlApplicationEngine::objectCreated,
-            &m_app, [url](QObject *obj, const QUrl &objUrl) {
-                if (!obj && url == objUrl)
-                    QCoreApplication::exit(-1);
-            }, Qt::QueuedConnection);
+    // Tray menu actions (new note, quick capture, show) are handled in each
+    // window's shell (qml/SystemIntegration.qml), gated on AppActions.trayTarget
+    // so only the window the registry marked active responds to the one shared
+    // tray. The registry sets that flag as the active window changes.
 
-    PerfLog::instance().mark(
-        QStringLiteral("startup.pre_qml"),
-        m_startupTimer.elapsed(),
-        QVariantMap{
-            {QStringLiteral("notes"), m_context.noteCollection()->noteCount()},
-            {QStringLiteral("blocks"), m_context.blockModel()->count()},
-        });
+    PerfLog::instance().mark(QStringLiteral("startup.pre_qml"),
+                             m_startupTimer.elapsed());
 
-    m_engine.load(m_shellUrl);
-    if (m_engine.rootObjects().isEmpty())
-        return false;
+    // The one process-level first-frame mark, taken from the first window.
+    connect(m_registry.get(), &WindowRegistry::windowOpened, this,
+            [this](VaultWindow *w) {
+                connect(w, &VaultWindow::firstFrameRendered, this,
+                        [this](QQuickWindow *) {
+                            PerfLog::instance().mark(
+                                QStringLiteral("startup.first_frame"),
+                                m_startupTimer.elapsed());
+                        }, Qt::SingleShotConnection);
+            }, Qt::SingleShotConnection);
 
-    instrumentFirstFrame();
+    // A bare launch reopens the last session's windows; a specific file or
+    // folder opens just that.
+    const bool opened = target.isEmpty() ? m_registry->openSession()
+                                         : m_registry->openStartup(target);
+    if (!opened)
+        return StartOutcome::Failed;
 
     // The update check runs only in the real launcher path: tests compose
-    // AppContext directly and never receive a fetcher, so they cannot reach
-    // the network here. Delayed well past first paint to stay off the
-    // startup path; UpdateChecker itself enforces opt-out and once-per-day.
-    UpdateChecker *updates = m_context.updateChecker();
+    // AppContext directly and never receive a fetcher. Delayed well past first
+    // paint; UpdateChecker enforces opt-out and once-per-day.
+    UpdateChecker *updates = m_processServices.updateChecker();
     updates->setCurrentVersion(m_app.applicationVersion());
-    updates->setFetcher(m_context.egressFetcher());
+    updates->setFetcher(m_processServices.egressFetcher());
     QTimer::singleShot(5000, updates, &UpdateChecker::maybeCheck);
 
-    return true;
-}
-
-void KvitApplication::instrumentFirstFrame()
-{
-    QQuickWindow *window =
-        qobject_cast<QQuickWindow *>(m_engine.rootObjects().first());
-    if (!window)
-        return;
-
-    auto firstFrameLogged = std::make_shared<bool>(false);
-    auto frameTimer = std::make_shared<QElapsedTimer>();
-    frameTimer->start();
-    connect(window, &QQuickWindow::afterFrameEnd, window,
-            [this, firstFrameLogged, frameTimer]() {
-        PerfLog &perfLog = PerfLog::instance();
-        const qint64 frameMs = frameTimer->restart();
-        BlockModel *blockModel = m_context.blockModel();
-        if (!*firstFrameLogged) {
-            *firstFrameLogged = true;
-            perfLog.mark(
-                QStringLiteral("startup.first_frame"),
-                m_startupTimer.elapsed(),
-                QVariantMap{
-                    {QStringLiteral("notes"),
-                     m_context.noteCollection()->noteCount()},
-                    {QStringLiteral("blocks"), blockModel->count()},
-                });
-            QMetaObject::invokeMethod(m_context.startupController(), "start",
-                                      Qt::QueuedConnection);
-        }
-        perfLog.record(
-            QStringLiteral("frame"), frameMs,
-            QVariantMap{{QStringLiteral("blocks"), blockModel->count()}},
-            PerfLog::Verbose, 16.0);
-    });
+    return StartOutcome::RunEventLoop;
 }

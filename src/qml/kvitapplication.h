@@ -6,25 +6,28 @@
 
 #include <QElapsedTimer>
 #include <QObject>
-#include <QQmlApplicationEngine>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
 
-#include "appcontext.h"
+#include <memory>
+
+#include "processservices.h"
 
 class QApplication;
+class SingleInstance;
+class WindowRegistry;
 
-// The editor's launcher: it owns the composed AppContext and the QML engine,
-// applies the application-level policy that needs the QApplication itself
-// (window style, tray-driven quit behaviour), loads the shell, and installs
-// the startup performance instrumentation.
+// The editor's launcher and process shell: it owns the process-global services
+// (ProcessServices) and the window registry, applies the application-level
+// policy that needs the QApplication itself (window style, tray-driven quit),
+// and hands the startup request to the registry, which opens the first window.
 //
-// Together with AppContext this is everything main() used to do, which leaves
-// the stock main() a nine-line file: the open repo's executable is a thin
-// launcher linking the core library. A superset build that adds a premium
-// module installs its extensions into ExtensionRegistry before calling
-// start(), and otherwise reuses this class unchanged.
+// Each editor window is a VaultWindow the registry owns — its own AppContext
+// bound to its own QQmlEngine — so this class no longer owns a single context
+// or engine. A superset build that adds a premium module installs its
+// extensions into ProcessServices before calling start(), and otherwise reuses
+// this class unchanged.
 class KvitApplication : public QObject
 {
     Q_OBJECT
@@ -45,31 +48,45 @@ public:
     explicit KvitApplication(QApplication &app, QObject *parent = nullptr);
     ~KvitApplication() override;
 
-    // Composes the app and loads the QML shell. `arguments` is the whole
-    // argv-derived list. Returns false when the shell failed to load, which
-    // the caller reports as a non-zero exit status.
-    bool start(const QStringList &arguments);
+    // What start() decided the caller should do next.
+    enum class StartOutcome {
+        RunEventLoop,    // this process is the primary; run app.exec()
+        AlreadyRunning,  // a primary took the request; exit cleanly (0)
+        Failed,          // the first window failed to load; exit non-zero
+    };
 
-    // The QML file loaded as the shell. A superset build can point this at its
-    // own root window before calling start(); it defaults to the open shell.
+    // Composes the process globals and opens the first window for the startup
+    // request, unless another instance is already running — in which case the
+    // request is forwarded to it and this returns AlreadyRunning. `arguments`
+    // is the whole argv-derived list.
+    StartOutcome start(const QStringList &arguments);
+
+    // Disable the single-instance channel (the in-process UI driver and any
+    // harness that must run its own windows alongside a real instance). On by
+    // default; the KVIT_NO_SINGLE_INSTANCE environment variable also disables it.
+    void setSingleInstanceEnabled(bool on) { m_singleInstanceEnabled = on; }
+
+    // The QML file each window loads as its shell. A superset build can point
+    // this at its own root window before calling start(); it defaults to the
+    // open shell.
     void setShellUrl(const QUrl &url) { m_shellUrl = url; }
     QUrl shellUrl() const { return m_shellUrl; }
 
-    AppContext &context() { return m_context; }
-    QQmlApplicationEngine &engine() { return m_engine; }
+    // The process-global composition, shared by every window. A premium main()
+    // installs its module here before start().
+    ProcessServices &processServices() { return m_processServices; }
+    WindowRegistry *registry() { return m_registry.get(); }
 
 private:
-    void instrumentFirstFrame();
-
     QApplication &m_app;
     QElapsedTimer m_startupTimer;
     QUrl m_shellUrl{QStringLiteral("qrc:/qml/main.qml")};
-    // Declared before the engine so it is destroyed AFTER it. QQmlContext
-    // nulls QObject-valued properties as their targets are destroyed; if that
-    // happened before QML teardown, live bindings would report cascades of
-    // "Cannot read property ... of null" during application exit.
-    AppContext m_context;
-    QQmlApplicationEngine m_engine;
+    bool m_singleInstanceEnabled = true;
+    std::unique_ptr<SingleInstance> m_single;
+    // The globals outlive the registry (which owns the windows that borrow
+    // them), so they are declared first and destroyed last.
+    ProcessServices m_processServices;
+    std::unique_ptr<WindowRegistry> m_registry;
 };
 
 #endif // KVITAPPLICATION_H

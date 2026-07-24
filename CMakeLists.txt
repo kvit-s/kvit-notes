@@ -294,6 +294,7 @@ add_library(kvit-platform STATIC
     src/platform/remotemediacache.cpp
     src/platform/settingsstore.cpp
     src/platform/shortcutcatalog.cpp
+    src/platform/singleinstance.cpp
     src/platform/systemtray.cpp
     src/platform/theme.cpp
     src/platform/typography.cpp
@@ -359,8 +360,11 @@ add_library(kvit-qml STATIC
     src/qml/appcontext.cpp
     src/qml/blockeditorengine.cpp
     src/qml/kvitapplication.cpp
+    src/qml/processservices.cpp
     src/qml/qmlservices.cpp
     src/qml/qmlsingletons.h
+    src/qml/vaultwindow.cpp
+    src/qml/windowregistry.cpp
 )
 target_link_libraries(kvit-qml PUBLIC kvit-application)
 # QuickControls2 for the shell's style, Multimedia for the media block's QML

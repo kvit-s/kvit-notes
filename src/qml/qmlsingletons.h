@@ -94,9 +94,30 @@
 // extension registry reserves against. Written separately they would drift,
 // and the way they would drift is silent — a name missing from the reserved
 // set is a namespace a module may take.
-#define KVIT_QML_SINGLETONS(X)                \
-    X(QueryTools, QueryTools)                 \
+// The partition is load-bearing for the multi-window design: a per-vault
+// singleton resolves to each window's own instance, while a global one
+// resolves to the single ProcessServices instance shared by every window.
+// Both halves are generated from these two lists, and the shell test asserts
+// each side's resolution behaviour against them, so a service placed in the
+// wrong list is a test failure rather than a silent shared-state bug.
+//
+// GLOBAL: exactly one per process (see ProcessServices) — each owns a unique
+// OS resource or user-global state.
+#define KVIT_QML_SINGLETONS_GLOBAL(X)         \
     X(GlobalHotkey, GlobalHotkey)             \
+    X(SystemTray, SystemTray)                 \
+    X(UpdateChecker, UpdateChecker)           \
+    X(EgressPolicy, EgressPolicy)             \
+    X(RemoteMediaCache, RemoteMediaCache)     \
+    X(Typography, Typography)                 \
+    X(ExtensionRegistry, Extensions)          \
+    X(BlockKindRegistry, BlockKindRegistry)   \
+    X(SettingsStore, AppSettings)             \
+    X(Theme, Theme)
+
+// PER-VAULT: one per window (an AppContext member).
+#define KVIT_QML_SINGLETONS_PERVAULT(X)       \
+    X(QueryTools, QueryTools)                 \
     X(FileWatcher, FileWatcher)               \
     X(ShortcutCatalog, ShortcutCatalog)       \
     X(QuickSwitcherModel, QuickSwitcherModel) \
@@ -109,9 +130,7 @@
     X(DocumentSerializer, DocumentSerializer) \
     X(DocumentImporter, DocumentImporter)     \
     X(EmbedMetadata, EmbedMetadata)           \
-    X(SystemTray, SystemTray)                 \
     X(NavigationHistory, NavigationHistory)   \
-    X(UpdateChecker, UpdateChecker)           \
     X(TableTools, TableTools)                 \
     X(KanbanTools, KanbanTools)               \
     X(TodoMetaTools, TodoMeta)                \
@@ -120,25 +139,22 @@
     X(DocumentOutline, DocumentOutline)       \
     X(CollectionSearch, CollectionSearch)     \
     X(NoteTemplates, NoteTemplates)           \
-    X(EgressPolicy, EgressPolicy)             \
-    X(RemoteMediaCache, RemoteMediaCache)     \
-    X(Typography, Typography)                 \
     X(ImageAssets, ImageAssets)               \
     X(AssetStore, AssetStore)                 \
     X(BlockAttributes, BlockAttributes)       \
     X(ClipboardHelper, Clipboard)             \
     X(AccessibilityAnnouncer, A11y)           \
-    X(ExtensionRegistry, Extensions)          \
-    X(BlockKindRegistry, BlockKindRegistry)   \
     X(BlockModel, BlockModel)                 \
     X(DocumentSelection, DocumentSelection)   \
     X(DocumentSearch, DocumentSearch)         \
     X(DocumentManager, DocumentManager)       \
     X(NoteCollection, NoteCollection)         \
     X(NoteListModel, NoteListModel)           \
-    X(SettingsStore, AppSettings)                                    \
-    X(Theme, Theme)                                                  \
     X(AppActions, AppActions)
+
+#define KVIT_QML_SINGLETONS(X)                \
+    KVIT_QML_SINGLETONS_GLOBAL(X)             \
+    KVIT_QML_SINGLETONS_PERVAULT(X)
 
 #define KVIT_QML_SINGLETON_NAMED(Type, Name)                                  \
     struct Name##Foreign                                                      \

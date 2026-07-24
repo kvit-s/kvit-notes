@@ -23,16 +23,26 @@
 
 #include <functional>
 
+#include "appcontext.h"
 #include "blockmodel.h"
 #include "extensionregistry.h"
 #include "kvitapplication.h"
+#include "vaultwindow.h"
+#include "windowregistry.h"
 
 namespace {
 
+// The driver stages a single window; the registry's active window is it.
 QQuickWindow *shellWindow(KvitApplication &kvit)
 {
-    const auto roots = kvit.engine().rootObjects();
-    return roots.isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(roots.first());
+    VaultWindow *w = kvit.registry() ? kvit.registry()->activeWindow() : nullptr;
+    return w ? w->window() : nullptr;
+}
+
+AppContext *activeContext(KvitApplication &kvit)
+{
+    VaultWindow *w = kvit.registry() ? kvit.registry()->activeWindow() : nullptr;
+    return w ? w->context() : nullptr;
 }
 
 void settle(int ms)
@@ -132,7 +142,10 @@ int main(int argc, char *argv[])
     QStringList startArgs{QString::fromLatin1(argv[0])};
     if (!vault.isEmpty())
         startArgs << vault;
-    if (!kvit.start(startArgs))
+    // The driver runs its own window in-process; it must never forward to (or
+    // be pre-empted by) a real running instance.
+    kvit.setSingleInstanceEnabled(false);
+    if (kvit.start(startArgs) != KvitApplication::StartOutcome::RunEventLoop)
         return -1;
 
     QTimer::singleShot(0, &app, [&]() {
@@ -150,7 +163,13 @@ int main(int argc, char *argv[])
         window->requestActivate();
         settle(1200);
 
-        auto *model = kvit.context().blockModel();
+        AppContext *ctx = activeContext(kvit);
+        if (!ctx) {
+            qWarning("uidriver: no active context");
+            app.exit(2);
+            return;
+        }
+        auto *model = ctx->blockModel();
 
         if (scenario == QStringLiteral("still")) {
             // One staged frame of the real shell: open the requested note in
@@ -158,8 +177,7 @@ int main(int argc, char *argv[])
             // (math images, diagram layout) time to land, and grab. Used to
             // produce the curated screenshots/press stills.
             if (!note.isEmpty()) {
-                kvit.context().documentManager()->open(
-                    QUrl::fromLocalFile(note));
+                ctx->documentManager()->open(QUrl::fromLocalFile(note));
             }
             settle(2500);
             // These frames are grabbed from a real desktop, so whatever the

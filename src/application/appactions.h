@@ -43,8 +43,26 @@ class AppActions : public QObject
 {
     Q_OBJECT
 
+    // Whether this window is the one that should act on the process-global
+    // tray's menu actions (new note, quick capture, show). The tray is one
+    // shared object, so every window's shell hears its signals; without this
+    // gate all of them would respond at once. The window registry sets it true
+    // on the active window and false on the rest. It defaults true so a
+    // single-window composition — every test — responds without a registry.
+    Q_PROPERTY(bool trayTarget READ trayTarget WRITE setTrayTarget
+                   NOTIFY trayTargetChanged)
+
 public:
     using QObject::QObject;
+
+    bool trayTarget() const { return m_trayTarget; }
+    void setTrayTarget(bool on)
+    {
+        if (m_trayTarget == on)
+            return;
+        m_trayTarget = on;
+        emit trayTargetChanged();
+    }
 
     // Navigation and scrolling.
     Q_INVOKABLE void requestScrollToBlock(int index) { emit scrollToBlockRequested(index); }
@@ -57,6 +75,23 @@ public:
     // its worker threads, so reaching it while the old vault's reconcile or
     // query is still running parks the GUI thread behind that work.
     Q_INVOKABLE void requestOpenVault(const QString &path) { emit openVaultRequested(path); }
+    // Open a folder as a vault in a NEW window, or a loose file in its own
+    // single-file window. Unlike requestOpenVault (which switches this window
+    // in place), these add a window — the window registry raises an existing
+    // one if that vault or file is already open. Routed through AppContext to
+    // the registry.
+    Q_INVOKABLE void requestOpenVaultInNewWindow(const QString &path)
+    {
+        emit openVaultInNewWindowRequested(path);
+    }
+    Q_INVOKABLE void requestOpenFileInNewWindow(const QString &path)
+    {
+        emit openFileInNewWindowRequested(path);
+    }
+    // This window is closing for good (not hiding to the tray): the registry
+    // tears down its vault so the kernel lock is released. QML's onClosing
+    // calls this once it has decided the close goes through.
+    Q_INVOKABLE void notifyWindowClosing() { emit windowClosing(); }
     Q_INVOKABLE void requestCenterCaretLine(QObject *item) { emit centerCaretLineRequested(item); }
 
     // Menus the shell owns and a delegate asks it to raise.
@@ -112,6 +147,9 @@ signals:
     void scrollToBlockRequested(int index);
     void openNoteByPathRequested(const QString &relPath);
     void openVaultRequested(const QString &path);
+    void openVaultInNewWindowRequested(const QString &path);
+    void openFileInNewWindowRequested(const QString &path);
+    void windowClosing();
     void centerCaretLineRequested(QObject *item);
     void textContextMenuRequested(QObject *target);
     void linkContextMenuRequested(QObject *target);
@@ -129,6 +167,10 @@ signals:
     void editLinkRequested(int index, int start, int end, const QString &text,
                            const QString &url, bool removable);
     void insertLinkRequested(int index, int start, int end, const QString &text);
+    void trayTargetChanged();
+
+private:
+    bool m_trayTarget = true;
 };
 
 #endif // APPACTIONS_H

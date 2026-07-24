@@ -9,6 +9,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QPointer>
 #include <QSaveFile>
 #include <QCryptographicHash>
 #include <QJsonDocument>
@@ -182,7 +183,14 @@ void EmbedMetadata::requestMetadata(const QString &url)
         return;
     }
     m_inFlight.insert(url);
-    m_fetcher->fetch(url, [this, url](bool ok, const QString &html) {
+    // The fetcher is process-global (ProcessServices) and outlives this cache,
+    // so a fetch still in flight when this window closes would otherwise call
+    // back into a freed EmbedMetadata. The callback runs on the GUI thread,
+    // where this object is also destroyed, so a QPointer guard is enough.
+    QPointer<EmbedMetadata> guard(this);
+    m_fetcher->fetch(url, [this, guard, url](bool ok, const QString &html) {
+        if (!guard)
+            return;
         QVariantMap meta = ok ? parseOpenGraph(html, url)
                               : parseOpenGraph(QString(), url);
         if (!ok)

@@ -103,10 +103,11 @@ class ExtensionRegistry : public QObject
     Q_OBJECT
 
 public:
-    // Instance owned, like BlockKindRegistry: AppContext holds the one the
-    // application runs on, publishes it as the `extensions` QML context
-    // property, and hands it to main() through KvitApplication. A test builds
-    // its own and is isolated by construction.
+    // Instance owned, like BlockKindRegistry: it is process-global, so
+    // ProcessServices holds the one the application runs on, every window
+    // publishes it as the `extensions` QML context property, and main() reaches
+    // it through KvitApplication. A test builds its own (via an AppContext that
+    // owns its ProcessServices) and is isolated by construction.
     explicit ExtensionRegistry(QObject *parent = nullptr);
     ~ExtensionRegistry() override;
 

@@ -45,6 +45,7 @@
 #include "notecollection.h"
 #include "notelistmodel.h"
 #include "notetemplates.h"
+#include "processservices.h"
 #include "qmlservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
@@ -62,6 +63,7 @@
 
 class QQmlContext;
 class QQmlEngine;
+class WindowRouter;
 
 // The application's composition root: every long-lived object the editor runs
 // on, constructed and wired together, and published to QML as context
@@ -83,24 +85,22 @@ class AppContext : public QObject
 
 public:
     // The parts of the composition that reach outside the process, and so
-    // cannot run the same way in a headless harness. Everything else — every
-    // service, every connection, every context property — is identical in
-    // production and under test, which is the point: a test that composes
-    // this class is testing the graph the application actually runs on.
-    //
-    // Keep this struct small. Each field is a place where the two
-    // compositions differ, and so a place a defect can hide from the suite.
-    struct Options {
-        // SystemTray::show() asks the desktop session for a status-notifier
-        // item. Offscreen there is no session to ask.
-        bool showSystemTray = true;
-        // PerfLog writes to a file path taken from settings. A harness keeps
-        // its own logging configuration.
-        bool configureLoggingFromSettings = true;
-    };
+    // cannot run the same way in a headless harness. Both fields configure
+    // process-global services, so the struct now lives on ProcessServices; the
+    // alias keeps the AppContext::Options spelling the tests already use.
+    using Options = ProcessServices::Options;
 
+    // Owning constructors: the context builds its own ProcessServices from the
+    // given options and holds the only reference to it. This is the shape a
+    // single-composition test uses — one window, one set of globals — and
+    // matches how AppContext behaved before the process/per-vault split.
     explicit AppContext(QObject *parent = nullptr);
     explicit AppContext(const Options &options, QObject *parent = nullptr);
+    // Borrowing constructor: the context shares the caller's ProcessServices,
+    // which must outlive it. This is the shape the application and its multiple
+    // windows use — every window's per-vault services are its own, while the
+    // globals are the one shared set.
+    explicit AppContext(ProcessServices &globals, QObject *parent = nullptr);
     ~AppContext() override;
 
     // Replace the transport embed cards fetch through, before any fetch is
@@ -159,6 +159,11 @@ public:
     // through AppActions::requestOpenVault().
     bool openVaultRoot(const QString &path);
 
+    // Installs the process window registry this window's open actions route
+    // through. When unset (single-composition tests), AppActions open requests
+    // fall back to switching this context in place. Set by VaultWindow.
+    void setWindowRouter(WindowRouter *router) { m_router = router; }
+
     // Accessors for the launcher's startup instrumentation and for a superset
     // build that wires premium objects against the core's.
     BlockModel *blockModel() { return &m_blockModel; }
@@ -169,16 +174,20 @@ public:
     AppActions *appActions() { return &m_appActions; }
     CollectionSearch *collectionSearch() { return &m_collectionSearch; }
     CollectionSearchIndex *searchIndex() { return &m_searchIndex; }
-    SettingsStore *settings() { return &m_settingsStore; }
-    SystemTray *systemTray() { return &m_systemTray; }
-    Theme *theme() { return &m_theme; }
-    Typography *typography() { return &m_typography; }
-    UpdateChecker *updateChecker() { return &m_updateChecker; }
+    // The process-global services, forwarded from the shared ProcessServices
+    // this context is wired against. Same surface as before the split, so the
+    // launcher and any premium main() compile unchanged.
+    ProcessServices *processServices() { return &m_globals; }
+    SettingsStore *settings() { return m_globals.settings(); }
+    SystemTray *systemTray() { return m_globals.systemTray(); }
+    Theme *theme() { return m_globals.theme(); }
+    Typography *typography() { return m_globals.typography(); }
+    UpdateChecker *updateChecker() { return m_globals.updateChecker(); }
     // The two extension seams, owned here rather than process-global. The
     // launcher installs modules into the registry and asks them to claim
     // their fence kinds before the shell loads.
-    ExtensionRegistry *extensions() { return &m_extensions; }
-    BlockKindRegistry *blockKinds() { return &m_blockKinds; }
+    ExtensionRegistry *extensions() { return m_globals.extensions(); }
+    BlockKindRegistry *blockKinds() { return m_globals.blockKinds(); }
     // What the QML singletons must resolve to. Exposed so a test can compare
     // each singleton against the object registered for its type, and so catch
     // the engine default-constructing one of its own — which looks identical
@@ -187,33 +196,39 @@ public:
     const KvitQml::ServiceTable *services() const { return &m_services; }
     // The one transport and the one policy. The launcher hands the fetcher
     // to the update checker; nothing else in the tree opens a connection.
-    EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }
-    EgressPolicy *egressPolicy() { return &m_egressPolicy; }
-    RemoteMediaCache *remoteMediaCache() { return &m_remoteMediaCache; }
+    EgressFetcher *egressFetcher() { return m_globals.egressFetcher(); }
+    EgressPolicy *egressPolicy() { return m_globals.egressPolicy(); }
+    RemoteMediaCache *remoteMediaCache() { return m_globals.remoteMediaCache(); }
     FileWatcher *fileWatcher() { return &m_fileWatcher; }
 
 private:
     void wire();
 
-    const Options m_options;
     QStringList m_installedProperties;
+    // The process window registry this window's open actions route through,
+    // or null in a composition with no registry (tests).
+    WindowRouter *m_router = nullptr;
     // What the QML singletons resolve against. Declared before the services
     // it points at so it is destroyed after them, and so an engine outliving
     // this context cannot read a table of dangling pointers.
     KvitQml::ServiceTable m_services;
 
+    // The process-global services this context is wired against. m_ownedGlobals
+    // holds them only when an owning constructor built them; the borrowing
+    // constructor leaves it null and binds m_globals to the caller's instance.
+    // Declared here — before every per-vault member that points into a global —
+    // so the globals outlive them (destruction runs in reverse). m_globals is a
+    // reference and so must follow m_ownedGlobals, which is what initializes it.
+    std::unique_ptr<ProcessServices> m_ownedGlobals;
+    ProcessServices &m_globals;
+
     // Declaration order = construction order; destruction runs in reverse.
-    // The registries come first: the block model resolves delegate kinds
-    // against one of them, and modules claim kinds before anything renders.
+    // The block model resolves delegate kinds against the block-kind registry,
+    // which is process-global now and lives in ProcessServices.
     AppActions m_appActions;
-    BlockKindRegistry m_blockKinds;
-    ExtensionRegistry m_extensions;
     UndoStack m_undoStack;
     BlockModel m_blockModel;
     DocumentManager m_documentManager;
-    SettingsStore m_settingsStore;
-    Theme m_theme;
-    Typography m_typography;
     MarkdownFormatter m_markdownFormatter;
     ClipboardHelper m_clipboardHelper;
     BlockMenuModel m_blockMenuModel;
@@ -231,16 +246,10 @@ private:
     CollectionSearch m_collectionSearch;
     NoteTemplates m_noteTemplates;
     DocumentImporter m_documentImporter;
-    // The network trust boundary, declared before everything that borrows it.
-    // The policy outlives the fetcher, and both outlive the embed cache and
-    // the image provider that hold non-owning pointers to them.
-    EgressPolicy m_egressPolicy;
-    std::unique_ptr<EgressFetcher> m_egressFetcher;
     // A test-supplied embed transport, when one has been installed. Declared
-    // beside the fetcher it stands in for and before the cache that borrows
-    // whichever of the two is in use.
+    // before the EmbedMetadata that borrows it. When unset, EmbedMetadata
+    // borrows the process-global fetcher that lives in ProcessServices.
     std::unique_ptr<EmbedFetcher> m_embedFetcherOverride;
-    RemoteMediaCache m_remoteMediaCache;
     EmbedMetadata m_embedMetadata;
     StartupController m_startupController;
     ImageAssets m_imageAssets;
@@ -248,8 +257,6 @@ private:
     BlockAttributes m_blockAttributes;
     ShortcutCatalog m_shortcutCatalog;
     AccessibilityAnnouncer m_a11y;
-    SystemTray m_systemTray;
-    GlobalHotkey m_globalHotkey;
     FileWatcher m_fileWatcher;
     TableTools m_tableTools;
     TodoMetaTools m_todoMeta;
@@ -258,9 +265,6 @@ private:
     NavigationHistory m_navigationHistory;
     QuickSwitcherModel m_quickSwitcherModel;
     QueryTools m_queryTools;
-    // Declared after the settings store it reads (destroyed before it). The
-    // launcher injects the network fetcher; without one it never fetches.
-    UpdateChecker m_updateChecker;
 };
 
 #endif // APPCONTEXT_H

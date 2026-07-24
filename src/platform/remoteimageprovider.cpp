@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QBuffer>
 #include <QImageReader>
+#include <QPointer>
 #include <QQuickTextureFactory>
 #include <QUrl>
 
@@ -25,13 +26,25 @@ public:
         // The provider is called from the QML image-loading thread, while the
         // fetcher and its QNetworkAccessManager live on the GUI thread. Hop
         // there before touching either.
-        QMetaObject::invokeMethod(fetcher, [this, fetcher, url]() {
+        //
+        // The fetcher is process-global (ProcessServices) and outlives the
+        // engine, so a request still in flight when the engine tears this
+        // response down (a window closing) would call back into a freed
+        // object. Both that teardown and the callback run on the GUI thread, so
+        // a QPointer guard checked there is sufficient. QQuickImageResponse is
+        // not reclaimed until finished(), so a live response is safe to touch.
+        QPointer<RemoteImageResponse> self(this);
+        QMetaObject::invokeMethod(fetcher, [self, fetcher, url]() {
+            if (!self)
+                return;
             fetcher->request(QUrl(url), EgressFetcher::Purpose::RemoteImage,
-                             [this](bool ok, const QByteArray &body, const QString &) {
+                             [self](bool ok, const QByteArray &body, const QString &) {
+                                 if (!self)
+                                     return;
                                  if (ok)
-                                     m_image = RemoteImageProvider::decodeForDisplay(
-                                         body, m_requestedSize);
-                                 finished();
+                                     self->m_image = RemoteImageProvider::decodeForDisplay(
+                                         body, self->m_requestedSize);
+                                 self->finished();
                              });
         }, Qt::QueuedConnection);
     }

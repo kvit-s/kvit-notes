@@ -29,6 +29,26 @@ QStringList singletonNames()
     return names;
 }
 
+QStringList globalSingletonNames()
+{
+    static const QStringList names = {
+#define KVIT_QML_SINGLETON_NAME(Type, Name) QStringLiteral(#Name),
+        KVIT_QML_SINGLETONS_GLOBAL(KVIT_QML_SINGLETON_NAME)
+#undef KVIT_QML_SINGLETON_NAME
+    };
+    return names;
+}
+
+QStringList perVaultSingletonNames()
+{
+    static const QStringList names = {
+#define KVIT_QML_SINGLETON_NAME(Type, Name) QStringLiteral(#Name),
+        KVIT_QML_SINGLETONS_PERVAULT(KVIT_QML_SINGLETON_NAME)
+#undef KVIT_QML_SINGLETON_NAME
+    };
+    return names;
+}
+
 
 void attachServices(QQmlEngine *engine, ServiceTable *table)
 {

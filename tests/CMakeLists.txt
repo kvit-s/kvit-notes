@@ -558,6 +558,24 @@ target_link_libraries(test_shell PRIVATE
 add_test(NAME ShellTests COMMAND test_shell)
 set_tests_properties(ShellTests PROPERTIES TIMEOUT 300)
 
+# Multi-window / multi-vault: two-composition isolation and the window
+# registry's raise-vs-create. Loads the real shell per window, so it carries
+# resources.qrc and runs offscreen like ShellTests.
+qt_add_executable(test_multivault
+    test_multivault.cpp
+    ${CMAKE_SOURCE_DIR}/resources.qrc
+)
+target_link_libraries(test_multivault PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME MultiVaultTests COMMAND test_multivault)
+set_tests_properties(MultiVaultTests PROPERTIES TIMEOUT 300)
+
+# The single-instance IPC handshake: no display and no subprocess, so it runs
+# with the deterministic `unit` suites.
+qt_add_executable(test_singleinstance test_singleinstance.cpp)
+target_link_libraries(test_singleinstance PRIVATE kvit-core Qt6::Test)
+add_test(NAME SingleInstanceTests COMMAND test_singleinstance)
+
 # The premium module's tests, built only when the module is (KVIT_AGENT=ON).
 # They live under tests/agent/ so the public export drops them with the rest
 # of the module.
@@ -673,6 +691,7 @@ set(KVIT_PERFORMANCE_TESTS
     SearchIndexTimingBudget)
 set(KVIT_SHELL_TESTS
     ShellTests
+    MultiVaultTests
     AgentShellTests
     # The storyboard scenarios that do not need a focused window. Same
     # binary and same file as VisualTests, but offscreen and blocking; the

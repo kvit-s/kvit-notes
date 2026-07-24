@@ -48,13 +48,24 @@ Item {
         onActivated: integration.openQuickCapture()
     }
 
+    // Tray menu actions (new note, quick capture, show window). The tray is one
+    // shared object, so every window's shell hears these; AppActions.trayTarget
+    // gates them so only the active window (the one the registry designated)
+    // responds. A single-window composition leaves trayTarget true, so it works
+    // without a registry — which is what the integration tests rely on.
     Connections {
         target: SystemTray
-        function onQuickCaptureRequested() { integration.openQuickCapture() }
+        function onQuickCaptureRequested() {
+            if (AppActions.trayTarget)
+                integration.openQuickCapture()
+        }
         function onNewNoteRequested() {
-            integration.appWindow.createNoteInCurrentScope()
+            if (AppActions.trayTarget)
+                integration.appWindow.createNoteInCurrentScope()
         }
         function onShowWindowRequested() {
+            if (!AppActions.trayTarget)
+                return
             integration.appWindow.show()
             integration.appWindow.raise()
             integration.appWindow.requestActivate()
