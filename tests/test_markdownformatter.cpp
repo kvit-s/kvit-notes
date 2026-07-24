@@ -1212,7 +1212,9 @@ void TestMarkdownFormatter::testEscapeSpansConcealBackslash()
     QCOMPARE(formatter.toHtml("a \\# b"), QString("a # b"));
     // An inline code span in a cell renders as code, not nothing (the
     // fix-1 table repair depends on this path).
-    QCOMPARE(formatter.toHtml("`x | y`"), QString("<code>x | y</code>"));
+    QCOMPARE(formatter.toHtml("`x | y`"),
+             QString("<code style=\"font-family:Consolas,Menlo,"
+                     "'DejaVu Sans Mono',monospace\">x | y</code>"));
 }
 
 void TestMarkdownFormatter::testDoubleBackslashConsumesEscape()
@@ -1411,7 +1413,8 @@ void TestMarkdownFormatter::testToHtmlRendersNestedContainers_data()
         << "<a href=\"http://x/a\"><i>docs</i></a>";
     QTest::newRow("code inside bold")
         << "**`ls -l`**"
-        << "<b><code>ls -l</code></b>";
+        << "<b><code style=\"font-family:Consolas,Menlo,"
+           "'DejaVu Sans Mono',monospace\">ls -l</code></b>";
     QTest::newRow("link inside color")
         << "<span style=\"color:red\">[docs](http://x/a)</span>"
         << "<span style=\"color:red\"><a href=\"http://x/a\">docs</a></span>";

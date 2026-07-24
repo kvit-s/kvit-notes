@@ -836,7 +836,14 @@ QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
     if (span.type == QLatin1String("italic"))
         return QStringLiteral("<i>") + inner + QStringLiteral("</i>");
     if (span.type == QLatin1String("code"))
-        return QStringLiteral("<code>") + inner + QStringLiteral("</code>");
+        // A font-family stack, not a bare <code>: this rich text is rendered by
+        // Qt (e.g. table cells) and copied to the clipboard, and the generic
+        // "monospace" alias does not resolve on some platforms (notably
+        // Windows), where Qt then falls back to a proportional font. Naming
+        // real fixed-pitch families first keeps inline code monospace there.
+        return QStringLiteral("<code style=\"font-family:Consolas,Menlo,"
+                              "'DejaVu Sans Mono',monospace\">")
+             + inner + QStringLiteral("</code>");
     if (span.type == QLatin1String("link")
         || span.type == QLatin1String("autolink")) {
         return QStringLiteral("<a href=\"") + escapeHtml(span.url)

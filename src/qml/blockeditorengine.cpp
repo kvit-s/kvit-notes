@@ -180,6 +180,14 @@ private:
                 format.setFontUnderline(true);
             if (range.kind & BlockEditorEngine::FormatRange::Code) {
                 format.setFontFamilies({m_engine->m_monoFontFamily});
+                // Family name alone is not enough: where the named family does
+                // not resolve (the generic "monospace" alias is absent on some
+                // Windows setups, or a configured mono family is not installed)
+                // Qt substitutes the proportional UI font, leaving inline code
+                // tinted but not monospace. The style hint and fixed-pitch flag
+                // steer that substitution to a fixed-pitch face.
+                format.setFontStyleHint(QFont::Monospace);
+                format.setFontFixedPitch(true);
                 format.setBackground(theme ? theme->inlineCodeBackground()
                                            : kCodeBackground);
             }
