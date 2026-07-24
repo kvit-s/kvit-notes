@@ -180,10 +180,27 @@ Get-ChildItem -Recurse -Path $Stage -Include *.dll, *.exe |
     Set-Content -Encoding ascii (Join-Path $RepoRoot "packaging\manifests\windows-$Version.txt")
 
 # ── Portable zip (a single top-level folder) ──
+#
+# Compress-Archive opens each staged file for read; a runtime DLL just written
+# by the deploy steps above can still be held for a moment by real-time
+# antivirus or the search indexer (msvcp140_1.dll has been seen locked this
+# way), which surfaces as an IOException mid-archive. The lock clears in
+# seconds, so retry a few times before giving up.
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 $Zip = Join-Path $Dist "$StageName.zip"
 if (Test-Path $Zip) { Remove-Item -Force $Zip }
-Compress-Archive -Path $Stage -DestinationPath $Zip
+$zipAttempts = 5
+for ($i = 1; $i -le $zipAttempts; $i++) {
+    try {
+        Compress-Archive -Path $Stage -DestinationPath $Zip -Force -ErrorAction Stop
+        break
+    } catch {
+        if (Test-Path $Zip) { Remove-Item -Force $Zip }
+        if ($i -eq $zipAttempts) { throw }
+        Write-Host "Compress-Archive attempt $i/$zipAttempts failed ($($_.Exception.Message.Trim())); retrying in 3s..."
+        Start-Sleep -Seconds 3
+    }
+}
 Write-Host "Portable zip: $Zip"
 
 # ── Inno Setup per-user installer ──
