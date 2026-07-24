@@ -11,6 +11,7 @@
 
 class BlockModel;
 class DocumentManager;
+class NavigationHistory;
 class NoteCollection;
 class UndoStack;
 
@@ -30,6 +31,11 @@ public:
     void setDocumentManager(DocumentManager *manager);
     void setBlockModel(BlockModel *model);
     void setUndoStack(UndoStack *stack);
+    // The startup-restored note is made current without going through
+    // openNoteByPath, so it must be seeded into the history here or the first
+    // navigation away from it (often a backlink click) has nothing to go back
+    // to — Back/Forward then do nothing until the second note switch.
+    void setNavigationHistory(NavigationHistory *history);
     void setRootPath(const QString &path);
 
     bool started() const { return m_started; }
@@ -52,6 +58,7 @@ private:
     DocumentManager *m_documentManager = nullptr;
     BlockModel *m_blockModel = nullptr;
     UndoStack *m_undoStack = nullptr;
+    NavigationHistory *m_navigationHistory = nullptr;
     QString m_rootPath;
     QString m_pendingStartupRelPath;
     QElapsedTimer m_initialOpenTimer;

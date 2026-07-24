@@ -5,6 +5,7 @@
 
 #include "blockmodel.h"
 #include "documentmanager.h"
+#include "navigationhistory.h"
 #include "notecollection.h"
 #include "perflog.h"
 #include "undostack.h"
@@ -43,6 +44,11 @@ void StartupController::setBlockModel(BlockModel *model)
 void StartupController::setUndoStack(UndoStack *stack)
 {
     m_undoStack = stack;
+}
+
+void StartupController::setNavigationHistory(NavigationHistory *history)
+{
+    m_navigationHistory = history;
 }
 
 void StartupController::setRootPath(const QString &path)
@@ -155,6 +161,12 @@ void StartupController::onStartupNoteOpenFinished(const QString &filePath,
 
     if (ok) {
         m_collection->setLastOpenNote(relPath);
+        // Seed the restored note as the first history entry, so navigating
+        // away from it (the session's first note switch, commonly a backlink
+        // click) can go Back to it. visit() ignores a repeat of the current
+        // path, so this is safe if some other path records it too.
+        if (m_navigationHistory)
+            m_navigationHistory->visit(relPath);
         finishStartup();
         return;
     }

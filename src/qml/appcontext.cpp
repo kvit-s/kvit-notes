@@ -148,6 +148,7 @@ void AppContext::wire()
     m_startupController.setDocumentManager(&m_documentManager);
     m_startupController.setBlockModel(&m_blockModel);
     m_startupController.setUndoStack(&m_undoStack);
+    m_startupController.setNavigationHistory(&m_navigationHistory);
 
     // System integration seams (the tray and the system-wide hotkey) are
     // process-global and wired in ProcessServices, not here.

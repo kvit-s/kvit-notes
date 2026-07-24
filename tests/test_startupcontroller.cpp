@@ -15,6 +15,7 @@
 #include "block.h"
 #include "blockmodel.h"
 #include "documentmanager.h"
+#include "navigationhistory.h"
 #include "notecollection.h"
 #include "startupcontroller.h"
 #include "undostack.h"
@@ -25,6 +26,7 @@ class TestStartupController : public QObject
 
 private slots:
     void deferredStartOpensLastNoteAsynchronously();
+    void startupSeedsHistorySoFirstSwitchCanGoBack();
     void freshVaultFinishesOnlyAfterWelcomeNoteOpens();
     void traversalLastOpenNoteIsIgnored();
     void oversizedFirstCandidateDoesNotCancelTheSecond();
@@ -111,6 +113,63 @@ void TestStartupController::deferredStartOpensLastNoteAsynchronously()
     QTRY_VERIFY_WITH_TIMEOUT(!collection.scanInProgress(), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(parsed.size() == 2, 5000);
     QVERIFY(QFileInfo::exists(dir.filePath(QStringLiteral(".kvit/cache/index.json"))));
+}
+
+// The note restored at startup is made current without going through
+// openNoteByPath, so the controller must seed it into NavigationHistory.
+// Otherwise the session's first note switch (commonly a backlink click) has an
+// empty back stack and Back/Forward do nothing — the reported intermittency,
+// which depended on whether the user had already switched notes once.
+void TestStartupController::startupSeedsHistorySoFirstSwitchCanGoBack()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    writeText(dir.filePath(QStringLiteral("A.md")),
+              QStringLiteral("# A\n\nfirst note\n"));
+    writeText(dir.filePath(QStringLiteral("B.md")),
+              QStringLiteral("# B\n\nsecond note\n"));
+
+    QDir().mkpath(dir.filePath(QStringLiteral(".kvit")));
+    QJsonObject state;
+    state.insert(QStringLiteral("lastOpenNote"), QStringLiteral("B.md"));
+    writeText(dir.filePath(QStringLiteral(".kvit/collection.json")),
+              QString::fromUtf8(QJsonDocument(state).toJson()));
+
+    UndoStack undoStack;
+    BlockModel blockModel;
+    blockModel.setUndoStack(&undoStack);
+    DocumentManager documentManager;
+    documentManager.setBlockModel(&blockModel);
+    documentManager.setUndoStack(&undoStack);
+    NoteCollection collection;
+    NavigationHistory navHistory;
+
+    StartupController controller;
+    controller.setCollection(&collection);
+    controller.setDocumentManager(&documentManager);
+    controller.setBlockModel(&blockModel);
+    controller.setUndoStack(&undoStack);
+    controller.setNavigationHistory(&navHistory);
+    controller.setRootPath(dir.path());
+
+    controller.start();
+    QTRY_VERIFY_WITH_TIMEOUT(controller.finished(), 5000);
+    QCOMPARE(documentManager.currentFilePath(),
+             collection.absolutePath(QStringLiteral("B.md")));
+
+    // The restored note is the current history entry. Nothing precedes it, so
+    // Back is still unavailable at this point.
+    QVERIFY(!navHistory.canGoBack());
+
+    // The session's first switch away from it (as a backlink click does) must
+    // be able to go Back to it. Before the fix the restored note was never
+    // recorded, so this visit left the back stack empty.
+    navHistory.visit(QStringLiteral("A.md"));
+    QVERIFY(navHistory.canGoBack());
+    const QVariantMap back = navHistory.goBack();
+    QVERIFY(back.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(back.value(QStringLiteral("relPath")).toString(),
+             QStringLiteral("B.md"));
 }
 
 // A first run on an empty folder seeds a welcome note and opens it. That
