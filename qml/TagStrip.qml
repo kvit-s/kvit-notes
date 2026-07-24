@@ -188,6 +188,15 @@ Item {
                 closePolicy: Popup.CloseOnPressOutsideParent
                 visible: false
 
+                // Without a themed background the popup fell back to the light
+                // Fusion default, so in dark mode the panel stayed light.
+                background: Rectangle {
+                    color: Theme.popupBackground
+                    border.color: Theme.borderStrong
+                    border.width: 1
+                    radius: 6
+                }
+
                 contentItem: ListView {
                     id: suggestionList
                     implicitHeight: Math.min(contentHeight, 140)
@@ -218,6 +227,7 @@ Item {
                             Text {
                                 text: suggestionRow.modelData
                                 font.pixelSize: 11
+                                color: Theme.textPrimary
                             }
                         }
                         TapHandler {
