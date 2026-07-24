@@ -1139,6 +1139,7 @@ BlockDelegateBase {
             dragEnabled: delegate.shell !== null && delegate.shell.blockDrag !== null
 
             onInsertRequested: delegate.insertBlockBelowAndOpenMenu()
+            onDeleteRequested: delegate.deleteCurrentBlock()
             onHandleMenuRequested: AppActions.requestBlockHandleMenu(delegate)
             onBlockSelectRequested: {
                 if (delegate.listView)

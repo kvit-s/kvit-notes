@@ -36,6 +36,7 @@ Item {
     readonly property alias hovered: gutterHover.hovered
 
     signal insertRequested()
+    signal deleteRequested()
     signal handleMenuRequested()
     signal blockSelectRequested()
     signal dragStarted(real sceneX, real sceneY)
@@ -43,10 +44,12 @@ Item {
     signal dragDropped()
     signal dragCanceled()
 
-    // Wide enough for both buttons and the gap between them; one text line
-    // tall, so the handle sits beside the block's first line.
+    // Wide enough for both buttons and the gap between them. Two button-rows
+    // tall now: the plus with the delete stacked under it, beside the handle.
+    // The HoverHandler must cover the delete so the row stays "hovered" while
+    // the pointer is on it.
     width: 40
-    height: 24
+    height: 44
 
     HoverHandler {
         id: gutterHover
@@ -54,7 +57,12 @@ Item {
 
     Row {
         objectName: "gutterButtons"
-        anchors.centerIn: parent
+        // Top-anchored, not centre-in: the row is two buttons tall now (plus
+        // over delete), so centring would push the plus and handle down off
+        // the block's first line.
+        anchors.top: parent.top
+        anchors.topMargin: 3
+        anchors.horizontalCenter: parent.horizontalCenter
         spacing: 4
         // Stays visible while the handle is pressed: hiding an item cancels
         // its MouseArea's grab, which would kill a drag the moment the
@@ -67,36 +75,68 @@ Item {
             NumberAnimation { duration: 150 }
         }
 
-        Rectangle {
-            objectName: "plusButton"
-            width: 18
-            height: 18
-            anchors.verticalCenter: parent.verticalCenter
-            radius: 4
-            color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
+        // The plus (add a block below) with the delete (remove this block)
+        // stacked under it; the handle sits beside the plus, top-aligned.
+        Column {
+            spacing: 2
 
-            Text {
-                anchors.centerIn: parent
-                text: "+"
-                color: Theme.textMuted
-                font.pixelSize: 14
-                font.bold: true
+            Rectangle {
+                objectName: "plusButton"
+                width: 18
+                height: 18
+                radius: 4
+                color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "+"
+                    color: Theme.textMuted
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+
+                MouseArea {
+                    id: plusArea
+                    anchors.fill: parent
+                    anchors.margins: -2
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.insertRequested()
+                }
             }
 
-            MouseArea {
-                id: plusArea
-                anchors.fill: parent
-                anchors.margins: -2
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.insertRequested()
+            // Delete this block. Undoable (Ctrl+Z), so no confirmation; the
+            // red hover fill is the destructive cue. Stays lit while the
+            // pointer is on it because the gutter HoverHandler covers it.
+            Rectangle {
+                objectName: "deleteButton"
+                width: 18
+                height: 18
+                radius: 4
+                color: deleteArea.containsMouse ? Theme.danger : "transparent"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "×"
+                    color: deleteArea.containsMouse ? Theme.onAccent : Theme.textMuted
+                    font.pixelSize: 16
+                    font.bold: true
+                }
+
+                MouseArea {
+                    id: deleteArea
+                    anchors.fill: parent
+                    anchors.margins: -2
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.deleteRequested()
+                }
             }
         }
 
         Item {
             width: 14
             height: 18
-            anchors.verticalCenter: parent.verticalCenter
 
             Column {
                 anchors.centerIn: parent

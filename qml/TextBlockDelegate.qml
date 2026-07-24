@@ -353,6 +353,21 @@ BlockDelegateBase {
         })
     }
 
+    // Delete this row (the gutter delete-button). Undoable via Ctrl+Z. Mirrors
+    // EditableBlock.deleteCurrentBlock: focus falls back to the previous block.
+    function deleteCurrentBlock() {
+        var prevIndex = root.index - 1
+        var lv = ListView.view
+        BlockModel.removeBlock(root.index)
+        Qt.callLater(function() {
+            if (lv && prevIndex >= 0) {
+                lv.currentIndex = prevIndex
+                var item = (lv.itemAtIndex(prevIndex) as BlockDelegateBase)
+                if (item) item.focusAtEnd()
+            }
+        })
+    }
+
     ListView.onPooled: {
         root.isPooled = true
         root.editorRequested = false
@@ -444,7 +459,7 @@ BlockDelegateBase {
         x: root.indentLevel * 24
         y: 4
         width: 40
-        height: 24
+        height: 44
         sourceComponent: gutterComponent
     }
 
@@ -510,40 +525,72 @@ BlockDelegateBase {
         id: gutterComponent
         Item {
             width: 40
-            height: 24
+            height: 44
             Row {
                 objectName: "gutterButtons"
-                anchors.centerIn: parent
+                // Top-anchored (see BlockGutter): the row is two buttons tall
+                // now, so centre-in would push the plus and handle down.
+                anchors.top: parent.top
+                anchors.topMargin: 3
+                anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 4
 
-                Rectangle {
-                    objectName: "plusButton"
-                    width: 18
-                    height: 18
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 4
-                    color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
-                    Text {
-                        anchors.centerIn: parent
-                        text: "+"
-                        color: Theme.textMuted
-                        font.pixelSize: 14
-                        font.bold: true
+                Column {
+                    spacing: 2
+
+                    Rectangle {
+                        objectName: "plusButton"
+                        width: 18
+                        height: 18
+                        radius: 4
+                        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "+"
+                            color: Theme.textMuted
+                            font.pixelSize: 14
+                            font.bold: true
+                        }
+                        MouseArea {
+                            id: plusArea
+                            anchors.fill: parent
+                            anchors.margins: -2
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.insertBlockBelowAndOpenMenu()
+                        }
                     }
-                    MouseArea {
-                        id: plusArea
-                        anchors.fill: parent
-                        anchors.margins: -2
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.insertBlockBelowAndOpenMenu()
+
+                    // Delete this block (undoable via Ctrl+Z). Red hover fill
+                    // is the destructive cue; the delegate HoverHandler keeps
+                    // the gutter alive while the pointer is on it.
+                    Rectangle {
+                        objectName: "deleteButton"
+                        width: 18
+                        height: 18
+                        radius: 4
+                        color: deleteArea.containsMouse ? Theme.danger : "transparent"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "×"
+                            color: deleteArea.containsMouse ? Theme.onAccent : Theme.textMuted
+                            font.pixelSize: 16
+                            font.bold: true
+                        }
+                        MouseArea {
+                            id: deleteArea
+                            anchors.fill: parent
+                            anchors.margins: -2
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.deleteCurrentBlock()
+                        }
                     }
                 }
 
                 Item {
                     width: 14
                     height: 18
-                    anchors.verticalCenter: parent.verticalCenter
                     Column {
                         anchors.centerIn: parent
                         spacing: 2

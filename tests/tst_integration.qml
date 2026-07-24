@@ -3963,6 +3963,48 @@ Item {
             tryCompare(menu, "visible", false, 1000)
         }
 
+        function test_af_deleteButtonRemovesBlockAndStaysVisible() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "keep me")
+            wait(100)
+            BlockModel.insertBlock(1, 0, "delete me")
+            wait(100)
+            compare(BlockModel.count, 2)
+
+            var delegate = findBlockDelegate(1)
+            mouseMove(delegate, 30, delegate.height / 2)
+            tryCompare(delegate, "isHovered", true, 1000)
+
+            var del = null
+            tryVerify(function() {
+                del = findChild(delegate, "deleteButton")
+                return del !== null
+            }, 1000, "Delete button appears in the gutter on hover")
+
+            // Moving onto the delete button must not drop the row hover; the
+            // gutter would otherwise fade out from under the pointer (the same
+            // failure test_ab guards for the plus/handle).
+            mouseMove(del, del.width / 2, del.height / 2)
+            wait(300)
+            compare(delegate.isHovered, true,
+                    "Hover remains true while the pointer is over the delete button")
+
+            mouseClick(del)
+            tryVerify(function() { return BlockModel.count === 1 }, 1000,
+                      "Delete button removes its block")
+            compare(BlockModel.getContent(0), "keep me",
+                    "The other block is left untouched")
+
+            // Deletion goes on the undo stack (features.md §3.5).
+            keyClick(Qt.Key_Z, Qt.ControlModifier)
+            tryVerify(function() { return BlockModel.count === 2 }, 1000,
+                      "The deletion is undoable")
+        }
+
         // ==================================================================
         // Block selection (features.md §3.1, §2.5)
         // ==================================================================

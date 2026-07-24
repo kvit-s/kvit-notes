@@ -36,7 +36,12 @@ BlockDelegateBase {
     property bool isPooled: false
     property ListView listView: ListView.view
     property bool isFocused: focusTarget.activeFocus
+    // The plus and drag-handle MouseAreas sit over hoverArea and steal its
+    // hover; fold their own hover back in so the gutter buttons do not vanish
+    // the moment the pointer reaches them (as EditableBlock/MathBlock do).
     property bool isHovered: hoverArea.containsMouse
+        || plusArea.containsMouse || mediaHandle.containsMouse
+        || deleteArea.containsMouse
 
     readonly property var media: ImageAssets.parse(content)
     readonly property string noteDir: {
@@ -462,6 +467,22 @@ BlockDelegateBase {
         MouseArea { id: plusArea; anchors.fill: parent; anchors.margins: -2
             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: root.insertBlockBelowAndOpenMenu() }
+    }
+    // Gutter delete-button, stacked under the plus. Removes this block;
+    // undoable with Ctrl+Z, so no confirmation — the red hover fill is the
+    // destructive cue. deleteArea folds into isHovered above so it does not
+    // vanish under the pointer.
+    Rectangle {
+        objectName: "deleteButton"
+        width: 18; height: 18; x: 10; y: 28; radius: 4
+        color: deleteArea.containsMouse ? Theme.danger : "transparent"
+        opacity: root.isHovered ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Text { anchors.centerIn: parent; text: "×"; color: deleteArea.containsMouse ? Theme.onAccent : Theme.textMuted; font.pixelSize: 15; font.bold: true }
+        MouseArea { id: deleteArea; anchors.fill: parent; anchors.margins: -2
+            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: root.deleteCurrentBlock() }
     }
     // Drag handle.
     Item {
