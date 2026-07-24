@@ -6162,6 +6162,41 @@ Item {
             closeTestCollection()
         }
 
+        // The Delete key on a selected note removes it through the same confirm
+        // dialog as the context menu. A plain row click now also gives the list
+        // keyboard focus, so the key reaches its handler (previously it went to
+        // whatever had focus and nothing happened).
+        function test_v4b_deleteKeyRemovesSelectedNote() {
+            if (isHeadless) {
+                skip("Keyboard/mouse tests require display")
+            }
+            openTestCollection()
+            // main.qml is a separate window from the test root; keyboard focus
+            // only lands once it is the active window (as the qml3 tests note).
+            appLoader.item.requestActivate()
+            wait(50)
+            var pane = findChild(appLoader.item, "noteListPane")
+            var listView = findChild(appLoader.item, "noteListView")
+            var startCount = NoteListModel.count
+
+            mouseClick(noteRowFor("Welcome.md"))
+            tryVerify(function() { return listView.activeFocus },
+                      1000, "clicking a note gives the list keyboard focus")
+            compare(pane.selectedPaths.length, 1)
+
+            keyClick(Qt.Key_Delete)
+            var deleteDialog = findChild(appLoader.item, "bulkDeleteDialog")
+            tryCompare(deleteDialog, "visible", true, 1000)
+            acceptDialogAndSettle(deleteDialog)
+            tryVerify(function() {
+                return NoteListModel.count === startCount - 1
+            }, 1000, "Delete removes the selected note")
+            verify(NoteCollection.noteRelPaths().indexOf("Welcome.md") === -1,
+                   "the deleted note is gone from the collection")
+
+            closeTestCollection()
+        }
+
         function test_v5_shiftClickSelectsRange() {
             if (isHeadless) {
                 skip("Mouse tests require display")

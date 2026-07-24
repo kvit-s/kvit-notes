@@ -44,6 +44,11 @@ Rectangle {
         noteListView.forceActiveFocus(Qt.TabFocusReason)
     }
 
+    // Give the list keyboard focus in place, without repositioning the current
+    // row the way focusPane does. Used after a click, deferred past the
+    // note-open churn so Delete/arrows act on the clicked note.
+    function focusList() { noteListView.forceActiveFocus() }
+
     // Enter/Space on the focused row: open the note the arrow keys walked to.
     function activateCurrentRow() {
         var relPath = NoteListModel.relPathAt(noteListView.currentIndex)
@@ -574,6 +579,22 @@ Rectangle {
                         noteListPane.startRename(relPath)
                         event.accepted = true
                     }
+                } else if (event.key === Qt.Key_Delete
+                           || event.key === Qt.Key_Backspace) {
+                    // Delete the selection through the same confirm dialog the
+                    // context menu uses, so the two paths cannot diverge. Falls
+                    // back to the keyboard cursor's row when nothing was
+                    // click-selected (e.g. after arrowing into the list).
+                    if (noteListPane.selectedPaths.length > 0) {
+                        bulkDeleteDialog.openFor(noteListPane.selectedPaths)
+                        event.accepted = true
+                    } else {
+                        var delPath = NoteListModel.relPathAt(noteListView.currentIndex)
+                        if (delPath !== "") {
+                            bulkDeleteDialog.openFor([delPath])
+                            event.accepted = true
+                        }
+                    }
                 }
             }
 
@@ -840,6 +861,12 @@ Rectangle {
                         noteListView.currentIndex = noteRow.index
                         noteListPane.selectionClick(noteRow.relPath,
                                                     mouse.modifiers)
+                        // Take keyboard focus so the list's own keys (Delete,
+                        // arrows, Enter, F2) act on the clicked note. Deferred:
+                        // opening the note repopulates the editor's block list,
+                        // which clears focus a tick after this handler returns,
+                        // so grab it once that settles.
+                        Qt.callLater(noteListPane.focusList)
                     }
                     onDoubleClicked: noteListPane.startRename(noteRow.relPath)
                 }
