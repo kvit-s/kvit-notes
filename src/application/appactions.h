@@ -120,7 +120,11 @@ public:
     // layers past anything it should know about. Asking for the effect
     // instead means the child stays private to the shell.
     Q_INVOKABLE void requestSelectionFocus() { emit selectionFocusRequested(); }
-    Q_INVOKABLE void requestOpenLink(const QUrl &url) { emit openLinkRequested(url); }
+    // The target is a raw href or wiki-note name, carried as a QString like the
+    // sibling link signals. A QUrl here would percent-encode it when the QML
+    // handler stringifies the signal argument (a space becoming %20), which then
+    // became the created note's name — so it must stay a plain string.
+    Q_INVOKABLE void requestOpenLink(const QString &url) { emit openLinkRequested(url); }
     Q_INVOKABLE void requestBlockMenu(int index, const QString &mode, const QRectF &area)
     {
         emit blockMenuRequested(index, mode, area);
@@ -160,7 +164,7 @@ signals:
     void lightboxRequested(const QString &source, const QString &alt);
     void transientStatusRequested(const QString &message);
     void selectionFocusRequested();
-    void openLinkRequested(const QUrl &url);
+    void openLinkRequested(const QString &url);
     void blockMenuRequested(int index, const QString &mode, const QRectF &area);
     void mathCommandMenuRequested(QObject *host, const QRectF &area, bool displayMath);
     void wikiLinkMenuRequested(QObject *host, const QRectF &area);

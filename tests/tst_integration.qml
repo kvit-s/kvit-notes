@@ -9579,6 +9579,26 @@ Item {
             closeTestCollection()
         }
 
+        // The real click path routes the target through
+        // AppActions.requestOpenLink, whose signal argument the QML handler
+        // stringifies — test_wiki1 above calls linkOpener.activate directly and
+        // so bypasses that boundary. Carried as a QUrl, a space stringified to
+        // %20 and became the created note's name; this drives the signal path
+        // and asserts the space survives.
+        function test_wiki1b_requestOpenLinkKeepsSpaces() {
+            openTestCollection()
+            verify(appLoader.item.openNoteByPath("Welcome.md"))
+
+            AppActions.requestOpenLink("kvit-note:Spaced idea")
+            tryVerify(function() {
+                return appLoader.item.currentNoteRelPath === "Spaced idea.md"
+            }, 2000, "a spaced wiki target creates 'Spaced idea', not 'Spaced%20idea'")
+            verify(appLoader.item.currentNoteRelPath.indexOf("%20") === -1,
+                   "the created note name has a real space, not %20")
+
+            closeTestCollection()
+        }
+
         function test_wiki2_backlinksPanelListsAndUpdatesLive() {
             openTestCollection()
 
