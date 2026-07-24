@@ -52,9 +52,18 @@ QtObject {
     function update(sceneX, sceneY) {
         if (pressIndex < 0)
             return
+        // A plain click is rarely pixel-identical between press and release,
+        // and focusing the clicked block collapses the revealed markers of the
+        // previously-focused one, reflowing everything under a still-held
+        // pointer. Either can remap the point to a different block index; with
+        // no travel gate that alone seeds a full multi-block selection from a
+        // click. Require real pointer travel before engaging, matching the 5px
+        // gate the block-drag gesture already uses (BlockGutter.qml §).
+        var moved = Math.abs(sceneX - lastPressX) >= 5
+                 || Math.abs(sceneY - lastPressY) >= 5
         var hit = selection.blockPositionAt(sceneX, sceneY)
         if (hit) {
-            if (!engaged && hit.index !== pressIndex) {
+            if (!engaged && moved && hit.index !== pressIndex) {
                 DocumentSelection.beginTextSelection(pressIndex, pressMd,
                     clickCount >= 3 ? 2 : clickCount === 2 ? 1 : 0)
                 engaged = true
