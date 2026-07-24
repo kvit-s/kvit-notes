@@ -187,8 +187,14 @@ Item {
     Shortcut {
         sequence: "Esc"
         context: Qt.ApplicationShortcut
+        // Not while a block drag is in progress: the drag layer's own Escape
+        // shortcut cancels the drag, and two enabled Escape shortcuts at once
+        // are an ambiguous overload Qt resolves by firing neither — which would
+        // leave Escape doing nothing mid-drag.
         enabled: shortcuts.appWindow
                  && shortcuts.appWindow.focusMode
+                 && !(shortcuts.appWindow.blockDrag
+                      && shortcuts.appWindow.blockDrag.active)
         onActivated: shortcuts.appWindow.focusMode = false
     }
 
