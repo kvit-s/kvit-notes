@@ -1480,6 +1480,15 @@ KvitShell {
             anchors.rightMargin: 20 + centeringMargin
             anchors.topMargin: tagStrip.visible ? tagStrip.height + 16 : 20
 
+            // A Flickable does not clip unless told to, and rows scrolled just
+            // past the top of the viewport stay instantiated (cacheBuffer
+            // below), so they painted over the tag strip and on up over the
+            // toolbar — the editor pane is declared after the toolbar, so it
+            // wins the overlap. Every other scrolling surface in the app
+            // already clips; the popups a block raises are window-level items,
+            // so none of them are clipped by this.
+            clip: true
+
             contentWidth: availableWidth
 
             ListView {
