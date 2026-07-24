@@ -177,7 +177,13 @@ public:
     bool asyncPreCommitReachedForTests() const;
 
     // C++ file dialogs (more reliable than QML FileDialog)
+    // Opens the chosen file in place, replacing the current document.
     Q_INVOKABLE void openFileDialog();
+    // Shows the platform's native open picker and returns the chosen path
+    // (empty on cancel) WITHOUT opening it, so QML can route the file — a
+    // vault window sends it to its own single-file window, single-file mode
+    // replaces in place.
+    Q_INVOKABLE QString chooseFileToOpen();
     // True only when the document reached disk. A cancelled dialog and a
     // failed write both return false, because both mean the in-memory
     // document is still the only copy.

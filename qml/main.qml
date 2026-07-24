@@ -541,10 +541,10 @@ KvitShell {
         // only that the activation signal fired.
         property string lastExternalTarget: ""
         function activate(url) {
-            // AppActions::openLinkRequested carries a QUrl, and a delegate may
-            // pass either that or a plain string. QUrl has no indexOf,
-            // substring or charAt, so the whole function works on one
-            // normalized string rather than on whatever arrived.
+            // The target arrives as a plain string (a raw href or wiki-note
+            // name); it is deliberately not a QUrl, whose string form would
+            // percent-encode a space to %20 and carry that into the note name.
+            // Normalize defensively so a null/undefined never reaches indexOf.
             var target = String(url === undefined || url === null ? "" : url)
             if (target.length === 0)
                 return
@@ -721,6 +721,22 @@ KvitShell {
     function documentDialogs() {
         documentDialogsLoader.active = true
         return documentDialogsLoader.item as DocumentSessionDialogs
+    }
+
+    // Open a file chosen from the native picker, routed by the window's mode
+    // (multi-vault.md §): a vault window opens the file in its own single-file
+    // window (raising an existing one if that file is already open), so the
+    // vault it is showing is left intact; a single-file window replaces its
+    // document in place, the historical behavior. The picker is shown first so
+    // the path can be routed rather than opened blindly.
+    function openFileFromDialog() {
+        var path = DocumentManager.chooseFileToOpen()
+        if (path === "")
+            return
+        if (root.collectionOpen)
+            AppActions.requestOpenFileInNewWindow(path)
+        else
+            DocumentManager.open(DocumentManager.toLocalFileUrl(path))
     }
 
     SettingsDialog {

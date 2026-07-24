@@ -185,9 +185,10 @@ Rectangle {
                 MenuItem {
                     objectName: "fileMenuOpenFile"
                     text: qsTr("Open File…")
-                    // Opens in this window, replacing the current document —
-                    // the existing single-file open path.
-                    onTriggered: DocumentManager.openFileDialog()
+                    // Routed by window mode: a vault window opens the file in
+                    // its own single-file window; single-file mode replaces the
+                    // current document in place.
+                    onTriggered: toolbar.appWindow.openFileFromDialog()
                 }
                 MenuItem {
                     objectName: "fileMenuOpenFolder"

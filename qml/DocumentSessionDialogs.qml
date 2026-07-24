@@ -111,7 +111,7 @@ Item {
                 // standalone file.
                 openOrImportChoiceDialog.open()
             } else {
-                DocumentManager.openFileDialog()
+                dialogs.appWindow.openFileFromDialog()
             }
         }
     }
@@ -137,7 +137,7 @@ Item {
                 DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
                 onClicked: {
                     openOrImportChoiceDialog.close()
-                    DocumentManager.openFileDialog()
+                    dialogs.appWindow.openFileFromDialog()
                 }
             }
             Button {
@@ -281,12 +281,12 @@ Item {
                         : DocumentManager.saveFileDialog()
             if (!saved)
                 return
-            DocumentManager.openFileDialog()
+            dialogs.appWindow.openFileFromDialog()
         }
 
         onDiscarded: {
             // Discard button clicked - open without saving
-            DocumentManager.openFileDialog()
+            dialogs.appWindow.openFileFromDialog()
         }
 
         // Cancel - do nothing

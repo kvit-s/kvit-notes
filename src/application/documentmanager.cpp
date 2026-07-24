@@ -360,31 +360,22 @@ QString DocumentManager::toLocalPath(const QUrl &fileUrl) const
     return fileUrl.toLocalFile();
 }
 
+QString DocumentManager::chooseFileToOpen()
+{
+    // Use the platform's native open dialog: it is the one the user knows,
+    // with their quick-access bookmarks and recent places. (A native dialog
+    // cannot be re-centered by the app, so unlike the old non-native path this
+    // does not try to position it — the platform places it.)
+    return QFileDialog::getOpenFileName(
+        nullptr, tr("Open Document"), QString(),
+        tr("Markdown files (*.md);;All files (*)"));
+}
+
 void DocumentManager::openFileDialog()
 {
-    QFileDialog dialog(nullptr, tr("Open Document"));
-    dialog.setNameFilter(tr("Markdown files (*.md);;All files (*)"));
-    dialog.setFileMode(QFileDialog::ExistingFile);
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
-
-    // Center the dialog on the main QML window
-    QWindow *focusWindow = QGuiApplication::focusWindow();
-    if (focusWindow) {
-        dialog.winId(); // Ensure the dialog has a native window handle
-        if (QWindow *dialogWindow = dialog.windowHandle()) {
-            dialogWindow->setTransientParent(focusWindow);
-        }
-        int x = focusWindow->x() + (focusWindow->width() - dialog.width()) / 2;
-        int y = focusWindow->y() + (focusWindow->height() - dialog.height()) / 2;
-        dialog.move(x, y);
-    }
-
-    if (dialog.exec() == QDialog::Accepted) {
-        QStringList files = dialog.selectedFiles();
-        if (!files.isEmpty()) {
-            open(QUrl::fromLocalFile(files.first()));
-        }
-    }
+    const QString path = chooseFileToOpen();
+    if (!path.isEmpty())
+        open(QUrl::fromLocalFile(path));
 }
 
 // Returns whether the document actually reached disk. Callers use this to
