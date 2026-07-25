@@ -199,7 +199,8 @@ The available block types:
 - **Image** — inserted from a file dialog, a paste, or a drag from your file manager or
   browser. The bytes are copied into an `assets/` folder beside your notes and linked by a
   relative path, so moving a note never breaks the image. Drag the corner to resize, click to
-  zoom, and add an alt text and a caption.
+  zoom, and add an alt text and a caption. The caption wraps to the width of the picture;
+  Shift+Enter adds a line to it and Enter leaves for a new block below.
 - **Kanban board** — columns of cards with labels, due dates, and descriptions, with card
   drag between columns (or a "Move to column" control), stored as readable markdown.
 - **Math block** — a `$$ … $$` LaTeX equation rendered centered; focus it to edit the source

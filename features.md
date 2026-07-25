@@ -92,7 +92,8 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Resize handles for adjusting image dimensions
 - Maintain aspect ratio option when resizing
 - Alignment options (left, center, right)
-- Caption text below image
+- Caption text below image, wrapping to the image's width; Shift+Enter adds a
+  line to it and Enter leaves for a new block below
 - Alt text for accessibility
 - Click to view full-size in lightbox/modal
 - Lazy loading for performance with many images

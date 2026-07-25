@@ -565,7 +565,8 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
                        + ">");
                 body += "<figure>" + img
                       + (p.caption.isEmpty() ? QString()
-                            : "<figcaption>" + esc(p.caption) + "</figcaption>")
+                            : "<figcaption>" + escFlowing(p.caption)
+                                  + "</figcaption>")
                       + "</figure>";
             } else {
                 // Media exports as a link to the source (no inline player).

@@ -629,8 +629,11 @@ BlockDelegateBase {
             }
         }
 
-        // Caption: an editable single-line field below the image (§1.2.8).
-        TextField {
+        // Caption: an editable field below the image (§1.2.8). A TextArea
+        // rather than a line edit, so a caption longer than the image wraps
+        // instead of running off the end of a single clipped line, and so it
+        // can hold a line break of its own.
+        TextArea {
             id: captionField
             objectName: "imageCaption"
             width: imageFrame.width
@@ -639,10 +642,37 @@ BlockDelegateBase {
             text: delegate.img.caption
             placeholderText: qsTr("Add a caption…")
             horizontalAlignment: Text.AlignHCenter
+            wrapMode: TextArea.Wrap
             font.pixelSize: 12
             font.italic: true
             color: Theme.textMuted
             background: null
+            // The style's own padding would inset the caption from the image
+            // it sits under; it is centred chrome, not a form field.
+            padding: 0
+            topPadding: 2
+
+            // Enter leaves for a new block and Shift+Enter adds a line, the
+            // same pair as anywhere else in the editor. The caption is
+            // committed first either way, since the block below is inserted
+            // through the model and the field's own editingFinished may not
+            // arrive before the row is rebuilt.
+            function handleReturn(event) {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    if (captionField.selectionEnd > captionField.selectionStart)
+                        captionField.remove(captionField.selectionStart,
+                                            captionField.selectionEnd)
+                    var pos = captionField.cursorPosition
+                    captionField.insert(pos, "\n")
+                    captionField.cursorPosition = pos + 1
+                } else {
+                    captionField.commitPendingCaption()
+                    delegate.createBlockBelow()
+                }
+                event.accepted = true
+            }
+            Keys.onReturnPressed: function(event) { captionField.handleReturn(event) }
+            Keys.onEnterPressed: function(event) { captionField.handleReturn(event) }
             // Same hazard as the other deferred editors: editingFinished may
             // never arrive if the model is replaced first, so the caption is
             // also committed on the document-level flush.

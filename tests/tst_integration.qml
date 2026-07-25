@@ -7530,6 +7530,57 @@ Item {
             verify(UndoStack.count > stackBefore, "the edit is undoable")
         }
 
+        // The caption wraps, takes a line break from Shift+Enter, and lets
+        // Enter out into a new block below the image.
+        function test_zu2_imageCaptionWrapsAndTakesKeys() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.convertBlock(0, 11,    // Block.Image
+                ImageAssets.build(sampleImagePath, "", "", 0))
+            tryVerify(function() {
+                var d = findBlockDelegate(0)
+                return d !== null && d.writeImage !== undefined
+            }, 1000, "the Image delegate is created")
+            wait(200)
+
+            var caption = findChild(findBlockDelegate(0), "imageCaption")
+            verify(caption !== null, "the caption field exists")
+            verify(caption.wrapMode !== TextEdit.NoWrap,
+                   "a caption longer than the image wraps rather than clipping")
+
+            caption.forceActiveFocus()
+            tryCompare(caption, "activeFocus", true, 1000)
+            caption.text = "first line"
+            caption.cursorPosition = caption.text.length
+
+            // Shift+Enter adds a line to the caption, and the break survives
+            // the round trip through the one-line image expression
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeString("second line")
+            compare(caption.text, "first line\nsecond line",
+                    "Shift+Enter breaks the caption line")
+            compare(BlockModel.count, 1, "and starts no new block")
+            caption.commitPendingCaption()
+            tryVerify(function() {
+                return ImageAssets.parse(BlockModel.getContent(0)).caption
+                    === "first line\nsecond line"
+            }, 1000, "the break round-trips through the image expression")
+            compare(BlockModel.getContent(0).indexOf("\n"), -1,
+                    "while the expression itself stays one line")
+
+            // Enter leaves for a new block below the image
+            caption.forceActiveFocus()
+            tryCompare(caption, "activeFocus", true, 1000)
+            keyClick(Qt.Key_Return)
+            tryCompare(BlockModel, "count", 2)
+            compare(BlockModel.blockAt(1).blockType, 0,
+                    "a paragraph follows the image")
+            compare(BlockModel.blockAt(0).blockType, 11, "the image stays")
+        }
+
         function test_zv_imageDropAndPasteWiring() {
             if (isHeadless) {
                 skip("Focus tests require display")

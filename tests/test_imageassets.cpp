@@ -124,6 +124,15 @@ private slots:
         QTest::newRow("space path")     << "my pic.png" << "alt" << "" << 0;
         QTest::newRow("all at once")    << "a_(b) c.png" << "x]y" << "q\"r" << 300;
         QTest::newRow("bar in alt")     << "x.png" << "a|b" << "" << 0;
+        // A caption can hold a line break; the expression is one line,
+        // so it rides the same escape as the delimiters.
+        QTest::newRow("caption break")  << "x.png" << "alt"
+                                        << "first line\nsecond line" << 0;
+        QTest::newRow("break and quote")<< "x.png" << "alt"
+                                        << "he said\n\"hi\"" << 0;
+        QTest::newRow("backslash n")    << "x.png" << "alt"
+                                        << "a literal \\n stays" << 0;
+        QTest::newRow("break in alt")   << "x.png" << "a\nb" << "" << 0;
     }
     void buildParseRoundTripsHostileFields()
     {

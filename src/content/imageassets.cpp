@@ -84,6 +84,13 @@ QString escapeField(const QString &text, const QString &specials)
     QString out;
     out.reserve(text.size());
     for (const QChar c : text) {
+        // A line break in a caption cannot be written as itself: the whole
+        // image expression is one line, and a real newline would end it. It
+        // rides the same escape as the delimiters, as "\n".
+        if (c == u'\n') {
+            out.append(QStringLiteral("\\n"));
+            continue;
+        }
         if (c == u'\\' || specials.contains(c))
             out.append(u'\\');
         out.append(c);
@@ -96,8 +103,13 @@ QString unescapeField(const QString &text)
     QString out;
     out.reserve(text.size());
     for (int i = 0; i < text.size(); ++i) {
-        if (text.at(i) == u'\\' && i + 1 < text.size())
+        if (text.at(i) == u'\\' && i + 1 < text.size()) {
             ++i;
+            // A literal backslash was written as "\\", so "\n" here is
+            // always the line break and never an escaped letter.
+            out.append(text.at(i) == u'n' ? QChar(u'\n') : text.at(i));
+            continue;
+        }
         out.append(text.at(i));
     }
     return out;
