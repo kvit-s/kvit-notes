@@ -9172,6 +9172,70 @@ Item {
                    "a remote image is not an embed")
         }
 
+        // The embed dialog: a host typed without a scheme still reaches the
+        // card, and the URL an existing card names can be changed rather than
+        // the block having to be deleted and re-inserted.
+        function test_zzh2_embedBareHostAndUrlEdit() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "")
+            wait(100)
+
+            appLoader.item.insertEmbedIntoBlock(0)
+            var dlg = findChild(appLoader.item, "embedInsertDialog")
+            verify(dlg !== null && dlg.visible, "the embed dialog opens")
+            var field = findChild(appLoader.item, "embedUrlField")
+            verify(field !== null, "the URL field exists")
+
+            // "cnn.com" is how a reader says a web address; without a scheme
+            // it is not a remote URL, so before the dialog supplied one the
+            // block landed as an image and showed "Image not found".
+            field.text = "cnn.com"
+            compare(dlg.resolvedUrl, "https://cnn.com")
+            var hint = findChild(appLoader.item, "embedUrlHint")
+            verify(hint !== null && hint.visible,
+                   "the dialog shows the address it will actually open")
+            dlg.accept()
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "![](https://cnn.com)"
+            }, 1000, "the typed host is stored as an https URL")
+            var deleg = null
+            tryVerify(function() {
+                deleg = findBlockDelegate(0)
+                return deleg !== null && findChild(deleg, "embedCard") !== null
+            }, 1000, "it renders as an embed card, not a broken image")
+
+            // Give the card a size, then change its URL: the size has to
+            // survive, which is why the edit rewrites the block's content
+            // instead of converting the block again.
+            deleg.setEmbedSize("width=300")
+            tryVerify(function() {
+                return BlockModel.getAttributes(0).indexOf("width=300") !== -1
+            }, 1000, "the card carries a stored width")
+
+            deleg.focusAtStart()
+            var editButton = findChild(deleg, "embedEditButton")
+            verify(editButton !== null, "the card offers an edit button")
+            tryVerify(function() { return editButton.visible }, 1000,
+                      "the edit button shows on a focused card")
+            mouseClick(editButton)
+            tryVerify(function() { return dlg.visible }, 1000,
+                      "the edit button reopens the URL dialog")
+            compare(field.text, "https://cnn.com")   // seeded with the current URL
+            field.text = "bbc.co.uk/news"
+            dlg.accept()
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "![](https://bbc.co.uk/news)"
+            }, 1000, "the edit rewrites the URL")
+            compare(BlockModel.blockAt(0).blockType, 11)   // still an Image block
+            verify(BlockModel.getAttributes(0).indexOf("width=300") !== -1,
+                   "the card's stored size survives a URL edit")
+            verify(UndoStack.count > 0, "the edit is undoable")
+        }
+
         // Per-block presentation through the model. This is
         // focus-independent — it drives the delegates' presentation methods and
         // the model directly, never the keyboard — so it does not depend on the

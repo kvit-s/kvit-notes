@@ -102,6 +102,12 @@ public:
     // Insert flows that need a dialog, so they belong to the window.
     Q_INVOKABLE void requestInsertImage(int index) { emit insertImageRequested(index); }
     Q_INVOKABLE void requestInsertEmbed(int index) { emit insertEmbedRequested(index); }
+    // Changing an embed card's URL uses the same dialog, seeded with the URL
+    // the card currently names.
+    Q_INVOKABLE void requestEditEmbed(int index, const QString &url)
+    {
+        emit editEmbedRequested(index, url);
+    }
     Q_INVOKABLE void requestInsertTable(int index) { emit insertTableRequested(index); }
 
     // Chrome.
@@ -160,6 +166,7 @@ signals:
     void blockHandleMenuRequested(QObject *target);
     void insertImageRequested(int index);
     void insertEmbedRequested(int index);
+    void editEmbedRequested(int index, const QString &url);
     void insertTableRequested(int index);
     void lightboxRequested(const QString &source, const QString &alt);
     void transientStatusRequested(const QString &message);

@@ -285,7 +285,11 @@ The available block types:
 - **Audio / video** — a local media file rendered as a player with play/pause, a seek bar,
   and a volume control.
 - **Embed card** — an `![](url)` pointing at a web page or video host renders as a preview
-  card with a thumbnail, title, and description, opening the URL in your browser on click.
+  card with a thumbnail, title, and description, opening the URL in your browser on click
+  (Space on a focused card does the same). Insert one with `/embed`; the URL box takes a
+  bare host, so typing `example.com` stores `https://example.com`, and it shows the full
+  address before you accept. To change the URL later, click the pencil in the card's top-right
+  corner or press F2 on the focused card — the card's size is kept.
 
 ## Moving and manipulating blocks
 

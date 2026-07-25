@@ -54,6 +54,16 @@ bool isRemote(const QString &stored)
         || scheme.compare(QLatin1String("https"), Qt::CaseInsensitive) == 0;
 }
 
+// "localhost:8080/wiki" parses as a URL whose *scheme* is "localhost", which
+// would otherwise read as "the reader named a scheme, leave it alone". A
+// numeric authority after the colon is a port, so this is a bare host.
+bool isHostWithPort(const QString &s)
+{
+    static const QRegularExpression re(
+        QStringLiteral("^[^\\s:/?#]+:\\d+(?:[/?#].*)?$"));
+    return re.match(s).hasMatch();
+}
+
 } // namespace
 
 ImageAssets::ImageAssets(QObject *parent)
@@ -197,6 +207,22 @@ bool ImageAssets::isEmbedUrl(const QString &url)
     // A remote image or media *file* stays an image/media block; a web page
     // or video host (no recognized media extension) is an embed.
     return kindForExtension(u) == Kind::None;
+}
+
+QString ImageAssets::normalizeEmbedUrl(const QString &input)
+{
+    const QString u = input.trimmed();
+    static const QRegularExpression space(QStringLiteral("\\s"));
+    if (u.isEmpty() || u.contains(space))
+        return QString();
+    if (isRemote(u))
+        return u;
+    if (u.startsWith(QLatin1String("//")))
+        return QStringLiteral("https:") + u;
+    const QString scheme = QUrl(u).scheme();
+    if (!scheme.isEmpty() && !isHostWithPort(u))
+        return QString();   // mailto:, file:, an app scheme — not a web page
+    return QStringLiteral("https://") + u;
 }
 
 QString ImageAssets::buildMarkdown(const QString &path, const QString &alt,

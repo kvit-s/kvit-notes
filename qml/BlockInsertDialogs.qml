@@ -36,25 +36,52 @@ Item {
     // expression, which the content classifier renders as a preview card.
     function insertEmbed(idx) {
         embedInsertDialog.targetIndex = idx
+        embedInsertDialog.editing = false
         embedUrlField.text = ""
         embedInsertDialog.open()
         embedUrlField.forceActiveFocus()
     }
 
+    // Change the URL an existing embed card names (§1.2.14). The same dialog,
+    // seeded with the current URL and selected so typing replaces it; the card
+    // is rewritten in place rather than re-converted, so its stored size
+    // survives the edit.
+    function editEmbed(idx, url) {
+        embedInsertDialog.targetIndex = idx
+        embedInsertDialog.editing = true
+        embedUrlField.text = url
+        embedInsertDialog.open()
+        embedUrlField.forceActiveFocus()
+        embedUrlField.selectAll()
+    }
+
     Dialog {
         id: embedInsertDialog
         objectName: "embedInsertDialog"
-        title: qsTr("Insert web embed")
+        title: editing ? qsTr("Edit web embed") : qsTr("Insert web embed")
         modal: true
         anchors.centerIn: parent
         width: 420
         standardButtons: Dialog.Ok | Dialog.Cancel
         property int targetIndex: -1
+        property bool editing: false
+        // What the typed text will actually be inserted as: a bare host gains
+        // https://, and text that cannot be a web address yields "", which is
+        // what disables OK below.
+        readonly property string resolvedUrl:
+            ImageAssets.normalizeEmbedUrl(embedUrlField.text)
         function commit() {
-            var url = embedUrlField.text.trim()
+            var url = resolvedUrl
             if (url === "" || targetIndex < 0)
                 return
-            BlockModel.convertBlock(targetIndex, Block.Image, "![](" + url + ")")
+            var md = "![](" + url + ")"
+            // updateContent leaves the block's type and attributes alone,
+            // which is what keeps a resized card's width and height; the
+            // insert path has neither to preserve and converts the block.
+            if (editing)
+                BlockModel.updateContent(targetIndex, md)
+            else
+                BlockModel.convertBlock(targetIndex, Block.Image, md)
             var idx = targetIndex
             Qt.callLater(function() {
                 var item = (inserts.listView.itemAtIndex(idx) as BlockDelegateBase)
@@ -62,11 +89,42 @@ Item {
             })
         }
         onAccepted: commit()
-        contentItem: TextField {
-            id: embedUrlField
-            objectName: "embedUrlField"
-            placeholderText: qsTr("Web page or video URL (https://…)")
-            onAccepted: { embedInsertDialog.commit(); embedInsertDialog.close() }
+        // OK stays disabled until the field holds something that can be
+        // fetched, so the dialog cannot leave a block naming an address the
+        // card would only be able to report as broken.
+        onOpened: {
+            var ok = standardButton(Dialog.Ok)
+            if (ok)
+                ok.enabled = Qt.binding(function() {
+                    return embedInsertDialog.resolvedUrl !== ""
+                })
+        }
+        contentItem: Column {
+            spacing: 4
+            TextField {
+                id: embedUrlField
+                objectName: "embedUrlField"
+                width: parent.width
+                placeholderText: qsTr("Web page or video URL (example.com, https://…)")
+                onAccepted: {
+                    if (embedInsertDialog.resolvedUrl === "")
+                        return
+                    embedInsertDialog.commit()
+                    embedInsertDialog.close()
+                }
+            }
+            // Shown only when the typed text is not what gets stored, so the
+            // reader sees the scheme that was added for them.
+            Text {
+                objectName: "embedUrlHint"
+                width: parent.width
+                visible: embedInsertDialog.resolvedUrl !== ""
+                    && embedInsertDialog.resolvedUrl !== embedUrlField.text.trim()
+                text: qsTr("Opens %1").arg(embedInsertDialog.resolvedUrl)
+                elide: Text.ElideMiddle
+                font.pixelSize: 11
+                color: Theme.textFaint
+            }
         }
     }
 

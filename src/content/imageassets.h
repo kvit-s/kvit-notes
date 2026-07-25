@@ -59,6 +59,18 @@ public:
     // the embed service, which knows about the network and a cache.
     Q_INVOKABLE static bool isEmbedUrl(const QString &url);
 
+    // What the reader typed into the embed URL field, turned into a URL the
+    // rest of the pipeline recognizes: a bare host ("cnn.com",
+    // "localhost:8080/wiki") or a protocol-relative "//host/x" gains an
+    // https:// scheme, and an http(s) URL is returned as typed. Returns an
+    // empty string for text that cannot be a web address — blank, containing
+    // whitespace, or carrying a scheme this card cannot fetch (mailto:,
+    // file:). Without this a scheme-less host is not isRemote, so it lands as
+    // an Image block and shows the broken-image placeholder instead of a
+    // card. A host with no dot ("wiki", "jira") is accepted: intranet names
+    // resolve, and refusing them here would be guessing.
+    Q_INVOKABLE static QString normalizeEmbedUrl(const QString &input);
+
     // Build the canonical markdown from parts (width 0 omits the |width
     // suffix; an empty caption omits the title).
     static QString buildMarkdown(const QString &path, const QString &alt,

@@ -39,9 +39,14 @@ BlockDelegateBase {
     // The plus and drag-handle MouseAreas sit over hoverArea and steal its
     // hover; fold their own hover back in so the gutter buttons do not vanish
     // the moment the pointer reaches them (as EditableBlock/MathBlock do).
+    // The card covers hoverArea and, being hover-enabled itself, takes the
+    // hover events rather than passing them down — so the card's own areas
+    // fold in too, or the gutter and the card's buttons would stay hidden for
+    // as long as the pointer is over the card that owns them.
     property bool isHovered: hoverArea.containsMouse
         || plusArea.containsMouse || embedHandleArea.containsMouse
-        || deleteArea.containsMouse
+        || deleteArea.containsMouse || cardArea.containsMouse
+        || editArea.containsMouse
 
     // Configurable embed dimensions (§1.2.14): stored width/height in px.
     readonly property int embedWidth: BlockAttributes.num(attributes, "width", 0)
@@ -116,6 +121,13 @@ BlockDelegateBase {
             if (u === root.embedUrl)
                 root.meta = EmbedMetadata.cachedMetadata(u)
         }
+    }
+
+    // Change the URL this card names. The dialog belongs to the window (it is
+    // the same one the insert flow uses), so the delegate asks for it through
+    // AppActions and hands over the URL it currently shows.
+    function editEmbedUrl() {
+        AppActions.requestEditEmbed(root.index, root.embedUrl)
     }
 
     function openEmbed() {
@@ -237,6 +249,16 @@ BlockDelegateBase {
             }
             if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
                 root.deleteCurrentBlock(); event.accepted = true; return
+            }
+            // Space is what clicking the card does, as on an image block; F2
+            // edits the URL, the same key the diagram and the note list use
+            // for "edit this". Enter stays "new block below", as on every
+            // other non-text block.
+            if (event.key === Qt.Key_Space) {
+                root.openEmbed(); event.accepted = true; return
+            }
+            if (event.key === Qt.Key_F2) {
+                root.editEmbedUrl(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 root.createBlockBelow(); event.accepted = true; return
@@ -445,6 +467,7 @@ BlockDelegateBase {
         }
 
         MouseArea {
+            id: cardArea
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
@@ -452,6 +475,50 @@ BlockDelegateBase {
             onClicked: root.openEmbed()
             // Let modifier-clicks fall through to the selection MouseArea below.
             propagateComposedEvents: true
+        }
+
+        // Edit button (top-right): reopens the URL dialog on this card, so a
+        // mistyped or stale address can be corrected instead of the block
+        // having to be deleted and re-inserted. Declared after the card-wide
+        // MouseArea so the click reaches the button rather than opening the
+        // page. Visible on hover/focus, like the resize handle.
+        //
+        // A word rather than a pencil glyph. The pencil characters are claimed
+        // by the emoji font, which paints them in its own colours over the
+        // theme's, and the card gives no other sign that its URL can be
+        // changed at all. Styled as the card's Load button, the only other
+        // control it shares a surface with.
+        Rectangle {
+            id: editButton
+            objectName: "embedEditButton"
+            width: editLabel.implicitWidth + 16
+            height: editLabel.implicitHeight + 8
+            radius: 4
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 6
+            color: editArea.containsMouse ? Theme.hoverTint
+                                          : Theme.panelBackground
+            border.width: 1
+            border.color: editArea.containsMouse ? Theme.accent : Theme.border
+            opacity: (root.isHovered || root.isFocused) ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+            Text {
+                id: editLabel
+                anchors.centerIn: parent
+                text: qsTr("Edit URL")
+                font.pixelSize: 11
+                color: editArea.containsMouse ? Theme.textPrimary
+                                              : Theme.textMuted
+            }
+            MouseArea {
+                id: editArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.editEmbedUrl()
+            }
         }
 
         // Resize handle (bottom-right): drag to set the card's width and height

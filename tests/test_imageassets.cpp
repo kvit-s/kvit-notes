@@ -207,6 +207,59 @@ private slots:
         QVERIFY(ImageAssets::isEmbedUrl(page));
     }
 
+    // What the embed dialog accepts. A reader typing a host the way they say
+    // it out loud ("cnn.com") must reach the embed card: without a scheme the
+    // URL is not remote, so the block would land as an image and show the
+    // broken-image placeholder.
+    void normalizeEmbedUrl_data()
+    {
+        QTest::addColumn<QString>("typed");
+        QTest::addColumn<QString>("expected");
+        QTest::newRow("bare host")        << "cnn.com" << "https://cnn.com";
+        QTest::newRow("host and path")    << "cnn.com/world"
+                                          << "https://cnn.com/world";
+        QTest::newRow("www")              << "www.cnn.com" << "https://www.cnn.com";
+        QTest::newRow("surrounding space")<< "  cnn.com \t" << "https://cnn.com";
+        QTest::newRow("protocol relative")<< "//cnn.com/x" << "https://cnn.com/x";
+        QTest::newRow("host and port")    << "localhost:8080/wiki"
+                                          << "https://localhost:8080/wiki";
+        QTest::newRow("intranet host")    << "wiki" << "https://wiki";
+        // An address that already names how to fetch it is left alone,
+        // including the uppercase spelling of the scheme.
+        QTest::newRow("https")            << "https://cnn.com/a"
+                                          << "https://cnn.com/a";
+        QTest::newRow("http kept")        << "http://cnn.com" << "http://cnn.com";
+        QTest::newRow("uppercase scheme") << "HTTPS://cnn.com" << "HTTPS://cnn.com";
+        // Nothing an embed card could fetch: the dialog leaves OK disabled
+        // rather than storing a block that can only report itself broken.
+        QTest::newRow("empty")            << "" << "";
+        QTest::newRow("blank")            << "   " << "";
+        QTest::newRow("prose")            << "see the cnn.com story" << "";
+        QTest::newRow("mailto")           << "mailto:a@b.com" << "";
+        QTest::newRow("file")             << "file:///home/a/pic.png" << "";
+    }
+    void normalizeEmbedUrl()
+    {
+        QFETCH(QString, typed);
+        QFETCH(QString, expected);
+        QCOMPARE(ImageAssets::normalizeEmbedUrl(typed), expected);
+    }
+
+    // The normalizer feeds the classifier, so what the dialog stores has to
+    // reach the embed delegate rather than the image one.
+    void normalizedBareHostIsAnEmbed()
+    {
+        const QString url = ImageAssets::normalizeEmbedUrl("cnn.com");
+        QVERIFY(ImageAssets::isEmbedUrl(url));
+        const auto p = ImageAssets::parseLine("![](" + url + ")");
+        QVERIFY(p.valid);
+        QCOMPARE(p.path, url);
+        QVERIFY(ImageAssets::isEmbedUrl(p.path));
+        // A typed host that does name an image file stays an image.
+        QVERIFY(!ImageAssets::isEmbedUrl(
+            ImageAssets::normalizeEmbedUrl("cnn.com/logo.png")));
+    }
+
     void uppercaseSchemeInAnImageExpression()
     {
         const auto p = ImageAssets::parseLine(

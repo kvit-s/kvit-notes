@@ -318,6 +318,7 @@ KvitShell {
         function onBlockHandleMenuRequested(target) { root.openBlockHandleMenu(target) }
         function onInsertImageRequested(index) { root.insertImageIntoBlock(index) }
         function onInsertEmbedRequested(index) { root.insertEmbedIntoBlock(index) }
+        function onEditEmbedRequested(index, url) { root.editEmbedInBlock(index, url) }
         function onInsertTableRequested(index) { root.insertTableIntoBlock(index) }
         function onLightboxRequested(source, alt) { root.openLightbox(source, alt) }
         function onTransientStatusRequested(message) { root.showTransientStatus(message) }
@@ -931,6 +932,7 @@ KvitShell {
 
     function insertImageIntoBlock(idx) { root.blockInserts().insertImage(idx) }
     function insertEmbedIntoBlock(idx) { root.blockInserts().insertEmbed(idx) }
+    function editEmbedInBlock(idx, url) { root.blockInserts().editEmbed(idx, url) }
     function insertTableIntoBlock(idx) { root.blockInserts().insertTable(idx) }
 
     // The folder holding the open file. Two workflows ask for it: a drop
