@@ -26,8 +26,13 @@ EditableBlock {
                 objectName: "ordinalLabel"
                 anchors.right: parent.right
                 anchors.rightMargin: 2
-                y: 2
-                font.pixelSize: 15
+                // Same origin, font and line height as the item's first text
+                // line, so the number sits on its baseline at any size.
+                y: root.contentTextTop
+                font.pixelSize: root.contentFontSize
+                font.family: root.contentFontFamily
+                lineHeight: root.appTypography.lineHeight
+                lineHeightMode: Text.ProportionalHeight
                 color: Theme.textSecondary
                 text: root.ordinal + "."
             }

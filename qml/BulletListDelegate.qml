@@ -23,8 +23,13 @@ EditableBlock {
             Text {
                 objectName: "bulletGlyph"
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: 2
-                font.pixelSize: 15
+                // Same origin, font and line height as the item's first text
+                // line, so the glyph sits on its baseline at any size.
+                y: root.contentTextTop
+                font.pixelSize: root.contentFontSize
+                font.family: root.contentFontFamily
+                lineHeight: root.appTypography.lineHeight
+                lineHeightMode: Text.ProportionalHeight
                 color: Theme.textSecondary
                 text: {
                     switch (root.indentLevel % 3) {

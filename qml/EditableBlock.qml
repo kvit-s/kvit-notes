@@ -143,6 +143,29 @@ BlockDelegateBase {
     readonly property real textAreaY: delegate.codeChrome ? delegate.codeHeaderHeight
         : (delegate.calloutMode ? delegate.calloutHeaderHeight : 0)
 
+    // Where the first line of the block's text begins, measured from the top
+    // of the leading-chrome loader. The loader and the content column are
+    // anchored to the same top with the same margin, so a marker placed at
+    // this offset starts its own line box exactly where the text starts its
+    // first one — and since the markers carry the content font and line
+    // height, that puts them on the same baseline at any font size. Pinning
+    // them near the block top instead left every bullet, ordinal and
+    // checkbox riding above its own text by the editor's top padding.
+    readonly property real contentTextTop:
+        delegate.textAreaY + textArea.topPadding
+    // The first line's ascent in the content font: the band from the top of
+    // the line to the baseline, which is where the text a reader sees
+    // actually sits. The todo checkbox centres on this rather than on the
+    // full line box, whose descender space would drag it low.
+    readonly property real contentAscent: contentMetrics.ascent
+
+    FontMetrics {
+        id: contentMetrics
+        font.family: delegate.contentFontFamily
+        font.pixelSize: delegate.contentFontSize
+        font.weight: delegate.contentFontWeight
+    }
+
     // ---- Code-block chrome ----
     // Set by CodeBlockDelegate. Turns on the header (language selector +
     // copy button), the optional line-number gutter, and horizontal

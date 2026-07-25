@@ -56,11 +56,17 @@ EditableBlock {
 
     leadingChrome: Component {
         Item {
-            implicitWidth: 20
+            implicitWidth: Math.max(20, checkbox.width + 4)
             Rectangle {
                 id: checkbox
                 objectName: "todoCheckbox"
-                width: 16; height: 16; y: 3
+                // Sized from the content font and centred on the first text
+                // line, rather than a fixed box pinned near the block top —
+                // which left it riding above its own label.
+                width: Math.max(14, Math.round(root.contentFontSize * 1.05))
+                height: width
+                y: root.contentTextTop
+                   + Math.round((root.contentAscent - height) / 2)
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: 3
                 color: root.checked ? Theme.accent : "transparent"
@@ -69,7 +75,9 @@ EditableBlock {
                 Text {
                     anchors.centerIn: parent
                     visible: root.checked
-                    text: "✓"; color: Theme.onAccent; font.pixelSize: 11; font.bold: true
+                    text: "✓"; color: Theme.onAccent
+                    font.pixelSize: Math.round(checkbox.height * 0.7)
+                    font.bold: true
                 }
                 MouseArea {
                     anchors.fill: parent; anchors.margins: -4

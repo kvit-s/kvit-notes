@@ -3047,6 +3047,79 @@ Item {
                     "Model content must survive pooling passes")
         }
 
+        // A list marker sits on its text's baseline, at the default content
+        // font size and at a larger one. Before this was pinned, every
+        // bullet, ordinal and checkbox rode the editor's top padding above
+        // its own line, and the gap widened as the font grew.
+        function test_8m_listMarkersShareTheTextBaseline() {
+            if (isHeadless) {
+                skip("Layout tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "leading paragraph")
+            BlockModel.insertBlock(1, 4, "bulleted item")   // BulletList
+            BlockModel.insertBlock(2, 5, "numbered item")   // NumberedList
+            BlockModel.insertBlock(3, 6, "todo item")       // Todo
+            wait(200)
+
+            // Baseline of an item, in its delegate's coordinates. Text and
+            // TextEdit both publish their first line's baseline as
+            // baselineOffset, so this compares like with like.
+            function baselineIn(delegateItem, child) {
+                return child.mapToItem(delegateItem, 0, child.baselineOffset).y
+            }
+
+            function checkRow(index, markerName) {
+                var row = findBlockDelegate(index)
+                var marker = findChild(row, markerName)
+                var text = findTextArea(row)
+                verify(marker !== null && text !== null,
+                       "Row " + index + " has both marker and text")
+                var delta = Math.abs(baselineIn(row, marker)
+                                     - baselineIn(row, text))
+                verify(delta <= 1,
+                       markerName + " sits on the text baseline (off by "
+                       + delta + "px)")
+            }
+
+            checkRow(1, "bulletGlyph")
+            checkRow(2, "ordinalLabel")
+
+            // The checkbox has no baseline of its own: it centres on the
+            // band between the line top and the baseline, which is where the
+            // visible text sits.
+            function checkboxOffset() {
+                var row = findBlockDelegate(3)
+                var box = findChild(row, "todoCheckbox")
+                var text = findTextArea(row)
+                var lineTop = text.mapToItem(row, 0, text.topPadding).y
+                var boxMid = box.mapToItem(row, 0, box.height / 2).y
+                return Math.abs(boxMid - (lineTop + baselineIn(row, text)) / 2)
+            }
+            verify(checkboxOffset() <= 2,
+                   "The todo checkbox centres on its first text line (off by "
+                   + checkboxOffset() + "px)")
+
+            // Raising the content font size must not reopen the gap
+            var originalSize = Typography.baseSize
+            Typography.baseSize = 22
+            wait(250)
+            checkRow(1, "bulletGlyph")
+            checkRow(2, "ordinalLabel")
+            verify(checkboxOffset() <= 3,
+                   "The checkbox stays centred at a larger font size (off by "
+                   + checkboxOffset() + "px)")
+            // Put the size back and let every row finish relaying out before
+            // the next test types into one: a resize in flight can cost a
+            // keystroke.
+            Typography.baseSize = originalSize
+            tryCompare(Typography, "baseSize", originalSize, 1000)
+            tryCompare(findTextArea(findBlockDelegate(0)).font, "pixelSize",
+                       originalSize, 1000)
+            wait(300)
+        }
+
         // ==================================================================
         // Keyboard behavior
         // ==================================================================
