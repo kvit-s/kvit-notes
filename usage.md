@@ -150,7 +150,9 @@ formatting bar that appears over a selection, or the text right-click menu.
 inserting, or from the link under the cursor when editing, with a button to remove the link
 while keeping its text. While a block is being edited, a plain click places the cursor;
 **Ctrl+Click** always opens the link. When a block is not focused, a plain click on a link
-opens it, matching the reading state.
+opens it, matching the reading state. An external link goes to whatever browser your desktop
+registers, and on a system with none registered (a bare WSL session, say) the status bar says
+so and puts the address on the clipboard.
 
 ## Block types
 

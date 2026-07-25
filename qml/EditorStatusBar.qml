@@ -97,7 +97,15 @@ Rectangle {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: Qt.openUrlExternally(UpdateChecker.releaseUrl)
+                // Through the window's opener rather than straight to the
+                // desktop, so a machine with no browser says so here too
+                // instead of the notice appearing to do nothing.
+                onClicked: {
+                    if (statusBar.appWindow)
+                        statusBar.appWindow.openLink(UpdateChecker.releaseUrl)
+                    else
+                        Qt.openUrlExternally(UpdateChecker.releaseUrl)
+                }
             }
         }
 
