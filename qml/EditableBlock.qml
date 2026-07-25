@@ -2638,6 +2638,12 @@ BlockDelegateBase {
                 id: inlineMathOverlayComponent
                 InlineMathOverlay {
                     anchors.fill: parent
+                    // The equations are painted over the text rather than by
+                    // it, so hiding the text is not enough: a folded callout
+                    // left its formulas floating over the collapsed header.
+                    // Kept alive rather than unloaded, so unfolding puts them
+                    // back without re-measuring the line they sit on.
+                    visible: !delegate.calloutFolded
                     editor: textArea
                     editorFont: textArea.font
                     boxes: delegate.inlineMathBoxes

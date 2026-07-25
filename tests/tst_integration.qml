@@ -7603,6 +7603,45 @@ Item {
                       1000, "Ctrl+Enter folds the callout")
         }
 
+        // Folding a callout hides its equations with the rest of the body.
+        // They are painted over the text rather than by it, so hiding the
+        // text alone left them floating over the collapsed header.
+        function test_zw3_foldedCalloutHidesItsMath() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "> [!info] Heads up\n> The bound $x^2$ holds here.")
+            wait(400)
+
+            var callout = findBlockDelegate(0)
+            verify(callout !== null, "the callout exists")
+            compare(BlockModel.blockAt(0).blockType, 12)   // Callout
+            tryVerify(function() { return callout.inlineMathBoxes.length === 1 },
+                      4000, "the equation is reported")
+            var overlay = findChild(callout, "mathOverlayLayer")
+            verify(overlay !== null, "the overlay layer is present")
+            tryCompare(overlay, "visible", true, 1000)
+
+            // Fold it: the body goes, and so must the equation
+            BlockModel.setChecked(0, true)
+            tryCompare(overlay, "visible", false, 1000,
+                       "a folded callout hides its equations")
+            var body = findTextArea(callout)
+            if (body)
+                compare(body.visible, false, "the body text is hidden too")
+
+            // Unfolding puts it back, in place
+            BlockModel.setChecked(0, false)
+            tryCompare(overlay, "visible", true, 1000,
+                       "unfolding brings the equations back")
+            var img = findChild(callout, "inlineMathImage")
+            verify(img !== null, "the equation image survives the fold")
+            tryVerify(function() { return img.status === Image.Ready }, 4000,
+                      "and still renders")
+        }
+
         // The callout header's type picker: every kind the renderer knows is
         // offered, and choosing one changes the kind without disturbing the
         // body, title, fold state or custom colour.
