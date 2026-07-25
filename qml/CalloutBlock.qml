@@ -8,13 +8,17 @@ import Kvit 1.0
 // block: EditableBlock renders the multi-paragraph inline-formatted body,
 // and calloutMode adds the typed header (icon + editable title + fold
 // chevron) over a colored panel. The type reuses `language`, the fold state
-// `checked`. Enter adds a paragraph line within the body (one block, like a
-// quote), and a trailing empty line exits below the callout.
+// `checked`.
+//
+// The keyboard is the same here as in every other text block: Enter leaves
+// for a new block (splitting the body when the caret is inside it), and
+// Shift+Enter adds a line to the body. Enter used to add the line itself,
+// which left the body with no key that ends it — a callout at the foot of a
+// note could not be typed out of at all.
 EditableBlock {
     id: root
 
     calloutMode: true
-    enterInsertsNewline: true
     placeholder: qsTr("Callout text…")
     contentColor: Theme.textPrimary
 }

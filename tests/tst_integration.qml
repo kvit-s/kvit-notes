@@ -63,6 +63,12 @@ Item {
                 p = p.parent
             if (p && typeof p.activateEditor === "function")
                 p.activateEditor()
+            // Item focus is not enough for synthesized keys: they go to the
+            // active window, and on a real desktop session this one can lose
+            // activation mid-run, which reads later as "the keystroke did
+            // nothing" in whichever test is unlucky.
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
             textArea.forceActiveFocus()
             tryCompare(textArea, "activeFocus", true, 1000)
         }
@@ -7601,6 +7607,57 @@ Item {
             keyClick(Qt.Key_Return, Qt.ControlModifier)
             tryVerify(function() { return BlockModel.blockAt(0).checked },
                       1000, "Ctrl+Enter folds the callout")
+        }
+
+        // In a callout the keyboard reads like every other text block: Enter
+        // leaves for a new block, Shift+Enter adds a line to the body.
+        function test_zw4_calloutEnterLeavesShiftEnterAddsLines() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.convertBlock(0, 12, "first line", false, "info",
+                                    "Title")               // Callout
+            wait(200)
+
+            var body = findTextArea(findBlockDelegate(0))
+            ensureFocus(body)
+            body.cursorPosition = body.text.length
+
+            // Shift+Enter extends the body
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeString("second line")
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "first line\nsecond line"
+            }, 1000, "Shift+Enter adds a line to the callout body")
+            compare(BlockModel.count, 1, "and starts no new block")
+
+            // Enter at the end of the body leaves the callout
+            keyClick(Qt.Key_Return)
+            tryCompare(BlockModel, "count", 2)
+            compare(BlockModel.blockAt(0).blockType, 12, "the callout stays")
+            compare(BlockModel.getContent(0), "first line\nsecond line",
+                    "with its body intact")
+            compare(BlockModel.blockAt(1).blockType, 0,
+                    "and a paragraph follows it")
+            var below = findTextArea(findBlockDelegate(1))
+            tryVerify(function() { return below.activeFocus }, 1000,
+                      "the caret lands in the new block")
+
+            // Enter inside the body splits it into two callouts of the kind
+            var again = findTextArea(findBlockDelegate(0))
+            ensureFocus(again)
+            again.cursorPosition = 5          // "first| line"
+            keyClick(Qt.Key_Return)
+            tryCompare(BlockModel, "count", 3)
+            compare(BlockModel.blockAt(0).blockType, 12)
+            compare(BlockModel.getContent(0), "first")
+            compare(BlockModel.blockAt(1).blockType, 12,
+                    "the tail is a callout too")
+            compare(BlockModel.blockAt(1).language, "info",
+                    "of the same kind")
+            compare(BlockModel.getContent(1), " line\nsecond line")
         }
 
         // Folding a callout hides its equations with the rest of the body.

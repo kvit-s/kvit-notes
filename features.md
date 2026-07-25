@@ -113,6 +113,8 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Icon associated with each type
 - The type is chosen from the header: the icon opens a list of the kinds, and
   picking one keeps the body, title, fold state and any custom colour
+- Enter leaves the callout for a new block, splitting the body when the caret
+  is inside it; Shift+Enter adds a line to the body; Ctrl+Enter folds it
 - Customizable background color
 - Can contain multiple paragraphs and other inline content
 
