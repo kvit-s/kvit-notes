@@ -52,6 +52,19 @@ QString esc(const QString &s)
     return out;
 }
 
+// The same escaping, with a block's line breaks carried into the markup. A
+// raw newline inside <p> or <li> collapses to a space in a browser and in
+// QTextDocument alike, so a break the editor shows — a hard-wrapped
+// paragraph, a Shift+Enter, a wrapped list item — would vanish from the
+// export without this. Only inline prose runs through here; a code block's
+// newlines stay literal inside its <pre>.
+QString escFlowing(const QString &s)
+{
+    QString out = esc(s);
+    out.replace(QLatin1Char('\n'), QStringLiteral("<br>"));
+    return out;
+}
+
 // Pinned MathJax build for HTML export. Pinned exactly —
 // exports are long-lived documents and must not change rendering when the
 // CDN publishes a new minor. tex-svg renders self-measuring SVG and prints
@@ -259,12 +272,12 @@ QString DocumentExporter::renderInline(const QString &md, bool mathJax,
             if (span.start < lo || span.end > hi)
                 continue;
             if (pos < span.start)
-                out += esc(md.mid(pos, span.start - pos));
+                out += escFlowing(md.mid(pos, span.start - pos));
             out += renderOne(span);
             pos = span.end;
         }
         if (pos < hi)
-            out += esc(md.mid(pos, hi - pos));
+            out += escFlowing(md.mid(pos, hi - pos));
         return out;
     };
 

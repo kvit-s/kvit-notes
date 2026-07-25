@@ -30,6 +30,7 @@ private slots:
     void testBulletAndNumberedLists();
     void testTodoCheckboxes();
     void testQuote();
+    void testLineBreaksExportAsBreaks();
     void testDivider();
     void testCodeBlockHighlighted();
     void testCharacterDiagramExports();
@@ -146,6 +147,31 @@ void TestDocumentExporter::testQuote()
 {
     const QString html = m_exporter.htmlForMarkdown("> quoted");
     QVERIFY(html.contains("<blockquote>quoted</blockquote>"));
+}
+
+// A line break inside a block is a break the reader sees in the editor, so
+// the export has to carry it: a bare newline inside <p> or <li> collapses to
+// a space in a browser and in QTextDocument, which is what prints the PDF.
+void TestDocumentExporter::testLineBreaksExportAsBreaks()
+{
+    const QString para = m_exporter.htmlForMarkdown("wrapped\nline");
+    QVERIFY(para.contains("<p>wrapped<br>line</p>"));
+
+    const QString item = m_exporter.htmlForMarkdown("- one\n  two");
+    QVERIFY(item.contains("<li>one<br>two</li>"));
+
+    const QString quote = m_exporter.htmlForMarkdown("> a\n> b");
+    QVERIFY(quote.contains("<blockquote>a<br>b</blockquote>"));
+
+    // Formatting around a break still renders as formatting.
+    const QString bold = m_exporter.htmlForMarkdown("**bold**\nafter");
+    QVERIFY(bold.contains("<strong>bold</strong><br>after"));
+
+    // A code block's newlines are the code: they stay literal in its <pre>
+    // rather than turning into markup.
+    const QString code = m_exporter.htmlForMarkdown("```\nfirst\nsecond\n```");
+    QVERIFY(code.contains("first\nsecond"));
+    QVERIFY(!code.contains("first<br>second"));
 }
 
 void TestDocumentExporter::testDivider()
