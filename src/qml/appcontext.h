@@ -60,6 +60,7 @@
 #include "typography.h"
 #include "undostack.h"
 #include "updatechecker.h"
+#include "urllauncher.h"
 
 class QQmlContext;
 class QQmlEngine;
@@ -174,6 +175,10 @@ public:
     AppActions *appActions() { return &m_appActions; }
     CollectionSearch *collectionSearch() { return &m_collectionSearch; }
     CollectionSearchIndex *searchIndex() { return &m_searchIndex; }
+    // Reached by the Qt Quick test harness, which points it at nothing so a
+    // click on a link during the suite cannot open a browser on the desk of
+    // whoever is running it.
+    UrlLauncher *urlLauncher() { return &m_urlLauncher; }
     // The process-global services, forwarded from the shared ProcessServices
     // this context is wired against. Same surface as before the split, so the
     // launcher and any premium main() compile unchanged.
@@ -265,6 +270,9 @@ private:
     NavigationHistory m_navigationHistory;
     QuickSwitcherModel m_quickSwitcherModel;
     QueryTools m_queryTools;
+    // Per window rather than per process: it answers a click with a signal,
+    // and a shared one would announce a failed link in every open window.
+    UrlLauncher m_urlLauncher;
 };
 
 #endif // APPCONTEXT_H

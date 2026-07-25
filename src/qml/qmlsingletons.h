@@ -55,6 +55,7 @@
 #include "typography.h"
 #include "undostack.h"
 #include "updatechecker.h"
+#include "urllauncher.h"
 
 // Which services QML reaches as `Kvit` module singletons, and how each one
 // finds the composition it belongs to.
@@ -150,6 +151,7 @@
     X(DocumentManager, DocumentManager)       \
     X(NoteCollection, NoteCollection)         \
     X(NoteListModel, NoteListModel)           \
+    X(UrlLauncher, UrlLauncher)               \
     X(AppActions, AppActions)
 
 #define KVIT_QML_SINGLETONS(X)                \

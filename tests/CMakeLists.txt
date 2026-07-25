@@ -307,6 +307,12 @@ qt_add_executable(test_documentimporter test_documentimporter.cpp)
 target_link_libraries(test_documentimporter PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentImporterTests COMMAND test_documentimporter)
 
+# UrlLauncher tests (which opener the desktop answers a link with, and what
+# happens when none of them can)
+qt_add_executable(test_urllauncher test_urllauncher.cpp)
+target_link_libraries(test_urllauncher PRIVATE kvit-core Qt6::Test)
+add_test(NAME UrlLauncherTests COMMAND test_urllauncher)
+
 # EmbedMetadata tests (OpenGraph parse + fetch seam + cache)
 qt_add_executable(test_embedmetadata test_embedmetadata.cpp)
 target_link_libraries(test_embedmetadata PRIVATE kvit-core Qt6::Test)

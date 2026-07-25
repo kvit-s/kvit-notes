@@ -123,6 +123,12 @@ public slots:
         m_context = new AppContext(options, engine);
         // Hermetic embeds: canned OpenGraph HTML instead of the network.
         m_context->setEmbedFetcher(std::make_unique<FakeEmbedFetcher>());
+        // A desktop with nothing to open a URL with. The suite clicks links
+        // and embed cards, and every one of those would otherwise launch a
+        // browser tab on the desk of whoever is running it. Emptied rather
+        // than stubbed, so the tests also exercise what the shell does when a
+        // link cannot be opened.
+        m_context->urlLauncher()->setOpenersForTests({});
         m_context->openSettings(
             m_collectionDir.filePath(QStringLiteral("app-settings.json")));
         m_context->installContextProperties(engine);

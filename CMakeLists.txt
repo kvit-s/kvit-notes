@@ -299,6 +299,7 @@ add_library(kvit-platform STATIC
     src/platform/theme.cpp
     src/platform/typography.cpp
     src/platform/updatechecker.cpp
+    src/platform/urllauncher.cpp
     src/platform/embedfetcher.h
 )
 target_link_libraries(kvit-platform PUBLIC kvit-domain Qt6::Network)

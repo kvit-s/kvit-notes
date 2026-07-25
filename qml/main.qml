@@ -537,16 +537,18 @@ KvitShell {
         id: linkOpener
         property bool openExternally: true
         signal activated(string url)
-        // The last target handed to Qt.openUrlExternally(), so a test can
-        // observe that the browser branch really was reached rather than
-        // only that the activation signal fired.
+        // The last target handed to the desktop, so a test can observe that
+        // the browser branch really was reached rather than only that the
+        // activation signal fired.
         property string lastExternalTarget: ""
-        // Test seam for the branch below where the desktop has no URL
-        // handler. Reaching it otherwise would take a machine with no
-        // browser installed, and on any machine that does have one the test
-        // would launch it. Set, the handoff is skipped rather than faked, so
-        // nothing is asked of the desktop at all.
-        property bool simulateNoBrowser: false
+        // What a click that opened nothing leaves behind. The address goes to
+        // the clipboard, so the answer to "it did not open" is a paste away
+        // rather than a retype.
+        function reportNoBrowser(target) {
+            Clipboard.text = target
+            root.showTransientStatus(
+                qsTr("No web browser available. Link copied to the clipboard."))
+        }
         function activate(url) {
             // The target arrives as a plain string (a raw href or wiki-note
             // name); it is deliberately not a QUrl, whose string form would
@@ -581,19 +583,22 @@ KvitShell {
             linkOpener.lastExternalTarget = target
             if (!openExternally)
                 return
-            // Qt hands the address to whatever the desktop registered as its
-            // URL handler, and answers whether it found one. When it did not,
-            // the click did nothing at all and said nothing either: the only
-            // trace was a line on the terminal, which a reader running the
-            // app from a launcher never sees. A WSL session with no browser
-            // installed is the ordinary way to arrive here. The address goes
-            // to the clipboard, so the answer to "it did not open" is a paste
-            // away rather than a retype.
-            if (linkOpener.simulateNoBrowser || !Qt.openUrlExternally(target)) {
-                Clipboard.text = target
-                root.showTransientStatus(
-                    qsTr("No web browser available. Link copied to the clipboard."))
-            }
+            // Through UrlLauncher rather than Qt.openUrlExternally, which on
+            // Unix answers true whether or not anything opened (see
+            // urllauncher.h). The verdict arrives as a signal, because
+            // establishing it means running an opener and watching it.
+            UrlLauncher.open(target)
+        }
+    }
+    Connections {
+        target: UrlLauncher
+        function onFailed(url) { linkOpener.reportNoBrowser(url) }
+        // A scheme this application does not hand to the desktop at all. Said
+        // plainly, because from the reader's side it is the same click that
+        // did nothing, and the reason is different.
+        function onRefused(url) {
+            root.showTransientStatus(
+                qsTr("This kind of link is not opened: ") + url)
         }
     }
 

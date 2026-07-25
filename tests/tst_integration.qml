@@ -8639,33 +8639,34 @@ Item {
             appLoader.item.linkOpener.openExternally = true
         }
 
-        // A machine with no browser registered: the desktop handoff answers
-        // that it found no handler, and the click has to say so rather than
-        // doing nothing visible. A WSL session without a browser is the
-        // ordinary way to meet this.
+        // A machine with no way to open a URL: the click has to say so rather
+        // than doing nothing visible. The harness gives this window's
+        // UrlLauncher an empty opener list (testsetup.h), which is the state a
+        // WSL session with no browser installed is in.
         function test_zu0_externalLinkWithNoBrowserSaysSo() {
             var opener = appLoader.item.linkOpener
             opener.openExternally = true
-            opener.simulateNoBrowser = true
             Clipboard.text = "something else"
 
             opener.activate("https://news.ycombinator.com")
             compare(opener.lastExternalTarget, "https://news.ycombinator.com",
                     "the link never reached the desktop handoff")
             var status = findChild(appLoader.item, "transientStatusText")
-            verify(status.text.indexOf("No web browser") !== -1,
-                   "a failed handoff left no message: " + status.text)
+            tryVerify(function() {
+                return status.text.indexOf("No web browser") !== -1
+            }, 2000, "a link that opened nothing left no message: " + status.text)
             compare(Clipboard.text, "https://news.ycombinator.com",
                     "the address the reader cannot open is not on the clipboard")
 
             // The ordinary path stays silent and leaves the clipboard alone:
             // opening a link is not something to announce. Checked with the
-            // handoff switched off entirely, so no browser is launched here.
+            // handoff switched off entirely, since a desktop that can open
+            // one is exactly what a test must not ask for.
             appLoader.item.transientStatus = ""
             Clipboard.text = "untouched"
-            opener.simulateNoBrowser = false
             opener.openExternally = false
             opener.activate("https://example.com")
+            wait(200)
             compare(status.text, "")
             compare(Clipboard.text, "untouched")
 
