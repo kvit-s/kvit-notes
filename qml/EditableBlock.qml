@@ -89,6 +89,14 @@ BlockDelegateBase {
                                       || blockType === Block.NumberedList
                                       || blockType === Block.Todo
     readonly property bool isStructural: isListFamily || blockType === Block.Quote
+    // The types whose markdown can hold a line break inside one block, which
+    // is what Shift+Enter writes: a paragraph stores it raw, a quote and a
+    // callout carry every line behind their own "> ", and a list item takes a
+    // continuation line at the content column. A heading is a single markdown
+    // line by definition, so Shift+Enter there stays the ordinary Enter.
+    readonly property bool acceptsSoftBreak:
+        blockType === Block.Paragraph || blockType === Block.Quote
+        || blockType === Block.Callout || isListFamily
     // Code blocks: a light panel behind the text
     property bool showPanel: false
     property string placeholder: ""
@@ -2381,6 +2389,30 @@ BlockDelegateBase {
                     if ((event.modifiers & Qt.ControlModifier)
                         && delegate.calloutMode) {
                         delegate.toggleCalloutFold()
+                        event.accepted = true
+                        return
+                    }
+
+                    // Shift+Enter is a line break inside the block rather than
+                    // a new block (features.md §1.2.1). Code blocks are not in
+                    // acceptsSoftBreak: plain Enter already breaks a line
+                    // there, and the branch below owns the exit rule.
+                    if ((event.modifiers & Qt.ShiftModifier)
+                        && delegate.acceptsSoftBreak) {
+                        if (selectionEnd > selectionStart)
+                            remove(selectionStart, selectionEnd)
+                        var breakPos = cursorPosition
+                        // A list item is a marker line plus continuation
+                        // lines, a shape with nowhere to put an empty line: it
+                        // would reload as a second block. Refuse the break
+                        // rather than write markdown that does not come back.
+                        var emptyLine = breakPos === 0
+                            || text.charAt(breakPos - 1) === "\n"
+                            || text.charAt(breakPos) === "\n"
+                        if (!(delegate.isListFamily && emptyLine)) {
+                            insert(breakPos, "\n")
+                            cursorPosition = breakPos + 1
+                        }
                         event.accepted = true
                         return
                     }

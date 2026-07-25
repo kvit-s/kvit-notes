@@ -3116,6 +3116,69 @@ Item {
                       "One undo should restore the list item")
         }
 
+        // Shift+Enter breaks the line inside the block instead of starting a
+        // new one, for the types whose markdown can carry the break.
+        function test_91b_shiftEnterInsertsLineBreak() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+
+            // Paragraph: the break lands in the block, no block is added
+            var para = findTextArea(findBlockDelegate(0))
+            ensureFocus(para)
+            typeString("first")
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeString("second")
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "first\nsecond"
+            }, 1000, "Shift+Enter breaks the line inside the paragraph")
+            compare(BlockModel.count, 1, "and starts no new block")
+
+            // Quote keeps its type and takes the break too
+            BlockModel.insertBlock(1, 7, "quoted")   // Quote
+            wait(100)
+            var quote = findTextArea(findBlockDelegate(1))
+            ensureFocus(quote)
+            quote.cursorPosition = quote.text.length
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeString("more")
+            tryVerify(function() {
+                return BlockModel.getContent(1) === "quoted\nmore"
+                       && BlockModel.blockAt(1).blockType === 7
+            }, 1000, "A quote takes a line break and stays a quote")
+            compare(BlockModel.count, 2)
+
+            // A list item takes one break (it serializes as a continuation
+            // line) but refuses a second, which would be an empty line with
+            // nowhere to live in the markdown.
+            BlockModel.insertBlock(2, 4, "item")     // BulletList
+            wait(100)
+            var bullet = findTextArea(findBlockDelegate(2))
+            ensureFocus(bullet)
+            bullet.cursorPosition = bullet.text.length
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeString("wrapped")
+            tryVerify(function() {
+                return BlockModel.getContent(2) === "item\nwrapped"
+            }, 1000, "One break, and the repeat is refused")
+            compare(BlockModel.count, 3, "still no new block")
+
+            // A heading is one markdown line, so Shift+Enter stays the
+            // ordinary Enter there
+            BlockModel.insertBlock(3, 1, "Title")    // Heading1
+            wait(100)
+            var heading = findTextArea(findBlockDelegate(3))
+            ensureFocus(heading)
+            heading.cursorPosition = heading.text.length
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            tryCompare(BlockModel, "count", 5)
+            compare(BlockModel.getContent(3), "Title",
+                    "The heading keeps its single line")
+        }
+
         function test_92_backspaceLadder() {
             if (isHeadless) {
                 skip("Keyboard tests require display")
