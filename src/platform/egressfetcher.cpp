@@ -49,6 +49,9 @@ struct JobState {
     int hops = 0;
     bool finished = false;
     bool holdsSlot = false;
+    // The cap stopped this body mid-transfer. What that means for the result
+    // is the purpose's call (see truncationIsUsable).
+    bool truncated = false;
     QByteArray body;
     QPointer<QNetworkReply> reply;
     QPointer<QTimer> deadline;
@@ -94,6 +97,11 @@ qint64 EgressFetcher::maxBytesFor(Purpose purpose)
         return 256 * 1024;        // one release object
     }
     return 256 * 1024;
+}
+
+bool EgressFetcher::truncationIsUsable(Purpose purpose)
+{
+    return purpose == Purpose::EmbedPreview;
 }
 
 int EgressFetcher::timeoutMsFor(Purpose purpose)
@@ -263,7 +271,13 @@ void EgressFetcher::startHop(const std::shared_ptr<Job> &job, const QUrl &url)
     }
     // The update endpoint is consented to by the Settings toggle that turns
     // the check on; a URL that came out of a note needs its origin approved.
-    if (job->purpose != Purpose::UpdateCheck && !m_policy->isAllowed(url.toString())) {
+    // A redirect the approved server itself answered with may also move
+    // between that host and its own subdomains, which is how most sites send
+    // a visitor from the naked domain to www — an approval that named the
+    // site the reader meant would otherwise fail on the first hop.
+    if (job->purpose != Purpose::UpdateCheck && !m_policy->isAllowed(url.toString())
+        && !(job->hops > 0
+             && EgressPolicy::isSameSiteRedirect(job->initialOrigin, url.toString()))) {
         finish(job, false, QByteArray(), QString());
         return;
     }
@@ -364,6 +378,17 @@ void EgressFetcher::issue(const std::shared_ptr<Job> &job, const QUrl &url)
     if (url.port(-1) != -1)
         authority += QLatin1Char(':') + QString::number(url.port());
     req.setRawHeader(QByteArrayLiteral("Host"), authority.toUtf8());
+    // HTTP/1.1, because that is the version in which the Host header above is
+    // what the server reads. HTTP/2 ignores it and builds the :authority
+    // pseudo-header from the URL, and the URL here names the pinned address
+    // rather than the host -- so the request arrives asking an address for
+    // itself while the TLS handshake asked for a name. Fastly answers that
+    // with 421 Misdirected Request and Cloudflare with 403, which between
+    // them is most of the web: before this, an embed preview of any
+    // CDN-fronted site failed no matter what else was fixed. Dropping to
+    // HTTP/1.1 costs this app nothing -- it fetches one small document at a
+    // time, never a page's worth of subresources over one connection.
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::ManualRedirectPolicy);
     if (job->purpose == Purpose::UpdateCheck) {
@@ -398,13 +423,20 @@ void EgressFetcher::issue(const std::shared_ptr<Job> &job, const QUrl &url)
     // A declared length over the cap is refused before the body is read; the
     // running total below is what actually enforces it, because
     // Content-Length is a claim by the server and may be absent or a lie.
-    QObject::connect(reply, &QNetworkReply::metaDataChanged, reply, [reply, cap]() {
-        bool ok = false;
-        const qint64 declared =
-            reply->header(QNetworkRequest::ContentLengthHeader).toLongLong(&ok);
-        if (ok && declared > cap)
-            reply->abort();
-    });
+    // Skipped where a truncated body is still usable: there the cap is a
+    // reading limit rather than a reason to refuse, and a page announcing
+    // five megabytes still carries its <head> in the first few hundred
+    // kilobytes. Memory stays bounded by the read buffer and the running
+    // total either way.
+    if (!truncationIsUsable(job->purpose)) {
+        QObject::connect(reply, &QNetworkReply::metaDataChanged, reply, [reply, cap]() {
+            bool ok = false;
+            const qint64 declared =
+                reply->header(QNetworkRequest::ContentLengthHeader).toLongLong(&ok);
+            if (ok && declared > cap)
+                reply->abort();
+        });
+    }
 
     QObject::connect(reply, &QNetworkReply::readyRead, reply, [this, reply, job, cap]() {
         const QByteArray chunk = reply->read(cap + 1 - job->received);
@@ -437,8 +469,10 @@ void EgressFetcher::issue(const std::shared_ptr<Job> &job, const QUrl &url)
             m_peakBufferedBytes = qMax(m_peakBufferedBytes,
                                        qint64(job->body.size()));
         }
-        if (job->received > cap)
+        if (job->received > cap) {
+            job->truncated = true;
             reply->abort();   // stop the transfer, do not buffer the rest
+        }
     });
 
     QObject::connect(reply, &QNetworkReply::finished, reply,
@@ -467,7 +501,17 @@ void EgressFetcher::issue(const std::shared_ptr<Job> &job, const QUrl &url)
             return;
         }
 
-        if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
+        // A body this fetcher cut off at the cap on purpose. The abort is how
+        // the cap is enforced, so the reply reports a cancelled operation
+        // here even though the response itself was sound: the status and the
+        // content type arrived with the headers, ahead of the body, and are
+        // still checked below. What is skipped is reading the cancellation as
+        // a failure and refusing the job for the size that caused it.
+        const bool keepTruncated =
+            job->truncated && truncationIsUsable(job->purpose);
+
+        if (!keepTruncated
+            && (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300)) {
             // A name with several answers may have a dead one first --
             // commonly an IPv6 address on a host with no IPv6 route. Every
             // answer was validated before the first connection, so trying the
@@ -483,9 +527,18 @@ void EgressFetcher::issue(const std::shared_ptr<Job> &job, const QUrl &url)
             finish(job, false, QByteArray(), QString());
             return;
         }
-        if (job->received > maxBytesFor(job->purpose)) {
+        if (keepTruncated && (status < 200 || status >= 300)) {
             finish(job, false, QByteArray(), QString());
             return;
+        }
+        if (job->received > maxBytesFor(job->purpose)) {
+            if (!keepTruncated) {
+                finish(job, false, QByteArray(), QString());
+                return;
+            }
+            // The reader gets the cap's worth, never the byte past it that
+            // the running total needed in order to notice.
+            job->body.truncate(qsizetype(maxBytesFor(job->purpose)));
         }
         // A response of the wrong type is not what was asked for; refusing it
         // keeps the parsers off attacker-chosen bytes. An absent type is

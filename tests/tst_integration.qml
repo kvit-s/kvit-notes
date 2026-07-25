@@ -9236,6 +9236,48 @@ Item {
             verify(UndoStack.count > 0, "the edit is undoable")
         }
 
+        // A preview that failed is not written off for good: the card says so
+        // and offers to ask again, which drops the remembered failure and
+        // re-requests. The test fetcher refuses this host once and answers
+        // afterwards, which is what a site that was briefly down does.
+        function test_zzh3_failedPreviewCanBeRetried() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            EgressPolicy.forgetAllOrigins()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "![](https://unreachable.test/x)")
+            wait(300)
+
+            var deleg = findBlockDelegate(0)
+            verify(deleg !== null && findChild(deleg, "embedCard") !== null,
+                   "the embed card renders")
+            var loadButton = findChild(deleg, "embedLoadButton")
+            verify(loadButton !== null && loadButton.visible,
+                   "the inert card offers to load the preview")
+            mouseClick(loadButton)
+
+            var retry = null
+            tryVerify(function() {
+                retry = findChild(deleg, "embedRetryButton")
+                return retry !== null && retry.visible && retry.width > 10
+            }, 2000, "a failed preview offers to try again")
+            // The row it sits in is laid out as the failure lands; clicking on
+            // the frame that reveals it aims at where it was, which is the
+            // card, which opens the link instead.
+            wait(150)
+
+            mouseClick(retry)
+            var title = findChild(deleg, "embedTitle")
+            tryVerify(function() {
+                return title.text.indexOf("Example Page Title") !== -1
+            }, 2000, "trying again fetched the preview the first attempt missed")
+            verify(findChild(deleg, "embedRetryButton") === null
+                   || !findChild(deleg, "embedRetryButton").visible,
+                   "the loaded card no longer offers to try again")
+        }
+
         // Per-block presentation through the model. This is
         // focus-independent — it drives the delegates' presentation methods and
         // the model directly, never the keyboard — so it does not depend on the

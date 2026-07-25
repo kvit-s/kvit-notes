@@ -7,6 +7,12 @@
 #include "egresspolicy.h"
 #include "notecollection.h"
 
+#include <QCryptographicHash>
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 
@@ -38,6 +44,8 @@ private slots:
     void testRequestFetchesParsesAndCaches();
     void testCacheHitDoesNotRefetch();
     void testFailedFetchIsFallback();
+    void testFailedFetchIsForgottenAfterItsWindow();
+    void testUntimestampedFailureExpiresOnSight();
     void testUnapprovedOriginIsNotFetched();
 };
 
@@ -169,6 +177,110 @@ void TestEmbedMetadata::testFailedFetchIsFallback()
     const QVariantMap m = em.cachedMetadata(url);
     QCOMPARE(m.value("ok").toBool(), false);        // the fallback card
     QCOMPARE(m.value("title").toString(), QString("unreachable.test"));
+
+    // A failure is remembered, so a note full of dead links does not
+    // re-request every one of them each time it is opened.
+    em.requestMetadata(url);
+    QCOMPARE(fetcher.calls, 1);
+
+    // But only for a while, and the reader can cut that short. Try again
+    // drops the remembered failure and asks once more; here the second
+    // attempt succeeds, which is the case the button exists for.
+    fetcher.succeed = true;
+    fetcher.html = "<meta property=\"og:title\" content=\"Back Up\">";
+    em.retryMetadata(url);
+    QCOMPARE(fetcher.calls, 2);
+    QCOMPARE(em.cachedMetadata(url).value("title").toString(), QString("Back Up"));
+    QCOMPARE(em.cachedMetadata(url).value("ok").toBool(), true);
+}
+
+// The window on a remembered failure. A cache entry is rewritten with an old
+// timestamp -- the same thing the clock does an hour later -- and the card
+// then reads as having no entry at all, so it asks again. A successful entry
+// with the same age is still served from the cache.
+void TestEmbedMetadata::testFailedFetchIsForgottenAfterItsWindow()
+{
+    QTemporaryDir dir;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(dir.path()));
+    CannedFetcher fetcher;
+    fetcher.succeed = false;
+    EgressPolicy policy;
+    policy.allowOrigin("https://unreachable.test/x");
+    EmbedMetadata em;
+    em.setCollection(&coll);
+    em.setFetcher(&fetcher);
+    em.setPolicy(&policy);
+
+    const QString url = "https://unreachable.test/x";
+    em.requestMetadata(url);
+    QCOMPARE(fetcher.calls, 1);
+    QVERIFY(!em.cachedMetadata(url).isEmpty());
+
+    const QString path = QDir(dir.path())
+        .filePath(".kvit/cache/embedcache/"
+                  + QString::fromLatin1(
+                        QCryptographicHash::hash(url.toUtf8(),
+                                                 QCryptographicHash::Sha1).toHex())
+                  + ".json");
+    const auto restamp = [&path](qint64 fetchedAt) {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::ReadWrite));
+        QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
+        obj["fetchedAt"] = fetchedAt;
+        f.resize(0);
+        f.write(QJsonDocument(obj).toJson());
+    };
+
+    const qint64 stale = QDateTime::currentSecsSinceEpoch()
+                       - EmbedMetadata::FailedRetryAfterSecs - 60;
+    restamp(stale);
+    QVERIFY2(em.cachedMetadata(url).isEmpty(),
+             "a failure older than its window is still being served");
+    fetcher.succeed = true;
+    fetcher.html = "<meta property=\"og:title\" content=\"Back Up\">";
+    em.requestMetadata(url);
+    QCOMPARE(fetcher.calls, 2);
+
+    // The successful entry that replaced it is kept regardless of age.
+    restamp(stale);
+    QCOMPARE(em.cachedMetadata(url).value("title").toString(), QString("Back Up"));
+    em.requestMetadata(url);
+    QCOMPARE(fetcher.calls, 2);
+}
+
+// An entry written before fetch times were recorded carries no timestamp. A
+// failure among those has been in place at least as long as the upgrade, so
+// it must not outlive it.
+void TestEmbedMetadata::testUntimestampedFailureExpiresOnSight()
+{
+    QTemporaryDir dir;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(dir.path()));
+    const QString url = "https://cnn.com";
+    const QString cacheDir = QDir(dir.path()).filePath(".kvit/cache/embedcache");
+    QVERIFY(QDir().mkpath(cacheDir));
+    QFile f(QDir(cacheDir).filePath(
+        QString::fromLatin1(QCryptographicHash::hash(url.toUtf8(),
+                                                     QCryptographicHash::Sha1).toHex())
+        + ".json"));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("{\"ok\": false, \"title\": \"cnn.com\", \"url\": \"https://cnn.com\"}");
+    f.close();
+
+    CannedFetcher fetcher;
+    fetcher.html = "<meta property=\"og:title\" content=\"CNN\">";
+    EgressPolicy policy;
+    policy.allowOrigin(url);
+    EmbedMetadata em;
+    em.setCollection(&coll);
+    em.setFetcher(&fetcher);
+    em.setPolicy(&policy);
+
+    QVERIFY(em.cachedMetadata(url).isEmpty());
+    em.requestMetadata(url);
+    QCOMPARE(fetcher.calls, 1);
+    QCOMPARE(em.cachedMetadata(url).value("title").toString(), QString("CNN"));
 }
 
 // Opening a note names URLs; it does not approve them. Without an approval

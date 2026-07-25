@@ -110,6 +110,15 @@ public:
     static qint64 maxBytesFor(Purpose purpose);
     static int timeoutMsFor(Purpose purpose);
     static QStringList acceptedTypesFor(Purpose purpose);
+    // Whether a body cut off at the cap is still worth what asked for it. An
+    // embed preview reads OpenGraph tags out of the <head>, so the first
+    // bytes of a page hold everything it came for, and a news front page
+    // running to several megabytes is ordinary rather than hostile. A
+    // truncated image, media file or release object is nothing but a decode
+    // error, so those purposes still fail on a body past the cap. Either way
+    // the transfer stops at the cap: this decides what to do with the bytes
+    // already in hand, not how many are read.
+    static bool truncationIsUsable(Purpose purpose);
     // A redirect chain longer than this is abandoned.
     static constexpr int MaxRedirects = 5;
 

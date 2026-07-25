@@ -162,7 +162,12 @@ private slots:
     void aNameAnsweringWithAnyRefusedAddressIsRefused();
     void redirectToPrivateAddressIsRefused();
     void redirectToUnapprovedOriginIsRefused();
+    void sameSiteRedirectRules_data();
+    void sameSiteRedirectRules();
+    void redirectToTheSitesOwnSubdomainIsFollowed();
+    void redirectToASiblingSubdomainIsRefused();
     void oversizedResponseIsCutOffWhileReceiving();
+    void oversizedResponseIsRefusedForEveryOtherPurpose();
     void oversizedResponseWithNoDeclaredLengthIsCutOff();
     void wrongContentTypeIsRefused();
     void absentContentTypeIsRefused();
@@ -676,14 +681,188 @@ void TestEgressPolicy::redirectToUnapprovedOriginIsRefused()
              "the redirect reached an origin the reader never approved");
 }
 
+// The rule that lets an approval of "https://cnn.com" survive the redirect to
+// "https://www.cnn.com" that the site answers with, without letting a
+// redirect carry the reader anywhere else.
+void TestEgressPolicy::sameSiteRedirectRules_data()
+{
+    QTest::addColumn<QString>("approved");
+    QTest::addColumn<QString>("target");
+    QTest::addColumn<bool>("allowed");
+
+    QTest::newRow("naked to www")
+        << "https://cnn.com" << "https://www.cnn.com/x" << true;
+    QTest::newRow("www to naked")
+        << "https://www.cnn.com" << "https://cnn.com/x" << true;
+    QTest::newRow("same host, other path")
+        << "https://cnn.com" << "https://cnn.com/world" << true;
+    QTest::newRow("deeper subdomain")
+        << "https://cnn.com" << "https://edition.eu.cnn.com/x" << true;
+    QTest::newRow("http upgraded to https")
+        << "http://cnn.com" << "https://cnn.com/x" << true;
+
+    QTest::newRow("another site")
+        << "https://cnn.com" << "https://evil.test/x" << false;
+    QTest::newRow("site suffixed onto another")
+        << "https://cnn.com" << "https://cnn.com.evil.test/x" << false;
+    QTest::newRow("sibling subdomains")
+        << "https://user1.github.io" << "https://user2.github.io/x" << false;
+    QTest::newRow("downgrade to http")
+        << "https://cnn.com" << "http://www.cnn.com/x" << false;
+    QTest::newRow("other port")
+        << "https://cnn.com" << "https://www.cnn.com:8443/x" << false;
+    QTest::newRow("off a non-default port")
+        << "https://cnn.com:8443" << "https://www.cnn.com/x" << false;
+    QTest::newRow("toward a bare tld")
+        << "https://foo.com" << "https://com/x" << false;
+    QTest::newRow("address literals differ")
+        << "http://127.0.0.1:8080" << "http://127.0.0.2:8080/x" << false;
+    QTest::newRow("host that looks like an address suffix")
+        << "http://2.3.4" << "http://10.2.3.4/x" << false;
+    QTest::newRow("not fetchable")
+        << "https://cnn.com" << "file:///etc/passwd" << false;
+}
+void TestEgressPolicy::sameSiteRedirectRules()
+{
+    QFETCH(QString, approved);
+    QFETCH(QString, target);
+    QFETCH(bool, allowed);
+    QCOMPARE(EgressPolicy::isSameSiteRedirect(approved, target), allowed);
+}
+
+// End to end, over a real socket: one server answers both names, so the hop
+// changes the host and nothing else. Every host resolves to loopback here,
+// which is what lets a hostname be used at all.
+void TestEgressPolicy::redirectToTheSitesOwnSubdomainIsFollowed()
+{
+    LocalServer server;
+    QVERIFY(server.start());
+    const QString site = QStringLiteral("http://example.test:%1").arg(server.port());
+    const QString www = QStringLiteral("http://www.example.test:%1").arg(server.port());
+    server.redirectTo = www + QStringLiteral("/page");
+    server.redirectsRemaining = 1;   // the second request answers with the body
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(site);        // only the naked domain was approved
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &) {
+        return QList<QHostAddress>{QHostAddress(QStringLiteral("127.0.0.1"))};
+    });
+
+    bool called = false, result = false;
+    QByteArray body;
+    fetcher.request(QUrl(site + QStringLiteral("/page")),
+                    EgressFetcher::Purpose::EmbedPreview,
+                    [&](bool ok, const QByteArray &b, const QString &) {
+                        called = true;
+                        result = ok;
+                        body = b;
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
+    QVERIFY2(result, "a site's own naked-to-www redirect was refused");
+    QVERIFY(body.contains("og:title"));
+    QCOMPARE(server.requests.size(), 2);
+    QVERIFY2(server.requestHeads.at(1).contains("Host: www.example.test"),
+             "the second hop did not ask for the redirect target");
+}
+
+// The same shape, one label different: a redirect between two subdomains is
+// not the site sending a visitor to itself, and consent was never given for
+// the second one.
+void TestEgressPolicy::redirectToASiblingSubdomainIsRefused()
+{
+    LocalServer server;
+    QVERIFY(server.start());
+    const QString site = QStringLiteral("http://a.example.test:%1").arg(server.port());
+    const QString sibling =
+        QStringLiteral("http://b.example.test:%1").arg(server.port());
+    server.redirectTo = sibling + QStringLiteral("/page");
+    server.redirectsRemaining = 1;
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(site);
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &) {
+        return QList<QHostAddress>{QHostAddress(QStringLiteral("127.0.0.1"))};
+    });
+
+    bool called = false, result = true;
+    fetcher.request(QUrl(site + QStringLiteral("/page")),
+                    EgressFetcher::Purpose::EmbedPreview,
+                    [&](bool ok, const QByteArray &, const QString &) {
+                        called = true;
+                        result = ok;
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 10000);
+    QVERIFY2(!result, "a redirect to a sibling subdomain was followed");
+    QCOMPARE(server.requests.size(), 1);
+}
+
 void TestEgressPolicy::oversizedResponseIsCutOffWhileReceiving()
 {
     LocalServer server;
-    // Two orders of magnitude over the 512 kB embed cap. The size matters:
-    // socket and reply buffers absorb a few megabytes before any handler
-    // runs, so a body that merely exceeds the cap cannot distinguish a
-    // streaming cap from truncation after the fact. At 32 MB it can.
-    server.body = QByteArray(32 * 1024 * 1024, 'x');
+    // A page whose OpenGraph tags sit in the first kilobyte and whose body
+    // then runs to 32 MB: the shape of a news front page, and the reason the
+    // cap delivers what it read rather than refusing the response. Two orders
+    // of magnitude over the 512 kB embed cap is what makes the measurement
+    // below meaningful: socket and reply buffers absorb a few megabytes
+    // before any handler runs, so a body that merely exceeds the cap cannot
+    // distinguish a streaming cap from truncation after the fact.
+    server.body = "<html><head><meta property=\"og:title\" content=\"Big Page\">"
+                  "</head><body>" + QByteArray(32 * 1024 * 1024, 'x') + "</body>";
+    QVERIFY(server.start());
+
+    EgressPolicy policy;
+    allowLoopback(&policy);
+    policy.allowOrigin(server.url());
+
+    EgressFetcher fetcher;
+    fetcher.setPolicy(&policy);
+    fetcher.setResolverForTests([](const QString &host) {
+        return QList<QHostAddress>{QHostAddress(host)};
+    });
+
+    const qint64 cap = EgressFetcher::maxBytesFor(
+        EgressFetcher::Purpose::EmbedPreview);
+    bool called = false, result = false;
+    QByteArray delivered;
+    fetcher.request(QUrl(server.url("/big")), EgressFetcher::Purpose::EmbedPreview,
+                    [&](bool ok, const QByteArray &body, const QString &) {
+                        called = true;
+                        result = ok;
+                        delivered = body;
+                    });
+    QTRY_VERIFY_WITH_TIMEOUT(called, 20000);
+    QVERIFY2(result, "the head of an oversized page was thrown away with its tail");
+    QCOMPARE(delivered.size(), qsizetype(cap));
+    QVERIFY2(delivered.contains("og:title"),
+             "the delivered prefix does not reach the page's metadata");
+    // The point of a streaming cap: the whole body is never buffered and then
+    // truncated. Measured in this process rather than at the server, because
+    // the server's counter says only how many bytes the operating system
+    // accepted from it. Loopback buffering decides that, and Windows takes
+    // all 32 MB of them the moment they are written, whatever the client
+    // does - which is why this used to read as a failure there.
+    QVERIFY2(fetcher.peakBufferedBytesForTests() <= cap + 1,
+             qPrintable(QStringLiteral("%1 bytes were buffered in memory for a "
+                                       "response the cap should have stopped")
+                            .arg(fetcher.peakBufferedBytesForTests())));
+}
+
+// Truncation is usable for a preview and for nothing else. The same oversized
+// response, asked for as an image, is a partial file that would decode to
+// garbage, so the size is still a refusal there.
+void TestEgressPolicy::oversizedResponseIsRefusedForEveryOtherPurpose()
+{
+    LocalServer server;
+    server.contentType = "image/png";
+    server.body = QByteArray(16 * 1024 * 1024, 'x');
     QVERIFY(server.start());
 
     EgressPolicy policy;
@@ -697,33 +876,23 @@ void TestEgressPolicy::oversizedResponseIsCutOffWhileReceiving()
     });
 
     bool called = false, result = true;
-    fetcher.request(QUrl(server.url("/big")), EgressFetcher::Purpose::EmbedPreview,
+    fetcher.request(QUrl(server.url("/big.png")),
+                    EgressFetcher::Purpose::RemoteImage,
                     [&](bool ok, const QByteArray &, const QString &) {
                         called = true;
                         result = ok;
                     });
     QTRY_VERIFY_WITH_TIMEOUT(called, 20000);
-    QVERIFY2(!result, "an oversized response was accepted");
-    // The point of a streaming cap: the whole body is never buffered and then
-    // truncated. Measured in this process rather than at the server, because
-    // the server's counter says only how many bytes the operating system
-    // accepted from it. Loopback buffering decides that, and Windows takes
-    // all 32 MB of them the moment they are written, whatever the client
-    // does - which is why this used to read as a failure there.
-    QVERIFY2(fetcher.peakBufferedBytesForTests()
-                 <= EgressFetcher::maxBytesFor(
-                        EgressFetcher::Purpose::EmbedPreview) + 1,
-             qPrintable(QStringLiteral("%1 bytes were buffered in memory for a "
-                                       "response the cap should have stopped")
-                            .arg(fetcher.peakBufferedBytesForTests())));
+    QVERIFY2(!result, "a truncated image was handed to the decoder");
+    QVERIFY(fetcher.peakBufferedBytesForTests()
+            <= EgressFetcher::maxBytesFor(EgressFetcher::Purpose::RemoteImage) + 1);
 }
 
-// The case that separates a streaming cap from a declared-length check. With
-// no Content-Length the server's claim cannot be consulted, so refusing this
-// requires actually stopping the transfer as the body arrives. A mutation
-// audit found that the test above passes with EITHER mechanism removed,
-// because each alone handles a response that declares its size; this one
-// fails unless the body is capped while it is being read.
+// The case that shows the transfer is stopped as it arrives rather than after
+// the fact. With no Content-Length the server's claim cannot be consulted, so
+// the only thing that can bound this response is the running total in the
+// read handler. The body delivered and the memory held both stay at the cap
+// while the server has 32 MB more to give.
 void TestEgressPolicy::oversizedResponseWithNoDeclaredLengthIsCutOff()
 {
     LocalServer server;
@@ -751,11 +920,9 @@ void TestEgressPolicy::oversizedResponseWithNoDeclaredLengthIsCutOff()
                         received = body.size();
                     });
     QTRY_VERIFY_WITH_TIMEOUT(called, 30000);
-    QVERIFY2(!result, "an undeclared oversized response was accepted");
-    QVERIFY2(received <= EgressFetcher::maxBytesFor(
-                             EgressFetcher::Purpose::EmbedPreview) + 1,
-             qPrintable(QStringLiteral("buffered %1 bytes past the cap")
-                            .arg(received)));
+    QVERIFY2(result, "the prefix of an undeclared oversized response was thrown away");
+    QCOMPARE(received, EgressFetcher::maxBytesFor(
+                           EgressFetcher::Purpose::EmbedPreview));
     // The same in-process measure as the declared-length case, and for the
     // same reason: what the server managed to write into a loopback socket is
     // a property of the operating system, not of the cap.

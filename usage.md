@@ -288,8 +288,17 @@ The available block types:
   card with a thumbnail, title, and description, opening the URL in your browser on click
   (Space on a focused card does the same). Insert one with `/embed`; the URL box takes a
   bare host, so typing `example.com` stores `https://example.com`, and it shows the full
-  address before you accept. To change the URL later, click the pencil in the card's top-right
-  corner or press F2 on the focused card — the card's size is kept.
+  address before you accept. To change the URL later, click **Edit URL** in the card's
+  top-right corner or press F2 on the focused card, and the card keeps its size.
+
+  A card stays inert until you click **Load preview**, which approves the site and fetches
+  its page. Only the first 512 KB is read, which is where a page keeps the tags a card is
+  built from, so a large front page previews like any other. A redirect from the approved
+  host to one of its own subdomains is followed, since that hop (`example.com` to
+  `www.example.com`) is how most sites answer; a redirect anywhere else is refused. A
+  thumbnail the page hosts elsewhere, on a separate media domain say, is not loaded, and
+  the card keeps its placeholder tile. A fetch that fails leaves **Try again** on the card,
+  and is retried on its own an hour later.
 
 ## Moving and manipulating blocks
 

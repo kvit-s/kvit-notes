@@ -71,6 +71,25 @@ public:
     // preview means the site, not one image.
     Q_INVOKABLE static QString originOf(const QString &url);
 
+    // May a request that started at `approved` follow a redirect to `target`
+    // without asking the reader again?
+    //
+    // True when the two are the same host, or one is a subdomain of the
+    // other — the naked-domain-to-www hop most sites answer with, which
+    // otherwise fails on an approval the reader has already given (approving
+    // "https://cnn.com" and being redirected to "https://www.cnn.com" is the
+    // common case). The redirect target is chosen by the very server whose
+    // origin was approved, in the response to that request, which is what
+    // separates this from a note naming "https://evil.example.com" and
+    // expecting an approval of example.com to cover it: that stays refused.
+    //
+    // Refused: a downgrade out of https, a change of port, a hop between
+    // sibling subdomains (user1.github.io to user2.github.io), a hop toward a
+    // parent shorter than two labels, and anything involving an address
+    // literal, which has no subdomains to speak of and so must match exactly.
+    Q_INVOKABLE static bool isSameSiteRedirect(const QString &approved,
+                                               const QString &target);
+
     // Record (or withdraw) the reader's approval of a URL's origin.
     Q_INVOKABLE void allowOrigin(const QString &url);
     Q_INVOKABLE void forgetOrigin(const QString &url);

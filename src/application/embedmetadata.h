@@ -47,6 +47,21 @@ public:
     // refused request emits consentRequired(url) and touches no socket.
     Q_INVOKABLE void requestMetadata(const QString &url);
 
+    // Ask again for a URL whose last fetch failed: drops the cached failure
+    // and re-requests. The card's "Try again" button, for the reader who
+    // fixed the network or the URL and does not want to wait out
+    // FailedRetryAfterSecs.
+    Q_INVOKABLE void retryMetadata(const QString &url);
+
+    // How long a failed fetch is remembered. A failure is cached at all so
+    // that a note full of dead links does not re-request every one of them
+    // each time it is opened; it expires because the reasons a fetch fails --
+    // no network, a site that was down, a cap this app used to apply too
+    // strictly -- are mostly temporary, and a card that has written off its
+    // URL for good is indistinguishable to the reader from one that is
+    // broken. A successful fetch is kept indefinitely.
+    static constexpr qint64 FailedRetryAfterSecs = 3600;
+
     // True when a card has no metadata yet and the policy would refuse to
     // fetch it: the state where the card must stay inert and offer to load.
     Q_INVOKABLE bool needsConsent(const QString &url) const;

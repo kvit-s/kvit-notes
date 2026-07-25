@@ -46,7 +46,8 @@ BlockDelegateBase {
     property bool isHovered: hoverArea.containsMouse
         || plusArea.containsMouse || embedHandleArea.containsMouse
         || deleteArea.containsMouse || cardArea.containsMouse
-        || editArea.containsMouse
+        || editArea.containsMouse || loadArea.containsMouse
+        || retryArea.containsMouse
 
     // Configurable embed dimensions (§1.2.14): stored width/height in px.
     readonly property int embedWidth: BlockAttributes.num(attributes, "width", 0)
@@ -105,12 +106,25 @@ BlockDelegateBase {
             EmbedMetadata.requestMetadata(embedUrl)
     }
     // The reader asked for this card specifically: approve the origin, which
-    // covers the page and the thumbnail and favicon it names, then fetch.
+    // covers the page and the assets it serves from that same origin, then
+    // fetch. A thumbnail the page points at somewhere else stays unloaded and
+    // the tile keeps its placeholder — approving a preview is not approving
+    // every host the page names.
     function loadPreview() {
         if (embedUrl === "")
             return
         EgressPolicy.allowOrigin(embedUrl)
         EmbedMetadata.requestMetadata(embedUrl)
+    }
+    // A card whose fetch failed asks again on demand. The failure is
+    // remembered for an hour so that opening a note full of dead links does
+    // not re-request every one of them; this is the reader saying the reason
+    // it failed is gone.
+    function retryPreview() {
+        if (embedUrl === "")
+            return
+        meta = ({})
+        EmbedMetadata.retryMetadata(embedUrl)
     }
     Component.onCompleted: refreshMeta()
     onEmbedUrlChanged: refreshMeta()
@@ -461,6 +475,37 @@ BlockDelegateBase {
                         text: qsTr("· preview unavailable")
                         font.pixelSize: 11
                         color: Theme.textFaint
+                    }
+                    // The failed card's way back. Without it the only cure for
+                    // a preview that failed while the network was down was to
+                    // wait out the cached failure or delete the block.
+                    Rectangle {
+                        objectName: "embedRetryButton"
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: root.failed
+                        width: retryLabel.implicitWidth + 12
+                        height: retryLabel.implicitHeight + 4
+                        radius: 4
+                        color: retryArea.containsMouse ? Theme.hoverTint
+                                                       : "transparent"
+                        border.width: 1
+                        border.color: retryArea.containsMouse ? Theme.accent
+                                                              : Theme.border
+                        Text {
+                            id: retryLabel
+                            anchors.centerIn: parent
+                            text: qsTr("Try again")
+                            font.pixelSize: 11
+                            color: retryArea.containsMouse ? Theme.textPrimary
+                                                           : Theme.textMuted
+                        }
+                        MouseArea {
+                            id: retryArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.retryPreview()
+                        }
                     }
                 }
             }

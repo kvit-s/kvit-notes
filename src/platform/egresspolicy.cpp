@@ -170,6 +170,61 @@ QString EgressPolicy::originOf(const QString &url)
     return origin;
 }
 
+bool EgressPolicy::isSameSiteRedirect(const QString &approved,
+                                      const QString &target)
+{
+    const QUrl a(approved);
+    const QUrl b(target);
+    if (!isFetchableScheme(a) || !isFetchableScheme(b))
+        return false;
+    const QString aHost = a.host().toLower();
+    const QString bHost = b.host().toLower();
+    if (aHost.isEmpty() || bHost.isEmpty())
+        return false;
+
+    // http may become https (sites upgrade their own visitors); https may not
+    // become http, which would hand the request to the network in clear.
+    const QString aScheme = a.scheme().toLower();
+    const QString bScheme = b.scheme().toLower();
+    if (aScheme != bScheme && !(aScheme == QLatin1String("http")
+                                && bScheme == QLatin1String("https")))
+        return false;
+
+    // Approving a site's web server is not approving whatever else listens on
+    // its name, so a hop may not change the port. Comparing "is the scheme's
+    // default" rather than the number lets an http-to-https upgrade move from
+    // 80 to 443, which is the same service.
+    const auto defaultPortFor = [](const QString &scheme) {
+        return scheme == QLatin1String("https") ? 443 : 80;
+    };
+    const int aPort = a.port(-1);
+    const int bPort = b.port(-1);
+    const bool aIsDefault = aPort == -1 || aPort == defaultPortFor(aScheme);
+    const bool bIsDefault = bPort == -1 || bPort == defaultPortFor(bScheme);
+    if (aIsDefault != bIsDefault)
+        return false;
+    if (!aIsDefault && aPort != bPort)
+        return false;
+
+    if (aHost == bHost)
+        return true;
+    // An address literal is one host and has no subdomains; the suffix rules
+    // below would read "10.2.3.4" as a subdomain of "2.3.4".
+    if (!QHostAddress(aHost).isNull() || !QHostAddress(bHost).isNull())
+        return false;
+    // A hop toward a parent may not land on a bare suffix: "co.uk" is the
+    // registry, not the site, and every "*.co.uk" would then be a sibling of
+    // every other. Two labels is the shortest thing a site can be.
+    const auto labels = [](const QString &host) {
+        return host.count(QLatin1Char('.')) + 1;
+    };
+    if (bHost.endsWith(QLatin1Char('.') + aHost))
+        return true;                                   // toward a subdomain
+    if (aHost.endsWith(QLatin1Char('.') + bHost) && labels(bHost) >= 2)
+        return true;                                   // toward the parent
+    return false;
+}
+
 bool EgressPolicy::canRequestConsent(const QString &url) const
 {
     return refusalReason(url).isEmpty() && !originOf(url).isEmpty();

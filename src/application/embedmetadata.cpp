@@ -12,6 +12,7 @@
 #include <QPointer>
 #include <QSaveFile>
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
@@ -128,7 +129,19 @@ QVariantMap EmbedMetadata::readCache(const QString &url) const
     if (!f.open(QIODevice::ReadOnly))
         return {};
     const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-    return doc.object().toVariantMap();
+    const QVariantMap meta = doc.object().toVariantMap();
+    // A remembered failure past its window reads as no entry at all, so the
+    // card asks again rather than displaying "preview unavailable" for the
+    // life of the note. An entry written before this app recorded fetch times
+    // has no timestamp, and a failure among those has been in place at least
+    // as long as the upgrade, so it expires on sight.
+    if (!meta.isEmpty() && meta.value(QStringLiteral("ok")).toBool() == false) {
+        const qint64 fetchedAt =
+            meta.value(QStringLiteral("fetchedAt")).toLongLong();
+        if (QDateTime::currentSecsSinceEpoch() - fetchedAt > FailedRetryAfterSecs)
+            return {};
+    }
+    return meta;
 }
 
 void EmbedMetadata::writeCache(const QString &url, const QVariantMap &meta)
@@ -141,8 +154,21 @@ void EmbedMetadata::writeCache(const QString &url, const QVariantMap &meta)
     QSaveFile f(cachePathFor(url));
     if (!f.open(QIODevice::WriteOnly))
         return;
-    f.write(QJsonDocument(QJsonObject::fromVariantMap(meta)).toJson());
+    // Stamped on the way in, because a failure is only kept for a while and
+    // the file's own mtime is not the fetch time once a backup, a sync client
+    // or a copied vault has touched it.
+    QVariantMap stamped = meta;
+    stamped[QStringLiteral("fetchedAt")] = QDateTime::currentSecsSinceEpoch();
+    f.write(QJsonDocument(QJsonObject::fromVariantMap(stamped)).toJson());
     f.commit();
+}
+
+void EmbedMetadata::retryMetadata(const QString &url)
+{
+    if (url.isEmpty() || m_inFlight.contains(url))
+        return;
+    QFile::remove(cachePathFor(url));
+    requestMetadata(url);
 }
 
 QVariantMap EmbedMetadata::cachedMetadata(const QString &url) const

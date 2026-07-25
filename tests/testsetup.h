@@ -6,6 +6,8 @@
 
 #include <QQmlEngine>
 #include <QQmlContext>
+#include <QSet>
+#include <QUrl>
 #include <QQuickStyle>
 #include <QDir>
 #include <QStandardPaths>
@@ -26,6 +28,15 @@ public:
     void fetch(const QString &url,
                std::function<void(bool, const QString &)> done) override
     {
+        // A host that refuses its first request and answers the second: the
+        // shape the failed card's "Try again" button exists for, and the only
+        // way to reach the fallback card from a test without a network.
+        if (QUrl(url).host().endsWith(QLatin1String("unreachable.test"))
+            && !m_refusedOnce.contains(url)) {
+            m_refusedOnce.insert(url);
+            done(false, QString());
+            return;
+        }
         const QString html =
             "<html><head>"
             "<meta property=\"og:title\" content=\"Example Page Title\">"
@@ -35,6 +46,9 @@ public:
             "</head><body>x</body></html>";
         done(true, html);
     }
+
+private:
+    QSet<QString> m_refusedOnce;
 };
 #include "theme.h"
 #include "typography.h"
