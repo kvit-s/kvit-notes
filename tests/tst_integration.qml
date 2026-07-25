@@ -8046,14 +8046,18 @@ Item {
             BlockModel.insertBlock(2, 0, "one line only")
             wait(150)
 
-            function openHandleMenuFor(index) {
+            // Right-click a row's drag handle and wait for the menu it
+            // routes to: the block menu, or the selection menu when the row
+            // is part of a block selection.
+            function openHandleMenuFor(index, menuName) {
                 var item = findBlockDelegate(index)
                 mouseMove(item, 30, item.height / 2)
                 tryCompare(item, "isHovered", true, 1000)
                 var handle = findChild(item, "dragHandle")
                 tryCompare(handle, "visible", true, 1000)
                 mouseClick(handle, 3, 3, Qt.RightButton)
-                var menu = findChild(appLoader.item, "blockContextMenu")
+                var menu = findChild(appLoader.item,
+                                     menuName ? menuName : "blockContextMenu")
                 tryCompare(menu, "visible", true, 1000)
                 return menu
             }
@@ -8090,6 +8094,32 @@ Item {
             compare(findChild(appLoader.item, "ctxRemoveLineBreaks").enabled, false,
                     "A single-line block greys the entry out")
             menu2.close()
+
+            // The same command across a block selection folds every block in
+            // it, as one undo step.
+            BlockModel.updateContent(0, "wrapped at eighty\ncolumns by hand")
+            BlockModel.updateContent(2, "another wrapped\nparagraph here")
+            wait(150)
+            DocumentSelection.selectBlock(0)
+            DocumentSelection.extendBlockSelectionTo(2)
+            var selMenu = openHandleMenuFor(0, "selectionContextMenu")
+            var selItem = findChild(appLoader.item, "ctxSelRemoveLineBreaks")
+            compare(selItem.enabled, true, "The selection offers the join")
+            selItem.triggered()
+            selMenu.close()
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "wrapped at eighty columns by hand"
+                       && BlockModel.getContent(2) === "another wrapped paragraph here"
+            }, 1000, "Every block in the selection is folded")
+            compare(BlockModel.getContent(1), "the body line wraps here\n— Someone",
+                    "The quote's attribution still stands alone")
+
+            UndoStack.undo()
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "wrapped at eighty\ncolumns by hand"
+                       && BlockModel.getContent(2) === "another wrapped\nparagraph here"
+            }, 1000, "One undo restores the whole sweep")
+            DocumentSelection.clearBlockSelection()
         }
 
         function test_zp_collectionContextMenus() {

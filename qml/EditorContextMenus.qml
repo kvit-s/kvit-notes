@@ -272,17 +272,16 @@ Item {
                 onTriggered: blockContextMenu.target.setDropCap(5)
             }
         }
-        // Fold the block's line breaks into spaces. Greyed out unless this
-        // block has one, and absent for the types whose newlines are the
-        // content (code and the fence-backed blocks, which are not editable
-        // text delegates and so carry no removeLineBreaks).
+        // Fold this block's line breaks into spaces. The model owns which
+        // blocks that applies to, so the entry greys itself out on a block
+        // with no break and on the types whose newlines are content.
         MenuItem {
             objectName: "ctxRemoveLineBreaks"
             text: qsTr("Remove line breaks")
             enabled: blockContextMenu.target
-                && blockContextMenu.target.removeLineBreaks !== undefined
-                && blockContextMenu.target.hasLineBreaks
-            onTriggered: blockContextMenu.target.removeLineBreaks()
+                && BlockModel.canJoinLines([blockContextMenu.target.index])
+            onTriggered: BlockModel.joinLinesForBlocks(
+                [blockContextMenu.target.index])
         }
         MenuSeparator {}
         MenuItem {
@@ -356,6 +355,20 @@ Item {
             objectName: "ctxSelDelete"
             text: qsTr("Delete")
             onTriggered: menus.selectionKeys.removeSelectedBlocks()
+        }
+        // The same fold across the whole selection, as one undo step: what
+        // unwraps a hard-wrapped note in one go. The revision read
+        // re-evaluates the enabled state as the selection changes.
+        MenuItem {
+            objectName: "ctxSelRemoveLineBreaks"
+            text: qsTr("Remove line breaks")
+            enabled: {
+                var revision = DocumentSelection.revision  // dependency only
+                return BlockModel.canJoinLines(
+                    DocumentSelection.selectedIndexes())
+            }
+            onTriggered: BlockModel.joinLinesForBlocks(
+                DocumentSelection.selectedIndexes())
         }
         MenuSeparator {}
         MenuItem {

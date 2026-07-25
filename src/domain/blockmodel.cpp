@@ -16,6 +16,7 @@
 #include "convertblockcommand.h"
 #include "setblockattributescommand.h"
 #include "imageassets.h"
+#include "markdownformatter.h"
 #include "perflog.h"
 
 #include <QSet>
@@ -746,6 +747,81 @@ void BlockModel::changeIndentForBlocks(const QVariantList &indexes, int delta)
         m_undoStack->beginMacro(QStringLiteral("Indent Blocks"));
     for (int idx : sorted)
         changeIndent(idx, delta);
+    if (m_undoStack)
+        m_undoStack->endMacro();
+}
+
+namespace {
+// Whether a block's line breaks are wrapping — something a reader would want
+// folded away — as against content the breaks are part of. A code block's
+// newlines are the code, and the fence-backed types (math, table, and the
+// kanban/diagram/query/toc fences, which are code blocks by type) hold their
+// own multi-line source.
+bool foldsLineBreaks(Block::BlockType type)
+{
+    switch (type) {
+    case Block::Paragraph:
+    case Block::Heading1:
+    case Block::Heading2:
+    case Block::Heading3:
+    case Block::Heading4:
+    case Block::BulletList:
+    case Block::NumberedList:
+    case Block::Todo:
+    case Block::Quote:
+    case Block::Callout:
+        return true;
+    default:
+        return false;
+    }
+}
+} // namespace
+
+QString BlockModel::joinedBlockContent(int index) const
+{
+    if (!isValidIndex(index))
+        return QString();
+    const Block *block = m_blocks.at(index);
+    const QString content = block->content();
+    if (!foldsLineBreaks(block->blockType()))
+        return content;
+
+    const MarkdownFormatter formatter;
+    // A quote's attribution is chrome rendered on its own line below the
+    // body; folding the newline before it would silently turn it into body
+    // text. A todo's metadata tail needs no such care — it sits at the end
+    // of its line already.
+    const QString tail = block->blockType() == Block::Quote
+                             ? formatter.attributionTail(content) : QString();
+    const QString body = content.left(content.size() - tail.size());
+    if (!body.contains(QLatin1Char('\n')))
+        return content;
+    return formatter.joinLines(body) + tail;
+}
+
+bool BlockModel::canJoinLines(const QVariantList &indexes) const
+{
+    const QList<int> sorted = validIndexes(indexes);
+    for (int idx : sorted) {
+        if (joinedBlockContent(idx) != m_blocks.at(idx)->content())
+            return true;
+    }
+    return false;
+}
+
+void BlockModel::joinLinesForBlocks(const QVariantList &indexes)
+{
+    const QList<int> sorted = validIndexes(indexes);
+    if (sorted.isEmpty())
+        return;
+
+    // One undo step for the whole sweep. updateContent skips a block whose
+    // content is unchanged, so a selection with nothing to fold pushes an
+    // empty macro, which the stack drops.
+    if (m_undoStack)
+        m_undoStack->beginMacro(QStringLiteral("Remove Line Breaks"));
+    for (int idx : sorted)
+        updateContent(idx, joinedBlockContent(idx));
     if (m_undoStack)
         m_undoStack->endMacro();
 }

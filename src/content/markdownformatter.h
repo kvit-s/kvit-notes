@@ -128,6 +128,13 @@ public:
     // exclude the blocks whose newlines are content (code, fences).
     Q_INVOKABLE QString joinLines(const QString &markdown) const;
 
+    // A quote's attribution line: the last line of a multi-line quote
+    // starting with an em dash and a space, returned with its newline, and
+    // empty when there is none. The delegate renders it as chrome below the
+    // body and the join-lines command leaves it on its own line, so the rule
+    // lives here once rather than in each of them.
+    Q_INVOKABLE QString attributionTail(const QString &content) const;
+
     // Registry-driven formatting commands.
     // Positions are markdown coordinates. Apply wraps the selection in the
     // type's canonical markers (a collapsed cursor gets an empty marker

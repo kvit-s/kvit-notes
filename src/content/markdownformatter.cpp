@@ -1070,6 +1070,15 @@ QString MarkdownFormatter::joinLines(const QString &markdown) const
     return joined.trimmed();
 }
 
+QString MarkdownFormatter::attributionTail(const QString &content) const
+{
+    const int nl = content.lastIndexOf(QLatin1Char('\n'));
+    if (nl < 0)
+        return QString();
+    return content.mid(nl + 1).startsWith(QStringLiteral("— "))
+               ? content.mid(nl) : QString();
+}
+
 namespace {
 
 // The deepest span containing [selStart, selEnd] whose format flags

@@ -22,14 +22,9 @@ EditableBlock {
 
     // The attribution tail: the final "— …" line, with its leading newline,
     // when there is a body before it.
-    metaTail: {
-        var c = root.content
-        var nl = c.lastIndexOf("\n")
-        var lastLine = nl >= 0 ? c.substring(nl + 1) : c
-        if (nl >= 0 && lastLine.indexOf("— ") === 0)
-            return "\n" + lastLine
-        return ""
-    }
+    // The rule itself lives in MarkdownFormatter, since the model's
+    // join-lines command has to leave the same line alone.
+    metaTail: MarkdownFormatter.attributionTail(root.content)
     readonly property string attributionText:
         metaTail !== "" ? metaTail.substring(3) : ""   // after "\n— "
 

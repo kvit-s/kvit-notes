@@ -172,6 +172,16 @@ void TestMarkdownFormatter::testJoinLines()
     // Idempotent: joining twice is joining once.
     const QString once = formatter.joinLines("a\nb\nc");
     QCOMPARE(formatter.joinLines(once), once);
+
+    // A quote's attribution line, which the join commands hold back.
+    QCOMPARE(formatter.attributionTail("body\n— Someone"),
+             QString("\n— Someone"));
+    QCOMPARE(formatter.attributionTail("body\nwraps\n— A. Person"),
+             QString("\n— A. Person"));
+    QCOMPARE(formatter.attributionTail("— Someone"), QString());  // no body
+    QCOMPARE(formatter.attributionTail("body\nplain last line"), QString());
+    QCOMPARE(formatter.attributionTail("body\n—no space"), QString());
+    QCOMPARE(formatter.attributionTail(""), QString());
 }
 
 // Basic HTML conversion tests

@@ -56,6 +56,8 @@ private slots:
     void testMoveBlocksByRunsAndEdges();
     void testMoveBlocksByGapClosing();
     void testChangeIndentForBlocks();
+    void testJoinLinesForBlocks();
+    void testCanJoinLines();
     void testRemoveTextRangeCrossBlock();
     void testRemoveTextRangeEdgeCases();
     void testRemoveTextRangeDividerFirst();
@@ -1970,6 +1972,70 @@ void TestBlockModel::testBulkIndexNormalizationHandlesHugeSelections()
              qPrintable(QStringLiteral("normalizing %1 indexes took %2 ms")
                             .arg(indexes.size())
                             .arg(elapsed)));
+    delete model;
+}
+
+// "Remove line breaks" across a selection: one undo step, and only the
+// blocks whose breaks are wrapping rather than content.
+void TestBlockModel::testJoinLinesForBlocks()
+{
+    UndoStack *stack = nullptr;
+    BlockModel *model = makeModelWithStack({
+        { Block::Paragraph, "wrapped at eighty\ncolumns by hand" },
+        { Block::BulletList, "a long item\n  continued underneath" },
+        { Block::CodeBlock, "first line\nsecond line" },
+        { Block::Quote, "the body\nwraps here\n— Someone" },
+        { Block::Paragraph, "already one line" },
+    }, &stack);
+
+    model->joinLinesForBlocks({0, 1, 2, 3, 4});
+
+    QCOMPARE(model->blockAt(0)->content(),
+             QString("wrapped at eighty columns by hand"));
+    QCOMPARE(model->blockAt(1)->content(),
+             QString("a long item continued underneath"));
+    QCOMPARE(model->blockAt(2)->content(),
+             QString("first line\nsecond line"));   // code keeps its newlines
+    QCOMPARE(model->blockAt(3)->content(),
+             QString("the body wraps here\n— Someone"));  // attribution stays
+    QCOMPARE(model->blockAt(4)->content(), QString("already one line"));
+    QCOMPARE(stack->count(), 1);
+
+    stack->undo();
+    QCOMPARE(model->blockAt(0)->content(),
+             QString("wrapped at eighty\ncolumns by hand"));
+    QCOMPARE(model->blockAt(3)->content(),
+             QString("the body\nwraps here\n— Someone"));
+    QCOMPARE(stack->count(), 1);   // still one step, now undone
+
+    // A selection with nothing to fold pushes no step at all.
+    stack->redo();
+    const int before = stack->count();
+    model->joinLinesForBlocks({0, 2, 4});
+    QCOMPARE(stack->count(), before);
+
+    delete model;
+}
+
+void TestBlockModel::testCanJoinLines()
+{
+    BlockModel *model = makeModel({
+        { Block::Paragraph, "wrapped\nprose" },
+        { Block::CodeBlock, "code\nlines" },
+        { Block::Paragraph, "one line" },
+        { Block::Quote, "body\n— Someone" },   // only the attribution break
+        { Block::Table, "| a |\n| b |" },
+    });
+
+    QVERIFY(model->canJoinLines({0}));
+    QVERIFY(!model->canJoinLines({1}));    // code newlines are content
+    QVERIFY(!model->canJoinLines({2}));    // nothing to fold
+    QVERIFY(!model->canJoinLines({3}));    // folding would eat the attribution
+    QVERIFY(!model->canJoinLines({4}));    // a table is its own source
+    QVERIFY(model->canJoinLines({1, 2, 0}));  // any one is enough
+    QVERIFY(!model->canJoinLines({}));
+    QVERIFY(!model->canJoinLines({99}));   // out of range
+
     delete model;
 }
 

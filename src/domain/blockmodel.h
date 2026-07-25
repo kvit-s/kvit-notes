@@ -215,6 +215,15 @@ public:
     // Indents/outdents every list-family block in the selection under
     // the existing per-block clamps (§3.3).
     Q_INVOKABLE void changeIndentForBlocks(const QVariantList &indexes, int delta);
+    // Folds each block's line breaks into single spaces — the "Remove line
+    // breaks" command behind both the block menu (one index) and the
+    // selection menu (many), in one undo step either way. Blocks whose
+    // newlines are content rather than wrapping (code, and the fence-backed
+    // types) are skipped, and a quote's trailing attribution keeps its own
+    // line. canJoinLines answers whether the command would change anything,
+    // which is what greys the menu entry out.
+    Q_INVOKABLE bool canJoinLines(const QVariantList &indexes) const;
+    Q_INVOKABLE void joinLinesForBlocks(const QVariantList &indexes);
     // Drag-and-drop primitives. previewMoveBlock is the drag's live
     // make-room feedback: an undo-bypassing internal move, valid ONLY
     // inside a drag gesture whose drop pushes commitDragMove — one
@@ -369,6 +378,10 @@ private:
 
     // Valid, unique, ascending indexes out of a QML-provided list.
     QList<int> validIndexes(const QVariantList &indexes) const;
+    // What block `index` would hold with its line breaks folded — its own
+    // content unchanged when there is nothing to fold or the type keeps its
+    // newlines. One definition serves both the query and the command.
+    QString joinedBlockContent(int index) const;
     // Push through the undo stack (which executes) or execute directly
     // when no stack is attached.
     void pushOrRun(std::unique_ptr<UndoCommand> command);
