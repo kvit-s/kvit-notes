@@ -641,7 +641,10 @@ BlockDelegateBase {
             visible: delegate.resolvedSource !== "" || text !== ""
             text: delegate.img.caption
             placeholderText: qsTr("Add a caption…")
-            horizontalAlignment: Text.AlignHCenter
+            // Left-aligned against the picture's own left edge: a wrapped
+            // caption reads as a paragraph, and centring ragged lines under
+            // the image made it read as a title.
+            horizontalAlignment: Text.AlignLeft
             wrapMode: TextArea.Wrap
             font.pixelSize: 12
             font.italic: true

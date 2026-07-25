@@ -7550,6 +7550,8 @@ Item {
             verify(caption !== null, "the caption field exists")
             verify(caption.wrapMode !== TextEdit.NoWrap,
                    "a caption longer than the image wraps rather than clipping")
+            compare(caption.horizontalAlignment, TextEdit.AlignLeft,
+                    "and sits against the picture's left edge")
 
             caption.forceActiveFocus()
             tryCompare(caption, "activeFocus", true, 1000)
