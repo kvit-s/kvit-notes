@@ -263,6 +263,28 @@ BlockDelegateBase {
         BlockModel.setBlockAttributes(delegate.index, next)
     }
 
+    // ---- Remove line breaks (block context menu) ----
+    // Folds the block's line breaks into single spaces, which is what turns
+    // hard-wrapped prose — an imported file wrapped at 80 columns, a pasted
+    // LLM answer — back into one flowing block. The whitespace around each
+    // break goes with it, so the join never leaves a double space.
+    //
+    // It operates on the editable portion rather than on `content`: a quote's
+    // attribution and a todo's metadata tail are chrome, and folding the
+    // newline before them would silently turn the attribution into body text.
+    // Verbatim blocks (code) are excluded by the menu — their newlines are
+    // the content.
+    readonly property bool hasLineBreaks:
+        !delegate.verbatimEditing && delegate.editableMarkdown.indexOf("\n") >= 0
+    function removeLineBreaks() {
+        if (!delegate.hasLineBreaks)
+            return
+        BlockModel.updateContent(
+            delegate.index,
+            MarkdownFormatter.joinLines(delegate.editableMarkdown)
+                + delegate.metaTail)
+    }
+
     // Flip the fold state as one undo step: fold reuses checked.
     function toggleCalloutFold() {
         BlockModel.setChecked(delegate.index, !delegate.checked)

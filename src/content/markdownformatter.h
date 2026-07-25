@@ -120,6 +120,14 @@ public:
     // Map display position to markdown position
     Q_INVOKABLE int displayToMarkdownPosition(const QString &markdown, int displayPos) const;
 
+    // Fold every line break in one block's markdown into a single space:
+    // what turns hard-wrapped prose — an imported file wrapped at 80
+    // columns, a pasted answer — back into one flowing block. A run of
+    // breaks and the whitespace around it collapse together, so the join
+    // never leaves a double space, and the result is trimmed. Callers
+    // exclude the blocks whose newlines are content (code, fences).
+    Q_INVOKABLE QString joinLines(const QString &markdown) const;
+
     // Registry-driven formatting commands.
     // Positions are markdown coordinates. Apply wraps the selection in the
     // type's canonical markers (a collapsed cursor gets an empty marker

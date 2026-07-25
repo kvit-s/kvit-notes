@@ -318,6 +318,22 @@ BlockDelegateBase {
         }
     }
     function setDropCap(lines) { forward("setDropCap", [lines]) }
+    // Line-break join (block context menu). A paragraph or heading carries no
+    // metadata tail, so a row that has not built its editor yet can answer and
+    // apply this from the model content — the same fallback shape
+    // setBlockAlignment uses, and it keeps a right-click off the promote path.
+    readonly property bool hasLineBreaks: root.content.indexOf("\n") >= 0
+    function removeLineBreaks() {
+        var item = editableItem()
+        if (item && item.removeLineBreaks) {
+            item.removeLineBreaks()
+            return
+        }
+        if (!root.hasLineBreaks)
+            return
+        BlockModel.updateContent(root.index,
+                                 MarkdownFormatter.joinLines(root.content))
+    }
     function insertImageBlock(storedPath) {
         forward("insertImageBlock", [storedPath])
     }

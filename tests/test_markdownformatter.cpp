@@ -144,7 +144,35 @@ private slots:
     void testToggleBoldRemove();
     void testToggleItalicAdd();
     void testToggleItalicRemove();
+
+    void testJoinLines();
 };
+
+void TestMarkdownFormatter::testJoinLines()
+{
+    MarkdownFormatter formatter;
+    // A hard-wrapped paragraph closes up into one line.
+    QCOMPARE(formatter.joinLines("wrapped at eighty\ncolumns by hand"),
+             QString("wrapped at eighty columns by hand"));
+    // The whitespace around a break goes with it, so no double space is
+    // left behind — an indented continuation line is the common case.
+    QCOMPARE(formatter.joinLines("a long item\n  continued underneath"),
+             QString("a long item continued underneath"));
+    QCOMPARE(formatter.joinLines("trailing spaces  \nthen more"),
+             QString("trailing spaces then more"));
+    // A run of breaks is one space, not one per newline.
+    QCOMPARE(formatter.joinLines("first\n\n\nsecond"), QString("first second"));
+    QCOMPARE(formatter.joinLines("windows\r\nnewline"), QString("windows newline"));
+    // Inline markers are text like any other: nothing is reformatted.
+    QCOMPARE(formatter.joinLines("**bold**\n*italic*"),
+             QString("**bold** *italic*"));
+    // Nothing to join, and the empty case.
+    QCOMPARE(formatter.joinLines("one line only"), QString("one line only"));
+    QCOMPARE(formatter.joinLines(""), QString(""));
+    // Idempotent: joining twice is joining once.
+    const QString once = formatter.joinLines("a\nb\nc");
+    QCOMPARE(formatter.joinLines(once), once);
+}
 
 // Basic HTML conversion tests
 

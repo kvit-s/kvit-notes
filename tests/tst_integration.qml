@@ -7959,6 +7959,66 @@ Item {
             }, 1000)
         }
 
+        // "Remove line breaks" folds a hard-wrapped block into one line,
+        // leaves a quote's attribution alone, and greys out where there is
+        // nothing to join.
+        function test_zo2_removeLineBreaksFromBlockMenu() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "wrapped at eighty\ncolumns by hand")
+            BlockModel.insertBlock(1, 7, "the body line\nwraps here\n— Someone")  // Quote
+            BlockModel.insertBlock(2, 0, "one line only")
+            wait(150)
+
+            function openHandleMenuFor(index) {
+                var item = findBlockDelegate(index)
+                mouseMove(item, 30, item.height / 2)
+                tryCompare(item, "isHovered", true, 1000)
+                var handle = findChild(item, "dragHandle")
+                tryCompare(handle, "visible", true, 1000)
+                mouseClick(handle, 3, 3, Qt.RightButton)
+                var menu = findChild(appLoader.item, "blockContextMenu")
+                tryCompare(menu, "visible", true, 1000)
+                return menu
+            }
+
+            var menu0 = openHandleMenuFor(0)
+            var item0 = findChild(appLoader.item, "ctxRemoveLineBreaks")
+            compare(item0.enabled, true, "A wrapped paragraph offers the join")
+            item0.triggered()
+            menu0.close()
+            tryCompare(BlockModel, "count", 3)
+            compare(BlockModel.getContent(0), "wrapped at eighty columns by hand",
+                    "The break becomes a single space")
+
+            // One undo restores the wrapped form
+            keyClick(Qt.Key_Z, Qt.ControlModifier)
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "wrapped at eighty\ncolumns by hand"
+            }, 1000, "The join is one undo step")
+            keyClick(Qt.Key_Z, Qt.ControlModifier | Qt.ShiftModifier)
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "wrapped at eighty columns by hand"
+            }, 1000)
+
+            // The quote's attribution line is chrome, not body text
+            var menu1 = openHandleMenuFor(1)
+            findChild(appLoader.item, "ctxRemoveLineBreaks").triggered()
+            menu1.close()
+            wait(100)
+            compare(BlockModel.getContent(1), "the body line wraps here\n— Someone",
+                    "The body joins; the attribution keeps its own line")
+
+            // Nothing to join: the entry is there but disabled
+            var menu2 = openHandleMenuFor(2)
+            compare(findChild(appLoader.item, "ctxRemoveLineBreaks").enabled, false,
+                    "A single-line block greys the entry out")
+            menu2.close()
+        }
+
         function test_zp_collectionContextMenus() {
             if (isHeadless) {
                 skip("Focus tests require display")

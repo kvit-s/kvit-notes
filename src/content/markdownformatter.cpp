@@ -1058,6 +1058,18 @@ int MarkdownFormatter::displayToMarkdownPosition(const QString &markdown, int di
     return displayPos + offset;
 }
 
+QString MarkdownFormatter::joinLines(const QString &markdown) const
+{
+    // One space per run of breaks, taking the surrounding spaces and tabs
+    // with it: "wrapped\n  by hand" and "para\n\nbreak" both close up to a
+    // single space rather than leaving the indentation behind.
+    static const QRegularExpression breakRun(
+        QStringLiteral("[ \\t]*(?:\\r?\\n[ \\t]*)+"));
+    QString joined = markdown;
+    joined.replace(breakRun, QStringLiteral(" "));
+    return joined.trimmed();
+}
+
 namespace {
 
 // The deepest span containing [selStart, selEnd] whose format flags

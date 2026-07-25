@@ -272,6 +272,18 @@ Item {
                 onTriggered: blockContextMenu.target.setDropCap(5)
             }
         }
+        // Fold the block's line breaks into spaces. Greyed out unless this
+        // block has one, and absent for the types whose newlines are the
+        // content (code and the fence-backed blocks, which are not editable
+        // text delegates and so carry no removeLineBreaks).
+        MenuItem {
+            objectName: "ctxRemoveLineBreaks"
+            text: qsTr("Remove line breaks")
+            enabled: blockContextMenu.target
+                && blockContextMenu.target.removeLineBreaks !== undefined
+                && blockContextMenu.target.hasLineBreaks
+            onTriggered: blockContextMenu.target.removeLineBreaks()
+        }
         MenuSeparator {}
         MenuItem {
             objectName: "ctxBlockDuplicate"
