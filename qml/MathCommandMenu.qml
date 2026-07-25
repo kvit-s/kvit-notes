@@ -155,10 +155,12 @@ Popup {
     }
 
     // ---- Key forwarding targets (hosts call these) ----
+    // Completion mode clamps at both ends like the other menus; the browse
+    // panes below already clamped.
     function highlightNext() {
         if (completionMode) {
             if (rows.length > 0) {
-                highlightIndex = (highlightIndex + 1) % rows.length
+                highlightIndex = Math.min(highlightIndex + 1, rows.length - 1)
                 if (completionList)
                     completionList.positionViewAtIndex(highlightIndex, ListView.Contain)
             }
@@ -171,7 +173,7 @@ Popup {
     function highlightPrevious() {
         if (completionMode) {
             if (rows.length > 0) {
-                highlightIndex = (highlightIndex - 1 + rows.length) % rows.length
+                highlightIndex = Math.max(0, highlightIndex - 1)
                 if (completionList)
                     completionList.positionViewAtIndex(highlightIndex, ListView.Contain)
             }

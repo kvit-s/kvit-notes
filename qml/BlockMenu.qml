@@ -118,12 +118,14 @@ Popup {
         return -1
     }
 
+    // Stops at the first and last entry instead of wrapping. Wrapping made
+    // the view snap to the other end of a list the user was walking through,
+    // which reads as the highlight jumping rather than moving.
     function highlightStep(direction) {
         if (rows.length === 0)
             return
-        var i = highlightIndex
-        for (var n = 0; n < rows.length; n++) {
-            i = (i + direction + rows.length) % rows.length
+        for (var i = highlightIndex + direction;
+             i >= 0 && i < rows.length; i += direction) {
             if (rows[i].kind === "entry") {
                 highlightIndex = i
                 break

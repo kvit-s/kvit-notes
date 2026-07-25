@@ -114,11 +114,13 @@ Popup {
         highlightIndex = rows.length > 0 ? 0 : -1
     }
 
+    // Clamped, not circular: an arrow held at either end stays put rather
+    // than snapping the view to the other end of the list.
     function highlightStep(direction) {
         if (rows.length === 0)
             return
-        highlightIndex = (highlightIndex + direction + rows.length)
-                         % rows.length
+        highlightIndex = Math.max(0, Math.min(rows.length - 1,
+                                              highlightIndex + direction))
         menuList.positionViewAtIndex(highlightIndex, ListView.Contain)
     }
     function highlightNext() { highlightStep(1) }

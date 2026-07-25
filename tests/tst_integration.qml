@@ -3668,6 +3668,39 @@ Item {
             verify(!menu.visible, "Undo must not reopen the menu")
         }
 
+        // The highlight stops at both ends of the list. Wrapping made a
+        // walk through the entries snap back to the other end, which reads
+        // as jumping rather than moving.
+        function test_a4b_arrowsStopAtTheEnds() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            freshParagraph()
+            var menu = theBlockMenu()
+            typeString("/h")
+            tryCompare(menu, "visible", true, 1000)
+
+            var names = menuEntryNames()
+            verify(names.length >= 2, "The filter must leave several entries")
+
+            keyClick(Qt.Key_Up)
+            wait(50)
+            compare(menu.rows[menu.highlightIndex].name, names[0],
+                    "Up on the first entry stays there")
+
+            // Past the end of the list, and then some
+            for (var i = 0; i < names.length + 3; i++) {
+                keyClick(Qt.Key_Down)
+                wait(20)
+            }
+            compare(menu.rows[menu.highlightIndex].name,
+                    names[names.length - 1],
+                    "Down stops on the last entry instead of wrapping")
+
+            keyClick(Qt.Key_Escape)
+            tryCompare(menu, "visible", false, 1000)
+        }
+
         function test_a5_escapeClosesKeepingText() {
             if (isHeadless) {
                 skip("Keyboard tests require display")
