@@ -189,8 +189,10 @@ The available block types:
   Shift+Tab outdents, in spaces rather than tab characters, and both work across every line of
   a multi-line selection.
 - **Divider** — a horizontal rule, with configurable styles (see presentation below).
-- **Callout / toggle** — a titled, tinted, foldable panel (info, note, tip, warning, danger,
-  quote, or a plain toggle). The fold state is saved in the file. Ctrl+Enter folds it.
+- **Callout / toggle** — a titled, tinted, foldable panel. Seven kinds: info, note, tip,
+  success, warning, error, and a plain toggle with no icon. Click the icon in the header to
+  change kind; the body, title, fold state and any custom colour stay as they were. The fold
+  state is saved in the file. Ctrl+Enter folds it.
 - **Table** — a pipe table edited cell by cell, with Tab to move across a row, add/remove of
   rows and columns, per-column alignment, and sort-by-column.
 - **Image** — inserted from a file dialog, a paste, or a drag from your file manager or

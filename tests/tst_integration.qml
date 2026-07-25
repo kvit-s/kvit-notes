@@ -7603,6 +7603,70 @@ Item {
                       1000, "Ctrl+Enter folds the callout")
         }
 
+        // The callout header's type picker: every kind the renderer knows is
+        // offered, and choosing one changes the kind without disturbing the
+        // body, title, fold state or custom colour.
+        function test_zw2_calloutTypePicker() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.convertBlock(0, 12, "callout body", false, "info",
+                                    "Heads up")            // Callout
+            BlockModel.setBlockAttributes(0, "color=#1f9e8b")
+            wait(200)
+
+            var delegateItem = findBlockDelegate(0)
+            var button = findChild(delegateItem, "calloutTypeButton")
+            verify(button !== null, "The header carries a type button")
+            var picker = findChild(delegateItem, "calloutTypePicker")
+            verify(picker !== null, "The button owns a type picker")
+
+            // Every kind the renderer knows, toggle included
+            var keys = []
+            for (var i = 0; i < picker.types.length; i++)
+                keys.push(picker.types[i].key)
+            compare(keys, ["info", "note", "tip", "success", "warning",
+                           "error", "toggle"])
+            compare(picker.currentType, "info")
+
+            mouseClick(button, button.width / 2, button.height / 2)
+            tryCompare(picker, "visible", true, 1000)
+
+            // Pick "warning" through the popup the way a pointer would
+            var rows = picker.contentItem.children
+            var warningRow = null
+            for (var j = 0; j < rows.length; j++) {
+                var label = findChild(rows[j], "calloutTypeLabel")
+                if (label && label.text === "Warning")
+                    warningRow = rows[j]
+            }
+            verify(warningRow !== null, "The picker lists Warning")
+            mouseClick(warningRow, warningRow.width / 2, warningRow.height / 2)
+
+            tryVerify(function() {
+                return BlockModel.blockAt(0).language === "warning"
+            }, 1000, "Picking a kind changes the callout's type")
+            tryCompare(picker, "visible", false, 1000)
+            compare(BlockModel.getContent(0), "callout body",
+                    "The body is untouched")
+            compare(BlockModel.blockAt(0).calloutTitle, "Heads up",
+                    "The title is untouched")
+            compare(BlockModel.getAttributes(0), "color=#1f9e8b",
+                    "A custom colour survives the change")
+            compare(DocumentSerializer.serialize(BlockModel),
+                    "> [!warning] Heads up  <!--kvit color=#1f9e8b-->\n"
+                    + "> callout body\n",
+                    "and it round-trips as an Obsidian callout")
+
+            // One undo puts the kind back
+            UndoStack.undo()
+            tryVerify(function() {
+                return BlockModel.blockAt(0).language === "info"
+            }, 1000, "The change is one undo step")
+        }
+
         function test_zx_tableEditMutateSortUndo() {
             if (isHeadless) {
                 skip("Focus tests require display")

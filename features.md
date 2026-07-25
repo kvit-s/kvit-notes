@@ -111,6 +111,8 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Highlighted block for important information
 - Different types: info, warning, success, error, tip, note
 - Icon associated with each type
+- The type is chosen from the header: the icon opens a list of the kinds, and
+  picking one keeps the body, title, fold state and any custom colour
 - Customizable background color
 - Can contain multiple paragraphs and other inline content
 

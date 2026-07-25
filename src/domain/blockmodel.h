@@ -182,6 +182,12 @@ public:
     // Set a callout's title as one undo step; reuses the full-state
     // ConvertBlockCommand so the fold/type/body are captured too.
     Q_INVOKABLE void setCalloutTitle(int index, const QString &title);
+    // Set a callout's type (info, warning, tip, …, or the minimal "toggle"),
+    // which is what the header's type picker changes. Same full-state
+    // command, so the body, title, fold state and any custom colour survive
+    // the change — which convertBlock would not, since it builds its state
+    // from scratch.
+    Q_INVOKABLE void setCalloutType(int index, const QString &type);
     // Set a block's presentation attributes as one undo step. Pushes
     // SetBlockAttributesCommand; a no-op when unchanged.
     Q_INVOKABLE void setBlockAttributes(int index, const QString &attributes);

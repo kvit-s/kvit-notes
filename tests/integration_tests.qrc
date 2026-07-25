@@ -34,6 +34,7 @@
         <file alias="qml/DividerDelegate.qml">../qml/DividerDelegate.qml</file>
         <file alias="qml/DividerStylePicker.qml">../qml/DividerStylePicker.qml</file>
         <file alias="qml/CalloutColorPicker.qml">../qml/CalloutColorPicker.qml</file>
+        <file alias="qml/CalloutTypePicker.qml">../qml/CalloutTypePicker.qml</file>
         <file alias="qml/ImageEffectsPopover.qml">../qml/ImageEffectsPopover.qml</file>
         <file alias="qml/ShortcutReference.qml">../qml/ShortcutReference.qml</file>
         <file alias="qml/QuickCaptureWindow.qml">../qml/QuickCaptureWindow.qml</file>

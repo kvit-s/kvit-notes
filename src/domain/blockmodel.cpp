@@ -549,6 +549,24 @@ QVariantMap BlockModel::todoProgress(int index) const
     return result;
 }
 
+void BlockModel::setCalloutType(int index, const QString &type)
+{
+    Block *block = blockAt(index);
+    if (!block || block->blockType() != Block::Callout
+        || block->language() == type)
+        return;
+    const Block::State oldState = block->state();
+    Block::State newState = oldState;
+    newState.language = type;
+    if (m_undoStack) {
+        auto cmd = std::make_unique<ConvertBlockCommand>(this, index, oldState,
+                                                        newState);
+        m_undoStack->push(std::move(cmd));
+    } else {
+        applyStateInternal(index, newState);
+    }
+}
+
 void BlockModel::setCalloutTitle(int index, const QString &title)
 {
     Block *block = blockAt(index);

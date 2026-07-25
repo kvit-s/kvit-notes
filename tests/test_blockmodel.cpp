@@ -58,6 +58,7 @@ private slots:
     void testChangeIndentForBlocks();
     void testJoinLinesForBlocks();
     void testCanJoinLines();
+    void testSetCalloutType();
     void testRemoveTextRangeCrossBlock();
     void testRemoveTextRangeEdgeCases();
     void testRemoveTextRangeDividerFirst();
@@ -2035,6 +2036,47 @@ void TestBlockModel::testCanJoinLines()
     QVERIFY(model->canJoinLines({1, 2, 0}));  // any one is enough
     QVERIFY(!model->canJoinLines({}));
     QVERIFY(!model->canJoinLines({99}));   // out of range
+
+    delete model;
+}
+
+// Changing a callout's kind from the header picker changes the kind and
+// nothing else — convertBlock would have dropped the custom colour, since it
+// builds its state from scratch.
+void TestBlockModel::testSetCalloutType()
+{
+    UndoStack *stack = nullptr;
+    BlockModel *model = makeModelWithStack({
+        { Block::Callout, "the body" },
+    }, &stack);
+    model->convertBlock(0, Block::Callout, "the body", true, "info", "Heads up");
+    model->setBlockAttributes(0, "color=#1f9e8b");
+    stack->clear();
+
+    model->setCalloutType(0, "warning");
+    QCOMPARE(model->blockAt(0)->language(), QString("warning"));
+    QCOMPARE(model->blockAt(0)->content(), QString("the body"));
+    QCOMPARE(model->blockAt(0)->calloutTitle(), QString("Heads up"));
+    QVERIFY(model->blockAt(0)->checked());       // still folded
+    QCOMPARE(model->blockAt(0)->attributes(), QString("color=#1f9e8b"));
+    QCOMPARE(stack->count(), 1);
+
+    stack->undo();
+    QCOMPARE(model->blockAt(0)->language(), QString("info"));
+    QCOMPARE(model->blockAt(0)->attributes(), QString("color=#1f9e8b"));
+    stack->redo();
+
+    // Picking the kind it already is pushes nothing.
+    const int before = stack->count();
+    model->setCalloutType(0, "warning");
+    QCOMPARE(stack->count(), before);
+
+    // A block that is not a callout is left alone.
+    model->insertBlock(1, Block::Paragraph, "prose");
+    stack->clear();
+    model->setCalloutType(1, "warning");
+    QCOMPARE(model->blockAt(1)->language(), QString());
+    QCOMPARE(stack->count(), 0);
 
     delete model;
 }

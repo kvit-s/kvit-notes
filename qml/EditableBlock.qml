@@ -331,6 +331,21 @@ BlockDelegateBase {
         return calloutSpec[t] !== undefined ? calloutSpec[t]
             : { icon: "?", accent: Theme.textMuted, label: delegate.calloutType }
     }
+    // The same catalog as a list, in the order the header's type picker
+    // offers it. Built from calloutSpec rather than repeated, so a type added
+    // there shows up in the picker without a second edit. "toggle" carries no
+    // label of its own, since its header shows none.
+    readonly property var calloutTypes: {
+        var order = ["info", "note", "tip", "success", "warning", "error",
+                     "toggle"]
+        var rows = []
+        for (var i = 0; i < order.length; i++) {
+            var spec = delegate.calloutSpec[order[i]]
+            rows.push({ key: order[i], icon: spec.icon,
+                        label: spec.label !== "" ? spec.label : qsTr("Toggle") })
+        }
+        return rows
+    }
     readonly property int calloutHeaderHeight: calloutMode ? 28 : 0
     // A callout's custom color (features.md §1.2.10) overrides the typed
     // accent, recoloring the panel tint, border, bar, and header
@@ -394,6 +409,12 @@ BlockDelegateBase {
     }
     function setCalloutTitleText(t) {
         BlockModel.setCalloutTitle(delegate.index, t)
+    }
+    // Change the callout's kind from the header picker, as one undo step. The
+    // model's full-state command keeps the body, title, fold state and a
+    // custom colour; only the type changes.
+    function setCalloutTypeName(t) {
+        BlockModel.setCalloutType(delegate.index, t)
     }
     // A callout's custom color (features.md §1.2.10) as one undo step;
     // reset removes the attribute so it falls back to the typed accent.
@@ -1417,9 +1438,12 @@ BlockDelegateBase {
                     title: delegate.calloutTitle
                     headerHeight: delegate.calloutHeaderHeight
                     customColor: BlockAttributes.str(delegate.attributes, "color", "")
+                    types: delegate.calloutTypes
+                    currentType: delegate.calloutType
                     rowHovered: delegate.isHovered
                     onFoldToggled: delegate.toggleCalloutFold()
                     onTitleCommitted: function(t) { delegate.setCalloutTitleText(t) }
+                    onTypePicked: function(t) { delegate.setCalloutTypeName(t) }
                     onColorPicked: function(v) { delegate.setCalloutColor(v) }
                     onColorResetRequested: delegate.resetCalloutColor()
                     // The row is about to be recycled, so a title the user

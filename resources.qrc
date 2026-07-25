@@ -32,6 +32,7 @@
         <file>qml/DividerDelegate.qml</file>
         <file>qml/DividerStylePicker.qml</file>
         <file>qml/CalloutColorPicker.qml</file>
+        <file>qml/CalloutTypePicker.qml</file>
         <file>qml/ImageEffectsPopover.qml</file>
         <file>qml/ShortcutReference.qml</file>
         <file>qml/QuickCaptureWindow.qml</file>

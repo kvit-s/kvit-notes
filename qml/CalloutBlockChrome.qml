@@ -41,8 +41,15 @@ Item {
     // then, so an unhovered callout shows no editing affordance.
     property bool rowHovered: false
 
+    // The kinds a callout can be, as [{ key, icon, label }] in header order,
+    // and which one this is. Both come from the delegate so the picker and
+    // the renderer read the same catalog.
+    property var types: []
+    property string currentType: ""
+
     signal foldToggled()
     signal titleCommitted(string text)
+    signal typePicked(string value)
     signal colorPicked(string value)
     signal colorResetRequested()
 
@@ -91,21 +98,64 @@ Item {
             font.pixelSize: 12
             TapHandler { onTapped: root.foldToggled() }
         }
-        Text {
-            id: typeIcon
+        // The type button: the callout's own icon with a caret, opening the
+        // list of kinds. Sited and shaped like the code block's language
+        // selector, since it does the same job for this block.
+        Rectangle {
+            id: typeButton
+            objectName: "calloutTypeButton"
             anchors.left: chevron.right
-            anchors.leftMargin: 6
+            anchors.leftMargin: 4
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.icon !== ""
-            text: root.icon
-            color: root.accent
-            font.pixelSize: 13
-            font.bold: true
+            height: 20
+            width: (typeIcon.visible ? typeIcon.implicitWidth + 6 : 0)
+                   + typeCaret.implicitWidth + 10
+            radius: 3
+            color: typeHover.hovered ? Theme.hoverTint : "transparent"
+
+            Text {
+                id: typeIcon
+                anchors.left: parent.left
+                anchors.leftMargin: 5
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.icon !== ""
+                text: root.icon
+                color: root.accent
+                font.pixelSize: 13
+                font.bold: true
+            }
+            Text {
+                id: typeCaret
+                anchors.right: parent.right
+                anchors.rightMargin: 5
+                anchors.verticalCenter: parent.verticalCenter
+                text: "▾"
+                color: Theme.textFaint
+                font.pixelSize: 9
+                // Held back until the pointer is over the row, like the
+                // colour dot beside it: a resting callout shows its own icon
+                // and title, not the controls for changing them. The width is
+                // reserved either way, so nothing shifts on hover.
+                opacity: root.rowHovered || typePicker.visible ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+            }
+            HoverHandler { id: typeHover }
+            TapHandler { onTapped: typePicker.open() }
+
+            CalloutTypePicker {
+                id: typePicker
+                objectName: "calloutTypePicker"
+                x: 0
+                y: parent ? parent.height + 4 : 0
+                types: root.types
+                currentType: root.currentType
+                onTypePicked: function(v) { root.typePicked(v) }
+            }
         }
         TextField {
             id: titleField
             objectName: "calloutTitleField"
-            anchors.left: typeIcon.visible ? typeIcon.right : chevron.right
+            anchors.left: typeButton.right
             anchors.leftMargin: 6
             anchors.right: colorDot.left
             anchors.rightMargin: 6
