@@ -3332,6 +3332,66 @@ Item {
                     "The first list item has no parent to nest under")
         }
 
+        // Tab in a code block indents in spaces, four columns at a time,
+        // rather than writing a tab character that renders about ten wide.
+        function test_93b_codeBlockTabIndentsFourSpaces() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.insertBlock(0, 8, "def f():\n")   // CodeBlock
+            wait(150)
+
+            var textArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(textArea)
+            textArea.cursorPosition = textArea.text.length
+
+            keyClick(Qt.Key_Tab)
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "def f():\n    "
+            }, 1000, "Tab writes four spaces, not a tab character")
+            verify(BlockModel.getContent(0).indexOf("\t") < 0,
+                   "No tab character reaches the file")
+
+            // From a column that is not on a stop, Tab lands on the stop
+            typeString("x")
+            keyClick(Qt.Key_Tab)
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "def f():\n    x   "
+            }, 1000, "Tab pads to the next four-column stop")
+
+            // Shift+Tab takes one stop back off the line
+            keyClick(Qt.Key_Backtab, Qt.ShiftModifier)
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "def f():\nx   "
+            }, 1000, "Shift+Tab outdents the line")
+
+            // A selection spanning lines indents every line it touches, and
+            // one undo puts the whole sweep back
+            BlockModel.updateContent(0, "one\ntwo\nthree")
+            UndoStack.breakMerge()   // the setup edit is not part of the sweep
+            wait(150)
+            textArea.select(0, textArea.text.length)
+            keyClick(Qt.Key_Tab)
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "    one\n    two\n    three"
+            }, 1000, "Every selected line is indented")
+            UndoStack.undo()
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "one\ntwo\nthree"
+            }, 1000, "The sweep is one undo step")
+
+            // And Shift+Tab takes them all back out again
+            BlockModel.updateContent(0, "    one\n    two")
+            wait(150)
+            textArea.select(0, textArea.text.length)
+            keyClick(Qt.Key_Backtab, Qt.ShiftModifier)
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "one\ntwo"
+            }, 1000, "Every selected line is outdented")
+        }
+
         function test_94_codeBlockEnterBehavior() {
             if (isHeadless) {
                 skip("Keyboard tests require display")
@@ -3351,16 +3411,32 @@ Item {
                       "Enter in a code block should insert a newline")
             compare(BlockModel.count, 2, "No new block yet")
 
-            // Enter on the trailing empty line exits: the empty line goes,
-            // a paragraph appears below
+            // A blank line is ordinary code, so a second Enter keeps going
+            // rather than leaving the block
             keyClick(Qt.Key_Return)
+            tryVerify(function() { return BlockModel.getContent(0) === "line one\n\n" }, 1000,
+                      "Enter on a blank line stays in the code block")
+            compare(BlockModel.count, 2, "Still no new block")
+
+            // Ctrl+Enter is the way out: a paragraph below, focused, with the
+            // code block's own text untouched
+            keyClick(Qt.Key_Return, Qt.ControlModifier)
             tryVerify(function() { return BlockModel.count === 3 }, 1000,
-                      "Enter on a trailing empty line should exit the code block")
-            compare(BlockModel.getContent(0), "line one",
-                    "The trailing empty line is removed on exit")
+                      "Ctrl+Enter should leave the code block")
+            compare(BlockModel.getContent(0), "line one\n\n",
+                    "The code block keeps every line it had")
             compare(BlockModel.blockAt(1).blockType, 0, "The exit block is a paragraph")
             var newArea = findTextArea(findBlockDelegate(1))
             tryVerify(function() { return newArea.activeFocus }, 1000)
+
+            // The status bar spells the combination out while the caret is in
+            // a code block, and drops it elsewhere
+            var hint = findChild(appLoader.item, "blockKeyHintText")
+            verify(hint !== null, "The status bar carries a key hint")
+            tryCompare(hint, "visible", false, 1000)
+            ensureFocus(textArea)
+            tryCompare(hint, "visible", true, 1000)
+            compare(hint.text, "Ctrl+Enter: new block")
         }
 
         function test_95_dividerKeys() {

@@ -46,6 +46,12 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
         {"Block Operations", "Delete block",     "Ctrl+Shift+D", "engine", false, {}},
         {"Block Operations", "Indent",           "Tab",          "engine", false, {}},
         {"Block Operations", "Outdent",          "Shift+Tab",    "engine", false, {}},
+        {"Block Operations", "Line break in block", "Shift+Enter", "engine", false,
+         "Paragraphs, quotes, callouts and list items; a heading is a single "
+         "markdown line, and a code block takes plain Enter."},
+        {"Block Operations", "Leave a code block", "Ctrl+Enter", "engine", false,
+         "Enter inside a code block is a newline, blank lines included, so "
+         "leaving it has its own chord."},
 
         // §13.3 Block Conversion
         {"Block Conversion", "Paragraph",        "Ctrl+0",       "engine", false, {}},

@@ -183,7 +183,10 @@ The available block types:
   `— name` line) and nesting via `>>`.
 - **Code block** — a monospace panel with **syntax highlighting** for eleven languages, a
   language selector, a copy button, and an optional line-number gutter. Content is verbatim,
-  so nothing inside a code block is interpreted as markdown.
+  so nothing inside a code block is interpreted as markdown. Enter adds a line, blank lines
+  included, and Ctrl+Enter leaves the block — the status bar names that chord while you are
+  in one. Tab indents four columns and Shift+Tab outdents, in spaces rather than tab
+  characters, and both work across every line of a multi-line selection.
 - **Divider** — a horizontal rule, with configurable styles (see presentation below).
 - **Callout / toggle** — a titled, tinted, foldable panel (info, note, tip, warning, danger,
   quote, or a plain toggle). The fold state is saved in the file. Ctrl+Enter folds it.

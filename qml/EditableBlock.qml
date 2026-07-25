@@ -205,6 +205,92 @@ BlockDelegateBase {
                                 delegate.content, false, lang)
     }
 
+    // ---- Code-block indentation ----
+    // Tab inside a code block is literal indentation, written as spaces: a
+    // tab character renders against the document's default stop, which is
+    // about ten columns of the mono font, and code — Python above all —
+    // wants four. Tab pads to the next four-column stop, so it lands on the
+    // stop rather than four past wherever the caret sat. Shift+Tab takes one
+    // stop back off the line. A selection spanning lines indents or outdents
+    // every line it touches.
+    readonly property int codeIndentWidth: 4
+    // How much indentation to take off one line: up to a stop's worth of
+    // spaces, or a single tab character left by another editor.
+    function codeOutdentWidth(line) {
+        var n = 0
+        while (n < delegate.codeIndentWidth && line.charAt(n) === " ")
+            n += 1
+        return (n === 0 && line.charAt(0) === "\t") ? 1 : n
+    }
+    // Replace the block's text as one undo step, then put the caret (or the
+    // selection) back where the caller wants it. The document is rewritten
+    // from the model, so the restore waits for that to land.
+    function applyCodeText(newText, from, to) {
+        if (newText === textArea.text)
+            return
+        BlockModel.updateContent(delegate.index, newText)
+        Qt.callLater(function() {
+            var limit = textArea.text.length
+            if (from === to)
+                textArea.cursorPosition = Math.min(from, limit)
+            else
+                textArea.select(Math.min(from, limit), Math.min(to, limit))
+        })
+    }
+    function indentCodeLines(outdent) {
+        var body = textArea.text
+        var selStart = textArea.selectionStart
+        var selEnd = textArea.selectionEnd
+        var unit = " ".repeat(delegate.codeIndentWidth)
+        var lineStart = selStart === 0
+            ? 0 : body.lastIndexOf("\n", selStart - 1) + 1
+        var nextBreak = body.indexOf("\n", selStart)
+        var spansLines = selEnd > selStart && nextBreak >= 0 && nextBreak < selEnd
+
+        if (!spansLines && !outdent) {
+            // Pad to the next stop, replacing any selection inside the line.
+            var column = selStart - lineStart
+            var pad = delegate.codeIndentWidth
+                      - (column % delegate.codeIndentWidth)
+            var caret = selStart + pad
+            delegate.applyCodeText(body.substring(0, selStart)
+                                       + unit.substring(0, pad)
+                                       + body.substring(selEnd),
+                                   caret, caret)
+            return
+        }
+        if (!spansLines) {
+            var strip = delegate.codeOutdentWidth(body.substring(lineStart))
+            if (strip === 0)
+                return
+            var back = Math.max(lineStart, selStart - strip)
+            delegate.applyCodeText(body.substring(0, lineStart)
+                                       + body.substring(lineStart + strip),
+                                   back, back)
+            return
+        }
+
+        var lastEnd = body.indexOf("\n", selEnd)
+        if (lastEnd < 0)
+            lastEnd = body.length
+        var lines = body.substring(lineStart, lastEnd).split("\n")
+        var delta = 0
+        for (var i = 0; i < lines.length; i++) {
+            if (outdent) {
+                var off = delegate.codeOutdentWidth(lines[i])
+                lines[i] = lines[i].substring(off)
+                delta -= off
+            } else if (lines[i].length > 0) {
+                // A blank line gets no trailing whitespace of its own.
+                lines[i] = unit + lines[i]
+                delta += unit.length
+            }
+        }
+        delegate.applyCodeText(body.substring(0, lineStart) + lines.join("\n")
+                                   + body.substring(lastEnd),
+                               lineStart, lastEnd + delta)
+    }
+
     // ---- Callout chrome ----
     // Set by CalloutBlock. The type reuses `language`, the fold state reuses
     // `checked`. The header (icon + title + fold chevron) renders above the
@@ -1798,6 +1884,14 @@ BlockDelegateBase {
                 font.strikeout: delegate.contentStrikeout
                 color: delegate.contentColor
 
+                // A tab character another editor left in the file renders
+                // against the document's default 80px stop, which is about
+                // ten columns of the mono font. Show it as the same four
+                // columns Tab now writes.
+                tabStopDistance: delegate.verbatimEditing
+                    ? delegate.codeIndentWidth * contentMetrics.advanceWidth(" ")
+                    : 80
+
                 textFormat: TextEdit.PlainText
 
                 background: Rectangle {
@@ -2200,11 +2294,20 @@ BlockDelegateBase {
                         return
                     }
 
+                    // Tab / Shift+Tab in a code block is indentation in
+                    // spaces, four columns at a time.
+                    if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+                        && delegate.verbatimEditing
+                        && !(event.modifiers & Qt.ControlModifier)) {
+                        delegate.indentCodeLines(event.key === Qt.Key_Backtab)
+                        event.accepted = true
+                        return
+                    }
+
                     // Tab / Shift+Tab: indent and outdent list items
                     // (§3.3). Clamping (depth 4, one below the previous
-                    // list block) lives in the model. Code blocks keep
-                    // Tab as literal whitespace input; other types keep
-                    // the TextArea default.
+                    // list block) lives in the model. Other types keep the
+                    // TextArea default.
                     if (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ControlModifier)
                         && (delegate.isListFamily
                             || delegate.blockType === Block.Quote)) {
@@ -2441,11 +2544,11 @@ BlockDelegateBase {
                     }
 
                     if (delegate.enterInsertsNewline) {
-                        var atEnd = cursorPosition >= text.length
-                        var onTrailingEmptyLine = atEnd && text.length > 0
-                            && text.charAt(text.length - 1) === "\n"
-                        if (onTrailingEmptyLine) {
-                            remove(text.length - 1, text.length)
+                        // Every Enter is a newline, blank lines included —
+                        // they are ordinary code. Ctrl+Enter is the way out,
+                        // which the status bar spells out while the caret is
+                        // in a code block.
+                        if (event.modifiers & Qt.ControlModifier) {
                             delegate.createBlockBelow()
                         } else {
                             if (selectionEnd > selectionStart)

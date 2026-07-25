@@ -284,6 +284,29 @@ Rectangle {
             color: Theme.textMuted
         }
 
+        // Separator, shown only with the hint below it
+        Rectangle {
+            visible: blockKeyHint.visible
+            width: 1
+            height: 12
+            color: Theme.textDisabled
+        }
+
+        // Keyboard hint for the block holding the caret. A code block keeps
+        // every Enter for its own newlines — a blank line is ordinary code —
+        // so the way out of one has to be written down somewhere.
+        Text {
+            id: blockKeyHint
+            objectName: "blockKeyHintText"
+            readonly property bool inCodeBlock:
+                statusBar.targetBlock !== null
+                && statusBar.targetBlock.blockType === 8   // Block.CodeBlock
+            visible: inCodeBlock
+            text: qsTr("Ctrl+Enter: new block")
+            font.pixelSize: 11
+            color: Theme.textFaint
+        }
+
         // Separator
         Rectangle {
             width: 1
