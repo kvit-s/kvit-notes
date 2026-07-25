@@ -181,6 +181,11 @@ BlockDelegateBase {
             && AppSettings.value("view.codeLineNumbers", false) === true
     }
     readonly property int codeHeaderHeight: codeChrome ? 26 : 0
+    // A strip below the code, mirroring the header, that the keyboard hint
+    // sits in. Reserved whether or not the hint is showing, so the block does
+    // not change height when the caret arrives, and so the hint never covers
+    // the last line of code.
+    readonly property int codeFooterHeight: codeChrome ? 18 : 0
     // Digits of the largest line number, sized in the mono font.
     readonly property int codeGutterWidth: codeLineNumbers
         ? Math.max(28, String(Math.max(1, textArea.lineCount)).length
@@ -214,6 +219,17 @@ BlockDelegateBase {
     // stop back off the line. A selection spanning lines indents or outdents
     // every line it touches.
     readonly property int codeIndentWidth: 4
+    // The whitespace opening the line that position `pos` sits in — what a
+    // new line below it starts with, so Enter inside an indented block keeps
+    // the indentation instead of dropping to column zero.
+    function leadingIndentAt(pos) {
+        var body = textArea.text
+        var lineStart = pos === 0 ? 0 : body.lastIndexOf("\n", pos - 1) + 1
+        var end = lineStart
+        while (end < pos && (body.charAt(end) === " " || body.charAt(end) === "\t"))
+            end += 1
+        return body.substring(lineStart, end)
+    }
     // How much indentation to take off one line: up to a stop's worth of
     // spaces, or a single tab character left by another editor.
     function codeOutdentWidth(line) {
@@ -1379,7 +1395,9 @@ BlockDelegateBase {
                 : (delegate.useReadOnlyText
                     ? delegate.textAreaY + textArea.topPadding
                         + readOnlyText.implicitHeight + textArea.bottomPadding
-                    : delegate.textAreaY + textArea.implicitHeight)
+                        + delegate.codeFooterHeight
+                    : delegate.textAreaY + textArea.implicitHeight
+                        + delegate.codeFooterHeight)
 
             Loader {
                 id: calloutChromeLoader
@@ -1432,6 +1450,8 @@ BlockDelegateBase {
                     lineNumbers: delegate.codeLineNumbers
                     gutterWidth: delegate.codeGutterWidth
                     headerHeight: delegate.codeHeaderHeight
+                    footerHeight: delegate.codeFooterHeight
+                    caretInside: delegate.isFocused
                     contentLeft: delegate.codeContentLeft
                     viewportWidth: delegate.codeViewportWidth
                     maxScroll: delegate.codeMaxScroll
@@ -2546,16 +2566,21 @@ BlockDelegateBase {
                     if (delegate.enterInsertsNewline) {
                         // Every Enter is a newline, blank lines included —
                         // they are ordinary code. Ctrl+Enter is the way out,
-                        // which the status bar spells out while the caret is
-                        // in a code block.
+                        // named in the block's own bottom-right corner while
+                        // the caret is in it.
                         if (event.modifiers & Qt.ControlModifier) {
                             delegate.createBlockBelow()
                         } else {
                             if (selectionEnd > selectionStart)
                                 remove(selectionStart, selectionEnd)
                             var pos = cursorPosition
-                            insert(pos, "\n")
-                            cursorPosition = pos + 1
+                            // Carry the current line's indentation onto the
+                            // new one: typing inside an indented block should
+                            // stay in it rather than starting again at column
+                            // zero.
+                            var indent = delegate.leadingIndentAt(pos)
+                            insert(pos, "\n" + indent)
+                            cursorPosition = pos + 1 + indent.length
                         }
                         event.accepted = true
                         return

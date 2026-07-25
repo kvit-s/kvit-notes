@@ -3429,14 +3429,56 @@ Item {
             var newArea = findTextArea(findBlockDelegate(1))
             tryVerify(function() { return newArea.activeFocus }, 1000)
 
-            // The status bar spells the combination out while the caret is in
-            // a code block, and drops it elsewhere
-            var hint = findChild(appLoader.item, "blockKeyHintText")
-            verify(hint !== null, "The status bar carries a key hint")
-            tryCompare(hint, "visible", false, 1000)
+            // The block names the combination in its own bottom-right corner
+            // while the caret is in it, and drops the hint when focus leaves
+            var footer = findChild(findBlockDelegate(0), "codeFooter")
+            var hint = findChild(findBlockDelegate(0), "codeExitHint")
+            verify(footer !== null && hint !== null,
+                   "The code block carries its key hint")
+            tryCompare(footer, "visible", false, 1000)
             ensureFocus(textArea)
-            tryCompare(hint, "visible", true, 1000)
+            tryCompare(footer, "visible", true, 1000)
             compare(hint.text, "Ctrl+Enter: new block")
+        }
+
+        // Enter inside an indented line starts the next one at the same
+        // indentation, the way any code editor does.
+        function test_93c_codeBlockEnterKeepsIndentation() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.insertBlock(0, 8, "def f():\n    first()")   // CodeBlock
+            wait(150)
+
+            var textArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(textArea)
+            textArea.cursorPosition = textArea.text.length
+            keyClick(Qt.Key_Return)
+            typeString("second()")
+            tryVerify(function() {
+                return BlockModel.getContent(0)
+                    === "def f():\n    first()\n    second()"
+            }, 1000, "The new line keeps the indentation of the one above")
+
+            // Splitting mid-line indents the tail the same way
+            textArea.cursorPosition = textArea.text.indexOf("second()")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() {
+                return BlockModel.getContent(0)
+                    === "def f():\n    first()\n    \n    second()"
+            }, 1000, "A split inside an indented line indents the tail")
+
+            // An unindented line still starts the next one at column zero
+            BlockModel.updateContent(0, "top()")
+            wait(150)
+            textArea.cursorPosition = textArea.text.length
+            keyClick(Qt.Key_Return)
+            typeString("next()")
+            tryVerify(function() {
+                return BlockModel.getContent(0) === "top()\nnext()"
+            }, 1000, "No indentation is invented where there was none")
         }
 
         function test_95_dividerKeys() {

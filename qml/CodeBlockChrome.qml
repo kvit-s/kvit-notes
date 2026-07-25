@@ -35,6 +35,10 @@ Item {
     property bool lineNumbers: false
     property int gutterWidth: 0
     property int headerHeight: 0
+    // The strip below the code that the keyboard hint sits in, and whether
+    // the caret is in this block — the hint only means anything then.
+    property int footerHeight: 0
+    property bool caretInside: false
     // Left inset of the code text, past the gutter.
     property int contentLeft: 0
     // Visible width of the text, and how far it can scroll beyond it.
@@ -192,6 +196,32 @@ Item {
                 interval: 1200
                 onTriggered: copyButton.copied = false
             }
+        }
+    }
+
+    // The keyboard hint, bottom-right the way Copy is top-right. Enter inside
+    // a code block is a newline — blank lines are ordinary code — so the way
+    // out has to be visible, and it is worth saying only while the caret is
+    // in the block. It sits in the reserved footer strip, clear of the last
+    // line of code.
+    Item {
+        id: footer
+        objectName: "codeFooter"
+        x: 0
+        y: root.height - root.footerHeight
+        z: 3
+        width: root.width
+        height: root.footerHeight
+        visible: root.caretInside && root.footerHeight > 0
+
+        Text {
+            objectName: "codeExitHint"
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: qsTr("Ctrl+Enter: new block")
+            color: Theme.textFaint
+            font.pixelSize: Math.max(9, root.fontPixelSize - 4)
         }
     }
 

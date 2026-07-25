@@ -77,9 +77,10 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Copy code button
 - Horizontal scrolling for long lines
 - Preserve whitespace and indentation exactly as entered
-- Enter inserts a newline, blank lines included; Ctrl+Enter leaves the block and
-  starts a paragraph below, and the status bar names that chord while the caret
-  is in a code block
+- Enter inserts a newline, blank lines included, and carries the current line's
+  indentation onto the new one; Ctrl+Enter leaves the block and starts a
+  paragraph below, named in the block's bottom-right corner while the caret is
+  inside, opposite the copy button
 - Tab indents to the next four-column stop and Shift+Tab takes one stop back;
   with lines selected both work on every line the selection touches.
   Indentation is written as spaces, never as tab characters

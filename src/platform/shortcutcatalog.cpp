@@ -51,7 +51,8 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
          "markdown line, and a code block takes plain Enter."},
         {"Block Operations", "Leave a code block", "Ctrl+Enter", "engine", false,
          "Enter inside a code block is a newline, blank lines included, so "
-         "leaving it has its own chord."},
+         "leaving it has its own chord — named in the block's bottom-right "
+         "corner while the caret is inside."},
 
         // §13.3 Block Conversion
         {"Block Conversion", "Paragraph",        "Ctrl+0",       "engine", false, {}},
