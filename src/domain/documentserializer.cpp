@@ -60,6 +60,27 @@ QString indentPrefix(const Block *block)
     return QString(2 * block->indentLevel(), QLatin1Char(' '));
 }
 
+// One list item, marker plus content, with any line break in the content
+// written as a continuation line indented to the content column — the column
+// the marker ends at. That is what CommonMark reads back as part of the same
+// item, and what an LLM emits when it wraps a long item, so the same shape
+// serves writing and reading. `marker` carries the item's own indentation
+// ("  - ", "3. ", "- [x] "), so the pad matches whatever it is.
+QString listItemLines(const QString &marker, const QString &content)
+{
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    QString out = marker + lines.first();
+    const QString pad(marker.size(), QLatin1Char(' '));
+    for (int i = 1; i < lines.size(); ++i) {
+        out += QLatin1Char('\n');
+        // A pad-only line would be trailing whitespace, which parses as a
+        // blank line either way; write it bare.
+        if (!lines.at(i).isEmpty())
+            out += pad + lines.at(i);
+    }
+    return out;
+}
+
 // A fence line: three or more backticks — or tildes — optionally followed
 // by an info string (the language). Returns the fence length, or 0.
 int fenceLength(const QString &rest, QString *language, QChar *fenceChar = nullptr)
@@ -354,14 +375,17 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
     case Block::Heading4:
         return QStringLiteral("#### ") + content;
     case Block::BulletList:
-        return indentPrefix(block) + QStringLiteral("- ") + content;
+        return listItemLines(indentPrefix(block) + QStringLiteral("- "), content);
     case Block::NumberedList:
-        return indentPrefix(block) + QString::number(qMax(1, ordinal)) +
-               QStringLiteral(". ") + content;
+        return listItemLines(indentPrefix(block)
+                                 + QString::number(qMax(1, ordinal))
+                                 + QStringLiteral(". "),
+                             content);
     case Block::Todo:
-        return indentPrefix(block) +
-               (block->checked() ? QStringLiteral("- [x] ") : QStringLiteral("- [ ] ")) +
-               content;
+        return listItemLines(indentPrefix(block)
+                                 + (block->checked() ? QStringLiteral("- [x] ")
+                                                     : QStringLiteral("- [ ] ")),
+                             content);
     case Block::Quote: {
         // One quote block per contiguous run at one depth; empty content
         // lines write the depth's markers with no trailing space. The depth
@@ -520,8 +544,17 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
         flushQuote();
     };
 
+    // Whether the line just consumed was a list item or one of its
+    // continuation lines, which is the only state under which an indented
+    // line joins the item above instead of starting a paragraph. Cleared by
+    // every other branch simply by not setting it again.
+    bool afterListLine = false;
+
     int i = 0;
     while (i < lines.size()) {
+        const bool prevWasListLine = afterListLine;
+        afterListLine = false;
+
         // Split a trailing <!--kvit ...--> attribute tag off this line
         // before classifying. A tag-free line is returned unchanged, so
         // existing documents parse byte-identically. Verbatim regions
@@ -764,6 +797,7 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             data.checked = todoMatch.captured(1) != QStringLiteral(" ");
             data.attributes = lineAttrs;
             blocks.append(data);
+            afterListLine = true;
             ++i;
             continue;
         }
@@ -777,6 +811,7 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             data.indentLevel = indentLevel;
             data.attributes = lineAttrs;
             blocks.append(data);
+            afterListLine = true;
             ++i;
             continue;
         }
@@ -790,6 +825,25 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             data.indentLevel = indentLevel;
             data.attributes = lineAttrs;
             blocks.append(data);
+            afterListLine = true;
+            ++i;
+            continue;
+        }
+
+        // A continuation line: indented, carrying no marker of its own, and
+        // directly under a list item. It belongs to that item — this is how
+        // a wrapped item survives a round trip, and how an LLM's wrapped
+        // list arrives intact. Every other construct (fence, table, image,
+        // quote) is claimed by the branches above, so what reaches here is
+        // prose. A blank line ends the item, since prevWasListLine is false
+        // on the line after it.
+        if (prevWasListLine && indentChars > 0 && !blocks.isEmpty()
+            && Block::isListFamily(blocks.last().type)) {
+            BlockData &item = blocks.last();
+            item.content += QLatin1Char('\n') + rest;
+            if (!lineAttrs.isEmpty() && item.attributes.isEmpty())
+                item.attributes = lineAttrs;
+            afterListLine = true;
             ++i;
             continue;
         }

@@ -107,6 +107,9 @@ private slots:
     void testQueryFenceRoundTripAndDerivedKind();
     void testNoSpaceNestedQuotes();
     void testSerializeBlocksHandlesHugeSelections();
+    void testListItemContinuationLines();
+    void testListItemContinuationRoundTrip();
+    void testListItemContinuationBoundaries();
 
 private:
     // Serialize -> parse -> serialize must reproduce the exact bytes for
@@ -1476,6 +1479,93 @@ void TestDocumentSerializer::testSerializeBlocksHandlesHugeSelections()
              qPrintable(QStringLiteral("serializing %1 indexes took %2 ms")
                             .arg(indexes.size())
                             .arg(elapsed)));
+}
+
+// A wrapped list item — what an LLM emits and what Shift+Enter writes — is
+// one item, not an item plus a paragraph.
+void TestDocumentSerializer::testListItemContinuationLines()
+{
+    auto bullets = m_serializer->parse(
+        "- A long item wrapped across two lines with\n"
+        "  the continuation indented under the marker.\n"
+        "- Second item.");
+    QCOMPARE(bullets.size(), 2);
+    QCOMPARE(bullets[0].type, Block::BulletList);
+    QCOMPARE(bullets[0].content,
+             QString("A long item wrapped across two lines with\n"
+                     "the continuation indented under the marker."));
+    QCOMPARE(bullets[1].content, QString("Second item."));
+
+    // The content column follows the marker, so a numbered item's
+    // continuation sits one column further right, and a todo's six.
+    auto numbered = m_serializer->parse("1. first line\n   second line");
+    QCOMPARE(numbered.size(), 1);
+    QCOMPARE(numbered[0].type, Block::NumberedList);
+    QCOMPARE(numbered[0].content, QString("first line\nsecond line"));
+
+    auto todo = m_serializer->parse("- [x] first line\n      second line");
+    QCOMPARE(todo.size(), 1);
+    QCOMPARE(todo[0].type, Block::Todo);
+    QVERIFY(todo[0].checked);
+    QCOMPARE(todo[0].content, QString("first line\nsecond line"));
+
+    // A nested item keeps its own level and takes its continuation deeper.
+    auto nested = m_serializer->parse("- parent\n  - child one\n    child wrapped");
+    QCOMPARE(nested.size(), 2);
+    QCOMPARE(nested[1].indentLevel, 1);
+    QCOMPARE(nested[1].content, QString("child one\nchild wrapped"));
+
+    // Three continuation lines land in order.
+    auto many = m_serializer->parse("- one\n  two\n  three\n  four");
+    QCOMPARE(many.size(), 1);
+    QCOMPARE(many[0].content, QString("one\ntwo\nthree\nfour"));
+}
+
+void TestDocumentSerializer::testListItemContinuationRoundTrip()
+{
+    verifyByteIdentical("- first line\n  second line\n");
+    verifyByteIdentical("1. first line\n   second line\n2. plain second item\n");
+    verifyByteIdentical("- [ ] first line\n      second line\n");
+    verifyByteIdentical("  - nested item\n    its continuation\n");
+    verifyByteIdentical("- one\n  two\n  three\n");
+    // A wrapped item beside its neighbours and other block types.
+    verifyByteIdentical("# Title\n\n- wrapped item\n  continued\n- plain item\n\n"
+                        "Closing paragraph.\n");
+}
+
+// What must NOT become a continuation line.
+void TestDocumentSerializer::testListItemContinuationBoundaries()
+{
+    // No indentation: a paragraph of its own, as before.
+    auto flush = m_serializer->parse("- item\nnot indented");
+    QCOMPARE(flush.size(), 2);
+    QCOMPARE(flush[1].type, Block::Paragraph);
+    QCOMPARE(flush[1].content, QString("not indented"));
+
+    // A blank line ends the item.
+    auto blank = m_serializer->parse("- item\n\n  indented after a blank");
+    QCOMPARE(blank.size(), 2);
+    QCOMPARE(blank[0].content, QString("item"));
+    QCOMPARE(blank[1].type, Block::Paragraph);
+
+    // An indented line with no list item above it is still a paragraph.
+    auto alone = m_serializer->parse("A paragraph.\n\n  indented on its own");
+    QCOMPARE(alone.size(), 2);
+    QCOMPARE(alone[1].type, Block::Paragraph);
+
+    // An indented fence under an item stays a code block (fix 2's rule wins,
+    // since the fence branch runs before the continuation one).
+    auto fenced = m_serializer->parse("- item\n  ```\n  code line\n  ```");
+    QCOMPARE(fenced.size(), 2);
+    QCOMPARE(fenced[0].type, Block::BulletList);
+    QCOMPARE(fenced[1].type, Block::CodeBlock);
+    QCOMPARE(fenced[1].content, QString("code line"));
+
+    // An indented marker line is a nested item, never a continuation.
+    auto nested = m_serializer->parse("- parent\n  - child");
+    QCOMPARE(nested.size(), 2);
+    QCOMPARE(nested[1].type, Block::BulletList);
+    QCOMPARE(nested[1].indentLevel, 1);
 }
 
 QTEST_MAIN(TestDocumentSerializer)
