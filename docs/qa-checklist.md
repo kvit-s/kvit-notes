@@ -107,10 +107,12 @@ pass.
 
        *Known suspect:* the math block showed blinking chrome and an
        unclickable plus button because hover state came from a
-       `MouseArea` that the chrome's own areas stole hover from. That one
-       is fixed. Ten delegates still derive hover the same way and have
-       not been checked on real Windows: Embed, Image, Table, Diagram,
-       Media, Query, Editable, Divider, Kanban, Toc.
+       `MouseArea` that the chrome's own areas stole hover from. Every
+       delegate now takes its chrome from the one `BlockGutter.qml` and
+       folds that component's `hovered` back into its own hover state, so
+       the stealing case is handled in one place rather than eleven — but
+       the result has not been checked on real Windows for Embed, Image,
+       Table, Diagram, Media, Query, Editable, Divider, Kanban or Toc.
 
 3. [ ] **Right-click every block type.** Right-click the rendered body of
        each block and its drag handle.
@@ -118,10 +120,13 @@ pass.
        *Expect:* the shared block menu opens, including Turn-into and
        Delete, so every block is removable by mouse alone.
 
-       *Known suspect:* of the special delegates only Image, Diagram and
-       Math wire right-button handling. Table, Kanban, Query, Media,
-       Embed, Toc and Divider likely have no mouse route to the block
-       menu.
+       *Known suspect:* the shared `BlockGutter.qml` handles the right
+       button on the drag handle, so every block type now has that route
+       to the menu. The rendered body is a separate question: Image,
+       Diagram and Math wire right-button handling of their own, and a
+       board's card opens its own menu, so right-clicking the body of a
+       table, query, media card, embed card, TOC or divider — or a board
+       anywhere other than a card — still does nothing.
 
 4. [ ] **Fonts and emoji in the real GUI.** Open a note mixing prose,
        code, math, and color emoji.
@@ -257,6 +262,16 @@ Run against the installed artifact with a fresh user profile.
         *Expect:* the column follows the pointer, the width is still there
         after the reopen, and the reset restores content-measured widths.
         Ctrl+Z undoes a drag in one step.
+21. [ ] On a task board, drag a card into another column and drop it between
+        two cards there, then drag a column by its name past its neighbour.
+        Click a card's text and type `#urgent` on its line; click under the
+        title and type a two-line description with `$x^2$` and a
+        `[[wiki-link]]` in it.
+        *Expect:* the card follows the pointer with a line showing the slot
+        it will take, and lands there; the column does the same. The typed
+        label appears as a chip, the description shows both lines with the
+        formula typeset and the link followable, and the file holds all of
+        it as ordinary markdown. Ctrl+Z undoes each move in one step.
 
 ## Distribution
 

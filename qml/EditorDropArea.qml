@@ -142,7 +142,31 @@ DropArea {
         }
     }
 
-    onEntered: function(drag) { drag.accepted = true; dropY = drag.y }
+    // A drag a block started inside itself — a kanban card or column being
+    // carried to another place on its own board — is not a drop into the
+    // document, and this area must let it through. It covers the whole editor
+    // at a z above every block and accepts anything offered, so it took the
+    // gesture the moment the card left its column: the board's own drop
+    // targets never saw it, this area drew its insertion line across the page
+    // instead, and the card came back where it started. Block-internal drags
+    // are the ones whose keys are this application's own.
+    function isBlockInternalDrag(drag) {
+        var keys = drag.keys
+        for (var i = 0; i < keys.length; ++i) {
+            if (keys[i].indexOf("kvit-") === 0)
+                return true
+        }
+        return false
+    }
+
+    onEntered: function(drag) {
+        if (dropArea.isBlockInternalDrag(drag)) {
+            drag.accepted = false
+            return
+        }
+        drag.accepted = true
+        dropY = drag.y
+    }
     onPositionChanged: function(drag) { dropY = drag.y }
     onExited: dropY = -1
     onDropped: function(drop) { dropY = -1; dropArea.handleEditorDrop(drop) }

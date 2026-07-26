@@ -199,6 +199,59 @@ QString escapeTitle(const QString &title)
     return out;
 }
 
+// A card line, with whatever indent, bullet and checkbox it was written with:
+// group 1 is that prefix and group 2 the single space that may follow it.
+// Everything after is the card's text.
+const QRegularExpression &cardPrefixRe()
+{
+    static const QRegularExpression re(
+        QStringLiteral("^(\\s*[-*] \\[[ xX]\\])( ?)"));
+    return re;
+}
+
+// The card's text as the fields describe it: what serialize() writes for a
+// card with no source line of its own.
+QString renderedCardBody(const KanbanData::Card &card)
+{
+    QString body = escapeTitle(card.title);
+    for (const QString &label : card.labels) {
+        const QString token = writeLabel(label);
+        if (!token.isEmpty())
+            body += QStringLiteral(" #") + token;
+    }
+    // Only a real calendar date goes after the marker: the storage grammar
+    // reads nothing else back, so writing "📅 tomorrow" would silently move
+    // the text into the title and clear the field. setCard() rejects such a
+    // value at the boundary; this is the invariant restated where the line is
+    // built.
+    if (isRealDate(card.due))
+        body += QLatin1Char(' ') + kCalendar + QLatin1Char(' ') + card.due;
+    return body;
+}
+
+// The card's text as the file has it: everything on its line after the
+// checkbox. A card a mutation synthesized has no line yet, so its text is
+// rendered from the fields instead — which is the same string serialize()
+// is about to write.
+QString cardBody(const KanbanData::Card &card)
+{
+    if (card.rawLine.isEmpty())
+        return renderedCardBody(card);
+    const QRegularExpressionMatch m = cardPrefixRe().match(card.rawLine);
+    return m.hasMatch() ? card.rawLine.mid(m.capturedEnd(0)) : card.rawLine;
+}
+
+// What goes in front of that text when it is rewritten: the card's own
+// indent, bullet and checkbox, so a `*` bullet or an indented card stays what
+// it was and the done state survives an edit of the text beside it.
+QString cardPrefix(const KanbanData::Card &card)
+{
+    const QRegularExpressionMatch m = cardPrefixRe().match(card.rawLine);
+    if (m.hasMatch())
+        return m.captured(1) + QLatin1Char(' ');
+    return card.done ? QStringLiteral("- [x] ") : QStringLiteral("- [ ] ");
+}
+
 bool isBlank(const QString &line)
 {
     return line.trimmed().isEmpty();
@@ -344,23 +397,9 @@ QString serialize(const Board &b)
             if (!card.rawLine.isEmpty()) {
                 out << card.rawLine;
             } else {
-                QString line = (card.done ? QStringLiteral("- [x] ")
-                                          : QStringLiteral("- [ ] "))
-                               + escapeTitle(card.title);
-                for (const QString &label : card.labels) {
-                    const QString token = writeLabel(label);
-                    if (!token.isEmpty())
-                        line += QStringLiteral(" #") + token;
-                }
-                // Only a real calendar date goes after the marker: the storage
-                // grammar reads nothing else back, so writing "📅 tomorrow"
-                // would silently move the text into the title and clear the
-                // field. setCard() rejects such a value at the boundary; this
-                // is the invariant restated where the line is built.
-                if (isValidDue(card.due))
-                    line += QLatin1Char(' ') + kCalendar + QLatin1Char(' ')
-                            + card.due;
-                out << line;
+                out << (card.done ? QStringLiteral("- [x] ")
+                                  : QStringLiteral("- [ ] "))
+                        + renderedCardBody(card);
             }
             if (!card.rawDescription.isEmpty()) {
                 out << card.rawDescription;
@@ -508,6 +547,45 @@ QString moveCard(const QString &content, int fromCol, int fromIndex,
     return serialize(b);
 }
 
+QString setCardLine(const QString &content, int col, int index,
+                    const QString &text)
+{
+    Board b = parse(content);
+    if (col < 0 || col >= b.columnCount()
+        || index < 0 || index >= b.columns[col].cards.size())
+        return content;
+    Card &c = b.columns[col].cards[index];
+    QString body = text;
+    // One card is one line: a break typed into it would open a second card or
+    // a description line the next time the board is read.
+    body.replace(QLatin1Char('\n'), QLatin1Char(' '));
+    c.rawLine = cardPrefix(c) + body;
+    // The line is where the title, the labels and the due date come from, so
+    // read them back out of it rather than leaving the board describing text
+    // it no longer holds.
+    c.title.clear();
+    c.labels.clear();
+    c.due.clear();
+    parseCardBody(body, c);
+    return serialize(b);
+}
+
+QString setCardDescription(const QString &content, int col, int index,
+                           const QString &text)
+{
+    Board b = parse(content);
+    if (col < 0 || col >= b.columnCount()
+        || index < 0 || index >= b.columns[col].cards.size())
+        return content;
+    Card &c = b.columns[col].cards[index];
+    c.description = text;
+    // The description was just written from the field, so the source lines it
+    // used to have are gone and serialize() renders it from the text: one
+    // indented line per line, which is what the next parse reads back.
+    c.rawDescription.clear();
+    return serialize(b);
+}
+
 QString setCard(const QString &content, int col, int index,
                 const QString &title, bool done, const QStringList &labels,
                 const QString &due, const QString &description)
@@ -556,6 +634,8 @@ QVariantMap KanbanTools::parse(const QString &content) const
                 { QStringLiteral("labels"), QVariant(QStringList(card.labels)) },
                 { QStringLiteral("due"), card.due },
                 { QStringLiteral("description"), card.description },
+                // The line's own text, which is what the inline editor edits.
+                { QStringLiteral("line"), cardBody(card) },
             });
         }
         columns.append(QVariantMap{

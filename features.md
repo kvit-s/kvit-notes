@@ -138,14 +138,30 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Cards within each column representing tasks
 - Drag and drop cards between columns
 - Drag and drop to reorder cards within columns
-- Drag and drop to reorder columns
-- Add new columns
-- Add new cards to any column
-- Card content: title, description, labels, due date
-- Column headers with card count
+- Drag and drop to reorder columns, and left/right controls that do the same
+  without a pointer gesture
+- Add new columns; rename a column by clicking its name; delete a column with
+  its cards (undoable, so no confirmation)
+- Add new cards to any column, which open their editor empty rather than
+  arriving named "New card"
+- Card content: title, description, labels, due date. A card is edited in
+  place, not in a dialog: clicking its text opens an editor on the card's own
+  line, where `#label` and `📅 YYYY-MM-DD` are written as the file holds them,
+  and clicking under it opens one on the description
+- Card descriptions are shown on the card, hold as many lines as they are
+  given (Shift+Enter breaks a line), and render inline math and
+  `[[wiki-links]]` as the prose blocks do
+- A card-details popover for the structured fields (the labels, and the due
+  date the storage grammar is strict about), plus "Move to column" and
+  "Delete card", reached from the card's context menu
+- Column headers with card count, a collapse triangle, and controls that
+  highlight and name themselves under the pointer
 - Collapse/expand columns
 - Color-coded labels/tags on cards
-- Filter cards by label or status
+- Filter cards by label or status: a chip row above the board narrows it to
+  one label or hides finished cards. The cards that do not match leave the
+  columns rather than dimming, the column counts read "2 of 5", and a line
+  beside the chips says how much of the board is showing
 
 #### 1.2.13 Toggle/Collapsible Block
 - Header text always visible

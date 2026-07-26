@@ -204,8 +204,15 @@ The available block types:
   relative path, so moving a note never breaks the image. Drag the corner to resize, click to
   zoom, and add an alt text and a caption. The caption wraps to the width of the picture;
   Shift+Enter adds a line to it and Enter leaves for a new block below.
-- **Kanban board** — columns of cards with labels, due dates, and descriptions, with card
-  drag between columns (or a "Move to column" control), stored as readable markdown.
+- **Kanban board** — columns of cards, stored as readable markdown. Click a card's text to
+  edit it in place: the line you type is the card's own line, so `#label` makes a label and
+  `📅 2026-08-01` a due date, and the description under it takes as many lines as you need
+  (Shift+Enter for a new line) with formulas and `[[wiki-links]]` rendered as they are
+  everywhere else. Drag a card to another column or another position, drag a column by its
+  name to reorder it, and click a column's name to rename it or its triangle to collapse it.
+  The chips above the board filter it to one label or hide finished cards; the counts beside
+  each column name say how much is showing. Right-click a card for its labels, its due date,
+  "Move to column" and "Delete card" without a pointer gesture.
 - **Math block** — a `$$ … $$` LaTeX equation rendered centered; focus it to edit the source
   with a live preview. Inline math is `$x$` within a line: typing `$` inserts the closing `$`
   too with the caret between them (Backspace on the empty pair removes both; forward Delete

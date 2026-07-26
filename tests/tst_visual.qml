@@ -1107,14 +1107,21 @@ Item {
             var row0 = listView.itemAtIndex(0)
             var row2 = listView.itemAtIndex(2)
             verify(row0 !== null && row2 !== null)
+            // Where the drop lands, in the list's own coordinates. Taken
+            // before the drag starts and used for the release: the rows are
+            // reused delegates, and the one this began by pointing at may
+            // have been recycled by the time it ends, leaving a handle the
+            // release could not be sent to.
+            var dropPoint = row2.mapToItem(listView, row2.width / 2,
+                                           row2.height - 5)
             mousePress(row0, row0.width / 2, row0.height / 2)
             mouseMove(row0, row0.width / 2 - 20, row0.height / 2)
-            mouseMove(row2, row2.width / 2, row2.height - 5)
+            mouseMove(listView, dropPoint.x, dropPoint.y)
             var indicator = findChild(appLoader.item, "reorderIndicator")
             tryCompare(indicator, "visible", true, 1000)
             wait(250)
             saveScreenshot("visual_21_list_03_manual_reorder_indicator.png")
-            mouseRelease(row2, row2.width / 2, row2.height - 5)
+            mouseRelease(listView, dropPoint.x, dropPoint.y)
 
             NoteCollection.closeRoot()
             wait(100)
@@ -1650,13 +1657,19 @@ Item {
             // Line numbers on (view-menu toggle, persisted).
             AppSettings.setValue("view.codeLineNumbers", true)
             wait(200)
-            // The gutter must actually create a row per code line (the
-            // Repeater holds one Text per line, plus the Repeater itself) —
-            // a screenshot alone cannot fail when the model breaks.
+            // The gutter must actually number every line of the fence: a
+            // screenshot alone cannot fail when the numbering breaks. One
+            // Text holds all of them — a Repeater built one item per line,
+            // which cost ten thousand of them on a long fence — so what is
+            // checked is the string it lays out.
             var gutter = findChild(findBlockDelegate(1), "codeGutter")
             verify(gutter !== null, "code gutter exists")
-            tryVerify(function() { return gutter.children.length >= 4 }, 1000,
-                      "gutter creates one line-number row per code line")
+            var gutterNumbers = findChild(gutter, "codeGutterNumbers")
+            verify(gutterNumbers !== null, "the gutter holds its numbers")
+            var codeLineCount = BlockModel.getContent(1).split("\n").length
+            tryVerify(function() {
+                return gutterNumbers.text.split("\n").length === codeLineCount
+            }, 1000, "the gutter numbers every line of the fence")
             saveScreenshot("visual_31_code_02_line_numbers.png")
 
             // The language selector open on the Python block.
@@ -2247,6 +2260,267 @@ Item {
             UndoStack.redo()
             tryVerify(function() { return BlockModel.getContent(1) === movedContent },
                       1000, "redo re-applies the card move")
+
+            // The board now reads: "In progress" (empty), "To do" (three
+            // cards), "Done" (two).
+            var kb4 = findBlockDelegate(1)
+
+            // A card is edited where it sits. Opening its line puts the
+            // source of that line in front of the reader — the title with the
+            // labels and the due date written as the file holds them — and
+            // what is typed there is what the file gets, so a `#label` typed
+            // into it is a label on the next read.
+            kb4.beginEdit(1, 2, "title")
+            var cardEditorField = null
+            tryVerify(function() {
+                cardEditorField = findChild(kb4, "kanbanCardTextEditor")
+                return cardEditorField !== null
+            }, 1000, "clicking a card's text opens an editor on it")
+            tryCompare(cardEditorField, "activeFocus", true, 1000)
+            compare(cardEditorField.text, "Triage bugs")
+            cardEditorField.selectAll()
+            typeText("Triage bugs #urgent")
+            tryVerify(function() {
+                var b = KanbanTools.parse(BlockModel.getContent(1))
+                return b.columns[1].cards[2].labels.indexOf("urgent") !== -1
+                    && b.columns[1].cards[2].title === "Triage bugs"
+            }, 2000, "a label typed on the card's line becomes a label")
+            wait(200)
+            saveScreenshot("visual_38_kanban_08_card_line_edited.png")
+
+            // The description is the second editable field on the card, and
+            // it holds as many lines as it is given: Shift+Enter breaks a
+            // line, plain Enter is done with the card.
+            kb4.beginEdit(1, 2, "description")
+            var descEditorField = null
+            tryVerify(function() {
+                descEditorField = findChild(kb4, "kanbanCardTextEditor")
+                return descEditorField !== null && descEditorField.activeFocus
+            }, 1000, "the description opens its own editor")
+            typeText("Ask the team first")
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeText("then book the room")
+            tryVerify(function() {
+                var b = KanbanTools.parse(BlockModel.getContent(1))
+                return b.columns[1].cards[2].description
+                    === "Ask the team first\nthen book the room"
+            }, 2000, "a multi-line description is written back as its lines")
+            keyClick(Qt.Key_Return)
+            tryCompare(kb4, "editCol", -1)
+
+            // A description carries what the rest of a note carries: a
+            // formula renders as one, and a [[wiki-link]] renders as a link.
+            kb4.commitCardDescription(1, 1,
+                "Blocked on [[Design notes]] — needs $E = mc^2$")
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1))
+                    .columns[1].cards[1].description.indexOf("[[Design notes]]") >= 0
+            }, 1000, "the description keeps its wiki-link")
+            wait(400)   // the image://math provider renders asynchronously
+            clearFocus()
+            saveScreenshot("visual_38_kanban_09_description_rich.png")
+
+            // The filter row narrows the board to one label: the cards
+            // without it leave the columns, and the counts say so.
+            kb4.labelFilter = "docs"
+            tryCompare(kb4, "visibleCardCount", 1)
+            wait(200)
+            saveScreenshot("visual_38_kanban_10_filtered.png")
+            kb4.labelFilter = ""
+            tryCompare(kb4, "visibleCardCount", kb4.cardCount)
+
+            // Clicking a card's text is what opens its editor — the board no
+            // longer needs a dialog for the two fields that hold what the
+            // card says.
+            var kb5 = findBlockDelegate(1)
+            var clickedCard = findChild(kb5, "kanbanCard")
+            verify(clickedCard !== null, "the board has a card to click")
+            mouseClick(clickedCard, clickedCard.width / 2, 12)
+            tryVerify(function() {
+                return findChild(kb5, "kanbanCardTextEditor") !== null
+            }, 1000, "clicking a card's text opens the editor on it")
+            keyClick(Qt.Key_Escape)
+            tryCompare(kb5, "editCol", -1)
+
+            // The triangle collapses the column; the name beside it does not,
+            // which is what a click there used to do instead of renaming.
+            var collapseControl = findChild(kb5, "kanbanColCollapse")
+            verify(collapseControl !== null, "the column header has a collapse control")
+            var firstColumnName = KanbanTools.parse(BlockModel.getContent(1))
+                                      .columns[0].name
+            mouseClick(collapseControl, collapseControl.width / 2,
+                       collapseControl.height / 2)
+            tryVerify(function() { return kb5.collapsed[firstColumnName] === true },
+                      1000, "the triangle collapses the column")
+            wait(150)
+            saveScreenshot("visual_38_kanban_10b_column_collapsed.png")
+            mouseClick(collapseControl, collapseControl.width / 2,
+                       collapseControl.height / 2)
+            tryVerify(function() { return kb5.collapsed[firstColumnName] !== true },
+                      1000, "and expands it again")
+
+            // Every column offers a card at its foot, and a new card arrives
+            // empty with its editor open rather than named "New card".
+            wait(200)   // the expanded column has to lay its cards out again
+            var addCardButton = findChild(kb5, "kanbanAddCardFooter")
+            verify(addCardButton !== null, "each column offers a way to add a card")
+            verify(addCardButton.visible && addCardButton.height > 0,
+                   "the add-card control is on screen")
+            var cardsBefore = KanbanTools.parse(BlockModel.getContent(1))
+                                  .columns[0].cards.length
+            mouseClick(addCardButton, addCardButton.width / 2,
+                       addCardButton.height / 2)
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1))
+                    .columns[0].cards.length === cardsBefore + 1
+            }, 1000, "the footer control adds a card")
+            tryVerify(function() {
+                var ed = findChild(kb5, "kanbanCardTextEditor")
+                return ed !== null && ed.activeFocus
+            }, 1000, "and the new card opens its editor")
+            typeText("Book the room #urgent")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() {
+                var cards = KanbanTools.parse(BlockModel.getContent(1)).columns[0].cards
+                return cards[cards.length - 1].title === "Book the room"
+            }, 2000, "typing names the new card")
+            wait(150)
+            saveScreenshot("visual_38_kanban_10c_card_added.png")
+
+            // The card's context menu: the two moves no pointer gesture can
+            // make, and the way to the details popover.
+            var cardMenu = findChild(kb5, "kanbanCardMenu")
+            verify(cardMenu !== null, "a card has a context menu")
+            cardMenu.openFor(0, 0)
+            tryCompare(cardMenu, "opened", true, 1000)
+            cardMenu.close()
+
+            // Clicking the name itself opens a field on it.
+            var nameArea = findChild(kb5, "kanbanColName")
+            verify(nameArea !== null, "the column header has a name area")
+            mouseClick(nameArea, 20, nameArea.height / 2)
+            tryCompare(kb5, "renamingCol", 0, 1000)
+            var renameField = null
+            tryVerify(function() {
+                renameField = findChild(kb5, "kanbanColRename")
+                return renameField !== null && renameField.visible
+            }, 1000, "the column name becomes a field")
+            renameField.forceActiveFocus()
+            renameField.selectAll()
+            typeText("Backlog")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1))
+                    .columns[0].name === "Backlog"
+            }, 1000, "the typed name is the column's name")
+            wait(150)
+            saveScreenshot("visual_38_kanban_11_column_renamed.png")
+
+            // And a column can be removed, which the board had no way to do:
+            // three columns arrived with every new board and stayed.
+            var deleteColumn = findChild(kb5, "kanbanColDelete")
+            verify(deleteColumn !== null, "the column header has a delete control")
+            var columnsBefore = KanbanTools.parse(BlockModel.getContent(1)).columns.length
+            mouseClick(deleteColumn, deleteColumn.width / 2, deleteColumn.height / 2)
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1)).columns.length
+                    === columnsBefore - 1
+            }, 1000, "the delete control removes the column")
+            wait(150)
+            saveScreenshot("visual_38_kanban_12_column_deleted.png")
+
+            // Dragging a card and dragging a column are the primary gestures,
+            // but a DragHandler drag cannot be reproduced by synthetic mouse
+            // events, so what a drop does is verified through the same
+            // functions the drop targets call. The board is now
+            // ["To do", "Done"].
+            var kb6 = findBlockDelegate(1)
+            var dropBefore = KanbanTools.parse(BlockModel.getContent(1))
+            kb6.beginCardDrag(0, 0)
+            kb6.dropCardAt(1, 0)
+            kb6.endCardDrag()
+            tryVerify(function() {
+                var b = KanbanTools.parse(BlockModel.getContent(1))
+                return b.columns[0].cards.length === dropBefore.columns[0].cards.length - 1
+                    && b.columns[1].cards.length === dropBefore.columns[1].cards.length + 1
+            }, 1000, "a dropped card lands in the slot it was dropped on")
+
+            kb6.dragColumn = 0
+            kb6.dropColumnAt(2)
+            kb6.dragColumn = -1
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1))
+                    .columns[0].name === "Done"
+            }, 1000, "a dropped column lands in the gap it was dropped into")
+            wait(150)
+            saveScreenshot("visual_38_kanban_13_dropped.png")
+
+            // The board and its popover in the dark theme. The controls carry
+            // their own colours because the Fusion style follows the desktop
+            // palette rather than the note theme, which is why the popover's
+            // fields used to stay light in a dark note.
+            Theme.themeId = "dark"
+            wait(300)
+            clearFocus()
+            saveScreenshot("visual_38_kanban_14_dark.png")
+            var kb7 = findBlockDelegate(1)
+            var details = findChild(kb7, "kanbanCardEditor")
+            details.openFor(0, 0)
+            wait(250)
+            saveScreenshot("visual_38_kanban_15_dark_details.png")
+            details.close()
+            Theme.themeId = "light"
+            wait(200)
+
+            // The gesture itself: press a card, carry it into the next
+            // column, let go. The board scrolls sideways and the document
+            // scrolls down, and both used to take the grab as soon as the
+            // pointer moved — the card stayed put and the view slid instead.
+            var kb8 = findBlockDelegate(1)
+            var firstCard = findChild(kb8, "kanbanCard")
+            verify(firstCard !== null, "the board has a card to drag")
+            var dragBefore = KanbanTools.parse(BlockModel.getContent(1))
+            var grip = firstCard.mapToItem(kb8, firstCard.width / 2, 10)
+            mousePress(kb8, grip.x, grip.y)
+            mouseMove(kb8, grip.x + 15, grip.y + 4, 20, Qt.LeftButton)
+            mouseMove(kb8, grip.x + 120, grip.y + 10, 20, Qt.LeftButton)
+            mouseMove(kb8, grip.x + 250, grip.y + 14, 20, Qt.LeftButton)
+            wait(100)
+            saveScreenshot("visual_38_kanban_16_card_dragging.png")
+            mouseRelease(kb8, grip.x + 250, grip.y + 14, Qt.LeftButton)
+            tryVerify(function() {
+                var b = KanbanTools.parse(BlockModel.getContent(1))
+                return b.columns[0].cards.length === dragBefore.columns[0].cards.length - 1
+                    && b.columns[1].cards.length === dragBefore.columns[1].cards.length + 1
+            }, 2000, "dragging a card into the next column moves it there")
+            wait(150)
+            clearFocus()
+            saveScreenshot("visual_38_kanban_17_card_dragged.png")
+
+            // And the same gesture on a column header reorders the columns.
+            var kb9 = findBlockDelegate(1)
+            var columnName = findChild(kb9, "kanbanColName")
+            verify(columnName !== null, "the column header has a grip")
+            var firstColumnBefore = KanbanTools.parse(BlockModel.getContent(1))
+                                        .columns[0].name
+            // A carried column leaves the row, so the one beside it slides
+            // left: dropping this column after that one means letting go over
+            // the right half of where it now sits, 150 pixels along.
+            var colGrip = columnName.mapToItem(kb9, 20, columnName.height / 2)
+            mousePress(kb9, colGrip.x, colGrip.y)
+            mouseMove(kb9, colGrip.x + 15, colGrip.y + 3, 20, Qt.LeftButton)
+            mouseMove(kb9, colGrip.x + 90, colGrip.y + 5, 20, Qt.LeftButton)
+            mouseMove(kb9, colGrip.x + 150, colGrip.y + 5, 20, Qt.LeftButton)
+            wait(100)
+            saveScreenshot("visual_38_kanban_18_column_dragging.png")
+            mouseRelease(kb9, colGrip.x + 150, colGrip.y + 5, Qt.LeftButton)
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1))
+                    .columns[0].name !== firstColumnBefore
+            }, 2000, "dragging a column header reorders the columns")
+            wait(150)
+            clearFocus()
+            saveScreenshot("visual_38_kanban_19_column_dragged.png")
 
             clearFocus()
             wait(100)

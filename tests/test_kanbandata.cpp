@@ -140,6 +140,9 @@ private slots:
             { "addCard",      addCard(md, 0, "new") },
             { "moveCard",     moveCard(md, 0, 0, 1, 0) },
             { "setCard",      setCard(md, 0, 1, "t", true, {}, "", "") },
+            { "setCardLine",  setCardLine(md, 0, 1, "typed text #tag") },
+            { "setCardDescription",
+                              setCardDescription(md, 0, 1, "typed\nlines") },
             { "addColumn",    addColumn(md, "C") },
             { "renameColumn", renameColumn(md, 0, "Backlog") },
             { "removeColumn", removeColumn(md, 0) },
@@ -278,6 +281,8 @@ private slots:
                          << removeCard(md, c, k)
                          << setCard(md, c, k, "rewritten", true,
                                     QStringList({ "l" }), "2026-01-01", "d")
+                         << setCardLine(md, c, k, "typed over #l")
+                         << setCardDescription(md, c, k, "typed\nover")
                          << moveCard(md, c, k, other,
                                      rng.bounded(cardCounts[other] + 1));
                 }
@@ -331,6 +336,76 @@ private slots:
         QCOMPARE(c.labels, QStringList({"x", "y"}));
         QCOMPARE(c.due, QString("2026-01-01"));
         QCOMPARE(c.description, QString("notes"));
+    }
+
+    // The inline editor edits a card's own line, so what it writes back is
+    // what was typed — spacing and all — and the labels and the due date are
+    // whatever the next read finds in it. Nothing is re-rendered from the
+    // fields, which is the difference from setCard() above.
+    void inlineLineEditsKeepWhatWasTyped()
+    {
+        const QString md = "## A\n* [x]  odd   spacing #a\n- [ ] plain";
+        // The text goes on the line character for character; the indent,
+        // bullet and checkbox in front of it stay as they were.
+        QCOMPARE(setCardLine(md, 0, 0, "still   odd   #a #b"),
+                 QString("## A\n* [x] still   odd   #a #b\n- [ ] plain"));
+        // And the fields come back out of that line.
+        const Card c = parse(setCardLine(md, 0, 1,
+                                         "Ship it #release " + cal() + " 2026-08-01"))
+                           .columns[0].cards[1];
+        QCOMPARE(c.title, QString("Ship it"));
+        QCOMPARE(c.labels, QStringList({ "release" }));
+        QCOMPARE(c.due, QString("2026-08-01"));
+        QCOMPARE(c.done, false);
+        // A line break would open a second card, so it becomes a space.
+        QCOMPARE(setCardLine("## A\n- [ ] x", 0, 0, "one\ntwo"),
+                 QString("## A\n- [ ] one two"));
+        // An out-of-range card leaves the board alone.
+        QCOMPARE(setCardLine(md, 0, 9, "nope"), md);
+        QCOMPARE(setCardLine(md, 3, 0, "nope"), md);
+    }
+
+    // A card's description is the indented run under it: the inline editor
+    // writes every line of it back, so a description with several lines —
+    // formulas, wiki-links, anything — reads back as it was typed.
+    void inlineDescriptionEditsKeepTheirLines()
+    {
+        const QString md = "## A\n- [ ] one\n  old note\n- [ ] two";
+        const QString out = setCardDescription(
+            md, 0, 0, "See [[Design notes]]\nand $E = mc^2$");
+        QCOMPARE(out, QString("## A\n- [ ] one\n  See [[Design notes]]\n"
+                              "  and $E = mc^2$\n- [ ] two"));
+        QCOMPARE(parse(out).columns[0].cards[0].description,
+                 QString("See [[Design notes]]\nand $E = mc^2$"));
+        // The card's own line is untouched by a description edit.
+        QCOMPARE(parse(out).columns[0].cards[0].title, QString("one"));
+        // Emptying it removes the run rather than leaving a blank line.
+        QCOMPARE(setCardDescription(md, 0, 0, ""),
+                 QString("## A\n- [ ] one\n- [ ] two"));
+        QCOMPARE(setCardDescription(md, 0, 9, "nope"), md);
+    }
+
+    // The text the inline editor is handed for a card's line: what the file
+    // has, for a card that has a line, and what serialize() is about to write
+    // for one a mutation just synthesized. Either way, putting it straight
+    // back through setCardLine() is a no-op.
+    void cardLineTextIsWhatTheFileHas()
+    {
+        KanbanTools tools;
+        const QString md = "## A\n* [x]  odd   spacing #a\n- [ ] plain";
+        const auto lineOf = [&tools](const QString &board, int col, int idx) {
+            const QVariantList columns =
+                tools.parse(board).value(QStringLiteral("columns")).toList();
+            const QVariantList cards =
+                columns[col].toMap().value(QStringLiteral("cards")).toList();
+            return cards[idx].toMap().value(QStringLiteral("line")).toString();
+        };
+        QCOMPARE(lineOf(md, 0, 0), QString(" odd   spacing #a"));
+        QCOMPARE(setCardLine(md, 0, 0, lineOf(md, 0, 0)), md);
+        // A card with no source line renders its text from the fields.
+        const QString added = addCard(md, 0, "fresh");
+        QCOMPARE(lineOf(added, 0, 2), QString("fresh"));
+        QCOMPARE(setCardLine(added, 0, 2, lineOf(added, 0, 2)), added);
     }
 
     // What the card editor accepts has to survive being written to the board

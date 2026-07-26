@@ -877,18 +877,18 @@ QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown,
 // like.
 QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
                                           const FormattedSpan &span,
-                                          const MathImages &math) const
+                                          const RenderOptions &opt) const
 {
     const int contentStart = span.start + span.openLen;
     const int contentEnd = span.end - span.closeLen;
     // Verbatim types (inline code, math, escapes, wiki links, autolinks) have
     // no children, so this is exactly their escaped raw content.
     const QString inner =
-        renderRangeHtml(markdown, span.children, contentStart, contentEnd, math);
+        renderRangeHtml(markdown, span.children, contentStart, contentEnd, opt);
 
-    if (span.type == QLatin1String("math") && math.enabled) {
+    if (span.type == QLatin1String("math") && opt.mathImages) {
         const QString img = mathImageTag(
-            markdown.mid(contentStart, contentEnd - contentStart), math);
+            markdown.mid(contentStart, contentEnd - contentStart), opt);
         if (!img.isEmpty())
             return img;
         // Unparseable: fall through to the source, never to nothing.
@@ -915,18 +915,29 @@ QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
              + escapeHtmlKeepingSpaces(
                    markdown.mid(contentStart, contentEnd - contentStart))
              + QStringLiteral("</code>");
+    // A wiki link is a link too when the text is being rendered for this
+    // application: the span already carries the note's kvit-note: url, and a
+    // Text item then styles it and reports clicks on it. On the clipboard
+    // path it stays what it reads as, its alias or its target.
     if (span.type == QLatin1String("link")
-        || span.type == QLatin1String("autolink")) {
+        || span.type == QLatin1String("autolink")
+        || (span.type == QLatin1String("wikilink") && opt.wikiLinks)) {
+        const QString style = opt.linkColor.isValid()
+            ? QStringLiteral(" style=\"color:") + opt.linkColor.name()
+                  + QStringLiteral("\"")
+            : QString();
         return QStringLiteral("<a href=\"") + escapeHtml(span.url)
-             + QStringLiteral("\">") + inner + QStringLiteral("</a>");
+             + QStringLiteral("\"") + style + QStringLiteral(">") + inner
+             + QStringLiteral("</a>");
     }
     if (span.type == QLatin1String("color")) {
         return QStringLiteral("<span style=\"color:") + escapeHtml(span.color)
              + QStringLiteral("\">") + inner + QStringLiteral("</span>");
     }
-    // "escape" and "wikilink" conceal their markers and show the content: "\*"
-    // displays as "*", and a wiki link shows the alias when it has one (which
-    // the opening marker already swallowed) or else the target.
+    // "escape" and a clipboard-path "wikilink" conceal their markers and show
+    // the content: "\*" displays as "*", and a wiki link shows the alias when
+    // it has one (which the opening marker already swallowed) or else the
+    // target.
     // Every remaining type shows its text unstyled rather than being dropped —
     // table cells render through this path, and the fix-1 repair puts inline
     // code spans in cells.
@@ -938,7 +949,7 @@ QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
 QString MarkdownFormatter::renderRangeHtml(const QString &markdown,
                                            const QList<FormattedSpan> &spans,
                                            int from, int to,
-                                           const MathImages &math) const
+                                           const RenderOptions &opt) const
 {
     QString html;
     int pos = from;
@@ -947,7 +958,7 @@ QString MarkdownFormatter::renderRangeHtml(const QString &markdown,
             continue;   // defensive: a span outside the range it belongs to
         if (pos < span.start)
             html += escapeHtml(markdown.mid(pos, span.start - pos));
-        html += renderSpanHtml(markdown, span, math);
+        html += renderSpanHtml(markdown, span, opt);
         pos = span.end;
     }
     if (pos < to)
@@ -956,7 +967,7 @@ QString MarkdownFormatter::renderRangeHtml(const QString &markdown,
 }
 
 QString MarkdownFormatter::mathImageTag(const QString &tex,
-                                        const MathImages &opt) const
+                                        const RenderOptions &opt) const
 {
     const QString trimmed = tex.trimmed();
     if (trimmed.isEmpty())
@@ -1033,22 +1044,23 @@ QString MarkdownFormatter::toHtml(const QString &markdown) const
         return escapeHtml(markdown);
     }
 
-    return renderRangeHtml(markdown, spans, 0, markdown.length(), MathImages());
+    return renderRangeHtml(markdown, spans, 0, markdown.length(), RenderOptions());
 }
 
-QString MarkdownFormatter::toHtmlWithMath(const QString &markdown,
-                                          int mathPixelSize,
-                                          const QColor &mathColor,
-                                          qreal devicePixelRatio) const
+QString MarkdownFormatter::toRichText(const QString &markdown,
+                                      int mathPixelSize,
+                                      const QColor &mathColor,
+                                      qreal devicePixelRatio,
+                                      const QColor &linkColor) const
 {
     if (markdown.isEmpty())
         return QString();
 
-    // A cell's line breaks arrive as newlines (TableData turns the stored
-    // <br> back into one) and rich text would collapse them into spaces, so
-    // they become breaks again here. Nothing this function emits contains a
-    // newline of its own, so the whole result can be swept at the end rather
-    // than every escape path having to know.
+    // Line breaks arrive as newlines — a table cell's stored <br> turned back
+    // into one, a card's description line — and rich text would collapse them
+    // into spaces, so they become breaks again here. Nothing this function
+    // emits contains a newline of its own, so the whole result can be swept
+    // at the end rather than every escape path having to know.
     const auto withBreaks = [](QString html) {
         return html.replace(QLatin1Char('\n'), QLatin1String("<br>"));
     };
@@ -1057,13 +1069,15 @@ QString MarkdownFormatter::toHtmlWithMath(const QString &markdown,
     if (spans.isEmpty())
         return withBreaks(escapeHtml(markdown));
 
-    MathImages math;
-    math.enabled = true;
-    math.pixelSize = mathPixelSize;
-    math.color = mathColor;
-    math.devicePixelRatio = devicePixelRatio;
+    RenderOptions opt;
+    opt.mathImages = true;
+    opt.wikiLinks = true;
+    opt.pixelSize = mathPixelSize;
+    opt.color = mathColor;
+    opt.devicePixelRatio = devicePixelRatio;
+    opt.linkColor = linkColor;
     return withBreaks(
-        renderRangeHtml(markdown, spans, 0, markdown.length(), math));
+        renderRangeHtml(markdown, spans, 0, markdown.length(), opt));
 }
 
 QString MarkdownFormatter::toMarkdown(const QString &html) const

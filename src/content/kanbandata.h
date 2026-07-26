@@ -110,10 +110,26 @@ QString toggleCardDone(const QString &content, int col, int index);
 // column (the drag-drop primitive).
 QString moveCard(const QString &content, int fromCol, int fromIndex,
                  int toCol, int toIndex);
-// Overwrite a card's fields (the card-editor popover).
+// Overwrite a card's fields (the card-details popover).
 QString setCard(const QString &content, int col, int index,
                 const QString &title, bool done, const QStringList &labels,
                 const QString &due, const QString &description);
+// Replace the text on a card's line — everything after the checkbox — with
+// what was typed, character for character. This is what the board's inline
+// editor writes: the reader edits the line's own source
+// (`Ship the beta #release 📅 2026-08-01`), so what they leave behind is what
+// the file gets and the next parse is what turns `#release` back into a label
+// and the marked date back into a due date. Only the indent, bullet and
+// checkbox in front of the text are kept, so the card holds its done state
+// and the file its style. A line break in the text becomes a space: one card
+// is one line.
+QString setCardLine(const QString &content, int col, int index,
+                    const QString &text);
+// Replace a card's description — the indented lines under it — with what was
+// typed. Line breaks are kept, each line written back indented, so a
+// multi-line description round-trips; an empty text removes the description.
+QString setCardDescription(const QString &content, int col, int index,
+                           const QString &text);
 
 } // namespace KanbanData
 
@@ -124,7 +140,10 @@ class KanbanTools : public QObject
 public:
     explicit KanbanTools(QObject *parent = nullptr) : QObject(parent) {}
 
-    // {columns:[{name, cards:[{title, done, labels:[…], due, description}]}]}.
+    // {columns:[{name, cards:[{title, done, labels:[…], due, description,
+    // line}]}]}, where `line` is the text on the card's own line — title,
+    // labels and due date as they are written there — which is what the
+    // board's inline editor puts in front of the reader.
     Q_INVOKABLE QVariantMap parse(const QString &content) const;
     Q_INVOKABLE bool looksLikeBoard(const QString &content) const
     { return KanbanData::looksLikeBoard(content); }
@@ -148,6 +167,12 @@ public:
     Q_INVOKABLE QString moveCard(const QString &c, int fromCol, int fromIdx,
                                  int toCol, int toIdx) const
     { return KanbanData::moveCard(c, fromCol, fromIdx, toCol, toIdx); }
+    Q_INVOKABLE QString setCardLine(const QString &c, int col, int idx,
+                                    const QString &text) const
+    { return KanbanData::setCardLine(c, col, idx, text); }
+    Q_INVOKABLE QString setCardDescription(const QString &c, int col, int idx,
+                                           const QString &text) const
+    { return KanbanData::setCardDescription(c, col, idx, text); }
     Q_INVOKABLE QString setCard(const QString &c, int col, int idx,
                                 const QString &title, bool done,
                                 const QStringList &labels, const QString &due,

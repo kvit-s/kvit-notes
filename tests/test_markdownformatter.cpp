@@ -90,6 +90,7 @@ private slots:
     void testParseSpansWikiLink();
     void testParseSpansWikiLinkAliasAndHeading();
     void testWikiLinkPrecedenceAndEdges();
+    void testRichTextMakesWikiLinksClickable();
 
     // Text color span
     void testParseSpansColor();
@@ -1392,6 +1393,47 @@ void TestMarkdownFormatter::testWikiLinkPrecedenceAndEdges()
     QCOMPARE(spans.size(), 1);
     QCOMPARE(spans[0].type, QString("wikilink"));
     QCOMPARE(spans[0].start, 1);
+}
+
+// Text this application paints itself — a table cell, a kanban card — gets a
+// wiki link as a real link, so it is styled as one and a click on it reaches
+// the note. The clipboard form leaves it as the text it reads as, because a
+// kvit-note: href means nothing outside this process.
+void TestMarkdownFormatter::testRichTextMakesWikiLinksClickable()
+{
+    MarkdownFormatter formatter;
+    const QString rich = formatter.toRichText(
+        QStringLiteral("see [[Design notes]] first"), 15, QColor(Qt::black));
+    QVERIFY2(rich.contains(QStringLiteral("<a href=\"kvit-note:Design notes\">")),
+             qPrintable(rich));
+    QVERIFY(rich.contains(QStringLiteral(">Design notes</a>")));
+
+    // An alias still shows the alias, and the url still names the target.
+    const QString aliased = formatter.toRichText(
+        QStringLiteral("[[Design notes|the design]]"), 15, QColor(Qt::black));
+    QVERIFY2(aliased.contains(QStringLiteral("href=\"kvit-note:Design notes\"")),
+             qPrintable(aliased));
+    QVERIFY(aliased.contains(QStringLiteral(">the design</a>")));
+
+    // A web link is unaffected, and the clipboard path is unchanged.
+    QVERIFY(formatter.toRichText(QStringLiteral("[docs](http://x/a)"), 15,
+                                 QColor(Qt::black))
+                .contains(QStringLiteral("<a href=\"http://x/a\">")));
+
+    // Every link carries the colour it was asked for. Qt paints rich-text
+    // links in its own blue unless the style says otherwise, whatever the
+    // Text item's linkColor property says.
+    const QString coloured = formatter.toRichText(
+        QStringLiteral("[docs](http://x/a) and [[Design notes]]"), 15,
+        QColor(Qt::black), 1.0, QColor("#6fb1ff"));
+    QVERIFY2(coloured.contains(
+                 QStringLiteral("<a href=\"http://x/a\" style=\"color:#6fb1ff\">")),
+             qPrintable(coloured));
+    QVERIFY(coloured.contains(
+        QStringLiteral("<a href=\"kvit-note:Design notes\" style=\"color:#6fb1ff\">")));
+    const QString plain = formatter.toHtml(QStringLiteral("see [[Design notes]]"));
+    QVERIFY2(!plain.contains(QStringLiteral("<a ")), qPrintable(plain));
+    QVERIFY(plain.contains(QStringLiteral("Design notes")));
 }
 
 void TestMarkdownFormatter::testToHtmlRendersParameterizedSpans_data()
