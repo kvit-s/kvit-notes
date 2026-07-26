@@ -58,6 +58,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A task-board card whose title carries a formula lines its checkbox up with
+  the title again. A formula makes that line taller than a line of text and
+  the words inside it sit lower to make room, so a checkbox pinned to the top
+  of the row floated above the title it belongs to.
 - Dragging a card between task-board columns works, as does dragging a column
   by its name to reorder it. Two things were taking the gesture: the editor's
   own drop area, which covers the page above every block and accepted the

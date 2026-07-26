@@ -2597,6 +2597,53 @@ Item {
             wait(100)
         }
 
+        // A formula in a card's title makes that line taller than a line of
+        // text, and the words inside it sit lower to make room. The checkbox
+        // belongs on the line of those words: pinned to the top of the row, as
+        // it was, it floated well above the title it belongs to as soon as a
+        // formula appeared beside it.
+        function test_38b_kanban_formula_title_alignment() {
+            if (isHeadless) {
+                skip("Storyboard requires display")
+            }
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
+            wait(200)
+            BlockModel.insertBlock(0, 1, "Formulas on cards")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, 8, "## Now\n- [ ] plain task", false, "kanban")
+            wait(400)
+            clearFocus()
+
+            // The gap from the checkbox's foot to the first baseline of the
+            // title beside it, which is what has to hold steady however tall
+            // the line becomes.
+            var titles = ["plain task", "task 1 $x^2$", "a $\\frac{a}{b}$ b",
+                          "sum $\\sum_{i=0}^{n} i$ end"]
+            var gaps = []
+            for (var i = 0; i < titles.length; ++i) {
+                BlockModel.updateContent(1, "## Now\n- [ ] " + titles[i])
+                wait(500)   // the image://math provider renders asynchronously
+                clearFocus()
+                var kb = findBlockDelegate(1)
+                var box = findChild(kb, "kanbanCardCheckbox")
+                var title = findChild(kb, "kanbanCardTitle")
+                verify(box !== null && title !== null,
+                       "the card has a checkbox and a title")
+                gaps.push(box.y + box.height - title.baselineOffset)
+                if (i === 1)
+                    saveScreenshot("visual_38b_kanban_formula_title.png")
+            }
+            for (var g = 1; g < gaps.length; ++g) {
+                verify(Math.abs(gaps[g] - gaps[0]) <= 1,
+                       "checkbox sits on the title's line for \"" + titles[g]
+                       + "\" (gap " + gaps[g] + " against " + gaps[0] + ")")
+            }
+
+            clearFocus()
+            wait(100)
+        }
+
         // Display-math blocks rendered through MicroTeX.
         function test_39_math() {
             if (isHeadless) {

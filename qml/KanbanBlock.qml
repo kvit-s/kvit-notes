@@ -109,6 +109,12 @@ BlockDelegateBase {
     // The token source for the editing engine (a bare `theme` inside the
     // engine resolves to the engine's own property).
     readonly property var appThemeRef: Theme
+    // The card font's own metrics, for lining a checkbox up with the first
+    // line of a title that is being typed rather than drawn.
+    FontMetrics {
+        id: cardFontMetrics
+        font.pixelSize: root.cardFontSize
+    }
 
     // ---- Filtering ----
     function cardVisible(card) {
@@ -1423,11 +1429,29 @@ BlockDelegateBase {
 
                                             Rectangle {
                                                 id: doneBox
+                                                objectName: "kanbanCardCheckbox"
                                                 width: 14
                                                 height: 14
                                                 radius: 3
-                                                anchors.top: parent.top
-                                                anchors.topMargin: 1
+                                                // On the line of the title's
+                                                // first line, not at the top
+                                                // of the row: a formula in the
+                                                // title makes that line taller
+                                                // than a line of text and
+                                                // pushes the words down inside
+                                                // it, and a box pinned to the
+                                                // top then floated well above
+                                                // the words it belongs to. The
+                                                // baseline is where the two
+                                                // agree. While the title is
+                                                // being typed there is no
+                                                // formula in front of the
+                                                // reader, so the font's own
+                                                // baseline is the one to use.
+                                                y: Math.max(0, 4 - doneBox.height
+                                                    + (cardItem.editingTitle
+                                                       ? cardFontMetrics.ascent
+                                                       : titleText.baselineOffset))
                                                 color: cardItem.cardData.done ? Theme.accent
                                                      : (cardItem.doneHovered ? Theme.hoverTint
                                                                              : "transparent")
@@ -1474,6 +1498,7 @@ BlockDelegateBase {
 
                                                 Text {
                                                     id: titleText
+                                                    objectName: "kanbanCardTitle"
                                                     visible: !cardItem.editingTitle
                                                     width: parent.width
                                                     readonly property bool untitled:
