@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "diagrampainter.h"
+#include "diagramtext.h"
+#include "../mathrenderer.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -375,6 +377,27 @@ void paintScene(QPainter *painter, const Scene &scene, const SceneColors &colors
         f.setPixelSize(int(t.fontSize));
         f.setBold(t.bold);
         f.setItalic(t.italic);
+
+        // A math label is typeset rather than drawn (diagram-math.md). The
+        // rectangle was sized from these same metrics in layout, so the
+        // formula is centred in it. MathRenderer::paint outlines the glyphs
+        // as painter paths, so this stays resolution-independent: sharp at
+        // any display scale, and vector-quality in the PDF raster.
+        if (!t.tex.isEmpty()) {
+            const int mathPx = mathLabelPixelSize(f);
+            const QSizeF sz = mathLabelSize(t.tex, f);
+            if (sz.isValid()) {
+                const QPointF origin(t.rect.center().x() - sz.width() / 2.0,
+                                     t.rect.center().y() - sz.height() / 2.0);
+                if (MathRenderer::paint(painter, t.tex, mathPx,
+                                        roleColor(t.role, colors), origin,
+                                        nullptr, 0, true /* display style */))
+                    continue;
+            }
+            // Unparseable, or it stopped parsing since layout measured it:
+            // fall through and draw the source, never nothing.
+        }
+
         painter->setFont(f);
         painter->setPen(roleColor(t.role, colors));
         painter->drawText(t.rect, t.align | Qt::TextWordWrap, t.text);

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "diagramlayout.h"
+#include "diagramtext.h"
 
 #include <QFont>
 #include <QFontMetricsF>
@@ -122,6 +123,29 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
         return labelLines(s).size() * lineH;
     };
 
+    // Geometry for the label kinds Mermaid allows mathematics in: participant
+    // names, messages and notes. Everything else in a sequence diagram (the
+    // title, fragment conditions, block keywords) measures as text, because
+    // text is what the painter draws for them.
+    auto labelTex = [&](const QString &t) {
+        const QString tex = mathLabel(t);
+        return mathLabelSize(tex, font).isValid() ? tex : QString();
+    };
+    auto labelW = [&](const QString &t) {
+        const QSizeF sz = mathLabelSize(mathLabel(t), font);
+        return sz.isValid() ? sz.width() : textW(t);
+    };
+    auto labelH = [&](const QString &t) {
+        const QSizeF sz = mathLabelSize(mathLabel(t), font);
+        return sz.isValid() ? sz.height() : textH(t);
+    };
+    // A note wraps its text at 260 logical pixels. A formula cannot wrap, so
+    // it takes the width it needs and the note grows around it.
+    auto noteW = [&](const QString &t) {
+        const QSizeF sz = mathLabelSize(mathLabel(t), font);
+        return sz.isValid() ? sz.width() : qMin(textW(t), 260.0);
+    };
+
     QHash<QString, int> idx;
     for (int i = 0; i < P; ++i)
         idx.insert(ast.participants.at(i).id, i);
@@ -131,11 +155,11 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
     for (int i = 0; i < P; ++i) {
         const SeqParticipant &p = ast.participants.at(i);
         if (p.actorFigure) {
-            headW[i] = qMax(38.0, textW(p.label) + 4);
-            headH[i] = 42 + textH(p.label) + 4;
+            headW[i] = qMax(38.0, labelW(p.label) + 4);
+            headH[i] = 42 + labelH(p.label) + 4;
         } else {
-            headW[i] = qMax(60.0, textW(p.label) + 26);
-            headH[i] = qMax(34.0, textH(p.label) + 18);
+            headW[i] = qMax(60.0, labelW(p.label) + 26);
+            headH[i] = qMax(34.0, labelH(p.label) + 18);
         }
     }
     double bandH = 0;
@@ -174,7 +198,7 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
             const int i = idx.value(e.from, -1);
             if (i < 0)
                 continue;
-            const double w = qMin(textW(e.text), 260.0) + 24;
+            const double w = noteW(e.text) + 24;
             switch (e.placement) {
             case SeqEvent::LeftOf:
                 if (i > 0)
@@ -377,7 +401,9 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
                     : QStringLiteral("%1. %2").arg(autoNum).arg(label);
             }
             autoNum += autoStep;
-            const double th = textH(label);
+            // The label's own height, so a formula gets the vertical room
+            // it needs and the arrow lands below it rather than through it.
+            const double th = labelH(label);
             Msg m;
             m.i = i;
             m.j = j;
@@ -395,7 +421,7 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
                 m.xFrom = cx[i] + barHalf(i);
                 m.xTo = cx[i] + barHalf(i);
                 touchX(cx[i] - 12,
-                       cx[i] + kSelfLoopW + textW(label) + 20);
+                       cx[i] + kSelfLoopW + labelW(label) + 20);
                 cursor = m.yArrow + 20 + kRowGap;
             } else {
                 m.labelY = cursor;
@@ -421,8 +447,8 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
             const int i = idx.value(e.from, -1);
             if (i < 0)
                 break;
-            const double w = qMin(textW(e.text), 260.0) + 20;
-            const double h = qMax(textH(e.text), lineH) + 12;
+            const double w = noteW(e.text) + 20;
+            const double h = qMax(labelH(e.text), lineH) + 12;
             QRectF r;
             switch (e.placement) {
             case SeqEvent::LeftOf:
@@ -576,10 +602,11 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
         if (!m.label.isEmpty()) {
             Text t;
             t.text = m.label;
+            t.tex = labelTex(m.label);
             t.role = Role::EdgeLabel;
             t.fontSize = qMax(10, opts.fontPixelSize - 1);
-            const double w = textW(m.label) + 8;
-            const double h = textH(m.label);
+            const double w = labelW(m.label) + 8;
+            const double h = labelH(m.label);
             if (m.self) {
                 t.rect = QRectF(m.xFrom + kSelfLoopW + 8, m.labelY, w, h + 4);
                 t.align = Qt::AlignLeft | Qt::AlignVCenter;
@@ -602,6 +629,7 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
         scene.shapes.append(s);
         Text t;
         t.text = n.text;
+        t.tex = labelTex(n.text);
         t.role = Role::Label;
         t.fontSize = qMax(10, opts.fontPixelSize - 1);
         t.rect = n.rect;
@@ -689,10 +717,11 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
             scene.shapes.append(s);
             Text t;
             t.text = p.label;
+            t.tex = labelTex(p.label);
             t.role = Role::Label;
             t.fontSize = opts.fontPixelSize;
             t.rect = QRectF(cx[i] - headW[i] / 2, top + 42,
-                            headW[i], textH(p.label) + 2);
+                            headW[i], labelH(p.label) + 2);
             scene.texts.append(t);
         } else {
             Shape s;
@@ -704,6 +733,7 @@ Scene layoutSequence(const SequenceAst &ast, const LayoutOptions &opts)
             scene.shapes.append(s);
             Text t;
             t.text = p.label;
+            t.tex = labelTex(p.label);
             t.role = Role::Label;
             t.fontSize = opts.fontPixelSize;
             t.rect = s.rect;

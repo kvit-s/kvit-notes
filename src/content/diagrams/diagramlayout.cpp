@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "diagramlayout.h"
+#include "diagramtext.h"
 
 #include <QFont>
 #include <QFontMetricsF>
@@ -322,14 +323,26 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
     // ---- measure node boxes ----
     QList<QSizeF> size;
     QList<QStringList> lines;
+    // Per node, the TeX of a label that is one whole expression; empty for
+    // every ordinary label. Carried to the Text below so the painter typesets
+    // exactly what was measured here.
+    QList<QString> nodeTex;
     size.reserve(N);
     lines.reserve(N);
+    nodeTex.reserve(N);
     for (int i = 0; i < N; ++i) {
         const QStringList ls = labelLines(ast.nodes.at(i).label);
+        const QString tex = mathLabel(ast.nodes.at(i).label);
+        const QSizeF mathSize = mathLabelSize(tex, font);
+        nodeTex.append(mathSize.isValid() ? tex : QString());
         double tw = 0;
         for (const QString &l : ls)
             tw = qMax(tw, fm.horizontalAdvance(l));
-        const double th = qMax<double>(1, ls.size()) * lineH;
+        double th = qMax<double>(1, ls.size()) * lineH;
+        if (mathSize.isValid()) {
+            tw = mathSize.width();
+            th = mathSize.height();
+        }
         double w = qMax(kMinW, tw + 2 * kPadX);
         double h = qMax(kMinH, th + 2 * kPadY);
         switch (ast.nodes.at(i).shape) {
@@ -463,6 +476,7 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
         Text tx;
         tx.rect = r;
         tx.text = lines[i].join(u'\n');
+        tx.tex = nodeTex[i];
         tx.role = Role::Label;
         tx.fontSize = opts.fontPixelSize;
         tx.bold = st.bold;
@@ -579,11 +593,15 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
 
         if (!e.label.isEmpty()) {
             const QPointF mid = (a + b) / 2.0;
-            const double lw = fm.horizontalAdvance(e.label) + 8;
+            const QString tex = mathLabel(e.label);
+            const QSizeF mathSize = mathLabelSize(tex, font);
+            const double lw = mathSize.isValid()
+                ? mathSize.width() + 8 : fm.horizontalAdvance(e.label) + 8;
+            const double lh = mathSize.isValid() ? mathSize.height() : lineH;
             Text tx;
-            tx.rect = QRectF(mid.x() - lw / 2.0, mid.y() - lineH / 2.0,
-                             lw, lineH);
+            tx.rect = QRectF(mid.x() - lw / 2.0, mid.y() - lh / 2.0, lw, lh);
             tx.text = e.label;
+            tx.tex = mathSize.isValid() ? tex : QString();
             tx.role = Role::EdgeLabel;
             tx.fontSize = qMax(10, opts.fontPixelSize - 1);
             tx.hasBackground = true;

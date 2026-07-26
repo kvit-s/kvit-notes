@@ -201,6 +201,7 @@ add_library(kvit-content STATIC
     src/content/diagrams/diagramlayout.cpp
     src/content/diagrams/diagrampainter.cpp
     src/content/diagrams/diagramrepair.cpp
+    src/content/diagrams/diagramtext.cpp
     src/content/diagrams/erlayout.cpp
     src/content/diagrams/mermaidclass.cpp
     src/content/diagrams/mermaidedits.cpp

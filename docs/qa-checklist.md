@@ -219,6 +219,44 @@ Run against the installed artifact with a fresh user profile.
         *Expect:* fast start, no collection chrome, math/diagrams/tables
         render, and the status-bar "Create vault from this folder…"
         affordance works.
+16. [ ] In a table, type a formula into a header cell and into a body cell by
+        typing `$`, then a backslash, then picking `\frac` from the menu and
+        filling both slots with Tab. Click away from each. Type a sentence
+        with spaces into a third cell.
+        *Expect:* the `$` inserts its closing partner with the caret between
+        them, the backslash opens the command menu, and Tab walks the
+        template's empty slots, exactly as when typing a formula in a
+        paragraph.
+        Both cells show the rendered equation once the caret leaves them, and
+        the equation survives clicking back in and out. Every space appears
+        on the press that typed it, with no press that seems to do nothing.
+        A header cell that grows to fit a formula keeps the header shading
+        across the whole row, including the shorter cells beside it.
+17. [ ] In a table cell, press Shift+Enter and type a second line, then press
+        Enter. Reopen the note, and open it in a plain markdown editor.
+        *Expect:* Shift+Enter breaks the line inside the cell and Enter is
+        done with the cell rather than adding a line. The cell still shows
+        two lines after the reopen, and the file holds the break as `<br>`
+        with the row still on one line.
+18. [ ] Paste an LLM answer whose table contains a fenced code block inside a
+        row (an explanation with a code listing in one cell).
+        *Expect:* the table renders as one table, with the listing in its own
+        cell over several lines and its indentation intact. Nothing after the
+        table is swallowed into a code block.
+19. [ ] Render a Mermaid flowchart whose node label is `"$$\frac{a}{b}$$"` and
+        whose edge label is `"$$x^2$$"`, and a sequence diagram with a formula
+        as a message, a participant name and a note. Export both to PDF and to
+        HTML.
+        *Expect:* every formula is typeset rather than shown as `$$…$$`, each
+        node box has grown to hold its formula, and a message arrow sits below
+        its formula rather than through it. PDF shows the same, sharp at any
+        zoom. HTML renders through Mermaid.js in the browser.
+20. [ ] Drag the border between two table column headers, then reopen the
+        note; drag the last column's right border too. Right-click a cell
+        and choose "Reset column widths".
+        *Expect:* the column follows the pointer, the width is still there
+        after the reopen, and the reset restores content-measured widths.
+        Ctrl+Z undoes a drag in one step.
 
 ## Distribution
 

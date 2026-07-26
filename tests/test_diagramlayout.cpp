@@ -5,8 +5,12 @@
 #include <QTemporaryDir>
 #include <QImage>
 
+#include "diagrams/diagrampainter.h"
+#include <QPainter>
+#include <cmath>
 #include "diagrams/diagramcanvas.h"
 #include "diagrams/diagramlayout.h"
+#include "diagrams/diagramtext.h"
 #include "diagrams/mermaidparser.h"
 #include "diagrams/mermaidrenderer.h"
 
@@ -280,6 +284,177 @@ private slots:
         QCOMPARE(s.shapes.size(), 100);
         qInfo() << "100-node layout:" << ms << "ms";
         QVERIFY2(ms < 1500, "layout unexpectedly slow");
+    }
+
+    // ---- mathematics in labels (diagram-math.md) ----
+
+    // Only a whole `$$…$$` label is an expression. Everything else stays
+    // text, which is what keeps every diagram written before this rendering
+    // exactly as it did.
+    void mathLabelRecognizesWholeLabelsOnly()
+    {
+        QCOMPARE(mathLabel(QStringLiteral("$$x^2$$")), QStringLiteral("x^2"));
+        // Line-break markup is normalized before the delimiters are read.
+        QCOMPARE(mathLabel(QStringLiteral("$$x^2$$<br>")), QStringLiteral("x^2"));
+        QCOMPARE(mathLabel(QStringLiteral("  $$\\frac{a}{b}$$  ")),
+                 QStringLiteral("\\frac{a}{b}"));
+
+        // A single dollar is ordinary text: currency and shell variables in
+        // existing diagrams must not start typesetting.
+        QVERIFY(mathLabel(QStringLiteral("costs $5 and $6")).isEmpty());
+        QVERIFY(mathLabel(QStringLiteral("$PATH")).isEmpty());
+        // Mixed labels are out of scope, so they stay text.
+        QVERIFY(mathLabel(QStringLiteral("Step $$x^2$$ done")).isEmpty());
+        // Two expressions are not one label's worth of mathematics.
+        QVERIFY(mathLabel(QStringLiteral("$$a$$ $$b$$")).isEmpty());
+        QVERIFY(mathLabel(QStringLiteral("$$$$")).isEmpty());
+        QVERIFY(mathLabel(QStringLiteral("plain")).isEmpty());
+    }
+
+    // An expression that does not parse falls back to its source: no size,
+    // so layout measures and the painter draws the label's text.
+    void unparseableMathFallsBackToItsSource()
+    {
+        QFont f(QStringLiteral("sans-serif"));
+        f.setPixelSize(14);
+        QVERIFY(mathLabelSize(mathLabel(QStringLiteral("$$x^2$$")), f).isValid());
+        // An unmatched brace and a bare alignment ampersand are the two
+        // shapes MicroTeX rejects outright.
+        QVERIFY(!mathLabelSize(QStringLiteral("}"), f).isValid());
+        QVERIFY(!mathLabelSize(QStringLiteral("a & b"), f).isValid());
+        QVERIFY(!mathLabelSize(QString(), f).isValid());
+
+        // A node whose expression does not parse is laid out and painted from
+        // its source, so it carries no TeX into the scene.
+        const Scene s = layoutFlowchart(parseFlow("flowchart LR\nA[\"$$}$$\"]"),
+                                        opts());
+        QVERIFY(!s.texts.isEmpty());
+        QVERIFY(s.texts.first().tex.isEmpty());
+        QCOMPARE(s.texts.first().text, QStringLiteral("$$}$$"));
+    }
+
+    void flowchartTypesetsMathNodeAndEdgeLabels()
+    {
+        const FlowchartAst a = parseFlow(
+            "flowchart LR\n"
+            "A[\"$$\\frac{a}{b}$$\"] -->|\"$$x^2$$\"| B[plain]\n");
+        const Scene s = layoutFlowchart(a, opts());
+
+        const Text *node = nullptr;
+        const Text *edge = nullptr;
+        const Text *plain = nullptr;
+        for (const Text &t : s.texts) {
+            if (t.role == Role::EdgeLabel)
+                edge = &t;
+            else if (t.text == QLatin1String("plain"))
+                plain = &t;
+            else if (t.text.contains(QLatin1String("frac")))
+                node = &t;
+        }
+        QVERIFY(node && edge && plain);
+
+        // The expression travels to the painter, and the source stays put
+        // beside it for the fallback and for accessibility.
+        QCOMPARE(node->tex, QStringLiteral("\\frac{a}{b}"));
+        QCOMPARE(node->text, QStringLiteral("$$\\frac{a}{b}$$"));
+        QCOMPARE(edge->tex, QStringLiteral("x^2"));
+        // A plain label carries no expression at all.
+        QVERIFY(plain->tex.isEmpty());
+
+        // The node box was sized from the rendered metrics: a two-level
+        // fraction is taller than a single line of text.
+        const Text *taller = node->rect.height() > plain->rect.height()
+            ? node : nullptr;
+        QVERIFY2(taller, "a fraction should make its node taller than a word");
+    }
+
+    void sequenceTypesetsMessageParticipantAndNote()
+    {
+        MermaidParser p;
+        const SequenceAst a = p.parse(
+            "sequenceDiagram\n"
+            "participant A as \"$$\\alpha$$\"\n"
+            "participant B\n"
+            "A->>B: $$\\int_0^1 f$$\n"
+            "Note right of B: $$e^{i\\pi}+1=0$$\n").sequence;
+        const Scene s = layoutSequence(a, opts());
+
+        QStringList found;
+        for (const Text &t : s.texts) {
+            if (!t.tex.isEmpty())
+                found << t.tex;
+        }
+        // The participant label is emitted at the top and the bottom of its
+        // lifeline, so its expression appears twice.
+        QVERIFY2(found.count(QStringLiteral("\\alpha")) >= 1,
+                 "a participant name is typeset");
+        QVERIFY2(found.contains(QStringLiteral("\\int_0^1 f")),
+                 "a message label is typeset");
+        QVERIFY2(found.contains(QStringLiteral("e^{i\\pi}+1=0")),
+                 "a note is typeset");
+
+        // The diagram title is not one of the kinds Mermaid supports, so it
+        // stays text even when it looks like an expression.
+        const SequenceAst titled = p.parse(
+            "sequenceDiagram\ntitle $$x^2$$\nA->>B: hi\n").sequence;
+        for (const Text &t : layoutSequence(titled, opts()).texts) {
+            if (t.text == QLatin1String("$$x^2$$"))
+                QVERIFY2(t.tex.isEmpty(), "a title is not typeset");
+        }
+    }
+    // The painter takes the math branch: typesetting a label produces a
+    // different image from drawing its source, and it puts ink where the
+    // label is. Painting is the one seam every target shares, so this covers
+    // the on-screen canvas and the raster that PDF export embeds.
+    void painterTypesetsRatherThanDrawingTheSource()
+    {
+        Scene s = layoutFlowchart(
+            parseFlow("flowchart LR\nA[\"$$\\frac{a}{b}$$\"]"), opts());
+        QVERIFY(!s.texts.isEmpty());
+        QVERIFY(!s.texts.first().tex.isEmpty());
+
+        SceneColors colors;
+        colors.background = Qt::white;
+        colors.nodeFill = Qt::white;
+        colors.nodeStroke = Qt::white;
+        colors.edge = Qt::white;
+        colors.label = Qt::black;
+        colors.edgeLabel = Qt::black;
+        colors.edgeLabelBackground = Qt::white;
+        colors.subgraphFill = Qt::white;
+        colors.subgraphStroke = Qt::white;
+
+        const auto render = [&](const Scene &scene) {
+            QImage img(int(std::ceil(scene.bounds.width())) + 4,
+                       int(std::ceil(scene.bounds.height())) + 4,
+                       QImage::Format_ARGB32_Premultiplied);
+            img.fill(Qt::white);
+            QPainter p(&img);
+            paintScene(&p, scene, colors, QStringLiteral("sans-serif"));
+            p.end();
+            return img;
+        };
+        const auto inkCount = [](const QImage &img) {
+            int n = 0;
+            for (int y = 0; y < img.height(); ++y)
+                for (int x = 0; x < img.width(); ++x)
+                    if (qGray(img.pixel(x, y)) < 200)
+                        ++n;
+            return n;
+        };
+
+        const QImage typeset = render(s);
+        QVERIFY2(inkCount(typeset) > 50, "the formula was drawn");
+
+        // The same scene with the expression removed falls back to drawing
+        // the label's source, which is a visibly different image.
+        Scene asText = s;
+        for (Text &t : asText.texts)
+            t.tex.clear();
+        const QImage drawn = render(asText);
+        QVERIFY2(inkCount(drawn) > 50, "the source was drawn");
+        QVERIFY2(typeset != drawn,
+                 "typesetting must not produce the same pixels as drawing $$...$$");
     }
 };
 

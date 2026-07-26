@@ -94,6 +94,13 @@ struct Path {
 struct Text {
     QRectF rect;          // bounding box; alignment applies within it
     QString text;
+    // TeX source when this label is one whole math expression, empty
+    // otherwise (diagram-math.md). Layout has already sized `rect` from the
+    // rendered metrics, so the painter typesets this instead of drawing
+    // `text`. `text` still holds the label's source, which is what the
+    // painter falls back to when the expression does not parse, and what
+    // accessibility and search read.
+    QString tex;
     Role role = Role::Label;
     qreal fontSize = 14;
     bool bold = false;
