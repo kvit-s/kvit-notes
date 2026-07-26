@@ -62,6 +62,8 @@ private slots:
     void serializerAttributeRoundTripFenceKinds_data();
     void serializerAttributeRoundTripFenceKinds();
 
+    void tableColumnWidthsSurviveTheRoundTrip();
+
     // ---- reading what older versions wrote ----
     void legacyTrailingCodeFenceTagParses();
     void legacyTrailingMathFenceTagParses();
@@ -580,6 +582,29 @@ void TestBlockAttributes::legacyTrailingMathFenceTagParses()
     QCOMPARE(ser.serialize(&model),
              QStringLiteral("$$  <!--kvit align=left-->\nE = mc^2\n$$\n\n"
                             "trailing paragraph"));
+}
+
+void TestBlockAttributes::tableColumnWidthsSurviveTheRoundTrip()
+{
+    // A table's dragged column widths are one comma-separated value, with an
+    // empty slot for each column still measuring itself. Nothing in the
+    // payload grammar splits on a comma, so the whole list is one token and
+    // reaches the delegate exactly as written.
+    DocumentSerializer ser;
+    ser.setTrailingNewline(false);
+    const QString md = QStringLiteral(
+        "| A | B | C |  <!--kvit align=center cols=260,,90-->\n"
+        "| --- | --- | --- |\n| 1 | 2 | 3 |\n\ntrailing paragraph");
+    BlockModel model;
+    ser.loadIntoModel(&model, md);
+
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.blockAt(0)->blockType(), Block::Table);
+    QCOMPARE(model.blockAt(0)->attributes(),
+             QStringLiteral("align=center cols=260,,90"));
+    QCOMPARE(model.blockAt(0)->content(),
+             QStringLiteral("| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |"));
+    QCOMPARE(ser.serialize(&model), md);
 }
 
 void TestBlockAttributes::legacyTrailingTableRowTagParses()

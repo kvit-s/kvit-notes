@@ -2,8 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "markdownformatter.h"
+#include "mathrenderer.h"
 #include "wikilinkscanner.h"
 #include <QRegularExpression>
+#include <QtMath>
 #include <algorithm>
 
 // ---- The span-type registry ----
@@ -701,6 +703,60 @@ QString MarkdownFormatter::escapeHtml(const QString &text) const
     return escaped;
 }
 
+QString MarkdownFormatter::escapeHtmlKeepingSpaces(const QString &text) const
+{
+    QString out;
+    out.reserve(text.size() + 16);
+    bool atLineStart = true;
+    for (int i = 0; i < text.size(); ++i) {
+        const QChar c = text.at(i);
+        if (c == QLatin1Char('\n')) {
+            out += c;
+            atLineStart = true;
+            continue;
+        }
+        if (c == QLatin1Char(' ') || c == QLatin1Char('\t')) {
+            // A tab is four columns here, which is the width the code block
+            // delegate indents by.
+            int columns = 0;
+            int consumed = 0;
+            while (i + consumed < text.size()) {
+                const QChar w = text.at(i + consumed);
+                if (w == QLatin1Char(' '))
+                    columns += 1;
+                else if (w == QLatin1Char('\t'))
+                    columns += 4;
+                else
+                    break;
+                ++consumed;
+            }
+            // Every space of an indent is held, and a run in the middle of a
+            // line keeps all but its last, so the width survives without
+            // taking away the line's only place to wrap.
+            const int held = atLineStart ? columns : columns - 1;
+            for (int k = 0; k < held; ++k)
+                out += QLatin1String("&nbsp;");
+            if (held < columns)
+                out += QLatin1Char(' ');
+            i += consumed - 1;
+            atLineStart = false;
+            continue;
+        }
+        if (c == QLatin1Char('&'))
+            out += QLatin1String("&amp;");
+        else if (c == QLatin1Char('<'))
+            out += QLatin1String("&lt;");
+        else if (c == QLatin1Char('>'))
+            out += QLatin1String("&gt;");
+        else if (c == QLatin1Char('"'))
+            out += QLatin1String("&quot;");
+        else
+            out += c;
+        atLineStart = false;
+    }
+    return out;
+}
+
 QString MarkdownFormatter::convertSpanToHtml(const QString &text, const QString &type) const
 {
     QString escaped = escapeHtml(text);
@@ -820,14 +876,23 @@ QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown,
 // work by construction, and there is one place that decides what a type looks
 // like.
 QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
-                                          const FormattedSpan &span) const
+                                          const FormattedSpan &span,
+                                          const MathImages &math) const
 {
     const int contentStart = span.start + span.openLen;
     const int contentEnd = span.end - span.closeLen;
     // Verbatim types (inline code, math, escapes, wiki links, autolinks) have
     // no children, so this is exactly their escaped raw content.
     const QString inner =
-        renderRangeHtml(markdown, span.children, contentStart, contentEnd);
+        renderRangeHtml(markdown, span.children, contentStart, contentEnd, math);
+
+    if (span.type == QLatin1String("math") && math.enabled) {
+        const QString img = mathImageTag(
+            markdown.mid(contentStart, contentEnd - contentStart), math);
+        if (!img.isEmpty())
+            return img;
+        // Unparseable: fall through to the source, never to nothing.
+    }
 
     if (span.type == QLatin1String("bolditalic"))
         return QStringLiteral("<b><i>") + inner + QStringLiteral("</i></b>");
@@ -836,6 +901,10 @@ QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
     if (span.type == QLatin1String("italic"))
         return QStringLiteral("<i>") + inner + QStringLiteral("</i>");
     if (span.type == QLatin1String("code"))
+        // Spacing inside a code span is content, so it is escaped separately
+        // from every other type: a multi-line listing in a table cell is the
+        // shape that needs its indentation to survive.
+        //
         // A font-family stack, not a bare <code>: this rich text is rendered by
         // Qt (e.g. table cells) and copied to the clipboard, and the generic
         // "monospace" alias does not resolve on some platforms (notably
@@ -843,7 +912,9 @@ QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
         // real fixed-pitch families first keeps inline code monospace there.
         return QStringLiteral("<code style=\"font-family:Consolas,Menlo,"
                               "'DejaVu Sans Mono',monospace\">")
-             + inner + QStringLiteral("</code>");
+             + escapeHtmlKeepingSpaces(
+                   markdown.mid(contentStart, contentEnd - contentStart))
+             + QStringLiteral("</code>");
     if (span.type == QLatin1String("link")
         || span.type == QLatin1String("autolink")) {
         return QStringLiteral("<a href=\"") + escapeHtml(span.url)
@@ -866,7 +937,8 @@ QString MarkdownFormatter::renderSpanHtml(const QString &markdown,
 // between them escaped.
 QString MarkdownFormatter::renderRangeHtml(const QString &markdown,
                                            const QList<FormattedSpan> &spans,
-                                           int from, int to) const
+                                           int from, int to,
+                                           const MathImages &math) const
 {
     QString html;
     int pos = from;
@@ -875,12 +947,78 @@ QString MarkdownFormatter::renderRangeHtml(const QString &markdown,
             continue;   // defensive: a span outside the range it belongs to
         if (pos < span.start)
             html += escapeHtml(markdown.mid(pos, span.start - pos));
-        html += renderSpanHtml(markdown, span);
+        html += renderSpanHtml(markdown, span, math);
         pos = span.end;
     }
     if (pos < to)
         html += escapeHtml(markdown.mid(pos, to - pos));
     return html;
+}
+
+QString MarkdownFormatter::mathImageTag(const QString &tex,
+                                        const MathImages &opt) const
+{
+    const QString trimmed = tex.trimmed();
+    if (trimmed.isEmpty())
+        return QString();
+    const int size = opt.pixelSize > 0 ? opt.pixelSize : 15;
+    const MathRenderer::Metrics m = MathRenderer::measure(trimmed, size);
+    if (!m.valid || m.width <= 0 || m.height <= 0)
+        return QString();
+
+    // The same transparent margins the inline-math overlay reserves: vertical
+    // to keep antialiasing off the bitmap edge, horizontal so an italic `f`
+    // is not clipped at its own advance width.
+    const int vpad = qMax(2, qCeil(size * 0.12));
+    const int hpad = MathRenderer::sideBearingPaddingPx(size);
+    const qreal dpr = opt.devicePixelRatio > 0 ? opt.devicePixelRatio : 1.0;
+    const QColor fg = opt.color.isValid() ? opt.color : QColor(Qt::black);
+
+    const QString source =
+        QStringLiteral("image://math/")
+        + QString::fromLatin1(trimmed.toUtf8().toBase64(
+              QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))
+        + QStringLiteral("?fg=%1&size=%2&dpr=%3&vpad=%4&hpad=%5")
+              .arg(QString::number(fg.rgba(), 16), QString::number(size),
+                   QString::number(dpr, 'f', 2), QString::number(vpad),
+                   QString::number(hpad));
+
+    const int imageHeight = qCeil(m.height) + 2 * vpad;
+
+    // Qt offers two placements for an inline image and neither is the one a
+    // formula wants, which is its own baseline on the text baseline:
+    //
+    //   default   the image's bottom edge sits on the text baseline, lifting
+    //             the formula by its padding plus whatever hangs below its
+    //             baseline;
+    //   middle    the image is centred on the text's x-height midline, which
+    //             drops a tall formula by roughly half its height.
+    //
+    // Both errors follow from metrics already measured, so each formula takes
+    // whichever placement is closer. A superscript or a bare symbol — nothing
+    // below the baseline, which is most inline math — takes the default and is
+    // then off by only the padding; a fraction or a summation takes centring,
+    // where its own depth is what brings it back to the line.
+    //
+    // This is the approximation the editing overlay does not have to make: it
+    // knows each line's baseline and places the same bitmap against it
+    // exactly. Doing that here would mean one text layout the cell could
+    // interrogate per cell, which is the per-cell editor the table exists to
+    // avoid.
+    const qreal xHeight = 0.44 * size;   // the math font's, which the size is
+                                         // already matched to the text's on
+    const qreal liftedByDefault = vpad + m.descent;
+    const qreal droppedByMiddle = imageHeight / 2.0 - xHeight / 2.0
+                                - vpad - m.descent;
+    const QString alignment = qAbs(droppedByMiddle) < liftedByDefault
+        ? QStringLiteral(" style=\"vertical-align: middle\"")
+        : QString();
+
+    return QStringLiteral("<img src=\"%1\" width=\"%2\" height=\"%3\"%4>")
+        .arg(escapeHtml(source),
+             QString::number(qCeil(m.width) + 2 * hpad),
+             QString::number(imageHeight),
+             alignment);
 }
 
 QString MarkdownFormatter::toHtml(const QString &markdown) const
@@ -895,7 +1033,37 @@ QString MarkdownFormatter::toHtml(const QString &markdown) const
         return escapeHtml(markdown);
     }
 
-    return renderRangeHtml(markdown, spans, 0, markdown.length());
+    return renderRangeHtml(markdown, spans, 0, markdown.length(), MathImages());
+}
+
+QString MarkdownFormatter::toHtmlWithMath(const QString &markdown,
+                                          int mathPixelSize,
+                                          const QColor &mathColor,
+                                          qreal devicePixelRatio) const
+{
+    if (markdown.isEmpty())
+        return QString();
+
+    // A cell's line breaks arrive as newlines (TableData turns the stored
+    // <br> back into one) and rich text would collapse them into spaces, so
+    // they become breaks again here. Nothing this function emits contains a
+    // newline of its own, so the whole result can be swept at the end rather
+    // than every escape path having to know.
+    const auto withBreaks = [](QString html) {
+        return html.replace(QLatin1Char('\n'), QLatin1String("<br>"));
+    };
+
+    const QList<FormattedSpan> spans = parseSpans(markdown);
+    if (spans.isEmpty())
+        return withBreaks(escapeHtml(markdown));
+
+    MathImages math;
+    math.enabled = true;
+    math.pixelSize = mathPixelSize;
+    math.color = mathColor;
+    math.devicePixelRatio = devicePixelRatio;
+    return withBreaks(
+        renderRangeHtml(markdown, spans, 0, markdown.length(), math));
 }
 
 QString MarkdownFormatter::toMarkdown(const QString &html) const

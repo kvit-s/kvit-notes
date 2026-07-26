@@ -436,8 +436,11 @@ bool malformedTableCloser(const QString &line, int len, QString *cells)
 
 // A fence opening directly inside a table body, closed by a "``` | cells |"
 // line, would swallow the rest of the document (that closing line never
-// closes the fence). The repair inlines the code into the row as a code
-// span: table integrity wins over code line breaks (decision of record).
+// closes the fence). The repair inlines the code into the row as a code span
+// whose lines are separated by <br>, so the row stays one line of the file
+// while the listing keeps its own. What is lost is the fence itself, and with
+// it the language tag and any syntax highlighting; a pipe-table cell has no
+// way to hold a block.
 // Port of ReplyDisplay.vue:608, tightened on both ends — the chat reference
 // treats any pipe-bearing line as table context and any later three-backtick
 // occurrence as the closer, which rewrites ordinary prose.
@@ -485,11 +488,17 @@ QStringList tableFencePass(const QStringList &lines)
             if (closeAt >= 0) {
                 QStringList codeParts;
                 for (int q = i + 1; q < closeAt; ++q) {
-                    const QString piece = lines.at(q).trimmed();
-                    if (!piece.isEmpty())
+                    const QString piece = stripTrailingWhitespace(lines.at(q));
+                    if (!piece.trimmed().isEmpty())
                         codeParts.append(piece);
                 }
-                QString code = codeParts.join(QLatin1Char(' '));
+                // Joined with <br>, which is how a cell carries a line break,
+                // so the listing keeps the shape the writer gave it. Only
+                // trailing whitespace is stripped from each line: the leading
+                // whitespace is the indentation. (TableData trims the cell as
+                // a whole, so the first line loses its indent and no other
+                // line does.)
+                QString code = codeParts.join(QLatin1String("<br>"));
                 // Pipes in the code would split the cell; \| survives
                 // TableData's unescape-escape round-trip.
                 code.replace(QLatin1String("|"), QLatin1String("\\|"));

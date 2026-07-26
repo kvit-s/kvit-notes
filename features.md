@@ -129,6 +129,9 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Sort by column (ascending/descending)
 - Tab to move between cells
 - Support for inline formatting within cells
+- Multi-line cells: Shift+Enter breaks a line inside a cell, stored as `<br>`
+  so the row stays one line of the file. A code fence an LLM opened inside a
+  row is folded into its cell and keeps its lines and indentation
 
 #### 1.2.12 Kanban/Task Board Block
 - Multiple columns representing workflow stages

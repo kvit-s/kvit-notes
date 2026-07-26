@@ -206,11 +206,17 @@ void TestLlmNormalizer::testTableCodeFenceRepaired()
     QCOMPARE(table.rowCount(), 3);
     QCOMPARE(table.rows[0][0], QStringLiteral("**Dimension check**"));
     QCOMPARE(table.rows[1][0], QStringLiteral("**Triple loop**"));
-    // The code sits in the middle cell as an inline code span, lines
-    // joined with single spaces (table integrity wins over line breaks).
+    // The code sits in the middle cell as an inline code span whose lines
+    // are separated by <br> in the file and read back as newlines, with the
+    // indentation of every line but the first intact. What the repair costs
+    // is the fence, and with it the language tag and highlighting.
     QCOMPARE(table.rows[1][1], QStringLiteral(
-        "`for i  in rows of A for j in cols of B "
-        "for t in shared dimension C[i][j] += A[i][t] * B[t][j];`"));
+        "`for i  in rows of A\n"
+        "    for j in cols of B\n"
+        "        for t in shared dimension\n"
+        "            C[i][j] += A[i][t] * B[t][j];`"));
+    QVERIFY(blocks[1].content.contains(QStringLiteral("of A<br>")));
+    QCOMPARE(blocks[1].content.count(QLatin1Char('\n')), 4);   // five rows
     QCOMPARE(table.rows[1][2],
              QStringLiteral("This is the classic dot-product implementation."));
     QCOMPARE(table.rows[2][0], QStringLiteral("**Return**"));

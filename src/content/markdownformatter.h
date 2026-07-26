@@ -5,6 +5,7 @@
 #define MARKDOWNFORMATTER_H
 
 #include <QObject>
+#include <QColor>
 #include <QString>
 #include <QList>
 #include <QVariantList>
@@ -102,6 +103,23 @@ public:
     // Convert Markdown to HTML for display
     Q_INVOKABLE QString toHtml(const QString &markdown) const;
 
+    // toHtml for rich text that Qt itself will lay out and paint — the table
+    // cell path. The one difference is inline math: a `$…$` span becomes an
+    // <img> against the math image provider, so a cell that is not being
+    // edited shows the equation rather than its TeX source. `mathPixelSize`
+    // and `mathColor` select the cached bitmap exactly as they do for the
+    // inline-math overlay, and `devicePixelRatio` keeps it sharp on a scaled
+    // display. A formula that does not parse falls back to its source, which
+    // is what the overlay shows for the same case.
+    //
+    // toHtml() itself stays TeX-only because its other callers put their HTML
+    // on the clipboard, where an image://math URL means nothing outside this
+    // process.
+    Q_INVOKABLE QString toHtmlWithMath(const QString &markdown,
+                                       int mathPixelSize,
+                                       const QColor &mathColor,
+                                       qreal devicePixelRatio = 1.0) const;
+
     // Convert HTML back to Markdown (for paste operations)
     Q_INVOKABLE QString toMarkdown(const QString &html) const;
 
@@ -181,6 +199,11 @@ public:
 
 private:
     QString escapeHtml(const QString &text) const;
+    // escapeHtml for text whose spacing is content — the inside of a code
+    // span. Rich text collapses a run of spaces to one and drops the ones
+    // that start a line, which flattens an indented listing into a single
+    // run, so those spaces are emitted as non-breaking ones.
+    QString escapeHtmlKeepingSpaces(const QString &text) const;
     QString convertSpanToHtml(const QString &text, const QString &type) const;
     QString extractInnerText(const QString &rawText, const QString &type) const;
     // The recursive worker behind parseSpans(). The state is threaded through
@@ -188,13 +211,26 @@ private:
     // the whole parse rather than of one substring.
     QList<FormattedSpan> parseSpans(const QString &markdown,
                                     MarkdownParseState &state) const;
+    // How an inline math span renders: as its bare TeX (the clipboard path)
+    // or as an image from the math provider (the table cell path).
+    struct MathImages {
+        bool enabled = false;
+        int pixelSize = 15;
+        QColor color;
+        qreal devicePixelRatio = 1.0;
+    };
+    // The <img> for one formula, or an empty string when it does not parse —
+    // the caller then keeps the TeX source visible.
+    QString mathImageTag(const QString &tex, const MathImages &opt) const;
     // HTML for a span and for the plain text between spans. Containers render
     // from the parsed child tree, so a link inside bold stays a link.
     QString renderSpanHtml(const QString &markdown,
-                           const FormattedSpan &span) const;
+                           const FormattedSpan &span,
+                           const MathImages &math) const;
     QString renderRangeHtml(const QString &markdown,
                             const QList<FormattedSpan> &spans,
-                            int from, int to) const;
+                            int from, int to,
+                            const MathImages &math) const;
 };
 
 #endif // MARKDOWNFORMATTER_H

@@ -8,21 +8,40 @@
 
 namespace {
 
+// A line break inside a cell, as markdown can carry it: <br>. A table row is
+// one line of the file, so a real newline in a cell would end the row; the tag
+// is what GitHub, Obsidian and Pandoc-to-HTML all render as a break, and what
+// an LLM already writes when it wants one. A reader that handles no inline
+// HTML at all shows the literal tag, which is the accepted cost of the
+// convention.
+//
+// Whitespace immediately BEFORE the tag belongs to it — that is the padding an
+// author writes in "a <br> b" — and goes away with the break. Whitespace AFTER
+// it is content: it is where an indented line inside the cell carries its
+// indentation, so a code listing in a cell keeps its shape.
+QString breaksToNewlines(const QString &cell)
+{
+    static const QRegularExpression brRe(
+        QStringLiteral("[ \\t]*<br\\s*/?>"),
+        QRegularExpression::CaseInsensitiveOption);
+    QString s = cell;
+    s.replace(brRe, QStringLiteral("\n"));
+    return s;
+}
+
 // Split a table row on unescaped '|', dropping the optional leading/trailing
 // border pipes, unescaping \| → | and trimming each cell.
 QStringList splitCells(const QString &line)
 {
-    QString s = line.trimmed();
-    // LLMs use <br> for multi-line cells; cells are single-line by design,
-    // so a space is the honest rendering. The
-    // canonical serialize then writes the space, making the rewrite one-way
-    // and idempotent. Outside tables <br> stays literal.
-    static const QRegularExpression brRe(
-        QStringLiteral("<br\\s*/?>"),
-        QRegularExpression::CaseInsensitiveOption);
-    s.replace(brRe, QStringLiteral(" "));
+    const QString s = line.trimmed();
     QStringList cells;
     QString cur;
+    // Trimming happens before the breaks are restored, so the padding around
+    // the pipes is what goes, never the indentation of a line within a cell.
+    const auto flush = [&cells, &cur] {
+        cells.append(breaksToNewlines(cur.trimmed()));
+        cur.clear();
+    };
     for (int i = 0; i < s.length(); ++i) {
         if (s[i] == '\\' && i + 1 < s.length() && s[i + 1] == '|') {
             cur += '|';
@@ -30,13 +49,12 @@ QStringList splitCells(const QString &line)
             continue;
         }
         if (s[i] == '|') {
-            cells.append(cur.trimmed());
-            cur.clear();
+            flush();
             continue;
         }
         cur += s[i];
     }
-    cells.append(cur.trimmed());
+    flush();
     // Drop empty cells produced by the optional leading/trailing border pipe.
     if (cells.size() > 1 && cells.first().isEmpty())
         cells.removeFirst();
@@ -49,6 +67,7 @@ QString escapeCell(const QString &cell)
 {
     QString e = cell;
     e.replace(QStringLiteral("|"), QStringLiteral("\\|"));
+    e.replace(QStringLiteral("\n"), QStringLiteral("<br>"));
     return e;
 }
 
@@ -137,10 +156,24 @@ Table parse(const QString &markdown)
 
 QString serialize(const Table &t)
 {
+    // Cells are trimmed on the way out because they are trimmed on the way in:
+    // splitCells drops the padding around every cell, so writing a value that
+    // still carries leading or trailing whitespace produces markdown that
+    // parses back to something else. The live cell editor commits on every
+    // keystroke and then re-reads the parsed cell, so an untrimmed write made
+    // a space typed at the end of a cell vanish — the rewrite came straight
+    // back trimmed. Only a second space stuck, because by then the serialized
+    // markdown matched what was already stored and no rewrite was issued.
+    //
+    // On a multi-line cell this drops blank leading and trailing lines, and it
+    // means the FIRST line of a cell cannot carry indentation — the padding
+    // around the pipes and that indentation are the same characters, and the
+    // parser has no way to tell them apart. Every line after the first keeps
+    // its own.
     auto rowLine = [](const QStringList &cells) {
         QStringList escaped;
         for (const QString &c : cells)
-            escaped.append(escapeCell(c));
+            escaped.append(escapeCell(c.trimmed()));
         return QStringLiteral("| ") + escaped.join(QStringLiteral(" | "))
              + QStringLiteral(" |");
     };
@@ -161,9 +194,9 @@ QString setCell(const QString &md, int row, int col, const QString &value)
     Table t = parse(md);
     if (!t.valid || col < 0 || col >= t.columnCount())
         return md;
-    // A cell is single-line: newlines would break the pipe row.
-    QString v = value;
-    v.replace('\n', ' ');
+    // Newlines are kept: serialize writes them back as <br>, so the row stays
+    // one line of the file while the cell keeps its shape.
+    const QString v = value;
     if (row == -1) {
         t.headers[col] = v;
     } else if (row >= 0 && row < t.rowCount()) {

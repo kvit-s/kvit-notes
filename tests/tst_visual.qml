@@ -1902,6 +1902,206 @@ Item {
             wait(100)
         }
 
+
+        // Inline math inside cells, and dragged column widths.
+        function test_36b_table_math_and_column_widths() {
+            if (isHeadless) {
+                skip("Storyboard requires display")
+            }
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
+            wait(200)
+            BlockModel.insertBlock(0, 1, "Formulas in cells")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, 15,   // Block.Table
+                "| Quantity $q$ | Definition | Value |\n| :--- | :--- | ---: |\n"
+                // Both baseline cases: nothing below the formula's baseline,
+                // and a fraction that hangs well below it.
+                + "| Area | circle $\\pi r^2$ or $\\frac{a}{b}$ | 12.6 |\n"
+                + "| Mean | sample $\\frac{1}{n}\\sum_{i=1}^{n} x_i$ | 4.2 |\n"
+                + "| Plain | no math here | 7 |")
+            wait(400)
+            clearFocus()
+            wait(200)
+            // Every $…$ span renders as an equation, in the header as well as
+            // in the body — the cells used to show the bare TeX source.
+            saveScreenshot("visual_36_tables_05_inline_math.png")
+
+            var tbl = findBlockDelegate(1)
+            verify(tbl !== null, "table delegate should exist")
+
+            // The live cell gets the same overlay the prose blocks use: a
+            // formula the caret is not inside stays rendered while the rest of
+            // the cell is edited, and reveals its source only when entered.
+            tbl.editCell(1, 1)
+            wait(300)
+            var editor = findChild(tbl, "tableCellEditor")
+            verify(editor !== null, "the live cell has an editor")
+            editor.cursorPosition = 0
+            tryVerify(function() { return findChild(tbl, "inlineMathImage") !== null },
+                      1000, "the live cell draws the equation over its hidden span")
+            wait(300)
+            saveScreenshot("visual_36_tables_06_math_cell_editing.png")
+
+            // A space typed at the end of a cell stays where it was typed. The
+            // rewrite that comes back used to be the trimmed string, which
+            // deleted the space again and made every other press look ignored.
+            //
+            // Inserting through the editor drives exactly the path a keystroke
+            // does — commit, re-serialize, read the cell back — and is where
+            // the space was lost. Synthetic key delivery needs an active
+            // window, which this suite cannot count on; the keys themselves
+            // are on the manual QA list.
+            tbl.editCell(2, 1)          // the plain "no math here" cell
+            wait(300)
+            editor = findChild(tbl, "tableCellEditor")
+            editor.forceActiveFocus()
+            editor.insert(editor.length, " ")
+            wait(200)
+            compare(editor.text, "no math here ")
+            editor.insert(editor.length, "x")
+            wait(200)
+            compare(editor.text, "no math here x")
+            compare(TableTools.cellValue(BlockModel.getContent(1), 2, 1),
+                    "no math here x")
+            keyClick(Qt.Key_Escape)
+            wait(150)
+
+            // Dragging a column's right border widens it. The width lands on
+            // the block's attributes, not in the table markdown, and only the
+            // dragged column is pinned — the others go on measuring themselves.
+            var markdownBefore = BlockModel.getContent(1)
+            var stackBefore = UndoStack.count
+            var grip = findChild(tbl, "tableColumnGrip")
+            verify(grip !== null, "the first column has a resize grip")
+            var startWidth = tbl.colWidthAt(0)
+            mouseDrag(grip, grip.width / 2, 20, 60, 0)
+            tryVerify(function() { return BlockModel.blockAt(1).attributes.length > 0 },
+                      1000, "the drag writes a column width to the block")
+            verify(tbl.storedColWidths[0] > startWidth,
+                   "the dragged column is wider than it was")
+            compare(tbl.storedColWidths[1], 0)      // untouched: still automatic
+            compare(BlockModel.getContent(1), markdownBefore)
+            compare(UndoStack.count, stackBefore + 1)
+            wait(250)
+            clearFocus()
+            saveScreenshot("visual_36_tables_07_column_widths.png")
+
+            // And the way back.
+            tbl.clearColumnWidths()
+            tryVerify(function() { return BlockModel.blockAt(1).attributes.length === 0 },
+                      1000, "resetting drops the key entirely")
+
+            // Typing a formula works in a cell the way it does in prose: the
+            // `$` auto-pairs and a backslash inside the pair opens the command
+            // menu. Driven through the assist's handlers rather than through
+            // keystrokes, for the same reason as the space check above.
+            tbl.editCell(-1, 2)          // the "Value" header cell
+            wait(300)
+            editor = findChild(tbl, "tableCellEditor")
+            editor.forceActiveFocus()
+            editor.remove(0, editor.length)
+            wait(150)
+            var assist = findChild(tbl, "tableCellMathEntry")
+            verify(assist !== null, "the live cell has a math entry assist")
+
+            verify(assist.handleEntryKey({ text: "$", key: Qt.Key_Dollar,
+                                           modifiers: 0, accepted: false }),
+                   "a $ typed in a cell is claimed by the auto-pair")
+            compare(editor.text, "$$")
+            compare(editor.cursorPosition, 1)
+
+            verify(assist.handleBackslash({ text: "\\", key: Qt.Key_Backslash,
+                                            modifiers: 0, accepted: false }),
+                   "a backslash inside the pair is claimed")
+            tryVerify(function() { return assist.activeMenu() !== null },
+                      1000, "the math command menu opens for the cell editor")
+            compare(editor.text, "$\\$")
+            assist.activeMenu().dismiss()
+
+            clearFocus()
+            wait(100)
+        }
+
+        // Multi-line cells: the shape an LLM produces when it opens a code
+        // fence inside a table row. LlmNormalizer folds the fence into the
+        // row as a code span whose lines ride as <br>; this is the rendering
+        // end of that, plus the keys that make and keep a break by hand.
+        function test_36c_table_multiline_cells() {
+            if (isHeadless) {
+                skip("Storyboard requires display")
+            }
+            Theme.themeId = "light"
+            DocumentManager.newDocument()
+            wait(200)
+            BlockModel.insertBlock(0, 1, "Multi-line cells")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, 15,   // Block.Table
+                "| Step | Code | Why |\n| :--- | :--- | :--- |\n"
+                + "| **Dimension check** | `cols(A) == rows(B)` | Otherwise undefined |\n"
+                + "| **Triple loop** | `for i in rows of A<br>    for j in cols of B"
+                + "<br>        for t in shared dim<br>"
+                + "            C[i][j] += A[i][t] * B[t][j];` | Classic dot product |\n"
+                + "| **Return** | `C` | Caller uses the matrix |")
+            wait(400)
+            clearFocus()
+            wait(200)
+            // The listing keeps its four lines and its indentation, and the
+            // row grows to hold them.
+            saveScreenshot("visual_36_tables_08_multiline_code_cell.png")
+
+            var tbl = findBlockDelegate(1)
+            verify(tbl !== null, "table delegate should exist")
+            var cell = TableTools.cellValue(BlockModel.getContent(1), 1, 1)
+            compare(cell.split("\n").length, 4)
+            verify(cell.indexOf("\n    for j") > 0,
+                   "the indentation of a line after the first survives")
+
+            // A break made in a cell by hand is stored as <br>, so the row is
+            // still one line of the file and the table still parses. (Which
+            // keys make one — Shift+Enter breaks, Enter is done with the cell
+            // — is on the manual QA list: synthetic key delivery needs an
+            // active window, which this suite cannot count on.)
+            tbl.editCell(2, 2)          // "Caller uses the matrix"
+            wait(300)
+            var editor = findChild(tbl, "tableCellEditor")
+            verify(editor !== null, "the live cell has an editor")
+            editor.forceActiveFocus()
+            editor.insert(editor.length, "\na")
+            wait(250)
+            compare(TableTools.cellValue(BlockModel.getContent(1), 2, 2),
+                    "Caller uses the matrix\na")
+            verify(BlockModel.getContent(1).indexOf("matrix<br>a") > 0,
+                   "the break is stored as a tag, not a newline")
+            compare(BlockModel.getContent(1).split("\n").length, 5)
+            compare(TableTools.parse(BlockModel.getContent(1)).rowCount, 3)
+
+            keyClick(Qt.Key_Escape)
+            clearFocus()
+            wait(200)
+            saveScreenshot("visual_36_tables_09_hand_typed_break.png")
+
+            // A header cell that grows — a formula, or a break — takes the
+            // whole header row with it, and the header tint has to follow.
+            // The tint used to be painted per cell at the cell's own height,
+            // so the shorter cells beside a tall one left the row part-shaded.
+            // Dark, where the tint and the page differ most.
+            Theme.themeId = "dark"
+            DocumentManager.newDocument()
+            wait(200)
+            BlockModel.insertBlock(0, 0, "")
+            BlockModel.convertBlock(0, 15,   // Block.Table
+                "| tall $\\frac{a}{b}$ | short | also short |\n"
+                + "| :--- | :--- | :--- |\n"
+                + "| body $x^2$ | b | c |")
+            wait(500)
+            clearFocus()
+            wait(300)
+            saveScreenshot("visual_36_tables_10_tall_header_shading.png")
+            Theme.themeId = "light"
+            wait(100)
+        }
+
         // Todo metadata, quote attribution, nested quotes.
         function test_37_todo_meta_and_quotes() {
             if (isHeadless) {

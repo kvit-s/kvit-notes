@@ -429,6 +429,11 @@ QString DocumentExporter::cssBlock() const
         "border-radius:6px;padding:8px;min-width:140px}"
         "mark{background:#fdf3a9}"
         ".math-display{text-align:center;margin:1em 0}"
+        // A code span in a table cell can hold a folded-in listing, whose
+        // indentation HTML would otherwise collapse. The line breaks are
+        // emitted as <br> rather than left to this, so a renderer that
+        // ignores white-space still gets the lines.
+        "td code,th code{white-space:pre-wrap}"
         "pre.text-diagram{line-height:1.2}"
         "pre.text-diagram code{white-space:pre;font-family:"
         "'Cascadia Code',Consolas,'DejaVu Sans Mono',monospace}"
@@ -577,17 +582,25 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
         }
         case Block::Table: {
             const TableData::Table tbl = TableData::parse(b.content);
+            // A cell's line breaks reach here as newlines (TableData reads
+            // the stored <br> back). HTML collapses those into spaces, so
+            // they are re-stated as markup — otherwise a listing folded into
+            // a row exports as one long line.
+            const auto cellHtml = [&](const QString &cell) {
+                return renderInline(cell, mathJax, &sawMath)
+                    .replace(QLatin1Char('\n'), QLatin1String("<br>"));
+            };
             body += QStringLiteral("<table>");
             if (!tbl.headers.isEmpty()) {
                 body += QStringLiteral("<tr>");
                 for (const QString &h : tbl.headers)
-                    body += "<th>" + renderInline(h, mathJax, &sawMath) + "</th>";
+                    body += "<th>" + cellHtml(h) + "</th>";
                 body += QStringLiteral("</tr>");
             }
             for (const QStringList &row : tbl.rows) {
                 body += QStringLiteral("<tr>");
                 for (const QString &cell : row)
-                    body += "<td>" + renderInline(cell, mathJax, &sawMath) + "</td>";
+                    body += "<td>" + cellHtml(cell) + "</td>";
                 body += QStringLiteral("</tr>");
             }
             body += QStringLiteral("</table>");

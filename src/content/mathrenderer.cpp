@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPainter>
@@ -372,7 +373,8 @@ bool paint(QPainter *painter, const QString &tex, int textSizePx,
     return true;
 }
 
-Metrics measure(const QString &tex, int textSizePx, bool displayStyle)
+static Metrics measureUncached(const QString &tex, int textSizePx,
+                               bool displayStyle)
 {
     Metrics metrics;
     const QString trimmed = normalizedTex(tex);
@@ -406,6 +408,39 @@ Metrics measure(const QString &tex, int textSizePx, bool displayStyle)
     metrics.depth = qMax(0, render->getDepth());
     metrics.valid = true;
     metrics.error.clear();
+    return metrics;
+}
+
+Metrics measure(const QString &tex, int textSizePx, bool displayStyle)
+{
+    // Metrics are a pure function of these three arguments and cost a full
+    // MicroTeX parse and box layout, so they are memoized process-wide. A
+    // table renders each static cell through the formatter, which measures
+    // every formula in the table again on every keystroke in any of its
+    // cells; uncached, that is one layout per formula per character typed.
+    static QMutex cacheMutex;
+    static QHash<QString, Metrics> cache;
+    static QStringList order;
+    constexpr int MaxCachedMetrics = 512;
+
+    const QString key = QString::number(textSizePx)
+                      + QLatin1Char(displayStyle ? 'D' : 'I') + tex;
+    {
+        QMutexLocker locker(&cacheMutex);
+        const auto it = cache.constFind(key);
+        if (it != cache.constEnd())
+            return *it;
+    }
+
+    const Metrics metrics = measureUncached(tex, textSizePx, displayStyle);
+
+    QMutexLocker locker(&cacheMutex);
+    if (!cache.contains(key)) {
+        cache.insert(key, metrics);
+        order.append(key);
+        while (order.size() > MaxCachedMetrics)
+            cache.remove(order.takeFirst());
+    }
     return metrics;
 }
 

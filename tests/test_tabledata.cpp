@@ -76,12 +76,30 @@ private slots:
                  QString("| Name | B |\n| --- | --- |\n| 1 | 2 |"));
         QCOMPARE(TableData::setCell(md, 0, 1, "x"),
                  QString("| A | B |\n| --- | --- |\n| 1 | x |"));
-        // A newline in a value collapses to a space (single-line cells).
+        // A newline in a value is written as <br>, so the row stays one line.
         QCOMPARE(TableData::setCell(md, 0, 0, "a\nb"),
-                 QString("| A | B |\n| --- | --- |\n| a b | 2 |"));
+                 QString("| A | B |\n| --- | --- |\n| a<br>b | 2 |"));
         // A pipe in a value is escaped.
         QCOMPARE(TableData::setCell(md, 0, 0, "a|b"),
                  QString("| A | B |\n| --- | --- |\n| a\\|b | 2 |"));
+    }
+
+    // Writing a cell is idempotent against the whitespace parse throws away,
+    // so the live cell editor is not handed a rewrite for a space it has not
+    // finished typing (the space-swallowing round trip).
+    void setCellTrimsSurroundingWhitespace()
+    {
+        const QString md = "| A | B |\n| --- | --- |\n| 1 | 2 |";
+        QCOMPARE(TableData::setCell(md, 0, 0, "1 "), md);
+        QCOMPARE(TableData::setCell(md, 0, 0, " 1"), md);
+        QCOMPARE(TableData::setCell(md, -1, 0, "A  "), md);
+        // The trimming is the serializer's, so every mutation shares it and
+        // serialize stays the exact inverse of parse.
+        QCOMPARE(TableData::setCell(md, 0, 0, "  x  "),
+                 QString("| A | B |\n| --- | --- |\n| x | 2 |"));
+        TableData::Table t = TableData::parse(md);
+        t.rows[0][0] = QStringLiteral(" 1 ");
+        QCOMPARE(TableData::serialize(t), md);
     }
 
     void insertAndRemoveRowsColumns()
@@ -126,22 +144,45 @@ private slots:
                  QString("|  |  |\n| --- | --- |\n|  |  |"));
     }
 
-    void brTagsBecomeSpaces()
+    void brTagsBecomeLineBreaks()
     {
-        // LLMs use <br> for multi-line cells; cells are single-line by
-        // design, so a space is the honest rendering. All three spellings,
-        // case-insensitive.
+        // A cell's line break rides as <br>, which is what keeps the row one
+        // line of the file. All three spellings, case-insensitive, and the
+        // padding an author writes around the tag goes with the break.
         const auto t = TableData::parse(
-            "| a<br>b | c |\n| --- | --- |\n| d<br/>e | f<BR />g |");
+            "| a<br>b | c |\n| --- | --- |\n| d<br/>e | f <BR /> g |");
         QVERIFY(t.valid);
-        QCOMPARE(t.headers, QStringList({"a b", "c"}));
-        QCOMPARE(t.rows[0], QStringList({"d e", "f g"}));
+        QCOMPARE(t.headers, QStringList({"a\nb", "c"}));
+        QCOMPARE(t.rows[0], QStringList({"d\ne", "f\n g"}));
 
-        // The canonicalized table is byte-stable on a second pass.
+        // The canonicalized table is byte-stable on a second pass, and it
+        // still writes the breaks as tags rather than as real newlines.
         const QString canonical = TableData::serialize(t);
         QCOMPARE(TableData::serialize(TableData::parse(canonical)),
                  canonical);
-        QVERIFY(!canonical.contains("<br"));
+        QCOMPARE(canonical.count(QLatin1Char('\n')), 2);   // three rows
+        QVERIFY(canonical.contains("a<br>b"));
+    }
+
+    // Indentation inside a cell survives, which is what makes a code listing
+    // in a cell readable. The first line is the exception: its leading
+    // whitespace and the padding around the pipes are the same characters,
+    // so the parser cannot keep one without keeping the other.
+    void multiLineCellKeepsIndentation()
+    {
+        const QString md = TableData::setCell(
+            "| Step | Code |\n| --- | --- |\n|  |  |",
+            0, 1, "for i in rows\n    for j in cols\n        sum += a * b");
+        QCOMPARE(md, QString("| Step | Code |\n| --- | --- |\n"
+                             "|  | for i in rows<br>    for j in cols"
+                             "<br>        sum += a * b |"));
+        const auto t = TableData::parse(md);
+        QCOMPARE(t.rows[0][1],
+                 QString("for i in rows\n    for j in cols\n        sum += a * b"));
+
+        // A pipe inside a multi-line cell still cannot split the row.
+        const QString piped = TableData::setCell(md, 0, 1, "a | b\nc");
+        QCOMPARE(TableData::parse(piped).rows[0][1], QString("a | b\nc"));
     }
 };
 
