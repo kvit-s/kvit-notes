@@ -44,8 +44,7 @@ BlockDelegateBase {
     // fold in too, or the gutter and the card's buttons would stay hidden for
     // as long as the pointer is over the card that owns them.
     property bool isHovered: hoverArea.containsMouse
-        || plusArea.containsMouse || embedHandleArea.containsMouse
-        || deleteArea.containsMouse || cardArea.containsMouse
+        || blockHandle.hovered || cardArea.containsMouse
         || editArea.containsMouse || loadArea.containsMouse
         || retryArea.containsMouse
 
@@ -299,7 +298,7 @@ BlockDelegateBase {
 
     // The card.
     // Maximum card width inside the block (past the gutter).
-    readonly property int embedMaxWidth: Math.max(160, root.width - 56)
+    readonly property int embedMaxWidth: Math.max(160, root.width - 60)
 
     Rectangle {
         id: card
@@ -308,7 +307,7 @@ BlockDelegateBase {
         // A configured width drops the right anchor for an explicit size
         // (§1.2.14); the default card spans the full content width.
         anchors.right: root.effectiveWidth > 0 ? undefined : parent.right
-        anchors.leftMargin: 48
+        anchors.leftMargin: 52
         anchors.rightMargin: 8
         anchors.top: parent.top
         anchors.topMargin: 4
@@ -623,72 +622,40 @@ BlockDelegateBase {
         }
     }
 
-    // Gutter plus + drag handle.
-    Rectangle {
-        objectName: "plusButton"
-        width: 18; height: 18; x: 10; y: 10; radius: 4
-        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
-        opacity: root.isHovered ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "+"; color: Theme.textMuted; font.pixelSize: 14; font.bold: true }
-        MouseArea {
-            id: plusArea; anchors.fill: parent; anchors.margins: -2
-            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-            onClicked: root.insertBlockBelowAndOpenMenu()
+    // The gutter: plus / delete / drag handle, shared with every other
+    // block delegate so the strip does not shift as the pointer moves down
+    // a document. The reorder itself goes to the window's coordinator.
+    BlockGutter {
+        id: blockHandle
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.topMargin: 4
+
+        rowHovered: root.isHovered
+        dragEnabled: root.shell !== null && root.shell.blockDrag !== null
+
+        onInsertRequested: root.insertBlockBelowAndOpenMenu()
+        onDeleteRequested: root.deleteCurrentBlock()
+        onHandleMenuRequested: AppActions.requestBlockHandleMenu(root)
+        onBlockSelectRequested: {
+            if (root.listView)
+                root.listView.currentIndex = root.index
+            DocumentSelection.selectBlock(root.index)
+            root.focusSelectionHandler()
         }
-    }
-    // Gutter delete-button, stacked under the plus. Removes this block;
-    // undoable with Ctrl+Z, so no confirmation — the red hover fill is the
-    // destructive cue. deleteArea folds into isHovered above so it does not
-    // vanish under the pointer.
-    Rectangle {
-        objectName: "deleteButton"
-        width: 18; height: 18; x: 10; y: 30; radius: 4
-        color: deleteArea.containsMouse ? Theme.danger : "transparent"
-        opacity: root.isHovered ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "×"; color: deleteArea.containsMouse ? Theme.onAccent : Theme.textMuted; font.pixelSize: 15; font.bold: true }
-        MouseArea { id: deleteArea; anchors.fill: parent; anchors.margins: -2
-            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-            onClicked: root.deleteCurrentBlock() }
-    }
-    Item {
-        objectName: "embedHandle"
-        width: 14; height: 18; x: 30; y: 10
-        opacity: root.isHovered || embedHandleArea.pressed ? 0.6 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        Column {
-            anchors.centerIn: parent; spacing: 2
-            Repeater { model: 2; Row { spacing: 2; Repeater { model: 2
-                Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint } } } }
+        onDragStarted: function(sceneX, sceneY) {
+            root.shell.blockDrag.begin(root.index, sceneX, sceneY)
         }
-        MouseArea {
-            id: embedHandleArea
-            objectName: "dragHandle"
-            anchors.fill: parent; anchors.margins: -2
-            hoverEnabled: true; cursorShape: Qt.OpenHandCursor; preventStealing: true
-            property real pressX: 0; property real pressY: 0; property bool dragging: false
-            onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
-            onPositionChanged: function(mouse) {
-                if (!pressed) return
-                if (!root.shell || !root.shell.blockDrag) return
-                var sp = embedHandleArea.mapToItem(null, mouse.x, mouse.y)
-                if (!dragging) {
-                    if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5) return
-                    dragging = true; root.shell.blockDrag.begin(root.index, sp.x, sp.y)
-                } else root.shell.blockDrag.update(sp.x, sp.y)
-            }
-            onReleased: {
-                if (dragging) { dragging = false; if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop(); return }
-                if (root.listView) root.listView.currentIndex = root.index
-                DocumentSelection.selectBlock(root.index); root.focusSelectionHandler()
-            }
-            onCanceled: {
-                if (dragging) { dragging = false;                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel() }
-            }
+        onDragMoved: function(sceneX, sceneY) {
+            root.shell.blockDrag.update(sceneX, sceneY)
+        }
+        onDragDropped: {
+            if (root.shell && root.shell.blockDrag)
+                root.shell.blockDrag.drop()
+        }
+        onDragCanceled: {
+            if (root.shell && root.shell.blockDrag)
+                root.shell.blockDrag.cancel()
         }
     }
 }

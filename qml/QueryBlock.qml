@@ -40,12 +40,10 @@ BlockDelegateBase {
     property bool isPooled: false
     property ListView listView: ListView.view
     property bool isFocused: sourceArea.activeFocus
-    // The plus and drag-handle MouseAreas sit over hoverArea and steal its
-    // hover; fold their own hover back in so the gutter buttons do not vanish
-    // the moment the pointer reaches them (as EditableBlock/MathBlock do).
-    property bool isHovered: hoverArea.containsMouse
-        || plusArea.containsMouse || queryHandleArea.containsMouse
-        || deleteArea.containsMouse
+    // The gutter's MouseAreas sit over hoverArea and steal its hover; fold
+    // the gutter's own hover back in so the buttons do not vanish the moment
+    // the pointer reaches them (as EditableBlock does).
+    property bool isHovered: hoverArea.containsMouse || blockHandle.hovered
 
     readonly property bool editing: sourceArea.activeFocus
 
@@ -282,7 +280,7 @@ BlockDelegateBase {
         id: contentColumn
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 48
+        anchors.leftMargin: 52
         anchors.rightMargin: 8
         anchors.top: parent.top
         anchors.topMargin: 4
@@ -654,118 +652,40 @@ BlockDelegateBase {
         }
     }
 
-    // Gutter plus-button.
-    Rectangle {
-        objectName: "plusButton"
-        width: 18
-        height: 18
-        x: 10
-        y: 8
-        radius: 4
-        color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
-        opacity: root.isHovered ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text {
-            anchors.centerIn: parent
-            text: "+"
-            color: Theme.textMuted
-            font.pixelSize: 14
-            font.bold: true
-        }
-        MouseArea {
-            id: plusArea
-            anchors.fill: parent
-            anchors.margins: -2
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.insertBlockBelowAndOpenMenu()
-        }
-    }
+    // The gutter: plus / delete / drag handle, shared with every other
+    // block delegate so the strip does not shift as the pointer moves down
+    // a document. The reorder itself goes to the window's coordinator.
+    BlockGutter {
+        id: blockHandle
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.topMargin: 4
 
-    // Gutter delete-button, stacked under the plus. Removes this block;
-    // undoable with Ctrl+Z, so no confirmation — the red hover fill is the
-    // destructive cue. deleteArea folds into isHovered above so it does not
-    // vanish under the pointer.
-    Rectangle {
-        objectName: "deleteButton"
-        width: 18; height: 18; x: 10; y: 28; radius: 4
-        color: deleteArea.containsMouse ? Theme.danger : "transparent"
-        opacity: root.isHovered ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        Text { anchors.centerIn: parent; text: "×"; color: deleteArea.containsMouse ? Theme.onAccent : Theme.textMuted; font.pixelSize: 15; font.bold: true }
-        MouseArea { id: deleteArea; anchors.fill: parent; anchors.margins: -2
-            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-            onClicked: root.deleteCurrentBlock() }
-    }
+        rowHovered: root.isHovered
+        dragEnabled: root.shell !== null && root.shell.blockDrag !== null
 
-    // Drag handle.
-    Item {
-        objectName: "queryHandle"
-        width: 14
-        height: 18
-        x: 30
-        y: 8
-        opacity: root.isHovered || queryHandleArea.pressed ? 0.6 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        Column {
-            anchors.centerIn: parent
-            spacing: 2
-            Repeater {
-                model: 2
-                Row {
-                    spacing: 2
-                    Repeater {
-                        model: 2
-                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.textFaint }
-                    }
-                }
-            }
+        onInsertRequested: root.insertBlockBelowAndOpenMenu()
+        onDeleteRequested: root.deleteCurrentBlock()
+        onHandleMenuRequested: AppActions.requestBlockHandleMenu(root)
+        onBlockSelectRequested: {
+            if (root.listView)
+                root.listView.currentIndex = root.index
+            DocumentSelection.selectBlock(root.index)
+            root.focusSelectionHandler()
         }
-        MouseArea {
-            id: queryHandleArea
-            objectName: "dragHandle"
-            anchors.fill: parent
-            anchors.margins: -2
-            hoverEnabled: true
-            cursorShape: Qt.OpenHandCursor
-            preventStealing: true
-            property real pressX: 0
-            property real pressY: 0
-            property bool dragging: false
-            onPressed: function(mouse) { pressX = mouse.x; pressY = mouse.y; dragging = false }
-            onPositionChanged: function(mouse) {
-                if (!pressed) return
-                if (!root.shell || !root.shell.blockDrag) return
-                var sp = queryHandleArea.mapToItem(null, mouse.x, mouse.y)
-                if (!dragging) {
-                    if (Math.abs(mouse.x - pressX) < 5 && Math.abs(mouse.y - pressY) < 5)
-                        return
-                    dragging = true
-                    root.shell.blockDrag.begin(root.index, sp.x, sp.y)
-                } else {
-                    root.shell.blockDrag.update(sp.x, sp.y)
-                }
-            }
-            onReleased: {
-                if (dragging) {
-                    dragging = false
-                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.drop()
-                    return
-                }
-                if (root.listView)
-                    root.listView.currentIndex = root.index
-                DocumentSelection.selectBlock(root.index)
-                root.focusSelectionHandler()
-            }
-            onCanceled: {
-                if (dragging) {
-                    dragging = false
-                    if (root.shell && root.shell.blockDrag) root.shell.blockDrag.cancel()
-                }
-            }
+        onDragStarted: function(sceneX, sceneY) {
+            root.shell.blockDrag.begin(root.index, sceneX, sceneY)
+        }
+        onDragMoved: function(sceneX, sceneY) {
+            root.shell.blockDrag.update(sceneX, sceneY)
+        }
+        onDragDropped: {
+            if (root.shell && root.shell.blockDrag)
+                root.shell.blockDrag.drop()
+        }
+        onDragCanceled: {
+            if (root.shell && root.shell.blockDrag)
+                root.shell.blockDrag.cancel()
         }
     }
 }
