@@ -209,6 +209,68 @@ const QRegularExpression &cardPrefixRe()
     return re;
 }
 
+// The comment carrying a card's dates, at the end of its line. It is matched
+// off the end of the line before anything else looks at the text, so nothing
+// inside it can be read as a label, a due date or title words.
+const QRegularExpression &stampRe()
+{
+    static const QRegularExpression re(
+        QStringLiteral("\\s*<!--kvit((?:\\s+\\w+=[0-9-]+)*)\\s*-->\\s*$"));
+    return re;
+}
+
+// One `name=value` out of that comment.
+QString stampValue(const QString &fields, const QString &name)
+{
+    const QRegularExpression re(
+        name + QStringLiteral("=(\\d{4}-\\d{2}-\\d{2})"));
+    const QRegularExpressionMatch m = re.match(fields);
+    return m.hasMatch() && isRealDate(m.captured(1)) ? m.captured(1)
+                                                     : QString();
+}
+
+// Everything before that comment, which is the card's text.
+QString withoutStamp(const QString &line)
+{
+    const QRegularExpressionMatch m = stampRe().match(line);
+    return m.hasMatch() ? line.left(m.capturedStart(0)) : line;
+}
+
+// The comment for a card that has dates, and nothing at all for one that does
+// not: an untouched board grows no comments. `modified` is written only when
+// it differs from `created`, so a card that was added and left alone carries
+// one date rather than the same date twice.
+QString stampComment(const KanbanData::Card &card)
+{
+    QStringList fields;
+    if (!card.created.isEmpty())
+        fields << QStringLiteral("created=") + card.created;
+    if (!card.modified.isEmpty() && card.modified != card.created)
+        fields << QStringLiteral("modified=") + card.modified;
+    if (fields.isEmpty())
+        return QString();
+    return QStringLiteral(" <!--kvit ") + fields.join(QLatin1Char(' '))
+         + QStringLiteral("-->");
+}
+
+// Record that this card changed today: the day it was added if it has no such
+// day yet, and the day it was last changed either way. An empty `today` is a
+// caller that does not keep dates, and nothing is recorded for it.
+//
+// The card's source line is edited in place rather than dropped, so a card
+// whose dates changed keeps the spacing, the bullet and the label order it was
+// written with — the same reason toggleCardDone() edits only the checkbox.
+void stampCard(KanbanData::Card &card, const QString &today, bool creating)
+{
+    if (today.isEmpty() || !isRealDate(today))
+        return;
+    if (creating && card.created.isEmpty())
+        card.created = today;
+    card.modified = today;
+    if (!card.rawLine.isEmpty())
+        card.rawLine = withoutStamp(card.rawLine) + stampComment(card);
+}
+
 // The card's text as the fields describe it: what serialize() writes for a
 // card with no source line of its own.
 QString renderedCardBody(const KanbanData::Card &card)
@@ -230,15 +292,16 @@ QString renderedCardBody(const KanbanData::Card &card)
 }
 
 // The card's text as the file has it: everything on its line after the
-// checkbox. A card a mutation synthesized has no line yet, so its text is
-// rendered from the fields instead — which is the same string serialize()
-// is about to write.
+// checkbox and before the comment carrying its dates. A card a mutation
+// synthesized has no line yet, so its text is rendered from the fields
+// instead — which is the same string serialize() is about to write.
 QString cardBody(const KanbanData::Card &card)
 {
     if (card.rawLine.isEmpty())
         return renderedCardBody(card);
     const QRegularExpressionMatch m = cardPrefixRe().match(card.rawLine);
-    return m.hasMatch() ? card.rawLine.mid(m.capturedEnd(0)) : card.rawLine;
+    return withoutStamp(m.hasMatch() ? card.rawLine.mid(m.capturedEnd(0))
+                                     : card.rawLine);
 }
 
 // What goes in front of that text when it is rewritten: the card's own
@@ -360,7 +423,18 @@ Board parse(const QString &content)
             Card c;
             c.done = cm.captured(1) != QStringLiteral(" ");
             c.rawLine = raw;
-            parseCardBody(cm.captured(2), c);
+            // The dates come off the end of the line first, so what is read
+            // as title, labels and due date is only what the reader typed.
+            QString body = cm.captured(2);
+            const QRegularExpressionMatch sm = stampRe().match(body);
+            if (sm.hasMatch()) {
+                c.created = stampValue(sm.captured(1), QStringLiteral("created"));
+                c.modified = stampValue(sm.captured(1), QStringLiteral("modified"));
+                if (c.modified.isEmpty())
+                    c.modified = c.created;
+                body = body.left(sm.capturedStart(0));
+            }
+            parseCardBody(body, c);
             board.columns[colIdx].cards.append(c);
             descIdx = board.columns[colIdx].cards.size() - 1;
             lastCardIdx = descIdx;
@@ -399,7 +473,7 @@ QString serialize(const Board &b)
             } else {
                 out << (card.done ? QStringLiteral("- [x] ")
                                   : QStringLiteral("- [ ] "))
-                        + renderedCardBody(card);
+                        + renderedCardBody(card) + stampComment(card);
             }
             if (!card.rawDescription.isEmpty()) {
                 out << card.rawDescription;
@@ -469,7 +543,8 @@ QString moveColumn(const QString &content, int fromCol, int toCol)
     return serialize(b);
 }
 
-QString addCard(const QString &content, int col, const QString &title)
+QString addCard(const QString &content, int col, const QString &title,
+                const QString &today)
 {
     Board b = parse(content);
     if (col < 0 || col >= b.columnCount())
@@ -477,6 +552,7 @@ QString addCard(const QString &content, int col, const QString &title)
     Column &c = b.columns[col];
     Card card;
     card.title = title;
+    stampCard(card, today, true);
     card.trailingTrivia = takeTrailingBlanks(
         *(c.cards.isEmpty() ? &c.leadingTrivia : &c.cards.last().trailingTrivia));
     c.cards.append(card);
@@ -497,7 +573,8 @@ QString removeCard(const QString &content, int col, int index)
     return serialize(b);
 }
 
-QString toggleCardDone(const QString &content, int col, int index)
+QString toggleCardDone(const QString &content, int col, int index,
+                       const QString &today)
 {
     Board b = parse(content);
     if (col < 0 || col >= b.columnCount()
@@ -517,11 +594,12 @@ QString toggleCardDone(const QString &content, int col, int index)
     } else {
         card.rawLine.clear();
     }
+    stampCard(card, today, false);
     return serialize(b);
 }
 
 QString moveCard(const QString &content, int fromCol, int fromIndex,
-                 int toCol, int toIndex)
+                 int toCol, int toIndex, const QString &today)
 {
     Board b = parse(content);
     if (fromCol < 0 || fromCol >= b.columnCount()
@@ -543,12 +621,16 @@ QString moveCard(const QString &content, int fromCol, int fromIndex,
     if (fromCol == toCol && fromIndex < toIndex)
         --dest;
     dest = qBound(0, dest, b.columns[toCol].cards.size());
+    // Carrying a card to another column says something about it; sliding it
+    // up or down inside the one it is already in does not.
+    if (fromCol != toCol)
+        stampCard(card, today, false);
     b.columns[toCol].cards.insert(dest, card);
     return serialize(b);
 }
 
 QString setCardLine(const QString &content, int col, int index,
-                    const QString &text)
+                    const QString &text, const QString &today)
 {
     Board b = parse(content);
     if (col < 0 || col >= b.columnCount()
@@ -559,7 +641,10 @@ QString setCardLine(const QString &content, int col, int index,
     // One card is one line: a break typed into it would open a second card or
     // a description line the next time the board is read.
     body.replace(QLatin1Char('\n'), QLatin1Char(' '));
-    c.rawLine = cardPrefix(c) + body;
+    // The dates the card already carries go back on the end of the rebuilt
+    // line. They are not the reader's text and were never in what was typed,
+    // so writing only the typed part would quietly forget them.
+    c.rawLine = cardPrefix(c) + body + stampComment(c);
     // The line is where the title, the labels and the due date come from, so
     // read them back out of it rather than leaving the board describing text
     // it no longer holds.
@@ -567,11 +652,12 @@ QString setCardLine(const QString &content, int col, int index,
     c.labels.clear();
     c.due.clear();
     parseCardBody(body, c);
+    stampCard(c, today, false);
     return serialize(b);
 }
 
 QString setCardDescription(const QString &content, int col, int index,
-                           const QString &text)
+                           const QString &text, const QString &today)
 {
     Board b = parse(content);
     if (col < 0 || col >= b.columnCount()
@@ -583,12 +669,14 @@ QString setCardDescription(const QString &content, int col, int index,
     // used to have are gone and serialize() renders it from the text: one
     // indented line per line, which is what the next parse reads back.
     c.rawDescription.clear();
+    stampCard(c, today, false);
     return serialize(b);
 }
 
 QString setCard(const QString &content, int col, int index,
                 const QString &title, bool done, const QStringList &labels,
-                const QString &due, const QString &description)
+                const QString &due, const QString &description,
+                const QString &today)
 {
     Board b = parse(content);
     if (col < 0 || col >= b.columnCount()
@@ -614,6 +702,7 @@ QString setCard(const QString &content, int col, int index,
     // lines have to be rebuilt from them.
     c.rawLine.clear();
     c.rawDescription.clear();
+    stampCard(c, today, false);
     return serialize(b);
 }
 
@@ -636,6 +725,8 @@ QVariantMap KanbanTools::parse(const QString &content) const
                 { QStringLiteral("description"), card.description },
                 // The line's own text, which is what the inline editor edits.
                 { QStringLiteral("line"), cardBody(card) },
+                { QStringLiteral("created"), card.created },
+                { QStringLiteral("modified"), card.modified },
             });
         }
         columns.append(QVariantMap{

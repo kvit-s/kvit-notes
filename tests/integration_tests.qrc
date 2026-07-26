@@ -53,6 +53,7 @@
         <file alias="qml/Toolbar.qml">../qml/Toolbar.qml</file>
         <file alias="qml/FormattingBar.qml">../qml/FormattingBar.qml</file>
         <file alias="qml/DateRangePicker.qml">../qml/DateRangePicker.qml</file>
+        <file alias="qml/DayPicker.qml">../qml/DayPicker.qml</file>
         <file alias="qml/OutlinePanel.qml">../qml/OutlinePanel.qml</file>
         <file alias="qml/TocBlock.qml">../qml/TocBlock.qml</file>
         <file alias="qml/QueryBlock.qml">../qml/QueryBlock.qml</file>

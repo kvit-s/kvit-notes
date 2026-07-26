@@ -208,11 +208,14 @@ The available block types:
   edit it in place: the line you type is the card's own line, so `#label` makes a label and
   `📅 2026-08-01` a due date, and the description under it takes as many lines as you need
   (Shift+Enter for a new line) with formulas and `[[wiki-links]]` rendered as they are
-  everywhere else. Drag a card to another column or another position, drag a column by its
+  everywhere else. Under the title is a strip for the card's labels and its due date: "+ tag"
+  offers the labels this board already uses so you can reuse one, each chip removes itself,
+  and "+ due date" opens a calendar. The foot of the card says when it was added and when it
+  was last changed. Drag a card to another column or another position, drag a column by its
   name to reorder it, and click a column's name to rename it or its triangle to collapse it.
   The chips above the board filter it to one label or hide finished cards; the counts beside
-  each column name say how much is showing. Right-click a card for its labels, its due date,
-  "Move to column" and "Delete card" without a pointer gesture.
+  each column name say how much is showing. Right-click a card for "Move to column" and
+  "Delete card" without a pointer gesture.
 - **Math block** — a `$$ … $$` LaTeX equation rendered centered; focus it to edit the source
   with a live preview. Inline math is `$x$` within a line: typing `$` inserts the closing `$`
   too with the caret between them (Backspace on the empty pair removes both; forward Delete

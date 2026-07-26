@@ -148,6 +148,15 @@ currently present in the repository; remaining hardening work is recorded in §2
   place, not in a dialog: clicking its text opens an editor on the card's own
   line, where `#label` and `📅 YYYY-MM-DD` are written as the file holds them,
   and clicking under it opens one on the description
+- A strip under the title holds the card's labels and its due date, and is
+  where both are set: a chip adds a label, offering the labels the board
+  already uses so one can be reused rather than retyped, and another opens a
+  calendar for the due date. Each label chip removes itself
+- Cards record the day they were added and the day they were last changed,
+  shown at the foot of the card. The two dates ride in an HTML comment at the
+  end of the card's line, so they stay out of the text being edited and out of
+  every other markdown tool's way, and a card written before they were kept
+  says only what it knows
 - Card descriptions are shown on the card, hold as many lines as they are
   given (Shift+Enter breaks a line), and render inline math and
   `[[wiki-links]]` as the prose blocks do

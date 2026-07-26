@@ -237,6 +237,20 @@ BlockDelegateBase {
         root.clearEdit()
     }
 
+    // The day a change is being made on, in the form the storage grammar
+    // wants. Asked for at the moment of the change rather than held in a
+    // property, so a window left open overnight stamps the day the edit
+    // actually happened on.
+    function today() { return Qt.formatDate(new Date(), "yyyy-MM-dd") }
+
+    // A card, or null for an index the board no longer has.
+    function cardAt(col, idx) {
+        if (col < 0 || col >= root.columns.length)
+            return null
+        var cards = root.columns[col].cards
+        return (idx >= 0 && idx < cards.length) ? cards[idx] : null
+    }
+
     function cardLineText(col, idx) {
         if (col < 0 || col >= root.columns.length)
             return ""
@@ -250,12 +264,13 @@ BlockDelegateBase {
         return (idx >= 0 && idx < cards.length) ? cards[idx].description : ""
     }
     function commitCardLine(col, idx, text) {
-        var md = KanbanTools.setCardLine(root.content, col, idx, text)
+        var md = KanbanTools.setCardLine(root.content, col, idx, text, root.today())
         if (md !== root.content)
             root.writeBoard(md)
     }
     function commitCardDescription(col, idx, text) {
-        var md = KanbanTools.setCardDescription(root.content, col, idx, text)
+        var md = KanbanTools.setCardDescription(root.content, col, idx, text,
+                                                root.today())
         if (md !== root.content)
             root.writeBoard(md)
     }
@@ -286,14 +301,16 @@ BlockDelegateBase {
         if (root.dragCol < 0)
             return
         root.writeBoard(KanbanTools.moveCard(root.content, root.dragCol,
-                                             root.dragIdx, toCol, slot))
+                                             root.dragIdx, toCol, slot,
+                                             root.today()))
     }
     // The same move without a pointer gesture: to the end of another column.
     function moveCardToColumn(col, idx, targetCol) {
         if (targetCol < 0 || targetCol >= root.columns.length)
             return
         root.writeBoard(KanbanTools.moveCard(root.content, col, idx, targetCol,
-                                             root.columns[targetCol].cards.length))
+                                             root.columns[targetCol].cards.length,
+                                             root.today()))
     }
     // `slot` names the gap the column is dropped into, counted in the board's
     // current column order; QList::move takes the index the column ends up
@@ -311,18 +328,130 @@ BlockDelegateBase {
     function writeBoard(md) { BlockModel.updateContent(root.index, md) }
 
     function toggleCardDone(col, idx) {
-        root.writeBoard(KanbanTools.toggleCardDone(root.content, col, idx))
+        root.writeBoard(KanbanTools.toggleCardDone(root.content, col, idx,
+                                                   root.today()))
     }
     function removeCardAt(col, idx) {
         root.clearEdit()
         root.writeBoard(KanbanTools.removeCard(root.content, col, idx))
+    }
+
+    // ---- The card's labels and due date, as fields ----
+    // A label typed on the card's own line is still a label, but that is the
+    // syntax; this is the other way in, from the chips under the title, and it
+    // is the way a date is set at all — the picker writes a day the storage
+    // grammar can hold rather than leaving the reader to remember the shape.
+    function setCardFields(col, idx, labels, due) {
+        var card = root.cardAt(col, idx)
+        if (!card)
+            return
+        root.writeBoard(KanbanTools.setCard(root.content, col, idx, card.title,
+                                            card.done, labels, due,
+                                            card.description, root.today()))
+    }
+    function addLabel(col, idx, name) {
+        var card = root.cardAt(col, idx)
+        if (!card)
+            return
+        // A leading hash is how the reader says "label"; the stored form does
+        // not carry it, so it comes off here rather than becoming part of one.
+        var clean = String(name).replace(/^#+/, "").trim()
+        if (clean.length === 0 || card.labels.indexOf(clean) !== -1)
+            return
+        var labels = card.labels.slice()
+        labels.push(clean)
+        root.setCardFields(col, idx, labels, card.due)
+    }
+    function removeLabel(col, idx, name) {
+        var card = root.cardAt(col, idx)
+        if (!card)
+            return
+        var labels = []
+        for (var i = 0; i < card.labels.length; ++i)
+            if (card.labels[i] !== name)
+                labels.push(card.labels[i])
+        root.setCardFields(col, idx, labels, card.due)
+    }
+    function setCardDue(col, idx, day) {
+        var card = root.cardAt(col, idx)
+        if (card)
+            root.setCardFields(col, idx, card.labels, day)
+    }
+
+    // ---- Typing a label into the chip row ----
+    // The card whose chip row is taking a label, what has been typed into it,
+    // and which of the board's existing labels that highlights. -1 highlights
+    // nothing, so Enter takes the typed text: the list is there to reuse a
+    // label, not to stop a new one being made.
+    property int tagEditCol: -1
+    property int tagEditIdx: -1
+    property string tagQuery: ""
+    property int tagHighlight: -1
+    property Item activeTagField: null
+    readonly property bool taggingCard: root.tagEditCol >= 0
+
+    // The board's own labels, minus the ones this card already carries,
+    // narrowed by what has been typed.
+    readonly property var tagChoices: {
+        var card = root.cardAt(root.tagEditCol, root.tagEditIdx)
+        if (!card)
+            return []
+        var q = root.tagQuery.replace(/^#+/, "").toLowerCase()
+        var out = []
+        for (var i = 0; i < root.allLabels.length; ++i) {
+            var label = root.allLabels[i]
+            if (card.labels.indexOf(label) !== -1)
+                continue
+            if (q.length > 0 && label.toLowerCase().indexOf(q) === -1)
+                continue
+            out.push(label)
+        }
+        return out
+    }
+
+    function beginTagEdit(col, idx) {
+        root.clearEdit()
+        root.tagQuery = ""
+        root.tagHighlight = -1
+        root.tagEditCol = col
+        root.tagEditIdx = idx
+    }
+    function endTagEdit() {
+        root.tagEditCol = -1
+        root.tagEditIdx = -1
+        root.tagQuery = ""
+        root.tagHighlight = -1
+    }
+    function commitTag(name) {
+        var col = root.tagEditCol
+        var idx = root.tagEditIdx
+        root.endTagEdit()
+        root.addLabel(col, idx, name)
+    }
+    // Enter takes the highlighted label when the reader moved onto one, and
+    // what they typed otherwise.
+    function acceptTag() {
+        var choices = root.tagChoices
+        if (root.tagHighlight >= 0 && root.tagHighlight < choices.length)
+            root.commitTag(choices[root.tagHighlight])
+        else if (root.tagQuery.replace(/^#+/, "").trim().length > 0)
+            root.commitTag(root.tagQuery)
+        else
+            root.endTagEdit()
+    }
+    function moveTagHighlight(delta) {
+        var n = root.tagChoices.length
+        if (n === 0)
+            return
+        var next = root.tagHighlight + delta
+        root.tagHighlight = next < -1 ? n - 1 : (next >= n ? -1 : next)
     }
     // A new card is empty and goes straight into its editor: a card seeded
     // with the words "New card" has to be selected and overtyped before it
     // can be named, which is a worse first step than an empty line and a
     // caret.
     function addCardAndEdit(col) {
-        root.writeBoard(KanbanTools.addCard(root.content, col, ""))
+        root.writeBoard(KanbanTools.addCard(root.content, col, "", root.today()))
         Qt.callLater(function() {
             if (col >= 0 && col < root.columns.length)
                 root.beginEdit(col, root.columns[col].cards.length - 1, "title")
@@ -497,12 +626,59 @@ BlockDelegateBase {
             enabled: iconButton.actionEnabled
             cursorShape: Qt.PointingHandCursor
         }
+        // ReleaseWithinBounds rather than the default: this takes the press
+        // outright. A handler that only watches leaves the press to carry on
+        // down the stack, and Qt offers a press to the handlers of every item
+        // under it before any item accepts it — so a button drawn over
+        // something else lets the click through to whatever is behind.
         TapHandler {
             enabled: iconButton.actionEnabled
+            gesturePolicy: TapHandler.ReleaseWithinBounds
             onTapped: iconButton.activated()
         }
         ToolTip.visible: iconHover.hovered && iconButton.tip !== ""
         ToolTip.text: iconButton.tip
+        ToolTip.delay: 400
+    }
+
+    // A pill the size of a card's label chips, for the controls that sit
+    // among them: the due date, and the two that add one.
+    component KanbanChip: Rectangle {
+        id: chipButton
+        property string label: ""
+        property string tip: ""
+        // A chip carrying a value reads as filled; one offering to add a
+        // value reads as an outline.
+        property bool filled: false
+        signal activated()
+
+        height: 16
+        radius: 8
+        width: chipButtonLabel.implicitWidth + 12
+        color: chipButton.filled
+            ? Qt.alpha(Theme.accent, chipButtonHover.hovered ? 0.35 : 0.18)
+            : (chipButtonHover.hovered ? Theme.hoverTint : "transparent")
+        border.width: 1
+        border.color: chipButtonHover.hovered ? Theme.accent
+                    : (chipButton.filled ? "transparent" : Theme.border)
+
+        Text {
+            id: chipButtonLabel
+            anchors.centerIn: parent
+            text: chipButton.label
+            font.pixelSize: 9
+            color: chipButtonHover.hovered ? Theme.textPrimary : Theme.textMuted
+        }
+        HoverHandler { id: chipButtonHover; cursorShape: Qt.PointingHandCursor }
+        // ReleaseWithinBounds rather than the default: this handler takes the
+        // press outright, so the card's own tap handler underneath does not
+        // also fire and open the card's text editor behind the chip.
+        TapHandler {
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+            onTapped: chipButton.activated()
+        }
+        ToolTip.visible: chipButtonHover.hovered && chipButton.tip !== ""
+        ToolTip.text: chipButton.tip
         ToolTip.delay: 400
     }
 
@@ -530,7 +706,11 @@ BlockDelegateBase {
             font.pixelSize: 11
         }
         HoverHandler { id: textHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: textButton.activated() }
+        // Takes the press, for the reason KanbanIconButton does.
+        TapHandler {
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+            onTapped: textButton.activated()
+        }
         ToolTip.visible: textHover.hovered && textButton.tip !== ""
         ToolTip.text: textButton.tip
         ToolTip.delay: 400
@@ -1205,6 +1385,13 @@ BlockDelegateBase {
                                                                     cardItem.cardIndex)
                                                 return
                                             }
+                                            // The chip row answers for itself,
+                                            // chip by chip; a tap that lands
+                                            // in it is never the card's.
+                                            if (metaRow.visible
+                                                && root.pointInside(metaRow,
+                                                       metaRow.mapFromItem(null, sx, sy)))
+                                                return
                                             if (descArea.visible
                                                 && root.pointInside(descArea,
                                                        descArea.mapFromItem(null, sx, sy))) {
@@ -1315,6 +1502,112 @@ BlockDelegateBase {
                                             }
                                         }
 
+                                        // The card's labels and due date, in
+                                        // their own strip under the title:
+                                        // the place to read them, and the
+                                        // place to set them. A label can be
+                                        // typed on the card's line as well —
+                                        // that is the syntax the file holds —
+                                        // but nothing about a line of text
+                                        // says so, and there is no syntax a
+                                        // reader would guess for a date.
+                                        Flow {
+                                            id: metaRow
+                                            width: parent.width
+                                            spacing: 4
+                                            readonly property bool tagging:
+                                                root.tagEditCol === cardItem.cardColIndex
+                                                && root.tagEditIdx === cardItem.cardIndex
+                                            // Present when the card has any of
+                                            // this, and offered while the
+                                            // pointer is on the card.
+                                            visible: cardItem.cardData.labels.length > 0
+                                                     || cardItem.cardData.due !== ""
+                                                     || cardHover.hovered
+                                                     || metaRow.tagging
+
+                                            Repeater {
+                                                model: cardItem.cardData.labels
+                                                delegate: Rectangle {
+                                                    id: cardLabelChip
+                                                    required property var modelData
+                                                    objectName: "kanbanCardLabel"
+                                                    height: 16
+                                                    radius: 8
+                                                    width: cardLabelText.implicitWidth
+                                                           + (labelChipHover.hovered ? 24 : 12)
+                                                    color: Qt.alpha(
+                                                        root.labelColor(cardLabelChip.modelData),
+                                                        labelChipHover.hovered ? 0.35 : 0.2)
+                                                    Text {
+                                                        id: cardLabelText
+                                                        x: 6
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        text: "#" + cardLabelChip.modelData
+                                                        font.pixelSize: 9
+                                                        color: root.labelColor(cardLabelChip.modelData)
+                                                    }
+                                                    Text {
+                                                        visible: labelChipHover.hovered
+                                                        anchors.right: parent.right
+                                                        anchors.rightMargin: 5
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        text: "×"
+                                                        font.pixelSize: 11
+                                                        color: Theme.textMuted
+                                                    }
+                                                    HoverHandler {
+                                                        id: labelChipHover
+                                                        cursorShape: Qt.PointingHandCursor
+                                                    }
+                                                    TapHandler {
+                                                        gesturePolicy: TapHandler.ReleaseWithinBounds
+                                                        onTapped: root.removeLabel(
+                                                            cardItem.cardColIndex,
+                                                            cardItem.cardIndex,
+                                                            cardLabelChip.modelData)
+                                                    }
+                                                    ToolTip.visible: labelChipHover.hovered
+                                                    ToolTip.text: qsTr("Remove #%1")
+                                                        .arg(cardLabelChip.modelData)
+                                                    ToolTip.delay: 400
+                                                }
+                                            }
+
+                                            // The tag being typed, with the
+                                            // board's existing labels offered
+                                            // under it. One field exists at a
+                                            // time, on the card taking a tag.
+                                            Loader {
+                                                active: metaRow.tagging
+                                                sourceComponent: tagFieldComponent
+                                            }
+
+                                            KanbanChip {
+                                                objectName: "kanbanAddLabel"
+                                                visible: cardHover.hovered && !metaRow.tagging
+                                                label: qsTr("+ tag")
+                                                tip: qsTr("Add a label, reusing one from this board")
+                                                onActivated: root.beginTagEdit(
+                                                    cardItem.cardColIndex, cardItem.cardIndex)
+                                            }
+
+                                            KanbanChip {
+                                                objectName: "kanbanCardDue"
+                                                visible: cardItem.cardData.due !== ""
+                                                         || cardHover.hovered
+                                                filled: cardItem.cardData.due !== ""
+                                                label: cardItem.cardData.due !== ""
+                                                    ? "◷ " + cardItem.cardData.due
+                                                    : qsTr("+ due date")
+                                                tip: cardItem.cardData.due !== ""
+                                                    ? qsTr("Change or clear the due date")
+                                                    : qsTr("Pick a due date")
+                                                onActivated: duePicker.openFor(
+                                                    cardItem.cardColIndex, cardItem.cardIndex)
+                                            }
+                                        }
+
                                         // The description: every line of it,
                                         // with its formulas and wiki-links
                                         // rendered, under the title where a
@@ -1379,29 +1672,29 @@ BlockDelegateBase {
                                             }
                                         }
 
-                                        // Labels + due date row.
-                                        Flow {
+                                        // When the card was added and when it
+                                        // was last changed. A card written
+                                        // before the board kept either has
+                                        // nothing to say here and says
+                                        // nothing, rather than claiming a day.
+                                        Text {
+                                            objectName: "kanbanCardDates"
                                             width: parent.width
-                                            spacing: 4
-                                            visible: cardItem.cardData.labels.length > 0
-                                                     || cardItem.cardData.due !== ""
-                                            Repeater {
-                                                model: cardItem.cardData.labels
-                                                delegate: Rectangle {
-                                                    id: cardLabelChip
-                                                    required property var modelData
-                                                    height: 16; radius: 8
-                                                    width: lblT.implicitWidth + 12
-                                                    color: Qt.alpha(root.labelColor(modelData), 0.2)
-                                                    Text { id: lblT; anchors.centerIn: parent
-                                                        text: "#" + cardLabelChip.modelData; font.pixelSize: 9
-                                                        color: root.labelColor(cardLabelChip.modelData) }
-                                                }
-                                            }
-                                            Text {
-                                                visible: cardItem.cardData.due !== ""
-                                                text: "◷ " + cardItem.cardData.due
-                                                font.pixelSize: 9; color: Theme.textMuted
+                                            visible: cardItem.cardData.created !== ""
+                                                     || cardItem.cardData.modified !== ""
+                                            elide: Text.ElideRight
+                                            font.pixelSize: 9
+                                            color: Theme.textFaint
+                                            text: {
+                                                var created = cardItem.cardData.created
+                                                var modified = cardItem.cardData.modified
+                                                if (created !== "" && modified !== ""
+                                                    && modified !== created)
+                                                    return qsTr("Created %1 · modified %2")
+                                                        .arg(created).arg(modified)
+                                                if (created !== "")
+                                                    return qsTr("Created %1").arg(created)
+                                                return qsTr("Modified %1").arg(modified)
                                             }
                                         }
                                     }
@@ -1706,6 +1999,140 @@ BlockDelegateBase {
         }
     }
 
+    // The field a label is typed into, built into the chip row of whichever
+    // card is taking one. Typing narrows the list under it; Enter takes the
+    // highlighted label or the typed text, and Escape leaves the card alone.
+    Component {
+        id: tagFieldComponent
+        TextField {
+            id: tagField
+            objectName: "kanbanTagField"
+            width: 110
+            height: 18
+            padding: 2
+            font.pixelSize: 10
+            color: Theme.textPrimary
+            placeholderText: qsTr("#tag")
+            placeholderTextColor: Theme.textFaint
+            selectionColor: Theme.selectionActiveTint
+            selectedTextColor: Theme.textPrimary
+            selectByMouse: true
+            background: Rectangle {
+                color: Theme.windowBackground
+                border.color: Theme.accent
+                border.width: 1
+                radius: 8
+            }
+            Component.onCompleted: {
+                tagField.forceActiveFocus()
+                root.activeTagField = tagField
+            }
+            Component.onDestruction: {
+                if (root && root.activeTagField === tagField)
+                    root.activeTagField = null
+            }
+            onTextChanged: {
+                root.tagQuery = tagField.text
+                root.tagHighlight = -1
+            }
+            // Leaving the field with something typed keeps it, the way the
+            // column-name field keeps a typed name. The list below does not
+            // take focus, so choosing from it does not come through here.
+            onActiveFocusChanged: if (!tagField.activeFocus) root.acceptTag()
+            Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Escape) {
+                    root.endTagEdit(); event.accepted = true; return
+                }
+                if (event.key === Qt.Key_Down) {
+                    root.moveTagHighlight(1); event.accepted = true; return
+                }
+                if (event.key === Qt.Key_Up) {
+                    root.moveTagHighlight(-1); event.accepted = true; return
+                }
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    root.acceptTag(); event.accepted = true; return
+                }
+            }
+        }
+    }
+
+    // The labels this board already uses, under the field. It takes no focus
+    // of its own, so a click on a row leaves the field's caret where it is and
+    // the field's own focus handling never sees the choice as a departure.
+    Popup {
+        id: tagMenu
+        objectName: "kanbanTagMenu"
+        parent: root.activeTagField !== null ? root.activeTagField : root
+        visible: root.activeTagField !== null && root.tagChoices.length > 0
+        x: 0
+        y: parent ? parent.height + 2 : 0
+        padding: 2
+        focus: false
+        closePolicy: Popup.NoAutoClose
+        background: Rectangle {
+            color: Theme.popupBackground
+            border.color: Theme.borderStrong
+            border.width: 1
+            radius: 4
+        }
+        contentItem: Column {
+            spacing: 0
+            Repeater {
+                model: root.tagChoices
+                delegate: Rectangle {
+                    id: tagChoiceRow
+                    required property int index
+                    required property var modelData
+                    objectName: "kanbanTagChoice"
+                    width: 116
+                    height: 18
+                    radius: 3
+                    color: root.tagHighlight === tagChoiceRow.index
+                        ? Theme.selectionActiveTint
+                        : (tagChoiceHover.hovered ? Theme.hoverTint : "transparent")
+                    Text {
+                        x: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "#" + tagChoiceRow.modelData
+                        font.pixelSize: 10
+                        color: root.labelColor(tagChoiceRow.modelData)
+                    }
+                    HoverHandler {
+                        id: tagChoiceHover
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                    TapHandler {
+                        gesturePolicy: TapHandler.ReleaseWithinBounds
+                        onTapped: root.commitTag(tagChoiceRow.modelData)
+                    }
+                }
+            }
+        }
+    }
+
+    // The due-date calendar, opened from a card's date chip. The board writes
+    // the day it answers with straight into the card, so the one date the
+    // storage grammar is strict about is never typed.
+    DayPicker {
+        id: duePicker
+        objectName: "kanbanDuePicker"
+        anchors.centerIn: Overlay.overlay
+        property int col: -1
+        property int idx: -1
+        function openFor(c, i) {
+            var card = root.cardAt(c, i)
+            if (!card)
+                return
+            duePicker.col = c
+            duePicker.idx = i
+            duePicker.openAt(card.due)
+        }
+        onDayPicked: function(day) {
+            root.setCardDue(duePicker.col, duePicker.idx, day)
+        }
+        onDayCleared: root.setCardDue(duePicker.col, duePicker.idx, "")
+    }
+
     // Right-click a card: everything the card can be told to do, including
     // the two that no pointer gesture can reach — moving it to a named column
     // and deleting it.
@@ -1821,7 +2248,7 @@ BlockDelegateBase {
             // on the card; this writes only what the popover holds.
             root.writeBoard(KanbanTools.setCard(root.content, cardDetails.col,
                 cardDetails.idx, card.title, card.done, labels,
-                dueField.text.trim(), card.description))
+                dueField.text.trim(), card.description, root.today()))
             cardDetails.close()
         }
         // Move the card to the end of another column. Dragging is the primary

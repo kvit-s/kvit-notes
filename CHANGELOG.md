@@ -26,6 +26,18 @@ uses [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - The project is licensed under MPL-2.0 (LICENSE, per-file headers).
+- A task-board card carries its labels and its due date in a strip under the
+  title, which is also where both are set: "+ tag" opens a field offering the
+  labels the board already uses, so one can be reused rather than retyped, and
+  each label chip removes itself. "+ due date" opens a calendar, so the one
+  date the storage grammar is strict about never has to be typed. Typing
+  `#label` on the card's own line still works, since that is what the file
+  holds, but nothing about a line of text said so.
+- Task-board cards record the day they were added and the day they were last
+  changed, and say so at their foot. Both ride in an HTML comment at the end of
+  the card's line, where they stay out of the text being edited and render as
+  nothing in every other markdown tool; a card written before this says only
+  what it knows rather than claiming a day.
 - Task boards are edited on the board. Clicking a card's text opens an editor
   on the card's own line, where a typed `#label` becomes a label and a typed
   `📅 2026-08-01` a due date; clicking under it opens one on the description,

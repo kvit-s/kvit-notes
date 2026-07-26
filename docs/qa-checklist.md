@@ -272,6 +272,15 @@ Run against the installed artifact with a fresh user profile.
         label appears as a chip, the description shows both lines with the
         formula typeset and the link followable, and the file holds all of
         it as ordinary markdown. Ctrl+Z undoes each move in one step.
+22. [ ] On the same card, click "+ tag" in the strip under the title, type the
+        first letters of a label the board already uses and take it from the
+        list; then click "+ due date" and pick a day from the calendar. Open
+        the note in a plain markdown editor.
+        *Expect:* the label and the date appear as chips, the card's foot says
+        when it was added and when it was last changed, and the file holds the
+        label and the date on the card's own line with the two dates in an
+        HTML comment at the end of it. Clicking a day in the calendar does not
+        also click the card behind it.
 
 ## Distribution
 

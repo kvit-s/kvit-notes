@@ -282,7 +282,9 @@ private slots:
                          << setCard(md, c, k, "rewritten", true,
                                     QStringList({ "l" }), "2026-01-01", "d")
                          << setCardLine(md, c, k, "typed over #l")
+                         << setCardLine(md, c, k, "stamped", "2026-07-26")
                          << setCardDescription(md, c, k, "typed\nover")
+                         << toggleCardDone(md, c, k, "2026-07-26")
                          << moveCard(md, c, k, other,
                                      rng.bounded(cardCounts[other] + 1));
                 }
@@ -406,6 +408,98 @@ private slots:
         const QString added = addCard(md, 0, "fresh");
         QCOMPARE(lineOf(added, 0, 2), QString("fresh"));
         QCOMPARE(setCardLine(added, 0, 2, lineOf(added, 0, 2)), added);
+    }
+
+    // A card's dates ride in an HTML comment at the end of its line, so they
+    // stay out of the text the reader types and out of every other markdown
+    // tool's way. What the reader edits is the line without them.
+    void cardDatesRideInACommentOffTheLine()
+    {
+        const QString md =
+            "## A\n- [ ] Ship it #release <!--kvit created=2026-07-20 "
+            "modified=2026-07-26-->\n- [ ] plain";
+        const Board b = parse(md);
+        const Card &c = b.columns[0].cards[0];
+        QCOMPARE(c.created, QString("2026-07-20"));
+        QCOMPARE(c.modified, QString("2026-07-26"));
+        // Nothing in the comment reaches the title, the labels or the due date.
+        QCOMPARE(c.title, QString("Ship it"));
+        QCOMPARE(c.labels, QStringList({ "release" }));
+        QCOMPARE(c.due, QString());
+        QCOMPARE(b.columns[0].cards[1].created, QString());
+        // And the board comes back byte for byte.
+        QCOMPARE(serialize(b), md);
+
+        // A card written with only the day it was added reads that day as
+        // both, because it has not been changed since.
+        const Card once =
+            parse("## A\n- [ ] new <!--kvit created=2026-07-20-->")
+                .columns[0].cards[0];
+        QCOMPARE(once.created, QString("2026-07-20"));
+        QCOMPARE(once.modified, QString("2026-07-20"));
+
+        // The editor is handed the line without the comment, and putting that
+        // text straight back leaves the line as it was.
+        KanbanTools tools;
+        const QVariantList columns =
+            tools.parse(md).value(QStringLiteral("columns")).toList();
+        const QVariantMap card =
+            columns[0].toMap().value(QStringLiteral("cards")).toList()[0].toMap();
+        QCOMPARE(card.value(QStringLiteral("line")).toString(),
+                 QString("Ship it #release"));
+        QCOMPARE(card.value(QStringLiteral("created")).toString(),
+                 QString("2026-07-20"));
+        QCOMPARE(setCardLine(md, 0, 0, QStringLiteral("Ship it #release")), md);
+    }
+
+    // The day comes from the caller, so these transforms stay pure and their
+    // tests do not depend on the day they run on. No day means no dates, which
+    // is why every test above still reads the boards it wrote.
+    void mutationsStampTheDayTheyHappenOn()
+    {
+        const QString added = addCard("## A", 0, "one", "2026-07-20");
+        QCOMPARE(added, QString("## A\n- [ ] one <!--kvit created=2026-07-20-->"));
+        QCOMPARE(addCard("## A", 0, "one"), QString("## A\n- [ ] one"));
+
+        // A later edit keeps the day the card was added and records its own.
+        const QString edited = setCardLine(added, 0, 0, "one two", "2026-07-26");
+        QCOMPARE(edited, QString("## A\n- [ ] one two "
+                                 "<!--kvit created=2026-07-20 modified=2026-07-26-->"));
+        // Editing again the same day rewrites nothing but the text.
+        QCOMPARE(setCardLine(edited, 0, 0, "one three", "2026-07-26"),
+                 QString("## A\n- [ ] one three "
+                         "<!--kvit created=2026-07-20 modified=2026-07-26-->"));
+
+        // The description, the fields and the checkbox are changes too.
+        QVERIFY(setCardDescription(added, 0, 0, "note", "2026-07-26")
+                    .contains(QStringLiteral("modified=2026-07-26")));
+        QVERIFY(setCard(added, 0, 0, "t", true, {}, "", "", "2026-07-26")
+                    .contains(QStringLiteral("modified=2026-07-26")));
+        const QString toggled = toggleCardDone(added, 0, 0, "2026-07-26");
+        QVERIFY2(toggled.startsWith(QStringLiteral("## A\n- [x] one ")),
+                 qPrintable(toggled));
+        QVERIFY(toggled.contains(QStringLiteral("modified=2026-07-26")));
+
+        // Carrying a card to another column is a change; sliding it inside
+        // the column it is already in is not.
+        const QString two = "## A\n- [ ] one <!--kvit created=2026-07-20-->\n"
+                            "- [ ] two\n## B";
+        QVERIFY(moveCard(two, 0, 0, 1, 0, "2026-07-26")
+                    .contains(QStringLiteral("modified=2026-07-26")));
+        QVERIFY(!moveCard(two, 0, 0, 0, 2, "2026-07-26")
+                     .contains(QStringLiteral("modified=")));
+
+        // A day the calendar does not have stamps nothing, the same test the
+        // due date is held to.
+        QCOMPARE(addCard("## A", 0, "one", "2026-02-30"),
+                 QString("## A\n- [ ] one"));
+
+        // A card that predates the dates keeps an empty `created`: the board
+        // shows what it knows rather than claiming the card was made today.
+        const Card old = parse(setCardLine("## A\n- [ ] old", 0, 0, "older",
+                                           "2026-07-26")).columns[0].cards[0];
+        QCOMPARE(old.created, QString());
+        QCOMPARE(old.modified, QString("2026-07-26"));
     }
 
     // What the card editor accepts has to survive being written to the board

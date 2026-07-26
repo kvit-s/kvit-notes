@@ -2320,6 +2320,77 @@ Item {
             clearFocus()
             saveScreenshot("visual_38_kanban_09_description_rich.png")
 
+            // The strip under the title is where a label and a date are set.
+            // The label field offers the labels this board already uses, so
+            // one can be reused rather than retyped; the date comes from a
+            // calendar rather than from remembering the shape of an ISO day.
+            var kbTag = findBlockDelegate(1)
+            var taggedCard = findChild(kbTag, "kanbanCard")
+            verify(taggedCard !== null, "the board has a card to label")
+            mouseMove(taggedCard, taggedCard.width / 2, 20)
+            var addLabelChip = null
+            tryVerify(function() {
+                addLabelChip = findChild(kbTag, "kanbanAddLabel")
+                return addLabelChip !== null && addLabelChip.visible
+            }, 1000, "the chip row offers to add a label")
+            // Onto the chip first, as a pointer arrives at one: the row
+            // appeared with the hover, and its chips are only where they end
+            // up once that layout has run.
+            mouseMove(addLabelChip, addLabelChip.width / 2, addLabelChip.height / 2)
+            wait(120)
+            mouseClick(addLabelChip, addLabelChip.width / 2, addLabelChip.height / 2)
+            var tagField = null
+            tryVerify(function() {
+                tagField = findChild(kbTag, "kanbanTagField")
+                return tagField !== null && tagField.activeFocus
+            }, 1000, "the chip opens a field for the label")
+            // The chip took the press: the card's own text editor stayed shut.
+            compare(kbTag.editCol, -1)
+            compare(kbTag.tagEditCol, 1)
+            compare(kbTag.tagEditIdx, 0)
+            typeText("urg")
+            tryVerify(function() {
+                return kbTag.tagChoices.length === 1
+                    && kbTag.tagChoices[0] === "urgent"
+            }, 1000, "typing narrows the board's own labels")
+            wait(200)
+            saveScreenshot("visual_38_kanban_09b_tag_completion.png")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() {
+                var b = KanbanTools.parse(BlockModel.getContent(1))
+                return b.columns[1].cards[0].labels.indexOf("urgent") !== -1
+            }, 1000, "the chosen label lands on the card")
+
+            // The calendar sets the one date the storage grammar is strict
+            // about, so it never has to be typed.
+            var duePicker = findChild(kbTag, "kanbanDuePicker")
+            verify(duePicker !== null, "the board has a due-date calendar")
+            duePicker.openFor(1, 0)
+            tryCompare(duePicker, "opened", true, 1000)
+            wait(250)
+            saveScreenshot("visual_38_kanban_09c_due_picker.png")
+            var todayButton = findChild(duePicker, "dayPickerToday")
+            verify(todayButton !== null, "the calendar offers today")
+            mouseClick(todayButton, todayButton.width / 2, todayButton.height / 2)
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1))
+                    .columns[1].cards[0].due === kbTag.today()
+            }, 1000, "the calendar sets the due date")
+
+            // And a card that has been changed says when, at its foot.
+            tryVerify(function() {
+                return KanbanTools.parse(BlockModel.getContent(1))
+                    .columns[1].cards[0].modified === kbTag.today()
+            }, 1000, "a changed card records the day")
+            var cardDates = findChild(kbTag, "kanbanCardDates")
+            verify(cardDates !== null && cardDates.visible,
+                   "the card shows its dates")
+            verify(cardDates.text.indexOf(kbTag.today()) >= 0)
+            wait(150)
+            clearFocus()
+            saveScreenshot("visual_38_kanban_09d_card_meta.png")
+
             // The filter row narrows the board to one label: the cards
             // without it leave the columns, and the counts say so.
             kb4.labelFilter = "docs"

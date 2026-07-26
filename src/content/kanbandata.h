@@ -58,6 +58,25 @@ struct Card {
     QString due;
     QString description;
 
+    // When the card was added and when it was last changed, as ISO days.
+    // Empty for a card written before either was recorded, which is why the
+    // board shows what it has rather than inventing a date for the rest.
+    //
+    // These are the one part of a card the reader does not write, so they are
+    // the one part not written where the reader types: they live in an HTML
+    // comment at the end of the card's line,
+    //
+    //   - [ ] Ship the beta #release <!--kvit created=2026-07-20 modified=2026-07-26-->
+    //
+    // which every other markdown tool renders as nothing, and which the card's
+    // own editor never shows — the text it edits is the line without it. The
+    // marker convention the due date uses was the alternative and was rejected
+    // for these two: a date the reader cannot edit has no business sitting in
+    // the middle of the text they are editing, and a `modified` marker there
+    // would be rewritten under the caret on every keystroke.
+    QString created;
+    QString modified;
+
     // ---- Source fidelity; not part of the logical model ----
     // The card's exact source line, empty when the card was synthesized by a
     // mutation and the line has to be rendered from the fields above.
@@ -99,21 +118,34 @@ bool isValidDue(const QString &due);
 bool looksLikeBoard(const QString &content);
 
 // ---- Mutations (each takes and returns whole-board content) ----
+//
+// Every mutation that changes a card takes the day it is happening on, as an
+// ISO `YYYY-MM-DD`, and stamps the card with it: `created` when the card is
+// added, `modified` whenever its text, its fields, its done state or the
+// column holding it change. The clock is the caller's rather than this
+// component's, which keeps the transforms pure and their tests independent of
+// the day they run on. The default — no day at all — stamps nothing, so a
+// caller that does not care about dates is not made to invent one.
 QString addColumn(const QString &content, const QString &name);
 QString renameColumn(const QString &content, int col, const QString &name);
 QString removeColumn(const QString &content, int col);
 QString moveColumn(const QString &content, int fromCol, int toCol);
-QString addCard(const QString &content, int col, const QString &title);
+QString addCard(const QString &content, int col, const QString &title,
+                const QString &today = QString());
 QString removeCard(const QString &content, int col, int index);
-QString toggleCardDone(const QString &content, int col, int index);
+QString toggleCardDone(const QString &content, int col, int index,
+                       const QString &today = QString());
 // Move a card within or between columns to a target index in the target
-// column (the drag-drop primitive).
+// column (the drag-drop primitive). A move to another column changes what the
+// card says about itself and is stamped; reordering inside one column is not.
 QString moveCard(const QString &content, int fromCol, int fromIndex,
-                 int toCol, int toIndex);
-// Overwrite a card's fields (the card-details popover).
+                 int toCol, int toIndex, const QString &today = QString());
+// Overwrite a card's fields (the card-details popover, the label chips and the
+// due-date picker).
 QString setCard(const QString &content, int col, int index,
                 const QString &title, bool done, const QStringList &labels,
-                const QString &due, const QString &description);
+                const QString &due, const QString &description,
+                const QString &today = QString());
 // Replace the text on a card's line — everything after the checkbox — with
 // what was typed, character for character. This is what the board's inline
 // editor writes: the reader edits the line's own source
@@ -124,12 +156,13 @@ QString setCard(const QString &content, int col, int index,
 // and the file its style. A line break in the text becomes a space: one card
 // is one line.
 QString setCardLine(const QString &content, int col, int index,
-                    const QString &text);
+                    const QString &text, const QString &today = QString());
 // Replace a card's description — the indented lines under it — with what was
 // typed. Line breaks are kept, each line written back indented, so a
 // multi-line description round-trips; an empty text removes the description.
 QString setCardDescription(const QString &content, int col, int index,
-                           const QString &text);
+                           const QString &text,
+                           const QString &today = QString());
 
 } // namespace KanbanData
 
@@ -141,9 +174,10 @@ public:
     explicit KanbanTools(QObject *parent = nullptr) : QObject(parent) {}
 
     // {columns:[{name, cards:[{title, done, labels:[…], due, description,
-    // line}]}]}, where `line` is the text on the card's own line — title,
-    // labels and due date as they are written there — which is what the
-    // board's inline editor puts in front of the reader.
+    // line, created, modified}]}]}, where `line` is the text on the card's own
+    // line — title, labels and due date as they are written there, and never
+    // the comment carrying the two dates — which is what the board's inline
+    // editor puts in front of the reader.
     Q_INVOKABLE QVariantMap parse(const QString &content) const;
     Q_INVOKABLE bool looksLikeBoard(const QString &content) const
     { return KanbanData::looksLikeBoard(content); }
@@ -158,26 +192,33 @@ public:
     { return KanbanData::removeColumn(c, col); }
     Q_INVOKABLE QString moveColumn(const QString &c, int from, int to) const
     { return KanbanData::moveColumn(c, from, to); }
-    Q_INVOKABLE QString addCard(const QString &c, int col, const QString &title) const
-    { return KanbanData::addCard(c, col, title); }
+    Q_INVOKABLE QString addCard(const QString &c, int col, const QString &title,
+                                const QString &today = QString()) const
+    { return KanbanData::addCard(c, col, title, today); }
     Q_INVOKABLE QString removeCard(const QString &c, int col, int idx) const
     { return KanbanData::removeCard(c, col, idx); }
-    Q_INVOKABLE QString toggleCardDone(const QString &c, int col, int idx) const
-    { return KanbanData::toggleCardDone(c, col, idx); }
+    Q_INVOKABLE QString toggleCardDone(const QString &c, int col, int idx,
+                                       const QString &today = QString()) const
+    { return KanbanData::toggleCardDone(c, col, idx, today); }
     Q_INVOKABLE QString moveCard(const QString &c, int fromCol, int fromIdx,
-                                 int toCol, int toIdx) const
-    { return KanbanData::moveCard(c, fromCol, fromIdx, toCol, toIdx); }
+                                 int toCol, int toIdx,
+                                 const QString &today = QString()) const
+    { return KanbanData::moveCard(c, fromCol, fromIdx, toCol, toIdx, today); }
     Q_INVOKABLE QString setCardLine(const QString &c, int col, int idx,
-                                    const QString &text) const
-    { return KanbanData::setCardLine(c, col, idx, text); }
+                                    const QString &text,
+                                    const QString &today = QString()) const
+    { return KanbanData::setCardLine(c, col, idx, text, today); }
     Q_INVOKABLE QString setCardDescription(const QString &c, int col, int idx,
-                                           const QString &text) const
-    { return KanbanData::setCardDescription(c, col, idx, text); }
+                                           const QString &text,
+                                           const QString &today = QString()) const
+    { return KanbanData::setCardDescription(c, col, idx, text, today); }
     Q_INVOKABLE QString setCard(const QString &c, int col, int idx,
                                 const QString &title, bool done,
                                 const QStringList &labels, const QString &due,
-                                const QString &description) const
-    { return KanbanData::setCard(c, col, idx, title, done, labels, due, description); }
+                                const QString &description,
+                                const QString &today = QString()) const
+    { return KanbanData::setCard(c, col, idx, title, done, labels, due,
+                                 description, today); }
 };
 
 #endif // KANBANDATA_H
