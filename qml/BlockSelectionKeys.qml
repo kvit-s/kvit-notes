@@ -22,6 +22,11 @@ Item {
 
     // Wired by main.qml.
     property var listView
+    // The between-blocks caret (§3.7), which Ctrl+Enter hands the selection
+    // off to. This is the keyboard way to reach the space after a block whose
+    // own Enter belongs to it — a table's Enter moves to the next cell, a code
+    // fence's starts a line — where there is otherwise nothing to press.
+    property var gapCursor: null
 
     // A paste larger than the open-file cap needs the window's confirmation
     // dialog, which does the insert itself once the user agrees.
@@ -98,6 +103,22 @@ Item {
             return
         var ctrl = event.modifiers & Qt.ControlModifier
         var shift = event.modifiers & Qt.ShiftModifier
+
+        // Ctrl+Enter puts the between-blocks caret (§3.7) in the seam after
+        // the selection, so the next thing typed becomes a block there.
+        // Checked before plain Enter below, which edits the block instead.
+        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+            && ctrl && keys.gapCursor) {
+            var selected = DocumentSelection.selectedIndexes()
+            var after = selected.length > 0
+                ? Number(selected[selected.length - 1]) + 1
+                : BlockModel.count
+            // place() ends the selection; the indexes are read first because
+            // of it.
+            keys.gapCursor.place(after)
+            event.accepted = true
+            return
+        }
 
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return
             || event.key === Qt.Key_Enter) {

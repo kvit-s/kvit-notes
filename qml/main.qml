@@ -170,8 +170,14 @@ KvitShell {
     // brings the row into view, and keeps trying across frames until the
     // delegate exists — or until a newer request replaces this one, so a
     // rapid second insertion is never fought over by a stale retry.
+    //
+    // `typed` is optional: text to put in the row once it has the caret, as
+    // though it had been typed there. The gap cursor (§3.7) uses it to hand
+    // the character that asked for a block to the block it just inserted, and
+    // it has to travel with the request rather than follow it, because the
+    // row may be several frames away from existing.
     property int focusRequestGeneration: 0
-    function focusBlockAtIndex(index, atEnd) {
+    function focusBlockAtIndex(index, atEnd, typed) {
         if (BlockModel.count === 0)
             return
         var idx = Math.max(0, Math.min(index, BlockModel.count - 1))
@@ -180,6 +186,7 @@ KvitShell {
         blockListView.positionViewAtIndex(idx, ListView.Contain)
         blockFocusRetry.targetIndex = idx
         blockFocusRetry.atEnd = atEnd === true
+        blockFocusRetry.typed = typed === undefined ? "" : typed
         blockFocusRetry.generation = root.focusRequestGeneration
         blockFocusRetry.attemptsLeft = 12
         if (!root.applyPendingBlockFocus())
@@ -197,6 +204,10 @@ KvitShell {
             item.focusAtStart()
         else
             return false
+        if (blockFocusRetry.typed !== "") {
+            item.typeText(blockFocusRetry.typed)
+            blockFocusRetry.typed = ""
+        }
         return true
     }
     Timer {
@@ -204,6 +215,7 @@ KvitShell {
         objectName: "blockFocusRetry"
         property int targetIndex: -1
         property bool atEnd: false
+        property string typed: ""
         property int generation: 0
         property int attemptsLeft: 0
         interval: 16
@@ -713,6 +725,7 @@ KvitShell {
     BlockSelectionKeys {
         id: selectionKeyHandler
         listView: blockListView
+        gapCursor: blockGapCursor
 
         // An oversized paste is confirmed by the window's dialog, which then
         // performs the insert itself.
@@ -722,6 +735,19 @@ KvitShell {
             largePasteConfirmDialog.pendingPlain = plain
             largePasteConfirmDialog.open()
         }
+    }
+
+    // The caret between two blocks (features.md §3.7), in BlockGapCursor.qml.
+    // A mode of the same shape as block selection above: it takes the focus
+    // while it is placed, and typing into it makes the block. It draws in the
+    // block list's own seams, so it is suspended while a drag is drawing its
+    // drop indicator in them.
+    property alias blockGapCursor: blockGapCursor
+    BlockGapCursor {
+        id: blockGapCursor
+        listView: blockListView
+        appWindow: root
+        dragState: blockDragState
     }
 
     // ---- Opening, starting and closing a document -----------------------

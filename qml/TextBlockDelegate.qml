@@ -306,6 +306,7 @@ BlockDelegateBase {
     function removeLinkAtCursor() { forward("removeLinkAtCursor", []) }
     function openLinkDialog() { forward("openLinkDialog", []) }
     function openBlockMenu(mode) { forward("openBlockMenu", [mode]) }
+    function typeText(text) { forward("typeText", [text]) }
     function setBlockAlignment(value) {
         var item = editableItem()
         if (item && item.setBlockAlignment)

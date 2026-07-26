@@ -53,6 +53,10 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
          "Enter inside a code block is a newline, blank lines included, so "
          "leaving it has its own chord — named in the block's bottom-right "
          "corner while the caret is inside."},
+        {"Block Operations", "Caret between blocks", "Ctrl+Enter", "window", false,
+         "On selected blocks: puts the caret in the space after them, where "
+         "typing makes a block (§3.7). The keyboard route to the space below a "
+         "table, code block or diagram, whose own Enter belongs to editing it."},
 
         // §13.3 Block Conversion
         {"Block Conversion", "Paragraph",        "Ctrl+0",       "engine", false, {}},

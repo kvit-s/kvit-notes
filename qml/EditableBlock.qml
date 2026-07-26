@@ -815,6 +815,20 @@ BlockDelegateBase {
         })
     }
 
+    // Type text in at the caret (BlockDelegateBase's typeText). Through the
+    // document rather than through BlockModel, because the engine reports a
+    // document edit as a user edit and a model write as a reload: only the
+    // first opens the block menu on "/" or turns "- " into a bullet. The gap
+    // cursor (§3.7) hands over the character that asked for this block, so
+    // the block behaves as though that character had been typed in it.
+    function typeText(text) {
+        if (text === "")
+            return
+        activateEditor()
+        textArea.forceActiveFocus()
+        textArea.insert(textArea.cursorPosition, text)
+    }
+
     // Whether the caret sits on the block's first or last visual line, which
     // is what turns an arrow key into a move to the neighbouring block.
     function isCursorOnFirstLine() {

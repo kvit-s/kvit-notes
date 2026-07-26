@@ -8,6 +8,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A caret in the space between two blocks. Pointing at the blank line between
+  two blocks draws a line in it; clicking turns that into a blinking caret, and
+  typing makes a paragraph there holding what was typed. "/" opens the block
+  type menu instead, and Enter leaves the paragraph empty. Up and Down walk the
+  caret between spaces and Escape leaves it. Ctrl+Enter on selected blocks
+  places it after them, which is the keyboard route to the space below a table,
+  code block or diagram, whose own Enter key belongs to editing them.
 - Single-file mode: `kvit-notes <file.md>` opens a lone markdown file with
   no vault. Collection chrome stays hidden, startup is immediate, and the
   full block editor (math, diagrams, tables, kanban) works in-file. A quiet

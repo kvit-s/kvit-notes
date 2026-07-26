@@ -58,4 +58,13 @@ Item {
     // to — so callers guard on it and the default here does nothing, which
     // is what those callers already expected to happen.
     function openBlockMenu(mode) {}
+
+    // Put text in at the caret as though it had been typed there. The
+    // distinction from BlockModel.updateContent is the point: an edit made
+    // through the editor raises the engine's edited signal, which is what the
+    // slash menu and the markdown prefix conversions hang off, and a model
+    // write does not. The gap cursor (§3.7) uses it to hand the character
+    // that asked for a block to the block it just made. Same story as the
+    // menu above: only the text delegates have anywhere to put it.
+    function typeText(text) {}
 }

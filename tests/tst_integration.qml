@@ -5084,6 +5084,258 @@ Item {
         }
 
         // ==================================================================
+        // The caret between two blocks (features.md §3.7)
+        // ==================================================================
+
+        function gapCursorItem() {
+            return findChild(appLoader.item, "blockGapCursor")
+        }
+
+        // Put the pointer in the seam above block `gapIndex`, `offset` pixels
+        // from its line (negative is toward the block above it).
+        function hoverSeam(gapIndex, offset) {
+            var lv = findChild(appLoader.item, "blockListView")
+            var gc = gapCursorItem()
+            var y = gc.gapViewportY(gapIndex) + (offset === undefined ? 0 : offset)
+            mouseMove(lv, lv.width / 2, y)
+            return { list: lv, y: y }
+        }
+
+        function placeGapCaret(gapIndex) {
+            var at = hoverSeam(gapIndex, 0)
+            tryCompare(gapCursorItem(), "hoverGap", gapIndex, 1000)
+            mouseClick(at.list, at.list.width / 2, at.y)
+            tryCompare(gapCursorItem(), "gap", gapIndex, 1000)
+            // Synthesized keys go to the active window, and a shared-process
+            // run can lose that activation between cases; same guard as
+            // ensureFocus.
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
+            tryCompare(gapCursorItem(), "activeFocus", true, 1000)
+            return gapCursorItem()
+        }
+
+        function test_gc_a_hoveringASeamOffersTheCaret() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            var gc = gapCursorItem()
+            verify(gc !== null, "The window has a gap cursor")
+            compare(gc.hoverGap, -1, "Nothing is offered before the pointer arrives")
+
+            hoverSeam(1, 0)
+            tryCompare(gc, "hoverGap", 1, 1000)
+            var hint = findChild(appLoader.item, "gapCursorHint")
+            verify(hint !== null && hint.visible,
+                   "The seam under the pointer draws its line")
+            compare(gc.gap, -1, "Hovering alone places no caret")
+        }
+
+        function test_gc_b_pointingAtTextOffersNothing() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            var lv = findChild(appLoader.item, "blockListView")
+            var second = findBlockDelegate(1)
+            mouseMove(lv, lv.width / 2,
+                      second.y - lv.contentY + second.height / 2)
+            wait(100)
+            compare(gapCursorItem().hoverGap, -1,
+                    "A point over a paragraph belongs to the paragraph")
+        }
+
+        function test_gc_c_clickingASeamPlacesTheCaret() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            var gc = placeGapCaret(1)
+            compare(gc.armed, true)
+            var caret = findChild(appLoader.item, "gapCursorCaret")
+            verify(caret !== null && caret.visible, "The caret is drawn")
+            tryCompare(gc, "activeFocus", true, 1000)
+            compare(BlockModel.count, 2, "Placing the caret inserts nothing")
+        }
+
+        function test_gc_d_typingMakesTheBlockItGoesIn() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            placeGapCaret(1)
+            keyClick(Qt.Key_H)
+
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
+                      "Typing in the seam makes a block there")
+            compare(BlockModel.blockAt(1).blockType, 0, "A paragraph")
+            tryVerify(function() {
+                return BlockModel.getContent(1) === "h"
+            }, 1000, "The block holds the character that asked for it")
+            compare(BlockModel.getContent(0), "one",
+                    "The blocks either side are untouched")
+            compare(BlockModel.getContent(2), "two")
+            compare(gapCursorItem().gap, -1, "The caret is spent")
+            tryVerify(function() {
+                var ta = findTextArea(findBlockDelegate(1))
+                return ta !== null && ta.activeFocus
+            }, 1000, "The caret is in the new block, after what was typed")
+        }
+
+        function test_gc_e_slashInASeamOpensTheBlockMenu() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            placeGapCaret(1)
+            keyClick(Qt.Key_Slash)
+
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
+                      "The slash makes the block it will convert")
+            var menu = theBlockMenu()
+            tryCompare(menu, "visible", true, 1000)
+            compare(menu.targetIndex, 1,
+                    "The menu targets the block the seam became")
+        }
+
+        function test_gc_f_enterInASeamMakesAnEmptyParagraph() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            placeGapCaret(1)
+            keyClick(Qt.Key_Return)
+
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
+                      "Enter makes the block without typing into it")
+            compare(BlockModel.getContent(1), "")
+            compare(BlockModel.blockAt(1).blockType, 0)
+        }
+
+        function test_gc_g_arrowsWalkTheSeamsAndEscapeLeaves() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            docWithBlocks(["one", "two", "three"])
+
+            var gc = placeGapCaret(1)
+            keyClick(Qt.Key_Down)
+            tryCompare(gc, "gap", 2, 1000)
+            keyClick(Qt.Key_Up)
+            tryCompare(gc, "gap", 1, 1000)
+
+            keyClick(Qt.Key_Escape)
+            tryCompare(gc, "gap", -1, 1000)
+            compare(BlockModel.count, 3, "Leaving inserts nothing")
+            tryVerify(function() {
+                var ta = findTextArea(findBlockDelegate(0))
+                return ta !== null && ta.activeFocus
+            }, 1000, "Escape leaves for the block above the caret")
+        }
+
+        function test_gc_h_theLastSeamAppendsAtTheEnd() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            var gc = placeGapCaret(1)
+            keyClick(Qt.Key_Down)
+            tryCompare(gc, "gap", 2, 1000)
+            keyClick(Qt.Key_Down)
+            compare(gc.gap, 2, "There is no seam past the last one")
+
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
+                      "The seam below the last block appends")
+            compare(BlockModel.getContent(2), "")
+            compare(BlockModel.getContent(1), "two")
+        }
+
+        function test_gc_i_ctrlEnterPlacesTheCaretAfterASelection() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            docWithBlocks(["one", "two", "three"])
+
+            mouseClick(hoverAndFindHandle(findBlockDelegate(1)))
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
+            tryCompare(selectionHandler(), "activeFocus", true, 1000)
+
+            keyClick(Qt.Key_Return, Qt.ControlModifier)
+            tryCompare(gapCursorItem(), "gap", 2, 1000)
+            tryCompare(DocumentSelection, "hasBlockSelection", false, 1000)
+            tryCompare(gapCursorItem(), "activeFocus", true, 1000)
+
+            // Plain Enter still begins editing the selected block (§3.1)
+            keyClick(Qt.Key_Escape)
+            mouseClick(hoverAndFindHandle(findBlockDelegate(1)))
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
+            tryCompare(selectionHandler(), "activeFocus", true, 1000)
+            keyClick(Qt.Key_Return)
+            compare(gapCursorItem().gap, -1)
+            tryVerify(function() {
+                var ta = findTextArea(findBlockDelegate(1))
+                return ta !== null && ta.activeFocus
+            }, 1000, "Plain Enter is unchanged")
+        }
+
+        function test_gc_j_theSpaceBelowTheDocumentIsASeamToo() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            // Nothing else claims the empty space under the last block, so
+            // the seam there is offered from a few pixels below the row.
+            var gc = gapCursorItem()
+            hoverSeam(2, 4)
+            tryCompare(gc, "hoverGap", 2, 1000)
+
+            // Far below is past it — the offer does not fill the whole page.
+            hoverSeam(2, 60)
+            tryCompare(gc, "hoverGap", -1, 1000)
+        }
+
+        function test_gc_k_clickingIntoABlockEndsTheCaret() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            var gc = placeGapCaret(1)
+            var textArea = findTextArea(findBlockDelegate(0))
+            mouseClick(textArea, 10, textArea.height / 2)
+            tryCompare(gc, "gap", -1, 1000)
+            tryCompare(textArea, "activeFocus", true, 1000)
+        }
+
+        function test_gc_l_theGutterKeepsItsClicks() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["one", "two"])
+
+            // The strip stops short of the gutter column, so the plus-button
+            // at the top of a row is never covered by the seam above it.
+            var plus = hoverAndFindPlus(findBlockDelegate(1))
+            compare(gapCursorItem().hoverGap, -1,
+                    "Pointing at the gutter offers no seam")
+            mouseClick(plus)
+            tryVerify(function() { return BlockModel.count === 3 }, 1000,
+                      "The plus-button still inserts below its block")
+        }
+
+        // ==================================================================
         // Drag-and-drop reordering (features.md §3.2, §21.4)
         // ==================================================================
 

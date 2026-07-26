@@ -553,6 +553,16 @@ Display when cursor moves into "information":
 - Block type menu with search/filter
 - Recently used block types shown first
 - Keyboard navigation through block type menu
+- The blank space between two blocks takes a caret of its own. Pointing at that
+  space draws a line in it; clicking turns the line into a blinking caret, and
+  the next character typed becomes a paragraph in that space holding it. "/"
+  makes the paragraph and opens the block type menu, and Enter leaves it empty.
+  The space above the first block and below the last one are both such places
+- Up and Down move that caret to the next space; Escape leaves it for the end
+  of the block above
+- Ctrl+Enter on selected blocks puts the caret in the space after them. This is
+  the keyboard route to the space below a block whose own Enter belongs to it —
+  a table's Enter moves between cells and a code block's starts a line
 
 ---
 
