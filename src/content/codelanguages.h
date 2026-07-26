@@ -17,7 +17,8 @@
 // The design mirrors the inline span-type registry that made inline formatting
 // data instead of control flow: one rule table per language, interpreted by one
 // small set of shared matchers (a generic identifier/C-like scanner covering
-// seven languages, plus dedicated markup, CSS, and Markdown scanners). A pure
+// seven languages, plus dedicated markup, CSS, Markdown and Mermaid
+// scanners). A pure
 // `highlightSpans(language, text)` returns classified ranges over the whole
 // text for the unit corpus; the engine's QSyntaxHighlighter calls the per-line
 // `highlightLine` with the previous block's carry-state so multi-line
@@ -65,7 +66,10 @@ struct LineResult {
     int endState = 0;
 };
 
-// Canonical language ids the highlighter recognizes (the eleven of §1.2.7).
+// Canonical language ids the code-block language picker offers (the eleven of
+// §1.2.7). `mermaid` is recognized by the functions below but is not on this
+// list: a `mermaid` fence renders as a diagram, not as a code block, and its
+// highlighting serves the diagram block's source editor.
 QStringList supportedLanguages();
 
 // Resolve a user-typed name or alias (e.g. "py", "c++", "js", "sh") to a

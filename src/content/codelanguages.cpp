@@ -11,11 +11,11 @@
 // one language, so a value can mean different things in different families.
 namespace {
 constexpr int kNormal = 0;
-constexpr int kBlockComment = 1;   // inside /* */ or <!-- -->
+constexpr int kBlockComment = 1;   // inside /* */, <!-- --> or %%{ }%%
 constexpr int kTripleDouble = 2;   // inside """ (Python)
 constexpr int kTripleSingle = 3;   // inside ''' (Python)
 
-enum class Family { Generic, Markup, Css, Markdown };
+enum class Family { Generic, Markup, Css, Markdown, Mermaid };
 
 struct Rules {
     Family family = Family::Generic;
@@ -541,6 +541,211 @@ CodeLanguages::LineResult scanMarkdown(const QString &line, int startState)
     return res;
 }
 
+// Mermaid's own vocabulary: the words that open a diagram and the statement
+// words its families share. Node identifiers are deliberately absent — an id
+// is whatever the author names it, and leaving ids in the default text color
+// is what makes the colored words carry meaning. Matching is case-sensitive,
+// as Mermaid's own grammar is (`classDef`, `sequenceDiagram`).
+const QSet<QString> &mermaidKeywords()
+{
+    static const QSet<QString> kw = {
+        // Diagram openers.
+        "graph", "flowchart", "sequenceDiagram", "classDiagram", "stateDiagram",
+        "erDiagram", "journey", "gantt", "pie", "quadrantChart", "mindmap",
+        "timeline", "gitGraph", "requirementDiagram", "block", "sankey",
+        "xychart", "packet", "architecture", "kanban", "radar", "treemap",
+        // Statements, across families.
+        "subgraph", "end", "direction", "participant", "actor", "activate",
+        "deactivate", "note", "loop", "alt", "else", "opt", "par", "and",
+        "rect", "critical", "option", "break", "autonumber", "create",
+        "destroy", "box", "link", "links", "class", "classDef", "click",
+        "call", "callback", "href", "style", "linkStyle", "state", "namespace",
+        "title", "accTitle", "accDescr", "section", "dateFormat", "axisFormat",
+        "excludes", "todayMarker", "commit", "branch", "checkout", "merge",
+        "as",
+    };
+    return kw;
+}
+
+// The layout directions and the placement words that qualify a keyword. These
+// take the type/function color, so a `flowchart LR` header reads as the
+// statement and its argument rather than as one undifferentiated phrase.
+const QSet<QString> &mermaidModifiers()
+{
+    static const QSet<QString> m = {
+        "LR", "RL", "TB", "TD", "BT", "of", "over", "left", "right",
+    };
+    return m;
+}
+
+// The characters a link (`-->`, `==>`, `-.->`, `<|..`, `..|>`) is built from.
+// The edge-label bar is not one of them; it is told apart in the run scanner
+// by what follows it.
+bool isLinkChar(QChar c)
+{
+    return c == '-' || c == '=' || c == '.' || c == '<' || c == '>' || c == '~';
+}
+
+// The extent of a bracketed label opened at `i` — `[Start]`, `((Round))`,
+// `{"$$x^2$$"}`. Nesting is counted so a doubled bracket closes in the right
+// place, and a quoted string inside is skipped so a bracket in the label text
+// cannot end it early. Returns the index just past the closing bracket, or the
+// end of the line when it never closes, which is the state mid-typing.
+int scanMermaidLabel(const QString &s, int i)
+{
+    const QChar open = s[i];
+    const QChar close = open == '[' ? ']' : (open == '(' ? ')' : '}');
+    const int n = s.length();
+    int depth = 0;
+    int j = i;
+    while (j < n) {
+        const QChar c = s[j];
+        if (c == '"') {
+            j = scanString(s, j, '"', false);
+            continue;
+        }
+        if (c == open) {
+            ++depth;
+        } else if (c == close && --depth == 0) {
+            return j + 1;
+        }
+        ++j;
+    }
+    return n;
+}
+
+// Mermaid scanner. Mermaid is not a C-like language and has no rule table: it
+// is a line-oriented notation whose meaning sits in five things — the `%%`
+// comment and `%%{ … }%%` directive, the diagram and statement keywords, the
+// link runs, the bracketed or quoted label, and the message text after a
+// colon. Everything else, node ids above all, keeps the default text color.
+CodeLanguages::LineResult scanMermaid(const QString &line, int startState)
+{
+    using namespace CodeLanguages;
+    LineResult res;
+    res.endState = kNormal;
+    const int n = line.length();
+    int i = 0;
+
+    // An initialisation directive left open on a previous line.
+    if (startState == kBlockComment) {
+        const int close = line.indexOf(QStringLiteral("}%%"));
+        if (close < 0) {
+            emitSpan(res.spans, 0, n, Token::Comment);
+            res.endState = kBlockComment;
+            return res;
+        }
+        emitSpan(res.spans, 0, close + 3, Token::Comment);
+        i = close + 3;
+    }
+
+    // Whether a colon on this line introduces label text. A sequence message
+    // and an edge label are written after a link, and a note's text after the
+    // `note` keyword; a class member (`Animal : +int age`) and a style
+    // declaration (`style A fill:#f9f`) are neither, and stay plain.
+    bool colonOpensLabel = false;
+
+    while (i < n) {
+        const QChar c = line[i];
+
+        if (c == '%' && i + 1 < n && line[i + 1] == '%') {
+            if (line.mid(i, 3) == QLatin1String("%%{")) {
+                const int close = line.indexOf(QStringLiteral("}%%"), i + 3);
+                if (close < 0) {
+                    emitSpan(res.spans, i, n - i, Token::Comment);
+                    res.endState = kBlockComment;
+                    return res;
+                }
+                emitSpan(res.spans, i, close + 3 - i, Token::Comment);
+                i = close + 3;
+                continue;
+            }
+            emitSpan(res.spans, i, n - i, Token::Comment);
+            return res;
+        }
+        if (c == '"') {
+            const int j = scanString(line, i, '"', false);
+            emitSpan(res.spans, i, j - i, Token::String);
+            i = j;
+            continue;
+        }
+        if (c == '[' || c == '{' || c == '(') {
+            const int j = scanMermaidLabel(line, i);
+            emitSpan(res.spans, i, j - i, Token::String);
+            i = j;
+            continue;
+        }
+        if (isLinkChar(c)) {
+            int j = i;
+            while (j < n) {
+                if (isLinkChar(line[j])) {
+                    ++j;
+                    continue;
+                }
+                // A class-diagram arrowhead bar (`<|--`, `..|>`) belongs to
+                // the run; a flowchart edge-label bar (`-->|yes|`) does not,
+                // and what follows the bar is what tells them apart.
+                if (line[j] == '|' && j + 1 < n && isLinkChar(line[j + 1])) {
+                    ++j;
+                    continue;
+                }
+                break;
+            }
+            // A flowchart link may end in a letter: `--o`, `--x`.
+            if (j - i >= 2 && j < n && (line[j] == 'o' || line[j] == 'x')
+                && (j + 1 >= n || !isIdentPart(line[j + 1])))
+                ++j;
+            if (j - i >= 2) {
+                emitSpan(res.spans, i, j - i, Token::Type);
+                colonOpensLabel = true;
+            }
+            i = j;
+            continue;
+        }
+        if (c == '|') {
+            const int close = line.indexOf(QLatin1Char('|'), i + 1);
+            if (close > i) {
+                emitSpan(res.spans, i, close + 1 - i, Token::String);
+                i = close + 1;
+                continue;
+            }
+            ++i;
+            continue;
+        }
+        if (c == ':' && colonOpensLabel) {
+            int stop = line.indexOf(QStringLiteral("%%"), i);
+            if (stop < 0)
+                stop = n;
+            emitSpan(res.spans, i, stop - i, Token::String);
+            i = stop;
+            continue;
+        }
+        if (isIdentStart(c)) {
+            int j = i;
+            while (j < n && isIdentPart(line[j]))
+                ++j;
+            const QString word = line.mid(i, j - i);
+            if (mermaidKeywords().contains(word)) {
+                emitSpan(res.spans, i, j - i, Token::Keyword);
+                if (word == QLatin1String("note"))
+                    colonOpensLabel = true;
+            } else if (mermaidModifiers().contains(word)) {
+                emitSpan(res.spans, i, j - i, Token::Type);
+            }
+            i = j;
+            continue;
+        }
+        if (c.isDigit()) {
+            const int j = scanNumber(line, i);
+            emitSpan(res.spans, i, j - i, Token::Number);
+            i = j;
+            continue;
+        }
+        ++i;
+    }
+    return res;
+}
+
 // ---- Rule-table registry ----
 
 Rules makeGeneric(const QStringList &kw, const QStringList &ty)
@@ -686,6 +891,11 @@ const QHash<QString, Rules> &registry()
         { Rules r; r.family = Family::Markup;   t.insert("xml", r); }
         { Rules r; r.family = Family::Css;      t.insert("css", r); }
         { Rules r; r.family = Family::Markdown; t.insert("markdown", r); }
+        // Mermaid. Not offered by supportedLanguages(): a `mermaid` fence is a
+        // diagram block rather than a code block, so the language picker must
+        // not list it. It is registered so the diagram block's own source
+        // editor highlights through this same table.
+        { Rules r; r.family = Family::Mermaid;  t.insert("mermaid", r); }
 
         return t;
     }();
@@ -708,6 +918,7 @@ const QHash<QString, QString> &aliasMap()
         {"json", "json"},
         {"xml", "xml"}, {"svg", "xml"},
         {"markdown", "markdown"}, {"md", "markdown"},
+        {"mermaid", "mermaid"},
     };
     return m;
 }
@@ -743,6 +954,7 @@ LineResult highlightLine(const QString &language, const QString &line,
     case Family::Markup:   return scanMarkup(line, startState);
     case Family::Css:      return scanCss(line, startState);
     case Family::Markdown: return scanMarkdown(line, startState);
+    case Family::Mermaid:  return scanMermaid(line, startState);
     case Family::Generic:  break;
     }
     return scanGeneric(r, line, startState);

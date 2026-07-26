@@ -361,6 +361,7 @@ target_include_directories(kvit-application PUBLIC src/application)
 add_library(kvit-qml STATIC
     src/qml/appcontext.cpp
     src/qml/blockeditorengine.cpp
+    src/qml/codehighlighter.cpp
     src/qml/kvitapplication.cpp
     src/qml/processservices.cpp
     src/qml/qmlservices.cpp

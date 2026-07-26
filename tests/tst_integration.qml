@@ -10222,6 +10222,43 @@ Item {
                     "indicator shows the effective zoom level")
         }
 
+        // Enter in the Mermaid source editor continues the current line's
+        // indentation. Mermaid source is indented by hand under its header
+        // and inside a subgraph, so a new line that starts back at column
+        // zero has to be re-indented on every statement.
+        function test_zzy3_mermaidSourceEnterKeepsIndent() {
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "```mermaid\nflowchart LR\n    A[a] --> B[b]\n```")
+            wait(300)
+
+            var d = findBlockDelegate(0)
+            verify(d !== null, "diagram delegate exists")
+            var src = findChild(d, "mermaidSourceArea")
+            verify(src !== null, "source editor exists")
+
+            // Synthesized keys go to the active window, not merely to the
+            // focused item, so the window has to be activated first.
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
+            d.focusAtEnd()
+            tryVerify(function() { return src.activeFocus }, 2000,
+                      "source editor takes focus")
+            compare(src.cursorPosition, src.length, "cursor starts at the end")
+
+            keyClick(Qt.Key_Return)
+            compare(src.text, "flowchart LR\n    A[a] --> B[b]\n    ",
+                    "the new line opens with the previous line's indent")
+            compare(src.cursorPosition, src.text.length,
+                    "and the cursor sits after that indent")
+
+            // Typing continues on the indented line rather than at column
+            // zero, which is the whole point of copying the indent.
+            keyClick(Qt.Key_C)
+            compare(src.text, "flowchart LR\n    A[a] --> B[b]\n    c",
+                    "typing lands after the copied indent")
+        }
+
         // Same report, full click path: open the actual LanguagePicker menu
         // and fire its "Text diagram" MenuItem, instead of calling
         // setCodeLanguage directly.

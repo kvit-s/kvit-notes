@@ -260,6 +260,109 @@ private slots:
         QVERIFY(covers(s, src, "(http://u)", Token::Type));
     }
 
+    // ---- Mermaid ----
+    // Recognized by the scanners but deliberately absent from the picker's
+    // list: a `mermaid` fence is a diagram block, not a code block, and this
+    // table serves the diagram block's own source editor.
+    void mermaidIsHighlightedButNotOffered()
+    {
+        QVERIFY(CodeLanguages::isSupported("mermaid"));
+        QCOMPARE(CodeLanguages::canonicalLanguage("Mermaid"), "mermaid");
+        QVERIFY(!CodeLanguages::supportedLanguages().contains("mermaid"));
+    }
+
+    void mermaidFlowchartHeaderLinksAndLabels()
+    {
+        const QString src = "flowchart LR\n"
+                            "    A[Start] --> B{Decision}\n"
+                            "    B -->|yes| C[Done]";
+        const auto s = hl("mermaid", src);
+        QVERIFY(covers(s, src, "flowchart", Token::Keyword));
+        QVERIFY(covers(s, src, "LR", Token::Type));
+        QVERIFY(covers(s, src, "-->", Token::Type));
+        QVERIFY(covers(s, src, "[Start]", Token::String));
+        QVERIFY(covers(s, src, "{Decision}", Token::String));
+        QVERIFY(covers(s, src, "|yes|", Token::String));
+        // A node id is whatever the author named it, so it stays plain.
+        QCOMPARE(tokenAt(s, src.indexOf("A[Start]")), Token::Plain);
+    }
+
+    void mermaidLabelsNestAndSurviveBracketsInText()
+    {
+        const QString src = "graph TD\n  A((Round)) --> B[\"a ] b\"]\n  C{{Hex}}";
+        const auto s = hl("mermaid", src);
+        QVERIFY(covers(s, src, "((Round))", Token::String));
+        QVERIFY(covers(s, src, "{{Hex}}", Token::String));
+        // The `]` inside the quoted label must not end the label early.
+        QVERIFY(covers(s, src, "[\"a ] b\"]", Token::String));
+    }
+
+    void mermaidCommentsAndDirectives()
+    {
+        const QString src = "%% a note\nflowchart LR\n  A --> B %% trailing";
+        const auto s = hl("mermaid", src);
+        QVERIFY(covers(s, src, "%% a note", Token::Comment));
+        QVERIFY(covers(s, src, "%% trailing", Token::Comment));
+        QVERIFY(covers(s, src, "flowchart", Token::Keyword));
+    }
+
+    void mermaidDirectiveSpansLines()
+    {
+        auto r1 = CodeLanguages::highlightLine("mermaid", "%%{init: {", 0);
+        QVERIFY(r1.endState != 0);
+        auto r2 = CodeLanguages::highlightLine("mermaid", "  'theme': 'dark'", r1.endState);
+        QCOMPARE(r2.spans.size(), 1);
+        QCOMPARE(r2.spans.first().token, Token::Comment);
+        QVERIFY(r2.endState != 0);
+        auto r3 = CodeLanguages::highlightLine("mermaid", "} }%%", r2.endState);
+        QCOMPARE(r3.endState, 0);
+    }
+
+    void mermaidSequenceMessagesAndNotes()
+    {
+        const QString src = "sequenceDiagram\n"
+                            "    Alice->>John: Hello John\n"
+                            "    note right of John: thinking\n"
+                            "    loop every minute\n    end";
+        const auto s = hl("mermaid", src);
+        QVERIFY(covers(s, src, "sequenceDiagram", Token::Keyword));
+        QVERIFY(covers(s, src, "->>", Token::Type));
+        QVERIFY(covers(s, src, ": Hello John", Token::String));
+        QVERIFY(covers(s, src, "note", Token::Keyword));
+        QVERIFY(covers(s, src, ": thinking", Token::String));
+        QVERIFY(covers(s, src, "loop", Token::Keyword));
+        QVERIFY(covers(s, src, "end", Token::Keyword));
+    }
+
+    // A colon only opens label text after a link (or a note). A class member
+    // and a style declaration are neither, so their text stays plain — the
+    // rule that keeps this scanner usable across Mermaid's families.
+    void mermaidColonOnlyLabelsAfterALink()
+    {
+        const QString plain = "classDiagram\n  Animal : +int age";
+        const auto p = hl("mermaid", plain);
+        QCOMPARE(tokenAt(p, plain.indexOf(": +int age")), Token::Plain);
+
+        const QString styled = "flowchart LR\n  style A fill:#f9f";
+        const auto t = hl("mermaid", styled);
+        QCOMPARE(tokenAt(t, styled.indexOf("fill:")), Token::Plain);
+
+        const QString labelled = "stateDiagram-v2\n  A --> B : event";
+        const auto l = hl("mermaid", labelled);
+        QVERIFY(covers(l, labelled, ": event", Token::String));
+    }
+
+    // A class-diagram arrowhead carries a `|` inside the link run, while a
+    // flowchart edge label is delimited by one. What follows the bar is what
+    // tells the two apart.
+    void mermaidClassArrowheadsKeepTheirBar()
+    {
+        const QString src = "classDiagram\n  Animal <|-- Duck\n  A ..|> B";
+        const auto s = hl("mermaid", src);
+        QVERIFY(covers(s, src, "<|--", Token::Type));
+        QVERIFY(covers(s, src, "..|>", Token::Type));
+    }
+
     // ---- Per-line entry point + state threading (the engine's path) ----
     void perLineStateThreadsBlockComment()
     {

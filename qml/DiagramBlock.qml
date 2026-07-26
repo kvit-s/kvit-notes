@@ -29,6 +29,10 @@ BlockDelegateBase {
     // so the guards below still mean what they meant.
     readonly property KvitShell shell: Window.window as KvitShell
 
+    // The theme, re-exposed so the source editor's highlighter can reach it
+    // past that object's own `theme` property name (as EditableBlock does).
+    readonly property var appTheme: Theme
+
 
     required property int index
     required property string blockId
@@ -783,6 +787,16 @@ BlockDelegateBase {
                     radius: 4
                     border.color: Theme.border; border.width: 1
                 }
+                // Mermaid syntax coloring, through the same scanners and the
+                // same five theme tokens a code block is colored with. The
+                // highlighter writes character formats only — it never touches
+                // the text — so this editor keeps its own text binding, its
+                // own undo stack and the debounced commit below.
+                CodeHighlighter {
+                    document: sourceArea.textDocument
+                    language: "mermaid"
+                    theme: root.appTheme
+                }
                 onActiveFocusChanged: {
                     if (!activeFocus) {
                         debounce.stop()
@@ -821,6 +835,30 @@ BlockDelegateBase {
                         root.previewSource = text
                         if (text !== root.content)
                             BlockModel.updateContent(root.index, text)
+                        event.accepted = true
+                        return
+                    }
+                    // Enter continues the current line's indentation. Mermaid
+                    // source is indented by hand under `flowchart`/`subgraph`,
+                    // so a new line that starts back at column zero has to be
+                    // re-indented on every statement. The new line copies the
+                    // whitespace the current line opens with, cut at the
+                    // cursor so pressing Enter inside that whitespace never
+                    // manufactures more of it.
+                    if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                        && !(event.modifiers & (Qt.AltModifier | Qt.MetaModifier))) {
+                        var before = text.substring(0, selectionStart)
+                        var lineStart = before.lastIndexOf("\n") + 1
+                        var indent = ""
+                        for (var k = lineStart; k < before.length; ++k) {
+                            var ch = before.charAt(k)
+                            if (ch !== " " && ch !== "\t")
+                                break
+                            indent += ch
+                        }
+                        if (selectionStart !== selectionEnd)
+                            remove(selectionStart, selectionEnd)
+                        insert(cursorPosition, "\n" + indent)
                         event.accepted = true
                         return
                     }

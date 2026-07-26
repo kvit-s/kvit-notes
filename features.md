@@ -248,8 +248,12 @@ source of truth and round-trips through other editors.
   and panning when zoomed in past the window; a per-block **PNG** control saves the scene as
   a 2× raster on the theme background. Focus shows the source plus a debounced live preview
   that keeps the last valid render while the new source is invalid, with a line/column
-  diagnostic. Resource limits (nodes/edges/depth/label length, 256 KiB source) bound the
-  renderer.
+  diagnostic. The source editor is syntax-coloured through the same scanners and the same
+  five theme tokens a code block is coloured with (§1.2.7), covering `%%` comments and
+  `%%{…}%%` directives, diagram and statement keywords, layout directions, link runs, and
+  bracketed, quoted or post-colon label text. Tab inserts two spaces, and Enter opens the new
+  line at the current line's indentation. Resource limits (nodes/edges/depth/label length,
+  256 KiB source) bound the renderer.
 - **On-diagram editing** — supported flowcharts are edited directly on
   the rendered diagram; every gesture becomes a surgical edit of the fence source (one undo
   step), so bytes outside the edited span — comments, formatting, statement order — survive
