@@ -328,7 +328,9 @@ KvitShell {
         function onTextContextMenuRequested(target) { root.openTextContextMenu(target) }
         function onLinkContextMenuRequested(target) { root.openLinkContextMenu(target) }
         function onBlockHandleMenuRequested(target) { root.openBlockHandleMenu(target) }
-        function onInsertImageRequested(index) { root.insertImageIntoBlock(index) }
+        function onInsertImageRequested(index, kind) {
+            root.insertImageIntoBlock(index, kind)
+        }
         function onInsertEmbedRequested(index) { root.insertEmbedIntoBlock(index) }
         function onEditEmbedRequested(index, url) { root.editEmbedInBlock(index, url) }
         function onInsertTableRequested(index) { root.insertTableIntoBlock(index) }
@@ -980,7 +982,11 @@ KvitShell {
         return blockInsertsLoader.item as BlockInsertDialogs
     }
 
-    function insertImageIntoBlock(idx) { root.blockInserts().insertImage(idx) }
+    // kind is "image" or "media"; it decides what the shared dialog is called
+    // and which files it offers, not what the block becomes.
+    function insertImageIntoBlock(idx, kind) {
+        root.blockInserts().insertImage(idx, kind)
+    }
     function insertEmbedIntoBlock(idx) { root.blockInserts().insertEmbed(idx) }
     function editEmbedInBlock(idx, url) { root.blockInserts().editEmbed(idx, url) }
     function insertTableIntoBlock(idx) { root.blockInserts().insertTable(idx) }

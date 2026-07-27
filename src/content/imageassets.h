@@ -6,6 +6,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 
 
@@ -107,6 +108,14 @@ public:
     Q_INVOKABLE QString resolve(const QString &stored, const QString &noteDir,
                                 const QString &collectionRoot) const;
     Q_INVOKABLE QString kindOf(const QString &path) const;
+
+    // The name filters a file picker should offer for one kind ("image" or
+    // "media"), read from the same extension sets kindForExtension uses. A
+    // picker that filtered by its own list could hide a file the app would
+    // have accepted, or offer one it would then classify as the other kind.
+    // The trailing "All files" entry is what makes a path the lists do not
+    // know still reachable.
+    Q_INVOKABLE QStringList nameFilters(const QString &kind) const;
 };
 
 #endif // IMAGEASSETS_H

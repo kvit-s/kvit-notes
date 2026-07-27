@@ -260,6 +260,47 @@ private slots:
             ImageAssets::normalizeEmbedUrl("cnn.com/logo.png")));
     }
 
+    // The file picker's filters and the classifier read one list, so the
+    // property to hold is that every extension a filter offers classifies as
+    // the kind that filter was asked for. Asserting the literal filter string
+    // instead would pass while the picker offered a file the app rejects.
+    void nameFiltersMatchTheClassifier()
+    {
+        ImageAssets assets;
+        for (const QString &kind : {QStringLiteral("image"),
+                                    QStringLiteral("media")}) {
+            const QStringList filters = assets.nameFilters(kind);
+            QCOMPARE(filters.size(), 2);
+            QCOMPARE(filters.last(), QStringLiteral("All files (*)"));
+
+            const int open = filters.first().indexOf(QLatin1Char('('));
+            const QStringList patterns =
+                filters.first().mid(open + 1).chopped(1).split(QLatin1Char(' '));
+            QVERIFY(!patterns.isEmpty());
+            const Kind expected =
+                kind == QLatin1String("media") ? Kind::Media : Kind::Image;
+            for (const QString &pattern : patterns) {
+                QVERIFY2(pattern.startsWith(QLatin1String("*.")),
+                         qPrintable(pattern));
+                QCOMPARE(ImageAssets::kindForExtension(
+                             QStringLiteral("file") + pattern.mid(1)),
+                         expected);
+            }
+        }
+        // The two kinds name different files: an audio picker that offered
+        // PNGs would be the bug this guards.
+        QVERIFY(assets.nameFilters(QStringLiteral("media")).first()
+                    .contains(QStringLiteral("*.mp3")));
+        QVERIFY(!assets.nameFilters(QStringLiteral("media")).first()
+                     .contains(QStringLiteral("*.png")));
+        QVERIFY(assets.nameFilters(QStringLiteral("image")).first()
+                    .contains(QStringLiteral("*.png")));
+        // Anything that is not "media" is the image picker, which is what the
+        // dialog falls back to when a caller names no kind.
+        QCOMPARE(assets.nameFilters(QString()),
+                 assets.nameFilters(QStringLiteral("image")));
+    }
+
     void uppercaseSchemeInAnImageExpression()
     {
         const auto p = ImageAssets::parseLine(

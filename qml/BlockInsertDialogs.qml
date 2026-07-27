@@ -25,9 +25,17 @@ Item {
     // Wired by main.qml.
     property var listView
 
-    // Insert an image into an (empty) block by file or URL (features.md §4.3).
-    function insertImage(idx) {
+    // Insert an image or a local audio/video file into an (empty) block by
+    // file or URL (features.md §4.3). One dialog serves both entries in the
+    // block menu, because the block type follows from the path that comes
+    // back rather than from what was asked for. What was asked for is still
+    // what the dialog says and what its file picker offers: choosing
+    // "Audio / Video" and being handed a picker called "Choose an image" that
+    // filters every audio file out is the dialog answering a question nobody
+    // put to it. kind is "image" (the default) or "media".
+    function insertImage(idx, kind) {
         imageInsertDialog.targetIndex = idx
+        imageInsertDialog.kind = (kind === "media") ? "media" : "image"
         imagePathField.text = ""
         imageInsertDialog.open()
         imagePathField.forceActiveFocus()
@@ -160,12 +168,15 @@ Item {
     Dialog {
         id: imageInsertDialog
         objectName: "imageInsertDialog"
-        title: qsTr("Insert image")
+        title: mediaKind ? qsTr("Insert audio or video") : qsTr("Insert image")
         modal: true
         anchors.centerIn: parent
         width: 420
         standardButtons: Dialog.Ok | Dialog.Cancel
         property int targetIndex: -1
+        // Which of the two menu entries opened this: "image" or "media".
+        property string kind: "image"
+        readonly property bool mediaKind: kind === "media"
 
         function commit() {
             var path = imagePathField.text.trim()
@@ -191,7 +202,9 @@ Item {
                 id: imagePathField
                 objectName: "imagePathField"
                 width: 320
-                placeholderText: qsTr("Image file path or URL")
+                placeholderText: imageInsertDialog.mediaKind
+                    ? qsTr("Audio or video file path or URL")
+                    : qsTr("Image file path or URL")
                 onAccepted: { imageInsertDialog.commit(); imageInsertDialog.close() }
             }
             Button {
@@ -218,9 +231,11 @@ Item {
         // built dialog inside this window, where no focus changes hands.
         parentWindow: inserts.Window.window
         popupType: Popup.Item
-        title: qsTr("Choose an image")
-        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.gif *.webp *.svg *.bmp)"),
-                      qsTr("All files (*)")]
+        title: imageInsertDialog.mediaKind ? qsTr("Choose an audio or video file")
+                                           : qsTr("Choose an image")
+        // From the extension sets the classifier itself reads, so the picker
+        // cannot offer a file the app would refuse or hide one it accepts.
+        nameFilters: ImageAssets.nameFilters(imageInsertDialog.kind)
         onAccepted: {
             // Store the chosen file's path; ingestion/copy comes later.
             // The conversion goes through C++: stripping "file://" left

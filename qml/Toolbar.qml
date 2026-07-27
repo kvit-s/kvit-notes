@@ -741,7 +741,7 @@ Rectangle {
         var newIdx = idx + 1
         BlockModel.insertBlock(newIdx, 0, "")
         if ((kind === "image" || kind === "media") && toolbar.appWindow.insertImageIntoBlock)
-            toolbar.appWindow.insertImageIntoBlock(newIdx)
+            toolbar.appWindow.insertImageIntoBlock(newIdx, kind)
         else if (kind === "table" && toolbar.appWindow.insertTableIntoBlock)
             toolbar.appWindow.insertTableIntoBlock(newIdx)
         else if (kind === "kanban")

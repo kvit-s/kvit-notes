@@ -172,7 +172,8 @@ Popup {
             return
         }
         if (type === Block.Image || type === Block.Media) {
-            AppActions.requestInsertImage(idx)
+            AppActions.requestInsertImage(
+                idx, type === Block.Media ? "media" : "image")
             applied(idx, type)
             return
         }

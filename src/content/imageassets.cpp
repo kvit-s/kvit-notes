@@ -10,6 +10,8 @@
 #include <QSet>
 #include <QUrl>
 
+#include <utility>
+
 namespace {
 
 const QSet<QString> &imageExtensions()
@@ -313,4 +315,24 @@ QString ImageAssets::kindOf(const QString &path) const
     case Kind::None:  return QStringLiteral("none");
     }
     return QStringLiteral("none");
+}
+
+QStringList ImageAssets::nameFilters(const QString &kind) const
+{
+    const bool media =
+        kind.compare(QLatin1String("media"), Qt::CaseInsensitive) == 0;
+    const QSet<QString> &exts = media ? mediaExtensions() : imageExtensions();
+
+    // The sets are unordered, so the patterns are sorted: the filter line a
+    // reader sees should not depend on the hash order of a QSet.
+    QStringList sorted(exts.cbegin(), exts.cend());
+    sorted.sort();
+    QStringList patterns;
+    patterns.reserve(sorted.size());
+    for (const QString &e : std::as_const(sorted))
+        patterns << QStringLiteral("*.") + e;
+
+    return { (media ? tr("Audio and video (%1)") : tr("Images (%1)"))
+                 .arg(patterns.join(QLatin1Char(' '))),
+             tr("All files (*)") };
 }

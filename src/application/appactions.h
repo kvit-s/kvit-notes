@@ -100,7 +100,14 @@ public:
     Q_INVOKABLE void requestBlockHandleMenu(QObject *target) { emit blockHandleMenuRequested(target); }
 
     // Insert flows that need a dialog, so they belong to the window.
-    Q_INVOKABLE void requestInsertImage(int index) { emit insertImageRequested(index); }
+    // `kind` is "image" or "media": one dialog serves both, and the block type
+    // still follows from the path that comes back, but what the reader asked
+    // for decides what the dialog is called and which files it offers.
+    Q_INVOKABLE void requestInsertImage(int index,
+                                        const QString &kind = QStringLiteral("image"))
+    {
+        emit insertImageRequested(index, kind);
+    }
     Q_INVOKABLE void requestInsertEmbed(int index) { emit insertEmbedRequested(index); }
     // Changing an embed card's URL uses the same dialog, seeded with the URL
     // the card currently names.
@@ -164,7 +171,7 @@ signals:
     void textContextMenuRequested(QObject *target);
     void linkContextMenuRequested(QObject *target);
     void blockHandleMenuRequested(QObject *target);
-    void insertImageRequested(int index);
+    void insertImageRequested(int index, const QString &kind);
     void insertEmbedRequested(int index);
     void editEmbedRequested(int index, const QString &url);
     void insertTableRequested(int index);
