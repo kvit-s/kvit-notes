@@ -142,6 +142,15 @@ bool blockIsPreformatted(const QTextBlock &block)
     return sawFragment;
 }
 
+// Wrap a listing in a fence long enough to hold it. The fence must outrun any
+// backtick run inside, or a ``` line in the pasted code would close the block
+// early and spill the rest into the document.
+QString fencedListing(const QString &text)
+{
+    const QString fence(qMax(3, longestBacktickRun(text) + 1), u'`');
+    return fence + u'\n' + text + u'\n' + fence;
+}
+
 } // namespace
 
 HtmlToMarkdown::HtmlToMarkdown(QObject *parent)
@@ -233,14 +242,11 @@ QString HtmlToMarkdown::blockMarkdown(const QTextBlock &block) const
     if (!block.isValid())
         return QString();
 
-    // <pre> becomes a fenced code block, keeping its text verbatim. The fence
-    // must outrun any backtick run inside, or a ``` line in the pasted code
-    // would close the block early and spill the rest into the document.
-    if (blockIsPreformatted(block)) {
-        const QString text = block.text();
-        const QString fence(qMax(3, longestBacktickRun(text) + 1), u'`');
-        return fence + u'\n' + text + u'\n' + fence;
-    }
+    // <pre> becomes a fenced code block, keeping its text verbatim. A listing
+    // of several lines is fenced once, by the caller, which is the only place
+    // that can see where the run ends.
+    if (blockIsPreformatted(block))
+        return fencedListing(block.text());
 
     const QTextBlockFormat blockFmt = block.blockFormat();
     const int heading = blockFmt.headingLevel();
@@ -338,6 +344,34 @@ QString HtmlToMarkdown::frameMarkdown(QTextFrame *frame) const
             const QString nested = frameMarkdown(child);
             if (!nested.isEmpty())
                 parts.append(nested);
+            continue;
+        }
+
+        // A <pre> holding several lines reaches us as one text block per
+        // line, because that is how Qt's HTML reader represents the newlines
+        // inside it. Fencing each of those separately would turn one pasted
+        // listing into a stack of one-line code blocks, so the whole run is
+        // gathered and fenced once.
+        if (blockIsPreformatted(it.currentBlock())) {
+            QStringList runLines { it.currentBlock().text() };
+            int lastCode = 0;   // last line known to be part of the listing
+            auto probe = it;
+            for (++probe; !probe.atEnd() && !probe.currentFrame(); ++probe) {
+                const QTextBlock next = probe.currentBlock();
+                // A blank line continues the listing when more of it follows,
+                // which is why it is taken provisionally and the run trimmed
+                // back to the last line that was itself preformatted.
+                const bool blank = next.text().isEmpty();
+                if (!blank && !blockIsPreformatted(next))
+                    break;
+                runLines.append(next.text());
+                if (!blank) {
+                    lastCode = runLines.size() - 1;
+                    it = probe;
+                }
+            }
+            runLines = runLines.mid(0, lastCode + 1);
+            parts.append(fencedListing(runLines.join(u'\n')));
             continue;
         }
 

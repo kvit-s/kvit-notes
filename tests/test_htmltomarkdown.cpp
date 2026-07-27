@@ -44,6 +44,7 @@ private slots:
     void testBlockLeadingConstructsAreEscaped_data();
     void testBlockLeadingConstructsAreEscaped();
     void testImagesBecomeMarkdownImages();
+    void testMultiLinePreIsOneFence();
 
 private:
     HtmlToMarkdown converter;
@@ -314,6 +315,49 @@ void TestHtmlToMarkdown::testImagesBecomeMarkdownImages()
     QVERIFY2(parsed.valid, qPrintable(lone));
     QCOMPARE(parsed.kind, ImageAssets::Kind::Image);
     QCOMPARE(parsed.path, QStringLiteral("pic.png"));
+}
+
+// A code block copied from a browser or another editor arrives as one <pre>
+// holding several lines. Qt's HTML reader gives each of those lines its own
+// text block, so converting them one at a time produced a separate fence per
+// line: pasting a nine-line drawing made nine code blocks out of it.
+void TestHtmlToMarkdown::testMultiLinePreIsOneFence()
+{
+    const QString md = converter.convert(
+        "<pre>┌──────────┐\n"
+        "│ Editor   │\n"
+        "│ (QML)    │\n"
+        "└────┬─────┘</pre>");
+
+    QCOMPARE(md.count(QStringLiteral("```")), 2);
+    QVERIFY2(md.startsWith(QStringLiteral("```")), qPrintable(md));
+    QVERIFY2(md.endsWith(QStringLiteral("```")), qPrintable(md));
+
+    // Every line survives, in order, with nothing inserted between them.
+    const QStringList lines = md.split(u'\n');
+    QCOMPARE(lines.size(), 6);
+    QCOMPARE(lines.at(1), QStringLiteral("┌──────────┐"));
+    QCOMPARE(lines.at(2), QStringLiteral("│ Editor   │"));
+    QCOMPARE(lines.at(3), QStringLiteral("│ (QML)    │"));
+    QCOMPARE(lines.at(4), QStringLiteral("└────┬─────┘"));
+
+    // A blank line inside the listing is part of the listing, not a break
+    // between two of them.
+    const QString spaced = converter.convert("<pre>one\n\nthree</pre>");
+    QCOMPARE(spaced.count(QStringLiteral("```")), 2);
+    QCOMPARE(spaced, QStringLiteral("```\none\n\nthree\n```"));
+
+    // The fence still has to outrun a backtick run on any line of the run,
+    // not merely on the line it happens to start at.
+    const QString ticks = converter.convert("<pre>plain\n``` inside</pre>");
+    QVERIFY2(ticks.startsWith(QStringLiteral("````")), qPrintable(ticks));
+    QVERIFY2(ticks.endsWith(QStringLiteral("````")), qPrintable(ticks));
+
+    // Prose on either side stays its own block rather than joining the code.
+    const QString mixed =
+        converter.convert("<p>before</p><pre>a\nb</pre><p>after</p>");
+    QCOMPARE(mixed.count(QStringLiteral("```")), 2);
+    QCOMPARE(mixed, QStringLiteral("before\n\n```\na\nb\n```\n\nafter"));
 }
 
 QTEST_MAIN(TestHtmlToMarkdown)

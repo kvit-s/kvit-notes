@@ -1835,8 +1835,17 @@ BlockDelegateBase {
                     // structured HTML converted, everything else as text.
                     // Paste-plain deliberately bypasses it — Ctrl+Shift+V
                     // means "whatever the source's plain text was".
-                    var pasted = (stripFormatting ? Clipboard.text
-                                                  : Clipboard.markdown())
+                    //
+                    // A verbatim block bypasses it too, for the same reason
+                    // in reverse: its content is code, so converting the
+                    // payload to markdown would paste fences and emphasis
+                    // markers into the listing as though they were program
+                    // text. What belongs in a code block is the source's own
+                    // plain text.
+                    var asMarkdown = !stripFormatting
+                                     && !delegate.verbatimEditing
+                    var pasted = (asMarkdown ? Clipboard.markdown()
+                                             : Clipboard.text)
                                      .replace(/\r\n/g, "\n")
                     if (stripFormatting) {
                         pasted = pasted.split("\n").map(function(line) {

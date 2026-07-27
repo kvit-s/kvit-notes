@@ -12,6 +12,9 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QFile>
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QMimeData>
 
 #include "appcontext.h"
 #include "blockkindregistry.h"
@@ -79,6 +82,26 @@ public:
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
             return QString();
         return QString::fromUtf8(file.readAll());
+    }
+};
+
+// Puts a payload on the clipboard the way another application would: plain
+// text with an HTML flavor beside it, and no trace of Kvit's private type.
+// ClipboardHelper::setMarkdown always attaches that private type, which makes
+// a paste take the internal arm, so it cannot stage the case where a payload
+// arrives from a browser or another editor and has to be converted.
+class TestClipboardHelper : public QObject
+{
+    Q_OBJECT
+public:
+    using QObject::QObject;
+    Q_INVOKABLE void setExternal(const QString &text, const QString &html)
+    {
+        auto *mime = new QMimeData;
+        mime->setText(text);
+        if (!html.isEmpty())
+            mime->setHtml(html);
+        QGuiApplication::clipboard()->setMimeData(mime);
     }
 };
 
@@ -197,6 +220,8 @@ public slots:
         // Lets a test act as "another program" editing a note on disk, so
         // the FileWatcher paths run end to end.
         context->setContextProperty("testFiles", new TestFileHelper(engine));
+        context->setContextProperty("testClipboard",
+                                    new TestClipboardHelper(engine));
 
         // Screenshot directory for the saveScreenshot helper. build.sh wipes
         // and exports KVIT_SHOT_DIR; standalone runs fall back to <cwd>.

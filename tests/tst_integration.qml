@@ -2137,6 +2137,98 @@ Item {
             compare(BlockModel.getContent(2), "threetail", "Last line joins text after cursor")
         }
 
+        // A code block is verbatim: a multi-line paste is its content, not a
+        // set of blocks to split into, and markdown syntax has no meaning
+        // inside it. Pasting a nine-line drawing used to leave nine blocks.
+        //
+        // This group drives the paste through pasteClipboard(), the same
+        // entry point the context menu uses, rather than through a
+        // synthesized Ctrl+V. What is under test is what a paste does, so
+        // there is nothing to gain from depending on key delivery — and with
+        // no keystroke to lose these run without a display, where the
+        // keyboard-driven cases can only skip.
+        function test_69h2_multiLinePasteIntoCodeBlockStaysOneBlock() {
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.insertBlock(0, 8, "")   // CodeBlock
+            wait(150)
+
+            var textArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(textArea)
+            textArea.cursorPosition = 0
+            wait(80)
+
+            var countBefore = BlockModel.count
+            var drawing = "┌──────────┐\n│ Editor   │\n└────┬─────┘"
+            Clipboard.text = drawing
+            findBlockDelegate(0).pasteClipboard(false)
+            wait(200)
+
+            compare(BlockModel.count, countBefore,
+                    "A paste into a code block must not split it into blocks")
+            compare(BlockModel.getContent(0), drawing,
+                    "Every pasted line stays in the block, in order")
+            compare(BlockModel.blockAt(0).blockType, Block.CodeBlock,
+                    "The block is still a code block")
+        }
+
+        // The same paste as it actually arrives from a browser or another
+        // editor: plain text with an HTML flavor beside it. Two things used to
+        // go wrong. The converter fenced each line of a <pre> separately,
+        // because Qt's HTML reader gives every line its own text block, so a
+        // nine-line drawing became nine code blocks; and a code block asked
+        // for the markdown flavor at all, which put ``` lines into the
+        // listing as though they were program text.
+        function test_69h3_externalCodePasteKeepsItsLines() {
+            var drawing = "┌──────────┐\n│ Editor   │\n└────┬─────┘"
+            var html = "<html><body><pre>" + drawing + "</pre></body></html>"
+
+            // Into a code block: the listing lands as its own text, with no
+            // markdown syntax added to it.
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.insertBlock(0, 8, "")   // CodeBlock
+            wait(150)
+            var textArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(textArea)
+            textArea.cursorPosition = 0
+            wait(80)
+
+            var countBefore = BlockModel.count
+            testClipboard.setExternal(drawing, html)
+            findBlockDelegate(0).pasteClipboard(false)
+            wait(200)
+
+            compare(BlockModel.count, countBefore,
+                    "An external code paste must not split the block")
+            compare(BlockModel.getContent(0), drawing,
+                    "A code block takes the text, not a fenced version of it")
+
+            // Into a paragraph: the payload is markdown there, and a listing
+            // is one code block rather than one per line.
+            DocumentManager.newDocument()
+            wait(100)
+            var para = findTextArea(findBlockDelegate(0))
+            ensureFocus(para)
+            wait(80)
+
+            testClipboard.setExternal(drawing, html)
+            findBlockDelegate(0).pasteClipboard(false)
+            wait(250)
+
+            var codeBlocks = 0
+            var joined = []
+            for (var i = 0; i < BlockModel.count; i++) {
+                if (BlockModel.blockAt(i).blockType === Block.CodeBlock) {
+                    codeBlocks++
+                    joined.push(BlockModel.getContent(i))
+                }
+            }
+            compare(codeBlocks, 1,
+                    "The listing is one code block, not one per line")
+            compare(joined[0], drawing, "with every line of it, in order")
+        }
+
         function test_69i_pastePlainStripsFormatting() {
             // §5.2: Ctrl+Shift+V strips markdown formatting.
             if (isHeadless) {
