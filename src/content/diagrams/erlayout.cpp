@@ -115,16 +115,26 @@ Scene layoutErDiagram(const ErAst &ast, const LayoutOptions &opts)
     }
 
     // ---- place with the shared layered core ----
+    const bool horizontal = ast.direction == Direction::LR
+                            || ast.direction == Direction::RL;
     QList<LayeredEdge> ledges;
-    for (const ErRelationship &r : ast.relationships) {
+    QList<int> ledgeOfRel(ast.relationships.size(), -1);
+    for (int ri = 0; ri < ast.relationships.size(); ++ri) {
+        const ErRelationship &r = ast.relationships.at(ri);
         const int u = idx.value(r.from, -1);
         const int v = idx.value(r.to, -1);
         if (u < 0 || v < 0)
             continue;
-        ledges.append({ u, v, 1 });
+        LayeredEdge le { u, v, 1, 0.0 };
+        if (!r.label.isEmpty())
+            le.labelMain = horizontal
+                ? fm.horizontalAdvance(r.label) + 8 : lineH;
+        ledgeOfRel[ri] = ledges.size();
+        ledges.append(le);
     }
-    const QList<QPointF> center =
-        layeredCenters(size, ledges, ast.direction, kRankGap, kNodeGap);
+    const LayeredLayout layered =
+        layeredLayout(size, ledges, ast.direction, kRankGap, kNodeGap);
+    const QList<QPointF> center = layered.centers;
 
     // ---- emit entity tables ----
     QList<QRectF> rects(N);
@@ -244,17 +254,25 @@ Scene layoutErDiagram(const ErAst &ast, const LayoutOptions &opts)
     }
 
     // ---- relationships ----
+    // Entity tables, plus the labels already placed: what the next label has
+    // to keep clear of.
+    QList<QRectF> taken = rects;
     for (int ri = 0; ri < ast.relationships.size(); ++ri) {
         const ErRelationship &rel = ast.relationships.at(ri);
         const int u = idx.value(rel.from, -1);
         const int v = idx.value(rel.to, -1);
         if (u < 0 || v < 0)
             continue;
+        const QList<QPointF> way = ledgeOfRel.at(ri) >= 0
+            ? layered.edgeBends.at(ledgeOfRel.at(ri)) : QList<QPointF>();
         QPointF a, b;
         if (u == v) {
             const QRectF r = rects[u];
             a = QPointF(r.right(), r.center().y() - r.height() * 0.2);
             b = QPointF(r.right(), r.center().y() + r.height() * 0.2);
+        } else if (!way.isEmpty()) {
+            a = borderPoint(rects[u], way.first());
+            b = borderPoint(rects[v], way.last());
         } else {
             a = borderPoint(rects[u], rects[v].center());
             b = borderPoint(rects[v], rects[u].center());
@@ -284,6 +302,22 @@ Scene layoutErDiagram(const ErAst &ast, const LayoutOptions &opts)
             p.path = pp;
             p.startDir = QPointF(-1, 0);
             p.endDir = QPointF(-1, 0);
+        } else if (!way.isEmpty()) {
+            // The relationship crosses other ranks: follow the lane reserved
+            // in each of them rather than cutting over their tables.
+            QPainterPath pp(a);
+            for (int k = 0; k < way.size(); ++k) {
+                const QPointF next = k + 1 < way.size()
+                    ? (way.at(k) + way.at(k + 1)) / 2.0 : b;
+                pp.quadTo(way.at(k), next);
+            }
+            p.path = pp;
+            auto unit = [](QPointF v) {
+                const double l = std::hypot(v.x(), v.y());
+                return l > 0.001 ? v / l : v;
+            };
+            p.startDir = unit(a - way.first());
+            p.endDir = unit(b - way.last());
         } else if (len > 40.0) {
             QPainterPath pp(lineStart);
             pp.lineTo(lineEnd);
@@ -307,9 +341,9 @@ Scene layoutErDiagram(const ErAst &ast, const LayoutOptions &opts)
             t.role = Role::EdgeLabel;
             t.fontSize = qMax(10, opts.fontPixelSize - 1);
             t.hasBackground = true;
-            const QPointF mid = (a + b) / 2.0;
             const double w = fm.horizontalAdvance(rel.label) + 8;
-            t.rect = QRectF(mid.x() - w / 2, mid.y() - lineH / 2, w, lineH);
+            t.rect = placeEdgeLabel(p.path, QSizeF(w, lineH), taken);
+            taken.append(t.rect);
             scene.texts.append(t);
         }
     }

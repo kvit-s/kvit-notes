@@ -112,6 +112,11 @@ private:
     QHash<int, int> m_itemOfNote;        // note index -> item id
     QHash<int, QList<int>> m_children;   // scope (-1 root) -> item ids
     QHash<int, QRectF> m_absRect;        // item id -> absolute rect
+    // Waypoints for transitions that cross ranks, in the coordinates of the
+    // scope that placed them, with the origin that scope was emitted at.
+    QHash<int, QList<QPointF>> m_transitionBends;
+    QHash<int, int> m_transitionScope;
+    QHash<int, QPointF> m_scopeOrigin;
 };
 
 QSizeF StateLayout::leafSize(const StateNode &s) const
@@ -173,12 +178,21 @@ QSizeF StateLayout::placeScope(int scope)
 
     // Edges projected to this scope.
     QList<LayeredEdge> ledges;
-    for (const StateTransition &t : m_ast.transitions) {
+    QList<int> transitionOfLedge;   // ledge -> transition, -1 for a note tether
+    for (int ti = 0; ti < m_ast.transitions.size(); ++ti) {
+        const StateTransition &t = m_ast.transitions.at(ti);
         const int a = projectToScope(m_ast.indexOfState(t.from), scope);
         const int b = projectToScope(m_ast.indexOfState(t.to), scope);
         if (a < 0 || b < 0 || a == b)
             continue;
-        ledges.append({ int(kids.indexOf(a)), int(kids.indexOf(b)), 1 });
+        LayeredEdge le { int(kids.indexOf(a)), int(kids.indexOf(b)), 1, 0.0 };
+        if (!t.label.isEmpty()) {
+            const bool horizontal = m_ast.direction == Direction::LR
+                                    || m_ast.direction == Direction::RL;
+            le.labelMain = horizontal ? textW(t.label) + 8 : m_fm.height();
+        }
+        transitionOfLedge.append(ti);
+        ledges.append(le);
     }
     for (int n = 0; n < m_ast.notes.size(); ++n) {
         const int noteItem = m_itemOfNote.value(n, -1);
@@ -196,8 +210,9 @@ QSizeF StateLayout::placeScope(int scope)
         }
     }
 
-    const QList<QPointF> centers =
-        layeredCenters(sizes, ledges, m_ast.direction, kRankGap, kNodeGap);
+    const LayeredLayout layered =
+        layeredLayout(sizes, ledges, m_ast.direction, kRankGap, kNodeGap);
+    const QList<QPointF> &centers = layered.centers;
 
     // Normalize to a (0,0) top-left content origin.
     double minX = 1e18, minY = 1e18, maxX = -1e18, maxY = -1e18;
@@ -207,8 +222,25 @@ QSizeF StateLayout::placeScope(int scope)
         maxX = qMax(maxX, centers.at(k).x() + sizes.at(k).width() / 2);
         maxY = qMax(maxY, centers.at(k).y() + sizes.at(k).height() / 2);
     }
+    const QPointF shift(minX, minY);
     for (int k = 0; k < kids.size(); ++k)
-        m_items[kids.at(k)].center = centers.at(k) - QPointF(minX, minY);
+        m_items[kids.at(k)].center = centers.at(k) - shift;
+    // Keep each transition's waypoints in this scope's coordinates. A
+    // transition belongs to exactly one scope — the innermost one holding
+    // both its ends as separate items — and the routing pass, which runs in
+    // absolute coordinates once every scope is placed, shifts them by the
+    // origin that scope was emitted at.
+    for (int li = 0; li < transitionOfLedge.size(); ++li) {
+        const QList<QPointF> &way = layered.edgeBends.at(li);
+        if (way.isEmpty())
+            continue;
+        QList<QPointF> local;
+        local.reserve(way.size());
+        for (const QPointF &pt : way)
+            local.append(pt - shift);
+        m_transitionScope.insert(transitionOfLedge.at(li), scope);
+        m_transitionBends.insert(transitionOfLedge.at(li), local);
+    }
     return QSizeF(maxX - minX, maxY - minY);
 }
 
@@ -310,6 +342,7 @@ void StateLayout::emitLeafState(const StateNode &s, const QRectF &r)
 
 void StateLayout::emitScope(int scope, const QPointF &origin)
 {
+    m_scopeOrigin.insert(scope, origin);
     for (const int itemId : m_children.value(scope)) {
         const Item &item = m_items.at(itemId);
         const QRectF r(origin.x() + item.center.x() - item.size.width() / 2,
@@ -381,6 +414,17 @@ void StateLayout::run()
 
     // ---- transitions: routed globally between absolute rects ----
     const double lineH = m_fm.height();
+    // What a transition label has to keep clear of: every state box and note,
+    // and the labels already placed. A composite's own box is not an obstacle
+    // — the transitions between its children belong inside it.
+    QList<QRectF> taken;
+    for (auto it = m_absRect.constBegin(); it != m_absRect.constEnd(); ++it) {
+        const Item &item = m_items.at(it.key());
+        if (item.stateIndex >= 0
+            && m_ast.states.at(item.stateIndex).composite)
+            continue;
+        taken.append(it.value());
+    }
     for (int ti = 0; ti < m_ast.transitions.size(); ++ti) {
         const StateTransition &t = m_ast.transitions.at(ti);
         const int a = m_itemOfState.value(m_ast.indexOfState(t.from), -1);
@@ -395,6 +439,15 @@ void StateLayout::run()
         p.srcLen = t.srcSpan.length;
         p.strokeWidth = 1.4;
         p.endMarker = Marker::Arrow;
+        // Waypoints, lifted from the scope that placed this transition into
+        // the absolute coordinates everything is routed in.
+        QList<QPointF> way;
+        if (m_transitionBends.contains(ti)) {
+            const QPointF origin =
+                m_scopeOrigin.value(m_transitionScope.value(ti, -1));
+            for (const QPointF &pt : m_transitionBends.value(ti))
+                way.append(origin + pt);
+        }
         QPointF pa, pb;
         if (a == b) {
             pa = QPointF(ra.right(), ra.center().y() - ra.height() * 0.2);
@@ -406,6 +459,25 @@ void StateLayout::run()
             p.path = pp;
             p.startDir = QPointF(-1, 0);
             p.endDir = QPointF(-1, 0);
+        } else if (!way.isEmpty()) {
+            // The transition crosses other ranks — a back edge to an earlier
+            // state usually does — so it follows the lane reserved for it in
+            // each of them instead of cutting across their boxes.
+            pa = borderPoint(ra, way.first());
+            pb = borderPoint(rb, way.last());
+            QPainterPath pp(pa);
+            for (int k = 0; k < way.size(); ++k) {
+                const QPointF next = k + 1 < way.size()
+                    ? (way.at(k) + way.at(k + 1)) / 2.0 : pb;
+                pp.quadTo(way.at(k), next);
+            }
+            p.path = pp;
+            auto unit = [](QPointF v) {
+                const double l = std::hypot(v.x(), v.y());
+                return l > 0.001 ? v / l : v;
+            };
+            p.startDir = unit(pa - way.first());
+            p.endDir = unit(pb - way.last());
         } else {
             pa = borderPoint(ra, rb.center());
             pb = borderPoint(rb, ra.center());
@@ -429,9 +501,9 @@ void StateLayout::run()
             tx.role = Role::EdgeLabel;
             tx.fontSize = qMax(10, m_opts.fontPixelSize - 1);
             tx.hasBackground = true;
-            const QPointF mid = (pa + pb) / 2.0;
             const double w = textW(t.label) + 8;
-            tx.rect = QRectF(mid.x() - w / 2, mid.y() - lineH / 2, w, lineH);
+            tx.rect = placeEdgeLabel(p.path, QSizeF(w, lineH), taken);
+            taken.append(tx.rect);
             m_scene.texts.append(tx);
         }
     }

@@ -35,6 +35,13 @@ struct SceneColors {
 void paintScene(QPainter *painter, const Scene &scene, const SceneColors &colors,
                 const QString &fontFamily);
 
+// How far a marker reaches back along its line from the endpoint it sits on.
+// Layout needs it to stop a line inside a hollow head and to keep an end
+// label — a cardinality, say — from being drawn on top of the head. The
+// shapes are defined here, so the measurements belong here too rather than
+// being guessed at a second time.
+double markerLength(Marker kind);
+
 } // namespace Diagram
 
 #endif // DIAGRAMPAINTER_H

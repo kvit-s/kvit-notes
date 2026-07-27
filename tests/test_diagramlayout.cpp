@@ -36,6 +36,24 @@ class TestDiagramLayout : public QObject
         o.fontPixelSize = 14;
         return o;
     }
+    // Lay out whichever family the source names, so a fixture can be written
+    // exactly as a user would type it.
+    static Scene layoutAny(const QString &src)
+    {
+        MermaidParser p;
+        const ParseResult r = p.parse(src);
+        LayoutOptions o = opts();
+        switch (r.type) {
+        case DiagramType::Flowchart:
+            o.direction = r.flowchart.direction;
+            return layoutFlowchart(r.flowchart, o);
+        case DiagramType::Sequence: return layoutSequence(r.sequence, o);
+        case DiagramType::Class:    return layoutClassDiagram(r.classDiagram, o);
+        case DiagramType::State:    return layoutStateDiagram(r.stateDiagram, o);
+        case DiagramType::Er:       return layoutErDiagram(r.er, o);
+        default:                    return Scene();
+        }
+    }
 
 private slots:
     void producesShapesAndPaths()
@@ -284,6 +302,162 @@ private slots:
         QCOMPARE(s.shapes.size(), 100);
         qInfo() << "100-node layout:" << ms << "ms";
         QVERIFY2(ms < 1500, "layout unexpectedly slow");
+    }
+
+    // ---- edge labels and the nodes they must keep clear of ----
+
+    // An edge whose ends are more than one rank apart passes over the ranks
+    // between them. Both its route and its label have to keep out of whatever
+    // occupies those ranks, or the label prints over a box and the line runs
+    // through it.
+    void rankSkippingEdgeClearsTheNodeBetween()
+    {
+        // B->C spans two ranks (B, then D, then C), so it passes over D.
+        const Scene s = layoutAny(QStringLiteral(
+            "flowchart LR\n"
+            "A([Start]) --> B{Vault set?}\n"
+            "B -- yes --> C[Open collection]\n"
+            "B -- no --> D[(Seed Welcome)]\n"
+            "D --> C\n"
+            "C --> E[/Render note/]"));
+
+        QRectF d;
+        for (const Shape &sh : s.shapes)
+            if (sh.nodeId == QLatin1String("D"))
+                d = sh.rect;
+        QVERIFY(!d.isNull());
+
+        for (const Text &t : s.texts) {
+            if (t.role != Role::EdgeLabel)
+                continue;
+            QVERIFY2(!t.rect.intersects(d),
+                     qPrintable(QStringLiteral("edge label \"%1\" printed over "
+                                               "node D").arg(t.text)));
+        }
+        // The route itself must not cross D either: it is the same defect
+        // seen as a line through a box rather than as text over one.
+        for (const Path &p : s.paths)
+            QVERIFY2(!p.path.intersects(d.adjusted(2, 2, -2, -2)),
+                     "an edge is routed through node D");
+    }
+
+    // The five sources of docs/qa-checklist.md item 6, one per family. The
+    // checklist asks a human to confirm every edge label sits in open space;
+    // this is that check, run on every build.
+    void checklistDiagramsKeepLabelsOffBoxes()
+    {
+        struct Case { const char *name; const char *src; };
+        const QList<Case> cases = {
+            { "flowchart",
+              "flowchart LR\n"
+              "    A([Start]) --> B{Vault set?}\n"
+              "    B -- yes --> C[Open collection]\n"
+              "    B -- no --> D[(Seed Welcome)]\n"
+              "    D --> C\n"
+              "    C --> E[/Render note/]\n" },
+            { "sequence",
+              "sequenceDiagram\n"
+              "    autonumber\n"
+              "    participant U as User\n"
+              "    participant E as Editor\n"
+              "    participant S as Serializer\n"
+              "    U->>E: type a heading\n"
+              "    activate E\n"
+              "    E->>S: block changed\n"
+              "    S-->>E: markdown\n"
+              "    deactivate E\n"
+              "    Note over S: debounced save\n" },
+            { "class",
+              "classDiagram\n"
+              "    class Block {\n"
+              "        +BlockType type\n"
+              "        +QString content\n"
+              "        +render() void\n"
+              "    }\n"
+              "    class CodeBlock {\n"
+              "        +QString language\n"
+              "    }\n"
+              "    Block <|-- CodeBlock\n"
+              "    Block \"1\" o-- \"0..*\" Attribute\n" },
+            { "state",
+              "stateDiagram-v2\n"
+              "    [*] --> Idle\n"
+              "    Idle --> Editing: keypress\n"
+              "    Editing --> Saving: debounce\n"
+              "    Saving --> Idle: written\n"
+              "    Saving --> Conflict: file changed\n"
+              "    Conflict --> Idle: resolved\n"
+              "    Conflict --> [*]: discarded\n" },
+            { "er",
+              "erDiagram\n"
+              "    COLLECTION ||--o{ NOTE : contains\n"
+              "    NOTE ||--o{ BLOCK : \"is made of\"\n"
+              "    NOTE }o--o{ NOTE : links-to\n"
+              "    NOTE {\n"
+              "        string title PK\n"
+              "        date created\n"
+              "        string tags \"comma separated\"\n"
+              "    }\n" },
+        };
+
+        for (const Case &c : cases) {
+            const Scene s = layoutAny(QString::fromUtf8(c.src));
+            QVERIFY2(!s.shapes.isEmpty(), c.name);
+
+            // The ground an arrowhead, diamond or crow's foot covers: from
+            // the endpoint it sits on, back along the line it came in on.
+            QList<QRectF> markers;
+            auto addMarker = [&](Marker kind, const QPointF &tip,
+                                 const QPointF &outward) {
+                const double reach = markerLength(kind);
+                if (reach <= 0)
+                    return;
+                const double len = std::hypot(outward.x(), outward.y());
+                if (len < 0.001)
+                    return;
+                // Widened a little across the line, since every head has some
+                // width; a label brushing that edge is judged by the shrunk
+                // rect below rather than by this box.
+                const QPointF into = -outward / len;
+                markers.append(QRectF(tip, tip + into * reach)
+                                   .normalized()
+                                   .adjusted(-2, -2, 2, 2));
+            };
+            for (const Path &p : s.paths) {
+                addMarker(p.startMarker, p.startPoint, p.startDir);
+                addMarker(p.endMarker, p.endPoint, p.endDir);
+            }
+
+            QList<QRectF> seen;
+            for (const Text &t : s.texts) {
+                if (t.role != Role::EdgeLabel || t.text.isEmpty())
+                    continue;
+                for (const Shape &sh : s.shapes) {
+                    // Two pixels of contact with a border is contact rather
+                    // than an overlap.
+                    if (t.rect.intersects(sh.rect.adjusted(2, 2, -2, -2)))
+                        QFAIL(qPrintable(
+                            QStringLiteral("%1: label \"%2\" over node %3")
+                                .arg(QLatin1String(c.name), t.text, sh.nodeId)));
+                }
+                // A text rect carries the font's leading above and below the
+                // glyphs, so a label set just clear of a line brushes the
+                // head's box without a reader seeing them touch. Judge by the
+                // ink rather than by the box.
+                const QRectF ink = t.rect.adjusted(2, 3, -2, -3);
+                for (const QRectF &m : markers)
+                    if (ink.intersects(m))
+                        QFAIL(qPrintable(
+                            QStringLiteral("%1: label \"%2\" over a line end")
+                                .arg(QLatin1String(c.name), t.text)));
+                for (const QRectF &other : seen)
+                    if (t.rect.intersects(other))
+                        QFAIL(qPrintable(
+                            QStringLiteral("%1: label \"%2\" over another label")
+                                .arg(QLatin1String(c.name), t.text)));
+                seen.append(t.rect);
+            }
+        }
     }
 
     // ---- mathematics in labels (diagram-math.md) ----

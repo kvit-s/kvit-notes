@@ -299,6 +299,28 @@ void drawMarker(QPainter *p, Marker kind, const QPointF &tip, const QPointF &dir
 
 } // namespace
 
+double markerLength(Marker kind)
+{
+    // Each number is the reach of the shape drawn above, measured from the
+    // tip back along the line.
+    switch (kind) {
+    case Marker::None: return 0.0;
+    case Marker::Arrow:
+    case Marker::OpenArrow: return 9.0;
+    case Marker::Cross: return 10.2;        // centre 6.0 plus half-size 4.2
+    case Marker::Dot: return 7.0;
+    case Marker::TriangleOpen: return 13.0;
+    case Marker::DiamondFilled:
+    case Marker::DiamondOpen: return 12.0;  // 2 x the 6.0 half-diagonal
+    case Marker::CircleOpen: return 10.0;
+    case Marker::ErOne: return 11.0;
+    case Marker::ErZeroOne: return 19.0;    // circle centred at 15, radius 4
+    case Marker::ErMany: return 15.0;
+    case Marker::ErZeroMany: return 20.0;   // circle centred at 16, radius 4
+    }
+    return 0.0;
+}
+
 void paintScene(QPainter *painter, const Scene &scene, const SceneColors &colors,
                 const QString &fontFamily)
 {

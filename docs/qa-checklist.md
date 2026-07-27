@@ -189,13 +189,146 @@ Run against the installed artifact with a fresh user profile.
        *Expect:* both render; entering the formula with the cursor reveals
        the TeX source, leaving it re-renders. See the macOS watch-list for
        inline spacing.
-6. [ ] Render one diagram of each Mermaid family (flowchart, sequence,
-       class, state, ER); drag a flowchart node.
-       *Expect:* all five render natively, and the drag rewrites the
-       markdown source rather than only moving pixels.
-7. [ ] Paste a crooked ASCII diagram; accept the repair.
-       *Expect:* columns align after repair and the source stays plain
-       text.
+6. [ ] Render one diagram of each Mermaid family. Insert a Mermaid block
+       with `/mermaid` for each source below and type or paste the source
+       into it — the ` ```mermaid ` markers here are this document's
+       formatting, not part of what goes in the block. Then drag the
+       flowchart's `C` node to a clear spot and click away.
+
+       ```mermaid
+       flowchart LR
+           A([Start]) --> B{Vault set?}
+           B -- yes --> C[Open collection]
+           B -- no --> D[(Seed Welcome)]
+           D --> C
+           C --> E[/Render note/]
+       ```
+
+       ```mermaid
+       sequenceDiagram
+           autonumber
+           participant U as User
+           participant E as Editor
+           participant S as Serializer
+           U->>E: type a heading
+           activate E
+           E->>S: block changed
+           S-->>E: markdown
+           deactivate E
+           Note over S: debounced save
+       ```
+
+       ```mermaid
+       classDiagram
+           class Block {
+               +BlockType type
+               +QString content
+               +render() void
+           }
+           class CodeBlock {
+               +QString language
+           }
+           Block <|-- CodeBlock
+           Block "1" o-- "0..*" Attribute
+       ```
+
+       ```mermaid
+       stateDiagram-v2
+           [*] --> Idle
+           Idle --> Editing: keypress
+           Editing --> Saving: debounce
+           Saving --> Idle: written
+           Saving --> Conflict: file changed
+           Conflict --> Idle: resolved
+           Conflict --> [*]: discarded
+       ```
+
+       ```mermaid
+       erDiagram
+           COLLECTION ||--o{ NOTE : contains
+           NOTE ||--o{ BLOCK : "is made of"
+           NOTE }o--o{ NOTE : links-to
+           NOTE {
+               string title PK
+               date created
+               string tags "comma separated"
+           }
+       ```
+
+       *Expect:* all five render as drawings, with no blank block, no
+       diagnostic line, and no fallback to editable source. Each family
+       carries something specific to judge by: the flowchart draws four
+       distinct shapes (stadium, rhombus, cylinder, parallelogram) with
+       `yes` and `no` on the branch edges; the sequence diagram numbers
+       its messages, puts an activation bar on Editor, returns on a
+       dashed arrow, and places the note over Serializer; the class
+       diagram gives Block a three-compartment box, a hollow-triangle end
+       on the inheritance line, and `1` / `0..*` beside the aggregation
+       diamond; the state diagram has a filled start dot, an end target,
+       and a label on every transition; the ER diagram shows crow's-foot
+       ends and NOTE's attribute table with its `PK` marker and quoted
+       comment.
+
+       Three of these sources contain an edge whose ends are more than one
+       rank apart — `B` to `C` in the flowchart, the two transitions back
+       to `Idle` in the state diagram, and NOTE's relationship to itself.
+       Each has to travel past whatever stands between its ends, so look
+       at those three specifically: the line curves around the boxes in
+       the way rather than crossing them, and its label sits in open space
+       rather than printed over a box or over another label. This is the
+       part of diagram layout that has broken before.
+
+       *Expect, from the drag:* the node follows the pointer, and the fence
+       source gains one comment line that starts `%% mermaid-flow:pos` and
+       lists every node as `id=x,y` — read it back through the block's Copy
+       source or its Edit source menu item. Nothing else in the source
+       changes. The node is still where you left it after a reopen, and
+       Ctrl+Z undoes the move in one step.
+7. [ ] Paste a crooked ASCII diagram; accept the repair. Paste this into an
+       empty paragraph, backtick fence included — the fence has no language
+       on purpose, since detection is what tags it.
+
+       ````
+       ```
+       ┌──────────┐
+       │ Editor     │
+       │ (QML)      │
+       └────┬───────┘
+             │
+       ┌─────▼──────┐        ┌───────────┐
+       │ Serializer │ ─────► │ Markdown    │
+       │ blocks     │        │ file       │
+       └────────────┘        └───────────┘
+       ```
+       ````
+
+       Three flaws are built in: the first box's top edge stops two
+       columns short of its own walls, the tee below it sits one column
+       left of the connector it feeds, and the Markdown box's right wall
+       juts out on both text rows.
+
+       *Expect:* the block arrives already straightened, reading exactly
+
+       ```
+       ┌────────────┐
+       │ Editor     │
+       │ (QML)      │
+       └─────┬──────┘
+             │
+       ┌─────▼──────┐        ┌───────────┐
+       │ Serializer │ ─────► │ Markdown  │
+       │ blocks     │        │ file      │
+       └────────────┘        └───────────┘
+       ```
+
+       so the corners meet their walls and the tee, the connector and the
+       arrowhead share one column. Label text keeps the column it was
+       pasted at; only border characters move. The block is an ordinary
+       editable code block with **Text diagram** ticked in its language
+       menu, and the saved file holds it as a ` ```diagram ` fence of
+       plain text. Ctrl+Z undoes the whole paste in one step, rather than
+       peeling the repair off it or leaving a half-repaired drawing.
+
 8. [ ] Wiki-links: `[[` completion, follow, backlinks panel, quick
        switcher (Ctrl+P).
        *Expect:* completion lists existing notes, following opens the

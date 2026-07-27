@@ -25,6 +25,13 @@ constexpr double kMinW = 46.0;
 constexpr double kMinH = 30.0;
 constexpr double kRankGap = 58.0;   // gap between ranks along the main axis
 constexpr double kNodeGap = 30.0;   // gap between siblings along the cross axis
+// Cross-axis room a placeholder takes in a rank an edge only passes through:
+// enough for the line and its stroke to clear the boxes on either side
+// without opening a gap wide enough to read as an empty column.
+constexpr double kLaneWidth = 10.0;
+// Slack around a label that sets how far apart two ranks must be for it to
+// fit in the gap between them.
+constexpr double kLabelGapPad = 16.0;
 constexpr double kMargin = 16.0;
 constexpr double kSubgraphPad = 16.0;
 
@@ -98,15 +105,18 @@ QStringList labelLines(const QString &label)
     return s.split(u'\n');
 }
 
-QList<QPointF> layeredCenters(const QList<QSizeF> &size,
-                              const QList<LayeredEdge> &edges,
-                              Direction direction,
-                              double rankGap, double nodeGap)
+LayeredLayout layeredLayout(const QList<QSizeF> &sizeIn,
+                            const QList<LayeredEdge> &edges,
+                            Direction direction,
+                            double rankGap, double nodeGap)
 {
-    const int N = size.size();
-    QList<QPointF> center(N);
+    const int N = sizeIn.size();
+    LayeredLayout out;
+    out.centers = QList<QPointF>(N);
+    out.edgeBends = QList<QList<QPointF>>(edges.size());
     if (N == 0)
-        return center;
+        return out;
+    QList<QSizeF> size = sizeIn;
 
     // ---- adjacency, cycle breaking, ranking ----
     QList<QList<QPair<int, int>>> adj(N);   // (target, minLen), forward candidates
@@ -173,19 +183,59 @@ QList<QPointF> layeredCenters(const QList<QSizeF> &size,
     for (int i = 0; i < N; ++i)
         maxRank = qMax(maxRank, rank[i]);
 
-    // ---- order within ranks (barycenter crossing reduction) ----
-    QList<QList<int>> layers(maxRank + 1);
-    for (int i = 0; i < N; ++i)
-        layers[rank[i]].append(i);   // encounter order within a layer
-
-    QList<QList<int>> undirected(N);
-    for (const LayeredEdge &e : edges) {
+    // ---- placeholders for edges that span more than one rank ----
+    // Such an edge crosses every rank between its ends. Giving it a slot of
+    // its own in each of those ranks is what keeps it, and its label, out of
+    // the boxes standing there: the placeholders order alongside real nodes
+    // and take cross-axis room, so the ranks open up to let the edge past.
+    // They are also what lets a long edge influence crossing reduction,
+    // which it cannot do while it is invisible to every rank it passes over.
+    QList<QList<int>> edgeSlots(edges.size());   // placeholder ids, u -> v
+    for (int ei = 0; ei < edges.size(); ++ei) {
+        const LayeredEdge &e = edges.at(ei);
         if (e.u < 0 || e.v < 0 || e.u >= N || e.v >= N || e.u == e.v)
             continue;
-        undirected[e.u].append(e.v);
-        undirected[e.v].append(e.u);
+        const int ru = rank[e.u];
+        const int rv = rank[e.v];
+        if (qAbs(ru - rv) < 2)
+            continue;
+        const int step = ru < rv ? 1 : -1;
+        for (int r = ru + step; r != rv; r += step) {
+            edgeSlots[ei].append(size.size());
+            size.append(QSizeF(kLaneWidth, kLaneWidth));
+            rank.append(r);
+        }
     }
-    QList<int> posInLayer(N, 0);
+    const int M = size.size();
+    QList<QPointF> center(M);
+
+    // ---- order within ranks (barycenter crossing reduction) ----
+    QList<QList<int>> layers(maxRank + 1);
+    for (int i = 0; i < M; ++i)
+        layers[rank[i]].append(i);   // encounter order within a layer
+
+    QList<QList<int>> undirected(M);
+    auto link = [&](int a, int b) {
+        undirected[a].append(b);
+        undirected[b].append(a);
+    };
+    for (int ei = 0; ei < edges.size(); ++ei) {
+        const LayeredEdge &e = edges.at(ei);
+        if (e.u < 0 || e.v < 0 || e.u >= N || e.v >= N || e.u == e.v)
+            continue;
+        // A split edge is adjacent through its placeholders rather than
+        // end to end, so each rank it crosses sees it.
+        const QList<int> &lane = edgeSlots.at(ei);
+        if (lane.isEmpty()) {
+            link(e.u, e.v);
+            continue;
+        }
+        link(e.u, lane.first());
+        for (int k = 0; k + 1 < lane.size(); ++k)
+            link(lane.at(k), lane.at(k + 1));
+        link(lane.last(), e.v);
+    }
+    QList<int> posInLayer(M, 0);
     auto refreshPos = [&]() {
         for (const QList<int> &layer : layers)
             for (int k = 0; k < layer.size(); ++k)
@@ -225,7 +275,20 @@ QList<QPointF> layeredCenters(const QList<QSizeF> &size,
         return horizontal ? size[i].height() : size[i].width();
     };
 
-    // Main-axis band positions.
+    // Main-axis band positions. Each gap opens wide enough for the labels of
+    // the edges crossing it, so a label is never asked to fit between two
+    // boxes that stand closer together than the label is long.
+    QList<double> gapAfter(maxRank + 1, rankGap);
+    for (const LayeredEdge &e : edges) {
+        if (e.u < 0 || e.v < 0 || e.u >= N || e.v >= N || e.u == e.v
+            || e.labelMain <= 0)
+            continue;
+        const int lo = qMin(rank[e.u], rank[e.v]);
+        const int hi = qMax(rank[e.u], rank[e.v]);
+        for (int l = lo; l < hi; ++l)
+            gapAfter[l] = qMax(gapAfter[l], e.labelMain + kLabelGapPad);
+    }
+
     QList<double> layerMainStart(maxRank + 1, 0.0);
     QList<double> layerMainExtent(maxRank + 1, 0.0);
     double mainCursor = 0;
@@ -235,9 +298,9 @@ QList<QPointF> layeredCenters(const QList<QSizeF> &size,
             extent = qMax(extent, mainSize(i));
         layerMainStart[l] = mainCursor;
         layerMainExtent[l] = extent;
-        mainCursor += extent + rankGap;
+        mainCursor += extent + gapAfter[l];
     }
-    const double totalMain = mainCursor > 0 ? mainCursor - rankGap : 0;
+    const double totalMain = mainCursor > 0 ? mainCursor - gapAfter[maxRank] : 0;
 
     // Cross-axis positions, each layer centered against the widest.
     QList<double> layerCrossTotal(maxRank + 1, 0.0);
@@ -269,7 +332,112 @@ QList<QPointF> layeredCenters(const QList<QSizeF> &size,
             cross += crossSize(i) + nodeGap;
         }
     }
-    return center;
+
+    for (int i = 0; i < N; ++i)
+        out.centers[i] = center.at(i);
+    for (int ei = 0; ei < edges.size(); ++ei)
+        for (int slot : edgeSlots.at(ei))
+            out.edgeBends[ei].append(center.at(slot));
+    return out;
+}
+
+QList<QPointF> layeredCenters(const QList<QSizeF> &size,
+                              const QList<LayeredEdge> &edges,
+                              Direction direction,
+                              double rankGap, double nodeGap)
+{
+    return layeredLayout(size, edges, direction, rankGap, nodeGap).centers;
+}
+
+QRectF placeEdgeLabel(const QPainterPath &path, const QSizeF &size,
+                      const QList<QRectF> &obstacles)
+{
+    auto rectAt = [&](const QPointF &c) {
+        return QRectF(c.x() - size.width() / 2.0, c.y() - size.height() / 2.0,
+                      size.width(), size.height());
+    };
+    auto clear = [&](const QRectF &r) {
+        for (const QRectF &o : obstacles)
+            if (r.intersects(o))
+                return false;
+        return true;
+    };
+    if (path.isEmpty())
+        return rectAt(QPointF(0, 0));
+
+    const QRectF preferred = rectAt(path.pointAtPercent(0.5));
+    if (clear(preferred))
+        return preferred;
+
+    // Slide along the path, alternating either side of the middle, staying
+    // clear of the ends so the label never sits under an arrowhead.
+    for (int step = 1; step <= 8; ++step) {
+        const double d = step * 0.05;
+        for (const double t : { 0.5 - d, 0.5 + d }) {
+            if (t < 0.12 || t > 0.88)
+                continue;
+            const QRectF r = rectAt(path.pointAtPercent(t));
+            if (clear(r))
+                return r;
+        }
+    }
+
+    // Still nothing: step sideways off the line, which keeps the label beside
+    // its own edge rather than on top of a box.
+    const QPointF mid = path.pointAtPercent(0.5);
+    const double angle = path.angleAtPercent(0.5) * M_PI / 180.0;
+    const QPointF perp(-std::sin(angle), -std::cos(angle));
+    for (int step = 1; step <= 4; ++step) {
+        const double d = step * (size.height() + 4.0);
+        for (const double s : { 1.0, -1.0 }) {
+            const QRectF r = rectAt(mid + perp * (d * s));
+            if (clear(r))
+                return r;
+        }
+    }
+    return preferred;
+}
+
+QRectF placeEndLabel(const QPointF &tip, const QPointF &dir,
+                     double markerLength, const QSizeF &size,
+                     const QList<QRectF> &obstacles)
+{
+    const double len = std::hypot(dir.x(), dir.y());
+    const QPointF d = len > 0.001 ? dir / len : QPointF(1, 0);
+    const QPointF perp(-d.y(), d.x());
+    // The label's reach along each axis of the line, so the clearances below
+    // hold whichever way the edge runs.
+    const double halfAlong =
+        (qAbs(d.x()) * size.width() + qAbs(d.y()) * size.height()) / 2.0;
+    const double halfAcross =
+        (qAbs(perp.x()) * size.width() + qAbs(perp.y()) * size.height()) / 2.0;
+    const double pad = 3.0;
+    const double across = halfAcross + pad;
+
+    auto rectAt = [&](const QPointF &c) {
+        return QRectF(c.x() - size.width() / 2.0, c.y() - size.height() / 2.0,
+                      size.width(), size.height());
+    };
+    auto clear = [&](const QRectF &r) {
+        for (const QRectF &o : obstacles)
+            if (r.intersects(o))
+                return false;
+        return true;
+    };
+
+    const double along0 = markerLength + halfAlong + pad;
+    QRectF first;
+    for (int step = 0; step <= 6; ++step) {
+        const double along = along0 + step * 7.0;
+        for (const double side : { 1.0, -1.0 }) {
+            const QRectF r = rectAt(tip + d * along + perp * (across * side));
+            if (first.isNull())
+                first = r;
+            if (clear(r))
+                return r;
+        }
+    }
+    return first;
 }
 
 void finalizeSceneBounds(Scene &scene, qreal margin)
@@ -431,18 +599,37 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
             }
         }
     }
+    // Per edge, the waypoints its route passes through between ranks. Empty
+    // for an edge between neighbouring ranks, and in arranged mode, where the
+    // reader has placed the nodes and there are no ranks to speak of.
+    QList<QList<QPointF>> bends(ast.edges.size());
     if (!arranged) {
         QList<LayeredEdge> ledges;
+        QList<int> ledgeOfEdge(ast.edges.size(), -1);
         ledges.reserve(ast.edges.size());
-        for (const Edge &e : ast.edges) {
+        for (int ei = 0; ei < ast.edges.size(); ++ei) {
+            const Edge &e = ast.edges.at(ei);
             const int u = idx.value(e.from, -1);
             const int v = idx.value(e.to, -1);
             if (u < 0 || v < 0)
                 continue;
-            ledges.append({ u, v, qMax(1, e.minLen) });
+            LayeredEdge le { u, v, qMax(1, e.minLen), 0.0 };
+            if (!e.label.isEmpty()) {
+                const QSizeF ms = mathLabelSize(mathLabel(e.label), font);
+                le.labelMain = horizontal
+                    ? (ms.isValid() ? ms.width()
+                                    : fm.horizontalAdvance(e.label) + 8)
+                    : (ms.isValid() ? ms.height() : lineH);
+            }
+            ledgeOfEdge[ei] = ledges.size();
+            ledges.append(le);
         }
-        center = layeredCenters(size, ledges, opts.direction, kRankGap,
-                                kNodeGap);
+        const LayeredLayout ll =
+            layeredLayout(size, ledges, opts.direction, kRankGap, kNodeGap);
+        center = ll.centers;
+        for (int ei = 0; ei < ast.edges.size(); ++ei)
+            if (ledgeOfEdge.at(ei) >= 0)
+                bends[ei] = ll.edgeBends.at(ledgeOfEdge.at(ei));
     }
 
     // ---- emit node shapes and labels ----
@@ -484,6 +671,9 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
     }
 
     // ---- route edges ----
+    // What an edge label has to keep clear of: every node box, and every
+    // label already placed.
+    QList<QRectF> taken = rects;
     // Arranged mode bows parallel edges apart; count pair multiplicity.
     QHash<QPair<int, int>, int> pairCount;
     QHash<QPair<int, int>, int> pairSeen;
@@ -574,6 +764,27 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
                 startDir /= sl;
             p.endDir = endDir;
             p.startDir = startDir;
+        } else if (!bends.at(ei).isEmpty()) {
+            // An edge crossing other ranks follows its own lane through each
+            // of them, so it passes between their boxes rather than over.
+            const QList<QPointF> &way = bends.at(ei);
+            a = borderPoint(rects[u], way.first());
+            b = borderPoint(rects[v], way.last());
+            QPainterPath path(a);
+            for (int k = 0; k < way.size(); ++k) {
+                const QPointF next = k + 1 < way.size()
+                    ? (way.at(k) + way.at(k + 1)) / 2.0 : b;
+                path.quadTo(way.at(k), next);   // rounded, not a hard corner
+            }
+            p.path = path;
+            p.startPoint = a;
+            p.endPoint = b;
+            auto unit = [](QPointF d) {
+                const double len = std::hypot(d.x(), d.y());
+                return len > 0.001 ? d / len : d;
+            };
+            p.startDir = unit(a - way.first());
+            p.endDir = unit(b - way.last());
         } else {
             a = borderPoint(rects[u], center[v]);
             b = borderPoint(rects[v], center[u]);
@@ -592,14 +803,14 @@ Scene layoutFlowchart(const FlowchartAst &ast, const LayoutOptions &opts)
         scene.paths.append(p);
 
         if (!e.label.isEmpty()) {
-            const QPointF mid = (a + b) / 2.0;
             const QString tex = mathLabel(e.label);
             const QSizeF mathSize = mathLabelSize(tex, font);
             const double lw = mathSize.isValid()
                 ? mathSize.width() + 8 : fm.horizontalAdvance(e.label) + 8;
             const double lh = mathSize.isValid() ? mathSize.height() : lineH;
             Text tx;
-            tx.rect = QRectF(mid.x() - lw / 2.0, mid.y() - lh / 2.0, lw, lh);
+            tx.rect = placeEdgeLabel(p.path, QSizeF(lw, lh), taken);
+            taken.append(tx.rect);
             tx.text = e.label;
             tx.tex = mathSize.isValid() ? tex : QString();
             tx.role = Role::EdgeLabel;

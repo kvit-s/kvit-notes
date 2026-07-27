@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "diagramlayout.h"
+#include "diagrampainter.h"   // marker geometry, so layout and painting agree
 
 #include <QFont>
 #include <QFontMetricsF>
@@ -40,14 +41,17 @@ Marker markerForEnd(ClassRelEnd end)
     return Marker::None;
 }
 
-// How far the connecting line stops short of a hollow marker's tip so the
-// stroke does not show through it.
+// How far the connecting line stops short of a marker's tip so the stroke
+// does not show through a hollow head. The painter owns the shapes, so the
+// reach comes from there rather than from a second set of numbers that can
+// drift out of step with it.
 double markerInset(ClassRelEnd end)
 {
     switch (end) {
-    case ClassRelEnd::Extension: return 12.0;
-    case ClassRelEnd::Aggregation: return 12.0;
-    case ClassRelEnd::Lollipop: return 10.0;
+    case ClassRelEnd::Extension:
+    case ClassRelEnd::Aggregation:
+    case ClassRelEnd::Lollipop:
+        return markerLength(markerForEnd(end));
     default: return 0.0;
     }
 }
@@ -142,17 +146,27 @@ Scene layoutClassDiagram(const ClassAst &ast, const LayoutOptions &opts)
     }
 
     // ---- place with the shared layered core ----
+    const bool horizontal = ast.direction == Direction::LR
+                            || ast.direction == Direction::RL;
     QList<LayeredEdge> ledges;
+    QList<int> ledgeOfRel(ast.relations.size(), -1);
     ledges.reserve(ast.relations.size());
-    for (const ClassRelation &r : ast.relations) {
+    for (int ri = 0; ri < ast.relations.size(); ++ri) {
+        const ClassRelation &r = ast.relations.at(ri);
         const int u = idx.value(r.from, -1);
         const int v = idx.value(r.to, -1);
         if (u < 0 || v < 0)
             continue;
-        ledges.append({ u, v, 1 });
+        LayeredEdge le { u, v, 1, 0.0 };
+        if (!r.label.isEmpty())
+            le.labelMain = horizontal
+                ? fm.horizontalAdvance(r.label) + 8 : lineH;
+        ledgeOfRel[ri] = ledges.size();
+        ledges.append(le);
     }
-    const QList<QPointF> center =
-        layeredCenters(size, ledges, ast.direction, kRankGap, kNodeGap);
+    const LayeredLayout layered =
+        layeredLayout(size, ledges, ast.direction, kRankGap, kNodeGap);
+    const QList<QPointF> center = layered.centers;
 
     // ---- emit class boxes ----
     QList<QRectF> rects(N);
@@ -232,18 +246,26 @@ Scene layoutClassDiagram(const ClassAst &ast, const LayoutOptions &opts)
     }
 
     // ---- relations ----
+    // Class boxes, plus the labels already placed: what the next label has to
+    // keep clear of.
+    QList<QRectF> taken = rects;
     for (int ri = 0; ri < ast.relations.size(); ++ri) {
         const ClassRelation &rel = ast.relations.at(ri);
         const int u = idx.value(rel.from, -1);
         const int v = idx.value(rel.to, -1);
         if (u < 0 || v < 0)
             continue;
+        const QList<QPointF> way = ledgeOfRel.at(ri) >= 0
+            ? layered.edgeBends.at(ledgeOfRel.at(ri)) : QList<QPointF>();
         QPointF a, b;
         QPointF dirA, dirB;
         if (u == v) {
             const QRectF r = rects[u];
             a = QPointF(r.right(), r.center().y() - r.height() * 0.2);
             b = QPointF(r.right(), r.center().y() + r.height() * 0.2);
+        } else if (!way.isEmpty()) {
+            a = borderPoint(rects[u], way.first());
+            b = borderPoint(rects[v], way.last());
         } else {
             a = borderPoint(rects[u], rects[v].center());
             b = borderPoint(rects[v], rects[u].center());
@@ -274,6 +296,22 @@ Scene layoutClassDiagram(const ClassAst &ast, const LayoutOptions &opts)
             p.path = pp;
             p.startDir = QPointF(-1, 0);
             p.endDir = QPointF(-1, 0);
+        } else if (!way.isEmpty()) {
+            // The relation crosses other ranks: follow the lane reserved in
+            // each of them rather than cutting over their boxes.
+            QPainterPath pp(a);
+            for (int k = 0; k < way.size(); ++k) {
+                const QPointF next = k + 1 < way.size()
+                    ? (way.at(k) + way.at(k + 1)) / 2.0 : b;
+                pp.quadTo(way.at(k), next);
+            }
+            p.path = pp;
+            auto unit = [](QPointF vec) {
+                const double l = std::hypot(vec.x(), vec.y());
+                return l > 0.001 ? vec / l : vec;
+            };
+            p.startDir = unit(a - way.first());
+            p.endDir = unit(b - way.last());
         } else {
             QPainterPath pp(lineStart);
             pp.lineTo(lineEnd);
@@ -285,6 +323,12 @@ Scene layoutClassDiagram(const ClassAst &ast, const LayoutOptions &opts)
         p.endPoint = b;
         scene.paths.append(p);
 
+        // A cardinality belongs to one end of the relation, so it is placed
+        // from that end: past the marker drawn there and beside the line, not
+        // on either. `startDir`/`endDir` point outward from the path, so the
+        // direction back along the edge is their negation, which is right for
+        // a straight relation, one routed through lanes, and a self-loop
+        // alike.
         const double cardSize = qMax(9, opts.fontPixelSize - 3);
         if (!rel.fromCard.isEmpty()) {
             Text t;
@@ -292,9 +336,11 @@ Scene layoutClassDiagram(const ClassAst &ast, const LayoutOptions &opts)
             t.role = Role::EdgeLabel;
             t.fontSize = cardSize;
             t.hasBackground = true;
-            const QPointF pos = a + d * 16.0;
             const double w = fm.horizontalAdvance(rel.fromCard) + 6;
-            t.rect = QRectF(pos.x() - w / 2, pos.y() - lineH / 2 - 6, w, lineH);
+            t.rect = placeEndLabel(a, -p.startDir,
+                                   markerLength(p.startMarker),
+                                   QSizeF(w, lineH), taken);
+            taken.append(t.rect);
             scene.texts.append(t);
         }
         if (!rel.toCard.isEmpty()) {
@@ -303,9 +349,10 @@ Scene layoutClassDiagram(const ClassAst &ast, const LayoutOptions &opts)
             t.role = Role::EdgeLabel;
             t.fontSize = cardSize;
             t.hasBackground = true;
-            const QPointF pos = b - d * 16.0;
             const double w = fm.horizontalAdvance(rel.toCard) + 6;
-            t.rect = QRectF(pos.x() - w / 2, pos.y() - lineH / 2 - 6, w, lineH);
+            t.rect = placeEndLabel(b, -p.endDir, markerLength(p.endMarker),
+                                   QSizeF(w, lineH), taken);
+            taken.append(t.rect);
             scene.texts.append(t);
         }
         if (!rel.label.isEmpty()) {
@@ -314,9 +361,9 @@ Scene layoutClassDiagram(const ClassAst &ast, const LayoutOptions &opts)
             t.role = Role::EdgeLabel;
             t.fontSize = qMax(10, opts.fontPixelSize - 1);
             t.hasBackground = true;
-            const QPointF mid = (a + b) / 2.0;
             const double w = fm.horizontalAdvance(rel.label) + 8;
-            t.rect = QRectF(mid.x() - w / 2, mid.y() - lineH / 2, w, lineH);
+            t.rect = placeEdgeLabel(p.path, QSizeF(w, lineH), taken);
+            taken.append(t.rect);
             scene.texts.append(t);
         }
     }
