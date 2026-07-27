@@ -186,7 +186,15 @@ void NoteBackupStore::backupBeforeOverwrite(const QString &relPath,
         m_writer(dirPath, target, bytes);
         return;
     }
-    QtConcurrent::run(writeBackupSnapshot, dirPath, target, std::move(bytes));
+    // Fire and forget. QtConcurrent::run is nodiscard because a caller
+    // usually wants the future, and this one has nothing to do with it: no
+    // result comes back, and a QFuture that goes out of scope neither cancels
+    // nor waits, so keeping it would change nothing. The global pool is
+    // waited for at exit, which is what lands a snapshot begun just before
+    // the window closed.
+    const auto snapshot = QtConcurrent::run(writeBackupSnapshot, dirPath,
+                                            target, std::move(bytes));
+    Q_UNUSED(snapshot);
 }
 
 QVariantList NoteBackupStore::listFor(

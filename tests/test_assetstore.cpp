@@ -27,7 +27,9 @@ private slots:
         const QString n1 = AssetStore::uniqueAssetName(d, "note", "20260708-120000", "png");
         QCOMPARE(n1, QStringLiteral("note-20260708-120000.png"));
         // Create it, then the next name gets a -1 suffix.
-        QFile f(QDir(d).filePath(n1)); f.open(QIODevice::WriteOnly); f.close();
+        QFile f(QDir(d).filePath(n1));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.close();
         const QString n2 = AssetStore::uniqueAssetName(d, "note", "20260708-120000", "png");
         QCOMPARE(n2, QStringLiteral("note-20260708-120000-1.png"));
     }
@@ -60,7 +62,7 @@ private slots:
         QDir(root).mkpath("pics");
         QDir(root).mkpath("folder");
         const QString src = root + "/pics/cat.jpg";
-        { QFile f(src); f.open(QIODevice::WriteOnly); f.write("x"); f.close(); }
+        { QFile f(src); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("x"); f.close(); }
         AssetStore store;
 
         // A file already under the root is linked in place (root-relative,
@@ -76,7 +78,7 @@ private slots:
         QTemporaryDir dir;
         const QString root = dir.path();
         const QString src = extern_.path() + "/outside.png";
-        { QFile f(src); f.open(QIODevice::WriteOnly); f.write("x"); f.close(); }
+        { QFile f(src); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("x"); f.close(); }
         AssetStore store;
 
         const QString stored = store.ingestFile(src, "note", root, root);
@@ -98,7 +100,7 @@ private slots:
         QTemporaryDir dir;
         const QString root = dir.path();
         const QString src = extern_.path() + "/photo #2.png";
-        { QFile f(src); f.open(QIODevice::WriteOnly); f.write("x"); f.close(); }
+        { QFile f(src); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("x"); f.close(); }
         QVERIFY(QFileInfo::exists(src));
         AssetStore store;
 
@@ -188,7 +190,7 @@ private slots:
         // A file drop takes the same route and is refused the same way.
         QTemporaryDir source;
         const QString src = source.filePath(QStringLiteral("photo.png"));
-        { QFile f(src); f.open(QIODevice::WriteOnly); f.write("x"); f.close(); }
+        { QFile f(src); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("x"); f.close(); }
         QVERIFY(store.ingestFile(src, QStringLiteral("note"), root, root)
                     .isEmpty());
         QCOMPARE(QDir(outside.filePath("elsewhere"))

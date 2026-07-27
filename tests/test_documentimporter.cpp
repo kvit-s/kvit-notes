@@ -52,7 +52,12 @@ private:
         const QString abs = QDir(m_src->path()).filePath(relPath);
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QFile f(abs);
-        f.open(QIODevice::WriteOnly);
+        // The check QVERIFY makes, written out: QVERIFY returns on failure,
+        // which a helper handing back a path cannot do. A fixture that cannot
+        // be written is recorded as the failure it is, at this line, rather
+        // than surfacing later as a note whose content never arrived.
+        QTest::qVerify(f.open(QIODevice::WriteOnly), "f.open(QIODevice::WriteOnly)",
+                       "the fixture file could not be created", __FILE__, __LINE__);
         QTextStream(&f) << content;
         f.close();
         return abs;

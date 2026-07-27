@@ -159,7 +159,7 @@ private slots:
         QDir(root).mkpath("assets");
         // A file under the note folder AND under the root; note-relative wins.
         auto writeFile = [](const QString &p) {
-            QFile f(p); f.open(QIODevice::WriteOnly); f.write("x"); f.close();
+            QFile f(p); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("x"); f.close();
         };
         writeFile(root + "/folder/assets/pic.png");
         writeFile(root + "/assets/pic.png");
