@@ -755,6 +755,12 @@ Rectangle {
     FolderDialog {
         id: openFolderDialog
         objectName: "toolbarOpenFolderDialog"
+        // Owned by the application window, and where the platform has no
+        // folder chooser of its own, shown inside it: the dialog Qt builds
+        // in that case is a top-level window, and an unowned one never gives
+        // the keyboard focus back on Wayland when it closes.
+        parentWindow: toolbar.appWindow
+        popupType: Popup.Item
         property bool inNewWindow: false
         title: qsTr("Open Folder as Vault")
         onAccepted: {

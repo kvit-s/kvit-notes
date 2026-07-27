@@ -1196,6 +1196,12 @@ BlockDelegateBase {
     FileDialog {
         id: savePngDialog
         objectName: "diagramSavePngDialog"
+        // Owned by the application window, and where the platform has no
+        // file chooser of its own, shown inside it: the dialog Qt builds in
+        // that case is a top-level window, and an unowned one never gives
+        // the keyboard focus back on Wayland when it closes.
+        parentWindow: root.shell
+        popupType: Popup.Item
         fileMode: FileDialog.SaveFile
         defaultSuffix: "png"
         nameFilters: [ qsTr("PNG images (*.png)") ]

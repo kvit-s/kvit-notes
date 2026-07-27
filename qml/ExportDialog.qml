@@ -144,6 +144,12 @@ Dialog {
     FileDialog {
         id: saveFileDialog
         objectName: "exportSaveFileDialog"
+        // Owned by the application window, and where the platform has no
+        // file chooser of its own, shown inside it: the dialog Qt builds in
+        // that case is a top-level window, and an unowned one never gives
+        // the keyboard focus back on Wayland when it closes.
+        parentWindow: exportDialog.appWindow
+        popupType: Popup.Item
         fileMode: FileDialog.SaveFile
         defaultSuffix: DocumentExporter.extensionFor(exportDialog.format)
         onAccepted: {
@@ -166,6 +172,10 @@ Dialog {
     FolderDialog {
         id: destFolderDialog
         objectName: "exportFolderDialog"
+        // As above: owned by the window, and inside it when Qt has to build
+        // the dialog itself.
+        parentWindow: exportDialog.appWindow
+        popupType: Popup.Item
         onAccepted: {
             exportDialog.destination = DocumentManager.toLocalPath(selectedFolder)
             var started = exportDialog.scope === "selection"

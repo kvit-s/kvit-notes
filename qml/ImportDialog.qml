@@ -259,6 +259,12 @@ Dialog {
     FileDialog {
         id: importFileDialog
         objectName: "importFileDialog"
+        // Owned by the application window, and where the platform has no
+        // file chooser of its own, shown inside it: the dialog Qt builds in
+        // that case is a top-level window, and an unowned one never gives
+        // the keyboard focus back on Wayland when it closes.
+        parentWindow: importDialog.appWindow
+        popupType: Popup.Item
         fileMode: FileDialog.OpenFiles
         nameFilters: ["Markdown/Text (*.md *.markdown *.txt)", "All files (*)"]
         onAccepted: {
@@ -274,6 +280,10 @@ Dialog {
     FolderDialog {
         id: importFolderDialog
         objectName: "importFolderDialog"
+        // As above: owned by the window, and inside it when Qt has to build
+        // the dialog itself.
+        parentWindow: importDialog.appWindow
+        popupType: Popup.Item
         onAccepted: {
             importDialog.pendingKind = "folder"
             importDialog.pendingDir =

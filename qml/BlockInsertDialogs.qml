@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
+import QtQuick.Window
 import Kvit 1.0
 
 // Putting an image, a web embed or a table into an empty block (features.md
@@ -203,6 +204,20 @@ Item {
     FileDialog {
         id: imageFileDialog
         objectName: "imageFileDialog"
+        // Both lines are about who owns this dialog, and neither changes a
+        // platform that has a file chooser of its own: Qt still uses the
+        // native one, and hands it the parent window it should be modal to.
+        //
+        // Where there is no native chooser, Qt builds the dialog itself, and
+        // an unowned one becomes a top-level window. Closing that window on
+        // Wayland leaves the compositor with nothing to give the keyboard
+        // focus back to, and the application cannot take it back either,
+        // because a Wayland client cannot activate itself. The window keeps
+        // drawing and keeps following the pointer while nothing typed
+        // arrives anywhere, which reads as a hang. Popup.Item keeps that
+        // built dialog inside this window, where no focus changes hands.
+        parentWindow: inserts.Window.window
+        popupType: Popup.Item
         title: qsTr("Choose an image")
         nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.gif *.webp *.svg *.bmp)"),
                       qsTr("All files (*)")]
