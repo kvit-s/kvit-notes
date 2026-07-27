@@ -1400,7 +1400,13 @@ BlockDelegateBase {
             // keeps a long line inside the panel.
             clip: delegate.codeChrome
 
+            // Above the text: the overlay's job is to cover the editor's own
+            // first glyph, and its children's z values only order the mask
+            // against the letter inside it. Without a z here the whole overlay
+            // paints under the TextArea declared further down, so the mask
+            // covers nothing and the initial appears twice.
             Loader {
+                z: 5
                 active: delegate.hasDropCap
                 sourceComponent: dropCapComponent
             }
@@ -1409,10 +1415,24 @@ BlockDelegateBase {
                 // Drop-cap chrome is rare; keeping it behind a Loader avoids
                 // building text metrics and masks for ordinary rows.
                 DropCapOverlay {
-                    letter: delegate.content.charAt(0)
+                    // The rendered text, not the markdown: the initial has to
+                    // be the glyph the editor actually draws first, which for
+                    // a paragraph opening in bold is the letter and not the
+                    // asterisk hidden with the rest of the markers.
+                    letter: delegate.displayText.charAt(0)
+                    nextLetter: delegate.displayText.charAt(1)
                     active: delegate.dropCapActive
                     bodyFontFamily: textArea.font.family
                     bodyFontPixelSize: delegate.contentFontSize
+                    // The hover and selection tints are opaque, so the mask has
+                    // to name whichever of the three is actually behind the
+                    // paragraph or it reads as a patch of page color. These are
+                    // the same conditions hoverBackground and selectionBackground
+                    // are drawn under; the drop cap only renders unfocused.
+                    maskColor: delegate.blockSelected
+                        ? Theme.blockSelectionTint
+                        : (delegate.isHovered ? Theme.blockHoverTint
+                                              : Theme.windowBackground)
                     textOriginX: textArea.x + textArea.leftPadding
                     textOriginY: textArea.y + textArea.topPadding
                     letterColor: delegate.dropCapColor

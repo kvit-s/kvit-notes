@@ -21,6 +21,10 @@ Item {
     // The paragraph's first character, drawn twice: once at body size by the
     // editor underneath, once enlarged here.
     property string letter: ""
+    // The character after it. Nothing draws it; it is here to measure where
+    // the editor puts the second glyph, which the pair's kerning moves. Empty
+    // when the paragraph is a single character.
+    property string nextLetter: ""
     // Whether to draw at all. The effect is a display form: the block turns it
     // off while it holds the caret so the paragraph reflows to normal text for
     // editing.
@@ -45,18 +49,47 @@ Item {
         font.pixelSize: root.bodyFontPixelSize
         text: root.letter
     }
+    TextMetrics {
+        id: pairMetrics
+        font.family: root.bodyFontFamily
+        font.pixelSize: root.bodyFontPixelSize
+        text: root.letter + root.nextLetter
+    }
+    TextMetrics {
+        id: nextMetrics
+        font.family: root.bodyFontFamily
+        font.pixelSize: root.bodyFontPixelSize
+        text: root.nextLetter
+    }
+
+    // How far right of the text origin the editor starts the second glyph.
+    // Taking the second character's own advance off the pair's width leaves the
+    // first character's advance plus the kerning between the two, which is
+    // where the mask has to stop: the first glyph's advance width alone
+    // ignores the kern, and a font that tucks the next letter under the initial
+    // then has its left edge painted over.
+    readonly property real firstGlyphAdvance: root.nextLetter === ""
+        ? bodyMetrics.advanceWidth
+        : pairMetrics.advanceWidth - nextMetrics.advanceWidth
 
     Rectangle {
         objectName: "dropCapMask"
         visible: root.active
         // One pixel left of the glyph: antialiasing puts ink just outside the
-        // advance width, which would otherwise survive as a sliver.
+        // advance width, which would otherwise survive as a sliver. There is no
+        // matching slack on the right, where the next character begins.
         x: root.textOriginX - 1
         y: root.textOriginY
-        width: bodyMetrics.advanceWidth + 3
+        width: Math.round(root.firstGlyphAdvance) + 1
         height: bodyMetrics.height
         color: root.maskColor
         z: 4
+
+        // The hover tint the mask sits on fades over 100ms; matching it keeps
+        // the covered glyph's patch from stepping ahead of its background.
+        Behavior on color {
+            ColorAnimation { duration: 100 }
+        }
     }
 
     Text {
