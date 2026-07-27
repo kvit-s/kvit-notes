@@ -159,6 +159,21 @@ QString classifyFenceLanguage(const QString &language, const QString &content)
     return language;
 }
 
+// The whole ingest pass for one fenced block: an eligible info string is
+// classified, and a body that is a character diagram is straightened. Every
+// boundary where a fence enters a document runs this — opening a file,
+// pasting markdown, pasting into a code block, or declaring a block to be a
+// text diagram — so none of them can apply a different policy from the rest.
+void ingestFence(QString *language, QString *content)
+{
+    *language = classifyFenceLanguage(*language, *content);
+    const QString id = language->trimmed().toLower();
+    if (id == QLatin1String("diagram")
+        || id == QLatin1String("text-diagram")
+        || id == QLatin1String("ascii-diagram"))
+        *content = DiagramRepair::repair(*content);
+}
+
 // A block whose markdown spans several lines cannot carry its attribute tag
 // on the last one: for a fenced block that line is the closer, and both fence
 // scanners demand a bare closer, so a tagged closer never terminates the block
@@ -469,6 +484,16 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
     return BlockAttributes::attachTag(base, block->attributes());
 }
 
+QVariantMap DocumentSerializer::ingestCodeFence(const QString &language,
+                                                const QString &content) const
+{
+    QString lang = language;
+    QString body = content;
+    ingestFence(&lang, &body);
+    return { { QStringLiteral("language"), lang },
+             { QStringLiteral("content"), body } };
+}
+
 QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &markdown) const
 {
     QList<BlockData> blocks;
@@ -622,20 +647,13 @@ QList<DocumentSerializer::BlockData> DocumentSerializer::parse(const QString &ma
             data.type = Block::CodeBlock;
             data.content = codeLines.join(QLatin1Char('\n'));
             data.attributes = fenceAttrs;
-            // Ingest character-diagram tagging: rewrite an eligible untagged
-            // fence to `diagram`.
-            data.language = classifyFenceLanguage(language, data.content);
-            // Ingest straightening: a diagram fence has its LLM
-            // alignment flaws conservatively repaired, in the same pass
-            // family as the LLM markdown normalizations — idempotent,
-            // divergence-armed .bak, undoable on paste.
-            {
-                const QString id = data.language.trimmed().toLower();
-                if (id == QLatin1String("diagram")
-                    || id == QLatin1String("text-diagram")
-                    || id == QLatin1String("ascii-diagram"))
-                    data.content = DiagramRepair::repair(data.content);
-            }
+            // Ingest: an eligible untagged fence is retagged `diagram`, and a
+            // diagram body has its LLM alignment flaws conservatively
+            // repaired — the same pass family as the LLM markdown
+            // normalizations, idempotent, divergence-armed .bak, undoable on
+            // paste.
+            data.language = language;
+            ingestFence(&data.language, &data.content);
             blocks.append(data);
             continue;
         }

@@ -206,8 +206,40 @@ BlockDelegateBase {
     // convertBlock to the same type/content keeps the delegate (delegateKind
     // is unchanged) while routing through the undo stack.
     function setCodeLanguage(lang) {
+        // Declaring a block to be a text diagram is a request to treat its
+        // body as one, so the body is straightened here the way it would be
+        // on the way in from a file. Every other language leaves it alone.
+        var ingested = DocumentSerializer.ingestCodeFence(lang, delegate.content)
         BlockModel.convertBlock(delegate.index, Block.CodeBlock,
-                                delegate.content, false, lang)
+                                ingested.content, false, ingested.language)
+    }
+
+    // Text pasted into a code block arrives from outside the document, which
+    // is the same boundary a file open is: an untagged fence holding a
+    // character diagram is recognised as one, and a crooked diagram is
+    // straightened. Typing in the block does not do this — a classifier
+    // running on every keystroke would retag the block under the writer.
+    //
+    // `current` is the block's text, `from`/`to` the range the paste
+    // replaces. When the ingest changes something the whole paste goes
+    // through the model as one command, so it undoes in one step instead of
+    // leaving the straightening to be taken back separately; returns whether
+    // it did, so the caller can fall back to an ordinary insert. The repair
+    // moves no character to the right of what it fixes, so the caret still
+    // belongs at the end of the pasted text.
+    function applyPastedCode(current, from, to, pasted) {
+        if (delegate.blockType !== Block.CodeBlock)
+            return false
+        var body = current.substring(0, from) + pasted + current.substring(to)
+        var ingested = DocumentSerializer.ingestCodeFence(delegate.language,
+                                                          body)
+        if (ingested.content === body
+            && ingested.language === delegate.language)
+            return false
+        BlockModel.convertBlock(delegate.index, Block.CodeBlock,
+                                ingested.content, false, ingested.language)
+        delegate.refocusBlock(delegate.index, from + pasted.length)
+        return true
     }
 
     // ---- Code-block indentation ----
@@ -1860,6 +1892,15 @@ BlockDelegateBase {
                         // markdown. Verbatim blocks keep multi-line pastes
                         // whole — newlines are content there.
                         var pos = selectionStart
+                        // A code block runs the fence ingest over what the
+                        // paste leaves behind, so a character diagram is
+                        // recognised and straightened the way it would be
+                        // coming from a file. It takes the edit over when it
+                        // changes anything.
+                        if (delegate.verbatimEditing
+                            && delegate.applyPastedCode(text, pos,
+                                                        selectionEnd, pasted))
+                            return
                         if (selectionEnd > selectionStart) {
                             remove(selectionStart, selectionEnd)
                         }

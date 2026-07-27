@@ -8,6 +8,7 @@
 #include <QString>
 #include <QList>
 #include <QVariantList>
+#include <QVariantMap>
 #include "block.h"
 
 class BlockModel;
@@ -61,6 +62,19 @@ public:
 
     // Parse Markdown string to block data
     Q_INVOKABLE QList<BlockData> parse(const QString &markdown) const;
+
+    // Run the fenced-block ingest pass over one code block's info string and
+    // body, returning {"language", "content"}.
+    //
+    // Opening a file and pasting markdown reach this through parse(), which
+    // is where a crooked character diagram gets recognised and straightened.
+    // A code block that already exists never goes through parse() again, so
+    // text pasted into one — or a body the reader has just declared to be a
+    // text diagram — needs the same pass applied on its own. Editing the
+    // body by hand deliberately does not: a classifier that ran on every
+    // keystroke would retag a block out from under whoever is typing in it.
+    Q_INVOKABLE QVariantMap ingestCodeFence(const QString &language,
+                                            const QString &content) const;
 
     // Load directly into model (clears existing blocks)
     Q_INVOKABLE void loadIntoModel(BlockModel *model, const QString &markdown);

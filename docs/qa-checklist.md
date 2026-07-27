@@ -329,6 +329,20 @@ Run against the installed artifact with a fresh user profile.
        plain text. Ctrl+Z undoes the whole paste in one step, rather than
        peeling the repair off it or leaving a half-repaired drawing.
 
+       Then repeat the paste the other way round: insert an empty code
+       block with `/code`, click into it, and paste the same drawing on its
+       own, without the fence lines.
+
+       *Expect:* the same straightened result, again with **Text diagram**
+       ticked and one Ctrl+Z to undo it. Then paste an ordinary function
+       into a fresh code block and confirm it is left exactly as copied and
+       still says **Plain text**: the detection has to claim drawings
+       without claiming code.
+
+       *Also check:* type a crooked box by hand into a code block. It stays
+       exactly as typed, since the repair runs on text arriving from
+       outside rather than on every keystroke. Choosing **Text diagram**
+       from the language menu straightens it then and there.
 8. [ ] Wiki-links: `[[` completion, follow, backlinks panel, quick
        switcher (Ctrl+P).
        *Expect:* completion lists existing notes, following opens the

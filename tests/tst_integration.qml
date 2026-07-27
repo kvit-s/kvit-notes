@@ -2229,6 +2229,116 @@ Item {
             compare(joined[0], drawing, "with every line of it, in order")
         }
 
+        // A crooked drawing pasted into a code block is straightened, and the
+        // block is recognised as a text diagram, exactly as opening a file
+        // holding the same fence would do. Before this the ingest pass ran
+        // only in the serializer, which an existing block never goes through
+        // again, so a pasted diagram kept every flaw it arrived with.
+        function test_69h4_crookedDiagramPastedIntoCodeBlockStraightens() {
+            // Two boxes, an arrow, and three flaws: a short top edge, a tee
+            // one column off its connector, and a ragged right wall.
+            var crooked = "┌──────────┐\n"
+                        + "│ Editor     │\n"
+                        + "│ (QML)      │\n"
+                        + "└────┬───────┘\n"
+                        + "      │\n"
+                        + "┌─────▼──────┐        ┌───────────┐\n"
+                        + "│ Serializer │ ─────► │ Markdown    │\n"
+                        + "│ blocks     │        │ file       │\n"
+                        + "└────────────┘        └───────────┘"
+            var straight = "┌────────────┐\n"
+                         + "│ Editor     │\n"
+                         + "│ (QML)      │\n"
+                         + "└─────┬──────┘\n"
+                         + "      │\n"
+                         + "┌─────▼──────┐        ┌───────────┐\n"
+                         + "│ Serializer │ ─────► │ Markdown  │\n"
+                         + "│ blocks     │        │ file      │\n"
+                         + "└────────────┘        └───────────┘"
+
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.insertBlock(0, 8, "")   // CodeBlock, untagged
+            wait(150)
+            var delegate = findBlockDelegate(0)
+            var textArea = findTextArea(delegate)
+            ensureFocus(textArea)
+            textArea.cursorPosition = 0
+            wait(80)
+
+            // Driven through the paste entry point rather than a synthesized
+            // Ctrl+V: what is under test is what the paste does, and a
+            // stray keystroke arriving from the session mid-run has nothing
+            // to do with it.
+            Clipboard.text = crooked
+            delegate.pasteClipboard(false)
+            wait(250)
+
+            compare(BlockModel.getContent(0), straight,
+                    "A pasted character diagram is straightened")
+            compare(BlockModel.blockAt(0).language, "diagram",
+                    "and the block is recognised as a text diagram")
+
+            // Undo takes the paste and its straightening back together,
+            // leaving the block as it was rather than half-repaired.
+            UndoStack.undo()
+            wait(200)
+            compare(BlockModel.getContent(0), "",
+                    "One undo takes back the paste and the straightening")
+
+            // Ordinary code is left exactly as typed: the classifier only
+            // claims a body that really is a drawing.
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.insertBlock(0, 8, "")
+            wait(150)
+            var codeDelegate = findBlockDelegate(0)
+            var codeArea = findTextArea(codeDelegate)
+            ensureFocus(codeArea)
+            codeArea.cursorPosition = 0
+            wait(80)
+
+            var program = "def f(x):\n    return x + 1\n\nprint(f(2))"
+            Clipboard.text = program
+            codeDelegate.pasteClipboard(false)
+            wait(250)
+
+            compare(BlockModel.getContent(0), program,
+                    "Ordinary code is pasted unchanged")
+            compare(BlockModel.blockAt(0).language, "",
+                    "and is not claimed as a diagram")
+        }
+
+        // Choosing "Text diagram" for a block that already holds a crooked
+        // drawing straightens it: the reader has just said what the body is,
+        // which is the same claim the classifier makes on the way in.
+        function test_69h5_declaringATextDiagramStraightensIt() {
+            var crooked = "┌──────────┐\n│ ab    │\n│ cd    │\n└───────┘"
+            var straight = "┌───────┐\n│ ab    │\n│ cd    │\n└───────┘"
+
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.insertBlock(0, 8, crooked)
+            wait(150)
+
+            var delegate = findBlockDelegate(0)
+            delegate.setCodeLanguage("diagram")
+            wait(200)
+
+            compare(BlockModel.blockAt(0).language, "diagram",
+                    "The block carries the language that was chosen")
+            compare(BlockModel.getContent(0), straight,
+                    "and its body is straightened by the choice")
+
+            // Picking a programming language leaves the body alone.
+            BlockModel.updateContent(0, crooked)
+            wait(150)
+            findBlockDelegate(0).setCodeLanguage("python")
+            wait(200)
+            compare(BlockModel.getContent(0), crooked,
+                    "Choosing a code language does not rewrite the body")
+        }
+
         function test_69i_pastePlainStripsFormatting() {
             // §5.2: Ctrl+Shift+V strips markdown formatting.
             if (isHeadless) {

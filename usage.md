@@ -265,13 +265,17 @@ The available block types:
   block menu (`/mermaid`).
 - **Text diagram** — an ASCII/Unicode box-and-arrow drawing (the kind assistants often
   produce) stored in a `diagram`-tagged fence and shown as an ordinary code block, edited
-  like any other text. What makes it special happens when the note is opened or pasted: an
+  like any other text. What makes it special happens wherever a drawing enters a note, which
+  means opening the file, pasting the fence into the page, pasting the drawing into a code
+  block, or picking **Text diagram** for a block that already holds one. At each of those an
   untagged fence (or one tagged `text`/`plaintext`/`ascii`) whose body is a high-confidence
   character diagram is retagged `diagram` automatically, and the diagram is straightened
   like the other LLM repairs — box edges that miss their corners by a column or two and
   connectors that jog sideways are aligned by swapping border characters with adjacent
   spaces, so labels and everything else stay exactly where they were; anything ambiguous is
-  left as written. The first repairing save backs the file up to `.bak`, and a repaired
+  left as written. Editing the body by hand deliberately does not re-run any of this, since
+  a classifier firing on every keystroke would retag the block out from under whoever is
+  typing in it. The first repairing save backs the file up to `.bak`, and a repaired
   paste is one undo step. Pick **Plain code** in the language menu to opt a fence out of
   diagram detection and repair for good, or **Text diagram** to opt it in.
 - **Collection query** — a ` ```query ` fenced block rendering a live table or kanban-style
