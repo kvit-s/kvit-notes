@@ -55,11 +55,26 @@ mkdir -p "$BUILD_DIR"
 (
     cd "$BUILD_DIR"
 
-    # Configure
-    CMAKE_ARGS=""
+    # Configure.
+    #
+    # Shared modules for a local build. Every test executable links kvit-core
+    # and so the whole module chain, and a static link copies what it pulls
+    # into each of the 76 of them: 40 MB of test code became 1,646 MB of
+    # binaries. Shared, the same suite is 24 MB of binaries against one 34 MB
+    # set of libraries, the tree is 308 MB rather than 3.0 GB, and each link
+    # takes 0.34s and 83 MB of memory rather than 0.64s and 213 MB.
+    #
+    # It is not the default in CMakeLists.txt because packaging has no flag
+    # that marks it as packaging: the linux-release and macos-release presets
+    # set only CMAKE_BUILD_TYPE, and the Flathub manifest passes a bare
+    # -DCMAKE_BUILD_TYPE=Release with no preset at all. A default of ON would
+    # reach those and ship an app whose libraries were never installed
+    # alongside it. Asking for it here keeps it to the builds run from this
+    # script, which is where the disk is.
+    CMAKE_ARGS="-DKVIT_SHARED_LIBS=ON"
     if [ -n "$QT_PATH" ]; then
         echo "Using Qt from: $QT_PATH"
-        CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$QT_PATH"
+        CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_PREFIX_PATH=$QT_PATH"
     fi
 
     cmake .. $CMAKE_ARGS

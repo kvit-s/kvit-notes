@@ -220,12 +220,33 @@ add_subdirectory(third_party/microtex)
 # kvit-core remains as an interface target that pulls in all seven, so the
 # test suite and an external consumer that links "the editor" are unchanged.
 
+# ── Static or shared.
+#
+# The shipped app is one statically-linked file, which is what the AppImage,
+# Flatpak and AUR paths package, so that stays the default. It is a poor fit
+# for the test suite: 76 test executables each link kvit-core and therefore
+# the whole chain, and the linker copies what it pulls into every one of
+# them. Their own compiled code comes to 40 MB against 1,646 MB of linked
+# binaries.
+#
+# Building the modules shared for local development gives each test binary
+# its own object and one shared copy of everything else, without changing a
+# line of the test suite. MicroTeX stays static and is absorbed into
+# kvit-content once, rather than into all 76.
+option(KVIT_SHARED_LIBS
+       "Build the kvit-* modules as shared libraries (development builds)" OFF)
+if(KVIT_SHARED_LIBS)
+    set(KVIT_LIB_TYPE SHARED)
+else()
+    set(KVIT_LIB_TYPE STATIC)
+endif()
+
 # ── kvit-content — format transforms, and nothing else.
 #
 # Every file here is a pure function of its input: markdown in, markdown or
 # a parsed value out. Nothing reads a setting, opens a file or knows a block
 # model exists, which is what lets the layers above all share it.
-add_library(kvit-content STATIC
+add_library(kvit-content ${KVIT_LIB_TYPE}
     src/content/blockattributes.cpp
     src/content/codelanguages.cpp
     src/content/htmltomarkdown.cpp
@@ -274,7 +295,7 @@ target_link_libraries(kvit-content PRIVATE Qt6::Concurrent)
 target_include_directories(kvit-content PUBLIC src/content)
 
 # ── kvit-domain — the block document.
-add_library(kvit-domain STATIC
+add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/block.cpp
     src/domain/blockkindregistry.cpp
     src/domain/blockmodel.cpp
@@ -312,7 +333,7 @@ target_include_directories(kvit-domain PUBLIC src/domain)
 # Sql is PRIVATE and named nowhere else: the FTS5 database is this module's
 # implementation detail, and a caller asks it questions rather than issuing
 # queries of its own.
-add_library(kvit-search STATIC
+add_library(kvit-search ${KVIT_LIB_TYPE}
     src/search/collectionsearchindex.cpp
     src/search/searchindexdb.cpp
     src/search/searchindexfeed.cpp
@@ -329,7 +350,7 @@ target_include_directories(kvit-search PUBLIC src/search)
 # one cannot open a connection because it has nothing to open one with.
 # PUBLIC only because egressfetcher.h holds a QNetworkAccessManager member
 # and names QHostAddress in its resolver seam.
-add_library(kvit-platform STATIC
+add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/accessibilityannouncer.cpp
     src/platform/clipboardhelper.cpp
     src/platform/egressfetcher.cpp
@@ -359,7 +380,7 @@ target_include_directories(kvit-platform PUBLIC src/platform)
 # currently open, whose in-memory body the document session owns; the
 # repository reaches that session through the OpenDocumentSession interface
 # and never through the class that implements it.
-add_library(kvit-repository STATIC
+add_library(kvit-repository ${KVIT_LIB_TYPE}
     src/repository/assetstore.cpp
     src/repository/collectionstatestore.cpp
     src/repository/documentimporter.cpp
@@ -383,7 +404,7 @@ target_link_libraries(kvit-repository PRIVATE Qt6::Concurrent)
 target_include_directories(kvit-repository PUBLIC src/repository)
 
 # ── kvit-application — use-case orchestration.
-add_library(kvit-application STATIC
+add_library(kvit-application ${KVIT_LIB_TYPE}
     src/application/blockmenumodel.cpp
     src/application/collectionsearch.cpp
     src/application/documentexporter.cpp
@@ -404,7 +425,7 @@ target_link_libraries(kvit-application PRIVATE Qt6::Concurrent Qt6::Widgets)
 target_include_directories(kvit-application PUBLIC src/application)
 
 # ── kvit-qml — the presentation surface and the composition root.
-add_library(kvit-qml STATIC
+add_library(kvit-qml ${KVIT_LIB_TYPE}
     src/qml/appcontext.cpp
     src/qml/blockeditorengine.cpp
     src/qml/codehighlighter.cpp
