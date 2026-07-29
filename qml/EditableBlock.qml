@@ -595,6 +595,13 @@ BlockDelegateBase {
     function markdownPositionAt(sceneX, sceneY) {
         return crossBlockSelection.markdownPositionAt(sceneX, sceneY)
     }
+    // Paint this block's share of a cross-block range that a mouse drag has
+    // just finished. Deferred, because the release that ends the drag also
+    // makes the editor collapse its own selection to the press point, and
+    // that happens after the handler this is called from.
+    function reapplySelectionPortion() {
+        crossBlockSelection.applyTextPortionLater(true)
+    }
     function pointInText(sceneX, sceneY) {
         return crossBlockSelection.pointInText(sceneX, sceneY)
     }

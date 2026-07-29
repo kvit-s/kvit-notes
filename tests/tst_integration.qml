@@ -8907,6 +8907,123 @@ Item {
             DocumentSelection.clearBlockSelection()
         }
 
+        // Dragging downward inside a block selects that text. The list flicks
+        // on vertical drags and used to take the pointer from the editor as
+        // soon as one passed the threshold, so the gesture for selecting a
+        // paragraph highlighted nothing and only moved the caret; a sideways
+        // drag, which the list has no use for, worked. Both are checked here,
+        // in a document long enough for the list to have somewhere to scroll.
+        function test_zo4_downwardDragSelectsInsideBlock() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "Opening paragraph with a few words in it.")
+            for (var i = 1; i < 25; i++)
+                BlockModel.insertBlock(i, 0, "Filler paragraph number " + i
+                    + " with enough words in it to take a line of its own.")
+            // Three lines of its own, so a drag has somewhere to go downward
+            // without leaving the block.
+            BlockModel.updateContent(3, "first line of the paragraph\n"
+                + "second line of the paragraph\nthird line of the paragraph")
+            wait(250)
+
+            var listView = findChild(appLoader.item, "blockListView")
+            verify(listView.contentHeight > listView.height,
+                   "The document is longer than the viewport")
+
+            var delegateItem = findBlockDelegate(3)
+            var textArea = findTextArea(delegateItem)
+            ensureFocus(textArea)
+            // Clicked into with the mouse first: the state the gesture failed
+            // in was a block already being worked in. The wait keeps the drag
+            // that follows from counting as the second click of a double one,
+            // which would snap the range to whole words.
+            var start = textArea.positionToRectangle(5)
+            mouseClick(textArea, start.x, start.y + start.height / 2)
+            wait(600)
+
+            function dragBy(dx, dy) {
+                textArea.deselect()
+                var r = textArea.positionToRectangle(5)
+                mousePress(textArea, r.x, r.y + r.height / 2)
+                for (var s = 1; s <= 5; s++) {
+                    mouseMove(textArea, r.x + dx * s, r.y + r.height / 2 + dy * s)
+                    wait(30)
+                }
+                mouseRelease(textArea, r.x + dx * 5, r.y + r.height / 2 + dy * 5)
+                wait(120)
+                var text = textArea.selectedText
+                wait(500)   // clear of the double-click window for the next drag
+                return text
+            }
+
+            var down = dragBy(4, 8)
+            verify(down.length > 0, "A downward drag selects text: '" + down + "'")
+            compare(textArea.selectionStart, 5, "…anchored where the press was")
+            compare(DocumentSelection.hasTextSelection, false,
+                    "A drag inside one block stays that block's own selection")
+            verify(listView.interactive,
+                   "The list takes its own drags back on release")
+
+            DocumentSelection.clearTextSelection()
+            var across = dragBy(12, 0)
+            verify(across.length > 0, "A sideways drag still selects")
+            compare(listView.contentY, 0, "Neither drag scrolled the list")
+            DocumentSelection.clearTextSelection()
+        }
+
+        // A drag that runs on past the block it started in leaves that block
+        // highlighted too. The anchor block paints its share of the range
+        // with its own selection while the mouse is down, and the release
+        // collapses that selection to the press point, so the highlight
+        // appeared to start at the end of the first block and run to the
+        // pointer. The block here is the shape that showed it: hard-wrapped,
+        // with hidden markers that the reveal rewrites as focus arrives.
+        function test_zo5_crossBlockDragKeepsTheAnchorBlockPainted() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "An opening paragraph before the rest.")
+            for (var i = 1; i < 12; i++)
+                BlockModel.insertBlock(i, 0, "Filler paragraph number " + i
+                    + " with enough words in it to take a line of its own.")
+            BlockModel.updateContent(3,
+                "**2. `editorEngine.stripFormatting` — pasted nothing.**\n"
+                + "`editorEngine` is an id inside `EditableBlock.qml`; `main.qml`\n"
+                + "referenced it across the file boundary, where ids do not reach.")
+            wait(250)
+
+            var listView = findChild(appLoader.item, "blockListView")
+            var anchorText = findTextArea(findBlockDelegate(3))
+            var head = anchorText.positionToRectangle(0)
+            var start = anchorText.mapToItem(null, head.x + 1,
+                                             head.y + head.height / 2)
+
+            mousePress(anchorText, head.x + 1, head.y + head.height / 2)
+            for (var s = 1; s <= 12; s++) {
+                var p = listView.mapFromItem(null, start.x + 6, start.y + 14 * s)
+                mouseMove(listView, p.x, p.y)
+                wait(30)
+            }
+            var end = listView.mapFromItem(null, start.x + 6, start.y + 168)
+            mouseRelease(listView, end.x, end.y)
+
+            tryCompare(DocumentSelection, "hasTextSelection", true, 1000)
+            compare(DocumentSelection.textAnchorIndex(), 3,
+                    "The range is anchored in the block the drag started in")
+            tryVerify(function() { return anchorText.selectedText.length > 0 },
+                      1000,
+                      "The block the drag started in stays highlighted after "
+                      + "the release")
+            verify(DocumentSelection.textHeadIndex() > 3,
+                   "…and the range runs on into the blocks below it")
+            DocumentSelection.clear()
+        }
+
         function test_zp_collectionContextMenus() {
             if (isHeadless) {
                 skip("Focus tests require display")

@@ -106,19 +106,22 @@ QtObject {
     // selection clear immediately followed by a document reload
     // (find-and-replace flows do this) tears the row down before the queued
     // call fires, and calling into its invalidated context is a TypeError.
-    function applyTextPortionLater() {
+    function applyTextPortionLater(force) {
         Qt.callLater(function() {
             if (root && typeof root.applyTextPortion === "function")
-                root.applyTextPortion()
+                root.applyTextPortion(force)
         })
     }
 
     // Apply this block's portion of the cross-block range to the
     // TextArea (persistentSelection keeps it visible unfocused). The
-    // focused anchor block needs no help — its native selection IS its
-    // portion while the mouse drags, and the keyboard paths manage it.
-    function applyTextPortion() {
-        if (root.pooled || root.editor.activeFocus)
+    // focused anchor block needs no help while the mouse is down — its
+    // native selection IS its portion then, and the keyboard paths manage
+    // it. `force` is the one moment that is not true: the release ends the
+    // drag by collapsing that native selection, and the anchor block has to
+    // be painted from the range like every other block in it.
+    function applyTextPortion(force) {
+        if (root.pooled || (root.editor.activeFocus && !force))
             return
         var p = DocumentSelection.portionForBlock(root.blockIndex)
         if (p.selected === true && p.end > p.start) {

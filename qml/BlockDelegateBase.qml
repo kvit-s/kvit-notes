@@ -53,6 +53,12 @@ Item {
     // vertical movement can keep its column across blocks.
     function xAtMarkdown(mdPos) { return 0 }
 
+    // Paint this row's share of a cross-block text range that a mouse drag
+    // has just finished, when the row is the one the drag started in. The
+    // shell calls it on the anchor row at the release; a row with no text
+    // has no share to paint, which is what the default here says.
+    function reapplySelectionPortion() {}
+
     // The slash / block menu, anchored at this block's caret. Only the text
     // delegates raise it — a divider or a media card has no caret to anchor
     // to — so callers guard on it and the default here does nothing, which

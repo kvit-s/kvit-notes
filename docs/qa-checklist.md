@@ -428,6 +428,16 @@ Run against the installed artifact with a fresh user profile.
         label and the date on the card's own line with the two dates in an
         HTML comment at the end of it. Clicking a day in the calendar does not
         also click the card behind it.
+23. [ ] Select text with the mouse: press inside a paragraph and drag straight
+        down over several of its lines, then across to the right, then on
+        through the blocks below it. Do it again in a block you have just been
+        typing in, and once in a code block. Then scroll the note with the
+        wheel and by dragging the scrollbar.
+        *Expect:* every drag highlights from the character it started on to the
+        one under the pointer, in the block it started in as well as the ones
+        it runs into. The list scrolls normally afterwards. The document does
+        not scroll under a selection drag unless the pointer reaches the top or
+        bottom edge of the viewport, where it scrolls to follow.
 
 ## Distribution
 

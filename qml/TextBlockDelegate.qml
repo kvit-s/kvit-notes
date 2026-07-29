@@ -265,6 +265,13 @@ BlockDelegateBase {
         var item = editableItem()
         return item && item.lineStepPosition ? item.lineStepPosition(mdPos, dir) : -1
     }
+    // Never promotes: only a row whose editor is already up can have been the
+    // block a text drag started in.
+    function reapplySelectionPortion() {
+        var item = editableItem()
+        if (item && item.reapplySelectionPortion)
+            item.reapplySelectionPortion()
+    }
     function entryPositionAtX(x, fromTop) {
         var item = editableItem()
         return item && item.entryPositionAtX

@@ -34,6 +34,23 @@ QtObject {
     property real lastPressY: 0
 
     function beginPress(index, mdPos, sceneX, sceneY) {
+        // Text under the pointer owns the drag. The list flicks on a drag
+        // with enough vertical travel and filters its rows' mouse events to
+        // do it, so it took the pointer away from the editor the moment a
+        // downward drag passed the threshold — which is the gesture for
+        // selecting a paragraph. The editor then never started a selection:
+        // the drag highlighted nothing and the caret simply landed wherever
+        // the button came up, differently every attempt. Sideways drags,
+        // which the list has no use for, always worked, and that difference
+        // is what the reports of "random" selection were.
+        //
+        // Scrolling is untouched: the wheel, the scrollbar and the edge
+        // auto-scroller all move contentY without the list's drag handling.
+        // endPress puts it back, and so would the next press in any block's
+        // text, so a lost release cannot leave the list stuck.
+        if (selection.listView)
+            selection.listView.interactive = false
+
         // Click multiplicity sets the drag granularity (§21.3):
         // 1 character, 2 word, 3 whole-block
         var now = Date.now()
@@ -90,6 +107,21 @@ QtObject {
     }
 
     function endPress() {
+        if (selection.listView)
+            selection.listView.interactive = true
+        // The anchor block painted its share of the range with its own
+        // native selection while the drag ran, and the release collapses
+        // that selection to the press point: Qt holds a press in a text area
+        // back until it knows the gesture was not a flick, and replays it on
+        // the release. That left the block a drag started in blank while
+        // every block after it stayed highlighted, which is what "the
+        // selection starts at the end of the first block" was.
+        if (engaged && pressIndex >= 0 && selection.listView) {
+            var anchorRow = (selection.listView.itemAtIndex(pressIndex)
+                             as BlockDelegateBase)
+            if (anchorRow)
+                anchorRow.reapplySelectionPortion()
+        }
         pressIndex = -1
         engaged = false
         selection.scroller.active = false

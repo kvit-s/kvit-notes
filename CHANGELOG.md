@@ -65,6 +65,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Selecting text by dragging downward through a block works. The block list
+  flicks on a drag with enough vertical travel, and it filters its rows' mouse
+  events to do it, so it took the pointer away from the editor as soon as a
+  downward drag passed the threshold. Nothing highlighted and the caret landed
+  wherever the button came up, which looked like a selection starting in a
+  random place; a sideways drag, which the list has no use for, always worked.
+  Text under the pointer now holds the drag until the button is released.
+  Wheel, scrollbar and edge auto-scrolling are unchanged.
 - A task-board card whose title carries a formula lines its checkbox up with
   the title again. A formula makes that line taller than a line of text and
   the words inside it sit lower to make room, so a checkbox pinned to the top
