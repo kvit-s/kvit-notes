@@ -10273,6 +10273,102 @@ Item {
             appLoader.item.keepMine()
         }
 
+        // What the two answers actually do to the file and to the editor.
+        // This carries the manual QA step that used to ask a tester to edit
+        // the open note in another editor and confirm that keep-mine and
+        // load-theirs each did what the button says; the step was dropped
+        // because staging it by hand is awkward — the window saves the note
+        // whenever it loses focus, so walking away to make the outside edit
+        // is itself enough to clear the unsaved state the banner needs.
+        //
+        // The test above raises the banner and clears it. What that leaves
+        // untested is the outcome the user is actually choosing between:
+        // whose bytes end up in the file, and whose text ends up in the
+        // editor. So the external change here is a genuine rewrite of the
+        // note on disk rather than a synthesized signal, and the answers
+        // are given by clicking the banner's buttons rather than by calling
+        // the functions behind them. Kernel delivery of the change is not
+        // this test's subject — test_filewatcher drives the real
+        // QFileSystemWatcher, including across the app's own atomic save.
+        //
+        // That same focus-loss save is what the assertions here have to be
+        // written around. If the window happens to lose activation mid-test
+        // it writes the editor's version to the file on its own, which is
+        // byte for byte what keep-mine writes — so a keep-mine check that
+        // waits for the file to change passes even when the button did
+        // nothing. Both answers are therefore read back with no wait: save()
+        // and open() are synchronous, so the effect is on disk and in the
+        // model by the time the click returns. The disk is also checked just
+        // before each click, so an activation save that lands first fails
+        // saying so rather than quietly standing in for the answer.
+        function test_zznb_conflictAnswersDecideTheFileAndTheEditor() {
+            openTestCollection()
+            wait(100)
+            verify(appLoader.item.openNoteByPath("Welcome.md"),
+                   "open the welcome note")
+            wait(150)
+            var abs = DocumentManager.currentFilePath
+            verify(abs !== "")
+
+            var banner = findChild(appLoader.item, "conflictBanner")
+            verify(banner !== null, "conflict banner exists")
+            var loadTheirsButton = findChild(appLoader.item, "conflictLoadTheirs")
+            var keepMineButton = findChild(appLoader.item, "conflictKeepMine")
+            verify(loadTheirsButton !== null && keepMineButton !== null,
+                   "the banner offers both answers")
+
+            // Load theirs: another program's version of the file wins over
+            // the unsaved edit held here.
+            BlockModel.updateContent(0, "my unsaved first version")
+            wait(50)
+            verify(DocumentManager.isDirty, "the editor holds an unsaved edit")
+            verify(testFiles.writeFile(abs, "their first version\n"),
+                   "another program rewrites the note on disk")
+            FileWatcher.feedChange(abs, true)
+            tryVerify(function() { return banner.visible }, 2000,
+                      "the outside write raises the banner")
+
+            waitForRendering(banner)
+            compare(testFiles.readFile(abs), "their first version\n",
+                    "the outside version is still on disk when the answer is given")
+            mouseClick(loadTheirsButton)
+            verify(!banner.visible, "load-theirs clears the banner")
+            compare(BlockModel.getContent(0), "their first version",
+                    "load-theirs put the disk version in the editor")
+            verify(!DocumentManager.isDirty,
+                   "and left nothing unsaved behind it")
+
+            // Keep mine: the same conflict answered the other way. The
+            // editor's version has to reach the file, so the outside text is
+            // gone from disk afterwards rather than merged into it.
+            BlockModel.updateContent(0, "my unsaved second version")
+            wait(50)
+            verify(DocumentManager.isDirty)
+            verify(testFiles.writeFile(abs, "their second version\n"))
+            FileWatcher.feedChange(abs, true)
+            tryVerify(function() { return banner.visible }, 2000,
+                      "the second outside write raises the banner again")
+
+            waitForRendering(banner)
+            compare(testFiles.readFile(abs), "their second version\n",
+                    "the outside version is still on disk when the answer is given")
+            mouseClick(keepMineButton)
+            // Read before yielding to the event loop, so this is the click's
+            // doing and not a later save the window made on its own.
+            var onDisk = testFiles.readFile(abs)
+            verify(!banner.visible, "keep-mine clears the banner")
+            verify(!DocumentManager.isDirty,
+                   "keep-mine saved rather than leaving the edit pending")
+            compare(BlockModel.getContent(0), "my unsaved second version",
+                    "keep-mine left the editor on the version it kept")
+            verify(onDisk.indexOf("my unsaved second version") !== -1,
+                   "keep-mine wrote the editor's version to the file")
+            compare(onDisk.indexOf("their second version"), -1,
+                    "and the outside version is gone from the file")
+
+            closeTestCollection()
+        }
+
         // View-layer scale. Focus-independent — it loads a
         // large document into the running app and checks that lazy loading plus
         // delegate pooling keep the live delegate set O(visible), not O(model),

@@ -356,27 +356,24 @@ Run against the installed artifact with a fresh user profile.
        filters apply.
        *Expect:* results appear as you type, with matches highlighted in
        the snippet.
-10. [ ] Edit the open note in another editor while the app has it open.
-        *Expect:* the conflict banner offers keep-mine and load-theirs,
-        and both choices do what they say.
-11. [ ] Export the note to PDF and to HTML.
+10. [ ] Export the note to PDF and to HTML.
         *Expect:* both open, carry images, and render math. HTML math
         comes from MathJax in the browser, so check it online.
-12. [ ] Open a ~1 MB / 100k-word markdown file.
+11. [ ] Open a ~1 MB / 100k-word markdown file.
         *Expect:* loads under a second, typing has no perceptible lag,
         and scrolling end-to-end stays smooth.
-13. [ ] Switch all five themes; toggle high-contrast and reduced motion.
+12. [ ] Switch all five themes; toggle high-contrast and reduced motion.
         *Expect:* every block type stays legible in each theme, with no
         invisible text or unstyled chrome.
-14. [ ] Quit and relaunch.
+13. [ ] Quit and relaunch.
         *Expect:* theme, typography, window geometry, and layout persist,
         and the crash journal is clean.
-15. [ ] Single-file mode: open a lone `.md` via the file association with
+14. [ ] Single-file mode: open a lone `.md` via the file association with
         no vault configured.
         *Expect:* fast start, no collection chrome, math/diagrams/tables
         render, and the status-bar "Create vault from this folder…"
         affordance works.
-16. [ ] In a table, type a formula into a header cell and into a body cell by
+15. [ ] In a table, type a formula into a header cell and into a body cell by
         typing `$`, then a backslash, then picking `\frac` from the menu and
         filling both slots with Tab. Click away from each. Type a sentence
         with spaces into a third cell.
@@ -389,18 +386,18 @@ Run against the installed artifact with a fresh user profile.
         on the press that typed it, with no press that seems to do nothing.
         A header cell that grows to fit a formula keeps the header shading
         across the whole row, including the shorter cells beside it.
-17. [ ] In a table cell, press Shift+Enter and type a second line, then press
+16. [ ] In a table cell, press Shift+Enter and type a second line, then press
         Enter. Reopen the note, and open it in a plain markdown editor.
         *Expect:* Shift+Enter breaks the line inside the cell and Enter is
         done with the cell rather than adding a line. The cell still shows
         two lines after the reopen, and the file holds the break as `<br>`
         with the row still on one line.
-18. [ ] Paste an LLM answer whose table contains a fenced code block inside a
+17. [ ] Paste an LLM answer whose table contains a fenced code block inside a
         row (an explanation with a code listing in one cell).
         *Expect:* the table renders as one table, with the listing in its own
         cell over several lines and its indentation intact. Nothing after the
         table is swallowed into a code block.
-19. [ ] Render a Mermaid flowchart whose node label is `"$$\frac{a}{b}$$"` and
+18. [ ] Render a Mermaid flowchart whose node label is `"$$\frac{a}{b}$$"` and
         whose edge label is `"$$x^2$$"`, and a sequence diagram with a formula
         as a message, a participant name and a note. Export both to PDF and to
         HTML.
@@ -408,13 +405,13 @@ Run against the installed artifact with a fresh user profile.
         node box has grown to hold its formula, and a message arrow sits below
         its formula rather than through it. PDF shows the same, sharp at any
         zoom. HTML renders through Mermaid.js in the browser.
-20. [ ] Drag the border between two table column headers, then reopen the
+19. [ ] Drag the border between two table column headers, then reopen the
         note; drag the last column's right border too. Right-click a cell
         and choose "Reset column widths".
         *Expect:* the column follows the pointer, the width is still there
         after the reopen, and the reset restores content-measured widths.
         Ctrl+Z undoes a drag in one step.
-21. [ ] On a task board, drag a card into another column and drop it between
+20. [ ] On a task board, drag a card into another column and drop it between
         two cards there, then drag a column by its name past its neighbour.
         Click a card's text and type `#urgent` on its line; click under the
         title and type a two-line description with `$x^2$` and a
@@ -424,7 +421,7 @@ Run against the installed artifact with a fresh user profile.
         label appears as a chip, the description shows both lines with the
         formula typeset and the link followable, and the file holds all of
         it as ordinary markdown. Ctrl+Z undoes each move in one step.
-22. [ ] On the same card, click "+ tag" in the strip under the title, type the
+21. [ ] On the same card, click "+ tag" in the strip under the title, type the
         first letters of a label the board already uses and take it from the
         list; then click "+ due date" and pick a day from the calendar. Open
         the note in a plain markdown editor.
@@ -433,7 +430,7 @@ Run against the installed artifact with a fresh user profile.
         label and the date on the card's own line with the two dates in an
         HTML comment at the end of it. Clicking a day in the calendar does not
         also click the card behind it.
-23. [ ] Select text with the mouse: press inside a paragraph and drag straight
+22. [ ] Select text with the mouse: press inside a paragraph and drag straight
         down over several of its lines, then across to the right, then on
         through the blocks below it. Do it again in a block you have just been
         typing in, and once in a code block. Then scroll the note with the
