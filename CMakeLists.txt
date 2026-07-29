@@ -96,6 +96,52 @@ if(KVIT_AGENT)
     unset(_kvit_agent_missing)
 endif()
 
+# ── Debug information level.
+#
+# RelWithDebInfo compiles at -g, which is DWARF level 2: line tables, plus a
+# full description of every type and the location of every variable at every
+# program counter. The second half is what an interactive debugger reads to
+# answer `print x`, and it is the overwhelming bulk of the output — 130 MB of
+# the 137 MB of a linked test binary, against 7.5 MB of machine code.
+#
+# Nothing in this repository reads it. There is no gdb or lldb invocation, no
+# addr2line, no core-dump collection, and no backtrace handler anywhere in the
+# scripts, the CI workflow or the sources. The one consumer of debug
+# information is the sanitizer job below, and a sanitizer report needs only
+# .debug_line and the subprogram entries to print file, line and inlined
+# frames — measured directly, an ASan trace at -g1 resolves an inlined callee
+# to its exact line, and the same trace at -g0 degrades to a hex offset.
+#
+# So -g1: the level that keeps every stack trace anybody here can actually
+# consume, and drops the variable and type detail nobody reads. Measured on
+# src/content/mathcommandmodel.cpp, the heaviest translation unit:
+#
+#              compile     object     linked test binary
+#     -g        5.52 s     5.41 MB    137.5 MB
+#     -g1       3.17 s     1.18 MB     ~24 MB
+#     -g0       3.12 s     0.25 MB      7.5 MB
+#
+# -g1 costs essentially nothing over -g0 on compile time, so the whole penalty
+# of the default was buying the unread half. Every test binary links kvit-core
+# and therefore the entire module chain, so touching one file in kvit-content
+# relinks all of them; at -g that is about 10.4 GB written per incremental
+# build, and roughly 1.8 GB here.
+#
+# This sits before add_subdirectory(third_party/microtex) so the vendored
+# engine is built the same way — libmicrotex.a is 98 MB of the 376 MB of
+# archives every test binary copies from.
+#
+# Set KVIT_FULL_DEBUG_INFO=ON to get -g back for a session at a debugger
+# prompt. MSVC spells this differently and is left alone.
+option(KVIT_FULL_DEBUG_INFO
+       "Emit full (-g) debug information rather than line tables only" OFF)
+if(NOT MSVC AND NOT KVIT_FULL_DEBUG_INFO)
+    # Appended after CMAKE_CXX_FLAGS_<CONFIG>, and GCC and Clang both take the
+    # last -glevel on the command line, so this overrides the -g that
+    # RelWithDebInfo and Debug supply.
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-g1>)
+endif()
+
 # AddressSanitizer + UndefinedBehaviorSanitizer. A separate build rather than
 # a default, because the instrumentation costs roughly 2x runtime and changes
 # the allocator, so it is a job of its own rather than something every build
