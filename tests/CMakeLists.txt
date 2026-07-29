@@ -398,8 +398,12 @@ target_link_libraries(test_foldertreemodel PRIVATE kvit-core Qt6::Test)
 add_test(NAME FolderTreeModelTests COMMAND test_foldertreemodel)
 
 # CollectionSearch tests (global search)
+# Qt6::Sql because this suite opens a QSqlDatabase of its own to check the
+# index from outside the engine. kvit-search links Qt Sql PRIVATE, which a
+# static build puts on this executable's link line anyway and a shared one
+# does not, so the dependency is named here rather than inherited by accident.
 qt_add_executable(test_collectionsearch test_collectionsearch.cpp)
-target_link_libraries(test_collectionsearch PRIVATE kvit-core Qt6::Test)
+target_link_libraries(test_collectionsearch PRIVATE kvit-core Qt6::Test Qt6::Sql)
 add_test(NAME CollectionSearchTests COMMAND test_collectionsearch)
 # The warm-reconcile case indexes two thousand notes from cold twice over,
 # which took 220 seconds of this suite's time on a two-core runner against
@@ -408,8 +412,10 @@ add_test(NAME CollectionSearchTests COMMAND test_collectionsearch)
 set_tests_properties(CollectionSearchTests PROPERTIES TIMEOUT 900)
 
 # SearchIndexDb tests (SQLite FTS5 engine + differential oracle)
+# Qt6::Sql for the same reason as CollectionSearchTests above: the
+# differential oracle queries the database directly.
 qt_add_executable(test_searchindexdb test_searchindexdb.cpp)
-target_link_libraries(test_searchindexdb PRIVATE kvit-core Qt6::Test)
+target_link_libraries(test_searchindexdb PRIVATE kvit-core Qt6::Test Qt6::Sql)
 add_test(NAME SearchIndexDbTests COMMAND test_searchindexdb)
 
 # SettingsStore tests (per-user settings)
