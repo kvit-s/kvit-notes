@@ -8907,6 +8907,72 @@ Item {
             DocumentSelection.clearBlockSelection()
         }
 
+        // The block menu answers a right-click anywhere in the gutter strip,
+        // not only on the handle: the strip runs the height of the row, an
+        // indented block's runs wider, and the row still routes a selected
+        // block to the selection menu. A right-click in the text is the text
+        // menu, unchanged.
+        function test_zo3_gutterRightClickOpensBlockMenu() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "block zero")
+            BlockModel.insertBlock(1, 0, "block one that runs long enough to wrap "
+                + "onto a second line so the gutter has some height to it")
+            // A quote, because indenting is the list family's and the quote's
+            // (§3.3) — a paragraph stays where it is.
+            BlockModel.insertBlock(2, Block.Quote, "block two")
+            wait(150)
+
+            // Bottom of the second block's gutter — well clear of the handle,
+            // which sits on the first line.
+            var wrapped = findBlockDelegate(1)
+            verify(wrapped.height > 40, "The wrapped row is taller than the handle")
+            mouseClick(wrapped, 20, wrapped.height - 6, Qt.RightButton)
+            var blockMenu = findChild(appLoader.item, "blockContextMenu")
+            tryCompare(blockMenu, "visible", true, 1000)
+            compare(blockMenu.target.index, 1, "…for the row it was clicked in")
+            blockMenu.close()
+            tryCompare(blockMenu, "visible", false, 1000)
+
+            // Indented rows push their content right, and the strip with it.
+            BlockModel.changeIndent(2, 1)
+            tryVerify(function() {
+                return BlockModel.blockAt(2).indentLevel === 1
+            }, 1000, "The row indents")
+            wait(150)
+            var indented = findBlockDelegate(2)
+            mouseClick(indented, 60, indented.height / 2, Qt.RightButton)
+            tryCompare(blockMenu, "visible", true, 1000)
+            compare(blockMenu.target.index, 2, "The indented row's own strip")
+            blockMenu.close()
+            tryCompare(blockMenu, "visible", false, 1000)
+
+            // Past the strip is the text, which keeps the text menu. The row
+            // needs its editor for that, which the click into it loads.
+            var zero = findBlockDelegate(0)
+            mouseClick(zero, 200, 8)
+            tryVerify(function() {
+                return findTextAreaRaw(findBlockDelegate(0)) !== null
+            }, 1000, "Clicking into the row loads its editor")
+            mouseClick(findBlockDelegate(0), 200, 8, Qt.RightButton)
+            var textMenu = findChild(appLoader.item, "textContextMenu")
+            tryCompare(textMenu, "visible", true, 1000)
+            textMenu.close()
+            tryCompare(textMenu, "visible", false, 1000)
+
+            // A selected row routes to the selection menu, as the handle does.
+            DocumentSelection.selectBlock(0)
+            DocumentSelection.extendBlockSelectionTo(1)
+            mouseClick(wrapped, 20, wrapped.height - 6, Qt.RightButton)
+            var selectionMenu = findChild(appLoader.item, "selectionContextMenu")
+            tryCompare(selectionMenu, "visible", true, 1000)
+            selectionMenu.close()
+            DocumentSelection.clear()
+        }
+
         // Dragging downward inside a block selects that text. The list flicks
         // on vertical drags and used to take the pointer from the editor as
         // soon as one passed the threshold, so the gesture for selecting a

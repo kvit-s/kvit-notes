@@ -115,18 +115,23 @@ pass.
        Table, Diagram, Media, Query, Editable, Divider, Kanban or Toc.
 
 3. [ ] **Right-click every block type.** Right-click the rendered body of
-       each block and its drag handle.
+       each block, its drag handle, and its left gutter well below the
+       handle, beside the last line of a tall block. Do the same on an
+       indented list item, whose gutter is one indent step wider.
 
        *Expect:* the shared block menu opens, including Turn-into and
-       Delete, so every block is removable by mouse alone.
+       Delete, so every block is removable by mouse alone. On a block that
+       is part of a block selection, the selection menu opens instead.
 
-       *Known suspect:* the shared `BlockGutter.qml` handles the right
-       button on the drag handle, so every block type now has that route
-       to the menu. The rendered body is a separate question: Image,
-       Diagram and Math wire right-button handling of their own, and a
-       board's card opens its own menu, so right-clicking the body of a
-       table, query, media card, embed card, TOC or divider — or a board
-       anywhere other than a card — still does nothing.
+       *Known suspect:* two routes reach the menu. The shared
+       `BlockGutter.qml` handles the right button on the drag handle, and
+       a `MouseArea` at the back of the list's content item (`main.qml`,
+       beside the gap cursor) answers a right press anywhere else in the
+       gutter for every block type. The rendered body is a separate
+       question: Image, Diagram and Math wire right-button handling of
+       their own, and a board's card opens its own menu, so right-clicking
+       the body of a table, query, media card, embed card, TOC or divider
+       — or a board anywhere other than a card — still does nothing.
 
 4. [ ] **Fonts and emoji in the real GUI.** Open a note mixing prose,
        code, math, and color emoji.

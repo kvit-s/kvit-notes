@@ -752,6 +752,39 @@ KvitShell {
         dragState: blockDragState
     }
 
+    // Right-click anywhere in a row's gutter opens that block's menu (§9.5).
+    //
+    // Inside the strip only the drag handle answered a right press, and it is
+    // fourteen pixels wide and only there while the pointer is on the row, so
+    // the menu was reachable by whoever already knew where it was. This sits
+    // at the back of the list's content item — the same stacking the gap
+    // cursor's hover probe uses (BlockGapCursor.qml) — because Qt offers a
+    // press to the items in front first: a press on a block's own chrome or
+    // text never reaches here, and one on the strip does, for all twelve
+    // block kinds without each growing a handler of its own.
+    //
+    // The strip is 44px wide and an indented row's content starts one indent
+    // step further in again, so the band widens with the indent. The indent
+    // is read from the model rather than the row because it is the twelve
+    // delegate types that carry it, not the interface the shell sees.
+    MouseArea {
+        objectName: "gutterMenuArea"
+        parent: blockListView.contentItem
+        z: -1
+        width: blockListView.width
+        height: blockListView.contentHeight
+        acceptedButtons: Qt.RightButton
+        onPressed: function(mouse) {
+            var idx = blockListView.indexAt(Math.max(1, mouse.x), mouse.y)
+            var block = idx >= 0 ? BlockModel.blockAt(idx) : null
+            if (!block || mouse.x >= 44 + block.indentLevel * 24) {
+                mouse.accepted = false
+                return
+            }
+            AppActions.requestBlockHandleMenu(blockListView.itemAtIndex(idx))
+        }
+    }
+
     // ---- Opening, starting and closing a document -----------------------
     // The transitions that can lose work, and the dialogs that ask before
     // they do, are in DocumentSessionDialogs.qml. The error dialog lives
@@ -935,6 +968,7 @@ KvitShell {
     function openBlockHandleMenu(target) {
         root.contextMenus().openHandleMenu(target)
     }
+
 
     // KvitShell query overrides: a delegate asks whether its completion menu
     // is open for it, and gets the menu back to drive. The menus are this

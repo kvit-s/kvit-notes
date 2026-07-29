@@ -8,6 +8,12 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- The block menu opens on a right-click anywhere in a block's left gutter, for
+  every block type. It answered the drag handle alone before, a fourteen-pixel
+  target that appears on hover, so the commands on it — Turn into, Duplicate,
+  Delete, Move, Indent, Remove line breaks — were reachable by whoever already
+  knew where to aim. A gutter right-click on a block inside a block selection
+  opens the selection menu, as the handle does.
 - A caret in the space between two blocks. Pointing at the blank line between
   two blocks draws a line in it; clicking turns that into a blinking caret, and
   typing makes a paragraph there holding what was typed. "/" opens the block

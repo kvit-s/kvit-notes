@@ -337,6 +337,10 @@ With blocks selected, one keystroke acts on all of them, each as a single undo s
 you move, and dropping commits the move. Dragging the handle of a selected block carries the
 whole selection. Escape cancels a drag.
 
+**The block menu** — turn into, duplicate, delete, move, indent, remove line breaks — opens on
+a right-click anywhere in a block's left gutter, the handle included. When the block is part of
+a block selection, the menu that opens acts on the whole selection.
+
 **Select text across blocks** by pressing in one block and dragging through others — the
 selection is character-precise across boundaries. Double-click-drag snaps to words,
 triple-press-drag to whole blocks. Shift+Arrows extend the selection across block edges.
