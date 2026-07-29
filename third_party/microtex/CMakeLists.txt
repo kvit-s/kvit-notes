@@ -32,6 +32,14 @@ add_library(microtex STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/tinyxml2/tinyxml2.cpp"
 )
 
+# GCC's debug-info pass exceeds its variable-tracking limit on this generated
+# symbol table and emits an unavoidable "retrying without" note (even with
+# -w). Disable only the pass GCC was going to discard for this source anyway.
+set_property(SOURCE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/builtin/tex_symbols.res.cpp"
+    APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:GNU>:-fno-var-tracking-assignments>")
+
 # Upstream uses C++20 on GNU (std::filesystem in latex.cpp, plus C++20 idioms).
 target_compile_features(microtex PUBLIC cxx_std_20)
 
