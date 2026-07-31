@@ -19,8 +19,11 @@
 #include "appcontext.h"
 #include "blockkindregistry.h"
 #include "blockmodel.h"
+#include "documentmanager.h"
 #include "embedmetadata.h"
 #include "extensionregistry.h"
+#include "notecollection.h"
+#include "startupcontroller.h"
 #include "undostack.h"
 
 // A hermetic embed fetcher for the Qt Quick tests: returns canned OpenGraph
@@ -105,6 +108,36 @@ public:
     }
 };
 
+// The session state a test function starts from.
+//
+// A Qt Quick Test file runs every one of its functions against one engine, one
+// window and one application graph, and QtTest's init() is the hook for
+// putting that graph back to a known state between them. Without it a case
+// inherits whatever the previous case left in the model, and a suite of a few
+// hundred accumulates enough drift that cases fail in the middle of a run and
+// pass on their own — which is indistinguishable from flakiness, and hid two
+// real defects in this tree for about a hundred commits.
+class TestSessionHelper : public QObject
+{
+    Q_OBJECT
+public:
+    TestSessionHelper(AppContext *context, QObject *parent = nullptr)
+        : QObject(parent), m_context(context) {}
+
+    // Exactly what qmlEngineAvailable() leaves behind: no collection open, no
+    // file associated, and the shell's fallback document loaded through the
+    // production startup path so the document is clean.
+    Q_INVOKABLE void resetToStartupState()
+    {
+        m_context->noteCollection()->closeRoot();
+        m_context->documentManager()->newDocument();
+        m_context->startupController()->initializeFallbackDocument();
+    }
+
+private:
+    AppContext *m_context = nullptr;
+};
+
 // Shared qmlEngineAvailable setup for the Qt Quick Test binaries
 // (test_integration and test_visual).
 //
@@ -164,12 +197,17 @@ public slots:
                  .filePath(QStringLiteral("embedcache")))
             .removeRecursively();
 
-        // Sample content, so the shell opens on a populated document. The
-        // undo stack is reset afterwards: loading the sample is not an edit
-        // the user can undo, and the document starts clean.
-        m_context->blockModel()->initializeWithSampleData();
-        m_context->undoStack()->clear();
-        m_context->undoStack()->setClean();
+        // Sample content, so the shell opens on a populated document —
+        // through the production entry point rather than by driving the model
+        // directly. StartupController::initializeFallbackDocument() brackets
+        // the load in DocumentManager's baseline-load scope, so the sample is
+        // the document's starting state instead of an unsaved replacement of
+        // it, and clears the undo stack afterwards. Loading the model here by
+        // hand skipped that bracket, which left the shell reporting unsaved
+        // changes on a document nobody had touched: four dirty-state cases
+        // failed on a fresh process and passed only once an earlier case had
+        // saved something.
+        m_context->startupController()->initializeFallbackDocument();
 
         // The collection stays UNOPENED here: the shell renders single-file
         // geometry, so the pre-collection tests run unchanged. Collection
@@ -222,6 +260,8 @@ public slots:
         context->setContextProperty("testFiles", new TestFileHelper(engine));
         context->setContextProperty("testClipboard",
                                     new TestClipboardHelper(engine));
+        context->setContextProperty("testSession",
+                                    new TestSessionHelper(m_context, engine));
 
         // Screenshot directory for the saveScreenshot helper. build.sh wipes
         // and exports KVIT_SHOT_DIR; standalone runs fall back to <cwd>.

@@ -473,13 +473,23 @@ add_test(NAME IntegrationTests COMMAND test_integration -input ${CMAKE_CURRENT_S
 set_tests_properties(IntegrationTests PROPERTIES
     ENVIRONMENT "QT_QUICK_BACKEND=software")
 
-# Per-function isolation is retained only as an explicit CI/diagnostic tool.
-# It defaults offscreen in its runner and is disabled in normal CTest runs.
+# Per-function isolation: one process per case, so no case can be failed by
+# what an earlier one left behind. This is the entry that carries a verdict.
+#
+# It was disabled, and it had to be, because its runner forced
+# QT_QPA_PLATFORM=offscreen, where tst_integration.qml skips 252 of its 351
+# cases as headless. The runner now uses Qt's VNC platform plugin instead: a
+# real windowing surface with working focus and input that still never touches
+# the desktop, so nothing skips. All 351 cases pass under it, in about eight
+# minutes.
+#
+# That seven minutes is the cost of a result you can act on. The entry above
+# takes two and a half and cannot give one: around twenty of its cases fail on
+# residue accumulated over the preceding few hundred, and pass alone.
 add_test(NAME IntegrationTestsIsolated COMMAND
     bash ${CMAKE_SOURCE_DIR}/tools/run-integration-gate.sh
     $<TARGET_FILE:test_integration> ${CMAKE_CURRENT_SOURCE_DIR}/tst_integration.qml)
 set_tests_properties(IntegrationTestsIsolated PROPERTIES
-    DISABLED TRUE
     ENVIRONMENT "QT_QUICK_BACKEND=software"
     TIMEOUT 1800)
 
@@ -725,10 +735,18 @@ set(KVIT_SHELL_TESTS
     # binary and same file as VisualTests, but offscreen and blocking; the
     # display entry stays informational under `visual`.
     VisualStoryboardHeadless
-    UiRemediationTests)
+    UiRemediationTests
+    # One process per case under the VNC platform plugin: never touches the
+    # desktop, skips nothing, and passes 351 of 351. It is the slowest entry
+    # in the suite at about seven minutes, which is the price of the only
+    # whole-suite integration result that means anything.
+    IntegrationTestsIsolated)
 set(KVIT_VISUAL_TESTS
+    # One process for all 351 cases: fast, and informational only, because
+    # about twenty of them fail on residue left by the preceding few hundred
+    # and pass in isolation. IntegrationTestsIsolated, under `shell`, is the
+    # entry that answers whether the suite passes.
     IntegrationTests
-    IntegrationTestsIsolated
     VisualTests)
 # Test binaries are console programs on Windows. qt_add_executable() marks a
 # target WIN32_EXECUTABLE there, which is right for the app and wrong for a

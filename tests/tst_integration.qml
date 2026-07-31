@@ -28,6 +28,34 @@ Item {
         // Detect headless mode (offscreen platform)
         readonly property bool isHeadless: Qt.platform.pluginName === "offscreen"
 
+        // Every function in this file runs against one engine, one window and
+        // one application graph, so without this each one inherits whatever
+        // the last one left in the model, the collection and the open
+        // document. That drift is what made the suite report between 150 and
+        // 170 failures whatever the tree contained, none of them reproducible
+        // on their own, and it hid two real defects for about a hundred
+        // commits. Each case now starts where the shell starts.
+        function init() {
+            testSession.resetToStartupState()
+
+            // The window's own view state is QML-side and persisted, so it
+            // survives a service reset: a case that collapsed a panel, opened
+            // the outline or entered focus mode left every later case looking
+            // for items that were no longer on screen.
+            var w = appLoader.item
+            w.panelsVisible = true
+            w.sidebarCollapsed = false
+            w.noteListCollapsed = false
+            w.sidebarWidth = 200
+            w.noteListWidth = 260
+            w.backlinksVisible = false
+            w.outlineVisible = false
+            w.focusMode = false
+            w.typewriterMode = false
+            NoteListModel.scope = "all"
+            NoteListModel.folderPath = ""
+        }
+
         function findBlockDelegate(index) {
             var listView = findChild(appLoader.item, "blockListView")
             if (!listView) return null
@@ -7271,6 +7299,17 @@ Item {
             wait(300)
             NoteCollection.closeRoot()
             wait(20)
+            // A crash ends the process, so the editor's buffer goes with it.
+            // Closing the collection alone leaves the note open and still
+            // dirty, and Restore then correctly refuses to act on its own:
+            // overwriting a buffer that holds edits the journal does not is
+            // the case the recovery-overwrite dialog exists for, and
+            // restoreRecoveredNote() opens that dialog and returns false.
+            // Whether an autosave happened to land first decided which of the
+            // two paths this case took, which is what made it fail in most
+            // runs and pass in some.
+            testSession.resetToStartupState()
+            wait(20)
 
             // Reopening finds the evidence: the banner offers the note.
             verify(NoteCollection.openRoot(root))
@@ -10259,7 +10298,12 @@ Item {
                       "keep-mine saved the editor version")
 
             // Own-write guard: a guarded change (the app's own save) is not a
-            // conflict. Drive feedChange through the guard then unguarded.
+            // conflict. The guard is not spent by the first notification,
+            // because one save is reported more than once on some platforms;
+            // what ends it is the file itself changing. It stamps the size and
+            // modification time the first notification found, and a later
+            // reading that differs is somebody else's write. So drive one
+            // notification through the guard, then a real outside edit.
             BlockModel.updateContent(0, "dirty again")
             wait(50)
             verify(DocumentManager.isDirty)
@@ -10267,9 +10311,11 @@ Item {
             FileWatcher.feedChange(absPath, true)   // consumed by the guard
             wait(100)
             verify(!banner.visible, "own write does not raise the banner")
-            FileWatcher.feedChange(absPath, true)   // now unguarded → conflict
-            wait(100)
-            verify(banner.visible, "a later external change does raise it")
+            verify(testFiles.writeFile(absPath, "an edit from outside\n"),
+                   "another program writes the note while the guard is live")
+            FileWatcher.feedChange(absPath, true)
+            tryVerify(function() { return banner.visible }, 2000,
+                      "a later external change does raise it")
             appLoader.item.keepMine()
         }
 

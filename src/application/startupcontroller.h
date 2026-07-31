@@ -43,12 +43,20 @@ public:
 
     Q_INVOKABLE void start();
 
+    // The document a session opens on when there is no note to restore: the
+    // sample content, loaded inside DocumentManager's baseline-load scope so
+    // it reads as the document's starting state rather than as an unsaved
+    // replacement of one. Public because the Qt Quick test harness composes
+    // this same graph and has to reach the shell's opening state through the
+    // production path; driving BlockModel directly instead is what left those
+    // suites reporting unsaved changes on an untouched document.
+    void initializeFallbackDocument();
+
 signals:
     void startedChanged();
     void finishedChanged();
 
 private:
-    void initializeFallbackDocument();
     bool openStartupNote(const QString &relPath);
     void onStartupNoteOpenFinished(const QString &filePath, bool ok);
     void tryFinishStartup();

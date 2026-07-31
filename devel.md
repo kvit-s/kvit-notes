@@ -211,6 +211,96 @@ in-binary pin makes the launch path irrelevant.
 `qt.rhi.general ... RENDERER:` line. Correct: `llvmpipe (...)`. Broken:
 `D3D12 (Intel(R) UHD Graphics 770)`.
 
+## Reading a Qt Quick suite result
+
+`IntegrationTests` runs the 351 cases of tests/tst_integration.qml through one
+process holding one window. That is deliberate, since per-function isolation
+maps hundreds of compositor-positioned windows and takes over the desktop while
+it runs, but it means the cases are not independent, and the whole-suite
+pass/fail count is worth much less than it looks.
+
+Three environments give three different answers, and only one of them answers
+the question "did my change break anything".
+
+**Use the VNC platform plugin.** Qt ships `libqvnc.so` beside the other
+platform plugins. It is a real windowing surface with working focus and input
+that runs entirely off the desktop, and nothing has to connect to the port for
+the tests to run:
+
+```
+QT_QPA_PLATFORM=vnc:size=1600x1200:port=5921 QT_QUICK_BACKEND=software \
+  build/tests/test_integration -input tests/tst_integration.qml
+```
+
+All 351 cases run, none of them skip, and it takes about 150 seconds. The
+result is stable enough to diff: two builds at different commits produced
+identical failure name lists. Concurrent runs need different ports.
+
+**`QT_QPA_PLATFORM=offscreen` skips two thirds of the file.** `isHeadless` in
+tst_integration.qml is `Qt.platform.pluginName === "offscreen"`, and 252 of the
+351 cases test themselves against it and skip. The run is stable, so it is a
+usable smoke test, and it proves nothing about keyboard or mouse behaviour. A
+new interaction test silently skips there.
+
+**A run on the developer's display reports 150 to 170 failures whatever the
+tree contains.** All the cases share one window, so once that window loses
+activation part-way through (typing in another application will do it, and
+WSLg drops it unprompted), everything after that point which types or clicks
+fails. The loss point moves between runs, so the failing set is not even stable
+against itself, and a difference of a few in the count carries no information.
+
+**What the cases start from.** The suite's `init()` puts the application graph
+back to the shell's opening state before every function: no collection open,
+no file associated, the fallback document loaded through
+`StartupController::initializeFallbackDocument()`, and the window's panel and
+view properties at their defaults. Reach for it when a case needs a clean
+document rather than building one by hand, and extend it rather than working
+around it when a case needs something the reset does not yet cover. It is not
+complete: roughly twenty cases in the `z` range still pass alone and fail late
+in a shared run, on residue accumulated across a few hundred preceding cases
+rather than on any one of them, so treat a whole-suite result as a strong
+signal rather than a proof.
+
+**Which entry carries the verdict.** `IntegrationTestsIsolated` does. It runs
+`tools/run-integration-gate.sh`, which gives every case its own process (three
+attempts each, a per-case timeout so one hang cannot stall the run) under the
+same VNC platform, and it passes 351 of 351 in about eight minutes. No case
+there can be failed by what an earlier one left behind, which is the whole
+point. It is labelled `shell` and blocks a merge.
+
+That entry spent a long time registered and disabled, and it had to be: its
+runner forced `offscreen`, where 252 of the cases skip themselves, so a gate
+named for the whole suite exercised under a third of it and could not be
+believed either way.
+
+`IntegrationTests`, the single-process entry, is the fast local signal at two
+and a half minutes and is labelled `visual`, which is informational. Read a
+new failure there as something to look into and confirm the case on its own
+before treating it as a defect.
+
+Run the Qt Quick suites serially. `ctest -j4` turned 30 failures into 106,
+because `VisualTests` and `IntegrationTests` then compete for the display.
+
+**A case that passes in the full run and fails alone is not automatically
+noise.** `test_t3_ctrlNCreatesNoteInCurrentScope` did that for about a hundred
+commits, and the reason was a real defect: Ctrl+N and Ctrl+O were declared as
+`Shortcut` items inside DocumentSessionDialogs.qml, which main.qml builds on
+first use, so on a freshly launched window neither shortcut object existed and
+neither key did anything until an error, a recovery prompt or an unsaved-close
+question had opened one of that component's dialogs. Inside the full run an
+earlier case had always opened one. The general rule it leaves behind: nothing
+that must exist before the user asks for it may be declared inside a lazily
+loaded component, and a window-level shortcut is exactly that.
+
+Fixing that one uncovered a second defect of the same shape in the case
+immediately after it, which the first had been masking. Committing an inline
+note rename with Return left the key unaccepted, so it travelled on to the
+note list's own `Keys.onPressed`, which reads Return as "open the current
+row": renaming a note the keyboard cursor was not sitting on renamed the right
+file and then opened a different note in the editor. Both defects had been in
+the tree for about a hundred commits with a test failing on each of them the
+whole time.
+
 ## Why the test suite cannot catch rendering corruption
 
 Every automated suite renders on the CPU: the C++ and QML tests run with
