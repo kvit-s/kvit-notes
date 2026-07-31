@@ -44,20 +44,36 @@ QSharedPointer<QMutex> mutexForDirectory(const QString &dirPath)
     return it.value();
 }
 
-void writeBackupSnapshot(const QString &dirPath,
-                         const QString &target,
+void writeBackupSnapshot(const QString &rootPath,
+                         const QString &relDir,
+                         const QString &fileName,
                          QByteArray bytes)
 {
+    const QString expectedDir =
+        QDir::cleanPath(rootPath) + QLatin1Char('/') + relDir;
     PerfLog::ScopedTimer perf(
         QStringLiteral("collection.backup_before_overwrite.write"),
-        QVariantMap{{QStringLiteral("path"), target},
+        QVariantMap{{QStringLiteral("path"),
+                     expectedDir + QLatin1Char('/') + fileName},
                     {QStringLiteral("bytes"), bytes.size()},
                     {QStringLiteral("async"), true}});
 
-    const QSharedPointer<QMutex> serialize = mutexForDirectory(dirPath);
+    const QSharedPointer<QMutex> serialize = mutexForDirectory(expectedDir);
     QMutexLocker locker(serialize.data());
 
-    QDir().mkpath(dirPath);
+    // Create the directory through the containment check rather than through
+    // mkpath, which follows links. This runs on a pool thread, so the decision
+    // to take this snapshot was made earlier and something could have replaced
+    // a component of the path with a link since; everything below both writes
+    // and DELETES, so the directory has to be the repository's own at the
+    // moment it is used and not merely at the moment it was chosen.
+    const QString dirPath = VaultPaths::ensureOwnedDir(rootPath, relDir);
+    if (dirPath.isEmpty()) {
+        perf.addContext(QStringLiteral("copied"), false);
+        perf.addContext(QStringLiteral("reason"), QStringLiteral("containment"));
+        return;
+    }
+    const QString target = dirPath + QLatin1Char('/') + fileName;
     const bool copied = NoteFileIo::writeFileBytesAtomic(target, bytes);
     perf.addContext(QStringLiteral("copied"), copied);
     if (!copied)
@@ -105,18 +121,31 @@ void NoteBackupStore::setSnapshotWriterForTesting(
     m_writer = std::move(writer);
 }
 
-QString NoteBackupStore::dirFor(const QString &relPath) const
+QString NoteBackupStore::relDirFor(const QString &relPath)
 {
     // The backup tree mirrors note paths, so `relPath` decides directories
-    // here and has to be a plain relative path; and .kvit/backups has to be
-    // the vault's own, since rotation deletes the oldest files it finds.
+    // here and has to be a plain relative path.
     if (!VaultPaths::isPlainRelativePath(relPath))
         return QString();
-    const QString base = VaultPaths::ownedDir(
-        m_rootPath, kvitDirName + QLatin1Char('/') + backupsDirName);
-    if (base.isEmpty())
+    return kvitDirName + QLatin1Char('/') + backupsDirName + QLatin1Char('/')
+        + relPath;
+}
+
+QString NoteBackupStore::dirFor(const QString &relPath) const
+{
+    const QString relDir = relDirFor(relPath);
+    if (relDir.isEmpty())
         return QString();
-    return base + QLatin1Char('/') + relPath;
+    // The whole path is checked, not just the two directories at the top of
+    // it. The note components below `.kvit/backups` are as much the
+    // repository's own directories as those two are — it creates them, writes
+    // into them, and prunes the oldest files it finds there — so a link
+    // standing where any one of them belongs points that rotation at somebody
+    // else's directory. Validating only the base and then appending the note
+    // path left `.kvit/backups/<note>.md` as a usable hand-off: saving that
+    // note wrote a copy outside the vault, and the prune that followed deleted
+    // the oldest *.md files it found there.
+    return VaultPaths::ownedDir(m_rootPath, relDir);
 }
 
 void NoteBackupStore::backupBeforeOverwrite(const QString &relPath,
@@ -162,8 +191,8 @@ void NoteBackupStore::backupBeforeOverwrite(const QString &relPath,
         return;
     }
 
-    QString target = dirPath + QLatin1Char('/')
-        + now.toString(backupStampFormat) + mdSuffix;
+    const QString fileName = now.toString(backupStampFormat) + mdSuffix;
+    const QString target = dirPath + QLatin1Char('/') + fileName;
     if (QFileInfo::exists(target)) {
         perf.addContext(QStringLiteral("skipped"), true);
         perf.addContext(QStringLiteral("reason"),
@@ -192,8 +221,9 @@ void NoteBackupStore::backupBeforeOverwrite(const QString &relPath,
     // nor waits, so keeping it would change nothing. The global pool is
     // waited for at exit, which is what lands a snapshot begun just before
     // the window closed.
-    const auto snapshot = QtConcurrent::run(writeBackupSnapshot, dirPath,
-                                            target, std::move(bytes));
+    const auto snapshot = QtConcurrent::run(writeBackupSnapshot, m_rootPath,
+                                            relDirFor(relPath), fileName,
+                                            std::move(bytes));
     Q_UNUSED(snapshot);
 }
 

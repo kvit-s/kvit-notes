@@ -205,8 +205,18 @@ public:
     Q_INVOKABLE bool renameNote(const QString &relPath, const QString &newTitle);
     Q_INVOKABLE bool moveNote(const QString &relPath, const QString &targetFolder);
     // Two-phase rename-safe operations. Planning is read-only and snapshots
-    // every referrer. Applying with updateLinks=false performs only the file
-    // operation; true performs conflict-checked atomic referrer rewrites.
+    // every referrer, which is what the confirmation dialog shows.
+    //
+    // Applying with updateLinks=false performs only the file operation. With
+    // true it records a redirect, so every existing [[link]] keeps resolving
+    // from that moment, and hands the rewriting to the background pass in
+    // stepRedirectRewrite(). Each referrer there is read immediately before it
+    // is written and read again immediately after the write is announced; a
+    // file whose bytes changed in between is left alone and reported through
+    // noteChangedExternally, and its redirect survives so the next scan offers
+    // it again. That last comparison is what "conflict-checked" means here: a
+    // save or an outside edit that lands mid-pass is never overwritten by text
+    // that predates it.
     Q_INVOKABLE QVariantMap planNoteRename(const QString &relPath,
                                            const QString &newTitle);
     Q_INVOKABLE QVariantMap planNoteMove(const QString &relPath,

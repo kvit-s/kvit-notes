@@ -60,8 +60,14 @@ QString NoteIndexFile::path() const
 {
     if (m_rootPath.isEmpty())
         return QString();
-    return NoteFileIo::vaultCacheDir(m_rootPath)
-        + QLatin1Char('/') + indexFileName;
+    const QString cacheDir = NoteFileIo::vaultCacheDir(m_rootPath);
+    // "" is a refusal, not a directory: `.kvit/cache` is a link rather than
+    // this vault's own directory. Appending the file name to it produced
+    // "/index.json" — a path at the root of the filesystem, which is inside no
+    // vault at all and which the sidecar write would then try to create.
+    if (cacheDir.isEmpty())
+        return QString();
+    return cacheDir + QLatin1Char('/') + indexFileName;
 }
 
 QHash<QString, NoteEntry> NoteIndexFile::load(bool *ok) const

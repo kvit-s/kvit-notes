@@ -25,6 +25,18 @@ QByteArray readFileBytes(const QString &path, bool *ok = nullptr,
 bool writeTextFileAtomic(const QString &path, const QString &content);
 bool writeFileBytesAtomic(const QString &path, const QByteArray &content);
 
+// Claim `path` for a file that does not exist yet, failing if it does.
+//
+// Creating a note asks whether the name is free and then writes it, and the
+// write is a rename over the destination — so a file that appears in the gap
+// between the two is replaced rather than reported. The gap is real: the
+// answer to "does this exist" is stale the moment it is given, aboutToWrite
+// runs in it, and a sync client or a second application writes on its own
+// schedule. This closes it by making the check and the claim one step, so the
+// write that follows lands on a file this process created. Returns false if
+// the name was taken or could not be created.
+bool claimNewFile(const QString &path);
+
 // The <root>/.kvit control directory holds two kinds of thing, and telling
 // them apart matters: rebuildable caches (the note index, embed metadata) and
 // irreplaceable state that exists in no Markdown file (trash, backups, the

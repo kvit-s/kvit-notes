@@ -57,6 +57,11 @@ public:
                            const QByteArray &bytes)> writer);
 
 private:
+    // `.kvit/backups/<relPath>`, or "" when relPath is not a plain relative
+    // path. The vault-relative form, because the containment check and the
+    // pool thread's re-check both need the path as components below the root
+    // rather than as one absolute string.
+    static QString relDirFor(const QString &relPath);
     QString dirFor(const QString &relPath) const;
 
     QString m_rootPath;

@@ -47,6 +47,7 @@ constexpr qint64 kRedirectBurstMs = 12;
 // The four file primitives now live in notefileio.h, shared with the stores
 // split out of this class. Pulled in unqualified so every call site below
 // reads exactly as it did when they were defined here.
+using NoteFileIo::claimNewFile;
 using NoteFileIo::readFileBytes;
 using NoteFileIo::readTextFile;
 using NoteFileIo::writeFileBytesAtomic;
@@ -220,6 +221,20 @@ bool NoteCollection::openRootAsync(const QString &path)
     cancelAsyncRefresh();
     cancelAsyncSavedNote();
     cancelAsyncIndexSave();
+
+    // Release the index for the vault being left, now that the next one has
+    // actually been taken. close() returns immediately: it tells both database
+    // workers to abandon their reconcile and query work, posts the two closes
+    // rather than waiting on them, and forgets the root synchronously — so
+    // they unwind while the scan below starts, and the blocking open that
+    // follows is not queued behind a full-vault reconcile. Ordering matters
+    // twice over. Without the close, switching vaults reached that blocking
+    // open with the old vault's work still running and stalled the GUI thread
+    // behind it; with the close any earlier, a refused switch (the new vault
+    // is held by another process) would leave the retained vault's index shut
+    // for the rest of the session, because prepareRootPath is the only step
+    // here that can fail.
+    m_searchFeed.close();
 
     // Open the search index for the new root at once so queries hit the warm
     // database from the previous session while the background scan runs; the
@@ -2007,7 +2022,24 @@ void NoteCollection::stepRedirectRewrite()
         if (rewritten <= 0)
             continue;
 
+        // Announce the write first, then verify, then commit — the sequence
+        // the metadata rewrite uses, for the same reason. Reading immediately
+        // before writing narrows the window but does not close it: this pass
+        // runs in bursts off a timer, and a save or an external edit landing
+        // between the read above and the commit below would be replaced by
+        // text that predates it. The redirect entry survives a refusal and
+        // the next scan offers the note again, so nothing is lost by
+        // declining; the conflict is reported here rather than left for the
+        // watcher, because aboutToWrite has already registered a write that
+        // is not going to happen.
         emit aboutToWrite(absPath);
+        bool recheckOk = false;
+        const QByteArray current = readFileBytes(absPath, &recheckOk);
+        if (!recheckOk || current != bytes) {
+            emit noteChangedExternally(relPath);
+            m_redirectFailed.append(relPath);
+            continue;
+        }
         if (!writeTextFileAtomic(absPath, split.block + body)) {
             m_redirectFailed.append(relPath);
             continue;
@@ -2271,12 +2303,19 @@ QString NoteCollection::createNote(const QString &folder, const QString &title,
     const QString relPath = joinRelPath(folder, name + mdSuffix);
     if (!ensureWithinRoot(relPath))
         return QString();
-    if (QFileInfo::exists(absolutePath(relPath))) {
+    // Claim the name rather than merely ask about it. The write below renames
+    // its temporary file over the destination, and that rename replaces
+    // whatever is there — so a note created in the gap, by a sync client or by
+    // a second application, would be silently thrown away and this one's body
+    // written in its place. Creating the file exclusively makes the question
+    // and the claim one step.
+    if (!claimNewFile(absolutePath(relPath))) {
         emit operationFailed(tr("A note named \"%1\" already exists").arg(name));
         return QString();
     }
     emit aboutToWrite(absolutePath(relPath));
     if (!writeTextFileAtomic(absolutePath(relPath), body)) {
+        QFile::remove(absolutePath(relPath));   // the placeholder we just made
         emit operationFailed(tr("Cannot create note \"%1\"").arg(name));
         return QString();
     }

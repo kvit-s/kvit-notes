@@ -156,4 +156,15 @@ bool writeFileBytesAtomic(const QString &path, const QByteArray &content)
     return file.commit();
 }
 
+bool claimNewFile(const QString &path)
+{
+    // NewOnly is O_EXCL: the kernel creates the file or reports that it is
+    // already there, with nothing in between for another writer to slip into.
+    // The empty file it leaves is a placeholder the caller's atomic write then
+    // replaces — that write renames over its own reservation rather than over
+    // whatever somebody else put there.
+    QFile file(path);
+    return file.open(QIODevice::NewOnly | QIODevice::WriteOnly);
+}
+
 } // namespace NoteFileIo

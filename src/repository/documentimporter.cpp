@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "documentimporter.h"
 #include "notecollection.h"
+#include "notefileio.h"
 #include "perflog.h"
 
 #include <QDir>
@@ -124,13 +125,26 @@ bool DocumentImporter::copyInto(const QString &sourcePath,
 
     const QString destAbs = m_collection->absolutePath(targetRelPath);
     QDir().mkpath(QFileInfo(destAbs).absolutePath());
+    // Claim the name before writing to it. uniqueRelPath chose it by asking
+    // whether each candidate existed, and the commit below is a rename, which
+    // replaces rather than refuses — so a note that arrived in the gap (a sync
+    // client, a folder import running across many turns of the event loop)
+    // would be overwritten by an imported file it has nothing to do with.
+    if (!NoteFileIo::claimNewFile(destAbs))
+        return false;
+    // Every failure from here removes that placeholder, so a refused import
+    // leaves no empty note behind for the collection to index.
+    const auto abandon = [&destAbs]() {
+        QFile::remove(destAbs);
+        return false;
+    };
     // QSaveFile writes a temporary alongside the destination and renames it
     // into place only on commit, so a disk that fills partway through leaves
     // no half-written note for the collection to index. Every byte must land:
     // a short write is a failed import, not a smaller one.
     QSaveFile out(destAbs);
     if (!out.open(QIODevice::WriteOnly))
-        return false;
+        return abandon();
 
     // Block by block rather than readAll(): the peak memory of an import is
     // one block, whatever the file is, and a read that fails part way is seen
@@ -143,25 +157,25 @@ bool DocumentImporter::copyInto(const QString &sourcePath,
         const qint64 read = in.read(block.data(), kCopyBlockBytes);
         if (read < 0 || in.error() != QFileDevice::NoError) {
             out.cancelWriting();
-            return false;
+            return abandon();
         }
         if (read == 0)
             break;
         if (out.write(block.constData(), read) != read) {
             out.cancelWriting();
-            return false;
+            return abandon();
         }
         copied += read;
         if (maxFileBytes() > 0 && copied > maxFileBytes()) {
             out.cancelWriting();
-            return false;
+            return abandon();
         }
     }
     if (size > 0 && copied != size) {
         out.cancelWriting();
-        return false;
+        return abandon();
     }
-    return out.commit();
+    return out.commit() || abandon();
 }
 
 QList<QPair<QString, QString>>

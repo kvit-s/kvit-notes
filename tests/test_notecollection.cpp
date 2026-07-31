@@ -142,11 +142,13 @@ private slots:
     void testSymlinkedControlDirectoryKeepsLegacyCacheOutside();
     void testSymlinkedAssetsDirectoryRefusesToOpen();
     void testOwnedSubtreesRefuseLinkedDirectories();
+    void testBackupsRefuseALinkedNoteDirectory();
     void testContainmentHandlesAFilesystemRoot();
 
     // Reads that fail part way through
     void testPartialReadIsNotReportedAsSuccess();
     void testUnreadableRecoveryJournalIsNotResolved();
+    void testLinkedRecoveryJournalIsNotOffered();
 
     // Metadata writes against a file that changed underneath them
     void testExternalFrontMatterChangeSurvivesMetadataWrite();
@@ -2178,6 +2180,44 @@ void TestNoteCollection::testOwnedSubtreesRefuseLinkedDirectories()
                  .entryList(QDir::AllEntries | QDir::NoDotAndDotDot).size(), 0);
 }
 
+// The backup tree goes two directories deeper than `.kvit/backups`: each note
+// gets its own directory under it, named after the note's relative path.
+// Those directories are the repository's as much as the two above them — it
+// creates them, writes snapshots into them, and prunes the oldest files it
+// finds there — so a link standing where one belongs is the same hand-off,
+// with a recursive delete on the end of it. Checking only `.kvit/backups` and
+// then appending the note path left exactly that opening.
+void TestNoteCollection::testBackupsRefuseALinkedNoteDirectory()
+{
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    // Something worth deleting, to show that the prune would reach it.
+    {
+        QFile bystander(outside.filePath("20200101-000000.md"));
+        QVERIFY(bystander.open(QIODevice::WriteOnly));
+        bystander.write("someone else's file\n");
+    }
+
+    writeNote("Welcome.md", "root note\n");
+    QVERIFY(QDir().mkpath(abs(".kvit/backups")));
+    if (!makeDirectoryLink(outside.path(), abs(".kvit/backups/Welcome.md"))) {
+        QSKIP("this platform does not let an unprivileged process link a "
+              "directory");
+    }
+
+    QVERIFY(m_collection->openRoot(m_dir->path()));
+    m_collection->backupBeforeOverwrite(abs("Welcome.md"));
+    QTest::qWait(50);
+
+    QCOMPARE(QDir(outside.path())
+                 .entryList({QStringLiteral("*.md")}, QDir::Files).size(), 1);
+    QVERIFY2(QFileInfo::exists(outside.filePath("20200101-000000.md")),
+             "the linked directory's own file was not left alone");
+    // And the listing that reads the same path back refuses it too, so a
+    // backup dialog cannot preview or restore from outside the vault.
+    QVERIFY(m_collection->backupsFor(QStringLiteral("Welcome.md")).isEmpty());
+}
+
 // A vault at the root of a filesystem is legitimate, and appending a
 // separator to "/" or "C:/" produced "//" or "C://" — a prefix no child path
 // starts with, so every mutation inside such a vault was rejected as being
@@ -2249,14 +2289,23 @@ void TestNoteCollection::testPartialReadIsNotReportedAsSuccess()
 // note with nothing and destroyed the only copy of the edits.
 void TestNoteCollection::testUnreadableRecoveryJournalIsNotResolved()
 {
-    if (!unreadableFileAvailable())
-        QSKIP("no file on this platform that opens and then fails to read");
-    SKIP_WITHOUT_SYMLINKS();
-
     makeFixture();
     const QString journal = m_collection->journalPathFor("Ideas/Plans.md");
     QVERIFY(!journal.isEmpty());
-    QVERIFY(QFile::link(QString::fromLatin1(kUnreadableFile), journal));
+    {
+        QFile file(journal);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("recovered text\n");
+    }
+    // A file that opens for nobody. Root ignores the mode bits and NTFS does
+    // not have them, so a denial that did not take is a test that would pass
+    // without having tested anything.
+    QFile::setPermissions(journal, QFileDevice::Permissions());
+    {
+        QFile probe(journal);
+        if (probe.open(QIODevice::ReadOnly))
+            QSKIP("this platform or user reads a file with no read permission");
+    }
     m_collection->closeRoot();
 
     NoteCollection reopened;
@@ -2267,8 +2316,47 @@ void TestNoteCollection::testUnreadableRecoveryJournalIsNotResolved()
              "a journal that could not be read was restored anyway");
     QCOMPARE(failed.count(), 1);
     QCOMPARE(readNote("Ideas/Plans.md"), QStringLiteral("Some plans\n"));
-    QVERIFY2(QFileInfo(journal).isSymLink() || QFileInfo::exists(journal),
+    QVERIFY2(QFileInfo::exists(journal),
              "the journal was deleted after a failed read");
+    QFile::setPermissions(journal, QFileDevice::ReadOwner
+                                       | QFileDevice::WriteOwner);
+}
+
+// The recovery directory is the repository's own and so is every file in it.
+// A link standing where a journal belongs reads as a crash the reader never
+// had: the preview shows a file from outside the vault as their own recovered
+// note, and accepting it writes that content into the vault under the note
+// name the link's own name decodes to.
+void TestNoteCollection::testLinkedRecoveryJournalIsNotOffered()
+{
+    SKIP_WITHOUT_SYMLINKS();
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    const QString planted = outside.filePath("planted.md");
+    {
+        QFile file(planted);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("from outside the vault\n");
+    }
+
+    makeFixture();
+    const QString journal = m_collection->journalPathFor("Ideas/Plans.md");
+    QVERIFY(!journal.isEmpty());
+    QVERIFY(QFile::link(planted, journal));
+    m_collection->closeRoot();
+
+    NoteCollection reopened;
+    QVERIFY(reopened.openRoot(m_dir->path()));
+    QVERIFY2(reopened.recoveryEntries().isEmpty(),
+             "a linked journal was offered as a pending recovery");
+    QVERIFY2(!reopened.restoreRecovery("Ideas/Plans.md"),
+             "a linked journal was restored into the vault");
+    QCOMPARE(readNote("Ideas/Plans.md"), QStringLiteral("Some plans\n"));
+    // And nothing was written through the link either.
+    QFile plantedFile(planted);
+    QVERIFY(plantedFile.open(QIODevice::ReadOnly));
+    QCOMPARE(QString::fromUtf8(plantedFile.readAll()),
+             QStringLiteral("from outside the vault\n"));
 }
 
 // ------------------------------------------------- metadata write conflicts

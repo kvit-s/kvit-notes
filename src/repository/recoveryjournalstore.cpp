@@ -8,6 +8,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QUrl>
 
 namespace {
@@ -35,7 +36,17 @@ QString RecoveryJournalStore::journalPathFor(const QString &relPath) const
     // The file name IS the relPath, percent-encoded (flat directory).
     const QString encoded = QString::fromUtf8(
         QUrl::toPercentEncoding(relPath));
-    return dirPath + QLatin1Char('/') + encoded;
+    const QString filePath = dirPath + QLatin1Char('/') + encoded;
+    // The directory is the repository's own, and so is every file in it. A
+    // link standing where a journal belongs works in both directions: reading
+    // it puts a file from outside the vault in front of the reader as their
+    // own recovered note, and restoring writes that content into the vault
+    // under the note name the link's own name decodes to. The journal write
+    // would follow it out of the vault as well.
+    const QFileInfo info(filePath);
+    if (info.isSymbolicLink() || info.isJunction() || info.isShortcut())
+        return QString();
+    return filePath;
 }
 
 void RecoveryJournalStore::reload()
@@ -45,7 +56,11 @@ void RecoveryJournalStore::reload()
     if (dirPath.isEmpty())
         return;
     const QDir recoveryDir(dirPath);
-    const QStringList journals = recoveryDir.entryList(QDir::Files, QDir::Name);
+    // NoSymLinks: a link dropped in here would otherwise be listed as a
+    // pending recovery, previewed from wherever it points, and restored into
+    // the vault under the note name its own name decodes to.
+    const QStringList journals =
+        recoveryDir.entryList(QDir::Files | QDir::NoSymLinks, QDir::Name);
     for (const QString &encoded : journals) {
         const QString decoded = QString::fromUtf8(
             QByteArray::fromPercentEncoding(encoded.toUtf8()));
