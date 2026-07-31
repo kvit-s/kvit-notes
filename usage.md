@@ -224,7 +224,9 @@ The available block types:
   relations, matrices, …) with each glyph rendered, or keep typing to autocomplete the
   command name; Enter or Tab inserts it, with the caret placed in the first argument slot
   and Tab hopping to the next. Ctrl+Space reopens completion for the command under the
-  caret.
+  caret. Inside a block equation Enter adds a line, which is what an `aligned` or `cases`
+  body needs; Ctrl+Enter leaves for a new block, and the corner under the source says so
+  while you are editing.
 - **Mermaid diagram** — a ` ```mermaid ` fenced block rendered natively, entirely offline.
   Kvit implements a documented Mermaid-compatible subset of five families — flowcharts/graphs
   (all the flow.jison node shapes incl. `@{ shape: … }` data blocks, labelled/chained/invisible
@@ -235,7 +237,9 @@ The available block types:
   fork/join/choice, notes), and ER diagrams (entity tables with keys and comments, crow's-foot
   cardinalities, roles) — each parser aligned with the pinned `mermaid@11.16.0` grammar (the
   full matrix lives in features.md §1.2.17). Focus the block to edit the source with a
-  debounced live preview. While the new source is invalid the last good render stays on
+  debounced live preview; Enter adds a line and keeps the indentation you are on, and
+  Ctrl+Enter leaves for a new block, which the corner under the preview says while you are
+  editing. While the new source is invalid the last good render stays on
   screen with a line/column diagnostic, and a deferred diagram family (gantt, pie, mindmap, …)
   falls back to editable source rather than a blank block — the Markdown is never discarded.
   Interactivity such as `click` is ignored with a warning. The read view offers
@@ -298,7 +302,9 @@ The available block types:
   Clicking a row or card opens that note. Results update live — edit any note's
   front-matter, in the app or in another program, and the block re-evaluates; only the spec
   is saved in the file, never the results. The view is read-only at this stage; a typo in
-  the spec shows as an error message in the block rather than being silently ignored.
+  the spec shows as an error message in the block rather than being silently ignored. In the
+  spec editor Enter adds a line and Ctrl+Enter leaves for a new block, which the corner under
+  the editor says while you are editing.
 - **Audio / video** — a local media file rendered as a player with play/pause, a seek bar,
   and a volume control.
 - **Embed card** — an `![](url)` pointing at a web page or video host renders as a preview
@@ -493,6 +499,7 @@ to keep yours or load the other version rather than silently overwriting either.
 | Convert to Paragraph / H1 / H2 / H3 | Ctrl+0 / Ctrl+1 / Ctrl+2 / Ctrl+3 |
 | Convert to To-do / Quote | Ctrl+T / Ctrl+Shift+T |
 | Toggle to-do / fold callout | Ctrl+Enter |
+| Leave a source block (code, math, diagram, query) | Ctrl+Enter |
 | Open the block menu | `/` (on an empty block) |
 
 **Navigation and documents**

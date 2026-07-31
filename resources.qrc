@@ -6,6 +6,7 @@
         <file>qml/MathEntryAssist.qml</file>
         <file>qml/WikiLinkCompletion.qml</file>
         <file>qml/BlockGutter.qml</file>
+        <file>qml/BlockKeyHint.qml</file>
         <file>qml/DropCapOverlay.qml</file>
         <file>qml/CalloutBlockChrome.qml</file>
         <file>qml/CodeBlockChrome.qml</file>

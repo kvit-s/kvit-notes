@@ -831,12 +831,17 @@ BlockDelegateBase {
                         event.accepted = true
                         return
                     }
+                    // Enter is a line break here — Mermaid source is a list of
+                    // statements — so Ctrl+Enter is the way to a new block,
+                    // matching the code, math and query editors and named in
+                    // the corner below. It used to force the preview to
+                    // re-render, which the 250 ms debounce does on its own
+                    // moments later; leaving the block commits the source on
+                    // the way out, so the preview still catches up.
                     if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                         && (event.modifiers & Qt.ControlModifier)) {
-                        debounce.stop()
-                        root.previewSource = text
-                        if (text !== root.content)
-                            BlockModel.updateContent(root.index, text)
+                        root.commitPendingSource()
+                        root.createBlockBelow()
                         event.accepted = true
                         return
                     }
@@ -973,6 +978,15 @@ BlockDelegateBase {
                     color: Theme.warning; font.pixelSize: 10
                 }
             }
+        }
+
+        // The exit key, in the corner the code block puts it in, and only
+        // while the source editor is open.
+        BlockKeyHint {
+            objectName: "mermaidExitHint"
+            width: parent.width
+            visible: root.editing
+            basePixelSize: Typography.monoSize
         }
     }
 

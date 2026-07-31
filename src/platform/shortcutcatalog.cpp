@@ -49,10 +49,11 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
         {"Block Operations", "Line break in block", "Shift+Enter", "engine", false,
          "Paragraphs, quotes, callouts and list items; a heading is a single "
          "markdown line, and a code block takes plain Enter."},
-        {"Block Operations", "Leave a code block", "Ctrl+Enter", "engine", false,
-         "Enter inside a code block is a newline, blank lines included, so "
-         "leaving it has its own chord — named in the block's bottom-right "
-         "corner while the caret is inside."},
+        {"Block Operations", "Leave a source block", "Ctrl+Enter", "engine", false,
+         "Code, block equations, Mermaid diagrams and query specs all take "
+         "Enter as a newline, blank lines included, so leaving one has its "
+         "own chord — named in the block's bottom-right corner while the "
+         "caret is inside."},
         {"Block Operations", "Caret between blocks", "Ctrl+Enter", "window", false,
          "On selected blocks: puts the caret in the space after them, where "
          "typing makes a block (§3.7). The keyboard route to the space below a "

@@ -83,6 +83,18 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A block equation, a Mermaid diagram and a query spec can be left from the
+  keyboard. All three edit a fenced source where Enter is a line break, since
+  an `aligned` body, a list of diagram statements and a `from:`/`where:` spec
+  each need more than one line, and none of them offered the Ctrl+Enter exit
+  the code block has had. The caret could only get out by an arrow key onto an
+  existing neighbour, or not at all when the block was the last one in the
+  note.
+  Ctrl+Enter now commits the source and starts a paragraph below in all three,
+  and each names the key in its own bottom-right corner while its editor is
+  open, where the code block already names it. In a Mermaid block Ctrl+Enter
+  previously forced the preview to re-render, which the 250 ms debounce does by
+  itself moments later.
 - A query block exports as its answer. HTML and PDF export printed the
   `from:`/`where:` spec as a code listing, in the board view as well as the
   table view, so what reached the file was the one part of the block a reader

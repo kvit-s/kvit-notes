@@ -595,6 +595,18 @@ BlockDelegateBase {
                 Keys.onPressed: function(event) {
                     if (root.handleContextMenuKey(event))
                         return
+                    // A query spec is a list of lines, so Enter is a line
+                    // break here and Ctrl+Enter is the way to a new block —
+                    // the same key the code, math and diagram editors use,
+                    // named in the corner below. Commit first so the spec
+                    // that the block runs is the one on screen.
+                    if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                        && (event.modifiers & Qt.ControlModifier)) {
+                        sourceArea.commitPendingSource()
+                        root.createBlockBelow()
+                        event.accepted = true
+                        return
+                    }
                     var arrowModifiers = Qt.ControlModifier | Qt.ShiftModifier
                         | Qt.AltModifier | Qt.MetaModifier
                     if (!(event.modifiers & arrowModifiers)
@@ -622,6 +634,15 @@ BlockDelegateBase {
                     }
                 }
             }
+        }
+
+        // The exit key, in the corner the code block puts it in, and only
+        // while the spec editor is open.
+        BlockKeyHint {
+            objectName: "queryExitHint"
+            width: parent.width
+            visible: root.editing
+            basePixelSize: Typography.monoSize
         }
     }
 

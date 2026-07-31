@@ -583,6 +583,21 @@ BlockDelegateBase {
                     }
                 }
 
+                // Enter inside a formula is a line break, and rightly so:
+                // an `aligned` or `cases` body is several lines of TeX, and
+                // `\\` ends a row rather than the equation. That leaves
+                // Ctrl+Enter as the way to a new block, the same key the code
+                // block uses, named in this block's own bottom-right corner
+                // while the source is open. The pending source commits first
+                // so the equation keeps what was typed into it.
+                if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                    && (event.modifiers & Qt.ControlModifier)) {
+                    root.commitPendingSource()
+                    root.createBlockBelow()
+                    event.accepted = true
+                    return
+                }
+
                 // Backslash: the menu trigger. A second backslash right
                 // after the trigger becomes the "\\" query (row break)
                 // instead of a new trigger.
@@ -689,6 +704,16 @@ BlockDelegateBase {
                 wrapMode: Text.Wrap; width: parent.width - 24
                 horizontalAlignment: Text.AlignHCenter
             }
+        }
+
+        // The exit key, in the corner the code block puts it in. Only while
+        // the source is open — with the equation merely rendered, Enter is
+        // not being swallowed and there is nothing to explain.
+        BlockKeyHint {
+            objectName: "mathExitHint"
+            width: parent.width
+            visible: root.editing
+            basePixelSize: sourceArea.font.pixelSize
         }
     }
 

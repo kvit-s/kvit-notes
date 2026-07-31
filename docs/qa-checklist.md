@@ -184,6 +184,17 @@ Run against the installed artifact with a fresh user profile.
        quote, code, divider, table, kanban, callout, toggle, image, embed,
        math, diagram, drop cap.
        *Expect:* each inserts at the cursor and is immediately editable.
+
+       *Also check the four blocks that edit a fenced source: code, math,
+       Mermaid diagram, and collection query. Make each one the last block
+       in the note, type into it, and press Ctrl+Enter.*
+
+       *Expect:* while the caret is in the source, the block's bottom-right
+       corner reads "Ctrl+Enter: new block"; Enter adds a line inside the
+       block rather than leaving it; Ctrl+Enter keeps everything typed,
+       makes a paragraph below, and puts the caret in it. Being last in the
+       note is the case that matters: an arrow key has no neighbour to land
+       on there, so a missing exit strands the caret.
 3. [ ] Paste an image from the clipboard; drag-drop an image file.
        *Expect:* both land in the note and survive a reopen, with the file
        written into the collection rather than linked from its origin.

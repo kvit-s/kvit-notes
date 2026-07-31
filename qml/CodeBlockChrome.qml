@@ -214,14 +214,12 @@ Item {
         height: root.footerHeight
         visible: root.caretInside && root.footerHeight > 0
 
-        Text {
+        BlockKeyHint {
             objectName: "codeExitHint"
             anchors.right: parent.right
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("Ctrl+Enter: new block")
-            color: Theme.textFaint
-            font.pixelSize: Math.max(9, root.fontPixelSize - 4)
+            basePixelSize: root.fontPixelSize
         }
     }
 

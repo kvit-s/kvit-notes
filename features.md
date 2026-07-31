@@ -207,6 +207,10 @@ currently present in the repository; remaining hardening work is recorded in §2
   Accepting inserts the command's template with the caret in its first
   empty slot; Tab hops between slots; Ctrl+Space re-triggers completion
   for the backslash-word at the caret
+- In a block equation Enter is a line break, since an `aligned` or `cases`
+  body is several lines of TeX; Ctrl+Enter leaves the block and starts a
+  paragraph below, named in the block's bottom-right corner while the source
+  is open, the same as in a code block
 
 #### 1.2.16 Drop Cap Block
 - Enlarged first letter spanning multiple lines
@@ -252,7 +256,9 @@ source of truth and round-trips through other editors.
   five theme tokens a code block is coloured with (§1.2.7), covering `%%` comments and
   `%%{…}%%` directives, diagram and statement keywords, layout directions, link runs, and
   bracketed, quoted or post-colon label text. Tab inserts two spaces, and Enter opens the new
-  line at the current line's indentation. Resource limits (nodes/edges/depth/label length,
+  line at the current line's indentation; Ctrl+Enter leaves the block and starts a paragraph
+  below, named in the block's bottom-right corner while the source is open, the same as in a
+  code block. Resource limits (nodes/edges/depth/label length,
   256 KiB source) bound the renderer.
 - **On-diagram editing** — supported flowcharts are edited directly on
   the rendered diagram; every gesture becomes a surgical edit of the fence source (one undo
@@ -325,6 +331,9 @@ sort: due asc
 - Invalid or unknown spec keys produce an in-block error instead of being ignored
 - The launch implementation is read-only: editing metadata by changing cells or dragging cards
   is deferred
+- In the spec editor Enter is a line break, since the spec is a list of lines; Ctrl+Enter
+  leaves the block and starts a paragraph below, named in the block's bottom-right corner
+  while the editor is open, the same as in a code block
 
 ---
 

@@ -11226,6 +11226,136 @@ Item {
                     "typing lands after the copied indent")
         }
 
+        // The three source-editing blocks that are not the code block —
+        // display math, Mermaid, and the collection query — take Enter as a
+        // line break, so each has to offer the code block's Ctrl+Enter exit
+        // and name it in the same corner. Without it the only way out of a
+        // block that is last in the note was to give up and use the mouse.
+        function test_zzy4_displayMathCtrlEnterLeavesTheBlock() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel, "$$\nx^2\n$$")
+            wait(300)
+
+            var d = findBlockDelegate(0)
+            verify(d !== null, "math delegate exists")
+            var src = findChild(d, "mathSourceArea")
+            verify(src !== null, "math source editor exists")
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
+            d.focusAtEnd()
+            tryVerify(function() { return src.activeFocus }, 2000,
+                      "source editor takes focus")
+
+            // Enter adds a line: an `aligned` or `cases` body needs several,
+            // so it cannot be the key that leaves.
+            keyClick(Qt.Key_Return)
+            compare(src.text, "x^2\n", "Enter breaks the line inside the TeX")
+            compare(BlockModel.count, 1, "and makes no new block")
+
+            // The block names the way out while its source is open.
+            var hint = findChild(d, "mathExitHint")
+            verify(hint !== null, "the math block carries its key hint")
+            compare(hint.visible, true)
+            compare(hint.text, "Ctrl+Enter: new block")
+
+            keyClick(Qt.Key_Return, Qt.ControlModifier)
+            tryVerify(function() { return BlockModel.count === 2 }, 2000,
+                      "Ctrl+Enter should leave the math block")
+            compare(BlockModel.getContent(0), "x^2\n",
+                    "the equation keeps the source that was typed into it")
+            compare(BlockModel.blockAt(1).blockType, Block.Paragraph,
+                    "the exit block is a paragraph")
+            var newArea = findTextArea(findBlockDelegate(1))
+            tryVerify(function() { return newArea.activeFocus }, 2000,
+                      "and the caret lands in it")
+            // With the source closed nothing is swallowing Enter, so the
+            // hint has nothing to explain.
+            tryCompare(hint, "visible", false, 1000)
+        }
+
+        function test_zzy5_mermaidSourceCtrlEnterLeavesTheBlock() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "```mermaid\nflowchart LR\n    A[a] --> B[b]\n```")
+            wait(300)
+
+            var d = findBlockDelegate(0)
+            verify(d !== null, "diagram delegate exists")
+            var src = findChild(d, "mermaidSourceArea")
+            verify(src !== null, "source editor exists")
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
+            d.focusAtEnd()
+            tryVerify(function() { return src.activeFocus }, 2000,
+                      "source editor takes focus")
+
+            var hint = findChild(d, "mermaidExitHint")
+            verify(hint !== null, "the diagram block carries its key hint")
+            compare(hint.visible, true)
+            compare(hint.text, "Ctrl+Enter: new block")
+
+            var source = src.text
+            keyClick(Qt.Key_Return, Qt.ControlModifier)
+            tryVerify(function() { return BlockModel.count === 2 }, 2000,
+                      "Ctrl+Enter should leave the diagram block")
+            compare(BlockModel.getContent(0), source,
+                    "the diagram keeps its source")
+            compare(BlockModel.blockAt(1).blockType, Block.Paragraph,
+                    "the exit block is a paragraph")
+            var newArea = findTextArea(findBlockDelegate(1))
+            tryVerify(function() { return newArea.activeFocus }, 2000,
+                      "and the caret lands in it")
+            tryCompare(hint, "visible", false, 1000)
+        }
+
+        function test_zzy6_querySourceCtrlEnterLeavesTheBlock() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            BlockModel.convertBlock(0, Block.CodeBlock, "from: .", false,
+                                    "query")
+            wait(300)
+
+            var d = findBlockDelegate(0)
+            verify(d !== null, "query delegate exists")
+            var src = findChild(d, "querySourceArea")
+            verify(src !== null, "query source editor exists")
+            if (appLoader.item && appLoader.item.requestActivate)
+                appLoader.item.requestActivate()
+            d.focusAtEnd()
+            tryVerify(function() { return src.activeFocus }, 2000,
+                      "source editor takes focus")
+
+            // A spec is a list of lines, so Enter keeps adding them.
+            keyClick(Qt.Key_Return)
+            compare(src.text, "from: .\n", "Enter breaks the line in the spec")
+            compare(BlockModel.count, 1, "and makes no new block")
+
+            var hint = findChild(d, "queryExitHint")
+            verify(hint !== null, "the query block carries its key hint")
+            compare(hint.visible, true)
+            compare(hint.text, "Ctrl+Enter: new block")
+
+            keyClick(Qt.Key_Return, Qt.ControlModifier)
+            tryVerify(function() { return BlockModel.count === 2 }, 2000,
+                      "Ctrl+Enter should leave the query block")
+            compare(BlockModel.getContent(0), "from: .\n",
+                    "the spec keeps the line that was typed into it")
+            compare(BlockModel.blockAt(1).blockType, Block.Paragraph,
+                    "the exit block is a paragraph")
+            var newArea = findTextArea(findBlockDelegate(1))
+            tryVerify(function() { return newArea.activeFocus }, 2000,
+                      "and the caret lands in it")
+            tryCompare(hint, "visible", false, 1000)
+        }
+
         // Same report, full click path: open the actual LanguagePicker menu
         // and fire its "Text diagram" MenuItem, instead of calling
         // setCodeLanguage directly.
