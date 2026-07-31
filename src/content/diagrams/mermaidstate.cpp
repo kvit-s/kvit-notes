@@ -112,10 +112,19 @@ int StateParser::resolveId(QString written, bool asTarget, int lineNo,
         written = written.left(trip).trimmed();
     }
     if (written == QLatin1String("[*]")) {
-        // Start/end pseudo-states are scoped to their composite.
-        const QString scoped = (asTarget ? QStringLiteral("__end__")
-                                         : QStringLiteral("__start__"))
-                               + scopeId();
+        // Start/end pseudo-states are scoped to their composite, and keyed in
+        // a namespace the source cannot reach. The key used to be "__start__"
+        // or "__end__" plus the scope, both of which are legal Mermaid
+        // identifiers: a diagram with a state genuinely called `__start__`
+        // resolved to the same entry as `[*]`, so it lost its label, took the
+        // start marker's kind, and drew as a filled dot with every transition
+        // to it pointing at the wrong thing. A line of source cannot carry a
+        // NUL, so nothing the reader writes can land here.
+        const QChar mark(QChar::Null);
+        const QString scoped = mark
+                               + (asTarget ? QStringLiteral("end")
+                                           : QStringLiteral("start"))
+                               + mark + scopeId();
         const int i = ensureState(scoped, lineNo,
                                   asTarget ? StateKind::End : StateKind::Start);
         if (i >= 0)

@@ -229,6 +229,36 @@ QString stampValue(const QString &fields, const QString &name)
                                                      : QString();
 }
 
+// The fields of that comment this version does not interpret, verbatim and in
+// source order. Everything in the comment is rewritten from the model on the
+// next edit, so anything not carried here is deleted by an edit that had
+// nothing to do with it.
+QString stampExtraFields(const QString &fields)
+{
+    static const QRegularExpression fieldRe(QStringLiteral("(\\w+)=([0-9-]+)"));
+    QStringList kept;
+    QRegularExpressionMatchIterator it = fieldRe.globalMatch(fields);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        const QString name = m.captured(1);
+        if (name != QLatin1String("created")
+            && name != QLatin1String("modified")) {
+            kept << m.captured(0);
+        }
+    }
+    return kept.join(QLatin1Char(' '));
+}
+
+// The run of spaces and tabs a line starts with.
+QString leadingIndent(const QString &line)
+{
+    int i = 0;
+    while (i < line.size()
+           && (line.at(i) == QLatin1Char(' ') || line.at(i) == QLatin1Char('\t')))
+        ++i;
+    return line.left(i);
+}
+
 // Everything before that comment, which is the card's text.
 QString withoutStamp(const QString &line)
 {
@@ -247,6 +277,9 @@ QString stampComment(const KanbanData::Card &card)
         fields << QStringLiteral("created=") + card.created;
     if (!card.modified.isEmpty() && card.modified != card.created)
         fields << QStringLiteral("modified=") + card.modified;
+    // Whatever else the comment held goes back in. See Card::stampExtras.
+    if (!card.stampExtras.isEmpty())
+        fields << card.stampExtras;
     if (fields.isEmpty())
         return QString();
     return QStringLiteral(" <!--kvit ") + fields.join(QLatin1Char(' '))
@@ -400,8 +433,27 @@ Board parse(const QString &content)
             board.columns[colIdx].cards[lastCardIdx].trailingTrivia.append(raw);
     };
 
+    // A blank line inside a description is part of it — a description with a
+    // paragraph break is ordinary prose — but a blank line after the last one
+    // is what separates this card from the next. The two are the same line and
+    // only what follows tells them apart, so blanks are held here until an
+    // indented line claims them for the description or something else sends
+    // them to trivia. Ending the run on the first blank, which is what used to
+    // happen, cut every such description in half.
+    QStringList pendingBlanks;
+    auto flushBlanksToTrivia = [&]() {
+        for (const QString &blank : pendingBlanks)
+            keepTrivia(blank);
+        pendingBlanks.clear();
+    };
+
     for (const QString &raw : lines) {
+        if (descIdx >= 0 && raw.trimmed().isEmpty()) {
+            pendingBlanks.append(raw);
+            continue;
+        }
         if (raw.startsWith(QStringLiteral("## "))) {
+            flushBlanksToTrivia();
             Column c;
             c.name = raw.mid(3).trimmed();
             c.rawHeader = raw;
@@ -412,6 +464,7 @@ Board parse(const QString &content)
             continue;
         }
         if (colIdx < 0) {
+            flushBlanksToTrivia();
             keepTrivia(raw);
             continue;
         }
@@ -420,6 +473,7 @@ Board parse(const QString &content)
         const bool indented = raw.startsWith(QStringLiteral("  "))
                               || raw.startsWith(QStringLiteral("\t"));
         if (cm.hasMatch() && !indented) {
+            flushBlanksToTrivia();
             Card c;
             c.done = cm.captured(1) != QStringLiteral(" ");
             c.rawLine = raw;
@@ -432,6 +486,7 @@ Board parse(const QString &content)
                 c.modified = stampValue(sm.captured(1), QStringLiteral("modified"));
                 if (c.modified.isEmpty())
                     c.modified = c.created;
+                c.stampExtras = stampExtraFields(sm.captured(1));
                 body = body.left(sm.capturedStart(0));
             }
             parseCardBody(body, c);
@@ -442,7 +497,37 @@ Board parse(const QString &content)
         }
         if (indented && descIdx >= 0) {
             Card &c = board.columns[colIdx].cards[descIdx];
-            const QString text = raw.trimmed();
+            if (!pendingBlanks.isEmpty() && c.rawDescription.isEmpty()) {
+                // A blank line between the card and this one means this is not
+                // the card's description: a description starts on the line
+                // after its card. Unchanged from before, and the answer that
+                // keeps the blank where it was written — trivia is emitted
+                // after the description, so absorbing this line would move the
+                // blank past it.
+                flushBlanksToTrivia();
+                descIdx = -1;
+                keepTrivia(raw);
+                continue;
+            }
+            // The blanks held back are inside this description after all.
+            for (const QString &blank : pendingBlanks) {
+                c.description += QLatin1Char('\n');
+                c.rawDescription.append(blank);
+            }
+            pendingBlanks.clear();
+            if (c.rawDescription.isEmpty())
+                c.descriptionIndent = leadingIndent(raw);
+            // Only the description's own indent comes off. Trimming every line
+            // flattened whatever was written inside one — a nested list, an
+            // indented quotation — into a run of top-level lines, and the next
+            // edit through the card editor wrote that flattened form back to
+            // the file.
+            QString text = raw;
+            if (!c.descriptionIndent.isEmpty()
+                && text.startsWith(c.descriptionIndent))
+                text.remove(0, c.descriptionIndent.size());
+            else
+                text = text.trimmed();
             c.description = c.description.isEmpty()
                 ? text : c.description + QLatin1Char('\n') + text;
             c.rawDescription.append(raw);
@@ -450,9 +535,11 @@ Board parse(const QString &content)
         }
         // Any other line ends the current card's description run, but is still
         // carried through as trivia.
+        flushBlanksToTrivia();
         descIdx = -1;
         keepTrivia(raw);
     }
+    flushBlanksToTrivia();
     return board;
 }
 
@@ -478,8 +565,13 @@ QString serialize(const Board &b)
             if (!card.rawDescription.isEmpty()) {
                 out << card.rawDescription;
             } else if (!card.description.isEmpty()) {
+                // The indent the description was read with, so a description
+                // rewritten from the field lands where the old one was; two
+                // spaces for one the editor invented.
+                const QString indent = card.descriptionIndent.isEmpty()
+                    ? QStringLiteral("  ") : card.descriptionIndent;
                 for (const QString &d : card.description.split(QLatin1Char('\n')))
-                    out << QStringLiteral("  ") + d;
+                    out << (d.isEmpty() ? QString() : indent + d);
             }
             out << card.trailingTrivia;
         }

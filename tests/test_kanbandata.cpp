@@ -387,6 +387,57 @@ private slots:
         QCOMPARE(setCardDescription(md, 0, 9, "nope"), md);
     }
 
+    // A description is prose, and prose has paragraphs and indented structure.
+    // Ending the run at the first blank line cut every such description in
+    // half, and trimming each line flattened whatever was nested inside one —
+    // both invisibly, until the card was edited and the flattened form went
+    // back to the file.
+    void descriptionsKeepTheirBlankLinesAndTheirNesting()
+    {
+        const QString md = "## A\n- [ ] one\n"
+                           "  first paragraph\n"
+                           "\n"
+                           "  second paragraph\n"
+                           "  - a nested item\n"
+                           "    - deeper still\n"
+                           "- [ ] two";
+        const KanbanData::Board board = parse(md);
+        QCOMPARE(board.columns[0].cards.size(), 2);
+        QCOMPARE(board.columns[0].cards[0].description,
+                 QString("first paragraph\n\nsecond paragraph\n"
+                         "- a nested item\n  - deeper still"));
+
+        // Untouched, the board is byte-identical.
+        QCOMPARE(serialize(board), md);
+
+        // And a description written back from the field keeps the shape it was
+        // read with, so the next parse reads the same thing again.
+        const QString out = setCardDescription(
+            md, 0, 0, board.columns[0].cards[0].description);
+        QCOMPARE(out, md);
+    }
+
+    // The `<!--kvit …-->` comment is this application's own namespace, and an
+    // edit rewrites the whole comment from the two fields this version knows.
+    // A field it does not know has to survive that, or opening a board in an
+    // older build and touching one card deletes what a newer one recorded.
+    void unknownStampFieldsSurviveAnEdit()
+    {
+        const QString md = "## A\n- [ ] Ship it <!--kvit created=2026-07-20 "
+                           "sprint=2026-31 modified=2026-07-26-->";
+        const KanbanData::Board board = parse(md);
+        QCOMPARE(board.columns[0].cards[0].created, QString("2026-07-20"));
+        QCOMPARE(board.columns[0].cards[0].modified, QString("2026-07-26"));
+
+        const QString out = toggleCardDone(md, 0, 0, "2026-08-01");
+        QVERIFY2(out.contains(QStringLiteral("sprint=2026-31")),
+                 qPrintable(QStringLiteral("a field this version does not "
+                                           "interpret was deleted by an edit "
+                                           "that had nothing to do with it: %1")
+                                .arg(out)));
+        QCOMPARE(parse(out).columns[0].cards[0].modified, QString("2026-08-01"));
+    }
+
     // The text the inline editor is handed for a card's line: what the file
     // has, for a card that has a line, and what serialize() is about to write
     // for one a mutation just synthesized. Either way, putting it straight

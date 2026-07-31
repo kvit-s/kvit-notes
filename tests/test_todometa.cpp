@@ -83,6 +83,23 @@ private slots:
         const auto m = TodoMeta::parse("**bold** task " + cal() + " 2026-07-15");
         QCOMPARE(m.text, QString("**bold** task"));
     }
+
+    // A metadata token is a token: it stands apart from the reader's words.
+    // One of these characters glued to the end of a word is part of that word,
+    // and reading it as a priority took the character out of the sentence and
+    // gave the item a priority nobody set — on every save, invisibly.
+    void anEmojiInsideTheTextIsNotMetadata()
+    {
+        const auto glued = TodoMeta::parse("point the arrow down" + low());
+        QCOMPARE(glued.text, QString("point the arrow down") + low());
+        QCOMPARE(glued.priority, int(TodoMeta::None));
+        QCOMPARE(glued.tail, QString());
+
+        // Separated by a space, it is metadata, exactly as before.
+        const auto spaced = TodoMeta::parse("point the arrow down " + low());
+        QCOMPARE(spaced.text, QString("point the arrow down"));
+        QCOMPARE(spaced.priority, int(TodoMeta::Low));
+    }
 };
 
 QTEST_MAIN(TestTodoMeta)

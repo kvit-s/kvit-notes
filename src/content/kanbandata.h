@@ -78,9 +78,22 @@ struct Card {
     QString modified;
 
     // ---- Source fidelity; not part of the logical model ----
+    // Whatever else that `<!--kvit …-->` comment held, verbatim and in source
+    // order. The comment is this application's own namespace, so a later
+    // version — or the module that links this one — may keep something of its
+    // own in it; an edit rewrites the whole comment from the two fields above,
+    // so without this, opening a board in a build that does not know a field
+    // and touching one card silently deletes it.
+    QString stampExtras;
     // The card's exact source line, empty when the card was synthesized by a
     // mutation and the line has to be rendered from the fields above.
     QString rawLine;
+    // The indent the description's first line carried, which every line of it
+    // is measured against. Only this comes off when the description is read
+    // and it goes back on when one is written, so a list nested inside a
+    // description keeps its shape; trimming each line flattened it, and the
+    // next edit wrote the flattened form to the file.
+    QString descriptionIndent;
     // The exact source lines of the description, same convention.
     QStringList rawDescription;
     // Unmodelled lines that followed this card in the source.

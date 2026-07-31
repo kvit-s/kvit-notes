@@ -68,9 +68,19 @@ QString decodeEntities(QString s)
             ++j;
         if (j > hash + 1 && j < s.size() && s.at(j) == u';') {
             const int code = s.mid(hash + 1, j - hash - 1).toInt();
-            if (code > 0 && code < 0x110000) {
-                s.replace(hash, j - hash + 1, QString(QChar(code)));
-                from = hash + 1;
+            // A surrogate half is not a character and would leave the string
+            // ill-formed.
+            if (code > 0 && code < 0x110000
+                && !(code >= 0xD800 && code <= 0xDFFF)) {
+                // QChar holds one UTF-16 unit and its integer constructor
+                // keeps the low 16 bits, so every code point above the basic
+                // plane — which is where the emoji a label is most likely to
+                // name live — was silently replaced by a different character
+                // in the private-use area. fromUcs4 writes the surrogate pair.
+                const char32_t point = char32_t(code);
+                const QString decoded = QString::fromUcs4(&point, 1);
+                s.replace(hash, j - hash + 1, decoded);
+                from = hash + decoded.size();
                 continue;
             }
         }

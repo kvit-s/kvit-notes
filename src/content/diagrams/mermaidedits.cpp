@@ -734,10 +734,22 @@ Result quickAddNode(const QString &source, const QString &fromId)
     if (!from)
         return fail(QStringLiteral("Unknown node: %1").arg(fromId));
     QString newId;
+    bool nameIsFree = false;
     for (int k = 1; k < kMaxNodes; ++k) {
         newId = QStringLiteral("node%1").arg(k);
-        if (!findNode(ctx, newId))
+        if (!findNode(ctx, newId)) {
+            nameIsFree = true;
             break;
+        }
+    }
+    if (!nameIsFree) {
+        // Every generated name is taken. Running off the end of the loop and
+        // using the last one tried wrote a second node under an id that
+        // already existed, which the parser reads back as one node — so the
+        // new box silently became a relabelling of an old one, with the old
+        // one's edges attached.
+        return fail(QStringLiteral("This diagram already has a node under "
+                                   "every name a new one could be given"));
     }
     int anchor = -1;
     for (int i = 0; i < ctx.stmts.size(); ++i)

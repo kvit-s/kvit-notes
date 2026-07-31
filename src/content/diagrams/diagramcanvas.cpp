@@ -117,26 +117,47 @@ void DiagramCanvas::resetScene()
 
 void DiagramCanvas::scheduleRender()
 {
+    // One render at a time per canvas. Every keystroke in a fence used to
+    // launch a full parse and layout on the global thread pool; the revision
+    // guard threw the stale answers away, but the work had already been done,
+    // and a typing burst — or a few diagram blocks laying out at once — filled
+    // the pool with jobs nobody would ever read the result of, in front of the
+    // one job that mattered. Only the newest source is worth rendering, so a
+    // request arriving while one is running is remembered rather than queued.
+    if (m_rendering) {
+        m_renderQueued = true;
+        return;
+    }
+    m_rendering = true;
+    emit renderingChanged();
+    startRender();
+}
+
+void DiagramCanvas::startRender()
+{
     const quint64 rev = ++m_revision;
     Diagram::LayoutOptions opts;
     opts.fontFamily = m_fontFamily;
     opts.fontPixelSize = m_fontPixelSize;
     const QString src = m_source;
 
-    if (!m_rendering) {
-        m_rendering = true;
-        emit renderingChanged();
-    }
-
     auto *watcher = new QFutureWatcher<Diagram::RenderResult>(this);
     connect(watcher, &QFutureWatcher<Diagram::RenderResult>::finished, this,
             [this, watcher, rev, src]() {
-                if (rev == m_revision) {
-                    m_rendering = false;
-                    emit renderingChanged();
-                    applyResult(watcher->result(), src);
-                }
+                const Diagram::RenderResult result = watcher->result();
                 watcher->deleteLater();
+                if (m_renderQueued) {
+                    // The source moved on while this ran, so this answer is
+                    // already stale and the next one is what the reader will
+                    // see. `rendering` stays true across the handover.
+                    m_renderQueued = false;
+                    startRender();
+                    return;
+                }
+                m_rendering = false;
+                emit renderingChanged();
+                if (rev == m_revision)
+                    applyResult(result, src);
             });
     watcher->setFuture(QtConcurrent::run([src, opts]() {
         return Diagram::render(src, opts);

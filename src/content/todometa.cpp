@@ -14,10 +14,18 @@ const QString kCalendar = QString::fromUtf8("\xF0\x9F\x93\x85"); // 📅 U+1F4C5
 
 // The trailing metadata block: one or more space-led priority emoji or a
 // dated calendar token, anchored to the end of the content.
+//
+// Space-led is the rule, and `[ \t]+` rather than `[ \t]*` is what states it.
+// These tokens are metadata precisely because they stand apart from the
+// reader's own words; with the space optional, a to-do whose text ENDS in one
+// of the same characters — "point the arrow down 🔽" — had it taken away and
+// re-emitted as a priority, so the sentence lost its last character and the
+// item silently acquired a priority nobody set. build() always writes the
+// separating space, so nothing this application has written is affected.
 const QRegularExpression &tailRe()
 {
     static const QRegularExpression re(
-        QStringLiteral("((?:[ \\t]*(?:") + kCalendar
+        QStringLiteral("((?:[ \\t]+(?:") + kCalendar
         + QStringLiteral("[ \\t]*\\d{4}-\\d{2}-\\d{2}|") + kHigh
         + QStringLiteral("|") + kMedium + QStringLiteral("|") + kLow
         + QStringLiteral("))+)$"));

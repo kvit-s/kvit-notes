@@ -219,7 +219,13 @@ signals:
     void gestureErrorChanged();
 
 private:
+    // Ask for a render of the current source. At most one runs at a time; a
+    // request that arrives while one is in flight replaces any other waiting
+    // request, so a burst of edits costs two renders rather than one per edit.
     void scheduleRender();
+    // Launch one, unconditionally. Only scheduleRender() and the completion
+    // handler call it, and between them they are what keeps that to one.
+    void startRender();
     void applyResult(const Diagram::RenderResult &r, const QString &src);
     void updateImplicitSize();
     QPointF toSceneCoords(qreal x, qreal y) const
@@ -279,6 +285,9 @@ private:
     Diagram::Scene m_scene;          // last valid scene (kept across errors)
     bool m_hasScene = false;
     bool m_rendering = false;
+    // A render was asked for while one was running. One flag rather than a
+    // queue: every waiting request would render the same current source.
+    bool m_renderQueued = false;
     bool m_hasError = false;
     bool m_unsupported = false;
     QString m_errorText;
