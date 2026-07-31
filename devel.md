@@ -8,7 +8,8 @@ they see on screen.
 ## Building and running
 
 ```
-./build.sh            # configure + build + run the test suite
+./build.sh            # configure + build
+./build.sh --test     # ...then run the test suite
 ./build.sh --run      # ...then launch the editor
 ./build/kvit-notes   # launch directly
 ```

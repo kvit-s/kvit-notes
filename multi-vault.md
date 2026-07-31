@@ -1,22 +1,45 @@
 # Multi-window, multi-vault
 
-## What this is
+## Status: built
 
-Kvit Notes today opens exactly one notes collection ("vault") in one window,
-and it decides which vault to open with no help from the user: a normal launch
-opens a fixed default directory, and there is no menu, setting, or memory of a
-previously used vault. This document plans the work to make the application
+Everything this document plans has shipped. Kvit Notes opens any folder as a
+vault and any loose file on its own, keeps several vaults open at once in
+separate windows of one process, remembers the last session's vaults and a
+recent list, and routes a second launch to the running instance rather than
+starting a competing process.
+
+Where each piece lives:
+
+| The plan | Where it is |
+|---|---|
+| Open File… / Open Folder… and the recent-vaults list | `qml/Toolbar.qml`, `qml/DocumentSessionDialogs.qml`, `AppActions::requestOpenVault` |
+| Remembered vaults (`session.openVaults`, `session.recentVaults`) | `WindowRegistry::openSession`, `persistOpenVaults`, `recordRecentVault` |
+| Per-vault state split from process-global state | `AppContext` (per window) and `ProcessServices` (per process), composed by `VaultWindow` |
+| The window/vault registry | `src/qml/windowregistry.{h,cpp}` |
+| The single-instance channel | `src/platform/singleinstance.{h,cpp}`, `SingleInstanceTests` |
+| Open routing | `WindowRouter`, implemented by `WindowRegistry` |
+| Quit and tray behaviour with N windows | `KvitApplication::start`, `setQuitOnLastWindowClosed`, `AppActions::trayTarget` |
+
+Read the rest of this file as the design record: what the problem was, what was
+decided, and why. It is not a description of missing work.
+
+## What this was
+
+Kvit Notes opened exactly one notes collection ("vault") in one window, and it
+decided which vault to open with no help from the user: a normal launch opened
+a fixed default directory, and there was no menu, setting, or memory of a
+previously used vault. This document planned the work to make the application
 behave the way a folder-based editor such as VS Code or Obsidian does — open
 any folder as a vault, open a loose file on its own, keep several vaults open
 at once in separate windows, and route a second launch to the window that
 already has that vault open instead of starting a competing process.
 
-The plan is deliberately split into two work items. Phase 1 is small and
-self-contained: surface the open actions that the code can already perform, and
-remember where the user was. Phase 3 is the larger change that makes the
-application genuinely multi-window and multi-vault. (The numbering keeps a gap
-where an intermediate "single-instance IPC" step was originally imagined; in a
-multi-window, single-process design that step is not separable and is folded
+The plan was deliberately split into two work items. Phase 1 was small and
+self-contained: surface the open actions that the code could already perform,
+and remember where the user was. Phase 3 was the larger change that made the
+application multi-window and multi-vault. (The numbering keeps a gap where an
+intermediate "single-instance IPC" step was originally imagined; in a
+multi-window, single-process design that step is not separable and was folded
 into Phase 3, described there.)
 
 ## How notes locations work today

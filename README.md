@@ -15,15 +15,17 @@ span revealed only while your cursor is inside it.
 | Platform | Install |
 |---|---|
 | Linux | [AppImage](https://github.com/kvit-s/kvit-notes/releases/latest) · AUR `kvit-notes-bin` |
+| Windows | [Installer or portable zip](https://github.com/kvit-s/kvit-notes/releases/latest) |
+| macOS | [DMG](https://github.com/kvit-s/kvit-notes/releases/latest) |
 
-**Windows and macOS builds are not published yet.** Both ports compile and
-pass the full unit suite in CI on every commit, and the Windows port also
-passes it locally against MSVC 2022, but neither has a packaging job: there
-is no installer, portable zip, DMG, signing or notarization step in the
-release workflow, so a tag produces the Linux AppImage and nothing else.
-Building from source works on all three platforms today (see below). This
-section lists only what a release actually publishes, and will grow when
-those jobs exist.
+**Neither the Windows nor the macOS download is code-signed.** A release tag
+builds all three: the Linux AppImage, a per-user Inno Setup installer and a
+portable zip for Windows, and a `macdeployqt` bundle inside a compressed DMG.
+The Windows artifacts carry no Authenticode signature and the DMG is
+ad-hoc-signed and not notarized, so SmartScreen on Windows and Gatekeeper on
+macOS will both warn before running them. Signing is wired into the release
+workflow and switches on when the certificates exist; until then, building
+from source (see below) is the way to avoid the warning.
 
 Flathub and the Homebrew tap are likewise not live yet. The Flatpak manifest
 lives at `packaging/flatpak/org.kvit.Notes.yaml` and is submitted by hand;
@@ -125,8 +127,8 @@ cmake --build --preset linux-release -j
 ./build-linux-release/kvit-notes
 ```
 
-On Linux, `./build.sh` wraps configure, build, and the test suite
-(`--run` launches the editor). Run the merge-gate tests with
+On Linux, `./build.sh` wraps configure and build; `--test` adds the test
+suite and `--run` launches the editor. Run the merge-gate tests with
 `ctest --preset unit-linux`; see [CONTRIBUTING.md](CONTRIBUTING.md) for
 the full suite layout and the UI-test display policy.
 

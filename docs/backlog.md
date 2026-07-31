@@ -39,11 +39,15 @@ where each now lives.
 - **Renaming is a confirmed plan, not an automatic rewrite.** A rename builds a
   `RenamePlan` (note rename, note move, or folder rename) that the UI confirms
   before applying (`NoteRenameWorkflow.qml`). Each referrer is snapshotted with
-  its content hash and modification time, so a file edited since the plan was
-  built is detected rather than overwritten; the open note's rewrite is returned
-  to the editor as one undoable body replacement; a rewrite pass that cannot
-  finish a file reports it through `wikiLinkRewriteIncomplete`; and a folder
-  rename rewrites the qualified links beneath the moved prefix.
+  its content hash and modification time, which is what the confirmation shows.
+  The rewrite itself is a background pass that reads each referrer immediately
+  before writing it and compares again immediately before committing, so a save
+  or an outside edit that lands mid-pass leaves that file alone rather than
+  being overwritten; the redirect survives, and the next scan offers the file
+  again. The open note's rewrite is returned to the editor as one undoable body
+  replacement; a pass that cannot finish a file reports it through
+  `wikiLinkRewriteIncomplete`; and a folder rename rewrites the qualified links
+  beneath the moved prefix.
 - **Ambiguous wiki targets stay unresolved.** `WikiLinkIndex` resolution returns
   `{status: unique|ambiguous|missing, candidates}` and leaves a bare target that
   two notes answer unresolved together with its candidates, rather than binding

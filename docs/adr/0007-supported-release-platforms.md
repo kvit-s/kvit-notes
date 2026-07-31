@@ -33,10 +33,23 @@ matching `refs/tags/v`. It produces an AppImage, `SHA256SUMS.txt`, a
 `THIRD-PARTY-NOTICES.md`, attached to a **draft** release that a human
 publishes.
 
-**Built and tested but not published.** Windows and macOS. The `build-test`
-matrix builds `windows-msvc-release` on `windows-2022` and `macos-release` on
-`macos-14`, and both run the blocking `unit` and `shell` gates on every commit.
-Neither has any packaging step.
+**Published, unsigned.** Windows x86_64 and macOS. `package-windows` runs on
+`windows-2022` and produces the `windeployqt` portable zip and a per-user Inno
+Setup installer (`packaging/windows/build-windows.ps1`,
+`packaging/windows/kvit-notes.iss`); `package-macos` runs on `macos-14` and
+produces a `macdeployqt` bundle inside a compressed DMG
+(`packaging/macos/build-macos.sh`). Both are tag-gated, both take their own
+approval in the protected `release` environment, and both attach to the same
+draft release as the Linux artifacts. Neither is signed: the Windows artifacts
+carry no Authenticode signature, and the DMG is ad-hoc-signed and not
+notarized, so SmartScreen and Gatekeeper both warn. The signing and
+notarization steps read their credentials from the release environment and
+take the unsigned path while those secrets are empty, which is the state
+today.
+
+The `build-test` matrix still builds `windows-msvc-release` and
+`macos-release` and runs the blocking `unit` and `shell` gates on all three
+platforms on every commit, so what is packaged is what passed.
 
 **Partly automated.** The AUR package `kvit-notes-bin`. CI pins the checksums
 and emits the PKGBUILD; pushing to the AUR is a manual step in
@@ -48,26 +61,27 @@ unverified bytes.
 hand and pins both tag and commit, with a placeholder commit that is not a real
 object so an unpinned manifest fails to fetch. No CI job builds it.
 
-**Absent.** Installers of any kind for Windows, DMG or bundle tooling for macOS,
-a published portable zip, and every form of signing and notarization. The
-`package` job declares the protected `release` environment, but no step in it
-consumes a signing credential, because there is none to consume.
+**Absent.** Every form of signing and notarization. All three packaging jobs
+declare the protected `release` environment, but no step in any of them
+consumes a signing credential, because there is none to consume: those
+credentials require an identified organization and cannot be provisioned or
+tested from this repository.
 
 Supported toolchain: Qt 6.10 or newer, with CI pinned to 6.10.1; CMake 3.21 or
 newer; C++20 with GCC 12 or newer, MSVC 2022, or a recent AppleClang.
 
 ## Consequences
 
-The download table is short and true. A reader learns from the README that
-Windows and macOS builds compile and pass the suite but are not published, and
-that building from source works on all three platforms today.
+The download table is true: it lists all three platforms, because a tag now
+produces artifacts for all three, and it states plainly that two of them are
+unsigned. A reader who downloads the Windows installer or the macOS DMG meets
+an operating-system warning, and the README tells them so before they do.
 
-The cost is that the compiling-and-tested state of the Windows and macOS ports
-is easy to mistake for neglect. It is deliberate: those ports are kept green so
-that adding a packaging job later is a packaging problem rather than a porting
-problem. The standing TODO in `ci.yml` names the shape of that future work,
-being a windeployqt zip with an Inno installer on Windows and a macdeployqt
-notarized DMG on macOS, both in the same protected environment.
+The cost is that an unsigned download is a worse first impression than no
+download at all for some readers, and that the packaging jobs are exercised
+end to end without ever exercising the signing path they will eventually take.
+That path is written and inert rather than absent, so enabling it is a matter
+of adding credentials to the release environment.
 
 One loose end is worth recording rather than leaving to be rediscovered:
 
@@ -82,7 +96,9 @@ The CMake floor agrees everywhere it is stated: `cmake_minimum_required` in
 
 ## Evidence in the tree
 
-- `.github/workflows/ci.yml`: the `build-test` matrix, the tag-gated `package` job, the standing packaging TODO
+- `.github/workflows/ci.yml`: the `build-test` matrix and the three tag-gated packaging jobs (`package`, `package-windows`, `package-macos`)
+- `packaging/windows/build-windows.ps1`, `packaging/windows/kvit-notes.iss`: the portable zip and the per-user installer
+- `packaging/macos/build-macos.sh`: the bundle, the DMG, and the signing and notarization steps that stay inert while their credentials are empty
 - `packaging/linux/build-appimage.sh`: the AppImage build, with linuxdeploy pinned by SHA-256
 - `tools/check-appimage.sh`: runs the packed artifact and probes math resources, QML imports, SQLite FTS5 and plugins before publication
 - `packaging/aur/kvit-notes-bin/PKGBUILD`, `tools/update-aur-digest.sh`

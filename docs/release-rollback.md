@@ -34,8 +34,10 @@ Trigger: a P0/P1 confirmed against the latest published release.
    apply the fix (cherry-pick if it already landed on main), tag
    `vX.Y.(Z+1)`, and let CI produce and publish the artifacts.
 3. **Propagate the supersede** to every channel that is actually live.
-   Today that is the GitHub release itself (where the AppImage lives) and
-   the AUR package:
+   Today that is the GitHub release itself and the AUR package. The release
+   carries all three platforms' artifacts — the Linux AppImage, the Windows
+   installer and portable zip, and the macOS DMG — so marking it in step 1
+   covers every one of them at once:
    - AUR `-bin`: run `tools/update-aur-digest.sh <version>`, which bumps
      pkgver and pins `sha256sums` to the digest in the release's
      SHA256SUMS.txt. Never publish a PKGBUILD carrying the placeholder
