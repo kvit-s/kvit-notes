@@ -38,6 +38,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The window's two menus sit next to each other at the left of the toolbar, and
+  File holds what acts on documents. Export, Import, Settings, the keyboard
+  shortcut reference, quick capture and the template commands were spread
+  between a View menu at the far right of the toolbar and a Templates button
+  beside it, so the menu named after what the window shows was also the way to
+  write a PDF. View now holds the panels, the editor modes, the theme and the
+  motion setting, and nothing else.
 - The project is licensed under MPL-2.0 (LICENSE, per-file headers).
 - A task-board card carries its labels and its due date in a strip under the
   title, which is also where both are set: "+ tag" opens a field offering the

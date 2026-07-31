@@ -18,7 +18,7 @@ import Kvit 1.0
 //
 // Every control takes focus by keyboard only (Qt.TabFocus): clicking one
 // still never blurs the block being edited, while Tab and the F6 region
-// cycle can reach Insert, Templates and View, whose actions have no other
+// cycle can reach Insert, View and File, whose actions have no other
 // shortcut. A control holding keyboard focus draws a focus ring, since a
 // caret that cannot be seen is the same as no caret at all.
 Rectangle {
@@ -58,10 +58,10 @@ Rectangle {
     }
 
     // Pane focus entry (§14.1 tab order), reached from F6 like the sidebar and
-    // note list. Insert, Templates and View come first because they are the
+    // note list. Insert, View and File come first because they are the
     // actions with no separate shortcut; Tab walks on to the rest.
     function focusPane() {
-        var candidates = [insertButton, templatesButton, viewButton,
+        var candidates = [insertButton, viewButton, fileButton,
                           blockTypeCombo, backButton, forwardButton]
         for (var i = 0; i < candidates.length; ++i) {
             if (candidates[i].visible && candidates[i].enabled) {
@@ -163,9 +163,12 @@ Rectangle {
         anchors.bottomMargin: 1
         spacing: 2
 
-        // File menu: open a folder as a vault (in this window or a new one),
-        // open a loose file, and reopen a recent vault. Always visible, since
-        // it is the only in-app way to change where notes live.
+        // File menu: everything that acts on documents rather than on what
+        // the window shows — opening a vault or a loose file, the recent
+        // list, creating a note from a template, capturing one, moving notes
+        // in and out of the collection, and the application-wide settings.
+        // Always visible, since it is the only in-app way to change where
+        // notes live.
         ToolButton {
             id: fileButton
             objectName: "toolbarFileButton"
@@ -176,7 +179,14 @@ Rectangle {
             Accessible.role: Accessible.ButtonMenu
             Accessible.name: qsTr("File")
             background: BarBackground { control: fileButton }
-            onClicked: fileMenu.popup(this, 0, height)
+            onClicked: {
+                // The template list is built from what is on disk, so the
+                // built-ins are seeded before the menu reads it — the same
+                // point in the flow the separate Templates button used.
+                if (toolbar.appWindow && toolbar.appWindow.collectionOpen)
+                    NoteTemplates.seedBuiltinsIfEmpty()
+                fileMenu.popup(this, 0, height)
+            }
 
             Menu {
                 id: fileMenu
@@ -226,6 +236,209 @@ Rectangle {
                             onTriggered: AppActions.requestOpenVault(modelData)
                         }
                     }
+                }
+
+                // features.md §18 templates, and quick capture: both make a
+                // new note, and both need a collection, since templates live
+                // under .kvit and a captured note has to land somewhere.
+                // Disabled rather than hidden without one, so the commands can
+                // still be found in single-file mode.
+                MenuSeparator {}
+                Menu {
+                    id: newFromTemplateMenu
+                    objectName: "newFromTemplateMenu"
+                    title: qsTr("New from template")
+                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
+                    Repeater {
+                        model: {
+                            var r = NoteTemplates.revision  // dependency
+                            return NoteTemplates.templateNames()
+                        }
+                        MenuItem {
+                            required property string modelData
+                            text: modelData
+                            onTriggered:
+                                toolbar.appWindow.createFromTemplate(modelData)
+                        }
+                    }
+                }
+                MenuItem {
+                    objectName: "manageTemplatesItem"
+                    text: qsTr("Manage templates…")
+                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
+                    onTriggered: toolbar.appWindow.templateDialog.openManage()
+                }
+                MenuItem {
+                    objectName: "fileMenuQuickCapture"
+                    text: qsTr("Quick capture… (Ctrl+Alt+N)")
+                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
+                    onTriggered: toolbar.appWindow.openQuickCapture()
+                }
+
+                // Notes in and out of the collection (features.md §12.5–12.6).
+                MenuSeparator {}
+                MenuItem {
+                    objectName: "fileMenuImport"
+                    text: qsTr("Import…")
+                    visible: toolbar.appWindow && toolbar.appWindow.collectionOpen
+                    onTriggered: toolbar.appWindow.importDialog.openDialog()
+                }
+                MenuItem {
+                    objectName: "fileMenuExport"
+                    text: qsTr("Export…")
+                    onTriggered: toolbar.appWindow.exportDialog.openDialog()
+                }
+
+                MenuSeparator {}
+                MenuItem {
+                    objectName: "fileMenuSettings"
+                    text: qsTr("Settings…")
+                    onTriggered: toolbar.appWindow.openSettingsDialog()
+                }
+                MenuItem {
+                    objectName: "fileMenuShortcuts"
+                    text: qsTr("Keyboard shortcuts…")
+                    onTriggered: toolbar.appWindow.openShortcutReference()
+                }
+            }
+        }
+
+        // View menu, beside File: what the window shows — the panels,
+        // the editor modes, the theme. Anything that acts on documents
+        // rather than on the view lives in File, one button to its left.
+        ToolButton {
+            id: viewButton
+            objectName: "toolbarViewButton"
+            visible: toolbar.showViewGroup
+            focusPolicy: Qt.TabFocus
+            text: qsTr("View")
+            font.pixelSize: 12
+            implicitHeight: 28
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("View")
+            background: BarBackground { control: viewButton }
+            onClicked: viewMenu.popup(this, 0, height)
+
+            Menu {
+                id: viewMenu
+                objectName: "toolbarViewMenu"
+
+                MenuItem {
+                    objectName: "viewMenuSidebar"
+                    text: qsTr("Sidebar")
+                    checkable: true
+                    enabled: toolbar.appWindow.collectionOpen
+                    checked: !toolbar.appWindow.sidebarCollapsed
+                    onTriggered: toolbar.appWindow.sidebarCollapsed
+                        = !toolbar.appWindow.sidebarCollapsed
+                }
+                MenuItem {
+                    objectName: "viewMenuNoteList"
+                    text: qsTr("Note list")
+                    checkable: true
+                    enabled: toolbar.appWindow.collectionOpen
+                    checked: !toolbar.appWindow.noteListCollapsed
+                    onTriggered: toolbar.appWindow.noteListCollapsed
+                        = !toolbar.appWindow.noteListCollapsed
+                }
+                MenuItem {
+                    objectName: "viewMenuOutline"
+                    text: qsTr("Outline")
+                    checkable: true
+                    checked: toolbar.appWindow.outlineVisible
+                    onTriggered: toolbar.appWindow.outlineVisible
+                        = !toolbar.appWindow.outlineVisible
+                }
+                MenuItem {
+                    objectName: "viewMenuBacklinks"
+                    text: qsTr("Backlinks")
+                    checkable: true
+                    enabled: toolbar.appWindow.collectionOpen
+                    checked: toolbar.appWindow.backlinksVisible
+                    onTriggered: toolbar.appWindow.backlinksVisible
+                        = !toolbar.appWindow.backlinksVisible
+                }
+                MenuSeparator {}
+                MenuItem {
+                    objectName: "viewMenuFocusMode"
+                    text: qsTr("Focus mode")
+                    checkable: true
+                    checked: toolbar.appWindow.focusMode
+                    onTriggered: toolbar.appWindow.focusMode
+                        = !toolbar.appWindow.focusMode
+                }
+                MenuItem {
+                    objectName: "viewMenuTypewriterMode"
+                    text: qsTr("Typewriter mode")
+                    checkable: true
+                    checked: toolbar.appWindow.typewriterMode
+                    onTriggered: toolbar.appWindow.typewriterMode
+                        = !toolbar.appWindow.typewriterMode
+                }
+                MenuSeparator {}
+                MenuItem {
+                    objectName: "viewMenuStatusBar"
+                    text: qsTr("Status bar")
+                    checkable: true
+                    checked: toolbar.appWindow.statusBarVisible
+                    onTriggered: toolbar.appWindow.statusBarVisible
+                        = !toolbar.appWindow.statusBarVisible
+                }
+                MenuItem {
+                    objectName: "viewMenuCodeLineNumbers"
+                    text: qsTr("Code line numbers")
+                    checkable: true
+                    // The revision read re-evaluates this when the setting flips
+                    // from anywhere; the gutter binding in EditableBlock reads
+                    // the same key.
+                    checked: {
+                        var r = AppSettings.revision  // dependency only
+                        return AppSettings.value("view.codeLineNumbers", false) === true
+                    }
+                    onTriggered: AppSettings.setValue("view.codeLineNumbers",
+                                                      !checked)
+                }
+                MenuItem {
+                    objectName: "viewMenuEquationNumbers"
+                    text: qsTr("Equation numbers")
+                    checkable: true
+                    // Same reactive pattern as code line numbers; MathBlock
+                    // reads the same key.
+                    checked: {
+                        var r = AppSettings.revision  // dependency only
+                        return AppSettings.value("view.equationNumbers", false) === true
+                    }
+                    onTriggered: AppSettings.setValue("view.equationNumbers",
+                                                      !checked)
+                }
+                MenuSeparator {}
+                Menu {
+                    id: themeMenu
+                    objectName: "viewMenuTheme"
+                    title: qsTr("Theme")
+                    Repeater {
+                        model: Theme.availableThemes
+                        MenuItem {
+                            required property string modelData
+                            text: Theme.displayName(modelData)
+                            checkable: true
+                            checked: Theme.themeId === modelData
+                            onTriggered: Theme.themeId = modelData
+                        }
+                    }
+                }
+                MenuItem {
+                    objectName: "viewMenuReducedMotion"
+                    text: qsTr("Reduced motion")
+                    checkable: true
+                    checked: Theme.reducedMotion
+                    onTriggered: Theme.reducedMotion = checked
+                }
+                MenuSeparator {}
+                MenuItem {
+                    objectName: "viewMenuFocusEditor"
+                    text: qsTr("Focus editor")
+                    onTriggered: toolbar.appWindow.focusEditor()
                 }
             }
         }
@@ -502,218 +715,6 @@ Rectangle {
         }
 
         Item { Layout.fillWidth: true }
-
-        // features.md §18 templates: new-from-template and management.
-        // Only meaningful with a collection open (templates live under .kvit).
-        ToolButton {
-            id: templatesButton
-            objectName: "toolbarTemplatesButton"
-            visible: toolbar.appWindow && toolbar.appWindow.collectionOpen
-            focusPolicy: Qt.TabFocus
-            text: qsTr("Templates")
-            font.pixelSize: 12
-            implicitHeight: 28
-            Accessible.role: Accessible.ButtonMenu
-            Accessible.name: qsTr("Templates")
-            background: BarBackground { control: templatesButton }
-            onClicked: {
-                NoteTemplates.seedBuiltinsIfEmpty()
-                templatesMenu.popup(this, 0, height)
-            }
-            Menu {
-                id: templatesMenu
-                objectName: "toolbarTemplatesMenu"
-                Menu {
-                    id: newFromTemplateMenu
-                    objectName: "newFromTemplateMenu"
-                    title: qsTr("New from template")
-                    Repeater {
-                        model: {
-                            var r = NoteTemplates.revision  // dependency
-                            return NoteTemplates.templateNames()
-                        }
-                        MenuItem {
-                            required property string modelData
-                            text: modelData
-                            onTriggered:
-                                toolbar.appWindow.createFromTemplate(modelData)
-                        }
-                    }
-                }
-                MenuSeparator {}
-                MenuItem {
-                    objectName: "manageTemplatesItem"
-                    text: qsTr("Manage templates…")
-                    onTriggered: toolbar.appWindow.templateDialog.openManage()
-                }
-            }
-        }
-
-        ToolButton {
-            id: viewButton
-            objectName: "toolbarViewButton"
-            visible: toolbar.showViewGroup
-            focusPolicy: Qt.TabFocus
-            text: qsTr("View")
-            font.pixelSize: 12
-            implicitHeight: 28
-            Accessible.role: Accessible.ButtonMenu
-            Accessible.name: qsTr("View")
-            background: BarBackground { control: viewButton }
-            onClicked: viewMenu.popup(this, 0, height)
-
-            Menu {
-                id: viewMenu
-                objectName: "toolbarViewMenu"
-
-                MenuItem {
-                    objectName: "viewMenuSidebar"
-                    text: qsTr("Sidebar")
-                    checkable: true
-                    enabled: toolbar.appWindow.collectionOpen
-                    checked: !toolbar.appWindow.sidebarCollapsed
-                    onTriggered: toolbar.appWindow.sidebarCollapsed
-                        = !toolbar.appWindow.sidebarCollapsed
-                }
-                MenuItem {
-                    objectName: "viewMenuNoteList"
-                    text: qsTr("Note list")
-                    checkable: true
-                    enabled: toolbar.appWindow.collectionOpen
-                    checked: !toolbar.appWindow.noteListCollapsed
-                    onTriggered: toolbar.appWindow.noteListCollapsed
-                        = !toolbar.appWindow.noteListCollapsed
-                }
-                MenuItem {
-                    objectName: "viewMenuOutline"
-                    text: qsTr("Outline")
-                    checkable: true
-                    checked: toolbar.appWindow.outlineVisible
-                    onTriggered: toolbar.appWindow.outlineVisible
-                        = !toolbar.appWindow.outlineVisible
-                }
-                MenuItem {
-                    objectName: "viewMenuBacklinks"
-                    text: qsTr("Backlinks")
-                    checkable: true
-                    enabled: toolbar.appWindow.collectionOpen
-                    checked: toolbar.appWindow.backlinksVisible
-                    onTriggered: toolbar.appWindow.backlinksVisible
-                        = !toolbar.appWindow.backlinksVisible
-                }
-                MenuSeparator {}
-                MenuItem {
-                    objectName: "viewMenuFocusMode"
-                    text: qsTr("Focus mode")
-                    checkable: true
-                    checked: toolbar.appWindow.focusMode
-                    onTriggered: toolbar.appWindow.focusMode
-                        = !toolbar.appWindow.focusMode
-                }
-                MenuItem {
-                    objectName: "viewMenuTypewriterMode"
-                    text: qsTr("Typewriter mode")
-                    checkable: true
-                    checked: toolbar.appWindow.typewriterMode
-                    onTriggered: toolbar.appWindow.typewriterMode
-                        = !toolbar.appWindow.typewriterMode
-                }
-                MenuSeparator {}
-                MenuItem {
-                    objectName: "viewMenuStatusBar"
-                    text: qsTr("Status bar")
-                    checkable: true
-                    checked: toolbar.appWindow.statusBarVisible
-                    onTriggered: toolbar.appWindow.statusBarVisible
-                        = !toolbar.appWindow.statusBarVisible
-                }
-                MenuItem {
-                    objectName: "viewMenuCodeLineNumbers"
-                    text: qsTr("Code line numbers")
-                    checkable: true
-                    // The revision read re-evaluates this when the setting flips
-                    // from anywhere; the gutter binding in EditableBlock reads
-                    // the same key.
-                    checked: {
-                        var r = AppSettings.revision  // dependency only
-                        return AppSettings.value("view.codeLineNumbers", false) === true
-                    }
-                    onTriggered: AppSettings.setValue("view.codeLineNumbers",
-                                                      !checked)
-                }
-                MenuItem {
-                    objectName: "viewMenuEquationNumbers"
-                    text: qsTr("Equation numbers")
-                    checkable: true
-                    // Same reactive pattern as code line numbers; MathBlock
-                    // reads the same key.
-                    checked: {
-                        var r = AppSettings.revision  // dependency only
-                        return AppSettings.value("view.equationNumbers", false) === true
-                    }
-                    onTriggered: AppSettings.setValue("view.equationNumbers",
-                                                      !checked)
-                }
-                MenuSeparator {}
-                Menu {
-                    id: themeMenu
-                    objectName: "viewMenuTheme"
-                    title: qsTr("Theme")
-                    Repeater {
-                        model: Theme.availableThemes
-                        MenuItem {
-                            required property string modelData
-                            text: Theme.displayName(modelData)
-                            checkable: true
-                            checked: Theme.themeId === modelData
-                            onTriggered: Theme.themeId = modelData
-                        }
-                    }
-                }
-                MenuSeparator {}
-                MenuItem {
-                    objectName: "viewMenuExport"
-                    text: qsTr("Export…")
-                    onTriggered: toolbar.appWindow.exportDialog.openDialog()
-                }
-                MenuItem {
-                    objectName: "viewMenuImport"
-                    text: qsTr("Import…")
-                    visible: toolbar.appWindow && toolbar.appWindow.collectionOpen
-                    onTriggered: toolbar.appWindow.importDialog.openDialog()
-                }
-                MenuSeparator {}
-                MenuItem {
-                    objectName: "viewMenuSettings"
-                    text: qsTr("Settings…")
-                    onTriggered: toolbar.appWindow.openSettingsDialog()
-                }
-                MenuItem {
-                    objectName: "viewMenuShortcuts"
-                    text: qsTr("Keyboard shortcuts…")
-                    onTriggered: toolbar.appWindow.openShortcutReference()
-                }
-                MenuItem {
-                    objectName: "viewMenuFocusEditor"
-                    text: qsTr("Focus editor")
-                    onTriggered: toolbar.appWindow.focusEditor()
-                }
-                MenuItem {
-                    objectName: "viewMenuReducedMotion"
-                    text: qsTr("Reduced motion")
-                    checkable: true
-                    checked: Theme.reducedMotion
-                    onTriggered: Theme.reducedMotion = checked
-                }
-                MenuSeparator {}
-                MenuItem {
-                    objectName: "viewMenuQuickCapture"
-                    text: qsTr("Quick capture… (Ctrl+Alt+N)")
-                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
-                    onTriggered: toolbar.appWindow.openQuickCapture()
-                }
-            }
-        }
     }
 
     // Insert below the caret's block (or at the end), focusing the new
