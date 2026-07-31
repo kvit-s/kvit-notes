@@ -573,10 +573,14 @@ Three checks keep the wiring honest, and all three block a merge:
   context-property set is empty and checks every singleton in
   `KVIT_QML_SINGLETONS`, reading that registry directly so the two cannot
   drift.
-- **QrcSyncGuard** (`tools/check-qrc-sync.py`) compares `resources.qrc`,
-  `tests/integration_tests.qrc` and the files actually in `qml/`. A file added
-  to only one list either breaks the shipped shell or hangs the Qt Quick
-  harness until its CTest timeout.
+- **QrcSyncGuard** (`tools/check-qrc-sync.py`) compares `resources.qrc` with
+  the files actually in `qml/`. A component missing from that list breaks the
+  shipped shell and hangs the Qt Quick harness until its CTest timeout, since
+  a QML load error leaves the harness waiting on its `when:` condition rather
+  than failing. `resources.qrc` is the only list: the application, `test_shell`
+  and the Qt Quick Test binaries all compile it, and
+  `tests/integration_tests.qrc` holds the `tst_*.qml` suite files alone. The
+  guard also fails if a component list reappears there.
 - **qmllint** reads every file in `qml/`, including the ones no test
   instantiates, and the Qt Quick Test files in `tests/` as well. This matters
   because the runtime gate only sees what the initial scene actually builds: a

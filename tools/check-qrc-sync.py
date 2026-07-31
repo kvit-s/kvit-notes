@@ -2,25 +2,26 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""Keep the QML resource lists in step with the QML on disk, and with each other.
+"""Keep the QML resource list in step with the QML on disk.
 
-Two hand-maintained .qrc files carry the same set of QML files:
+One hand-maintained list carries the QML components:
 
-    resources.qrc               the shipped application, and test_shell
-    tests/integration_tests.qrc the Qt Quick Test binaries, which re-export
-                                the same files under aliases
+    resources.qrc   the shipped application, test_shell, and every Qt Quick
+                    Test binary, which all compile this same file
 
-A file added to qml/ and to only one of them fails in a way that is expensive
-to diagnose. Missing from resources.qrc, the shipped shell cannot resolve the
-type; ShellTests now catches that as a QML warning. Missing from
-integration_tests.qrc, the Qt Quick harness waits forever on its `when:`
-condition — a load error leaves it hanging rather than failing, and the only
-backstop is a CTest timeout, so the gate burns its full ten minutes before
-reporting anything (observed 2026-07-07, hung for hours before the timeouts
-were added).
+A component written into qml/ but left out of it fails in two expensive ways.
+The shipped shell cannot resolve the type, which ShellTests catches as a QML
+warning. The Qt Quick harness is worse: a load error leaves its `when:`
+condition waiting rather than failing, and the only backstop is a CTest
+timeout, so the gate burns its full ten minutes before reporting anything
+(observed 2026-07-07, hung for hours before the timeouts were added).
+Comparing the list against the directory turns both into an immediate,
+specific failure.
 
-Comparing the lists directly turns both cases into an immediate, specific
-failure.
+tests/integration_tests.qrc is checked only for targets that resolve. It used
+to carry an aliased second copy of the component list, which is what made a
+comparison between two lists necessary; it now holds the Qt Quick Test suite
+files and nothing else.
 
     tools/check-qrc-sync.py     # exit 1 on any mismatch
 """
@@ -59,7 +60,6 @@ def main():
 
     on_disk = {p.name for p in QML_DIR.glob("*.qml")}
     in_app = qml_names(APP_QRC)
-    in_test = qml_names(TEST_QRC)
 
     def report(title, names):
         if names:
@@ -71,21 +71,23 @@ def main():
 
     report(
         "QML files on disk but missing from resources.qrc (the shipped shell "
-        "cannot resolve these types)",
+        "cannot resolve these types, and the Qt Quick harness will hang until "
+        "its CTest timeout)",
         on_disk - in_app,
-    )
-    report(
-        "QML files on disk but missing from tests/integration_tests.qrc (the "
-        "Qt Quick harness will hang until its CTest timeout)",
-        on_disk - in_test,
     )
     report(
         "Listed in resources.qrc but not present in qml/",
         in_app - on_disk,
     )
+
+    # A second copy of the component list here is what this check used to
+    # exist for. Catch one growing back rather than letting it drift again.
+    strays = qml_names(TEST_QRC)
     report(
-        "Listed in tests/integration_tests.qrc but not present in qml/",
-        in_test - on_disk,
+        "tests/integration_tests.qrc lists QML components again; the test "
+        "binaries compile resources.qrc, so this is a second list to keep in "
+        "step and it should hold only the tst_*.qml suite files",
+        strays,
     )
 
     # Every target must resolve, whatever it points at — this catches a typo
@@ -98,14 +100,11 @@ def main():
 
     if problems:
         sys.stderr.write(
-            "QML resource lists are out of step.\n\n" + "\n".join(problems)
+            "The QML resource list is out of step.\n\n" + "\n".join(problems)
         )
         return 1
 
-    print(
-        "qrc sync: {} QML files, listed consistently in resources.qrc and "
-        "tests/integration_tests.qrc".format(len(on_disk))
-    )
+    print("qrc sync: {} QML files, all listed in resources.qrc".format(len(on_disk)))
     return 0
 
 

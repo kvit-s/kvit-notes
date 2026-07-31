@@ -1,87 +1,19 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
+    <!--
+        The Qt Quick Test suite files, and nothing else.
+
+        The shipping QML reaches these binaries through the top-level
+        resources.qrc, which every target listing this file also lists. This
+        file used to carry its own aliased copy of that list, so a new QML
+        component had to be written into two places that nothing compared: a
+        component added only to resources.qrc loaded in the application and
+        was missing from the test binaries, where it surfaced as every block
+        delegate failing to instantiate rather than as anything naming the
+        real cause.
+    -->
     <qresource prefix="/">
         <file>tst_integration.qml</file>
         <file>tst_visual.qml</file>
-        <file alias="qml/main.qml">../qml/main.qml</file>
-        <file alias="qml/EditableBlock.qml">../qml/EditableBlock.qml</file>
-        <file alias="qml/MathEntryAssist.qml">../qml/MathEntryAssist.qml</file>
-        <file alias="qml/WikiLinkCompletion.qml">../qml/WikiLinkCompletion.qml</file>
-        <file alias="qml/BlockGutter.qml">../qml/BlockGutter.qml</file>
-        <file alias="qml/DropCapOverlay.qml">../qml/DropCapOverlay.qml</file>
-        <file alias="qml/CalloutBlockChrome.qml">../qml/CalloutBlockChrome.qml</file>
-        <file alias="qml/CodeBlockChrome.qml">../qml/CodeBlockChrome.qml</file>
-        <file alias="qml/InlineMathOverlay.qml">../qml/InlineMathOverlay.qml</file>
-        <file alias="qml/TextBlockDelegate.qml">../qml/TextBlockDelegate.qml</file>
-        <file alias="qml/BulletListDelegate.qml">../qml/BulletListDelegate.qml</file>
-        <file alias="qml/NumberedListDelegate.qml">../qml/NumberedListDelegate.qml</file>
-        <file alias="qml/TodoDelegate.qml">../qml/TodoDelegate.qml</file>
-        <file alias="qml/BlockDelegateBase.qml">../qml/BlockDelegateBase.qml</file>
-        <file alias="qml/BlockDragState.qml">../qml/BlockDragState.qml</file>
-        <file alias="qml/KvitShell.qml">../qml/KvitShell.qml</file>
-        <file alias="qml/QuoteDelegate.qml">../qml/QuoteDelegate.qml</file>
-        <file alias="qml/CodeBlockDelegate.qml">../qml/CodeBlockDelegate.qml</file>
-        <file alias="qml/LanguagePicker.qml">../qml/LanguagePicker.qml</file>
-        <file alias="qml/ColorPicker.qml">../qml/ColorPicker.qml</file>
-        <file alias="qml/ImageBlock.qml">../qml/ImageBlock.qml</file>
-        <file alias="qml/Lightbox.qml">../qml/Lightbox.qml</file>
-        <file alias="qml/CalloutBlock.qml">../qml/CalloutBlock.qml</file>
-        <file alias="qml/TableBlock.qml">../qml/TableBlock.qml</file>
-        <file alias="qml/TableSizePicker.qml">../qml/TableSizePicker.qml</file>
-        <file alias="qml/KanbanBlock.qml">../qml/KanbanBlock.qml</file>
-        <file alias="qml/MathBlock.qml">../qml/MathBlock.qml</file>
-        <file alias="qml/MediaBlock.qml">../qml/MediaBlock.qml</file>
-        <file alias="qml/DividerDelegate.qml">../qml/DividerDelegate.qml</file>
-        <file alias="qml/DividerStylePicker.qml">../qml/DividerStylePicker.qml</file>
-        <file alias="qml/CalloutColorPicker.qml">../qml/CalloutColorPicker.qml</file>
-        <file alias="qml/CalloutTypePicker.qml">../qml/CalloutTypePicker.qml</file>
-        <file alias="qml/ImageEffectsPopover.qml">../qml/ImageEffectsPopover.qml</file>
-        <file alias="qml/ShortcutReference.qml">../qml/ShortcutReference.qml</file>
-        <file alias="qml/QuickCaptureWindow.qml">../qml/QuickCaptureWindow.qml</file>
-        <file alias="qml/BlockMenu.qml">../qml/BlockMenu.qml</file>
-        <file alias="qml/MathCommandMenu.qml">../qml/MathCommandMenu.qml</file>
-        <file alias="qml/QuickSwitcher.qml">../qml/QuickSwitcher.qml</file>
-        <file alias="qml/WikiLinkMenu.qml">../qml/WikiLinkMenu.qml</file>
-        <file alias="qml/BacklinksPanel.qml">../qml/BacklinksPanel.qml</file>
-        <file alias="qml/FindBar.qml">../qml/FindBar.qml</file>
-        <file alias="qml/Sidebar.qml">../qml/Sidebar.qml</file>
-        <file alias="qml/NoteListPane.qml">../qml/NoteListPane.qml</file>
-        <file alias="qml/TagStrip.qml">../qml/TagStrip.qml</file>
-        <file alias="qml/SearchResultsView.qml">../qml/SearchResultsView.qml</file>
-        <file alias="qml/SettingsDialog.qml">../qml/SettingsDialog.qml</file>
-        <file alias="qml/PanelSeam.qml">../qml/PanelSeam.qml</file>
-        <file alias="qml/Toolbar.qml">../qml/Toolbar.qml</file>
-        <file alias="qml/FormattingBar.qml">../qml/FormattingBar.qml</file>
-        <file alias="qml/DateRangePicker.qml">../qml/DateRangePicker.qml</file>
-        <file alias="qml/DayPicker.qml">../qml/DayPicker.qml</file>
-        <file alias="qml/OutlinePanel.qml">../qml/OutlinePanel.qml</file>
-        <file alias="qml/TocBlock.qml">../qml/TocBlock.qml</file>
-        <file alias="qml/QueryBlock.qml">../qml/QueryBlock.qml</file>
-        <file alias="qml/StatisticsPanel.qml">../qml/StatisticsPanel.qml</file>
-        <file alias="qml/TemplateDialog.qml">../qml/TemplateDialog.qml</file>
-        <file alias="qml/ExportDialog.qml">../qml/ExportDialog.qml</file>
-        <file alias="qml/ImportDialog.qml">../qml/ImportDialog.qml</file>
-        <file alias="qml/EmbedBlock.qml">../qml/EmbedBlock.qml</file>
-        <file alias="qml/DiagramBlock.qml">../qml/DiagramBlock.qml</file>
-        <file alias="qml/EditorStatusBar.qml">../qml/EditorStatusBar.qml</file>
-        <file alias="qml/EditorContextMenus.qml">../qml/EditorContextMenus.qml</file>
-        <file alias="qml/NoteSession.qml">../qml/NoteSession.qml</file>
-        <file alias="qml/NoteRenameWorkflow.qml">../qml/NoteRenameWorkflow.qml</file>
-        <file alias="qml/EdgeAutoScroller.qml">../qml/EdgeAutoScroller.qml</file>
-        <file alias="qml/CrossBlockTextDrag.qml">../qml/CrossBlockTextDrag.qml</file>
-        <file alias="qml/CrossBlockTextSelection.qml">../qml/CrossBlockTextSelection.qml</file>
-        <file alias="qml/BlockDragController.qml">../qml/BlockDragController.qml</file>
-        <file alias="qml/BlockDragLayer.qml">../qml/BlockDragLayer.qml</file>
-        <file alias="qml/BlockSelectionKeys.qml">../qml/BlockSelectionKeys.qml</file>
-        <file alias="qml/BlockGapCursor.qml">../qml/BlockGapCursor.qml</file>
-        <file alias="qml/DocumentSessionDialogs.qml">../qml/DocumentSessionDialogs.qml</file>
-        <file alias="qml/BlockInsertDialogs.qml">../qml/BlockInsertDialogs.qml</file>
-        <file alias="qml/LinkDialog.qml">../qml/LinkDialog.qml</file>
-        <file alias="qml/EditorDropArea.qml">../qml/EditorDropArea.qml</file>
-        <file alias="qml/SystemIntegration.qml">../qml/SystemIntegration.qml</file>
-        <file alias="qml/TocFenceSync.qml">../qml/TocFenceSync.qml</file>
-        <file alias="qml/BackupRestoreDialog.qml">../qml/BackupRestoreDialog.qml</file>
-        <file alias="qml/SessionPersistence.qml">../qml/SessionPersistence.qml</file>
-        <file alias="qml/AppShortcuts.qml">../qml/AppShortcuts.qml</file>
     </qresource>
 </RCC>

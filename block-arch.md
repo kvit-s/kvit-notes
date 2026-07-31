@@ -270,8 +270,9 @@ is a second line rather than the guarantee.
 2. Return it from its group's accessor in `kindgroups.h`, which is what puts
    it in the registry and so in the block menu and the delegate chooser.
 3. Write the QML delegate, inheriting `BlockDelegateBase`, add it to
-   `resources.qrc` and `tests/integration_tests.qrc`, and name it from
-   `delegateUrl()`.
+   `resources.qrc`, and name it from `delegateUrl()`. That one list reaches
+   the application and every test binary; `QrcSyncGuard` fails if a file in
+   `qml/` is missing from it.
 4. Add a sample to `tests/test_blockkinddef.cpp`. The suite fails naming your
    kind until you do.
 

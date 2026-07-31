@@ -105,6 +105,7 @@ qt_add_executable(test_performance_app
     testsetup.h
     perf/corpus.cpp
     integration_tests.qrc
+    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_include_directories(test_performance_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_performance_app PRIVATE
@@ -447,10 +448,16 @@ target_link_libraries(test_blockeditorengine PRIVATE kvit-core Qt6::Test)
 add_test(NAME BlockEditorEngineTests COMMAND test_blockeditorengine)
 
 # Integration tests (Qt Quick Test)
+#
+# The suite drives the shipping QML, so it carries the shipping resource file
+# itself. integration_tests.qrc holds only the test suites, which is what
+# keeps the two from drifting: there is one list of QML components in the
+# repository, and every binary that loads them reads that one.
 qt_add_executable(test_integration
     test_integration.cpp
     testsetup.h
     integration_tests.qrc
+    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 
 target_link_libraries(test_integration PRIVATE
@@ -515,6 +522,7 @@ qt_add_executable(test_visual
     test_visual.cpp
     testsetup.h
     integration_tests.qrc
+    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 
 target_link_libraries(test_visual PRIVATE
