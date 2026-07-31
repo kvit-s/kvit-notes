@@ -722,12 +722,34 @@ Rectangle {
                                     selectAll()
                                 }
                             }
-                            onAccepted: {
+
+                            function commitRename() {
                                 var path = noteRow.relPath
                                 noteListPane.renamingPath = ""
                                 if (text !== noteRow.title)
                                     noteListPane.appWindow.requestNoteRename(path, text)
                             }
+
+                            // Return commits the rename and has to stop here.
+                            // The list's own Keys.onPressed reads Return as
+                            // "open the current row", and a key a focused
+                            // child leaves unaccepted travels on to it, so
+                            // renaming a row the keyboard cursor was not
+                            // sitting on opened whatever note it was sitting
+                            // on instead. Accepting the key before the field
+                            // sees it is also what keeps this from committing
+                            // twice: TextField never emits accepted, so
+                            // onAccepted below stays for the other ways the
+                            // signal can arrive.
+                            Keys.onReturnPressed: function(event) {
+                                renameField.commitRename()
+                                event.accepted = true
+                            }
+                            Keys.onEnterPressed: function(event) {
+                                renameField.commitRename()
+                                event.accepted = true
+                            }
+                            onAccepted: renameField.commitRename()
                             Keys.onEscapePressed: noteListPane.renamingPath = ""
                             onActiveFocusChanged: {
                                 if (!activeFocus
