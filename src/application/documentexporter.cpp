@@ -9,6 +9,8 @@
 #include "imageassets.h"
 #include "tabledata.h"
 #include "kanbandata.h"
+#include "querydata.h"
+#include "embedmetadata.h"
 #include "codelanguages.h"
 #include "mathrenderer.h"
 #include "diagrams/mermaidrenderer.h"
@@ -162,6 +164,9 @@ DocumentExporter::useImageContextFor(NoteCollection *collection,
         m_noteDir =
             QFileInfo(collection->absolutePath(relPath)).absolutePath();
         m_collectionRoot = collection->rootPath();
+        // A query in one of these notes asks about the vault being exported,
+        // which is this one however the exporter was wired at startup.
+        m_collection = collection;
     }
     return previous;
 }
@@ -408,6 +413,10 @@ QString DocumentExporter::cssBlock() const
     const QString border = m_theme ? m_theme->border().name() : QStringLiteral("#dddddd");
     const QString codeBg = m_theme ? m_theme->codePanelBackground().name()
                                    : QStringLiteral("#f4f4f2");
+    const QString danger = m_theme ? m_theme->danger().name()
+                                   : QStringLiteral("#c1121f");
+    const QString highlight = m_theme ? m_theme->highlightBackground().name()
+                                      : QStringLiteral("#fdf3a9");
     return QStringLiteral(
         "body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;"
         "font-size:15px;line-height:1.6;color:%1;background:%2;"
@@ -421,13 +430,47 @@ QString DocumentExporter::cssBlock() const
         "table{border-collapse:collapse;margin:8px 0}"
         "th,td{border:1px solid %5;padding:5px 9px}th{background:%6}"
         "hr{border:none;border-top:1px solid %5;margin:1.5em 0}"
-        "img{max-width:100%%}"
+        // Plain "100%": QString::arg has no escape for a percent sign, so a
+        // doubled one reaches the stylesheet as it was written and the whole
+        // declaration is discarded — which is how an oversized image came to
+        // run off the page in every export.
+        "img{max-width:100%}"
         ".callout{border:1px solid %5;border-left:4px solid %3;border-radius:6px;"
         "padding:8px 12px;margin:10px 0}"
         ".callout .title{font-weight:bold;margin-bottom:4px}"
-        ".kanban{display:flex;gap:12px}.kanban .col{border:1px solid %5;"
+        ".kanban{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}"
+        ".kanban .col{border:1px solid %5;"
         "border-radius:6px;padding:8px;min-width:140px}"
-        "mark{background:#fdf3a9}"
+        ".kanban .col .count{color:%4;font-weight:normal;font-size:12px}"
+        ".kanban .card{border:1px solid %5;border-radius:4px;padding:4px 6px;"
+        "margin:5px 0}"
+        ".kanban .card .title{font-weight:bold}"
+        ".kanban .card .meta{color:%4;font-size:12px}"
+        ".kanban .card .chip{border:1px solid %5;border-radius:8px;"
+        "padding:0 6px;margin-right:4px;font-size:11px;color:%4}"
+        // A query block's answer, rendered as it stands at export time: a
+        // table or a board, under a line saying what it is and how many notes
+        // matched, so a reader can tell a query's output from a hand-written
+        // table.
+        ".query{border:1px solid %5;border-radius:6px;padding:8px 10px;"
+        "margin:10px 0}"
+        ".query .head{font-size:11px;font-weight:bold;color:%4;"
+        "margin-bottom:6px}"
+        ".query .head .count{font-weight:normal}"
+        ".query .error{color:%7}"
+        ".query table{margin:0}"
+        // An embed card: a titled link to the page, with whatever the preview
+        // cache already knew about it.
+        ".embed{border:1px solid %5;border-radius:6px;padding:8px 12px;"
+        "margin:10px 0}"
+        ".embed .title{font-weight:bold}"
+        ".embed .desc{color:%4;font-size:13px;margin-top:2px}"
+        ".embed .host{color:%4;font-size:12px;margin-top:4px}"
+        // The theme's own highlight tint, with the theme's text colour on it.
+        // A fixed pale yellow was legible under the light themes only: the
+        // dark ones export near-white body text, which on that yellow is
+        // barely readable.
+        "mark{background:%8;color:%1}"
         ".math-display{text-align:center;margin:1em 0}"
         // A code span in a table cell can hold a folded-in listing, whose
         // indentation HTML would otherwise collapse. The line breaks are
@@ -440,7 +483,110 @@ QString DocumentExporter::cssBlock() const
         "pre.mermaid{background:none;padding:0;text-align:center}"
         ".diagram-source{margin:2px 0 10px;color:%4;font-size:13px}"
         ".diagram-source pre{margin-top:4px}"
-        ).arg(fg, bg, accent, muted, border, codeBg);
+        ).arg(fg, bg, accent, muted, border, codeBg).arg(danger).arg(highlight);
+}
+
+// ---- query blocks ----
+
+QString DocumentExporter::queryHtml(const QString &spec) const
+{
+    const QueryData::ParseResult parsed = QueryData::parse(spec);
+    if (!parsed.ok) {
+        // The block refuses to guess at a spec it cannot parse and shows the
+        // error; the export says the same thing, and keeps the spec beside it
+        // so the reader can see what was wrong with it.
+        return "<div class=\"query\"><div class=\"head\">" + esc(tr("Query"))
+             + "</div><div class=\"error\">" + esc(parsed.error)
+             + "</div><pre><code>" + esc(spec) + "</code></pre></div>";
+    }
+    if (!m_collection || !m_collection->isOpen()) {
+        // No vault to ask. Writing an empty table would claim the query
+        // matched nothing, which is a different statement from not having
+        // run it, so the spec goes out as source.
+        return "<pre><code>" + esc(spec) + "</code></pre>";
+    }
+
+    const QueryData::Result result =
+        QueryData::evaluate(parsed.spec, *m_collection);
+    const QString head = "<div class=\"head\">" + esc(tr("Query"))
+        + " <span class=\"count\">"
+        + esc(tr("%1 notes").arg(result.rows.size())) + "</span></div>";
+
+    QString out = "<div class=\"query\">" + head;
+    if (parsed.spec.view == QueryData::View::Board) {
+        // The same columns-of-cards shape a task board exports as, so the two
+        // read alike: a group heading with its count, then one card per note
+        // with its first column as the card's title.
+        out += QStringLiteral("<div class=\"kanban\">");
+        for (const QueryData::Group &group : result.groups) {
+            out += "<div class=\"col\"><strong>" + esc(group.name)
+                 + "</strong> <span class=\"count\">"
+                 + QString::number(group.rows.size()) + "</span>";
+            for (const QueryData::Row &row : group.rows) {
+                out += QStringLiteral("<div class=\"card\">");
+                for (int i = 0; i < row.cells.size(); ++i) {
+                    const QString &cell = row.cells.at(i);
+                    if (cell.isEmpty())
+                        continue;
+                    out += (i == 0 ? "<div class=\"title\">"
+                                   : "<div class=\"meta\">")
+                         + esc(cell) + "</div>";
+                }
+                out += QStringLiteral("</div>");
+            }
+            out += QStringLiteral("</div>");
+        }
+        out += QStringLiteral("</div>");
+    } else {
+        out += QStringLiteral("<table><tr>");
+        for (const QString &column : result.columns)
+            out += "<th>" + esc(column) + "</th>";
+        out += QStringLiteral("</tr>");
+        for (const QueryData::Row &row : result.rows) {
+            out += QStringLiteral("<tr>");
+            // Every column gets a cell even when the note has nothing under
+            // that key, so the rows stay square.
+            for (int i = 0; i < result.columns.size(); ++i)
+                out += "<td>"
+                     + esc(i < row.cells.size() ? row.cells.at(i) : QString())
+                     + "</td>";
+            out += QStringLiteral("</tr>");
+        }
+        out += QStringLiteral("</table>");
+    }
+    out += QStringLiteral("</div>");
+    return out;
+}
+
+// ---- embed cards ----
+
+QString DocumentExporter::embedCardHtml(const QString &url, const QString &alt,
+                                        const QString &caption) const
+{
+    // Whatever the preview cache already holds for this URL. An export never
+    // fetches: it runs on the reader's command over notes they may not have
+    // opened, and reaching the network from here would send a list of the
+    // sites a vault mentions to those sites.
+    const QVariantMap meta = m_embedMetadata
+        ? m_embedMetadata->cachedMetadata(url) : QVariantMap();
+    const QString pageTitle = meta.value(QStringLiteral("title")).toString();
+    const QString description =
+        meta.value(QStringLiteral("description")).toString();
+    // What the link is called: the alt text the note gave it, else the page
+    // title from the cache, else the URL, which always says something.
+    const QString label = !alt.isEmpty() ? alt
+        : (!pageTitle.isEmpty() ? pageTitle : url);
+    const QString host = QUrl(url).host();
+
+    QString out = "<div class=\"embed\"><div class=\"title\"><a href=\""
+        + esc(url) + "\">" + esc(label) + "</a></div>";
+    if (!description.isEmpty())
+        out += "<div class=\"desc\">" + esc(description) + "</div>";
+    if (!caption.isEmpty())
+        out += "<div class=\"desc\">" + escFlowing(caption) + "</div>";
+    if (!host.isEmpty() && label != url)
+        out += "<div class=\"host\">" + esc(host) + "</div>";
+    return out + "</div>";
 }
 
 // ---- the HTML builder ----
@@ -561,7 +707,13 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
         }
         case Block::Image: case Block::Media: {
             const ImageAssets::Parsed p = ImageAssets::parseLine(b.content);
-            if (b.type == Block::Image) {
+            if (b.type == Block::Image && ImageAssets::isEmbedUrl(p.path)) {
+                // The URL names a web page or a video host rather than an
+                // image file, which the editor draws as a preview card. An
+                // <img> pointed at a page is a broken image in every viewer,
+                // so the card exports as what it fundamentally is: a link.
+                body += embedCardHtml(p.path, p.alt, p.caption);
+            } else if (b.type == Block::Image) {
                 const QString uri = dataUriForImagePath(p.path);
                 QString img = uri.isEmpty()
                     ? ("<em>[image: " + esc(p.path) + "]</em>")
@@ -640,14 +792,40 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
                 body += "<div class=\"kanban\">";
                 for (const KanbanData::Column &col : board.columns) {
                     body += "<div class=\"col\"><strong>" + esc(col.name)
-                          + "</strong><ul>";
-                    for (const KanbanData::Card &card : col.cards)
-                        body += "<li>" + (card.done ? QStringLiteral("&#9745; ")
-                                                    : QStringLiteral("&#9744; "))
-                              + esc(card.title) + "</li>";
-                    body += "</ul></div>";
+                          + "</strong> <span class=\"count\">"
+                          + QString::number(col.cards.size()) + "</span>";
+                    // A card is more than its title: the board shows its
+                    // labels and due date as chips and its description under
+                    // them, and an export that kept only the title threw away
+                    // most of what the reader had put on the card.
+                    for (const KanbanData::Card &card : col.cards) {
+                        body += "<div class=\"card\"><div class=\"title\">"
+                              + (card.done ? QStringLiteral("&#9745; ")
+                                           : QStringLiteral("&#9744; "))
+                              + renderInline(card.title, mathJax, &sawMath)
+                              + "</div>";
+                        if (!card.description.isEmpty())
+                            body += "<div class=\"meta\">"
+                                  + renderInline(card.description, mathJax,
+                                                 &sawMath)
+                                  + "</div>";
+                        if (!card.labels.isEmpty() || !card.due.isEmpty()) {
+                            body += QStringLiteral("<div class=\"meta\">");
+                            for (const QString &label : card.labels)
+                                body += "<span class=\"chip\">" + esc(label)
+                                      + "</span>";
+                            if (!card.due.isEmpty())
+                                body += "<span class=\"chip\">&#128197; "
+                                      + esc(card.due) + "</span>";
+                            body += QStringLiteral("</div>");
+                        }
+                        body += QStringLiteral("</div>");
+                    }
+                    body += "</div>";
                 }
                 body += "</div>";
+            } else if (b.language == QLatin1String("query")) {
+                body += queryHtml(b.content);
             } else if (b.language == QLatin1String("toc")) {
                 // Regenerate the TOC from this document's headings as anchors.
                 body += "<ul class=\"toc\">";

@@ -7,6 +7,7 @@
 #include <QList>
 #include <QObject>
 #include <QPair>
+#include <QPointer>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
@@ -14,8 +15,12 @@
 
 #include <memory>
 
+// Both are held as guarded pointers, which needs the complete type; both are
+// already on the include path of every translation unit that has an exporter.
+#include "embedmetadata.h"
+#include "notecollection.h"
+
 class BlockModel;
-class NoteCollection;
 class Theme;
 
 // Document export (features.md §12.5): one pipeline turns a block list into a
@@ -58,6 +63,16 @@ public:
     ~DocumentExporter() override;
 
     void setTheme(Theme *theme) { m_theme = theme; }
+    // The collection a query block is evaluated against. A `query` fence is
+    // not content: it is a question about the vault, and the answer only
+    // exists while a vault is open. Without one — single-file mode, or a unit
+    // test that never opened a collection — a query exports as its source
+    // text, which is the only truthful thing left to write.
+    void setCollection(NoteCollection *collection) { m_collection = collection; }
+    // The embed-preview cache, for the title and description an embed card
+    // shows. Read-only and offline: an export never fetches, so a URL nobody
+    // has opened yet exports as a plain link to itself.
+    void setEmbedMetadata(EmbedMetadata *metadata) { m_embedMetadata = metadata; }
     // Image resolution context: the open note's folder and the collection root
     // (either may be empty in single-file mode). A collection or selection
     // export overrides this per note as it goes, so relative media resolve
@@ -281,6 +296,15 @@ private:
                          bool *sawMath = nullptr) const;
 
     QString cssBlock() const;
+    // A `query` fence's answer as static markup: the table or the board the
+    // block shows on screen, evaluated once against the collection. Falls
+    // back to the fence source when there is nothing to evaluate against,
+    // and reports a spec error the way the block does rather than hiding it.
+    QString queryHtml(const QString &spec) const;
+    // An `![](url)` naming a web page rather than an image file: the preview
+    // card, as a titled link. Never a broken <img> — the URL is a page.
+    QString embedCardHtml(const QString &url, const QString &alt,
+                          const QString &caption) const;
     QString dataUriForImagePath(const QString &storedPath) const;
     QString dataUriForMath(const QString &tex) const;
     // Rasterize a natively-supported Mermaid diagram to a PNG data URI at 2x
@@ -291,6 +315,12 @@ private:
     QStringList headingSlugs(const QList<Blk> &blocks) const;
 
     Theme *m_theme = nullptr;
+    // Guarded pointers: an export outlives neither, but it is re-pointed at
+    // whichever collection a run was handed, and a collection that closes and
+    // goes away must leave a query with nothing to evaluate rather than a
+    // stale address to follow.
+    QPointer<NoteCollection> m_collection;
+    QPointer<EmbedMetadata> m_embedMetadata;
     QString m_noteDir;
     QString m_collectionRoot;
     QString m_liveRelPath;

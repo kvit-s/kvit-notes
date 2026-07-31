@@ -71,6 +71,28 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A query block exports as its answer. HTML and PDF export printed the
+  `from:`/`where:` spec as a code listing, in the board view as well as the
+  table view, so what reached the file was the one part of the block a reader
+  never sees on screen. Both views now carry what the block shows, evaluated
+  against the collection as the export runs, and a spec that does not parse
+  exports its error rather than passing for content. A note exported with no
+  vault open still exports the spec, since there is nothing to ask.
+- A web embed exports as a link. An `![](url)` naming a page rather than an
+  image file was written out as an `<img>` pointing at the page, which every
+  viewer draws as a broken image, so the card looked as though it had been
+  dropped. It now carries the page title and description where the preview
+  cache already held them, and the URL where it did not.
+- A task-board card exports with what is on it. Only the title and the tick
+  survived; the labels, the due date and the description went missing, and the
+  columns carried no card counts.
+- Images stay inside the page in an export. The stylesheet's width cap was
+  written with a doubled percent sign, which the string formatter passes
+  through as it stands, so browsers discarded the rule and a wide picture ran
+  past the text and off the edge.
+- Highlighted text is legible in an export made under a dark theme. The `==`
+  background was a fixed pale yellow whatever the theme, and the dark themes
+  export near-white body text onto it.
 - Selecting text by dragging downward through a block works. The block list
   flicks on a drag with enough vertical travel, and it filters its rows' mouse
   events to do it, so it took the pointer away from the editor as soon as a

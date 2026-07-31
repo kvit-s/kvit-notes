@@ -111,7 +111,12 @@ void AppContext::wire()
     // Document statistics (features.md §19.1).
     m_documentStats.setModel(&m_blockModel);
     // Export (features.md §12.5). Theme is process-global (ProcessServices).
+    // The collection is what a query block in an exported note is evaluated
+    // against, and the embed cache supplies the title an embed card carries
+    // into the output; neither is ever fetched or written by an export.
     m_documentExporter.setTheme(m_globals.theme());
+    m_documentExporter.setCollection(&m_noteCollection);
+    m_documentExporter.setEmbedMetadata(&m_embedMetadata);
 
     // Disk-backed global search: one SQLite FTS5 index the collection feeds
     // and the search facade queries, off the GUI thread.

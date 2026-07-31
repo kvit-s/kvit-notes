@@ -79,6 +79,20 @@ private slots:
     void testOversizedAttachmentIsSkippedNotInlined();
     void testCombinedExportOverTheDocumentBudgetIsRefused();
 
+    // Blocks the editor draws from something other than their own text: a
+    // query's answer, an embed's preview card, a board card's chips. Each was
+    // exporting as the source the reader never sees on screen, or as markup
+    // that cannot render at all.
+    void testQueryFenceRendersItsTable();
+    void testQueryFenceBoardViewRendersColumnsOfCards();
+    void testQueryFenceWithABadSpecReportsTheError();
+    void testQueryFenceWithoutACollectionKeepsItsSource();
+    void testEmbedUrlExportsAsALinkNotAnImage();
+    void testImageUrlStillExportsAsAnImage();
+    void testKanbanCardsCarryLabelsDueDatesAndDescriptions();
+    void testImagesAreCappedToThePageWidth();
+    void testRichBlockReviewArtifact();
+
 private:
     DocumentExporter m_exporter;
 
@@ -988,6 +1002,219 @@ void TestDocumentExporter::testCombinedExportOverTheDocumentBudgetIsRefused()
 
     m_exporter.setMaxCombinedChars(128LL * 1024 * 1024);
     QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", true), 6);
+}
+
+// ---------- blocks whose rendering is not their own text ----------
+
+namespace {
+
+// Four project notes, enough for a query to filter, sort and group over.
+void seedProjects(NoteCollection *coll, const QString &root)
+{
+    const auto write = [&](const QString &rel, const QString &text) {
+        const QString abs = QDir(root).filePath(rel);
+        QDir().mkpath(QFileInfo(abs).absolutePath());
+        QFile f(abs);
+        f.open(QIODevice::WriteOnly);
+        f.write(text.toUtf8());
+    };
+    write("Projects/Alpha.md",
+          "---\nstatus: active\nowner: Dana\ndue: 2026-08-01\n---\nAlpha\n");
+    write("Projects/Beta.md",
+          "---\nstatus: active\nowner: Rio\ndue: 2026-07-15\n---\nBeta\n");
+    write("Projects/Gamma.md",
+          "---\nstatus: done\nowner: Dana\n---\nGamma\n");
+    write("Elsewhere.md", "Not a project\n");
+    QVERIFY(coll->openRoot(root));
+}
+
+} // namespace
+
+void TestDocumentExporter::testQueryFenceRendersItsTable()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    seedProjects(&coll, root.path());
+    m_exporter.setCollection(&coll);
+
+    const QString html = m_exporter.htmlForMarkdown(
+        "```query\nfrom: Projects/\nwhere: status = active\n"
+        "columns: title, owner, due\nsort: due asc\n```");
+
+    // The answer, not the question: a table of the matching notes.
+    QVERIFY(html.contains("class=\"query\""));
+    QVERIFY(html.contains("<th>title</th>"));
+    QVERIFY(html.contains("<th>owner</th>"));
+    QVERIFY(html.contains("<td>Beta</td>"));
+    QVERIFY(html.contains("<td>Dana</td>"));
+    QVERIFY(html.contains("2 notes"));
+    // The two notes the spec excludes stay out, and the spec itself is not
+    // printed as source.
+    QVERIFY(!html.contains("Gamma"));
+    QVERIFY(!html.contains("Elsewhere"));
+    QVERIFY(!html.contains("where: status = active"));
+    // Beta is due first, so it sorts above Alpha.
+    QVERIFY(html.indexOf("Beta") < html.indexOf("Alpha"));
+    m_exporter.setCollection(nullptr);
+}
+
+void TestDocumentExporter::testQueryFenceBoardViewRendersColumnsOfCards()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    seedProjects(&coll, root.path());
+    m_exporter.setCollection(&coll);
+
+    const QString html = m_exporter.htmlForMarkdown(
+        "```query\nfrom: Projects/\nview: board\ngroup-by: status\n"
+        "columns: title, owner\n```");
+
+    // The same columns-of-cards shape a task board exports as.
+    QVERIFY(html.contains("class=\"kanban\""));
+    QVERIFY(html.contains("<strong>active</strong>"));
+    QVERIFY(html.contains("<strong>done</strong>"));
+    QVERIFY(html.contains("class=\"card\""));
+    QVERIFY(html.contains("Gamma"));
+    QVERIFY(!html.contains("group-by: status"));
+    m_exporter.setCollection(nullptr);
+}
+
+void TestDocumentExporter::testQueryFenceWithABadSpecReportsTheError()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    seedProjects(&coll, root.path());
+    m_exporter.setCollection(&coll);
+
+    // "sortby" is not a key; the block shows the parse error rather than
+    // guessing, and the export says the same.
+    const QString html = m_exporter.htmlForMarkdown(
+        "```query\nfrom: Projects/\nsortby: due\n```");
+    QVERIFY(html.contains("class=\"error\""));
+    QVERIFY(html.contains("sortby"));
+    m_exporter.setCollection(nullptr);
+}
+
+void TestDocumentExporter::testQueryFenceWithoutACollectionKeepsItsSource()
+{
+    // Single-file mode: there is no vault to ask, and an empty table would
+    // claim the query matched nothing.
+    m_exporter.setCollection(nullptr);
+    const QString html = m_exporter.htmlForMarkdown(
+        "```query\nfrom: Projects/\nwhere: status = active\n```");
+    QVERIFY(html.contains("where: status = active"));
+    QVERIFY(!html.contains("class=\"query\""));
+}
+
+void TestDocumentExporter::testEmbedUrlExportsAsALinkNotAnImage()
+{
+    // An image expression whose URL is a web page renders as a preview card
+    // in the editor. An <img> pointed at a page is a broken image everywhere.
+    const QString html = m_exporter.htmlForMarkdown("![](https://example.com/wiki)");
+    QVERIFY(html.contains("class=\"embed\""));
+    QVERIFY(html.contains("<a href=\"https://example.com/wiki\">"));
+    QVERIFY(html.contains("example.com"));
+    QVERIFY(!html.contains("<img"));
+}
+
+void TestDocumentExporter::testImageUrlStillExportsAsAnImage()
+{
+    // The classifier is by extension, so a remote *image* is unaffected by
+    // the embed branch and still exports as a picture.
+    const QString html = m_exporter.htmlForMarkdown("![cat](https://example.com/cat.png)");
+    QVERIFY(html.contains("<img"));
+    QVERIFY(html.contains("https://example.com/cat.png"));
+    QVERIFY(!html.contains("class=\"embed\""));
+}
+
+void TestDocumentExporter::testKanbanCardsCarryLabelsDueDatesAndDescriptions()
+{
+    const QString html = m_exporter.htmlForMarkdown(
+        "```kanban\n## To do\n- [ ] Ship the beta #release \xF0\x9F\x93\x85 2026-08-01\n"
+        "  Needs the installer signed first\n## Done\n- [x] Write the notes\n```");
+    QVERIFY(html.contains("Ship the beta"));
+    // The chips the board shows under the title, and the description below it.
+    QVERIFY(html.contains("class=\"chip\">release</span>"));
+    // The due date is a chip of its own, taken OFF the title — the board
+    // shows it that way, and leaving the marker in the title would print a
+    // calendar emoji mid-sentence.
+    QVERIFY(html.contains("class=\"chip\">&#128197; 2026-08-01</span>"));
+    QVERIFY(!html.contains("Ship the beta \xF0\x9F\x93\x85"));
+    QVERIFY(html.contains("Needs the installer signed first"));
+    // The column heading still carries its card count.
+    QVERIFY(html.contains("<strong>To do</strong>"));
+    QVERIFY(html.contains("&#9745;"));   // the finished card stays ticked
+}
+
+void TestDocumentExporter::testImagesAreCappedToThePageWidth()
+{
+    // QString::arg has no escape for a percent sign, so a doubled one used to
+    // reach the stylesheet verbatim and the browser discarded the rule.
+    const QString html = m_exporter.htmlForMarkdown("text");
+    QVERIFY(html.contains("img{max-width:100%}"));
+    QVERIFY(!html.contains("100%%"));
+}
+
+void TestDocumentExporter::testRichBlockReviewArtifact()
+{
+    // The browser-review artifact for everything the editor draws from
+    // something other than its own text, in one file: a query as a table and
+    // as a board, a task board with chips, an embed card, a remote image, a
+    // Mermaid diagram and a character diagram. A headless run can only check
+    // that each arrived; whether it LOOKS right is the manual QA step, which
+    // opens this file.
+    QTemporaryDir root;
+    NoteCollection coll;
+    seedProjects(&coll, root.path());
+    m_exporter.setCollection(&coll);
+
+    const QString markdown = QStringLiteral(
+        "# Export review: blocks that render from something else\n\n"
+        "## Query, table view\n\n"
+        "```query\nfrom: Projects/\nwhere: status = active\n"
+        "columns: title, owner, due\nsort: due asc\n```\n\n"
+        "## Query, board view\n\n"
+        "```query\nfrom: Projects/\nview: board\ngroup-by: status\n"
+        "columns: title, owner\n```\n\n"
+        "## Query with a bad spec\n\n"
+        "```query\nfrom: Projects/\nsortby: due\n```\n\n"
+        "## Task board\n\n"
+        "```kanban\n## To do\n"
+        "- [ ] Ship the beta #release #urgent 📅 2026-08-01\n"
+        "  Needs the installer signed first\n"
+        "## Done\n- [x] Write the release notes\n```\n\n"
+        "## Web embed\n\n"
+        "![](https://example.com/wiki/Kvit)\n\n"
+        "## Remote image\n\n"
+        "![A remote picture](https://example.com/cat.png)\n\n"
+        "## Mermaid\n\n"
+        "```mermaid\nflowchart LR\n  A([Start]) --> B{Vault set?}\n"
+        "  B -- yes --> C[Open collection]\n```\n\n"
+        "## Character diagram\n\n"
+        "```diagram\n┌────┐\n│ A  │\n└────┘\n```\n\n"
+        "## Prose, links and to-dos\n\n"
+        "A ==highlight==, a [[Projects/Alpha]] wiki-link, and a link to "
+        "[the web](https://example.com).\n\n"
+        "- [ ] Ship the beta 📅 2026-08-01 ⏫\n");
+
+    QString dir = qEnvironmentVariable("KVIT_SHOT_DIR");
+    if (dir.isEmpty())
+        dir = QDir::currentPath() + QStringLiteral("/screenshots");
+    QDir().mkpath(dir);
+    const QString path = dir + QStringLiteral("/rich_blocks_export.html");
+    QVERIFY(m_exporter.writeMarkdownAs(markdown, "Rich block export review",
+                                       "html", path));
+
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QString html = QString::fromUtf8(f.readAll());
+    QCOMPARE(html.count("class=\"query\""), 3);
+    QCOMPARE(html.count("class=\"embed\""), 1);
+    QCOMPARE(html.count("class=\"kanban\""), 2);   // the board, and the query's
+    QVERIFY(html.contains("<pre class=\"mermaid\">"));
+    QVERIFY(html.contains("<pre class=\"text-diagram\">"));
+    QVERIFY(html.contains("<img"));
+    m_exporter.setCollection(nullptr);
 }
 
 QTEST_MAIN(TestDocumentExporter)

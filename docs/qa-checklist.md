@@ -356,9 +356,53 @@ Run against the installed artifact with a fresh user profile.
        filters apply.
        *Expect:* results appear as you type, with matches highlighted in
        the snippet.
-10. [ ] Export the note to PDF and to HTML.
-        *Expect:* both open, carry images, and render math. HTML math
-        comes from MathJax in the browser, so check it online.
+10. [ ] Export to HTML and to PDF from a note carrying every kind of
+        rendering. Build the note first, so one export exercises all of it:
+        prose with bold, a `==highlight==`, an inline `$x^2$` and a `$$…$$`
+        block; a bulleted and a numbered list with one level of nesting; a
+        to-do with a due date and a priority; a quote; a callout; a divider;
+        a table with a formula in a header cell; a syntax-highlighted code
+        block; a character diagram; a Mermaid diagram; a task board with a
+        card carrying a label, a due date and a description; a query block in
+        table view and another in board view; a local image; a remote image;
+        an audio or video block; a web embed; a `[[wiki-link]]`; and a table
+        of contents. Open the HTML in a browser and the PDF in a viewer.
+
+        *Expect:* each block arrives as the thing the editor draws, never as
+        the text it is stored as. Specifically: the query blocks are a table
+        of matching notes and a board of cards, not their `from:`/`where:`
+        specs; the task board's card shows its label and due date as chips
+        with its description under the title; the embed is a link carrying
+        the page title where the preview card had already fetched one; the
+        Mermaid diagram is a drawing; the character diagram keeps its column
+        alignment in a monospace font; math is typeset. Nothing runs off the
+        right edge of the page, and highlighted text is legible — check that
+        under a dark theme as well as a light one, since the export carries
+        the theme's colours.
+
+        *Known limits, so they are not reported as new defects:* an audio or
+        video block exports as a link to its source path rather than a
+        player, and that path is relative to the note, so it only resolves if
+        the export sits beside the media. A `[[wiki-link]]` exports as plain
+        text, since the export has no note to point it at. Per-block
+        presentation set through the block's own menu — alignment, drop cap,
+        divider style, image rounding and shadow, table column widths — is
+        not carried into either format. A combined ("single file") export
+        writes no per-note titles, so notes run together unless each body
+        starts with its own heading. The PDF is printed by Qt's document
+        engine, which runs no JavaScript and fetches nothing: it rasterizes
+        the five Mermaid families the app draws natively (flowchart,
+        sequence, class, state, ER) and prints any other family as source,
+        and a remote image is blank in it. The HTML instead loads MathJax and
+        Mermaid from a CDN, so its maths and diagrams need the viewer to be
+        online.
+
+        *Shortcut for the markup itself:* the unit suite writes a reference
+        export of the blocks that render from something other than their own
+        text to `build/screenshots/rich_blocks_export.html`. Open that in a
+        browser when you want to judge the output without building the note
+        by hand; it does not replace the pass above, which is the only place
+        a real image, a real media file and a real embed are involved.
 11. [ ] Open a ~1 MB / 100k-word markdown file.
         *Expect:* loads under a second, typing has no perceptible lag,
         and scrolling end-to-end stays smooth.
