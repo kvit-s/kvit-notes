@@ -72,6 +72,7 @@ public:
     }
 
     bool isVerbatim() const override { return false; }
+    bool holdsContent() const override { return true; }
     bool foldsLineBreaks() const override { return true; }
     QString unfoldableTail(const Block::State &) const override
     {
@@ -209,6 +210,7 @@ public:
     }
 
     bool isVerbatim() const override { return false; }
+    bool holdsContent() const override { return true; }
     // A cell's stored line break is content the table draws, and the rows are
     // separated by newlines that are the grid's structure, so there is
     // nothing here a line fold could sensibly remove.

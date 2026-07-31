@@ -68,6 +68,7 @@ public:
     // database were written under that answer, and changing one changes
     // results for every vault that already exists.
     bool isVerbatim() const override { return true; }
+    bool holdsContent() const override { return true; }
     bool foldsLineBreaks() const override { return false; }
     QString unfoldableTail(const Block::State &) const override
     {

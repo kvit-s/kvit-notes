@@ -59,6 +59,7 @@ public:
     }
 
     bool isVerbatim() const override { return true; }
+    bool holdsContent() const override { return true; }
     // The newlines are the code. Folding them would join a listing onto one
     // line and change what it means.
     bool foldsLineBreaks() const override { return false; }
@@ -176,6 +177,11 @@ public:
     }
 
     bool isVerbatim() const override { return false; }
+    // "---" carries nothing back. Converting a paragraph into a divider used
+    // to keep the paragraph's text in the state: the block went on rendering
+    // it, the next save wrote a bare rule, and reopening the note found the
+    // text gone with no record that it had ever been there.
+    bool holdsContent() const override { return false; }
     bool foldsLineBreaks() const override { return false; }
     QString unfoldableTail(const Block::State &) const override
     {
@@ -318,6 +324,7 @@ public:
     // and there the raw TeX is the only statement of the formula a `.txt`
     // reader gets.
     bool isVerbatim() const override { return false; }
+    bool holdsContent() const override { return true; }
     bool foldsLineBreaks() const override { return false; }
     QString unfoldableTail(const Block::State &) const override
     {

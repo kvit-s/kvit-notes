@@ -117,6 +117,18 @@ public:
     // corrupts the reader's content on a replace.
     virtual bool isVerbatim() const = 0;
 
+    // Whether serialize() writes the block's content down at all.
+    //
+    // False for exactly one built-in kind: the divider serializes as three
+    // characters that say nothing about the state they came from. A
+    // conversion INTO such a kind must therefore drop the text it is handed
+    // rather than keep it in the model, because a block holding text its own
+    // markdown does not carry looks right on screen until the note is saved
+    // and reopened, and then the text is simply gone — the worst shape a loss
+    // can take, since nothing reports it and undo has long since been
+    // cleared.
+    virtual bool holdsContent() const = 0;
+
     // Whether "remove line breaks" applies: the block's newlines are wrapping
     // that a reader would want folded away, rather than content the breaks
     // are part of. A code block's newlines are the code.

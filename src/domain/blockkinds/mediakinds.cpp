@@ -100,6 +100,7 @@ public:
     }
 
     bool isVerbatim() const override { return false; }
+    bool holdsContent() const override { return true; }
     bool foldsLineBreaks() const override { return false; }
     QString unfoldableTail(const Block::State &) const override
     {
@@ -254,6 +255,7 @@ public:
     }
 
     bool isVerbatim() const override { return false; }
+    bool holdsContent() const override { return true; }
     bool foldsLineBreaks() const override { return false; }
     QString unfoldableTail(const Block::State &) const override
     {
@@ -345,6 +347,7 @@ public:
     }
 
     bool isVerbatim() const override { return false; }
+    bool holdsContent() const override { return true; }
     bool foldsLineBreaks() const override { return false; }
     QString unfoldableTail(const Block::State &) const override
     {

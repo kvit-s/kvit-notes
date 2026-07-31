@@ -148,6 +148,12 @@ public:
     QString attributes() const;
     QString displayText() const;
     const QString &displayTextRef() const;
+    // What find-in-note matches over. The same string as displayText() for
+    // every kind but the divider, which has none — see BlockKindDef. Cached
+    // beside the displayed one because the find bar rescans the document on
+    // every keystroke, and shares its buffer when the two agree.
+    QString searchText() const;
+    const QString &searchTextRef() const;
     int wordCount() const;
     int charCount(bool withSpaces = true) const;
 
@@ -212,6 +218,7 @@ private:
     QString m_attributes;
     mutable bool m_textCacheValid = false;
     mutable QString m_cachedDisplayText;
+    mutable QString m_cachedSearchText;
     mutable int m_cachedWordCount = 0;
     mutable int m_cachedCharsWithSpaces = 0;
     mutable int m_cachedCharsNoSpaces = 0;

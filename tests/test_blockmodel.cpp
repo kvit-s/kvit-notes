@@ -38,6 +38,8 @@ private slots:
     void testInsertBlockWithIndent();
     void testChangeIndentClamps();
     void testConvertBlock();
+    void testConvertToDividerDropsTextItCannotStore();
+    void testStructuralValuesCannotBreakTheirOwnSyntax();
     void testSplitInheritsIndentAndLanguage();
     void testOrdinalSimpleRun();
     void testOrdinalInterruptions();
@@ -720,6 +722,56 @@ void TestBlockModel::testConvertBlock()
     model.convertBlock(0, Block::CodeBlock, "x = 1", false, "python");
     QCOMPARE(model.blockAt(0)->blockType(), Block::CodeBlock);
     QCOMPARE(model.blockAt(0)->language(), QString("python"));
+}
+
+// A divider's markdown is three characters that say nothing about the state
+// they came from, so a conversion into one cannot be handed any text. Every
+// delegate passes the block's current text through, which is right for the
+// conversions that keep it: keeping it here left the block rendering the
+// paragraph it used to be, saving as a bare rule, and losing the words at the
+// next open, with nothing to report and undo long since cleared.
+void TestBlockModel::testConvertToDividerDropsTextItCannotStore()
+{
+    BlockModel model;
+    UndoStack undo;
+    model.setUndoStack(&undo);
+    model.insertBlock(0, Block::Paragraph, "words the divider cannot hold");
+
+    model.convertBlock(0, Block::Divider, "words the divider cannot hold");
+    QCOMPARE(model.blockAt(0)->blockType(), Block::Divider);
+    QCOMPARE(model.blockAt(0)->content(), QString());
+
+    // Dropped as part of the same undoable step, so it is one Ctrl+Z away
+    // rather than gone.
+    undo.undo();
+    QCOMPARE(model.blockAt(0)->blockType(), Block::Paragraph);
+    QCOMPARE(model.blockAt(0)->content(),
+             QString("words the divider cannot hold"));
+}
+
+// The language and the callout title are written into markup with a shape —
+// a fence's info string, the `[!type]` marker, the callout's one header line
+// — so a value carrying a newline or one of that syntax's delimiters produces
+// a note that reads back as a different document.
+void TestBlockModel::testStructuralValuesCannotBreakTheirOwnSyntax()
+{
+    BlockModel model;
+    model.insertBlock(0, Block::Paragraph, "body");
+
+    model.convertBlock(0, Block::CodeBlock, "x = 1", false,
+                       "python\n```\nnot code");
+    QCOMPARE(model.blockAt(0)->language(), QString("python not code"));
+
+    model.convertBlock(0, Block::Callout, "body", false, "in]fo",
+                       "Title\nand a second line");
+    QCOMPARE(model.blockAt(0)->language(), QString("info"));
+    QCOMPARE(model.blockAt(0)->calloutTitle(),
+             QString("Title and a second line"));
+
+    model.setCalloutTitle(0, QStringLiteral("one\ntwo"));
+    QCOMPARE(model.blockAt(0)->calloutTitle(), QString("one two"));
+    model.setCalloutType(0, QStringLiteral("warn]ing"));
+    QCOMPARE(model.blockAt(0)->language(), QString("warning"));
 }
 
 void TestBlockModel::testSplitInheritsIndentAndLanguage()

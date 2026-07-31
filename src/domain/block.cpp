@@ -138,6 +138,18 @@ const QString &Block::displayTextRef() const
     return m_cachedDisplayText;
 }
 
+QString Block::searchText() const
+{
+    ensureTextCache();
+    return m_cachedSearchText;
+}
+
+const QString &Block::searchTextRef() const
+{
+    ensureTextCache();
+    return m_cachedSearchText;
+}
+
 int Block::wordCount() const
 {
     ensureTextCache();
@@ -294,6 +306,16 @@ void Block::ensureTextCache() const
     // whether or not that was right for it.
     const State s = state();
     m_cachedDisplayText = m_kind->displayText(s);
+
+    // The search projection is its own answer, and for one kind a different
+    // one: a divider has no text a reader can see, so it has none to find. It
+    // is cached here rather than computed per scan because the find bar
+    // rescans the whole document on every keystroke, and it is assigned the
+    // display string when the two agree — every kind but that one — so the
+    // common case shares a buffer instead of holding the document twice.
+    QString search = m_kind->searchText(s);
+    m_cachedSearchText = search == m_cachedDisplayText ? m_cachedDisplayText
+                                                       : search;
 
     // The counts are taken from the STATISTICS projection, not the displayed
     // one. They are the same string for every kind today, and they are

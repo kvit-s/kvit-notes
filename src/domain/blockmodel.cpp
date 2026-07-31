@@ -26,6 +26,42 @@
 #include <algorithm>
 #include <utility>
 
+namespace {
+
+// A block's language and callout title are not content: they are written into
+// markup that has a shape — a fence's info string, a `[!type]` marker, the
+// one header line of a callout — so a value carrying a newline or one of that
+// syntax's own delimiters produces a note that reads back as a different
+// document. The callers inside the editor pass values from fixed lists, but
+// the model is reachable from QML and from a linked module's block kind, and
+// what a wrong value costs is a note that changes when it is saved and
+// reopened, which nothing reports.
+//
+// Only the setters below go through these. The parse path assigns the values
+// it read out of markup that already had this shape, and normalizing there
+// would rewrite a reader's file for no reason.
+
+QString oneLine(const QString &value)
+{
+    QString out = value;
+    out.replace(QLatin1Char('\r'), QLatin1Char(' '));
+    out.replace(QLatin1Char('\n'), QLatin1Char(' '));
+    return out.trimmed();
+}
+
+QString sanitizedLanguage(const QString &language)
+{
+    QString out = oneLine(language);
+    // A backtick ends a fence's info string; a bracket ends the callout
+    // marker that the same field spells.
+    out.remove(QLatin1Char('`'));
+    out.remove(QLatin1Char('['));
+    out.remove(QLatin1Char(']'));
+    return out.simplified();
+}
+
+} // namespace
+
 void BlockModel::setBlockKindRegistry(BlockKindRegistry *registry)
 {
     m_blockKinds = registry ? registry : &m_ownedBlockKinds;
@@ -167,7 +203,7 @@ bool BlockModel::setData(const QModelIndex &index, const QVariant &value, int ro
         setChecked(row, value.toBool());
         return true;
     case LanguageRole: {
-        const QString language = value.toString();
+        const QString language = sanitizedLanguage(value.toString());
         if (block->language() == language)
             return true;
         // No language-only command exists; the full-state one covers it.
@@ -549,8 +585,19 @@ void BlockModel::convertBlock(int index, int type, const QString &content,
     // out of it land at the margin.
     newState.indentLevel = Block::isListFamily(newState.type) ? block->indentLevel() : 0;
     newState.checked = checked;
-    newState.language = language;
-    newState.calloutTitle = calloutTitle;
+    newState.language = sanitizedLanguage(language);
+    newState.calloutTitle = oneLine(calloutTitle);
+    // A kind whose markdown does not write the content down cannot be handed
+    // any. Every delegate passes the block's current text through, which is
+    // right for the conversions that keep it and wrong for the one that
+    // cannot: a divider went on rendering the paragraph's text, saved as a
+    // bare rule, and lost it at the next open. Dropped here, in the one place
+    // every conversion goes through, and dropped as part of the same undoable
+    // step — so the text is one Ctrl+Z away rather than gone.
+    if (const BlockKindDef *def = m_blockKinds->defFor(newState);
+        def && !def->holdsContent()) {
+        newState.content.clear();
+    }
 
     const Block::State oldState = block->state();
     if (oldState.type == newState.type && oldState.content == newState.content &&
@@ -591,13 +638,14 @@ QVariantMap BlockModel::todoProgress(int index) const
 
 void BlockModel::setCalloutType(int index, const QString &type)
 {
+    const QString cleaned = sanitizedLanguage(type);
     Block *block = blockAt(index);
     if (!block || block->blockType() != Block::Callout
-        || block->language() == type)
+        || block->language() == cleaned)
         return;
     const Block::State oldState = block->state();
     Block::State newState = oldState;
-    newState.language = type;
+    newState.language = cleaned;
     if (m_undoStack) {
         auto cmd = std::make_unique<ConvertBlockCommand>(this, index, oldState,
                                                         newState);
@@ -609,12 +657,17 @@ void BlockModel::setCalloutType(int index, const QString &type)
 
 void BlockModel::setCalloutTitle(int index, const QString &title)
 {
+    // The title shares the callout's one header line with the `[!type]`
+    // marker, so a newline in it — pasting two lines into the title field is
+    // all it takes — ends the callout there and turns the rest into loose
+    // markdown at the next load.
+    const QString cleaned = oneLine(title);
     Block *block = blockAt(index);
-    if (!block || block->calloutTitle() == title)
+    if (!block || block->calloutTitle() == cleaned)
         return;
     const Block::State oldState = block->state();
     Block::State newState = oldState;
-    newState.calloutTitle = title;
+    newState.calloutTitle = cleaned;
     if (m_undoStack) {
         auto cmd = std::make_unique<ConvertBlockCommand>(this, index, oldState, newState);
         m_undoStack->push(std::move(cmd));

@@ -559,7 +559,7 @@ void DocumentSearch::recompute()
                 Block *block = m_model->blockAt(i);
                 if (!block)
                     continue;
-                const QString &text = block->displayTextRef();
+                const QString &text = block->searchTextRef();
                 if (text.isEmpty())
                     continue;
                 QList<int> blockMatchIndexes;
@@ -705,10 +705,13 @@ QString DocumentSearch::searchableText(int blockIndex) const
     Block *block = m_model ? m_model->blockAt(blockIndex) : nullptr;
     if (!block)
         return QString();
-    // Display text: what the user sees. Code blocks are verbatim —
-    // their content IS the display. Todo metadata tails are chrome and
-    // are stripped by the block's derived display cache.
-    return block->displayText();
+    // The kind's own search projection, which is the displayed text for
+    // everything but the divider — a rule across the page, with nothing in it
+    // to find. Scanning the displayed text instead let a hand-edited file put
+    // a match inside a divider: a result the reader cannot see when they
+    // follow it, and a replace spliced into a field the serializer writes as
+    // three characters, so the edit disappeared at the next save.
+    return block->searchText();
 }
 
 int DocumentSearch::displayPosition(int blockIndex, int mdPos) const

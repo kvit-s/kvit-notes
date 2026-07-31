@@ -56,6 +56,7 @@ public:
     }
 
     bool isVerbatim() const override { return m_codeBlock->isVerbatim(); }
+    bool holdsContent() const override { return m_codeBlock->holdsContent(); }
     bool foldsLineBreaks() const override
     {
         return m_codeBlock->foldsLineBreaks();
