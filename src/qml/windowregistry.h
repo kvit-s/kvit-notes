@@ -56,6 +56,14 @@ public:
 
     int windowCount() const { return int(m_windows.size()); }
 
+    // Ask every window to close, exactly as closing each one by hand would.
+    // Returns false as soon as one refuses — a save that failed, or a document
+    // that has never been saved and whose question is now on screen — leaving
+    // that window in front of the user and the rest of them open. Quitting
+    // from the tray goes through here, because the orderly save that protects
+    // unsaved work lives in the shell's close handler and nowhere else.
+    bool requestCloseAll();
+
     // The most recently focused window, or the last one opened; null when none
     // are open. Used to route tray actions and a warm bare launch.
     VaultWindow *activeWindow() const { return m_active; }

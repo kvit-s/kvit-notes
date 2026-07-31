@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "windowregistry.h"
 
+#include <QCloseEvent>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QQuickWindow>
@@ -61,6 +63,7 @@ bool WindowRegistry::openStartup(const QString &target)
 {
     const QString key = keyForTarget(target);
     if (VaultWindow *existing = m_byKey.value(key)) {
+        existing->retryTargetIfUnopened();
         existing->raiseWindow();
         setActive(existing);
         return true;
@@ -92,6 +95,12 @@ void WindowRegistry::openVaultInNewWindow(const QString &path)
 {
     const QString key = keyForTarget(path);
     if (VaultWindow *existing = m_byKey.value(key)) {
+        // A window is registered for its vault from the moment it is created,
+        // but the vault is taken by the deferred startup that runs after the
+        // first frame — and that is where another process holding the lock
+        // refuses it. Raising a window showing that refusal is not an answer
+        // to "open this vault", so it is offered again first.
+        existing->retryTargetIfUnopened();
         existing->raiseWindow();
         setActive(existing);
         return;
@@ -112,7 +121,10 @@ void WindowRegistry::openVaultInWindow(AppContext *requester, const QString &pat
     if (VaultWindow *existing = m_byKey.value(key)) {
         // Already open somewhere — raise it rather than open a duplicate, even
         // when the requester is a different window. (When it IS the requester's
-        // own current vault, this simply raises the requester.)
+        // own current vault, this simply raises the requester.) A window
+        // registered for a vault it never managed to take is offered it again
+        // rather than merely raised; see openVaultInNewWindow.
+        existing->retryTargetIfUnopened();
         existing->raiseWindow();
         setActive(existing);
         return;
@@ -184,6 +196,47 @@ VaultWindow *WindowRegistry::createWindow(const QString &target,
     return w;
 }
 
+bool WindowRegistry::requestCloseAll()
+{
+    // Snapshot the windows: an accepted close tells the registry to release
+    // that window, which erases from m_windows. That teardown is queued, so it
+    // cannot fire inside this loop (nothing here runs an event loop), but the
+    // snapshot makes the loop independent of it either way.
+    std::vector<VaultWindow *> windows;
+    windows.reserve(m_windows.size());
+    for (const auto &w : m_windows)
+        windows.push_back(w.get());
+
+    for (VaultWindow *w : windows) {
+        QQuickWindow *win = w->window();
+        if (!win)
+            continue;
+
+        // Ask, rather than close. The shell's onClosing handler is where the
+        // orderly save lives, and it answers by refusing the close when it
+        // cannot finish: a failed write, or a never-saved document whose
+        // question it has just put on screen. QQuickWindow::close() is the
+        // wrong instrument for that question, because it runs the handler for
+        // a window on screen and silently skips it for one already hidden
+        // into the tray — and a tray-resident window is exactly the one whose
+        // document nobody has looked at recently.
+        QCloseEvent closing;
+        QCoreApplication::sendEvent(win, &closing);
+        if (!closing.isAccepted()) {
+            w->raiseWindow();   // put what is in the way in front of the user
+            return false;
+        }
+        // Accepted. The handler has already done everything that has to happen
+        // — saved the document, and released the vault unless the window is
+        // only hiding into the tray — so all that is left is to take the
+        // window off the screen. setVisible() rather than close(), which would
+        // deliver a second close event and run the handler (and its
+        // notifyWindowClosing) twice.
+        win->setVisible(false);
+    }
+    return true;
+}
+
 void WindowRegistry::removeWindow(VaultWindow *w)
 {
     if (!w)
@@ -217,6 +270,15 @@ void WindowRegistry::persistOpenVaults()
 {
     // The vault windows currently open, so a bare cold launch can restore them.
     // Loose single-file windows are excluded.
+    //
+    // A window whose vault the deferred startup could not take — another
+    // process was holding it — is still recorded, deliberately. It is the
+    // vault the reader asked for, the refusal is usually temporary, and the
+    // next launch retrying it is what they want; openSession() drops one whose
+    // directory has gone. Filtering on "did this window actually get its
+    // vault" was tried and is worse: a second process refused the same vault
+    // would then rewrite this setting to an empty list and erase the running
+    // session's own record of where it was.
     QStringList vaults;
     for (const auto &w : m_windows) {
         if (w->isVault() && !w->key().isEmpty())

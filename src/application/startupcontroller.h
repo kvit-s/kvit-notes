@@ -43,6 +43,17 @@ public:
 
     Q_INVOKABLE void start();
 
+    // Choose and open a note again, for a root that is already open.
+    //
+    // A window that switches vault in place has done everything start() would
+    // do about the collection — the root is open and scanning — and none of
+    // what it does about the document, which is still the note from the vault
+    // just left. This re-arms only that second half: the same last-note /
+    // first-note / seed-a-welcome-note selection, against the new vault. The
+    // notes that failed to open in the previous vault are forgotten with it,
+    // since they name nothing in this one.
+    void restartForOpenRoot();
+
     // The document a session opens on when there is no note to restore: the
     // sample content, loaded inside DocumentManager's baseline-load scope so
     // it reads as the document's starting state rather than as an unsaved

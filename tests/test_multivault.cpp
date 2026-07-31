@@ -9,12 +9,16 @@
 // so it runs offscreen alongside the other `shell`-labelled suites.
 #include <QtTest>
 
+#include <QDir>
+#include <QFile>
 #include <QTemporaryDir>
 #include <QUrl>
 
 #include "appactions.h"
 #include "appcontext.h"
+#include "block.h"
 #include "blockmodel.h"
+#include "documentmanager.h"
 #include "processservices.h"
 #include "vaultwindow.h"
 #include "windowregistry.h"
@@ -145,6 +149,96 @@ private slots:
             QVERIFY(registry.openSession());
             QCOMPARE(registry.windowCount(), 2);
         }
+    }
+
+    // Switching a window to another vault gives up the first vault's lock, so
+    // the note on screen has to reach disk while this window is still its one
+    // writer, and has to be let go afterwards. Without both, the editor kept a
+    // file open — and saveable — in a vault the process no longer held, where
+    // another session was by then free to edit the same file.
+    void switchingVaultsSavesAndReleasesTheOpenNote()
+    {
+        QTemporaryDir settingsDir;
+        QTemporaryDir vault1;
+        QTemporaryDir vault2;
+        ProcessServices globals(headlessOptions());
+        globals.openSettings(settingsDir.filePath(QStringLiteral("settings.json")));
+        AppContext context(globals);
+
+        const QString note = vault1.filePath(QStringLiteral("note.md"));
+        {
+            QFile seed(note);
+            QVERIFY(seed.open(QIODevice::WriteOnly));
+            seed.write("first\n");
+        }
+
+        QVERIFY(context.openVaultRoot(vault1.path()));
+        QVERIFY(context.documentManager()->open(QUrl::fromLocalFile(note)));
+        context.blockModel()->updateContent(0, QStringLiteral("edited"));
+        QVERIFY(context.documentManager()->isDirty());
+
+        QVERIFY(context.openVaultRoot(vault2.path()));
+
+        QFile written(note);
+        QVERIFY(written.open(QIODevice::ReadOnly));
+        QCOMPARE(QString::fromUtf8(written.readAll()), QStringLiteral("edited\n"));
+        QVERIFY2(!context.documentManager()->currentFilePath()
+                      .startsWith(vault1.path()),
+                 "the editor kept a note open in the vault it had just left");
+        QCOMPARE(context.noteCollection()->rootPath(),
+                 QDir(vault2.path()).absolutePath());
+    }
+
+    // Quitting from the tray is a close of every window, and a close is where
+    // the orderly save lives. QApplication::quit() sends no close event, so a
+    // document with unsaved changes went with the process; the registry's
+    // close-every-window path is what the tray's Quit now goes through.
+    void requestCloseAllSavesEveryWindowsDocument()
+    {
+        QTemporaryDir settingsDir;
+        QTemporaryDir vault1;
+        QTemporaryDir vault2;
+        ProcessServices globals(headlessOptions());
+        globals.openSettings(settingsDir.filePath(QStringLiteral("settings.json")));
+        WindowRegistry registry(globals,
+                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+
+        QVERIFY(registry.openStartup(vault1.path()));
+        VaultWindow *first = registry.activeWindow();
+        registry.openVaultInNewWindow(vault2.path());
+        VaultWindow *second = registry.activeWindow();
+        QVERIFY(second && second != first);
+
+        // Each window has a note open with an edit that has not reached disk.
+        const QString noteA = vault1.filePath(QStringLiteral("a.md"));
+        const QString noteB = vault2.filePath(QStringLiteral("b.md"));
+        const auto seed = [](VaultWindow *w, const QString &path,
+                             const QString &text) {
+            DocumentManager *docs = w->context()->documentManager();
+            w->context()->blockModel()->clear();
+            w->context()->blockModel()->insertBlockInternal(
+                0, Block::Paragraph, QStringLiteral("saved"));
+            QVERIFY(docs->saveAs(QUrl::fromLocalFile(path)));
+            w->context()->blockModel()->updateContent(0, text);
+            QVERIFY(docs->isDirty());
+        };
+        seed(first, noteA, QStringLiteral("edited in the first window"));
+        seed(second, noteB, QStringLiteral("edited in the second window"));
+
+        QVERIFY2(registry.requestCloseAll(),
+                 "a window refused a close it had nothing to object to");
+
+        const auto readAll = [](const QString &path) {
+            QFile f(path);
+            return f.open(QIODevice::ReadOnly)
+                       ? QString::fromUtf8(f.readAll()) : QString();
+        };
+        QCOMPARE(readAll(noteA),
+                 QStringLiteral("edited in the first window\n"));
+        QCOMPARE(readAll(noteB),
+                 QStringLiteral("edited in the second window\n"));
+        QVERIFY(!first->context()->documentManager()->isDirty());
+        QVERIFY(!second->context()->documentManager()->isDirty());
     }
 
     // Exactly one window is the tray's target — the active one — so a tray menu

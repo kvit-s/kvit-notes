@@ -66,6 +66,18 @@ public:
     // Bring this window to the front and give it keyboard focus.
     void raiseWindow();
 
+    // Try the vault again, if this is a vault window that does not have one.
+    //
+    // A window is registered for its vault as soon as it is created, but the
+    // vault itself is taken by the deferred startup that runs after the first
+    // frame, and that is where another process holding the lock refuses it.
+    // Without this, the registry answered every later request for that vault
+    // by raising the window showing the refusal — so once the other process
+    // quit there was no way to open the vault short of closing the window,
+    // and the menu item that should have worked did nothing visible.
+    // Returns true when the vault is open afterwards.
+    bool retryTargetIfUnopened();
+
 signals:
     // This window is closing for good; the registry tears it down (releasing
     // the vault lock). Driven by QML's onClosing through AppActions.

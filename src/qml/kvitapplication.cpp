@@ -112,8 +112,18 @@ KvitApplication::StartOutcome KvitApplication::start(const QStringList &argument
     applyQuitPolicy();
     connect(m_processServices.systemTray(), &SystemTray::closeToTrayChanged,
             &m_app, applyQuitPolicy);
+    // Quit from the tray is a close of every window, not a straight exit.
+    // QApplication::quit() sends no close event, so a document with unsaved
+    // changes — or one that has never been saved at all, which the shell would
+    // otherwise ask about — went with the process. Every window has to accept
+    // its close before the process may go, and one that refuses keeps the
+    // application running with itself in front of the user.
     connect(m_processServices.systemTray(), &SystemTray::quitRequested,
-            &m_app, &QApplication::quit);
+            this, [this]() {
+                if (m_registry && !m_registry->requestCloseAll())
+                    return;
+                m_app.quit();
+            });
 
     m_registry = std::make_unique<WindowRegistry>(m_processServices, m_shellUrl);
 

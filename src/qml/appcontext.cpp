@@ -20,6 +20,7 @@
 #include "windowrouter.h"
 #include "perflog.h"
 #include "localimageprovider.h"
+#include "opendocumentsession.h"
 #include "remoteimageprovider.h"
 
 AppContext::AppContext(QObject *parent)
@@ -349,21 +350,66 @@ void AppContext::wire()
 
 bool AppContext::openVaultRoot(const QString &path)
 {
-    // Release the index for the vault being left before the repository
-    // reaches for the next one's. requestClose() returns immediately: it tells
-    // both database workers to abandon their reconcile and query work, posts
-    // the two closes rather than waiting on them, and forgets the root
-    // synchronously — so the collection's own prologue (flushing workspace
-    // state, taking the vault lock, cancelling scans) overlaps the workers
-    // unwinding, and the blocking open that follows is not queued behind a
-    // full-vault reconcile. The next openForRoot() is delivered after the
-    // posted closes, so reopening straight away is safe.
-    //
-    // Without this, switching vaults reached those blocking opens with the old
-    // vault's work still running and stalled the GUI thread behind it.
-    if (m_noteCollection.isOpen() && m_noteCollection.rootPath() != path)
-        m_searchIndex.requestClose();
-    return m_noteCollection.openRootAsync(path);
+    // A window switching vaults in place is leaving one vault for another, and
+    // the note on screen belongs to the one being left. Three things follow,
+    // and none of them used to happen: the editor's unsaved work has to reach
+    // disk while this window is still the vault's one writer, because
+    // NoteCollection releases that vault's lock as it takes the next one; the
+    // document then has to be let go, or the editor keeps a file open — and
+    // saveable — in a vault this process no longer holds, where a second
+    // session is now free to edit the same file; and the new vault needs its
+    // own note opened, which is the startup flow again rather than anything
+    // new.
+    // A loose-file window opening a folder is the same departure: it has no
+    // collection to leave, but the file on screen is not in the vault it is
+    // about to show either.
+    const bool switching = m_noteCollection.isOpen()
+                               ? m_noteCollection.rootPath() != path
+                               : m_documentManager.hasFile();
+
+    if (switching) {
+        // Through the repository's own seam for this, rather than by calling
+        // the document manager's save directly: "make sure the file holds what
+        // is on screen, and tell me if it does not" is exactly what
+        // OpenDocumentSession states, and the session remains the only writer
+        // of the open note.
+        OpenDocumentSession &openNote = m_documentManager;
+        openNote.flushPendingEdits();
+        if (openNote.hasUnsavedChanges()) {
+            if (openNote.openFilePath().isEmpty()) {
+                // A document that has never been saved has nowhere to go, and
+                // the switch is about to replace the model it lives in. Say so
+                // and stay put; the alternative is discarding work the reader
+                // never agreed to lose in order to honour a menu item.
+                m_appActions.requestTransientStatus(
+                    tr("This document has never been saved. Save it before "
+                       "opening another folder."));
+                return false;
+            }
+            // The same refusal NoteSession makes before any note switch: an
+            // unwritable file or a full disk means the edits exist only in the
+            // model that is about to be replaced, so stay where we are and let
+            // the error stand.
+            if (!openNote.persistCurrentRevision())
+                return false;
+        }
+    }
+
+    // The index is released inside openRootAsync, once the new vault has
+    // actually been taken; a switch refused because another process holds it
+    // leaves this vault's index open and searchable.
+    if (!m_noteCollection.openRootAsync(path))
+        return false;
+
+    if (switching) {
+        // Closes the departed note (and calls off any write still running
+        // against it). The document that replaces it comes from the new vault,
+        // through the same start-note selection a cold launch uses.
+        m_documentManager.newDocument();
+        m_navigationHistory.clear();
+        m_startupController.restartForOpenRoot();
+    }
+    return true;
 }
 
 void AppContext::openSettings(const QString &settingsPath)

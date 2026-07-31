@@ -89,6 +89,36 @@ void StartupController::start()
     finishStartup();
 }
 
+void StartupController::restartForOpenRoot()
+{
+    if (!m_collection || !m_documentManager || !m_blockModel || !m_undoStack)
+        return;
+
+    m_rootPath = m_collection->rootPath();
+    m_failedStartupNotes.clear();
+    m_pendingStartupRelPath.clear();
+    m_initialOpenInProgress = false;
+    // Past any generation a startup open still in flight can hold, so its
+    // completion cannot adopt a note from the vault this window has left.
+    ++m_openRequestGeneration;
+
+    if (!m_started) {
+        // A loose-file window that has just become a vault window: start()
+        // finished immediately on an empty root, so the settle signals were
+        // never connected.
+        m_started = true;
+        emit startedChanged();
+    }
+    m_finished = false;
+    emit finishedChanged();
+
+    connect(m_collection, &NoteCollection::revisionChanged,
+            this, &StartupController::tryFinishStartup, Qt::UniqueConnection);
+    connect(m_collection, &NoteCollection::scanFinished,
+            this, &StartupController::tryFinishStartup, Qt::UniqueConnection);
+    tryFinishStartup();
+}
+
 void StartupController::initializeFallbackDocument()
 {
     if (!m_blockModel || !m_undoStack)

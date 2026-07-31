@@ -46,6 +46,23 @@ void VaultWindow::openTarget(const QString &target)
                          : QStringList{QString(), target});
 }
 
+bool VaultWindow::retryTargetIfUnopened()
+{
+    if (!m_isVault || m_key.isEmpty())
+        return false;   // a loose-file window has no vault to be missing
+    NoteCollection *collection = m_context.noteCollection();
+    if (collection->isOpen())
+        return true;
+    if (!m_context.openVaultRoot(m_key))
+        return false;
+    // The vault is open now, but the document is still what the failed startup
+    // left behind — the sample fallback, with no note from this vault behind
+    // it. Choose and load one, which is the same selection a cold launch
+    // makes.
+    m_context.startupController()->restartForOpenRoot();
+    return true;
+}
+
 QQuickWindow *VaultWindow::window() const
 {
     const QList<QObject *> roots = m_engine.rootObjects();
