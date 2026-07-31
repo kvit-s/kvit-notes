@@ -33,6 +33,17 @@ Dialog {
     property int mdEnd: -1
     property bool editing: false
     property bool removable: false
+    // The block's text as it read when the dialog opened.
+    //
+    // blockIndex, mdStart and mdEnd describe a position in a document that can
+    // be replaced while the dialog is on screen: a tray action opens another
+    // note, a recovered or externally-changed note is accepted, a linked
+    // module switches the view. The row number then names a different block
+    // and the offsets are measured against text that is not there any more, so
+    // accepting would splice a link into the middle of a sentence in a note
+    // the reader was not editing. Comparing the text is the whole check — if
+    // it still reads the same, the offsets still mean what they meant.
+    property string sourceContent: ""
     // The document's headings for the "link to heading" mode
     // (features.md §2.4's deferred jump-to-heading). Refreshed on open.
     property var headingTargets: []
@@ -43,6 +54,7 @@ Dialog {
         blockIndex = index
         mdStart = start
         mdEnd = end
+        sourceContent = BlockModel.getContent(index)
         headingTargets = DocumentOutline.headings()
         linkTextField.text = initialText
         linkUrlField.text = ""
@@ -56,6 +68,7 @@ Dialog {
         blockIndex = index
         mdStart = start
         mdEnd = end
+        sourceContent = BlockModel.getContent(index)
         headingTargets = DocumentOutline.headings()
         linkTextField.text = text
         linkUrlField.text = url
@@ -65,6 +78,11 @@ Dialog {
 
     function spliceAndFocus(replacement, cursorMd) {
         var md = BlockModel.getContent(blockIndex)
+        if (md !== linkDialog.sourceContent) {
+            AppActions.requestTransientStatus(
+                qsTr("The document changed while the link dialog was open, so the link was not inserted."))
+            return
+        }
         BlockModel.updateContent(blockIndex,
             md.substring(0, mdStart) + replacement + md.substring(mdEnd))
         var idx = blockIndex

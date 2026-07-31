@@ -25,6 +25,26 @@ Item {
     // Wired by main.qml.
     property var listView
 
+    // Whether the block a dialog was opened for is still the block it was
+    // opened for.
+    //
+    // Each of these dialogs holds a row number, and the document under that
+    // row can be replaced while the dialog is on screen: a tray action opens
+    // another note, an externally-changed note is reloaded, a linked module
+    // switches the view. Committing then converts a block in a note the reader
+    // was not editing, and a conversion replaces that block's content
+    // outright. Comparing the text the dialog was opened over is the whole
+    // check — if the row still reads the same, it is still the same row.
+    function targetIsStill(idx, snapshot) {
+        return idx >= 0 && idx < BlockModel.count
+            && BlockModel.getContent(idx) === snapshot
+    }
+
+    function refuseStaleTarget() {
+        AppActions.requestTransientStatus(
+            qsTr("The document changed while the dialog was open, so nothing was inserted."))
+    }
+
     // Insert an image or a local audio/video file into an (empty) block by
     // file or URL (features.md §4.3). One dialog serves both entries in the
     // block menu, because the block type follows from the path that comes
@@ -35,6 +55,7 @@ Item {
     // put to it. kind is "image" (the default) or "media".
     function insertImage(idx, kind) {
         imageInsertDialog.targetIndex = idx
+        imageInsertDialog.targetContent = BlockModel.getContent(idx)
         imageInsertDialog.kind = (kind === "media") ? "media" : "image"
         imagePathField.text = ""
         imageInsertDialog.open()
@@ -45,6 +66,7 @@ Item {
     // expression, which the content classifier renders as a preview card.
     function insertEmbed(idx) {
         embedInsertDialog.targetIndex = idx
+        embedInsertDialog.targetContent = BlockModel.getContent(idx)
         embedInsertDialog.editing = false
         embedUrlField.text = ""
         embedInsertDialog.open()
@@ -57,6 +79,7 @@ Item {
     // survives the edit.
     function editEmbed(idx, url) {
         embedInsertDialog.targetIndex = idx
+        embedInsertDialog.targetContent = BlockModel.getContent(idx)
         embedInsertDialog.editing = true
         embedUrlField.text = url
         embedInsertDialog.open()
@@ -73,6 +96,7 @@ Item {
         width: 420
         standardButtons: Dialog.Ok | Dialog.Cancel
         property int targetIndex: -1
+        property string targetContent: ""
         property bool editing: false
         // What the typed text will actually be inserted as: a bare host gains
         // https://, and text that cannot be a web address yields "", which is
@@ -83,6 +107,10 @@ Item {
             var url = resolvedUrl
             if (url === "" || targetIndex < 0)
                 return
+            if (!inserts.targetIsStill(targetIndex, targetContent)) {
+                inserts.refuseStaleTarget()
+                return
+            }
             var md = "![](" + url + ")"
             // updateContent leaves the block's type and attributes alone,
             // which is what keeps a resized card's width and height; the
@@ -140,6 +168,7 @@ Item {
     // Insert a table via the grid-size picker (features.md §4.2).
     function insertTable(idx) {
         tableSizePicker.targetIndex = idx
+        tableSizePicker.targetContent = BlockModel.getContent(idx)
         tableSizePicker.open()
     }
 
@@ -150,8 +179,13 @@ Item {
         objectName: "tableSizePicker"
         anchors.centerIn: parent
         property int targetIndex: -1
+        property string targetContent: ""
         onSizePicked: function(cols, rows) {
             if (targetIndex < 0) return
+            if (!inserts.targetIsStill(targetIndex, targetContent)) {
+                inserts.refuseStaleTarget()
+                return
+            }
             BlockModel.convertBlock(targetIndex, Block.Table,
                                     TableTools.emptyTable(cols, rows))
             var idx = targetIndex
@@ -174,6 +208,7 @@ Item {
         width: 420
         standardButtons: Dialog.Ok | Dialog.Cancel
         property int targetIndex: -1
+        property string targetContent: ""
         // Which of the two menu entries opened this: "image" or "media".
         property string kind: "image"
         readonly property bool mediaKind: kind === "media"
@@ -182,6 +217,10 @@ Item {
             var path = imagePathField.text.trim()
             if (path === "" || targetIndex < 0)
                 return
+            if (!inserts.targetIsStill(targetIndex, targetContent)) {
+                inserts.refuseStaleTarget()
+                return
+            }
             var md = ImageAssets.build(path, "", "", 0)
             // An audio/video path lands a Media block; everything else an
             // Image. The dialog is shared.

@@ -33,9 +33,17 @@ Item {
         }
     }
 
+    // The system-wide grab is one registration for the whole process, so every
+    // window's shell hears it. Gated on the same flag the tray actions use, or
+    // one press of the hotkey opens a capture window in front of every open
+    // vault at once — each of them writing into a different vault, and only
+    // the one on top visibly.
     Connections {
         target: GlobalHotkey
-        function onActivated() { integration.openQuickCapture() }
+        function onActivated() {
+            if (AppActions.trayTarget)
+                integration.openQuickCapture()
+        }
     }
 
     // The in-app chord, which works while the window is focused, so capture is
