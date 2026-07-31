@@ -28,8 +28,15 @@ namespace {
 // why a Media block can end up here through the embed path.
 QString mediaLinkHtml(const ImageAssets::Parsed &parsed)
 {
-    return "<p>&#9654; <a href=\"" + HtmlInline::esc(parsed.path) + "\">"
-         + HtmlInline::esc(parsed.alt.isEmpty() ? parsed.path : parsed.alt)
+    const QString label =
+        HtmlInline::esc(parsed.alt.isEmpty() ? parsed.path : parsed.alt);
+    // A media path out of a note is chosen by whoever wrote the note, and an
+    // exported file is opened by a browser; a target that would run rather
+    // than navigate keeps its label and loses its link.
+    const QString href = HtmlInline::safeHref(parsed.path);
+    if (href.isEmpty())
+        return "<p>&#9654; " + label + "</p>";
+    return "<p>&#9654; <a href=\"" + HtmlInline::esc(href) + "\">" + label
          + "</a></p>";
 }
 

@@ -27,6 +27,7 @@
 #include "documentoutline.h"
 #include "notecollection.h"
 #include "notefileio.h"
+#include "vaultpaths.h"
 #include "theme.h"
 #include "perflog.h"
 
@@ -636,9 +637,15 @@ QString DocumentExporter::embedCardHtml(const QString &url, const QString &alt,
     if (storedWidth > 0)
         declarations << QStringLiteral("max-width:%1px").arg(storedWidth);
 
+    // The card's URL comes out of the note, so it is the note author's choice
+    // and the export is read in a browser: a target that runs rather than
+    // navigates keeps its title and loses its link.
+    const QString href = HtmlInline::safeHref(url);
+    const QString title = href.isEmpty()
+        ? esc(label)
+        : "<a href=\"" + esc(href) + "\">" + esc(label) + "</a>";
     QString out = "<div class=\"embed\"" + BlockStyle::styleAttr(declarations)
-        + "><div class=\"title\"><a href=\""
-        + esc(url) + "\">" + esc(label) + "</a></div>";
+        + "><div class=\"title\">" + title + "</div>";
     if (!description.isEmpty())
         out += "<div class=\"desc\">" + esc(description) + "</div>";
     if (!caption.isEmpty())
@@ -1099,6 +1106,19 @@ DocumentExporter::buildOutputPlan(NoteCollection *collection,
         return plan;
     }
 
+    // Every output path is built by joining the destination directory with a
+    // note's vault-relative path, so a relative path that walks upward names a
+    // file outside the destination the reader chose. The scan produces only
+    // plain paths and the note list only passes those on, which is why this
+    // has never mattered; it is checked here anyway, because a caller getting
+    // it wrong writes over a file nobody in this conversation named.
+    for (const QString &rel : relPaths) {
+        if (!VaultPaths::isPlainRelativePath(rel)) {
+            plan.error = tr("\"%1\" is not a note in this collection.").arg(rel);
+            return plan;
+        }
+    }
+
     const QString ext = extensionFor(format);
     const QString canonicalDest = canonicalTarget(destDir);
     const QString canonicalRoot = canonicalTarget(collection->rootPath());
@@ -1205,6 +1225,20 @@ void DocumentExporter::setMaxCombinedChars(double chars)
 }
 
 // ---- one note ----
+
+QString DocumentExporter::writeFailureMessage(const QString &outPath)
+{
+    return tr("\"%1\" could not be written.").arg(outPath);
+}
+
+QString DocumentExporter::failedNotesMessage(int failed,
+                                             const QString &firstFailure)
+{
+    if (failed == 1)
+        return writeFailureMessage(firstFailure);
+    return tr("%1 notes could not be written; the first was \"%2\".")
+        .arg(failed).arg(firstFailure);
+}
 
 bool DocumentExporter::exportOneNote(NoteCollection *collection,
                                      const PlannedOutput &output,
@@ -1349,11 +1383,24 @@ int DocumentExporter::exportNotes(QObject *collectionObj,
             written = relPaths.size();
         else if (!job.error.isEmpty())
             setLastError(job.error);
+        else
+            setLastError(writeFailureMessage(job.outputs.first().outPath));
     } else {
+        int failed = 0;
+        QString firstFailure;
         for (const PlannedOutput &output : plan.outputs) {
-            if (exportOneNote(collection, output, format))
+            if (exportOneNote(collection, output, format)) {
                 ++written;
+            } else {
+                if (failed == 0)
+                    firstFailure = output.outPath;
+                ++failed;
+            }
         }
+        // Same rule as the asynchronous path: the notes that did land are
+        // worth keeping, and the ones that did not have to be named.
+        if (failed > 0)
+            setLastError(failedNotesMessage(failed, firstFailure));
     }
 
     m_noteDir = savedContext.first;
@@ -1422,6 +1469,7 @@ bool DocumentExporter::startJob(NoteCollection *collection,
 
     m_job = std::make_unique<Job>();
     m_job->collection = collection;
+    m_job->rootPath = collection->rootPath();
     m_job->format = format;
     m_job->destDir = destDir;
     m_job->singleFile = singleFile;
@@ -1462,6 +1510,19 @@ void DocumentExporter::stepJob()
         return;
     }
 
+    // The vault this export was planned against is not the one open now. Every
+    // remaining note would be read from somewhere the reader never chose, so
+    // stop here and say so rather than finish an export of two collections.
+    if (!m_job->collection
+        || m_job->collection->rootPath() != m_job->rootPath) {
+        m_job->error = tr("The open collection changed while the export was "
+                          "running, so it was stopped after %1 of %2 notes.")
+                           .arg(m_job->next).arg(m_job->outputs.size());
+        m_job->next = m_job->outputs.size();
+        finishJob();
+        return;
+    }
+
     const PlannedOutput output = m_job->outputs.at(m_job->next);
     if (m_job->singleFile) {
         if (!appendCombinedNote(m_job.get(), output.relPath)) {
@@ -1471,6 +1532,10 @@ void DocumentExporter::stepJob()
         }
     } else if (exportOneNote(m_job->collection, output, m_job->format)) {
         ++m_job->written;
+    } else {
+        if (m_job->failed == 0)
+            m_job->firstFailure = output.outPath;
+        ++m_job->failed;
     }
 
     ++m_job->next;
@@ -1492,7 +1557,16 @@ void DocumentExporter::finishJob()
     if (job->singleFile && job->error.isEmpty() && !job->cancelled) {
         if (writeCombined(job.get()))
             job->written = job->outputs.size();
+        else
+            job->error = writeFailureMessage(job->outputs.first().outPath);
     }
+
+    // A per-note write that failed left `written` short of the total and said
+    // nothing else, so the shell reported "Exported N notes" for a run that
+    // had silently lost some of them. The rest of the export is still worth
+    // having, so the failures are carried to the end and reported there.
+    if (job->error.isEmpty() && job->failed > 0)
+        job->error = failedNotesMessage(job->failed, job->firstFailure);
 
     m_noteDir = job->savedContext.first;
     m_collectionRoot = job->savedContext.second;

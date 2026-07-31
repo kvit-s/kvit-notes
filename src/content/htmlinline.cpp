@@ -31,6 +31,52 @@ QString escFlowing(const QString &text)
     return out;
 }
 
+QString safeHref(const QString &url)
+{
+    // What the browser will see. It removes tab, carriage return and line feed
+    // from a URL and trims the leading control characters before deciding what
+    // the scheme is, so the scheme has to be read off the same string rather
+    // than off the text as it was written.
+    QString probe;
+    probe.reserve(url.size());
+    for (const QChar c : url) {
+        if (c == QLatin1Char('\t') || c == QLatin1Char('\n')
+            || c == QLatin1Char('\r'))
+            continue;
+        probe.append(c);
+    }
+    while (!probe.isEmpty() && probe.at(0).unicode() <= 0x20)
+        probe.remove(0, 1);
+
+    // A scheme is a letter followed by letters, digits, '+', '-' or '.', up to
+    // a colon. Anything else before the first colon — a slash, a '#', a '?' —
+    // means there is no scheme and this is a relative reference, which cannot
+    // name anything but a place in the exported document's own directory.
+    int colon = -1;
+    for (int i = 0; i < probe.size(); ++i) {
+        const char16_t c = probe.at(i).unicode();
+        if (c == u':') {
+            colon = i;
+            break;
+        }
+        const bool letter = (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z');
+        const bool rest = letter || (c >= u'0' && c <= u'9') || c == u'+'
+                          || c == u'-' || c == u'.';
+        if (i == 0 ? !letter : !rest)
+            return url;
+    }
+    if (colon < 0)
+        return url;
+
+    static const QStringList navigational{
+        QStringLiteral("http"),   QStringLiteral("https"),
+        QStringLiteral("mailto"), QStringLiteral("ftp"),
+        QStringLiteral("ftps"),   QStringLiteral("file"),
+        QStringLiteral("tel"),    QStringLiteral("sms"),
+    };
+    return navigational.contains(probe.left(colon).toLower()) ? url : QString();
+}
+
 QString renderInline(const QString &markdown, bool mathJax, bool *sawMath)
 {
     const QString &md = markdown;
@@ -77,8 +123,14 @@ QString renderInline(const QString &markdown, bool mathJax, bool *sawMath)
         if (t == QLatin1String("color"))
             return "<span style=\"color:" + esc(span.color) + "\">" + inner
                  + "</span>";
-        if (t == QLatin1String("link") || t == QLatin1String("autolink"))
-            return "<a href=\"" + esc(span.url) + "\">" + inner + "</a>";
+        if (t == QLatin1String("link") || t == QLatin1String("autolink")) {
+            const QString href = safeHref(span.url);
+            // A refused target keeps its text and loses its anchor: the reader
+            // still sees what the note said, and following it can do nothing.
+            if (href.isEmpty())
+                return inner;
+            return "<a href=\"" + esc(href) + "\">" + inner + "</a>";
+        }
         return inner;
     };
 

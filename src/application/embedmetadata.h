@@ -92,6 +92,11 @@ private:
     QString cachePathFor(const QString &url) const;
     QVariantMap readCache(const QString &url) const;
     void writeCache(const QString &url, const QVariantMap &meta);
+    // The same write, to a path and a vault decided by the caller. A fetch
+    // that is still running when the window switches vaults has to land where
+    // it was asked for, not where the window has since gone.
+    void writeCacheAt(const QString &cachePath, const QString &vaultRoot,
+                      const QVariantMap &meta);
 
     EmbedFetcher *m_fetcher = nullptr;
     NoteCollection *m_collection = nullptr;

@@ -29,6 +29,22 @@ QString esc(const QString &text);
 // inside its <pre>.
 QString escFlowing(const QString &text);
 
+// A link target the exported document may carry in an `href`, or "" when it
+// may not. A refused link is written as its own text, with no anchor around
+// it.
+//
+// An exported HTML file is opened by a browser, where an href is executable
+// surface rather than an address: `javascript:` runs, and `data:` carries a
+// whole document of the author's choosing. A note is untrusted input — anyone
+// who can hand a reader a `.md` file chooses what the links in it say, and the
+// reader opens the export expecting a document — so only schemes that
+// navigate are written through.
+//
+// An allowlist, not a list of the dangerous ones. `JaVaScRiPt:` and
+// `java<tab>script:` are one scheme to the browser and three strings to a
+// filter, and the next spelling of that trick is not knowable here.
+QString safeHref(const QString &url);
+
 // Inline markdown as HTML, walking the span tree so nesting survives.
 //
 // With `mathJax`, a `$x$` span becomes `\( … \)` and *sawMath is set, so the

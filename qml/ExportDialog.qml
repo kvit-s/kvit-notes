@@ -218,6 +218,13 @@ Dialog {
             if (cancelled)
                 message = qsTr("Export stopped after %1 of %2 notes")
                     .arg(written).arg(total)
+            else if (error !== "" && written > 0)
+                // Some notes landed and some did not. Reporting only the
+                // error hides what was written; reporting only the count
+                // hides what was lost.
+                message = qsTr("Exported %1 of %2 notes to %3. %4")
+                    .arg(written).arg(total).arg(exportDialog.destination)
+                    .arg(error)
             else if (error !== "")
                 message = error
             else if (written > 0)

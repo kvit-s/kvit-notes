@@ -292,10 +292,24 @@ private:
         NoteCollection *collection = nullptr;
         QString format;
         QString destDir;
+        // The vault root this job was planned against. A job runs across many
+        // turns of the event loop and the collection is one long-lived object
+        // whose root changes underneath it, so this is compared before every
+        // note: without it, opening another vault part-way through leaves the
+        // rest of the export reading notes that are not the ones the reader
+        // selected — or, when the paths no longer resolve, writing empty files
+        // over the ones already produced.
+        QString rootPath;
         QList<PlannedOutput> outputs;
         QPair<QString, QString> savedContext;
         QString combinedBody;   // html body fragments, or text/markdown
         QString error;
+        // Notes whose file could not be written, and the first of them. A
+        // write that fails is not a reason to abandon the rest of a long
+        // export, but finishing quietly reported "Exported N notes" for a run
+        // that had lost some of them.
+        int failed = 0;
+        QString firstFailure;
         int next = 0;
         int written = 0;
         bool singleFile = false;
@@ -309,6 +323,11 @@ private:
                   bool singleFile);
     void stepJob();
     void finishJob();
+    // What the reader is told when an output file could not be written, and
+    // when several could not. Shared by the synchronous and job paths, which
+    // both used to finish a partly-failed export with an empty error.
+    static QString writeFailureMessage(const QString &outPath);
+    static QString failedNotesMessage(int failed, const QString &firstFailure);
     // One note's contribution, shared by the synchronous and job paths.
     bool exportOneNote(NoteCollection *collection, const PlannedOutput &output,
                        const QString &format);

@@ -26,6 +26,7 @@ private slots:
     void testHtmlWrapper();
     void testHeadingCarriesSlugAnchor();
     void testInlineBoldItalicLink();
+    void testExportedHrefsCarryOnlyNavigationalSchemes();
     void testEscapedPunctuationExportsBare();
     void testBulletAndNumberedLists();
     void testTodoCheckboxes();
@@ -155,6 +156,45 @@ void TestDocumentExporter::testInlineBoldItalicLink()
     QVERIFY(html.contains("<strong>bold</strong>"));
     QVERIFY(html.contains("<em>italic</em>"));
     QVERIFY(html.contains("<a href=\"http://x\">link</a>"));
+}
+
+// An exported HTML file is opened by a browser, where an href is executable
+// surface rather than an address. A note is untrusted input — whoever wrote it
+// chose what its links say — so only schemes that navigate are written
+// through, and a refused link keeps its text and loses its anchor.
+void TestDocumentExporter::testExportedHrefsCarryOnlyNavigationalSchemes()
+{
+    const auto html = [this](const QString &md) {
+        return m_exporter.htmlForMarkdown(md);
+    };
+
+    // The link parser refuses a URL containing parentheses, so these say what
+    // they mean without them.
+    const QString blocked = html("[click me](javascript:danger)");
+    QVERIFY2(!blocked.contains(QStringLiteral("href=\"javascript:")),
+             "an active scheme reached the exported document's href");
+    QVERIFY2(blocked.contains(QStringLiteral("click me")),
+             "the link's own text was dropped along with its target");
+
+    // A whole document of the author's choosing, and the spellings a browser
+    // reads as the same scheme but a text comparison does not.
+    QVERIFY(!html("[x](data:text/html,<script>danger</script>)")
+                 .contains(QStringLiteral("href=\"data:")));
+    QVERIFY(!html("[x](JaVaScRiPt:danger)")
+                 .contains(QStringLiteral("href=\"JaVaScRiPt:")));
+    QVERIFY(!html("[x](vbscript:danger)")
+                 .contains(QStringLiteral("href=\"vbscript:")));
+
+    // What a note legitimately links to is untouched, relative paths and
+    // fragments included.
+    QVERIFY(html("[a](https://example.com/p)")
+                .contains(QStringLiteral("<a href=\"https://example.com/p\">")));
+    QVERIFY(html("[a](mailto:someone@example.com)")
+                .contains(QStringLiteral("<a href=\"mailto:someone@example.com\">")));
+    QVERIFY(html("[a](images/diagram.png)")
+                .contains(QStringLiteral("<a href=\"images/diagram.png\">")));
+    QVERIFY(html("[a](#a-heading)")
+                .contains(QStringLiteral("<a href=\"#a-heading\">")));
 }
 
 void TestDocumentExporter::testEscapedPunctuationExportsBare()

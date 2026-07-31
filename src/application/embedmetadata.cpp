@@ -146,12 +146,21 @@ QVariantMap EmbedMetadata::readCache(const QString &url) const
 
 void EmbedMetadata::writeCache(const QString &url, const QVariantMap &meta)
 {
+    writeCacheAt(cachePathFor(url), m_collection && m_collection->isOpen()
+                                        ? m_collection->rootPath() : QString(),
+                 meta);
+}
+
+void EmbedMetadata::writeCacheAt(const QString &cachePath,
+                                 const QString &vaultRoot,
+                                 const QVariantMap &meta)
+{
     // Tag the cache subtree even if an embed is fetched before the first scan
     // has set it up; idempotent.
-    if (m_collection && m_collection->isOpen())
-        NoteFileIo::ensureVaultCacheDir(m_collection->rootPath());
-    QDir().mkpath(cacheDir());
-    QSaveFile f(cachePathFor(url));
+    if (!vaultRoot.isEmpty())
+        NoteFileIo::ensureVaultCacheDir(vaultRoot);
+    QDir().mkpath(QFileInfo(cachePath).absolutePath());
+    QSaveFile f(cachePath);
     if (!f.open(QIODevice::WriteOnly))
         return;
     // Stamped on the way in, because a failure is only kept for a while and
@@ -209,19 +218,29 @@ void EmbedMetadata::requestMetadata(const QString &url)
         return;
     }
     m_inFlight.insert(url);
+    // Where the answer goes is decided now, not when it arrives. A fetch spans
+    // many turns of the event loop and this window can switch vaults inside
+    // one of them, so resolving the path in the callback wrote the preview for
+    // a note in one vault into whichever vault happened to be open by the time
+    // the page came back — the entry missing where it belongs, and a record of
+    // what the other vault links to sitting somewhere it has no business.
+    const QString cachePath = cachePathFor(url);
+    const QString vaultRoot = m_collection && m_collection->isOpen()
+                                  ? m_collection->rootPath() : QString();
     // The fetcher is process-global (ProcessServices) and outlives this cache,
     // so a fetch still in flight when this window closes would otherwise call
     // back into a freed EmbedMetadata. The callback runs on the GUI thread,
     // where this object is also destroyed, so a QPointer guard is enough.
     QPointer<EmbedMetadata> guard(this);
-    m_fetcher->fetch(url, [this, guard, url](bool ok, const QString &html) {
+    m_fetcher->fetch(url, [this, guard, url, cachePath, vaultRoot](
+                              bool ok, const QString &html) {
         if (!guard)
             return;
         QVariantMap meta = ok ? parseOpenGraph(html, url)
                               : parseOpenGraph(QString(), url);
         if (!ok)
             meta[QStringLiteral("ok")] = false;  // the fallback card
-        writeCache(url, meta);
+        writeCacheAt(cachePath, vaultRoot, meta);
         m_inFlight.remove(url);
         emit metadataReady(url);
     });
