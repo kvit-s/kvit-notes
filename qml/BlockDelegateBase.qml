@@ -27,6 +27,15 @@ import QtQuick
 // nothing to focus, and inheriting a sane default is better than each
 // repeating an empty implementation to satisfy an interface.
 Item {
+    // A block row fills the list it is in.
+    //
+    // main.qml used to say this per delegate — `width: blockListView.width`
+    // repeated on all seventeen DelegateChoice blocks — and a choice the
+    // shell builds at runtime from the kind registry cannot carry a binding
+    // written by hand. The row knows it fills its view, so it says so once,
+    // here, and every delegate inherits it.
+    width: ListView.view ? ListView.view.width : implicitWidth
+
     // ---- focus entry points ----
     // Where the caret goes when the shell moves focus into this block.
     function focusAtStart() {}

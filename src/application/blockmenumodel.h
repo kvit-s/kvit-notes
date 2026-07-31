@@ -11,6 +11,9 @@
 #include <QList>
 
 #include "block.h"
+#include "menuentry.h"
+
+class BlockKindRegistry;
 
 // The block-type menu catalog and its fuzzy filter: one GUI-free
 // object holding every implemented block type with its name,
@@ -34,6 +37,17 @@ public:
     static constexpr int MaxRecent = 3;
 
     explicit BlockMenuModel(QObject *parent = nullptr);
+
+    // Where the catalog comes from. Every row is a block kind's own answer,
+    // so a kind reaches the menu by being registered rather than by someone
+    // remembering to add it to a list here — which is what a linked module
+    // needs, and what stopped a built-in kind from being added to twelve of
+    // the thirteen places that decide something per kind.
+    //
+    // With no registry the catalog is the built-in kinds, which is what a
+    // BlockMenuModel in a unit test gets and is the whole catalog in a build
+    // with no module linked in.
+    void setBlockKindRegistry(const BlockKindRegistry *registry);
 
     // Display rows for the menu, ready to render:
     //   header row: { kind: "header", text: <group name> }
@@ -71,18 +85,11 @@ signals:
     void recentChanged();
 
 private:
-    struct Entry {
-        Block::BlockType type;
-        QString name;
-        QString description;
-        QString group;
-        QString icon;
-        QStringList aliases;
-        // A block-type qualifier seeded on insert: a callout's type or a
-        // toggle marker. Reuses the `language` field, so it rides the
-        // existing convertBlock(language) path. Empty otherwise.
-        QString defaultLanguage;
-    };
+    // One menu row. Owned by the kind that contributes it; see menuentry.h.
+    using Entry = MenuEntry;
+
+    // Rebuild m_catalog from the current registry (or the built-ins).
+    void rebuildCatalog();
 
     // Match quality; smaller is better. NoMatch excludes the entry.
     enum MatchTier { PrefixMatch = 0, WordPrefixMatch, SubsequenceMatch, NoMatch };
@@ -92,13 +99,9 @@ private:
     QVariantMap entryRow(const Entry &entry) const;
     QVariantMap headerRow(const QString &text) const;
 
-    // An entry's stable identity: its block type and default language. That
-    // pair is unique across the catalog and is exactly what inserting the
-    // entry uses, so it survives display-name changes and catalog
-    // reordering, both of which a persisted index or name would not.
-    static QString entryId(const Entry &entry);
     const Entry *entryForId(const QString &id) const;
 
+    const BlockKindRegistry *m_blockKinds = nullptr;
     QList<Entry> m_catalog;
     QStringList m_recent;  // entry ids, most recent first
 };

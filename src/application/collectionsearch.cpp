@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "collectionsearch.h"
+#include "blockkinddef.h"
+#include "blockkinds.h"
 #include "inlinemarkdown.h"
 
 #include "block.h"
@@ -304,7 +306,7 @@ int CollectionSearch::markdownPosition(const QString &relPath, int blockIndex,
     if (blockIndex < 0 || blockIndex >= blocks.size())
         return 0;
     const DocumentSerializer::BlockData &block = blocks.at(blockIndex);
-    if (block.type == Block::CodeBlock)
+    if (BlockKindDefs::forState(block)->isVerbatim())
         return displayStart; // verbatim: display IS markdown
     return InlineMarkdown::documentToMarkdown(block.content, QList<int>(),
                                                  displayStart);

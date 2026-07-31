@@ -1619,25 +1619,37 @@ KvitShell {
                     id: blockDelegateChooser
                     role: "delegateKind"
 
-                    // Kinds a linked module registered: each becomes a
-                    // DelegateChoice of its own here. This runs
-                    // before the view creates its first row, and the open
-                    // build registers nothing, so the choices below are the
-                    // whole story unless a premium module is linked in.
+                    // One DelegateChoice per registered kind, built when the
+                    // block list is created. A kind reaches the screen by
+                    // being registered — the same rule for a built-in kind
+                    // and for one a linked module added.
                     //
-                    // The order matters: DelegateChooser takes the FIRST
+                    // This was seventeen DelegateChoice blocks written out
+                    // here, each pairing a kind number with a QML file, and
+                    // nothing checked that a kind had one: a kind whose
+                    // choice nobody remembered to add drew an empty row and
+                    // said nothing about it.
+                    //
+                    // The order matters. DelegateChooser takes the FIRST
                     // choice whose roleValue matches, and a choice with no
-                    // roleValue matches everything — which is why the text
-                    // delegate at the bottom names its kind explicitly
-                    // instead of acting as a catch-all that would shadow
-                    // every appended choice.
+                    // roleValue matches everything — so every choice built
+                    // here names its kind, and none can shadow another.
                     Component.onCompleted: {
-                        var registered = BlockKindRegistry.registeredDelegates()
-                        for (var i = 0; i < registered.length; ++i) {
-                            var entry = registered[i]
-                            var component = Qt.createComponent(entry.delegateUrl)
+                        var choices = BlockKindRegistry.delegateChoices()
+                        for (var i = 0; i < choices.length; ++i) {
+                            var entry = choices[i]
+                            // Parented to the chooser, which is what keeps it
+                            // alive. A component created with no parent is
+                            // owned by JavaScript, and once this loop's local
+                            // goes out of scope the collector is free to take
+                            // it — leaving the chooser holding a freed
+                            // component and crashing on the next row it
+                            // builds, which is a scroll or two later.
+                            var component = Qt.createComponent(
+                                entry.delegateUrl, Component.PreferSynchronous,
+                                blockDelegateChooser)
                             if (component.status !== Component.Ready) {
-                                console.warn("block kind '" + entry.language
+                                console.warn("block kind '" + entry.id
                                              + "' has no usable delegate: "
                                              + component.errorString())
                                 continue
@@ -1649,88 +1661,6 @@ KvitShell {
                             choice.delegate = component
                             blockDelegateChooser.choices.push(choice)
                         }
-                    }
-
-                    DelegateChoice {
-                        roleValue: Block.BulletList
-                        BulletListDelegate { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.NumberedList
-                        NumberedListDelegate { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.Todo
-                        TodoDelegate { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.Quote
-                        QuoteDelegate { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.CodeBlock
-                        CodeBlockDelegate { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.Divider
-                        DividerDelegate { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.Image
-                        ImageBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.Callout
-                        CalloutBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.Table
-                        TableBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.MathBlock
-                        MathBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        roleValue: Block.Media
-                        MediaBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        // A `kanban`-tagged code fence renders as a board.
-                        roleValue: BlockKinds.Kanban
-                        KanbanBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        // A `toc`-tagged code fence: a read-only linked
-                        // heading list.
-                        roleValue: BlockKinds.Toc
-                        TocBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        // An ![](url) image expression whose URL is a
-                        // web/video embed: a preview card.
-                        roleValue: BlockKinds.Embed
-                        EmbedBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        // A `mermaid`-tagged code fence, rendered natively
-                        // as a diagram.
-                        roleValue: BlockKinds.Mermaid
-                        DiagramBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        // A `query`-tagged code fence holding a live
-                        // front-matter query.
-                        roleValue: BlockKinds.Query
-                        QueryBlock { width: blockListView.width }
-                    }
-                    DelegateChoice {
-                        // Paragraphs and all four heading levels share kind 0
-                        // (BlockModel::delegateKindFor). Named rather than left
-                        // as the catch-all so module choices appended above are
-                        // reachable.
-                        roleValue: 0
-                        TextBlockDelegate { width: blockListView.width }
                     }
                 }
 

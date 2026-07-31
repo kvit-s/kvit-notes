@@ -59,7 +59,7 @@ BlockDelegateBase {
     property bool fitMode: true
     property real zoomLevel: 1.0
     readonly property int maxReadHeight: 720
-    readonly property int labelFontSize: Typography.sizeForBlockType(Block.Paragraph)
+    readonly property int labelFontSize: Typography.bodySize
 
     readonly property bool blockSelected: {
         var revision = DocumentSelection.revision
@@ -778,7 +778,7 @@ BlockDelegateBase {
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content
                 font.family: Typography.monoFamily
-                font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
+                font.pixelSize: Typography.monoSize
                 color: Theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true

@@ -5,6 +5,7 @@
 
 #include <QFile>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQuickItem>
 #include <QQmlContext>
 #include <QRegularExpression>
@@ -15,6 +16,7 @@
 #include <utility>
 
 #include "appcontext.h"
+#include "blockkinddef.h"
 #include "blockkindregistry.h"
 #include "block.h"
 #include "blockmodel.h"
@@ -349,6 +351,12 @@ private slots:
         QTest::newRow("callout") << int(Block::Callout) << QString();
         QTest::newRow("math") << int(Block::MathBlock) << QString();
         QTest::newRow("table") << int(Block::Table) << QString();
+        // The three the data set never had, and the reason the embed kind
+        // could have resolved to nothing without a unit suite noticing: an
+        // image, a media file, and an image expression whose URL names a web
+        // page, which draws as a preview card rather than a picture.
+        QTest::newRow("image") << int(Block::Image) << QString();
+        QTest::newRow("media") << int(Block::Media) << QString();
         QTest::newRow("code-plain") << int(Block::CodeBlock) << QString();
         QTest::newRow("code-python") << int(Block::CodeBlock) << QStringLiteral("python");
         // The fence languages that route by the registry, taken FROM the
@@ -364,6 +372,34 @@ private slots:
         // code block, the way an unknown highlight language always has.
         QTest::newRow("code-unregistered")
             << int(Block::CodeBlock) << QStringLiteral("no-such-language");
+    }
+
+    // An image expression whose URL names a web page is the one kind decided
+    // by the block's CONTENT rather than by its type or its fence language,
+    // so no row of the type-driven data set above reaches it.
+    void anEmbedUrlGetsThePreviewCardDelegate()
+    {
+        QObject *window = m_engine.rootObjects().value(0);
+        QVERIFY(window);
+        QObject *listView = window->findChild<QObject *>("blockListView");
+        QVERIFY(listView);
+
+        BlockModel *model = m_context->blockModel();
+        while (model->count() > 0)
+            model->removeBlock(model->count() - 1);
+
+        model->insertBlock(0, Block::Image, QString());
+        model->convertBlock(0, Block::Image,
+                            QStringLiteral("![](https://example.com/page)"),
+                            false, QString());
+        QCOMPARE(model->blockAt(0)->kind()->id(), QStringLiteral("embed"));
+
+        QQuickItem *row = nullptr;
+        QTRY_VERIFY2(QMetaObject::invokeMethod(
+                         listView, "itemAtIndex", Q_RETURN_ARG(QQuickItem *, row),
+                         Q_ARG(int, 0)) && row,
+                     "the delegate chooser produced no delegate for an embed");
+        QVERIFY(row->height() > 0);
     }
 
     void everyBlockTypeGetsADelegate()
@@ -386,6 +422,15 @@ private slots:
 
         const int index = 0;
         model->insertBlock(index, blockType, QString());
+        if (blockType == Block::Image || blockType == Block::Media) {
+            // Both hold a markdown image expression, and an empty one is not
+            // the shape either delegate parses.
+            model->convertBlock(index, blockType,
+                                blockType == Block::Media
+                                    ? QStringLiteral("![clip](clip.mp4)")
+                                    : QStringLiteral("![alt](pic.png)"),
+                                false, QString());
+        }
         if (!language.isEmpty()) {
             model->convertBlock(index, blockType, QStringLiteral("```\ntext\n```"),
                                 false, language);
@@ -467,44 +512,56 @@ private slots:
                  QStringList{QStringLiteral("premium")});
     }
 
-    // The block-kind numbers exist once, in the BlockKinds enum, and the
-    // shipped shell names them. This is the guard on that pairing: a kind
-    // added to the enum with no DelegateChoice to render it would otherwise
-    // produce an empty row at runtime and nothing would say so. The enum is
-    // read from the metaobject, so the check cannot fall behind it.
-    void everyBuiltinKindIsNamedByTheShell()
+    // Every kind the registry knows must have a delegate that loads.
+    //
+    // This is the guard on the pairing between a block kind and the QML that
+    // draws it. It used to check that main.qml named each kind of the
+    // BlockKinds enum, because the shell listed seventeen DelegateChoice
+    // blocks by hand and a kind whose choice nobody added drew an empty row
+    // with nothing to say so. The shell now builds one choice per registered
+    // kind, so the pairing that can break is a kind whose delegate URL is
+    // missing or names a file that will not load — which is what this checks,
+    // over every kind rather than over the five that happened to be
+    // enumerated.
+    void everyRegisteredKindHasADelegateThatLoads()
     {
-        const QMetaObject &meta = BlockKinds::staticMetaObject;
-        const QMetaEnum kinds = meta.enumerator(meta.indexOfEnumerator("Kind"));
-        QVERIFY(kinds.isValid());
-        QVERIFY(kinds.keyCount() > 0);
+        const QVariantList choices =
+            m_context->blockKinds()->delegateChoices();
+        QVERIFY(choices.size() >= 17);
 
-        QFile shell(QStringLiteral(":/qml/main.qml"));
-        QVERIFY2(shell.open(QIODevice::ReadOnly | QIODevice::Text),
-                 "the shipped shell is not in the test's resources");
-        const QString source = QString::fromUtf8(shell.readAll());
+        for (const QVariant &value : choices) {
+            const QVariantMap choice = value.toMap();
+            const QString url = choice.value(QStringLiteral("delegateUrl")).toString();
+            const QString id = choice.value(QStringLiteral("id")).toString();
+            QVERIFY2(!url.isEmpty(), qPrintable(id));
 
-        for (int i = 0; i < kinds.keyCount(); ++i) {
-            const QString token =
-                QStringLiteral("BlockKinds.") + QString::fromLatin1(kinds.key(i));
-            QVERIFY2(source.contains(token),
-                     qPrintable(QStringLiteral(
-                                    "qml/main.qml has no DelegateChoice for %1; "
-                                    "a block of that kind would render as an "
-                                    "empty row").arg(token)));
+            QQmlComponent component(&m_engine, QUrl(url));
+            QVERIFY2(component.status() == QQmlComponent::Ready,
+                     qPrintable(QStringLiteral("kind '%1' names %2, which does "
+                                               "not load: %3")
+                                    .arg(id, url, component.errorString())));
         }
+    }
 
-        // The other half of the pairing: the shell must not carry a bare
-        // number where a kind belongs, which is how these fell out of step
-        // before.
-        for (int i = 0; i < kinds.keyCount(); ++i) {
-            const QString literal =
-                QStringLiteral("roleValue: %1").arg(kinds.value(i));
-            QVERIFY2(!source.contains(literal),
-                     qPrintable(QStringLiteral(
-                                    "qml/main.qml still hard-codes %1; use the "
-                                    "BlockKinds enum so the number lives in one "
-                                    "place").arg(literal)));
+    // The other half: a kind with no delegate of its own must be sharing one,
+    // and the only kinds that do are the paragraph and its four heading
+    // levels, which publish kind 0 between them. Anything else with no
+    // delegate URL would draw nothing at all.
+    void onlyTheTextKindsShareADelegate()
+    {
+        const BlockKindRegistry *registry = m_context->blockKinds();
+        QSet<int> covered;
+        const QVariantList choices = registry->delegateChoices();
+        for (const QVariant &value : choices)
+            covered.insert(value.toMap().value(QStringLiteral("kind")).toInt());
+
+        for (const BlockKindDef *kind : registry->all()) {
+            QVERIFY2(covered.contains(kind->delegateKind()),
+                     qPrintable(QStringLiteral("kind '%1' publishes delegate "
+                                               "kind %2, which no delegate "
+                                               "renders")
+                                    .arg(kind->id())
+                                    .arg(kind->delegateKind())));
         }
     }
 

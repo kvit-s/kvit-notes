@@ -53,9 +53,9 @@ private slots:
     {
         const QStringList langs = CodeLanguages::supportedLanguages();
         QCOMPARE(langs.size(), 11);
-        for (const QString &l : {"python", "javascript", "cpp", "java", "html",
-                                 "css", "sql", "bash", "json", "xml", "markdown"})
-            QVERIFY2(langs.contains(l), qPrintable(l));
+        for (const char *l : {"python", "javascript", "cpp", "java", "html",
+                              "css", "sql", "bash", "json", "xml", "markdown"})
+            QVERIFY2(langs.contains(QLatin1String(l)), l);
     }
 
     void aliasesResolve_data()

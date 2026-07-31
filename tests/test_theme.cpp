@@ -62,7 +62,7 @@ void TestTheme::testDefaultIsLightTable()
     QCOMPARE(theme.themeId(), QString("light"));
     QCOMPARE(theme.resolvedTheme(), QString("light"));
 
-    const Theme::Tokens &light = Theme::tokensFor(QStringLiteral("light"));
+    const Theme::Tokens light = Theme::tokensFor(QStringLiteral("light"));
     QCOMPARE(theme.windowBackground(), light.windowBackground);
     QCOMPARE(theme.textPrimary(), light.textPrimary);
     QCOMPARE(theme.accent(), light.accent);
@@ -232,7 +232,7 @@ void TestTheme::testHighContrastMeetsStricterFloor()
         double hi = qMax(relLum(a), relLum(b)), lo = qMin(relLum(a), relLum(b));
         return (hi + 0.05) / (lo + 0.05);
     };
-    const Theme::Tokens &t = Theme::tokensFor(QStringLiteral("highContrast"));
+    const Theme::Tokens t = Theme::tokensFor(QStringLiteral("highContrast"));
     const double text = ratio(t.textPrimary, t.windowBackground);
     QVERIFY2(text >= 7.0,
              qPrintable("high contrast body text is only "
@@ -432,7 +432,7 @@ void TestTheme::testEngineTakesColorsFromTheme()
     engine.setMarkdown("a [link](https://x) and ==mark==");
     const int linkPos = doc.toPlainText().indexOf("link");
     const int markPos = doc.toPlainText().indexOf("mark");
-    const Theme::Tokens &dark = Theme::tokensFor(QStringLiteral("dark"));
+    const Theme::Tokens dark = Theme::tokensFor(QStringLiteral("dark"));
     QCOMPARE(formatAt(doc, linkPos).foreground().color(), dark.link);
     QCOMPARE(formatAt(doc, markPos).background().color(),
              dark.highlightBackground);

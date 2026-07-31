@@ -5,6 +5,7 @@
 #include "blockmodel.h"
 #include "block.h"
 #include "blockattributes.h"
+#include "blockkinddef.h"
 #include "imageassets.h"
 #include "llmnormalizer.h"
 #include "diagrams/diagramclassifier.h"
@@ -51,34 +52,6 @@ int parseIndent(const QString &line, int *prefixLen)
     }
     *prefixLen = i;
     return qMin(level, BlockModel::MaxIndentLevel);
-}
-
-QString indentPrefix(const Block *block)
-{
-    if (!Block::isListFamily(block->blockType()))
-        return QString();
-    return QString(2 * block->indentLevel(), QLatin1Char(' '));
-}
-
-// One list item, marker plus content, with any line break in the content
-// written as a continuation line indented to the content column — the column
-// the marker ends at. That is what CommonMark reads back as part of the same
-// item, and what an LLM emits when it wraps a long item, so the same shape
-// serves writing and reading. `marker` carries the item's own indentation
-// ("  - ", "3. ", "- [x] "), so the pad matches whatever it is.
-QString listItemLines(const QString &marker, const QString &content)
-{
-    const QStringList lines = content.split(QLatin1Char('\n'));
-    QString out = marker + lines.first();
-    const QString pad(marker.size(), QLatin1Char(' '));
-    for (int i = 1; i < lines.size(); ++i) {
-        out += QLatin1Char('\n');
-        // A pad-only line would be trailing whitespace, which parses as a
-        // blank line either way; write it bare.
-        if (!lines.at(i).isEmpty())
-            out += pad + lines.at(i);
-    }
-    return out;
 }
 
 // A fence line: three or more backticks — or tildes — optionally followed
@@ -138,8 +111,6 @@ QString stripFenceIndent(const QString &line, const QString &indent)
     return line.mid(k);
 }
 
-// Serialized fences must be longer than any backtick-run line inside the
-// content, or that line would close the fence early.
 // The ingest character-diagram tagging pass. Only the info strings that make
 // no semantic claim about their contents are eligible: untagged, `text`,
 // `plaintext`, and `ascii` — the four wrappers LLMs routinely use for
@@ -174,18 +145,6 @@ void ingestFence(QString *language, QString *content)
         *content = DiagramRepair::repair(*content);
 }
 
-// A block whose markdown spans several lines cannot carry its attribute tag
-// on the last one: for a fenced block that line is the closer, and both fence
-// scanners demand a bare closer, so a tagged closer never terminates the block
-// and the rest of the document is read as its content. These types therefore
-// put the tag on their opening/header line, which the parser already strips
-// before it classifies anything.
-bool tagRidesOpeningLine(Block::BlockType type)
-{
-    return type == Block::CodeBlock || type == Block::MathBlock
-        || type == Block::Table || type == Block::Callout;
-}
-
 // Attach a tag to the first line of a multi-line serialization.
 QString attachTagToFirstLine(const QString &markdown, const QString &payload)
 {
@@ -194,27 +153,6 @@ QString attachTagToFirstLine(const QString &markdown, const QString &payload)
         return BlockAttributes::attachTag(markdown, payload);
     return BlockAttributes::attachTag(markdown.left(nl), payload)
          + markdown.mid(nl);
-}
-
-QString fenceFor(const QString &content)
-{
-    int longest = 2;
-    const QStringList lines = content.split(QLatin1Char('\n'));
-    for (const QString &line : lines) {
-        const QString trimmed = line.trimmed();
-        if (trimmed.isEmpty())
-            continue;
-        bool allTicks = true;
-        for (const QChar &c : trimmed) {
-            if (c != QLatin1Char('`')) {
-                allTicks = false;
-                break;
-            }
-        }
-        if (allTicks)
-            longest = qMax(longest, int(trimmed.size()));
-    }
-    return QString(qMax(3, longest + 1), QLatin1Char('`'));
 }
 
 } // namespace
@@ -373,115 +311,27 @@ QString DocumentSerializer::serializeBlock(const Block *block, int ordinal) cons
 {
     if (!block) return QString();
 
-    const QString content = block->content();
-
-    // The block's base markdown, with the <!--kvit ...--> tag re-attached —
-    // on the opening line for the multi-line types, trailing otherwise. A
-    // no-op when the block has no attributes, so an unstyled block is
-    // byte-identical.
-    const QString base = [&]() -> QString {
-    switch (block->blockType()) {
-    case Block::Heading1:
-        return QStringLiteral("# ") + content;
-    case Block::Heading2:
-        return QStringLiteral("## ") + content;
-    case Block::Heading3:
-        return QStringLiteral("### ") + content;
-    case Block::Heading4:
-        return QStringLiteral("#### ") + content;
-    case Block::BulletList:
-        return listItemLines(indentPrefix(block) + QStringLiteral("- "), content);
-    case Block::NumberedList:
-        return listItemLines(indentPrefix(block)
-                                 + QString::number(qMax(1, ordinal))
-                                 + QStringLiteral(". "),
-                             content);
-    case Block::Todo:
-        return listItemLines(indentPrefix(block)
-                                 + (block->checked() ? QStringLiteral("- [x] ")
-                                                     : QStringLiteral("- [ ] ")),
-                             content);
-    case Block::Quote: {
-        // One quote block per contiguous run at one depth; empty content
-        // lines write the depth's markers with no trailing space. The depth
-        // is indentLevel + 1 (nested quotes).
-        const int depth = block->indentLevel() + 1;
-        QString prefix;
-        for (int d = 0; d < depth; ++d)
-            prefix += QStringLiteral("> ");
-        const QStringList lines = content.split(QLatin1Char('\n'));
-        QStringList quoted;
-        for (const QString &line : lines)
-            quoted.append(line.isEmpty() ? prefix.trimmed() : prefix + line);
-        return quoted.join(QLatin1Char('\n'));
-    }
-    case Block::CodeBlock: {
-        // The tag rides the opening fence: appended after the closer it would
-        // stop the closer from closing (see tagRidesOpeningLine). The info
-        // string is read from the tag-stripped line, so the language survives.
-        const QString fence = fenceFor(content);
-        QString result = BlockAttributes::attachTag(fence + block->language(),
-                                                    block->attributes())
-                       + QLatin1Char('\n');
-        if (!content.isEmpty())
-            result += content + QLatin1Char('\n');
-        result += fence;
-        return result;
-    }
-    case Block::MathBlock: {
-        // A $$ … $$ display-math fence. Canonical form is multi-line; a
-        // hand-authored single-line $$x$$ normalizes to it. The tag rides the
-        // opening $$ for the same reason as a code fence.
-        QString result =
-            BlockAttributes::attachTag(QStringLiteral("$$"), block->attributes())
-            + QLatin1Char('\n');
-        if (!content.isEmpty())
-            result += content + QLatin1Char('\n');
-        result += QStringLiteral("$$");
-        return result;
-    }
-    case Block::Divider:
-        return QStringLiteral("---");
-    case Block::Table:
-        // Canonicalize on save: a hand-authored ragged/padded table squares up,
-        // while a Kvit-written table round-trips identically. The tag rides the
-        // header row, where it stays out of the cell data.
-        return attachTagToFirstLine(
-            TableData::serialize(TableData::parse(content)),
-            block->attributes());
-    case Block::Callout: {
-        // > [!type][-] Title  header, then "> " body lines. Folded writes
-        // the '-' marker; expanded writes none (a hand-authored '+' thus
-        // normalizes to no marker — a documented normalization).
-        QString header = QStringLiteral("> [!") + block->language()
-                       + QStringLiteral("]");
-        if (block->checked())
-            header += QLatin1Char('-');
-        if (!block->calloutTitle().isEmpty())
-            header += QLatin1Char(' ') + block->calloutTitle();
-        QStringList out;
-        // A callout is multi-line, so its attribute tag rides the header line
-        // rather than trailing the last body line; the outer re-attach
-        // below skips callouts for this reason.
-        out << attachTagToFirstLine(header, block->attributes());
-        if (!content.isEmpty()) {
-            for (const QString &line : content.split(QLatin1Char('\n')))
-                out << (line.isEmpty() ? QStringLiteral(">")
-                                       : QStringLiteral("> ") + line);
-        }
-        return out.join(QLatin1Char('\n'));
-    }
-    case Block::Paragraph:
-    default:
-        return content;
-    }
-    }();
-
-    // The multi-line types embed their tag on their opening line above; every
-    // other block type carries it as a trailing tag on its single/last line.
-    if (tagRidesOpeningLine(block->blockType()))
+    // The block's markdown, written by the kind. This was a 110-line switch
+    // over the block type with a `default:` label, which is how Image and
+    // Media came to have no case at all: both fell through to the paragraph's
+    // `return content`, which happens to be right for them, and nothing said
+    // whether that was a decision or an oversight.
+    const Block::State state = block->state();
+    const BlockKindDef *kind = block->kind();
+    const QString base = kind->serialize(state, ordinal);
+    if (state.attributes.isEmpty())
         return base;
-    return BlockAttributes::attachTag(base, block->attributes());
+
+    // Where the <!--kvit …--> tag goes. For most kinds it trails the last
+    // line; for a code fence, a math fence, a table and a callout it rides
+    // the OPENING line instead, because their last line is a terminator the
+    // parser requires to be bare — a tagged closing fence never closes its
+    // block, and the rest of the note is read as that block's content on the
+    // next load. The kind states which it is; this used to be a second list
+    // of block types kept in step with the first by hand.
+    return kind->attributeTagRidesOpeningLine()
+        ? attachTagToFirstLine(base, state.attributes)
+        : BlockAttributes::attachTag(base, state.attributes);
 }
 
 QVariantMap DocumentSerializer::ingestCodeFence(const QString &language,
@@ -927,25 +777,9 @@ void DocumentSerializer::loadIntoModel(BlockModel *model, const QString &markdow
 {
     if (!model) return;
 
-    const QList<BlockData> blocks = parse(markdown);
-    QList<Block::State> states;
-    states.reserve(qMax(1, blocks.size()));
-    for (const BlockData &data : blocks) {
-        Block::State state;
-        state.type = data.type;
-        state.content = data.content;
-        state.indentLevel = data.indentLevel;
-        state.checked = data.checked;
-        state.language = data.language;
-        state.calloutTitle = data.calloutTitle;
-        state.attributes = data.attributes;
-        states.append(state);
-    }
-
-    if (states.isEmpty()) {
-        Block::State empty;
-        states.append(empty);
-    }
+    QList<Block::State> states = parse(markdown);
+    if (states.isEmpty())
+        states.append(Block::State());
 
     model->replaceAllBlocksInternal(states);
 }

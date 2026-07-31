@@ -7,6 +7,9 @@
 
 #include <algorithm>
 
+#include "blockkinddef.h"
+#include "blockkindregistry.h"
+#include "blockkinds.h"
 #include "codelanguages.h"
 #include "fuzzymatch.h"
 
@@ -28,177 +31,58 @@ QString languageDisplayName(const QString &id)
 BlockMenuModel::BlockMenuModel(QObject *parent)
     : QObject(parent)
 {
-    // The full implemented set (features.md §4.2 minus the wave-2 types,
-    // which join the catalog together with their block types). Names
-    // match the status bar's; entries are grouped into Basic, Lists,
-    // Advanced and Media; icons are typographic glyphs until a drawn
-    // icon set lands. Aliases feed the fuzzy filter only — they are
-    // never displayed.
-    m_catalog = {
-        { Block::Paragraph, QStringLiteral("Text"),
-          QStringLiteral("Plain paragraph"),
-          QStringLiteral("Basic"), QStringLiteral("¶"),
-          { QStringLiteral("paragraph"), QStringLiteral("plain"),
-            QStringLiteral("p") } },
-        { Block::Heading1, QStringLiteral("Heading 1"),
-          QStringLiteral("Largest heading, for titles"),
-          QStringLiteral("Basic"), QStringLiteral("H1"),
-          { QStringLiteral("h1"), QStringLiteral("heading1"),
-            QStringLiteral("title"), QStringLiteral("#") } },
-        { Block::Heading2, QStringLiteral("Heading 2"),
-          QStringLiteral("Section heading"),
-          QStringLiteral("Basic"), QStringLiteral("H2"),
-          { QStringLiteral("h2"), QStringLiteral("heading2"),
-            QStringLiteral("section"), QStringLiteral("##") } },
-        { Block::Heading3, QStringLiteral("Heading 3"),
-          QStringLiteral("Subsection heading"),
-          QStringLiteral("Basic"), QStringLiteral("H3"),
-          { QStringLiteral("h3"), QStringLiteral("heading3"),
-            QStringLiteral("subsection"), QStringLiteral("###") } },
-        { Block::Heading4, QStringLiteral("Heading 4"),
-          QStringLiteral("Minor heading"),
-          QStringLiteral("Basic"), QStringLiteral("H4"),
-          { QStringLiteral("h4"), QStringLiteral("heading4"),
-            QStringLiteral("####") } },
-        { Block::BulletList, QStringLiteral("Bulleted List"),
-          QStringLiteral("Unordered list item"),
-          QStringLiteral("Lists"), QStringLiteral("•"),
-          { QStringLiteral("bullet"), QStringLiteral("unordered"),
-            QStringLiteral("ul"), QStringLiteral("list"),
-            QStringLiteral("-") } },
-        { Block::NumberedList, QStringLiteral("Numbered List"),
-          QStringLiteral("Ordered list item"),
-          QStringLiteral("Lists"), QStringLiteral("1."),
-          { QStringLiteral("numbered"), QStringLiteral("ordered"),
-            QStringLiteral("ol"), QStringLiteral("1.") } },
-        { Block::Todo, QStringLiteral("To-do"),
-          QStringLiteral("Checkbox item"),
-          QStringLiteral("Lists"), QStringLiteral("☐"),
-          { QStringLiteral("todo"), QStringLiteral("task"),
-            QStringLiteral("checkbox"), QStringLiteral("check"),
-            QStringLiteral("[]") } },
-        { Block::Quote, QStringLiteral("Quote"),
-          QStringLiteral("Block quotation"),
-          QStringLiteral("Advanced"), QStringLiteral("❝"),
-          { QStringLiteral("quote"), QStringLiteral("blockquote"),
-            QStringLiteral(">") } },
-        { Block::CodeBlock, QStringLiteral("Code Block"),
-          QStringLiteral("Verbatim monospace code"),
-          QStringLiteral("Advanced"), QStringLiteral("<>"),
-          { QStringLiteral("code"), QStringLiteral("codeblock"),
-            QStringLiteral("monospace"), QStringLiteral("snippet"),
-            QStringLiteral("```") } },
-        { Block::Divider, QStringLiteral("Divider"),
-          QStringLiteral("Horizontal separator"),
-          QStringLiteral("Advanced"), QStringLiteral("—"),
-          { QStringLiteral("divider"), QStringLiteral("hr"),
-            QStringLiteral("rule"), QStringLiteral("separator"),
-            QStringLiteral("line"), QStringLiteral("---") } },
-        // Callout and Toggle: both insert a Callout block,
-        // seeded with a type (info) or the toggle marker via `language`.
-        { Block::Callout, QStringLiteral("Callout"),
-          QStringLiteral("Highlighted info/warning/tip box"),
-          QStringLiteral("Advanced"), QStringLiteral("!"),
-          { QStringLiteral("callout"), QStringLiteral("admonition"),
-            QStringLiteral("note"), QStringLiteral("info"),
-            QStringLiteral("warning"), QStringLiteral("[!") },
-          QStringLiteral("info") },
-        { Block::Callout, QStringLiteral("Toggle"),
-          QStringLiteral("Collapsible section"),
-          QStringLiteral("Advanced"), QStringLiteral("▸"),
-          { QStringLiteral("toggle"), QStringLiteral("collapse"),
-            QStringLiteral("fold"), QStringLiteral("details") },
-          QStringLiteral("toggle") },
-        { Block::Table, QStringLiteral("Table"),
-          QStringLiteral("Grid with rows and columns"),
-          QStringLiteral("Advanced"), QStringLiteral("▦"),
-          { QStringLiteral("table"), QStringLiteral("grid"),
-            QStringLiteral("spreadsheet") } },
-        // Task Board: a `kanban`-tagged code fence. Rides the
-        // convertBlock(language) path like Callout/Toggle,
-        // seeded with starter columns by BlockMenu.
-        { Block::CodeBlock, QStringLiteral("Task Board"),
-          QStringLiteral("Kanban columns of draggable cards"),
-          QStringLiteral("Advanced"), QStringLiteral("▤"),
-          { QStringLiteral("kanban"), QStringLiteral("board"),
-            QStringLiteral("task"), QStringLiteral("tasks"),
-            QStringLiteral("todo"), QStringLiteral("trello") },
-          QStringLiteral("kanban") },
-        // Table of contents: a `toc`-tagged code fence,
-        // rides the convertBlock(language) path like Task Board; BlockMenu
-        // seeds it with the document's current headings.
-        { Block::CodeBlock, QStringLiteral("Table of Contents"),
-          QStringLiteral("Auto-generated list of headings"),
-          QStringLiteral("Advanced"), QStringLiteral("☰"),
-          { QStringLiteral("toc"), QStringLiteral("contents"),
-            QStringLiteral("outline"), QStringLiteral("index"),
-            QStringLiteral("headings") },
-          QStringLiteral("toc") },
-        // Math block: a $$ … $$ display-math fence rendered through MicroTeX.
-        { Block::MathBlock, QStringLiteral("Math Block"),
-          QStringLiteral("LaTeX equation, rendered"),
-          QStringLiteral("Advanced"), QStringLiteral("∑"),
-          { QStringLiteral("math"), QStringLiteral("equation"),
-            QStringLiteral("latex"), QStringLiteral("tex"),
-            QStringLiteral("formula"), QStringLiteral("$$") } },
-        // Mermaid diagram: a `mermaid`-tagged code fence rendered natively.
-        // BlockMenu seeds a small flowchart.
-        { Block::CodeBlock, QStringLiteral("Mermaid Diagram"),
-          QStringLiteral("Flowchart and graph diagrams from Mermaid syntax"),
-          QStringLiteral("Advanced"), QStringLiteral("◈"),
-          { QStringLiteral("mermaid"), QStringLiteral("flowchart"),
-            QStringLiteral("graph"), QStringLiteral("flow"),
-            QStringLiteral("diagram") },
-          QStringLiteral("mermaid") },
-        // Collection query: a `query`-tagged code fence rendering a live
-        // table/board over the collection's front-matter. BlockMenu seeds a
-        // commented starter spec.
-        { Block::CodeBlock, QStringLiteral("Collection Query"),
-          QStringLiteral("Live table or board over your notes' front-matter"),
-          QStringLiteral("Advanced"), QStringLiteral("⌕"),
-          { QStringLiteral("query"), QStringLiteral("database"),
-            QStringLiteral("dataview"), QStringLiteral("filter"),
-            QStringLiteral("frontmatter") },
-          QStringLiteral("query") },
-        // Drop cap (§1.2.16): a paragraph attribute rather than a stored type,
-        // so the `dropcap` marker in defaultLanguage routes the menu to set
-        // dropcap=<lines> on the target and keep its text, instead of running
-        // the convert path (which clears content).
-        { Block::Paragraph, QStringLiteral("Drop Cap"),
-          QStringLiteral("Enlarge this paragraph's first letter"),
-          QStringLiteral("Advanced"), QStringLiteral("A"),
-          { QStringLiteral("dropcap"), QStringLiteral("drop cap"),
-            QStringLiteral("initial"), QStringLiteral("illuminated"),
-            QStringLiteral("capital") },
-          QStringLiteral("dropcap") },
-        // Media group (§4.3). Image inserts (file dialog or URL) rather than
-        // converts.
-        { Block::Image, QStringLiteral("Image"),
-          QStringLiteral("Embed an image from a file or URL"),
-          QStringLiteral("Media"), QStringLiteral("▨"),
-          { QStringLiteral("image"), QStringLiteral("img"),
-            QStringLiteral("picture"), QStringLiteral("photo"),
-            QStringLiteral("![") } },
-        // Local audio/video: inserts like an image (file dialog); the path's
-        // extension lands it as a Media block.
-        { Block::Media, QStringLiteral("Audio / Video"),
-          QStringLiteral("Play a local audio or video file"),
-          QStringLiteral("Media"), QStringLiteral("▷"),
-          { QStringLiteral("audio"), QStringLiteral("video"),
-            QStringLiteral("media"), QStringLiteral("sound"),
-            QStringLiteral("movie"), QStringLiteral("mp4"),
-            QStringLiteral("mp3") } },
-        // Web embed: a preview card for a web page or
-        // video URL. Stored as an ![](url) image expression (no new type); the
-        // `embed` marker in defaultLanguage routes it to the URL prompt.
-        { Block::Image, QStringLiteral("Web Embed"),
-          QStringLiteral("Preview card for a web page or video URL"),
-          QStringLiteral("Media"), QStringLiteral("◧"),
-          { QStringLiteral("embed"), QStringLiteral("bookmark"),
-            QStringLiteral("link"), QStringLiteral("url"),
-            QStringLiteral("youtube"), QStringLiteral("web") },
-          QStringLiteral("embed") },
+    rebuildCatalog();
+}
+
+void BlockMenuModel::setBlockKindRegistry(const BlockKindRegistry *registry)
+{
+    if (m_blockKinds == registry)
+        return;
+    m_blockKinds = registry;
+    rebuildCatalog();
+}
+
+void BlockMenuModel::rebuildCatalog()
+{
+    // Every row comes from the kind that contributes it, so a kind reaches
+    // the menu by existing. This was a twenty-three entry literal here, kept
+    // in step with the twelve other places that decide something per kind by
+    // hand and by nothing else.
+    //
+    // A kind may contribute more than one row and that has to stay true: a
+    // paragraph gives "Text" and "Drop Cap", a callout gives "Callout" and
+    // "Toggle", and five separate rows all insert a code block under a
+    // different fence language.
+    m_catalog.clear();
+    const QList<const BlockKindDef *> kinds =
+        m_blockKinds ? m_blockKinds->all() : BlockKindDefs::builtins();
+    for (const BlockKindDef *kind : kinds)
+        m_catalog += kind->menuEntries();
+
+    // Grouped, in the order the groups are shown. The menu emits a heading
+    // whenever a row's group differs from the row before it, so rows of one
+    // group have to be adjacent or the heading appears twice; a stable sort
+    // keeps each group's rows in the order the kinds gave them.
+    //
+    // A group a module invents sorts after the four the core defines, in the
+    // order it first appears, rather than being dropped or interleaved.
+    static const QStringList kGroupOrder = {
+        QStringLiteral("Basic"), QStringLiteral("Lists"),
+        QStringLiteral("Advanced"), QStringLiteral("Media"),
     };
+    QStringList groupOrder = kGroupOrder;
+    for (const Entry &entry : std::as_const(m_catalog)) {
+        if (!groupOrder.contains(entry.group))
+            groupOrder.append(entry.group);
+    }
+    std::stable_sort(m_catalog.begin(), m_catalog.end(),
+                     [&groupOrder](const Entry &a, const Entry &b) {
+                         const int ga = groupOrder.indexOf(a.group);
+                         const int gb = groupOrder.indexOf(b.group);
+                         if (ga != gb)
+                             return ga < gb;
+                         return a.order < b.order;
+                     });
 }
 
 bool BlockMenuModel::isSubsequence(const QString &needle, const QString &haystack)
@@ -217,16 +101,10 @@ BlockMenuModel::MatchTier BlockMenuModel::matchTier(const Entry &entry,
     return MatchTier(FuzzyMatch::tierFor(loweredQuery, candidates));
 }
 
-QString BlockMenuModel::entryId(const Entry &entry)
-{
-    return QString::number(static_cast<int>(entry.type))
-         + QLatin1Char(':') + entry.defaultLanguage;
-}
-
 const BlockMenuModel::Entry *BlockMenuModel::entryForId(const QString &id) const
 {
     for (const Entry &entry : m_catalog) {
-        if (entryId(entry) == id)
+        if (entry.entryId() == id)
             return &entry;
     }
     return nullptr;
@@ -236,7 +114,7 @@ QVariantMap BlockMenuModel::entryRow(const Entry &entry) const
 {
     QVariantMap row{
         { QStringLiteral("kind"), QStringLiteral("entry") },
-        { QStringLiteral("entryId"), entryId(entry) },
+        { QStringLiteral("entryId"), entry.entryId() },
         { QStringLiteral("name"), entry.name },
         { QStringLiteral("description"), entry.description },
         { QStringLiteral("icon"), entry.icon },
@@ -244,6 +122,12 @@ QVariantMap BlockMenuModel::entryRow(const Entry &entry) const
     };
     if (!entry.defaultLanguage.isEmpty())
         row.insert(QStringLiteral("language"), entry.defaultLanguage);
+    // The starter content the block is created with, when its kind has one.
+    // The table of contents is the exception and carries none: its starter
+    // body is this document's headings, which only the open document knows,
+    // so the menu fills that one in.
+    if (!entry.seed.isEmpty())
+        row.insert(QStringLiteral("seed"), entry.seed);
     return row;
 }
 
@@ -354,7 +238,7 @@ void BlockMenuModel::noteUsed(int type)
     }
     for (const Entry &entry : m_catalog) {
         if (static_cast<int>(entry.type) == type) {
-            noteUsedEntry(entryId(entry));
+            noteUsedEntry(entry.entryId());
             return;
         }
     }

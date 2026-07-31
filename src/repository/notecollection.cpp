@@ -52,11 +52,6 @@ using NoteFileIo::readTextFile;
 using NoteFileIo::writeFileBytesAtomic;
 using NoteFileIo::writeTextFileAtomic;
 
-QByteArray contentHash(const QByteArray &content)
-{
-    return QCryptographicHash::hash(content, QCryptographicHash::Sha256);
-}
-
 // Restores a file's modification time (metadata rewrites must not read as
 // content edits in the modified-date sort).
 void restoreFileTime(const QString &path, const QDateTime &mtime)

@@ -249,6 +249,7 @@ endif()
 add_library(kvit-content ${KVIT_LIB_TYPE}
     src/content/blockattributes.cpp
     src/content/codelanguages.cpp
+    src/content/htmlinline.cpp
     src/content/htmltomarkdown.cpp
     src/content/imageassets.cpp
     src/content/inlinemarkdown.cpp
@@ -298,6 +299,19 @@ target_include_directories(kvit-content PUBLIC src/content)
 add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/block.cpp
     src/domain/blockkindregistry.cpp
+    src/domain/blockkinds.cpp
+    # One class per block kind. Each file holds a group of them and exposes
+    # nothing but its group accessor, so the classes themselves are file-local
+    # and a kind is only ever reached through BlockKindDef.
+    src/domain/blockkinds/blockmarkdown.cpp
+    src/domain/blockkinds/blockstyle.cpp
+    src/domain/blockkinds/blocktext.cpp
+    src/domain/blockkinds/codekinds.cpp
+    src/domain/blockkinds/containerkinds.cpp
+    src/domain/blockkinds/fencekinds.cpp
+    src/domain/blockkinds/listkinds.cpp
+    src/domain/blockkinds/mediakinds.cpp
+    src/domain/blockkinds/textkinds.cpp
     src/domain/blockmodel.cpp
     src/domain/changeindentcommand.cpp
     src/domain/changetypecommand.cpp
@@ -321,6 +335,7 @@ add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/textchangecommand.cpp
     src/domain/undocommand.cpp
     src/domain/undostack.cpp
+    src/domain/blockkind.h
     src/domain/cancellationtoken.h
     src/domain/noteentry.h
 )
@@ -570,6 +585,34 @@ endforeach()
 if(CMAKE_GENERATOR MATCHES "Visual Studio" AND TARGET kvit-qml_qmltyperegistration)
     add_dependencies(kvit-qml_qmltyperegistration kvit-qml)
 endif()
+
+# ── Warnings, on the modules this repository writes.
+#
+# The project compiled with none of these for its whole life, which is how a
+# block type could be added and reach twelve of the thirteen places that
+# decide something per type. -Wswitch is the one that would have caught it,
+# and it is worth having as an error rather than a warning: a switch over a
+# block kind that has forgotten an enumerator is not a style question, it is
+# the block being dropped from whatever that switch decides.
+#
+# Scoped per target rather than added globally, because the vendored MicroTeX
+# under third_party/ is not ours to keep warning-clean and its own
+# CMakeLists silences itself with -w, which has no MSVC equivalent.
+#
+# A `default:` label satisfies -Wswitch on its own, so the flag only works
+# where the cases are written out. That is why it is interim: what actually
+# guarantees completeness is a kind's pure virtuals, not a warning nobody can
+# see once someone writes `default: break;`.
+if(MSVC)
+    # C4062: an enumerator is not handled and there is no default label.
+    set(KVIT_WARNING_FLAGS /W3 /we4062)
+else()
+    set(KVIT_WARNING_FLAGS -Wall -Wextra -Werror=switch)
+endif()
+foreach(_kvit_target IN ITEMS kvit-content kvit-domain kvit-search kvit-platform
+                              kvit-repository kvit-application kvit-qml)
+    target_compile_options(${_kvit_target} PRIVATE ${KVIT_WARNING_FLAGS})
+endforeach()
 
 # ── kvit-core — "the editor", as one name.
 #

@@ -109,7 +109,6 @@ void TextChangeCommand::mergeWith(const UndoCommand *other)
     // piece of the combined region comes from a stored fragment.
     const int o1 = m_offset;
     const int i1len = m_inserted.length();
-    const int r1len = m_removed.length();
     const int o2 = textCmd->m_offset;
     const int r2len = textCmd->m_removed.length();
 

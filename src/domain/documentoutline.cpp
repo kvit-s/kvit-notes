@@ -4,27 +4,10 @@
 #include "documentoutline.h"
 #include "blockmodel.h"
 #include "block.h"
+#include "blockkinddef.h"
 #include "perflog.h"
 
 #include <QTimer>
-
-namespace {
-
-// A heading block's level (1..4), or 0 if the block is not a heading. The four
-// heading types are Heading1..Heading3 (enum 1..3) and Heading4 (enum 10,
-// appended after the wave-1 types), so the mapping is explicit.
-int headingLevel(Block::BlockType type)
-{
-    switch (type) {
-    case Block::Heading1: return 1;
-    case Block::Heading2: return 2;
-    case Block::Heading3: return 3;
-    case Block::Heading4: return 4;
-    default: return 0;
-    }
-}
-
-} // namespace
 
 DocumentOutline::DocumentOutline(QObject *parent)
     : QAbstractListModel(parent)
@@ -58,7 +41,7 @@ void DocumentOutline::setModel(BlockModel *model)
                         return;
                     for (int row = topLeft.row(); row <= bottomRight.row(); ++row) {
                         Block *block = m_model->blockAt(row);
-                        if (block && headingLevel(block->blockType()) > 0) {
+                        if (block && block->kind()->headingLevel() > 0) {
                             scheduleRebuild();
                             return;
                         }
@@ -142,7 +125,7 @@ void DocumentOutline::rebuild()
             Block *block = m_model->blockAt(i);
             if (!block)
                 continue;
-            const int level = headingLevel(block->blockType());
+            const int level = block->kind()->headingLevel();
             if (level == 0)
                 continue;
 

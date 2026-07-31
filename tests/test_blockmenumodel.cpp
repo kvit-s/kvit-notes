@@ -19,6 +19,8 @@ private slots:
     void testCatalogComplete();
     void testEmptyQueryGroupedWithHeaders();
     void testWhitespaceQueryIsEmpty();
+    void testCatalogOrderIsPinned();
+    void testAmbiguousPrefixesResolveTheWayTheyAlwaysHave();
     void testFuzzyMatching_data();
     void testFuzzyMatching();
     void testRankingTiers();
@@ -162,6 +164,57 @@ void TestBlockMenuModel::testEmptyQueryGroupedWithHeaders()
     QCOMPARE(names.mid(0, 5),
              QStringList({ "Text", "Heading 1", "Heading 2", "Heading 3",
                            "Heading 4" }));
+}
+
+// The whole catalog, in order.
+//
+// The rows come from the kinds now, one class each, and the order is the
+// order the kinds are registered in plus a stable sort by group. Nothing else
+// states what a reader sees when they open the menu, and the two things that
+// depend on this order — which row a group heading opens, and which of two
+// equally good matches a query selects — are both invisible until someone
+// notices the menu doing the wrong thing.
+void TestBlockMenuModel::testCatalogOrderIsPinned()
+{
+    const QStringList expected = {
+        "Basic", "Text", "Heading 1", "Heading 2", "Heading 3", "Heading 4",
+        "Lists", "Bulleted List", "Numbered List", "To-do",
+        "Advanced", "Quote", "Code Block", "Divider", "Math Block",
+        "Callout", "Toggle", "Table", "Task Board", "Table of Contents",
+        "Mermaid Diagram", "Collection Query", "Drop Cap",
+        "Media", "Image", "Audio / Video", "Web Embed",
+    };
+
+    QStringList actual;
+    for (const QVariant &row : m_menu->itemsFor(QString())) {
+        const QVariantMap map = row.toMap();
+        actual.append(map.value(map.value("kind").toString() == "header"
+                                    ? "text" : "name").toString());
+    }
+    QCOMPARE(actual, expected);
+}
+
+// Two rows can match a query equally well, and then the catalog's order
+// decides. These are the pairs where that happens for a one- or two-letter
+// query, which is how a reader who knows the menu actually types.
+void TestBlockMenuModel::testAmbiguousPrefixesResolveTheWayTheyAlwaysHave()
+{
+    const auto first = [this](const QString &query) {
+        const QVariantList rows = m_menu->itemsFor(query);
+        return rows.isEmpty() ? QString()
+                              : rows.first().toMap().value("name").toString();
+    };
+    // "Divider" and "Drop Cap" both begin with d, and "/d" followed by Enter
+    // has always inserted a divider.
+    QCOMPARE(first("d"), QString("Divider"));
+    QCOMPARE(first("t"), QString("Text"));
+    // "c" reaches To-do first through its "checkbox" alias, which is a
+    // prefix match in an earlier group than Code Block's name.
+    QCOMPARE(first("c"), QString("To-do"));
+    // "m" reaches Code Block first through its "monospace" alias, which is a
+    // prefix match earlier in the Advanced group than Math Block's name.
+    QCOMPARE(first("m"), QString("Code Block"));
+    QCOMPARE(first("q"), QString("Quote"));
 }
 
 void TestBlockMenuModel::testWhitespaceQueryIsEmpty()

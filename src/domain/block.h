@@ -8,6 +8,9 @@
 #include <QString>
 #include <QUuid>
 
+class BlockKindDef;
+class BlockKindRegistry;
+
 class Block : public QObject
 {
     Q_OBJECT
@@ -159,6 +162,28 @@ public:
     State state() const;
     void setState(const State &state);
 
+    // What kind of block this is: the one object that answers everything
+    // decided per kind — how it serializes, what its text is, whether its
+    // content is verbatim, what markup it exports as, which delegate draws it.
+    //
+    // Never null, never owned. A conversion writes this pointer beside the
+    // State swap it already does, so no object is destroyed: the block id
+    // survives, undo is untouched, and the Block* four QML files cache stays
+    // valid. Recomputed from the state whenever the type, the content or the
+    // language changes, since all three can decide it.
+    const BlockKindDef *kind() const { return m_kind; }
+
+    // Where to resolve the kind from. Null — the default — resolves against
+    // the built-ins alone, which is what lets a vault scan construct a Block
+    // on the stack, off the GUI thread, once per block per note, with no
+    // registry to hand and nothing to allocate.
+    //
+    // A BlockModel points its blocks at the registry it holds, so a kind a
+    // linked module registered reaches a block in an open document. That
+    // asymmetry is the one delegate kinds already had: a module's kind exists
+    // for a document being edited in a window, not for a background scan.
+    void setKindRegistry(const BlockKindRegistry *registry);
+
 signals:
     void blockTypeChanged();
     void contentChanged();
@@ -171,8 +196,13 @@ signals:
 private:
     void invalidateCache() const;
     void ensureTextCache() const;
+    // Re-resolve m_kind from the current state, and invalidate the text cache
+    // when it changed. Called from every setter that can change the answer.
+    void refreshKind();
 
     QString m_id;
+    const BlockKindDef *m_kind;
+    const BlockKindRegistry *m_kindRegistry = nullptr;
     BlockType m_type;
     QString m_content;
     int m_indentLevel;

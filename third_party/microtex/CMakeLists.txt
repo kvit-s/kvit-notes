@@ -47,7 +47,13 @@ target_compile_features(microtex PUBLIC cxx_std_20)
 # left off (spike a built with both OFF — no stderr chatter, no debug overlays).
 target_compile_definitions(microtex PUBLIC BUILD_QT)
 
-target_include_directories(microtex PUBLIC
+# SYSTEM: the `-w` below silences these sources while microtex itself is
+# compiled, but its headers are also compiled as part of every one of our
+# translation units that includes one, and there they are subject to our
+# warning flags. Upstream's constructor initialiser order and unused
+# parameters are not ours to fix, and a warning nobody can act on is what
+# makes a build's output stop being read.
+target_include_directories(microtex SYSTEM PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/tinyxml2"
 )

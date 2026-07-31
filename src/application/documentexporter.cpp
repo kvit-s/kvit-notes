@@ -7,6 +7,15 @@
 #include "documentserializer.h"
 #include "markdownformatter.h"
 #include "imageassets.h"
+#include "blockattributes.h"
+#include "blockkinddef.h"
+#include "blockkindregistry.h"
+#include "blockkinds.h"
+#include "htmlinline.h"
+#include "rendercontext.h"
+#include "blockkinds/blockstyle.h"
+#include "blockkinds/blocktext.h"
+#include "todometa.h"
 #include "tabledata.h"
 #include "kanbandata.h"
 #include "querydata.h"
@@ -40,32 +49,14 @@
 
 namespace {
 
-QString esc(const QString &s)
-{
-    QString out;
-    out.reserve(s.size());
-    for (const QChar &c : s) {
-        if (c == '&') out += QStringLiteral("&amp;");
-        else if (c == '<') out += QStringLiteral("&lt;");
-        else if (c == '>') out += QStringLiteral("&gt;");
-        else if (c == '"') out += QStringLiteral("&quot;");
-        else out += c;
-    }
-    return out;
-}
-
-// The same escaping, with a block's line breaks carried into the markup. A
-// raw newline inside <p> or <li> collapses to a space in a browser and in
-// QTextDocument alike, so a break the editor shows — a hard-wrapped
-// paragraph, a Shift+Enter, a wrapped list item — would vanish from the
-// export without this. Only inline prose runs through here; a code block's
-// newlines stay literal inside its <pre>.
-QString escFlowing(const QString &s)
-{
-    QString out = esc(s);
-    out.replace(QLatin1Char('\n'), QStringLiteral("<br>"));
-    return out;
-}
+// HTML escaping and inline-markdown rendering now live in kvit-content, so
+// that every block kind can reach them: a kind writes its own markup and
+// lives in kvit-domain, which cannot include anything up here. Pulled in
+// under their old names, because the exporter still renders the pieces that
+// span blocks and its assertions compare exact strings.
+using HtmlInline::esc;
+using HtmlInline::escFlowing;
+using HtmlInline::renderInline;
 
 // Pinned MathJax build for HTML export. Pinned exactly —
 // exports are long-lived documents and must not change rendering when the
@@ -97,6 +88,71 @@ const char kMermaidScriptTag[] =
     "    maxEdges: 2000\n"
     "  });\n"
     "</script>\n";
+
+// ---- what the document renderer still owns ----
+//
+// A block's plain text and its markup are the block kind's, and each one
+// writes its own. Two answers are not a block's to give, because they read
+// the whole note: the table of contents, and the collision-suffixed anchor
+// each heading gets. Both stay here.
+//
+// The text-shaping pieces several kinds needed — indenting a run of lines,
+// laying out a column-aligned table — moved to BlockText, which is where a
+// kind can reach them.
+
+// A table of contents, regenerated from this document's headings and indented
+// by level from the shallowest one present. The fence's own body is written
+// by the editor as the reader types and is stale in a note nobody has opened,
+// so the export reads the document rather than the block. This needs every
+// block, which is why it belongs to the document renderer rather than to the
+// toc block.
+QString tableOfContentsPlainText(const QList<Block::State> &blocks)
+{
+    int minLevel = 4;
+    for (const Block::State &block : blocks) {
+        const int level = BlockKindDefs::forState(block)->headingLevel();
+        if (level > 0)
+            minLevel = qMin(minLevel, level);
+    }
+    QStringList out;
+    for (const Block::State &block : blocks) {
+        const int level = BlockKindDefs::forState(block)->headingLevel();
+        if (level == 0)
+            continue;
+        out << QString(2 * (level - minLevel), QLatin1Char(' '))
+                   + BlockText::renderedFully(block.content);
+    }
+    return out.join(QLatin1Char('\n'));
+}
+
+// The same list as markup: one anchor per heading, indented from the
+// shallowest level present. The anchors are the collision-suffixed slugs the
+// document renderer resolved, which is the other reason this cannot be the
+// block's own work — a link into a heading has to name the same slug the
+// heading wrote, and only a whole-document pass knows what that is.
+QString tableOfContentsHtml(const QList<Block::State> &blocks,
+                            const QStringList &slugs)
+{
+    int minLevel = 4;
+    for (const Block::State &block : blocks) {
+        const int level = BlockKindDefs::forState(block)->headingLevel();
+        if (level > 0)
+            minLevel = qMin(minLevel, level);
+    }
+    QString out = QStringLiteral("<ul class=\"toc\">");
+    for (int i = 0; i < blocks.size(); ++i) {
+        const Block::State &block = blocks.at(i);
+        const int level = BlockKindDefs::forState(block)->headingLevel();
+        if (level == 0)
+            continue;
+        out += "<li style=\"margin-left:"
+             + QString::number((level - minLevel) * 16) + "px\">"
+             + "<a href=\"#" + esc(i < slugs.size() ? slugs.at(i) : QString())
+             + "\">" + esc(BlockText::renderedFully(block.content))
+             + "</a></li>";
+    }
+    return out + QStringLiteral("</ul>");
+}
 
 QString tokenColor(CodeLanguages::Token t, Theme *theme)
 {
@@ -189,105 +245,36 @@ QString DocumentExporter::extensionFor(const QString &format)
     return QStringLiteral("md");
 }
 
+const BlockKindDef *DocumentExporter::kindFor(const Block::State &state) const
+{
+    return m_blockKinds ? m_blockKinds->defFor(state)
+                        : BlockKindDefs::forState(state);
+}
+
 // ---- block-list assembly ----
 
-QList<DocumentExporter::Blk> DocumentExporter::blocksFromModel(BlockModel *model) const
+QList<Block::State> DocumentExporter::blocksFromModel(BlockModel *model) const
 {
-    QList<Blk> out;
+    QList<Block::State> out;
     if (!model)
         return out;
+    out.reserve(model->count());
     for (int i = 0; i < model->count(); ++i) {
         Block *b = model->blockAt(i);
         if (!b)
             continue;
-        out.append({b->blockType(), b->content(), b->indentLevel(),
-                    b->checked(), b->language(), b->calloutTitle()});
+        out.append(b->state());
     }
     return out;
 }
 
-QList<DocumentExporter::Blk> DocumentExporter::blocksFromMarkdown(const QString &markdown) const
+QList<Block::State> DocumentExporter::blocksFromMarkdown(const QString &markdown) const
 {
     DocumentSerializer serializer;
-    QList<Blk> out;
-    const auto parsed = serializer.parse(markdown);
-    for (const auto &d : parsed)
-        out.append({d.type, d.content, d.indentLevel, d.checked,
-                    d.language, d.calloutTitle});
-    return out;
+    return serializer.parse(markdown);
 }
 
 // ---- inline rendering ----
-
-QString DocumentExporter::renderInline(const QString &md, bool mathJax,
-                                       bool *sawMath) const
-{
-    MarkdownFormatter fmt;
-    const QList<FormattedSpan> spans = fmt.parseSpans(md);
-
-    // Recursive walk over the span tree (children are absolute coordinates).
-    std::function<QString(const QList<FormattedSpan> &, int, int)> renderList;
-    std::function<QString(const FormattedSpan &)> renderOne;
-
-    renderOne = [&](const FormattedSpan &span) -> QString {
-        const int cstart = span.start + span.openLen;
-        const int cend = span.end - span.closeLen;
-        QString inner;
-        if (span.type == QLatin1String("code")
-            || span.type == QLatin1String("autolink")
-            || span.type == QLatin1String("math")
-            || span.type == QLatin1String("escape"))
-            // For an escape span the content is the bare character: the
-            // export emits it without the backslash (fix 5).
-            inner = esc(md.mid(cstart, cend - cstart));
-        else
-            inner = renderList(span.children, cstart, cend);
-
-        const QString &t = span.type;
-        if (t == QLatin1String("math")) {
-            if (mathJax) {
-                if (sawMath)
-                    *sawMath = true;
-                return "\\(" + inner + "\\)";
-            }
-            return inner; // image-embed modes keep the raw-TeX fallthrough
-        }
-        if (t == QLatin1String("bold")) return "<strong>" + inner + "</strong>";
-        if (t == QLatin1String("italic")) return "<em>" + inner + "</em>";
-        if (t == QLatin1String("bolditalic"))
-            return "<strong><em>" + inner + "</em></strong>";
-        if (t == QLatin1String("strike")) return "<s>" + inner + "</s>";
-        if (t == QLatin1String("underline")) return "<u>" + inner + "</u>";
-        if (t == QLatin1String("highlight")) return "<mark>" + inner + "</mark>";
-        if (t == QLatin1String("code")) return "<code>" + inner + "</code>";
-        if (t == QLatin1String("superscript")) return "<sup>" + inner + "</sup>";
-        if (t == QLatin1String("subscript")) return "<sub>" + inner + "</sub>";
-        if (t == QLatin1String("color"))
-            return "<span style=\"color:" + esc(span.color) + "\">" + inner
-                 + "</span>";
-        if (t == QLatin1String("link") || t == QLatin1String("autolink"))
-            return "<a href=\"" + esc(span.url) + "\">" + inner + "</a>";
-        return inner;
-    };
-
-    renderList = [&](const QList<FormattedSpan> &list, int lo, int hi) -> QString {
-        QString out;
-        int pos = lo;
-        for (const FormattedSpan &span : list) {
-            if (span.start < lo || span.end > hi)
-                continue;
-            if (pos < span.start)
-                out += escFlowing(md.mid(pos, span.start - pos));
-            out += renderOne(span);
-            pos = span.end;
-        }
-        if (pos < hi)
-            out += escFlowing(md.mid(pos, hi - pos));
-        return out;
-    };
-
-    return renderList(spans, 0, md.length());
-}
 
 // ---- embedded resources ----
 
@@ -378,11 +365,11 @@ QString DocumentExporter::dataUriForMermaid(const QString &source) const
 
 // ---- slugs (mirror DocumentOutline) ----
 
-QStringList DocumentExporter::headingSlugs(const QList<Blk> &blocks) const
+QStringList DocumentExporter::headingSlugs(const QList<Block::State> &blocks) const
 {
     QStringList slugs;
     QHash<QString, int> counts;
-    for (const Blk &b : blocks) {
+    for (const Block::State &b : blocks) {
         const bool heading = b.type == Block::Heading1 || b.type == Block::Heading2
                           || b.type == Block::Heading3 || b.type == Block::Heading4;
         if (!heading) {
@@ -403,9 +390,6 @@ QStringList DocumentExporter::headingSlugs(const QList<Blk> &blocks) const
 
 QString DocumentExporter::cssBlock() const
 {
-    auto col = [&](QColor c, const char *fallback) {
-        return m_theme ? c.name() : QString::fromLatin1(fallback);
-    };
     const QString fg = m_theme ? m_theme->textPrimary().name() : QStringLiteral("#222222");
     const QString muted = m_theme ? m_theme->textMuted().name() : QStringLiteral("#666666");
     const QString bg = m_theme ? m_theme->windowBackground().name() : QStringLiteral("#ffffff");
@@ -483,6 +467,24 @@ QString DocumentExporter::cssBlock() const
         "pre.mermaid{background:none;padding:0;text-align:center}"
         ".diagram-source{margin:2px 0 10px;color:%4;font-size:13px}"
         ".diagram-source pre{margin-top:4px}"
+        // ---- presentation attributes ----
+        // An image is centred in the editor unless its block says otherwise,
+        // and its caption sits under it; the figure default states both, so
+        // only an explicit align= writes an inline rule.
+        "figure{margin:1em 0;text-align:center}"
+        "figcaption{color:%4;font-size:13px;font-style:italic;margin-top:4px}"
+        // The enlarged initial of a paragraph carrying dropcap=<lines>. The
+        // size, colour and family are inline, because they are per block.
+        // float+line-height is what makes the following lines wrap around it.
+        ".dropcap{float:left;line-height:0.82;font-weight:bold;"
+        "padding:0.06em 0.08em 0 0}"
+        // An image whose block asks for a border with no colour of its own.
+        // The colour is named here, once, because this is where the theme is
+        // in hand; a block kind cannot reach it.
+        "img.bordered{border:1px solid %5}"
+        // A decorative divider: a centred diamond flanked by two rules.
+        ".hr-deco{display:flex;align-items:center;gap:10px;margin:1.5em 0}"
+        ".hr-deco hr{flex:1;margin:0}"
         ).arg(fg, bg, accent, muted, border, codeBg).arg(danger).arg(highlight);
 }
 
@@ -558,11 +560,58 @@ QString DocumentExporter::queryHtml(const QString &spec) const
     return out;
 }
 
+QString DocumentExporter::queryPlainText(const QString &spec) const
+{
+    const QueryData::ParseResult parsed = QueryData::parse(spec);
+    if (!parsed.ok) {
+        return tr("Query") + QStringLiteral(": ") + parsed.error
+             + QLatin1Char('\n') + BlockText::indent(spec, 2);
+    }
+    if (!m_collection || !m_collection->isOpen()) {
+        // No vault to ask. An empty table would claim the query matched
+        // nothing, which is a different statement from never having run it,
+        // so the spec goes out as source — as the HTML export does.
+        return spec;
+    }
+
+    const QueryData::Result result =
+        QueryData::evaluate(parsed.spec, *m_collection);
+    QStringList out;
+    out << tr("Query") + QStringLiteral(" — ")
+             + tr("%1 notes").arg(result.rows.size());
+    if (parsed.spec.view == QueryData::View::Board) {
+        for (const QueryData::Group &group : result.groups) {
+            out << QString();
+            out << group.name + QStringLiteral(" (")
+                       + QString::number(group.rows.size()) + QLatin1Char(')');
+            for (const QueryData::Row &row : group.rows) {
+                for (int i = 0; i < row.cells.size(); ++i) {
+                    const QString &cell = row.cells.at(i);
+                    if (cell.isEmpty())
+                        continue;
+                    out << QString(i == 0 ? 2 : 4, QLatin1Char(' ')) + cell;
+                }
+            }
+        }
+    } else {
+        QList<QStringList> rows;
+        rows.reserve(result.rows.size());
+        for (const QueryData::Row &row : result.rows)
+            rows << row.cells;
+        const QString table = BlockText::alignedTable(result.columns, rows);
+        if (!table.isEmpty())
+            out << table;
+    }
+    return out.join(QLatin1Char('\n'));
+}
+
 // ---- embed cards ----
 
 QString DocumentExporter::embedCardHtml(const QString &url, const QString &alt,
-                                        const QString &caption) const
+                                        const QString &caption,
+                                        const QString &attributes) const
 {
+    const BlockStyle::Attributes attrs = BlockStyle::parse(attributes);
     // Whatever the preview cache already holds for this URL. An export never
     // fetches: it runs on the reader's command over notes they may not have
     // opened, and reaching the network from here would send a list of the
@@ -578,7 +627,17 @@ QString DocumentExporter::embedCardHtml(const QString &url, const QString &alt,
         : (!pageTitle.isEmpty() ? pageTitle : url);
     const QString host = QUrl(url).host();
 
-    QString out = "<div class=\"embed\"><div class=\"title\"><a href=\""
+    // The card's stored size, which the reader set by dragging its corner.
+    // A width alone is enough to reproduce the shape of the card; the height
+    // on screen is the player's, and forcing it on a static link would leave a
+    // tall empty box.
+    QStringList declarations;
+    const int storedWidth = BlockStyle::num(attrs, QLatin1String("width"), 0);
+    if (storedWidth > 0)
+        declarations << QStringLiteral("max-width:%1px").arg(storedWidth);
+
+    QString out = "<div class=\"embed\"" + BlockStyle::styleAttr(declarations)
+        + "><div class=\"title\"><a href=\""
         + esc(url) + "\">" + esc(label) + "</a></div>";
     if (!description.isEmpty())
         out += "<div class=\"desc\">" + esc(description) + "</div>";
@@ -589,9 +648,127 @@ QString DocumentExporter::embedCardHtml(const QString &url, const QString &alt,
     return out + "</div>";
 }
 
+QString DocumentExporter::embedCardPlainText(const QString &url,
+                                             const QString &alt,
+                                             const QString &caption) const
+{
+    const QVariantMap meta = m_embedMetadata
+        ? m_embedMetadata->cachedMetadata(url) : QVariantMap();
+    const QString pageTitle = meta.value(QStringLiteral("title")).toString();
+    const QString label = !alt.isEmpty() ? alt
+        : (!pageTitle.isEmpty() ? pageTitle : QString());
+
+    QString out = QStringLiteral("[embed");
+    if (!label.isEmpty())
+        out += QStringLiteral(": ") + label;
+    out += QStringLiteral("] ") + url;
+    if (!caption.isEmpty())
+        out += QLatin1Char('\n')
+             + BlockText::indent(BlockText::renderedFully(caption), 2);
+    return out;
+}
+
 // ---- the HTML builder ----
 
-QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
+// The services a block kind renders through: the exporter, answering the
+// questions a kind cannot answer for itself.
+//
+// Built per render because two of its answers read the whole note. The rest
+// forward to the exporter, which holds the theme, the open collection, the
+// embed cache, the image context and the attachment budget.
+class DocumentExporter::RenderServices : public BlockRenderServices
+{
+public:
+    RenderServices(const DocumentExporter *exporter,
+                   const QList<Block::State> *blocks,
+                   const QStringList *slugs, bool mathJax, bool browserTarget)
+        : m_exporter(exporter)
+        , m_blocks(blocks)
+        , m_slugs(slugs)
+        , m_mathJax(mathJax)
+        , m_browserTarget(browserTarget)
+    {
+        Q_UNUSED(m_mathJax);
+        Q_UNUSED(m_browserTarget);
+    }
+
+    QString imageDataUri(const QString &storedPath) const override
+    {
+        return m_exporter->dataUriForImagePath(storedPath);
+    }
+    QString mathDataUri(const QString &tex) const override
+    {
+        return m_exporter->dataUriForMath(tex);
+    }
+    QString mermaidDataUri(const QString &source) const override
+    {
+        return m_exporter->dataUriForMermaid(source);
+    }
+
+    // The inner html of a <pre><code> block: the code fence's body with one
+    // theme-coloured span per highlighted token. The wrapper is the code
+    // kind's, because the kind is what decides it wants a <pre> at all.
+    QString highlightedCodeHtml(const QString &language,
+                                const QString &source) const override
+    {
+        QString code;
+        const QList<CodeLanguages::Span> spans =
+            CodeLanguages::highlightSpans(language, source);
+        int pos = 0;
+        for (const CodeLanguages::Span &span : spans) {
+            if (span.start > pos)
+                code += esc(source.mid(pos, span.start - pos));
+            const QString color = tokenColor(span.token, m_exporter->m_theme);
+            const QString piece = esc(source.mid(span.start, span.length));
+            code += color.isEmpty()
+                ? piece
+                : ("<span style=\"color:" + color + "\">" + piece + "</span>");
+            pos = span.start + span.length;
+        }
+        if (pos < source.length())
+            code += esc(source.mid(pos));
+        return code;
+    }
+
+    QString queryHtml(const QString &spec) const override
+    {
+        return m_exporter->queryHtml(spec);
+    }
+    QString queryPlainText(const QString &spec) const override
+    {
+        return m_exporter->queryPlainText(spec);
+    }
+
+    QString embedCardHtml(const QString &url, const QString &alt,
+                          const QString &caption,
+                          const QString &attributes) const override
+    {
+        return m_exporter->embedCardHtml(url, alt, caption, attributes);
+    }
+    QString embedCardPlainText(const QString &url, const QString &alt,
+                               const QString &caption) const override
+    {
+        return m_exporter->embedCardPlainText(url, alt, caption);
+    }
+
+    QString tableOfContentsHtml() const override
+    {
+        return ::tableOfContentsHtml(*m_blocks, *m_slugs);
+    }
+    QString tableOfContentsPlainText() const override
+    {
+        return ::tableOfContentsPlainText(*m_blocks);
+    }
+
+private:
+    const DocumentExporter *const m_exporter;
+    const QList<Block::State> *const m_blocks;
+    const QStringList *const m_slugs;
+    const bool m_mathJax;
+    const bool m_browserTarget;
+};
+
+QString DocumentExporter::buildHtmlBody(const QList<Block::State> &blocks,
                                         bool browserTarget,
                                         bool *sawMathOut,
                                         bool *sawMermaidOut) const
@@ -603,36 +780,41 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
     const QString mathMode =
         qEnvironmentVariable("KVIT_MATH_RENDER").trimmed().toLower();
     const bool mathJax = browserTarget && mathMode != QLatin1String("png");
-    bool sawMath = false;
-    bool sawMermaid = false;
 
+    // Heading anchors are collision-suffixed across the whole document, so
+    // they are resolved here, once, and handed to each heading as it renders.
     const QStringList slugs = headingSlugs(blocks);
+
+    const RenderServices services(this, &blocks, &slugs, mathJax,
+                                  browserTarget);
+    RenderContext ctx;
+    ctx.target = browserTarget ? RenderContext::Browser : RenderContext::Pdf;
+    ctx.mathJax = mathJax;
+    ctx.services = &services;
+
     QString body;
-
-    // Grouped list rendering: consecutive bullet/numbered/todo items nest.
-    auto isListType = [](Block::BlockType t) {
-        return t == Block::BulletList || t == Block::NumberedList
-            || t == Block::Todo;
-    };
-
     for (int i = 0; i < blocks.size(); ) {
-        const Blk &b = blocks.at(i);
+        const Block::State &b = blocks.at(i);
 
-        if (isListType(b.type)) {
+        if (Block::isListFamily(b.type)) {
             // Collect the contiguous list run and emit it with its nesting:
             // an item deeper than the one before opens a sublist INSIDE the
             // still-open <li>, which is where HTML wants a nested list. The
             // closing </li> is deferred for exactly that reason, so a flat
             // run still emits <ul><li>a</li><li>b</li></ul> unchanged.
+            //
+            // This is the document renderer's work rather than any one
+            // block's: an item cannot see its neighbours, and what opens a
+            // list is the item before it not being in one.
             const bool ordered = b.type == Block::NumberedList;
             const QString openTag = ordered ? QStringLiteral("<ol>")
                                             : QStringLiteral("<ul>");
             const QString closeTag = ordered ? QStringLiteral("</ol>")
                                              : QStringLiteral("</ul>");
             int depth = 0;   // lists currently open in this run
-            while (i < blocks.size() && isListType(blocks.at(i).type)
+            while (i < blocks.size() && Block::isListFamily(blocks.at(i).type)
                    && (blocks.at(i).type == Block::NumberedList) == ordered) {
-                const Blk &item = blocks.at(i);
+                const Block::State &item = blocks.at(i);
                 const int target = qMax(0, item.indentLevel) + 1;
                 if (depth == 0) {
                     while (depth < target) { body += openTag; ++depth; }
@@ -645,11 +827,9 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
                         --depth;
                     }
                 }
-                QString li = renderInline(item.content, mathJax, &sawMath);
-                if (item.type == Block::Todo)
-                    li = (item.checked ? QStringLiteral("&#9745; ")
-                                       : QStringLiteral("&#9744; ")) + li;
-                body += "<li>" + li;
+                // The item's own markup, with no <li> around it: the wrapper
+                // and its deferred closer belong to the run.
+                body += "<li>" + kindFor(item)->toHtml(item, ctx);
                 ++i;
             }
             if (depth > 0) {
@@ -664,225 +844,20 @@ QString DocumentExporter::buildHtmlBody(const QList<Blk> &blocks,
             continue;
         }
 
-        switch (b.type) {
-        case Block::Heading1: case Block::Heading2:
-        case Block::Heading3: case Block::Heading4: {
-            const int level = b.type == Block::Heading1 ? 1
-                            : b.type == Block::Heading2 ? 2
-                            : b.type == Block::Heading3 ? 3 : 4;
-            const QString tag = QStringLiteral("h%1").arg(level);
-            body += "<" + tag + " id=\"" + esc(slugs.at(i)) + "\">"
-                  + renderInline(b.content, mathJax, &sawMath) + "</" + tag + ">";
-            break;
-        }
-        case Block::Quote:
-            body += "<blockquote>" + renderInline(b.content, mathJax, &sawMath) + "</blockquote>";
-            break;
-        case Block::Divider:
-            body += "<hr>";
-            break;
-        case Block::Callout: {
-            const QString heading = b.calloutTitle.isEmpty()
-                ? b.language : b.calloutTitle;
-            body += "<div class=\"callout\"><div class=\"title\">"
-                  + esc(heading) + "</div>" + renderInline(b.content, mathJax, &sawMath) + "</div>";
-            break;
-        }
-        case Block::MathBlock: {
-            if (mathJax) {
-                // MathJax reads the parsed DOM text, so HTML-escaping the
-                // TeX is transparent to it.
-                body += "<p class=\"math-display\">\\[ " + esc(b.content)
-                      + " \\]</p>";
-                sawMath = true;
-                break;
-            }
-            const QString uri = dataUriForMath(b.content);
-            if (!uri.isEmpty())
-                body += "<p style=\"text-align:center\"><img alt=\""
-                      + esc(b.content) + "\" src=\"" + uri + "\"></p>";
-            else
-                body += "<pre><code>" + esc(b.content) + "</code></pre>";
-            break;
-        }
-        case Block::Image: case Block::Media: {
-            const ImageAssets::Parsed p = ImageAssets::parseLine(b.content);
-            if (b.type == Block::Image && ImageAssets::isEmbedUrl(p.path)) {
-                // The URL names a web page or a video host rather than an
-                // image file, which the editor draws as a preview card. An
-                // <img> pointed at a page is a broken image in every viewer,
-                // so the card exports as what it fundamentally is: a link.
-                body += embedCardHtml(p.path, p.alt, p.caption);
-            } else if (b.type == Block::Image) {
-                const QString uri = dataUriForImagePath(p.path);
-                QString img = uri.isEmpty()
-                    ? ("<em>[image: " + esc(p.path) + "]</em>")
-                    : ("<img alt=\"" + esc(p.alt) + "\" src=\"" + uri + "\""
-                       + (p.width > 0 ? " width=\"" + QString::number(p.width) + "\"" : "")
-                       + ">");
-                body += "<figure>" + img
-                      + (p.caption.isEmpty() ? QString()
-                            : "<figcaption>" + escFlowing(p.caption)
-                                  + "</figcaption>")
-                      + "</figure>";
-            } else {
-                // Media exports as a link to the source (no inline player).
-                body += "<p>&#9654; <a href=\"" + esc(p.path) + "\">"
-                      + esc(p.alt.isEmpty() ? p.path : p.alt) + "</a></p>";
-            }
-            break;
-        }
-        case Block::Table: {
-            const TableData::Table tbl = TableData::parse(b.content);
-            // A cell's line breaks reach here as newlines (TableData reads
-            // the stored <br> back). HTML collapses those into spaces, so
-            // they are re-stated as markup — otherwise a listing folded into
-            // a row exports as one long line.
-            const auto cellHtml = [&](const QString &cell) {
-                return renderInline(cell, mathJax, &sawMath)
-                    .replace(QLatin1Char('\n'), QLatin1String("<br>"));
-            };
-            body += QStringLiteral("<table>");
-            if (!tbl.headers.isEmpty()) {
-                body += QStringLiteral("<tr>");
-                for (const QString &h : tbl.headers)
-                    body += "<th>" + cellHtml(h) + "</th>";
-                body += QStringLiteral("</tr>");
-            }
-            for (const QStringList &row : tbl.rows) {
-                body += QStringLiteral("<tr>");
-                for (const QString &cell : row)
-                    body += "<td>" + cellHtml(cell) + "</td>";
-                body += QStringLiteral("</tr>");
-            }
-            body += QStringLiteral("</table>");
-            break;
-        }
-        case Block::CodeBlock:
-            if (b.language == QLatin1String("mermaid")) {
-                if (browserTarget) {
-                    // The browser renders the original source with Mermaid.js.
-                    // A collapsed <details> keeps the escaped source available
-                    // after Mermaid replaces the render target or errors.
-                    body += "<pre class=\"mermaid\">" + esc(b.content) + "</pre>";
-                    body += "<details class=\"diagram-source\"><summary>Diagram "
-                            "source</summary><pre><code>" + esc(b.content)
-                          + "</code></pre></details>";
-                    sawMermaid = true;
-                } else {
-                    // PDF: rasterize a natively-supported diagram; fall back to
-                    // escaped source for invalid/unsupported families.
-                    const QString uri = dataUriForMermaid(b.content);
-                    if (!uri.isEmpty())
-                        body += "<p style=\"text-align:center\"><img alt=\"Mermaid "
-                                "diagram\" src=\"" + uri + "\"></p>";
-                    else
-                        body += "<pre><code>" + esc(b.content) + "</code></pre>";
-                }
-            } else if (b.language == QLatin1String("diagram")
-                || b.language == QLatin1String("text-diagram")
-                || b.language == QLatin1String("ascii-diagram")) {
-                // Character diagram: escaped preformatted text with whitespace
-                // preserved and the configured monospace stack. Both browser
-                // HTML and the PDF path share this branch.
-                body += "<pre class=\"text-diagram\"><code>" + esc(b.content)
-                      + "</code></pre>";
-            } else if (b.language == QLatin1String("kanban")) {
-                const KanbanData::Board board = KanbanData::parse(b.content);
-                body += "<div class=\"kanban\">";
-                for (const KanbanData::Column &col : board.columns) {
-                    body += "<div class=\"col\"><strong>" + esc(col.name)
-                          + "</strong> <span class=\"count\">"
-                          + QString::number(col.cards.size()) + "</span>";
-                    // A card is more than its title: the board shows its
-                    // labels and due date as chips and its description under
-                    // them, and an export that kept only the title threw away
-                    // most of what the reader had put on the card.
-                    for (const KanbanData::Card &card : col.cards) {
-                        body += "<div class=\"card\"><div class=\"title\">"
-                              + (card.done ? QStringLiteral("&#9745; ")
-                                           : QStringLiteral("&#9744; "))
-                              + renderInline(card.title, mathJax, &sawMath)
-                              + "</div>";
-                        if (!card.description.isEmpty())
-                            body += "<div class=\"meta\">"
-                                  + renderInline(card.description, mathJax,
-                                                 &sawMath)
-                                  + "</div>";
-                        if (!card.labels.isEmpty() || !card.due.isEmpty()) {
-                            body += QStringLiteral("<div class=\"meta\">");
-                            for (const QString &label : card.labels)
-                                body += "<span class=\"chip\">" + esc(label)
-                                      + "</span>";
-                            if (!card.due.isEmpty())
-                                body += "<span class=\"chip\">&#128197; "
-                                      + esc(card.due) + "</span>";
-                            body += QStringLiteral("</div>");
-                        }
-                        body += QStringLiteral("</div>");
-                    }
-                    body += "</div>";
-                }
-                body += "</div>";
-            } else if (b.language == QLatin1String("query")) {
-                body += queryHtml(b.content);
-            } else if (b.language == QLatin1String("toc")) {
-                // Regenerate the TOC from this document's headings as anchors.
-                body += "<ul class=\"toc\">";
-                int minLevel = 4;
-                for (const Blk &h : blocks) {
-                    if (h.type == Block::Heading1) minLevel = qMin(minLevel, 1);
-                    else if (h.type == Block::Heading2) minLevel = qMin(minLevel, 2);
-                    else if (h.type == Block::Heading3) minLevel = qMin(minLevel, 3);
-                    else if (h.type == Block::Heading4) minLevel = qMin(minLevel, 4);
-                }
-                for (int j = 0; j < blocks.size(); ++j) {
-                    const Blk &h = blocks.at(j);
-                    int lvl = h.type == Block::Heading1 ? 1
-                            : h.type == Block::Heading2 ? 2
-                            : h.type == Block::Heading3 ? 3
-                            : h.type == Block::Heading4 ? 4 : 0;
-                    if (lvl == 0) continue;
-                    body += "<li style=\"margin-left:"
-                          + QString::number((lvl - minLevel) * 16) + "px\">"
-                          + "<a href=\"#" + esc(slugs.at(j)) + "\">"
-                          + esc(InlineMarkdown::displayText(h.content))
-                          + "</a></li>";
-                }
-                body += "</ul>";
-            } else {
-                // Syntax-highlighted code as colored spans.
-                QString code;
-                const QList<CodeLanguages::Span> hs =
-                    CodeLanguages::highlightSpans(b.language, b.content);
-                int pos = 0;
-                for (const CodeLanguages::Span &s : hs) {
-                    if (s.start > pos)
-                        code += esc(b.content.mid(pos, s.start - pos));
-                    const QString colr = tokenColor(s.token, m_theme);
-                    const QString piece = esc(b.content.mid(s.start, s.length));
-                    code += colr.isEmpty() ? piece
-                        : ("<span style=\"color:" + colr + "\">" + piece + "</span>");
-                    pos = s.start + s.length;
-                }
-                if (pos < b.content.length())
-                    code += esc(b.content.mid(pos));
-                body += "<pre><code>" + code + "</code></pre>";
-            }
-            break;
-        case Block::Paragraph:
-        default:
-            if (!b.content.isEmpty())
-                body += "<p>" + renderInline(b.content, mathJax, &sawMath) + "</p>";
-            break;
-        }
+        // Everything else is one block's markup, written by the kind. This
+        // was a switch over the block type with a `default:` label, and
+        // inside its code-fence case a chain of comparisons against fence
+        // language strings. A kind that reached neither — a `query` fence,
+        // the last one added — exported as a listing of its own source spec.
+        ctx.headingSlug = slugs.at(i);
+        body += kindFor(b)->toHtml(b, ctx);
         ++i;
     }
 
     if (sawMathOut)
-        *sawMathOut = sawMath;
+        *sawMathOut = ctx.sawMath;
     if (sawMermaidOut)
-        *sawMermaidOut = sawMermaid;
+        *sawMermaidOut = ctx.sawMermaid;
     return body;
 }
 
@@ -911,7 +886,7 @@ QString DocumentExporter::wrapHtmlDocument(const QString &body,
              cssBlock(), mathJaxTag, body, mermaidTag);
 }
 
-QString DocumentExporter::buildHtml(const QList<Blk> &blocks,
+QString DocumentExporter::buildHtml(const QList<Block::State> &blocks,
                                     const QString &title,
                                     bool browserTarget) const
 {
@@ -935,39 +910,51 @@ QString DocumentExporter::htmlForMarkdown(const QString &markdown,
 
 // ---- plain text ----
 
-QString DocumentExporter::buildPlainText(const QList<Blk> &blocks) const
+QString DocumentExporter::buildPlainText(const QList<Block::State> &blocks) const
 {
+    // Plain text never rasterises and has no MathJax, so the context it
+    // renders under is the PDF one; only the services and the ordinal are
+    // read from it.
+    const QStringList noSlugs;
+    const RenderServices services(this, &blocks, &noSlugs, false, false);
+    RenderContext ctx;
+    ctx.target = RenderContext::Pdf;
+    ctx.mathJax = false;
+    ctx.services = &services;
+
     QStringList lines;
-    int ordinal = 0;
-    for (int i = 0; i < blocks.size(); ++i) {
-        const Blk &b = blocks.at(i);
-        const QString indent(2 * b.indentLevel, QLatin1Char(' '));
-        const bool verbatim = b.type == Block::CodeBlock;
-        const QString text = verbatim ? b.content
-            : InlineMarkdown::displayText(b.content);
-        if (b.type == Block::NumberedList) ++ordinal; else ordinal = 0;
-        switch (b.type) {
-        case Block::Heading1: lines << "# " + text; break;
-        case Block::Heading2: lines << "## " + text; break;
-        case Block::Heading3: lines << "### " + text; break;
-        case Block::Heading4: lines << "#### " + text; break;
-        case Block::BulletList: lines << indent + "- " + text; break;
-        case Block::NumberedList:
-            lines << indent + QString::number(ordinal) + ". " + text; break;
-        case Block::Todo:
-            lines << indent + (b.checked ? "[x] " : "[ ] ") + text; break;
-        case Block::Quote: {
-            const auto ql = text.split(QLatin1Char('\n'));
-            for (const QString &q : ql) lines << "> " + q;
-            break;
+    // One numbering counter per indent level, the same rule
+    // BlockModel::ordinalAt keeps: a block at level L resets the deeper
+    // levels, a non-numbered block at L resets L itself, and anything outside
+    // the list family resets all of them. A single flat counter — what this
+    // used to keep — numbers a two-level list 1,2,3,4 instead of 1,2 / 1,2.
+    // It stays here rather than moving onto the list kind, because it is a
+    // document-level count and an item cannot see the items above it.
+    int counters[Block::MaxIndentLevel + 1] = {0};
+    for (const Block::State &b : blocks) {
+        if (!Block::isListFamily(b.type)) {
+            for (int level = 0; level <= Block::MaxIndentLevel; ++level)
+                counters[level] = 0;
+            ctx.ordinal = 1;
+        } else {
+            const int level = qBound(0, b.indentLevel, Block::MaxIndentLevel);
+            for (int deeper = level + 1; deeper <= Block::MaxIndentLevel; ++deeper)
+                counters[deeper] = 0;
+            if (b.type == Block::NumberedList) {
+                ctx.ordinal = ++counters[level];
+            } else {
+                counters[level] = 0;
+                ctx.ordinal = 1;
+            }
         }
-        case Block::Divider: lines << "---"; break;
-        case Block::CodeBlock: lines << text; break;
-        default:
-            if (!text.isEmpty()) lines << text;
-            break;
-        }
-        lines << QString(); // blank line between blocks
+
+        // A block whose text is empty writes no line, but still gets the
+        // blank line after it, which is what keeps an empty paragraph a
+        // paragraph-shaped gap rather than nothing at all.
+        const QString text = kindFor(b)->toPlainText(b, ctx);
+        if (!text.isEmpty())
+            lines << text;
+        lines << QString();
     }
     return lines.join(QLatin1Char('\n'));
 }

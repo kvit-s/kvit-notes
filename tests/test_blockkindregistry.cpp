@@ -6,6 +6,8 @@
 #include "blockkindregistry.h"
 #include "blockmodel.h"
 
+#include <QSet>
+
 // The fence-language block-type registry: the seam that lets a linked
 // module add a block kind — a `diff` fence, say — without an
 // edit anywhere in the core. These cases pin the two halves of that promise:
@@ -35,13 +37,37 @@ private slots:
         QCOMPARE(registry.kindForLanguage(QString()), 0);
     }
 
-    void builtinFencesDeclareNoDelegate()
+    void everyBuiltinKindWithADelegateDeclaresIt()
     {
-        // main.qml declares a DelegateChoice for each built-in statically, so
-        // the common rendering path never consults the registry for a URL.
+        // The shell builds one DelegateChoice per entry here, so a kind with
+        // no usable delegate URL renders as an empty row. The built-ins used
+        // to declare theirs in main.qml by hand and carry nothing here.
         BlockKindRegistry registry;
-        QVERIFY(registry.delegateUrl(BlockModel::KanbanKind).isEmpty());
-        QVERIFY(registry.registeredDelegates().isEmpty());
+        QCOMPARE(registry.delegateUrl(BlockModel::KanbanKind),
+                 QStringLiteral("qrc:/qml/KanbanBlock.qml"));
+
+        const QVariantList choices = registry.delegateChoices();
+        QVERIFY(!choices.isEmpty());
+        QSet<int> kinds;
+        for (const QVariant &value : choices) {
+            const QVariantMap choice = value.toMap();
+            const QString url = choice.value("delegateUrl").toString();
+            QVERIFY2(url.startsWith(QStringLiteral("qrc:/qml/")),
+                     qPrintable(url));
+            QVERIFY(!choice.value("id").toString().isEmpty());
+            // One choice per delegate kind. Two choices claiming the same
+            // value would leave the second unreachable, because the chooser
+            // takes the first that matches.
+            const int kind = choice.value("kind").toInt();
+            QVERIFY2(!kinds.contains(kind),
+                     qPrintable(QStringLiteral("kind %1 twice").arg(kind)));
+            kinds.insert(kind);
+        }
+        // Paragraph and the four headings share one delegate and one kind
+        // value, so the five of them contribute exactly one choice.
+        QVERIFY(kinds.contains(0));
+        QVERIFY(kinds.contains(BlockModel::KanbanKind));
+        QVERIFY(kinds.contains(int(Block::Table)));
     }
 
     void registeringALanguageAssignsAKindAboveTheBuiltins()
@@ -78,19 +104,22 @@ private slots:
 
         const int kanban = registry.registerFenceLanguage("kanban", "qrc:/hijack.qml");
         QCOMPARE(kanban, BlockModel::KanbanKind);
-        QVERIFY(registry.delegateUrl(BlockModel::KanbanKind).isEmpty());
+        QCOMPARE(registry.delegateUrl(BlockModel::KanbanKind),
+                 QStringLiteral("qrc:/qml/KanbanBlock.qml"));
     }
 
-    void registeredDelegatesListsOnlyModuleEntries()
+    void aModuleKindJoinsTheDelegateChoices()
     {
         BlockKindRegistry registry;
+        const int before = registry.delegateChoices().size();
         const int kind = registry.registerFenceLanguage("diff", "qrc:/a.qml");
 
-        const QVariantList entries = registry.registeredDelegates();
-        QCOMPARE(entries.size(), 1);
-        const QVariantMap entry = entries.first().toMap();
+        const QVariantList entries = registry.delegateChoices();
+        QCOMPARE(entries.size(), before + 1);
+        // A module's kinds come after the built-ins, in registration order.
+        const QVariantMap entry = entries.last().toMap();
         QCOMPARE(entry.value("kind").toInt(), kind);
-        QCOMPARE(entry.value("language").toString(), QStringLiteral("diff"));
+        QCOMPARE(entry.value("id").toString(), QStringLiteral("diff"));
         QCOMPARE(entry.value("delegateUrl").toString(), QStringLiteral("qrc:/a.qml"));
     }
 
@@ -118,12 +147,12 @@ private slots:
     void resetDropsModuleRegistrations()
     {
         BlockKindRegistry registry;
-        registry.registerFenceLanguage("diff", "qrc:/a.qml");
+        const int diff = registry.registerFenceLanguage("diff", "qrc:/a.qml");
         registry.reset();
 
         QCOMPARE(registry.kindForLanguage("diff"), 0);
         QCOMPARE(registry.kindForLanguage("mermaid"), BlockModel::MermaidKind);
-        QVERIFY(registry.registeredDelegates().isEmpty());
+        QVERIFY(registry.delegateUrl(diff).isEmpty());
     }
 
     // Two registries in one process do not see each other's registrations.
@@ -137,7 +166,7 @@ private slots:
         const int kind = first.registerFenceLanguage("diff", "qrc:/a.qml");
         QVERIFY(kind != 0);
         QCOMPARE(second.kindForLanguage("diff"), 0);
-        QVERIFY(second.registeredDelegates().isEmpty());
+        QVERIFY(second.delegateUrl(kind).isEmpty());
         // Both still carry the built-ins.
         QCOMPARE(second.kindForLanguage("mermaid"), BlockModel::MermaidKind);
     }

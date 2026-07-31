@@ -5,41 +5,18 @@
 #define BLOCKKINDREGISTRY_H
 
 #include <QHash>
+#include <QList>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
 
-// The built-in delegate kinds for code fences whose language selects a
-// renderer of its own. They live here rather than in BlockModel so the
-// registry can seed itself without depending on the model; BlockModel keeps
-// its historical constant names as aliases.
-//
-// This is a Q_NAMESPACE enum rather than a set of integer constants so QML
-// can name the same values. main.qml writes `roleValue: BlockKinds.Kanban`,
-// and the numbers exist in exactly one place. They used to be repeated as
-// literals in the DelegateChooser with a comment naming the C++ constant,
-// which is a pairing nothing checked.
-namespace BlockKinds {
-Q_NAMESPACE
+#include "block.h"
+#include "blockkind.h"
 
-enum Kind {
-    // A `kanban`-tagged fence renders as a board.
-    Kanban = 100,
-    // A `toc`-tagged fence renders as a read-only linked heading list.
-    Toc = 101,
-    // An image expression whose URL is a web page or video host renders as a
-    // preview card. Derived from block CONTENT, not from a fence language, so
-    // it is not a registry entry — the value lives here to keep the numbering
-    // in one place, and it still needs a delegate like the others.
-    Embed = 102,
-    // A `mermaid`-tagged fence renders as a native diagram.
-    Mermaid = 103,
-    // A `query`-tagged fence renders as a live collection query.
-    Query = 104,
-};
-Q_ENUM_NS(Kind)
-}
+#include <memory>
+
+class BlockKindDef;
 
 // The fence-language → delegate-kind registry.
 //
@@ -88,13 +65,49 @@ public:
     // so it reads unambiguously as "no fence kind for this language".
     Q_INVOKABLE int kindForLanguage(const QString &language) const;
 
-    // The QML file rendering a registered kind. Empty for the built-in kinds,
-    // whose delegates are declared statically in main.qml.
+    // The QML file rendering a kind, empty when the kind shares another
+    // kind's delegate — as all four heading levels share the paragraph's.
     Q_INVOKABLE QString delegateUrl(int kind) const;
 
-    // Every module-registered kind as a {kind, language, delegateUrl} map.
-    // main.qml appends one DelegateChoice per entry.
-    Q_INVOKABLE QVariantList registeredDelegates() const;
+    // Every kind that has a delegate of its own, as a
+    // {kind, id, delegateUrl} map, in catalog order. The shell builds one
+    // DelegateChoice per entry.
+    //
+    // This used to list only the kinds a module registered, because the
+    // seventeen built-in choices were written out in main.qml by hand — and
+    // a kind whose choice nobody remembered to add rendered as an empty row
+    // with nothing to say so. A kind reaches the screen by being registered
+    // now, which is the same rule for a built-in and for a module's.
+    Q_INVOKABLE QVariantList delegateChoices() const;
+
+    // Registers a kind a module implements itself, as a BlockKindDef of its
+    // own. The def must outlive the registry — a module's defs are statics in
+    // the module, exactly as the built-ins are statics here — and nothing is
+    // owned or deleted. Returns the assigned kind number, or the existing one
+    // when the def's fence language is already claimed.
+    //
+    // This is the fuller form of registerFenceLanguage above. A module that
+    // calls only that one gets a kind number and a delegate, and its blocks
+    // behave as code blocks in every other respect; a module that supplies a
+    // def decides its own serialization, text and export as well.
+    int registerKind(const BlockKindDef *def);
+
+    // The definition of a kind: everything decided per kind, in one object.
+    // Null for a number nothing has registered.
+    const BlockKindDef *def(BlockKind kind) const;
+    const BlockKindDef *def(int kind) const;
+
+    // The definition a block's stored state resolves to. Never null.
+    const BlockKindDef *defFor(const Block::State &state) const;
+
+    // Every kind this registry knows, built-ins first in the order the block
+    // menu lists them, then module kinds in registration order.
+    //
+    // A list, not a hash: the block menu emits a group heading whenever an
+    // entry's group differs from the one before it, and breaks search ties by
+    // catalog position. Iterating a hash there would give duplicate headings
+    // and results that changed between runs.
+    QList<const BlockKindDef *> all() const;
 
     // The registered fence languages, built-ins included.
     QStringList languages() const;
@@ -114,6 +127,13 @@ private:
 
     QHash<QString, Entry> m_byLanguage;
     QHash<int, QString> m_delegateByKind;
+    // Defs a module supplied, and the adapters made for a module that
+    // registered a fence language without one. Both are keyed by kind number
+    // and neither is owned; the adapters are the one exception and are held
+    // in m_ownedAdapters below.
+    QHash<int, const BlockKindDef *> m_moduleDefs;
+    QList<int> m_moduleOrder;
+    QList<std::shared_ptr<const BlockKindDef>> m_ownedAdapters;
     int m_nextKind = FirstRegisteredKind;
 };
 

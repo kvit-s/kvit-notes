@@ -15,6 +15,7 @@
 
 class UndoStack;
 class UndoCommand;
+class BlockKindDef;
 
 class BlockModel : public QAbstractListModel
 {
@@ -56,7 +57,16 @@ public:
         // Appended last; role values are persisted in tests, so nothing
         // above renumbers.
         TodoProgressRole,
-        MathNumberRole
+        MathNumberRole,
+        // Answered by the block's kind rather than derived here: which entry
+        // of the type scale it renders at, and whether the alignment buttons
+        // apply to it. Both were literal lists in QML — a switch over block
+        // types in Typography, and `alignableTypes: [0, 1, 2, 3, 10, 11]` in
+        // the toolbar — which is two more places a new kind had to reach and
+        // nothing said so. Appended last: role values are asserted in tests,
+        // so nothing above renumbers.
+        FontRoleRole,
+        IsAlignableRole
     };
 
     // The DelegateChooser watches this role instead of the raw type:
@@ -74,27 +84,27 @@ public:
     // through BlockKindRegistry, which is what lets a linked module add a
     // fence kind of its own without touching this file; the constants below
     // stay as the names the rest of the code and the tests already use.
-    static constexpr int KanbanKind = BlockKinds::Kanban;
+    static constexpr int KanbanKind = static_cast<int>(BlockKind::Kanban);
     // A table of contents is a `toc`-tagged code fence: no new stored type,
     // just this derived kind so the chooser renders the read-only linked TOC
     // instead of a plain code block.
-    static constexpr int TocKind = BlockKinds::Toc;
+    static constexpr int TocKind = static_cast<int>(BlockKind::Toc);
     // An embed is an image expression ![](url) whose URL is a web page or
     // video host: no new stored type, a derived kind from the CONTENT so the
     // chooser renders a preview card. Because it depends on content (not just
     // type), the kind is computed by delegateKindForContent, used wherever the
     // role is derived.
-    static constexpr int EmbedKind = BlockKinds::Embed;
+    static constexpr int EmbedKind = static_cast<int>(BlockKind::Embed);
     // A Mermaid diagram is a `mermaid`-tagged code fence: no new stored type, a
     // derived kind so the chooser renders the native diagram instead of a plain
     // code block, exactly like `kanban`/`toc`. Character diagrams (`diagram`
     // fences) carry no kind of their own: the tag marks the fence for ingest
     // straightening and the block renders as an ordinary code block.
-    static constexpr int MermaidKind = BlockKinds::Mermaid;
+    static constexpr int MermaidKind = static_cast<int>(BlockKind::Mermaid);
     // A collection query is a `query`-tagged code fence: no new stored type, a
     // derived kind so the chooser renders the live table/board over the
     // collection's front-matter.
-    static constexpr int QueryKind = BlockKinds::Query;
+    static constexpr int QueryKind = static_cast<int>(BlockKind::Query);
     // Content-aware delegate kind: an Image/Media block whose URL is an embed
     // becomes EmbedKind; everything else falls back to the type/language kind.
     // The fence registry this model resolves kinds against. AppContext wires
@@ -328,6 +338,10 @@ private:
     // is read-only) and every in-app edit goes through the model's own
     // undo-aware API.
     void watchBlock(Block *block);
+    // The kind-derived roles a change invalidated; see the definition.
+    void appendKindRoles(QVector<int> *roles, const Block *block,
+                         const BlockKindDef *oldKind,
+                         int oldDelegateKind) const;
     void onBlockMutated(Block *block, int role);
     // True while the model itself is writing a block, so the subscription
     // above does not double-handle a change the caller already published.

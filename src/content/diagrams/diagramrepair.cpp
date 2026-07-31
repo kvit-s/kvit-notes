@@ -34,16 +34,6 @@ bool isEdgeJunction(QChar c) { return DiagramGlyphs::isEdgeJunction(c); }
 bool isWall(QChar c) { return DiagramGlyphs::isWall(c); }
 bool isConnector(QChar c) { return DiagramGlyphs::isConnector(c); }
 
-QChar at(const QStringList &lines, int row, int col)
-{
-    if (row < 0 || row >= lines.size())
-        return QChar();
-    const QString &l = lines.at(row);
-    if (col < 0 || col >= l.size())
-        return QChar();
-    return l.at(col);
-}
-
 // ---- zero-shift edits ----
 //
 // Every mutation swaps a character with adjacent spaces or edge fill, so no

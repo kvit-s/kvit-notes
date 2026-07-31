@@ -40,6 +40,10 @@ BlockDelegateBase {
     required property string language
     required property string calloutTitle
     required property string attributes
+    // See EditableBlock: the kind answers the type scale and whether the
+    // alignment buttons apply.
+    required property int fontRole
+    required property bool isAlignable
 
     property int blockIndex: index
     property bool isPooled: false
@@ -55,11 +59,11 @@ BlockDelegateBase {
     readonly property var appTheme: Theme
     readonly property var appTypography: Typography
     readonly property int contentFontSize: {
-        // sizeForBlockType() is invokable C++; explicitly read baseSize so the
+        // sizeForRole() is invokable C++; explicitly read baseSize so the
         // QML binding subscribes to typographyChanged and live size changes
         // re-evaluate already-instantiated delegates.
         var baseSize = Typography.baseSize
-        return Typography.sizeForBlockType(root.blockType)
+        return Typography.sizeForRole(root.fontRole)
     }
     readonly property int contentFontWeight: {
         switch (root.blockType) {
@@ -597,6 +601,8 @@ BlockDelegateBase {
             language: root.language || ""
             calloutTitle: root.calloutTitle || ""
             attributes: root.attributes || ""
+            fontRole: root.fontRole
+            isAlignable: root.isAlignable
             isPooled: root.isPooled
             enableLightweightReadOnly: false
             // Inside the Loader the ListView.view attached property no

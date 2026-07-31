@@ -32,6 +32,10 @@ BlockDelegateBase {
     // Per-block presentation attributes: alignment and the image effects
     // (rounded/shadow/border/aspect).
     required property string attributes
+    // Whether the alignment buttons apply, answered by the block's kind. The
+    // toolbar and the block context menu each carried a literal list of block
+    // type numbers before, and an image was in both of them.
+    required property bool isAlignable
 
     // Image alignment (features.md §9.2). Unlike text, an image defaults to
     // centered, so an unstyled image is unchanged; only an explicit

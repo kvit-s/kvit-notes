@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "documentselection.h"
+#include "blockkinddef.h"
 #include "inlinemarkdown.h"
 #include "blockmodel.h"
 #include "block.h"
@@ -473,7 +474,7 @@ QString DocumentSelection::rangeMarkdown() const
         QString text;
         if (fullBlock) {
             text = serializer.serializeBlock(block, m_model->ordinalAt(i));
-        } else if (block->blockType() == Block::CodeBlock) {
+        } else if (block->kind()->isVerbatim()) {
             // Verbatim content: its offsets ALREADY are markdown offsets, so
             // there is nothing to map. Routing them through the inline
             // markdown mapping treated `*`, `_`, backticks, `[`, and `$` in

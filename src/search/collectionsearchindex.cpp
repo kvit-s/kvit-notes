@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "collectionsearchindex.h"
+#include "blockkinddef.h"
+#include "blockkinds.h"
 
 #include "block.h"
 #include "documentserializer.h"
@@ -732,9 +734,11 @@ IndexedNote CollectionSearchIndex::parseNote(const QString &relPath,
     const NoteFrontMatter::Split split = NoteFrontMatter::split(fileText);
     note.tags = NoteFrontMatter::parse(split.block).tags;
 
-    // The same block split and display-text rule the editor and the note-list
-    // scan use, so search matches exactly what the editor shows. Divider
-    // blocks have empty searchable text.
+    // The same block split and searchable-text rule the editor uses, so a
+    // search matches what the editor shows. Both questions are the block
+    // kind's to answer: whether its content is verbatim (a code fence's text
+    // IS its markdown, so a match's offsets need no mapping) and what text a
+    // match is found in (a divider has none).
     DocumentSerializer serializer;
     const QList<DocumentSerializer::BlockData> blocks =
         serializer.parse(split.body);
@@ -742,13 +746,9 @@ IndexedNote CollectionSearchIndex::parseNote(const QString &relPath,
     for (const DocumentSerializer::BlockData &block : blocks) {
         IndexedBlock indexed;
         indexed.blockIndex = blockIndex++;
-        indexed.verbatim = block.type == Block::CodeBlock;
-        if (block.type == Block::Divider) {
-            indexed.displayText = QString();
-        } else {
-            const Block cachedBlock(block.type, block.content);
-            indexed.displayText = cachedBlock.displayText();
-        }
+        const BlockKindDef *kind = BlockKindDefs::forState(block);
+        indexed.verbatim = kind->isVerbatim();
+        indexed.displayText = kind->searchText(block);
         note.blocks.append(indexed);
     }
     return note;

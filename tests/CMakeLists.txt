@@ -133,6 +133,14 @@ qt_add_executable(test_commands test_commands.cpp)
 target_link_libraries(test_commands PRIVATE kvit-core Qt6::Test)
 add_test(NAME CommandsTests COMMAND test_commands)
 
+# Block kinds: the per-kind corpus. Every kind round-trips its markdown,
+# carries its attribute tag where the parser expects it, and exports as
+# something in both formats — over every kind the enumeration holds, rather
+# than over a list written here.
+qt_add_executable(test_blockkinddef test_blockkinddef.cpp)
+target_link_libraries(test_blockkinddef PRIVATE kvit-core Qt6::Test)
+add_test(NAME BlockKindDefTests COMMAND test_blockkinddef)
+
 # BlockModel tests
 qt_add_executable(test_blockmodel test_blockmodel.cpp)
 target_link_libraries(test_blockmodel PRIVATE kvit-core Qt6::Test)
@@ -648,6 +656,14 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME LayeringGuard
              COMMAND ${Python3_EXECUTABLE}
                      ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-layering.py)
+
+    # Block kinds. Almost everything decided per kind is a pure virtual, so a
+    # kind that has not answered something does not compile; this covers the
+    # two things a compiler cannot see — an enumerator with no class, and a
+    # delegate URL naming QML that is not in the binary.
+    add_test(NAME BlockKindsGuard
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-block-kinds.py)
 endif()
 
 # Static QML analysis, as a test rather than only as a script somebody has to
@@ -724,6 +740,11 @@ get_property(_kvit_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 foreach(_target IN LISTS _kvit_test_targets)
     if(_target MATCHES "^test_")
         set_target_properties(${_target} PROPERTIES WIN32_EXECUTABLE FALSE)
+        # The same warnings the modules under src/ are compiled with
+        # (KVIT_WARNING_FLAGS, set in the root CMakeLists). A test is this
+        # repository's code too, and -Werror=switch is worth as much in a
+        # suite that switches over a block kind as in the code it covers.
+        target_compile_options(${_target} PRIVATE ${KVIT_WARNING_FLAGS})
     endif()
 endforeach()
 

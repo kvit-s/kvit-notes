@@ -22,6 +22,6 @@ EditableBlock {
     contentFontFamily: Typography.monoFamily
     contentFontSize: {
         var base = Typography.baseSize  // re-evaluation dependency
-        return Typography.sizeForBlockType(root.blockType)
+        return Typography.sizeForRole(root.fontRole)
     }
 }

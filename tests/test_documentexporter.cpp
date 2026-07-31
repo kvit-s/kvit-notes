@@ -93,6 +93,30 @@ private slots:
     void testImagesAreCappedToThePageWidth();
     void testRichBlockReviewArtifact();
 
+    // The block's <!--kvit …--> presentation attributes, which an export
+    // dropped entirely while it rendered a snapshot struct that had no
+    // attributes field.
+    void testParagraphAlignmentReachesTheExport();
+    void testHeadingAlignmentReachesTheExport();
+    void testDropCapCapsTheFirstRenderedCharacter();
+    void testDividerStyleReachesTheExport();
+    void testUnstyledBlocksExportWithoutStyleAttributes();
+    void testImageEffectsAndAlignmentReachTheExport();
+    void testCalloutColourOverrideReachesTheExport();
+    void testTableColumnWidthsReachTheExport();
+    void testAttributeColoursThatAreNotColoursAreDropped();
+
+    // Plain-text export of the blocks that used to write their own source.
+    void testKanbanFenceExportsAsABoardNotItsMarkdown();
+    void testQueryFenceExportsItsAnswerAsText();
+    void testTocFenceExportsTheDocumentsHeadings();
+    void testTableExportsAsAnAlignedTextTable();
+    void testCalloutAndMediaCarryWhatTheyAreInText();
+    void testMermaidTextIsLabelledSource();
+    void testDisplayMathKeepsItsTeXInText();
+    void testTodoMetadataSurvivesTheText();
+    void testNestedNumberedListsRestartTheirNumbering();
+
 private:
     DocumentExporter m_exporter;
 
@@ -1015,7 +1039,7 @@ void seedProjects(NoteCollection *coll, const QString &root)
         const QString abs = QDir(root).filePath(rel);
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QFile f(abs);
-        f.open(QIODevice::WriteOnly);
+        QVERIFY(f.open(QIODevice::WriteOnly));
         f.write(text.toUtf8());
     };
     write("Projects/Alpha.md",
@@ -1215,6 +1239,298 @@ void TestDocumentExporter::testRichBlockReviewArtifact()
     QVERIFY(html.contains("<pre class=\"text-diagram\">"));
     QVERIFY(html.contains("<img"));
     m_exporter.setCollection(nullptr);
+}
+
+// ---- presentation attributes ----
+//
+// Everything below covers the same defect: a block's <!--kvit …--> payload
+// never reached the HTML builder, because the builder rendered a private copy
+// of the block struct with `attributes` left out and both loops that filled it
+// dropped the field. So alignment, drop caps, divider styles, image effects,
+// callout colours and table column widths were absent from every HTML and PDF
+// export, and no test noticed because no test had an attribute in it.
+
+void TestDocumentExporter::testParagraphAlignmentReachesTheExport()
+{
+    const QString html =
+        m_exporter.htmlForMarkdown("centred  <!--kvit align=center-->");
+    QVERIFY(html.contains("<p style=\"text-align:center\">centred</p>"));
+
+    const QString right =
+        m_exporter.htmlForMarkdown("right  <!--kvit align=right-->");
+    QVERIFY(right.contains("<p style=\"text-align:right\">right</p>"));
+}
+
+void TestDocumentExporter::testHeadingAlignmentReachesTheExport()
+{
+    const QString html =
+        m_exporter.htmlForMarkdown("# Title  <!--kvit align=center-->");
+    QVERIFY(html.contains(
+        "<h1 id=\"title\" style=\"text-align:center\">Title</h1>"));
+}
+
+// The initial is the first character the reader sees, not the first character
+// of the markdown: a paragraph opening in bold caps the letter, not the
+// asterisk, and stays bold. That is what the editor's overlay does, and
+// walking the rendered HTML gets the same answer.
+void TestDocumentExporter::testDropCapCapsTheFirstRenderedCharacter()
+{
+    const QString plain =
+        m_exporter.htmlForMarkdown("Once upon a time  <!--kvit dropcap=3-->");
+    QVERIFY(plain.contains("<span class=\"dropcap\" style=\"font-size:3.45em\">O"
+                           "</span>nce upon a time"));
+
+    const QString bold = m_exporter.htmlForMarkdown(
+        "**Bold** opening  <!--kvit dropcap=3-->");
+    QVERIFY(bold.contains("<strong><span class=\"dropcap\""));
+    QVERIFY(bold.contains(">B</span>old</strong>"));
+
+    // Under two lines is not a drop cap, which is the delegate's rule too.
+    const QString off =
+        m_exporter.htmlForMarkdown("Small  <!--kvit dropcap=1-->");
+    QVERIFY(!off.contains("<span class=\"dropcap\""));
+
+    // The stored colour and family ride the span.
+    const QString styled = m_exporter.htmlForMarkdown(
+        "Fancy  <!--kvit dropcap=4 dropcapcolor=#c1121f dropcapfont=Georgia-->");
+    QVERIFY(styled.contains("color:#c1121f"));
+    QVERIFY(styled.contains("font-family:'Georgia'"));
+}
+
+void TestDocumentExporter::testDividerStyleReachesTheExport()
+{
+    const QString dashed =
+        m_exporter.htmlForMarkdown("---  <!--kvit style=dashed thickness=4-->");
+    QVERIFY(dashed.contains("border-top-width:4px"));
+    QVERIFY(dashed.contains("border-top-style:dashed"));
+
+    const QString half =
+        m_exporter.htmlForMarkdown("---  <!--kvit width=50%-->");
+    QVERIFY(half.contains("width:50%"));
+    QVERIFY(half.contains("margin-left:auto"));
+
+    // The decorative rule is a diamond between two segments, which is the
+    // motif the canvas paints.
+    const QString deco =
+        m_exporter.htmlForMarkdown("---  <!--kvit style=decorative-->");
+    QVERIFY(deco.contains("class=\"hr-deco\""));
+    QVERIFY(deco.contains("&#9670;"));
+}
+
+// The common case is a block with no attributes at all, and it must export
+// byte-identically to what it exported before any of this existed.
+void TestDocumentExporter::testUnstyledBlocksExportWithoutStyleAttributes()
+{
+    const QString html = m_exporter.htmlForMarkdown(
+        "Plain paragraph\n\n# Plain heading\n\n---\n\n| A | B |\n| --- | --- |\n| 1 | 2 |");
+    QVERIFY(html.contains("<p>Plain paragraph</p>"));
+    QVERIFY(html.contains("<h1 id=\"plain-heading\">Plain heading</h1>"));
+    QVERIFY(html.contains("<hr>"));
+    QVERIFY(html.contains("<table><tr><th>A</th>"));
+    QVERIFY(!html.contains("<colgroup>"));
+}
+
+void TestDocumentExporter::testImageEffectsAndAlignmentReachTheExport()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString png = dir.path() + QStringLiteral("/pic.png");
+    QImage(4, 4, QImage::Format_RGB32).save(png);
+    m_exporter.setImageContext(dir.path(), dir.path());
+
+    const QString html = m_exporter.htmlForMarkdown(
+        "![alt](pic.png)  <!--kvit align=left rounded=8 shadow border-->");
+    QVERIFY(html.contains("border-radius:8px"));
+    QVERIFY(html.contains("box-shadow:"));
+    QVERIFY(html.contains("<figure style=\"text-align:left\">"));
+    // A bare `border` flag means the theme's own border colour, which the
+    // block cannot reach: the stylesheet names it once for this class.
+    QVERIFY(html.contains("<img alt=\"alt\""));
+    QVERIFY(html.contains("class=\"bordered\""));
+    QVERIFY(html.contains("img.bordered{border:1px solid"));
+
+    // A colour of its own is written on the image, not through the class.
+    const QString custom = m_exporter.htmlForMarkdown(
+        "![alt](pic.png)  <!--kvit border=#c1121f-->");
+    QVERIFY(custom.contains("border:1px solid #c1121f"));
+    QVERIFY(!custom.contains("class=\"bordered\""));
+
+    // A bare `rounded` flag means the delegate's default radius.
+    const QString bare = m_exporter.htmlForMarkdown(
+        "![alt](pic.png)  <!--kvit rounded-->");
+    QVERIFY(bare.contains("border-radius:12px"));
+
+    // Centred is the image default on screen, so it writes no rule.
+    const QString plain = m_exporter.htmlForMarkdown("![alt](pic.png)");
+    QVERIFY(plain.contains("<figure>"));
+    m_exporter.setImageContext(QString(), QString());
+}
+
+void TestDocumentExporter::testCalloutColourOverrideReachesTheExport()
+{
+    const QString html = m_exporter.htmlForMarkdown(
+        "> [!info] Heads up  <!--kvit color=#2970c8-->\n> body");
+    QVERIFY(html.contains("border-left-color:#2970c8"));
+    QVERIFY(html.contains("<div class=\"title\" style=\"color:#2970c8\">"));
+}
+
+void TestDocumentExporter::testTableColumnWidthsReachTheExport()
+{
+    const QString html = m_exporter.htmlForMarkdown(
+        "| A | B |  <!--kvit cols=120,0-->\n| --- | --- |\n| 1 | 2 |");
+    QVERIFY(html.contains("<colgroup><col style=\"width:120px\"><col></colgroup>"));
+}
+
+// A note is untrusted input: it can arrive by import or by sync, and its
+// bytes end up inside a style attribute of a document the reader may pass on.
+// A payload that is not a colour writes no declaration rather than escaping
+// into one of its own.
+void TestDocumentExporter::testAttributeColoursThatAreNotColoursAreDropped()
+{
+    const QString html = m_exporter.htmlForMarkdown(
+        "---  <!--kvit color=red;background:url(http://x)-->");
+    QVERIFY(!html.contains("background:url"));
+    QVERIFY(!html.contains("border-top-color"));
+
+    const QString quoted = m_exporter.htmlForMarkdown(
+        "> [!info] T  <!--kvit color=\"#fff\"-->\n> body");
+    QVERIFY(!quoted.contains("border-left-color"));
+
+    // A bare colour word and a hex triplet are both real colours and survive.
+    const QString word =
+        m_exporter.htmlForMarkdown("---  <!--kvit color=crimson-->");
+    QVERIFY(word.contains("border-top-color:crimson"));
+}
+
+// ---- plain-text export ----
+//
+// A `.txt` export wrote a fenced block's source, which for a query is its
+// `from:`/`where:` spec, for a board is the kanban markdown and for a table is
+// the pipe syntax — the one part of each block a reader never sees on screen.
+// Each of these asserts that what the editor draws is what the text file says.
+
+void TestDocumentExporter::testKanbanFenceExportsAsABoardNotItsMarkdown()
+{
+    const QString text = m_exporter.plainTextForMarkdown(
+        "```kanban\n## To do\n- [ ] Ship it #release 📅 2026-07-15\n"
+        "  Needs a changelog\n- [x] Draft the notes\n## Done\n```");
+
+    QVERIFY(text.contains("To do (2)"));
+    QVERIFY(text.contains("Done (0)"));
+    QVERIFY(text.contains("[ ] Ship it"));
+    QVERIFY(text.contains("[x] Draft the notes"));
+    QVERIFY(text.contains("#release"));
+    QVERIFY(text.contains("(due 2026-07-15)"));
+    QVERIFY(text.contains("Needs a changelog"));
+    // Not the fence's own markdown.
+    QVERIFY(!text.contains("## To do"));
+    QVERIFY(!text.contains("- [ ] Ship it"));
+}
+
+void TestDocumentExporter::testQueryFenceExportsItsAnswerAsText()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    seedProjects(&coll, root.path());
+    m_exporter.setCollection(&coll);
+
+    const QString text = m_exporter.plainTextForMarkdown(
+        "```query\nfrom: Projects/\nwhere: status = active\n"
+        "columns: title, owner, due\nsort: due asc\n```");
+
+    QVERIFY(text.contains("2 notes"));
+    QVERIFY(text.contains("Beta"));
+    QVERIFY(text.contains("Dana"));
+    QVERIFY(!text.contains("where: status = active"));
+    QVERIFY(text.indexOf("Beta") < text.indexOf("Alpha"));
+
+    m_exporter.setCollection(nullptr);
+    // With no vault there is nothing to ask, so the spec goes out as source
+    // rather than as a table claiming the query matched nothing.
+    const QString orphan = m_exporter.plainTextForMarkdown(
+        "```query\nfrom: Projects/\n```");
+    QVERIFY(orphan.contains("from: Projects/"));
+}
+
+void TestDocumentExporter::testTocFenceExportsTheDocumentsHeadings()
+{
+    const QString text = m_exporter.plainTextForMarkdown(
+        "# One\n\n```toc\nstale\n```\n\n## Under one\n\n# Two");
+    QVERIFY(text.contains("One\n  Under one\nTwo"));
+    // The fence's own body is written by the editor as the reader types and
+    // is stale in a note nobody has opened; the export reads the document.
+    QVERIFY(!text.contains("stale"));
+}
+
+void TestDocumentExporter::testTableExportsAsAnAlignedTextTable()
+{
+    const QString text = m_exporter.plainTextForMarkdown(
+        "| Name | Owner |\n| --- | --- |\n| Alpha | Dana |\n| B | R |");
+    QVERIFY(text.contains("Name  | Owner"));
+    QVERIFY(text.contains("------+------"));
+    QVERIFY(text.contains("Alpha | Dana"));
+    QVERIFY(text.contains("B     | R"));
+    QVERIFY(!text.contains("| --- |"));
+}
+
+void TestDocumentExporter::testCalloutAndMediaCarryWhatTheyAreInText()
+{
+    const QString callout = m_exporter.plainTextForMarkdown(
+        "> [!warning] Careful\n> Mind the gap");
+    QVERIFY(callout.contains("[WARNING] Careful"));
+    QVERIFY(callout.contains("  Mind the gap"));
+
+    const QString image =
+        m_exporter.plainTextForMarkdown("![A diagram](pic.png \"the caption\")");
+    QVERIFY(image.contains("[image: A diagram] pic.png"));
+    QVERIFY(image.contains("the caption"));
+
+    const QString embed =
+        m_exporter.plainTextForMarkdown("![](https://example.com/page)");
+    QVERIFY(embed.contains("[embed] https://example.com/page"));
+}
+
+void TestDocumentExporter::testMermaidTextIsLabelledSource()
+{
+    const QString text = m_exporter.plainTextForMarkdown(
+        "```mermaid\nflowchart LR\nA-->B\n```");
+    // There is no text rendering of a diagram, so the source stays — but
+    // labelled, so `A-->B` does not read as a line of prose.
+    QVERIFY(text.contains("[mermaid diagram]"));
+    QVERIFY(text.contains("flowchart LR"));
+}
+
+// Display math is verbatim: running its TeX through the inline-markdown pass
+// eats the `_`, `^` and `*` that carry the formula.
+void TestDocumentExporter::testDisplayMathKeepsItsTeXInText()
+{
+    const QString text = m_exporter.plainTextForMarkdown("$$\na_1 * b^2\n$$");
+    QVERIFY(text.contains("a_1 * b^2"));
+}
+
+// A to-do's due date and priority are drawn as chips beside its text, so a
+// reader sees them and an export carries them. The three text projections
+// strip them, because a word count and a search index should not carry an
+// emoji tail; an export is neither of those.
+void TestDocumentExporter::testTodoMetadataSurvivesTheText()
+{
+    const QString text =
+        m_exporter.plainTextForMarkdown("- [ ] Ship it 📅 2026-07-15 ⏫");
+    QVERIFY(text.contains("[ ] Ship it"));
+    QVERIFY(text.contains("2026-07-15"));
+    QVERIFY(text.contains("⏫"));
+}
+
+// One counter per indent level, as the editor numbers them. A flat counter
+// numbers a two-level list 1, 2, 3, 4.
+void TestDocumentExporter::testNestedNumberedListsRestartTheirNumbering()
+{
+    const QString text = m_exporter.plainTextForMarkdown(
+        "1. one\n   1. sub one\n   2. sub two\n2. two");
+    QVERIFY(text.contains("1. one"));
+    QVERIFY(text.contains("  1. sub one"));
+    QVERIFY(text.contains("  2. sub two"));
+    QVERIFY(text.contains("2. two"));
 }
 
 QTEST_MAIN(TestDocumentExporter)

@@ -45,6 +45,13 @@ BlockDelegateBase {
     // the block's <!--kvit ...--> tag. Read for text alignment (paragraph /
     // heading) and a callout's custom color; edited through setBlockAlignment.
     required property string attributes
+    // Answered by the block's kind rather than by a list in QML: which entry
+    // of the type scale it renders at, and whether the alignment buttons
+    // apply to it. Both used to be literal block-type lists here and in the
+    // toolbar, which is two more places a new kind of block had to reach and
+    // nothing checked that it had.
+    required property int fontRole
+    required property bool isAlignable
 
     property int blockIndex: index
     property bool isPooled: false

@@ -199,27 +199,17 @@ Popup {
         }
         // A "/code <language>" row carries the language to seed.
         var lang = row.language !== undefined ? row.language : ""
-        // A Task Board (kanban fence) starts with three empty columns so the
-        // board renders something to drop cards into, all in the one
-        // convertBlock undo step. A Table of Contents (toc fence) seeds with
-        // the document's current headings so its stored body is correct from
-        // insertion.
-        var seed = lang === "kanban" ? "## To do\n## In progress\n## Done"
-                 : (lang === "toc" ? DocumentOutline.tocMarkdown()
-                 : (lang === "mermaid"
-                    ? "flowchart LR\n"
-                      + "  A[Start] --> B{Decision}\n"
-                      + "  B -->|yes| C[Done]\n"
-                      + "  B -->|no| A"
-                 // Collection query: a commented starter spec the user
-                 // uncomments and adapts.
-                 : (lang === "query"
-                    ? "# from: projects/\n"
-                      + "# where: status = active\n"
-                      + "view: table\n"
-                      + "columns: title, tags, modified\n"
-                      + "sort: modified desc"
-                    : "")))
+        // The starter content the block is created with, all in the one
+        // convertBlock undo step. Every kind that has one states it on its
+        // own menu row — a task board's three empty columns, a diagram's
+        // small flowchart, a query's commented starter spec.
+        var seed = row.seed !== undefined ? row.seed : ""
+        // The one exception, and it cannot move onto the row: a table of
+        // contents seeds with THIS document's current headings, so its stored
+        // body is correct from the moment it is inserted. A block kind is a
+        // description of a kind and has no document to read.
+        if (lang === "toc")
+            seed = DocumentOutline.tocMarkdown()
         BlockModel.convertBlock(idx, type, seed, false, lang)
         applied(idx, type)
     }

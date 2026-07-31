@@ -42,6 +42,15 @@ class Typography : public QObject
                    WRITE setMaxContentWidth NOTIFY typographyChanged)
     Q_PROPERTY(QString monoFamily READ monoFamily WRITE setMonoFamily
                    NOTIFY typographyChanged)
+    // The two sizes chrome asks for by name rather than per block: ordinary
+    // body text, and the monospace size code is set at. A diagram's labels, a
+    // query block's table and a math block's fallback text all want one of
+    // these, and they used to ask by passing Block::Paragraph or
+    // Block::CodeBlock to the size lookup as a stand-in — which read as
+    // "size this as a paragraph would be" and made those call sites look like
+    // block-type decisions when they are not.
+    Q_PROPERTY(int bodySize READ bodySize NOTIFY typographyChanged)
+    Q_PROPERTY(int monoSize READ monoSize NOTIFY typographyChanged)
 
 public:
     // Clamps: wide enough for every reasonable preference, tight
@@ -68,10 +77,18 @@ public:
     QString monoFamily() const { return m_monoFamily; }
     void setMonoFamily(const QString &family);
 
-    // The type-scale: the pixel size a block type renders at, derived
-    // from the base size by the frozen ratios (Block::BlockType ints;
-    // headings and code blocks differ, everything else is the base).
-    Q_INVOKABLE int sizeForBlockType(int blockType) const;
+    // The type-scale: the pixel size a font role renders at, derived from the
+    // base size by the frozen ratios. The role is a FontRole, handed across as
+    // an int because that is what a model role carries into QML; a block's
+    // kind answers which one it is.
+    //
+    // This used to switch over Block::BlockType, which made it one more place
+    // that had to learn about a new kind of block, and it learned by silently
+    // giving anything it did not recognise the body size.
+    Q_INVOKABLE int sizeForRole(int fontRole) const;
+
+    int bodySize() const;
+    int monoSize() const;
 
     // Fixed-pitch families for the mono picker (QFontDatabase).
     Q_INVOKABLE QStringList monospaceFamilies() const;

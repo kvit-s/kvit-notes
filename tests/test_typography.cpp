@@ -12,6 +12,7 @@
 #include "settingsstore.h"
 #include "blockeditorengine.h"
 #include "block.h"
+#include "blockkind.h"
 
 // Typography settings: the frozen ratio type scale, clamped
 // setters, persistence, and the engine's
@@ -51,14 +52,16 @@ void TestTypography::testDefaultScaleIsLegacyPixelValues()
     // The legacy hard-coded sizes, now derived: defaults render pixel-identical.
     Typography t;
     QCOMPARE(t.baseSize(), 15);
-    QCOMPARE(t.sizeForBlockType(Block::Heading1), 32);
-    QCOMPARE(t.sizeForBlockType(Block::Heading2), 24);
-    QCOMPARE(t.sizeForBlockType(Block::Heading3), 20);
-    QCOMPARE(t.sizeForBlockType(Block::Heading4), 17);
-    QCOMPARE(t.sizeForBlockType(Block::CodeBlock), 13);
-    QCOMPARE(t.sizeForBlockType(Block::Paragraph), 15);
-    QCOMPARE(t.sizeForBlockType(Block::BulletList), 15);
-    QCOMPARE(t.sizeForBlockType(Block::Quote), 15);
+    QCOMPARE(t.sizeForRole(int(FontRole::Heading1)), 32);
+    QCOMPARE(t.sizeForRole(int(FontRole::Heading2)), 24);
+    QCOMPARE(t.sizeForRole(int(FontRole::Heading3)), 20);
+    QCOMPARE(t.sizeForRole(int(FontRole::Heading4)), 17);
+    QCOMPARE(t.sizeForRole(int(FontRole::Mono)), 13);
+    QCOMPARE(t.sizeForRole(int(FontRole::Body)), 15);
+    // Everything that is not a heading and not code is body text, and asks
+    // for it by name rather than by being absent from a switch.
+    QCOMPARE(t.bodySize(), 15);
+    QCOMPARE(t.monoSize(), 13);
     QCOMPARE(t.lineHeight(), 1.0);
     QCOMPARE(t.paragraphSpacing(), 8);
     QCOMPARE(t.maxContentWidth(), 0);
@@ -84,21 +87,21 @@ void TestTypography::testScaleDerivesFromBase()
     QFETCH(int, code);
     Typography t;
     t.setBaseSize(base);
-    QCOMPARE(t.sizeForBlockType(Block::Heading1), h1);
-    QCOMPARE(t.sizeForBlockType(Block::CodeBlock), code);
-    QCOMPARE(t.sizeForBlockType(Block::Paragraph), base);
+    QCOMPARE(t.sizeForRole(int(FontRole::Heading1)), h1);
+    QCOMPARE(t.sizeForRole(int(FontRole::Mono)), code);
+    QCOMPARE(t.sizeForRole(int(FontRole::Body)), base);
     // Order always holds: H1 > H2 > H3 > H4 >= body > code... at least
     // never inverted.
-    QVERIFY(t.sizeForBlockType(Block::Heading1)
-            > t.sizeForBlockType(Block::Heading2));
-    QVERIFY(t.sizeForBlockType(Block::Heading2)
-            > t.sizeForBlockType(Block::Heading3));
-    QVERIFY(t.sizeForBlockType(Block::Heading3)
-            > t.sizeForBlockType(Block::Heading4));
-    QVERIFY(t.sizeForBlockType(Block::Heading4)
-            >= t.sizeForBlockType(Block::Paragraph));
-    QVERIFY(t.sizeForBlockType(Block::Paragraph)
-            > t.sizeForBlockType(Block::CodeBlock));
+    QVERIFY(t.sizeForRole(int(FontRole::Heading1))
+            > t.sizeForRole(int(FontRole::Heading2)));
+    QVERIFY(t.sizeForRole(int(FontRole::Heading2))
+            > t.sizeForRole(int(FontRole::Heading3)));
+    QVERIFY(t.sizeForRole(int(FontRole::Heading3))
+            > t.sizeForRole(int(FontRole::Heading4)));
+    QVERIFY(t.sizeForRole(int(FontRole::Heading4))
+            >= t.sizeForRole(int(FontRole::Body)));
+    QVERIFY(t.sizeForRole(int(FontRole::Body))
+            > t.sizeForRole(int(FontRole::Mono)));
 }
 
 void TestTypography::testClamps()

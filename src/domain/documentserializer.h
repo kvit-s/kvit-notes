@@ -20,16 +20,19 @@ class DocumentSerializer : public QObject
 public:
     explicit DocumentSerializer(QObject *parent = nullptr);
 
-    // Block data structure for parsing results
-    struct BlockData {
-        Block::BlockType type = Block::Paragraph;
-        QString content;
-        int indentLevel = 0;
-        bool checked = false;
-        QString language;
-        QString calloutTitle;
-        QString attributes;
-    };
+    // What a parse produces, and what a block holds: one type, not two.
+    //
+    // This was its own seven-field struct, field-for-field identical to
+    // Block::State. Being a copy is what made it lossy — the exporter kept a
+    // third copy of the same fields with `attributes` left out, so every
+    // alignment, drop cap, divider style and image effect was dropped on the
+    // way to HTML and PDF. Nobody decided that; a struct was copied and a
+    // field was not. There is now one snapshot type, so the next field added
+    // to a block reaches every consumer or none.
+    //
+    // The name survives as an alias because it reads well at the call sites
+    // that mean "one parsed block" rather than "one block's state".
+    using BlockData = Block::State;
 
     // Serialize blocks to Markdown string
     Q_INVOKABLE QString serialize(BlockModel *model) const;

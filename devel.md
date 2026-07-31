@@ -341,13 +341,23 @@ module contributes legible from the core:
   evidence for this is in "One composition root, in production and in tests"
   below: the Qt Quick harness had drifted from the real object graph without a
   single failing test, and shared mutable setup is how that stays invisible.
-- **Block-kind numbers exist once.** `BlockKinds` is a `Q_NAMESPACE` enum
-  registered to QML, so `main.qml` writes `roleValue: BlockKinds.Kanban`
-  instead of `100` with a comment naming the C++ constant. Two guards in
-  `test_shell.cpp` hold the pairing: every enumerator must be named by the
-  shipped shell, and the shell must not hard-code any kind's number. Adding a
-  kind with no delegate fails the suite naming the missing token, where it
-  previously rendered an empty row in silence.
+- **A block kind is one class.** Every question decided per kind is a pure
+  virtual on `BlockKindDef` (`src/domain/blockkinddef.h`): how the kind
+  serializes, what its three text projections are, whether its content is
+  verbatim, what markup it exports as, which delegate draws it, and what menu
+  rows it contributes. One class per kind lives under
+  `src/domain/blockkinds/`, and a kind that has not answered something does
+  not compile. `BlockKind` (`src/domain/blockkind.h`) is the one enumeration
+  of them, numbered at the values already in use; it is a key rather than
+  something features switch on. The reasoning, and the export defect that
+  prompted it, is [block-arch.md](block-arch.md).
+
+  Two guards cover what the compiler cannot: `BlockKindDefTests` walks the
+  enumeration from its metaobject and checks that every kind has a definition,
+  round-trips its markdown, carries its attribute tag where the parser expects
+  it, and exports as something in both formats; `tools/check-block-kinds.py`
+  (the `BlockKindsGuard` ctest entry) checks the same completeness without a
+  built tree and that every delegate URL a kind names is in `resources.qrc`.
 
 **`KVIT_AGENT=ON` against this checkout stops at configure time with an
 explanation.** The module's sources are deliberately absent here, so the

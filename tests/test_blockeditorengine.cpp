@@ -25,27 +25,27 @@ using FormatRange = InlineMarkdown::FormatRange;
 // Shorthand builders for expected ranges
 static FormatRange marker(int start, int len)
 {
-    return {start, len, FormatRange::Marker};
+    return {start, len, FormatRange::Marker, QString(), QString()};
 }
 static FormatRange bold(int start, int len)
 {
-    return {start, len, FormatRange::Bold};
+    return {start, len, FormatRange::Bold, QString(), QString()};
 }
 static FormatRange italic(int start, int len)
 {
-    return {start, len, FormatRange::Italic};
+    return {start, len, FormatRange::Italic, QString(), QString()};
 }
 static FormatRange boldItalic(int start, int len)
 {
-    return {start, len, FormatRange::BoldItalic};
+    return {start, len, FormatRange::BoldItalic, QString(), QString()};
 }
 static FormatRange codeRange(int start, int len)
 {
-    return {start, len, FormatRange::Code};
+    return {start, len, FormatRange::Code, QString(), QString()};
 }
 static FormatRange colorRange(int start, int len, const QString &value)
 {
-    return {start, len, FormatRange::Color, value};
+    return {start, len, FormatRange::Color, value, QString()};
 }
 // A Link range carries its per-instance target url, so
 // the highlighter can distinguish resolved from unresolved #slug links.
@@ -958,11 +958,12 @@ void TestBlockEditorEngine::testSymmetricTypeLifecycle()
 
     // Format ranges hidden and revealed.
     QCOMPARE(InlineMarkdown::formatRangesForState(md, -1),
-             (QList<FormatRange>{{3, 4, flags}}));
+             (QList<FormatRange>{{3, 4, flags, QString(), QString()}}));
     QCOMPARE(InlineMarkdown::formatRangesForState(md, 0),
-             (QList<FormatRange>{{3, L, FormatRange::Marker},
-                                 {3 + L, 4, flags},
-                                 {3 + L + 4, L, FormatRange::Marker}}));
+             (QList<FormatRange>{{3, L, FormatRange::Marker, QString(), QString()},
+                                 {3 + L, 4, flags, QString(), QString()},
+                                 {3 + L + 4, L, FormatRange::Marker, QString(),
+                                  QString()}}));
 
     // Edit mapping: typing inside hidden content lands in the content.
     auto r = InlineMarkdown::applyDocumentEdit(md, -1, 5, 0, "x");
@@ -1804,8 +1805,6 @@ void TestBlockEditorEngine::testMathSpanRangeAtDocument()
 
 void TestBlockEditorEngine::testShouldAutoPairDollarRules()
 {
-    using E = BlockEditorEngine;
-
     // Plain prose, end of line: pair.
     QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QStringLiteral("It costs "), 9));
     QVERIFY(InlineMarkdown::shouldAutoPairDollarIn(QString(), 0));

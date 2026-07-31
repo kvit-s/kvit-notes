@@ -234,7 +234,7 @@ Item {
             title: qsTr("Align")
             enabled: blockContextMenu.target
                 && blockContextMenu.target.setBlockAlignment !== undefined
-                && [0, 1, 2, 3, 10, 11].indexOf(blockContextMenu.target.blockType) >= 0
+                && blockContextMenu.target.isAlignable === true
             MenuItem {
                 text: qsTr("Left")
                 onTriggered: blockContextMenu.target.setBlockAlignment("left")

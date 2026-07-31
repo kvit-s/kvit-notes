@@ -321,7 +321,7 @@ LayeredLayout layeredLayout(const QList<QSizeF> &sizeIn,
         for (int i : layers[l]) {
             const double crossCenter = cross + crossSize(i) / 2.0;
             const double mainCenter = layerMainStart[l] + layerMainExtent[l] / 2.0;
-            double x, y;
+            double x = 0.0, y = 0.0;
             switch (direction) {
             case Direction::TB: x = crossCenter; y = mainCenter; break;
             case Direction::BT: x = crossCenter; y = totalMain - mainCenter; break;

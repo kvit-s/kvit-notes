@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "blockmodel.h"
+#include "blockkinddef.h"
+#include "blockkinds.h"
 #include "undostack.h"
 #include "textchangecommand.h"
 #include "insertblockcommand.h"
@@ -27,32 +29,35 @@
 void BlockModel::setBlockKindRegistry(BlockKindRegistry *registry)
 {
     m_blockKinds = registry ? registry : &m_ownedBlockKinds;
+    // Blocks already in the document re-resolve. Wiring normally happens
+    // before a document is loaded, but a test builds the model first and
+    // hands it a registry afterwards, and a block that kept the old one would
+    // answer from the wrong table for the rest of its life.
+    for (Block *block : std::as_const(m_blocks))
+        block->setKindRegistry(m_blockKinds);
 }
 
 int BlockModel::delegateKindForBlock(Block::BlockType type,
                                      const QString &language) const
 {
-    if (type == Block::CodeBlock) {
-        // The registry holds the built-in fence languages and any a linked
-        // module claimed at startup; 0 means "not a fence kind", which falls
-        // through to the type's own kind.
-        const int kind = m_blockKinds->kindForLanguage(language);
-        if (kind != 0)
-            return kind;
-    }
-    return delegateKindFor(type);
+    return delegateKindForContent(type, language, QString());
 }
 
 int BlockModel::delegateKindForContent(Block::BlockType type,
                                        const QString &language,
                                        const QString &content) const
 {
-    if (type == Block::Image || type == Block::Media) {
-        const ImageAssets::Parsed p = ImageAssets::parseLine(content);
-        if (p.valid && ImageAssets::isEmbedUrl(p.path))
-            return EmbedKind;
-    }
-    return delegateKindForBlock(type, language);
+    // One resolution, answered by the kind itself. This used to be two
+    // functions and three ranges of integer: an embed test on the content, a
+    // fence-language lookup, and a pair of numeric ranges over the block
+    // type. Each of them was a place a new kind had to be added to, and the
+    // value they produced was a plain int that no switch could be checked
+    // against.
+    Block::State state;
+    state.type = type;
+    state.language = language;
+    state.content = content;
+    return m_blockKinds->defFor(state)->delegateKind();
 }
 
 BlockModel::BlockModel(QObject *parent)
@@ -99,8 +104,7 @@ QVariant BlockModel::data(const QModelIndex &index, int role) const
     case OrdinalRole:
         return ordinalAt(index.row());
     case DelegateKindRole:
-        return delegateKindForContent(block->blockType(), block->language(),
-                                      block->content());
+        return block->kind()->delegateKind();
     case CalloutTitleRole:
         return block->calloutTitle();
     case AttributesRole:
@@ -109,6 +113,10 @@ QVariant BlockModel::data(const QModelIndex &index, int role) const
         return todoProgress(index.row());
     case MathNumberRole:
         return mathNumber(index.row());
+    case FontRoleRole:
+        return static_cast<int>(block->kind()->fontRole());
+    case IsAlignableRole:
+        return block->kind()->isAlignable();
     default:
         return QVariant();
     }
@@ -192,6 +200,8 @@ QHash<int, QByteArray> BlockModel::roleNames() const
     roles[DisplayTextRole] = "displayText";
     roles[TodoProgressRole] = "todoProgress";
     roles[MathNumberRole] = "mathNumber";
+    roles[FontRoleRole] = "fontRole";
+    roles[IsAlignableRole] = "isAlignable";
     return roles;
 }
 
@@ -202,10 +212,35 @@ Qt::ItemFlags BlockModel::flags(const QModelIndex &index) const
     return Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable;
 }
 
+// Which of the kind-derived roles a change to this block just invalidated.
+//
+// Two questions, deliberately separate. The delegate kind decides whether the
+// QML chooser destroys the row and builds a new one, and the most common
+// conversion in the editor — a paragraph becoming a heading, run every time
+// someone types "# " at the start of a line — must not trigger that: all five
+// share one delegate. But it DOES change the heading level and the font size,
+// so the roles that carry those have to be published.
+void BlockModel::appendKindRoles(QVector<int> *roles, const Block *block,
+                                 const BlockKindDef *oldKind,
+                                 int oldDelegateKind) const
+{
+    if (block->kind() == oldKind)
+        return;
+    roles->append(FontRoleRole);
+    roles->append(IsAlignableRole);
+    if (block->kind()->delegateKind() != oldDelegateKind)
+        roles->append(DelegateKindRole);
+}
+
 void BlockModel::watchBlock(Block *block)
 {
     if (!block)
         return;
+    // Every block this model owns resolves its kind against the model's
+    // registry, so a kind a linked module registered reaches it. A block the
+    // model does not own — one a vault scan built on the stack — keeps the
+    // built-in resolution, which needs nothing to be wired.
+    block->setKindRegistry(m_blockKinds);
     const auto publish = [this, block](int role) {
         return [this, block, role] { onBlockMutated(block, role); };
     };
@@ -239,8 +274,13 @@ void BlockModel::onBlockMutated(Block *block, int role)
     QVector<int> roles{role};
     if (role == ContentRole || role == BlockTypeRole)
         roles.append(DisplayTextRole);
-    if (role == ContentRole || role == BlockTypeRole || role == LanguageRole)
+    if (role == ContentRole || role == BlockTypeRole || role == LanguageRole) {
+        // The three writes that can change what kind the block is, and so
+        // everything the kind answers.
         roles.append(DelegateKindRole);
+        roles.append(FontRoleRole);
+        roles.append(IsAlignableRole);
+    }
 
     const QModelIndex modelIndex = createIndex(row, 0);
     emit dataChanged(modelIndex, modelIndex, roles);
@@ -769,51 +809,28 @@ void BlockModel::changeIndentForBlocks(const QVariantList &indexes, int delta)
         m_undoStack->endMacro();
 }
 
-namespace {
-// Whether a block's line breaks are wrapping — something a reader would want
-// folded away — as against content the breaks are part of. A code block's
-// newlines are the code, and the fence-backed types (math, table, and the
-// kanban/diagram/query/toc fences, which are code blocks by type) hold their
-// own multi-line source.
-bool foldsLineBreaks(Block::BlockType type)
-{
-    switch (type) {
-    case Block::Paragraph:
-    case Block::Heading1:
-    case Block::Heading2:
-    case Block::Heading3:
-    case Block::Heading4:
-    case Block::BulletList:
-    case Block::NumberedList:
-    case Block::Todo:
-    case Block::Quote:
-    case Block::Callout:
-        return true;
-    default:
-        return false;
-    }
-}
-} // namespace
-
 QString BlockModel::joinedBlockContent(int index) const
 {
     if (!isValidIndex(index))
         return QString();
     const Block *block = m_blocks.at(index);
     const QString content = block->content();
-    if (!foldsLineBreaks(block->blockType()))
+    // Whether the block's line breaks are wrapping, which a reader may want
+    // folded away, or content the breaks are part of. A code block's newlines
+    // are the code. The kind answers it; this was a switch here with a
+    // default, so a kind added afterwards silently got whichever answer the
+    // default gave.
+    if (!block->kind()->foldsLineBreaks())
         return content;
 
-    const MarkdownFormatter formatter;
-    // A quote's attribution is chrome rendered on its own line below the
-    // body; folding the newline before it would silently turn it into body
-    // text. A todo's metadata tail needs no such care — it sits at the end
-    // of its line already.
-    const QString tail = block->blockType() == Block::Quote
-                             ? formatter.attributionTail(content) : QString();
+    // The trailing run the fold must leave alone. Only the quote has one: its
+    // attribution is chrome on its own last line, and folding the newline in
+    // front of it turns it into body text.
+    const QString tail = block->kind()->unfoldableTail(block->state());
     const QString body = content.left(content.size() - tail.size());
     if (!body.contains(QLatin1Char('\n')))
         return content;
+    const MarkdownFormatter formatter;
     return formatter.joinLines(body) + tail;
 }
 
@@ -1177,15 +1194,13 @@ void BlockModel::updateContentInternal(int index, const QString &content)
 
     InternalChangeScope scope(this);
     Block *block = m_blocks.at(index);
-    const int oldKind = delegateKindForContent(block->blockType(),
-                                               block->language(), block->content());
+    const BlockKindDef *oldKind = block->kind();
+    const int oldDelegateKind = oldKind->delegateKind();
     adjustBlockCountsBeforeChange(block);
     block->setContent(content);
     adjustBlockCountsAfterChange(block);
     QVector<int> roles{ContentRole, DisplayTextRole};
-    if (delegateKindForContent(block->blockType(), block->language(), content)
-        != oldKind)
-        roles.append(DelegateKindRole);
+    appendKindRoles(&roles, block, oldKind, oldDelegateKind);
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, roles);
 }
@@ -1204,9 +1219,8 @@ void BlockModel::updateTypeInternal(int index, int type)
     InternalChangeScope scope(this);
     Block *block = m_blocks.at(index);
     const QList<int> tocBefore = m_tocBlockIndexes;
-    const int oldKind = delegateKindForContent(block->blockType(),
-                                               block->language(),
-                                               block->content());
+    const BlockKindDef *oldKind = block->kind();
+    const int oldDelegateKind = oldKind->delegateKind();
     adjustBlockCountsBeforeChange(block);
     block->setBlockType(static_cast<Block::BlockType>(type));
     invalidateDerivedOrder();
@@ -1214,9 +1228,7 @@ void BlockModel::updateTypeInternal(int index, int type)
     refreshTocBlockIndex(index);
 
     QVector<int> roles{BlockTypeRole, DisplayTextRole};
-    if (delegateKindForContent(block->blockType(), block->language(),
-                               block->content()) != oldKind)
-        roles.append(DelegateKindRole);
+    appendKindRoles(&roles, block, oldKind, oldDelegateKind);
 
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, roles);
@@ -1349,9 +1361,8 @@ void BlockModel::applyStateInternal(int index, const Block::State &state)
     InternalChangeScope scope(this);
     Block *block = m_blocks.at(index);
     const QList<int> tocBefore = m_tocBlockIndexes;
-    const int oldKind = delegateKindForContent(block->blockType(),
-                                               block->language(),
-                                               block->content());
+    const BlockKindDef *oldKind = block->kind();
+    const int oldDelegateKind = oldKind->delegateKind();
     adjustBlockCountsBeforeChange(block);
     block->setState(state);
     invalidateDerivedOrder();
@@ -1364,9 +1375,7 @@ void BlockModel::applyStateInternal(int index, const Block::State &state)
     QVector<int> roles{BlockTypeRole, ContentRole, IndentLevelRole,
                        CheckedRole, LanguageRole, CalloutTitleRole,
                        AttributesRole, DisplayTextRole};
-    if (delegateKindForContent(block->blockType(), block->language(),
-                               block->content()) != oldKind)
-        roles.append(DelegateKindRole);
+    appendKindRoles(&roles, block, oldKind, oldDelegateKind);
 
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, roles);
@@ -1459,8 +1468,10 @@ void BlockModel::initializeWithSampleData()
     m_blocks.append(new Block(Block::Paragraph, "Each block is independent. You can edit them separately.", this));
     m_blocks.append(new Block(Block::Paragraph, "More blocks can be added later with the Enter key.", this));
     for (Block *block : std::as_const(m_blocks)) {
-        addBlockCounts(block);
+        // Watched first: that is what points the block at this model's kind
+        // registry, and the counts below are read through the kind.
         watchBlock(block);
+        addBlockCounts(block);
     }
 
     endResetModel();
@@ -1688,8 +1699,7 @@ int BlockModel::listFamilyRunEnd(int index) const
 
 bool BlockModel::isTocBlock(const Block *block) const
 {
-    return block && block->blockType() == Block::CodeBlock
-           && block->language() == QLatin1String("toc");
+    return block && block->kind()->kind() == BlockKind::Toc;
 }
 
 void BlockModel::refreshTocBlockIndex(int index)

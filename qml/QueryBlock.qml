@@ -567,7 +567,7 @@ BlockDelegateBase {
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content
                 font.family: Typography.monoFamily
-                font.pixelSize: Typography.sizeForBlockType(Block.CodeBlock)
+                font.pixelSize: Typography.monoSize
                 color: Theme.textPrimary
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true

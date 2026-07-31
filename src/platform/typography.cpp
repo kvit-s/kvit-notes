@@ -6,7 +6,7 @@
 #include <QFontDatabase>
 #include <QVariant>
 
-#include "block.h"
+#include "blockkind.h"
 #include "settingsstore.h"
 #include "perflog.h"
 
@@ -139,20 +139,34 @@ void Typography::setMonoFamily(const QString &family)
     emit typographyChanged();
 }
 
-int Typography::sizeForBlockType(int blockType) const
+int Typography::sizeForRole(int fontRole) const
 {
     // The frozen ratios, expressed against the historical 15 px base so
     // the defaults reproduce the original values exactly.
-    qreal numerator;
-    switch (blockType) {
-    case Block::Heading1: numerator = 32.0; break;
-    case Block::Heading2: numerator = 24.0; break;
-    case Block::Heading3: numerator = 20.0; break;
-    case Block::Heading4: numerator = 17.0; break;
-    case Block::CodeBlock: numerator = 13.0; break;
-    default: numerator = 15.0; break;
+    //
+    // No default label, and -Werror=switch is on: a font role added without
+    // a size here stops the build rather than quietly rendering at the body
+    // size, which is how a kind comes to look wrong in a way nobody notices.
+    qreal numerator = 15.0;
+    switch (static_cast<FontRole>(fontRole)) {
+    case FontRole::Heading1: numerator = 32.0; break;
+    case FontRole::Heading2: numerator = 24.0; break;
+    case FontRole::Heading3: numerator = 20.0; break;
+    case FontRole::Heading4: numerator = 17.0; break;
+    case FontRole::Mono:     numerator = 13.0; break;
+    case FontRole::Body:     numerator = 15.0; break;
     }
     return qRound(m_baseSize * numerator / 15.0);
+}
+
+int Typography::bodySize() const
+{
+    return sizeForRole(static_cast<int>(FontRole::Body));
+}
+
+int Typography::monoSize() const
+{
+    return sizeForRole(static_cast<int>(FontRole::Mono));
 }
 
 QStringList Typography::monospaceFamilies() const

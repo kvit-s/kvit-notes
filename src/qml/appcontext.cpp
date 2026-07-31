@@ -98,6 +98,12 @@ void AppContext::wire()
     // module's kinds are visible in every window and every window agrees on the
     // one kind numbering.
     m_blockModel.setBlockKindRegistry(m_globals.blockKinds());
+    // The same registry behind the block menu, so a kind a module registered
+    // is offered in the slash menu as well as drawn on screen.
+    m_blockMenuModel.setBlockKindRegistry(m_globals.blockKinds());
+    // And behind the export, so a module's kind writes its own markup rather
+    // than falling back to the plain code block it looks like without it.
+    m_documentExporter.setBlockKindRegistry(m_globals.blockKinds());
 
     m_documentManager.setBlockModel(&m_blockModel);
     m_documentManager.setUndoStack(&m_undoStack);
@@ -455,16 +461,12 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_appActions);
     KvitQml::attachServices(engine, &m_services);
 
-    // Every property goes through one helper so the published set is
-    // recorded as it is built, and two things read that one list. A test
-    // compares it with the names the shell binds to, so neither side drifts
-    // by hand; and ExtensionRegistry refuses a module namespace that collides
-    // with a name already on it.
+    // The core installs no context properties of its own any more: every one
+    // of them became a QML singleton resolved through the service table
+    // above. The list stays, empty, because it is still what a module's
+    // namespace is checked against alongside the singleton names — and a
+    // future core context property must land on it to be checked at all.
     m_installedProperties.clear();
-    auto publish = [&](const char *name, const auto &value) {
-        m_installedProperties << QString::fromLatin1(name);
-        context->setContextProperty(name, value);
-    };
 
     // The per-block attribute reader/editor: delegates read typed
     // presentation values off a block's `attributes` payload, and the

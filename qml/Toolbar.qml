@@ -95,14 +95,16 @@ Rectangle {
     readonly property bool canConvert:
         targetBlock !== null && targetBlock.convertBlockType !== undefined
 
-    // Alignment (§9.2) applies to paragraphs, headings, and images. The block
-    // exposes setBlockAlignment; the current value comes from blockAlign
-    // (text, default left) or imageAlign (image, default center).
-    readonly property var alignableTypes: [0, 1, 2, 3, 10, 11]  // para, H1-4, image
+    // Alignment (§9.2) applies to paragraphs, headings, and images. Which
+    // kinds those are is the block's own answer, published as the
+    // isAlignable model role; it used to be a literal list of block-type
+    // numbers here and another copy of the same list in the context menu.
+    // The block exposes setBlockAlignment; the current value comes from
+    // blockAlign (text, default left) or imageAlign (image, default center).
     readonly property bool canAlign:
         targetBlock !== null
         && targetBlock.setBlockAlignment !== undefined
-        && toolbar.alignableTypes.indexOf(targetBlock.blockType) >= 0
+        && targetBlock.isAlignable === true
     readonly property string currentAlign: {
         if (!canAlign) return "left"
         if (targetBlock.blockAlign !== undefined) return targetBlock.blockAlign

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "documentsearch.h"
+#include "blockkinddef.h"
 #include "inlinemarkdown.h"
 #include "blockmodel.h"
 #include "block.h"
@@ -242,7 +243,7 @@ int DocumentSearch::markdownPosition(int blockIndex, int displayPos) const
     Block *block = m_model ? m_model->blockAt(blockIndex) : nullptr;
     if (!block)
         return 0;
-    if (block->blockType() == Block::CodeBlock)
+    if (block->kind()->isVerbatim())
         return qBound(0, displayPos, static_cast<int>(block->content().length()));
     return InlineMarkdown::documentToMarkdown(block->content(),
                                                  QList<int>(), displayPos);
@@ -696,7 +697,7 @@ int DocumentSearch::indexOfId(const QString &id) const
 bool DocumentSearch::isVerbatimBlock(int blockIndex) const
 {
     Block *block = m_model ? m_model->blockAt(blockIndex) : nullptr;
-    return block && block->blockType() == Block::CodeBlock;
+    return block && block->kind()->isVerbatim();
 }
 
 QString DocumentSearch::searchableText(int blockIndex) const
@@ -715,7 +716,7 @@ int DocumentSearch::displayPosition(int blockIndex, int mdPos) const
     Block *block = m_model ? m_model->blockAt(blockIndex) : nullptr;
     if (!block)
         return 0;
-    if (block->blockType() == Block::CodeBlock)
+    if (block->kind()->isVerbatim())
         return qBound(0, mdPos, static_cast<int>(block->content().length()));
     return InlineMarkdown::markdownToDocument(block->content(),
                                                  QList<int>(), mdPos);

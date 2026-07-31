@@ -677,26 +677,11 @@ DocumentManager::loadFileForOpen(const QString &filePath, quint64 generation)
 
     const NoteFrontMatter::Split split = NoteFrontMatter::split(content);
     DocumentSerializer serializer;
-    const QList<DocumentSerializer::BlockData> blocks =
-        serializer.parse(split.body);
 
     result.frontMatter = split.block;
-    result.states.reserve(qMax(1, blocks.size()));
-    for (const DocumentSerializer::BlockData &data : blocks) {
-        Block::State state;
-        state.type = data.type;
-        state.content = data.content;
-        state.indentLevel = data.indentLevel;
-        state.checked = data.checked;
-        state.language = data.language;
-        state.calloutTitle = data.calloutTitle;
-        state.attributes = data.attributes;
-        result.states.append(state);
-    }
-    if (result.states.isEmpty()) {
-        Block::State empty;
-        result.states.append(empty);
-    }
+    result.states = serializer.parse(split.body);
+    if (result.states.isEmpty())
+        result.states.append(Block::State());
 
     // Divergence test for the one-time .bak (see loadFromFile): both
     // strings are in hand on this worker thread, so this is one extra
@@ -964,23 +949,13 @@ bool DocumentManager::restoreBody(const QString &markdown)
     // (descending, so indexes stay valid). One Ctrl+Z brings the
     // pre-restore document back.
     const int oldCount = m_model->count();
-    QList<DocumentSerializer::BlockData> blocks = m_serializer->parse(markdown);
-    if (blocks.isEmpty()) {
-        DocumentSerializer::BlockData empty;
-        blocks.append(empty);
-    }
+    QList<Block::State> states = m_serializer->parse(markdown);
+    if (states.isEmpty())
+        states.append(Block::State());
 
     m_undoStack->beginMacro(QStringLiteral("Restore from backup"));
     int at = oldCount;
-    for (const DocumentSerializer::BlockData &block : blocks) {
-        Block::State state;
-        state.type = block.type;
-        state.content = block.content;
-        state.indentLevel = block.indentLevel;
-        state.checked = block.checked;
-        state.language = block.language;
-        state.calloutTitle = block.calloutTitle;
-        state.attributes = block.attributes;
+    for (const Block::State &state : states) {
         m_undoStack->push(std::make_unique<InsertBlockCommand>(m_model, at, state));
         ++at;
     }

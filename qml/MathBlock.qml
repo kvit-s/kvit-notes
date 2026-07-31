@@ -70,7 +70,7 @@ BlockDelegateBase {
     // the text font's x-height — the displaystyle layout supplies the large
     // operators; the letters themselves stay at prose size like LaTeX.
     readonly property int mathPixelSize: MathRenderer.opticalMathPixelSize(
-        Typography.fontFamily, Typography.sizeForBlockType(Block.Paragraph))
+        Typography.fontFamily, Typography.bodySize)
     readonly property int pngMathVerticalPadding:
         Math.max(2, Math.ceil(root.mathPixelSize * 0.12))
     // Transparent side margin so glyphs that overhang their advance box are

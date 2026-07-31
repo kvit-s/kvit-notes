@@ -114,7 +114,7 @@ QList<Seg> segmentsFor(const QList<FormattedSpan> &spans, const QString &markdow
         const auto &span = spans.at(i);
         if (span.start > md) {
             segs.append({doc, span.start - md, md, span.start - md,
-                         Seg::Plain, -1, 0, -1});
+                         Seg::Plain, -1, 0, -1, QString(), QString()});
             doc += span.start - md;
         }
         emitSpanSegs(span, revealedSpans.contains(i), 0, i, -1, flat, doc, segs,
@@ -122,7 +122,7 @@ QList<Seg> segmentsFor(const QList<FormattedSpan> &spans, const QString &markdow
         md = span.end;
     }
     segs.append({doc, int(markdown.length()) - md, md, int(markdown.length()) - md,
-                 Seg::Plain, -1, 0, -1});
+                 Seg::Plain, -1, 0, -1, QString(), QString()});
     if (flatOut)
         *flatOut = flat;
     return segs;

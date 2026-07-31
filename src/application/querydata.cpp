@@ -54,17 +54,6 @@ TypedValue typedFromString(const QString &raw, bool exists = true)
     return value;
 }
 
-const QStringList &pseudoFields()
-{
-    static const QStringList kFields = {
-        QStringLiteral("title"),    QStringLiteral("path"),
-        QStringLiteral("folder"),   QStringLiteral("modified"),
-        QStringLiteral("created"),  QStringLiteral("words"),
-        QStringLiteral("tags"),
-    };
-    return kFields;
-}
-
 // The field's value on one note: pseudo-fields from the entry, everything
 // else from the front-matter key map.
 TypedValue fieldValue(const NoteCollection::NoteEntry &entry,

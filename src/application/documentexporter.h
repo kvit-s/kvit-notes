@@ -5,6 +5,7 @@
 #define DOCUMENTEXPORTER_H
 
 #include <QList>
+#include <QMap>
 #include <QObject>
 #include <QPair>
 #include <QPointer>
@@ -20,6 +21,8 @@
 #include "embedmetadata.h"
 #include "notecollection.h"
 
+class BlockKindDef;
+class BlockKindRegistry;
 class BlockModel;
 class Theme;
 
@@ -63,6 +66,14 @@ public:
     ~DocumentExporter() override;
 
     void setTheme(Theme *theme) { m_theme = theme; }
+    // Which kinds exist. Without one, an export renders the built-in kinds
+    // and a block whose fence language a linked module claimed falls back to
+    // a plain code block — which is what it looked like before that module
+    // was installed, and is wrong once it is.
+    void setBlockKindRegistry(const BlockKindRegistry *registry)
+    {
+        m_blockKinds = registry;
+    }
     // The collection a query block is evaluated against. A `query` fence is
     // not content: it is a question about the vault, and the answer only
     // exists while a vault is open. Without one — single-file mode, or a unit
@@ -181,21 +192,38 @@ signals:
     void exportRefused(const QString &reason);
 
 private:
-    struct Blk {
-        Block::BlockType type = Block::Paragraph;
-        QString content;
-        int indentLevel = 0;
-        bool checked = false;
-        QString language;
-        QString calloutTitle;
-    };
-    QList<Blk> blocksFromModel(BlockModel *model) const;
-    QList<Blk> blocksFromMarkdown(const QString &markdown) const;
+    // What a block kind renders through.
+    //
+    // A kind writes its own markup and lives in kvit-domain, so it cannot
+    // reach the theme, the open collection, the embed cache, the image
+    // context or the attachment budget — and it cannot rasterise, because
+    // none of that belongs down there. It calls this instead, and this is
+    // the exporter answering.
+    //
+    // Built per render rather than held, because two of its answers are
+    // whole-document ones: the table of contents reads every heading in the
+    // note and the collision-suffixed slug table that goes with them. That
+    // scan stays here, where the document is, rather than being handed to a
+    // block that can only see itself.
+    class RenderServices;
+
+    // An export renders Block::State, the same snapshot a block holds and a
+    // parse produces. It used to render a private copy of that struct with
+    // `attributes` left out, and both loops that built it dropped the field
+    // silently — which is why alignment, drop caps, divider styles, image
+    // effects, embed sizes and table column widths were missing from every
+    // HTML and PDF export. There is one snapshot type now.
+    // The definition a block renders through: the registry's answer when one
+    // is wired, the built-in resolution otherwise.
+    const BlockKindDef *kindFor(const Block::State &state) const;
+
+    QList<Block::State> blocksFromModel(BlockModel *model) const;
+    QList<Block::State> blocksFromMarkdown(const QString &markdown) const;
 
     // browserTarget distinguishes HTML export (MathJax TeX by default,
     // image embeds under KVIT_MATH_RENDER) from the PDF print seam (always
     // PNG math — QTextDocument runs no JavaScript).
-    QString buildHtml(const QList<Blk> &blocks, const QString &title,
+    QString buildHtml(const QList<Block::State> &blocks, const QString &title,
                       bool browserTarget) const;
 
     // The two halves of buildHtml, split so a combined export can assemble
@@ -203,7 +231,7 @@ private:
     // the wrapper that closes over them. sawMath/sawMermaid report which
     // shared assets a fragment needs, so the wrapper injects each script tag
     // once for the whole file however many notes asked for it.
-    QString buildHtmlBody(const QList<Blk> &blocks, bool browserTarget,
+    QString buildHtmlBody(const QList<Block::State> &blocks, bool browserTarget,
                           bool *sawMath, bool *sawMermaid) const;
     QString wrapHtmlDocument(const QString &body, const QString &title,
                              bool browserTarget, bool sawMath,
@@ -218,7 +246,7 @@ private:
     QString bodyForExport(NoteCollection *collection,
                           const QString &relPath) const;
 
-    QString buildPlainText(const QList<Blk> &blocks) const;
+    QString buildPlainText(const QList<Block::State> &blocks) const;
 
     // ---- output plan ----
     // Where every note in scope will be written, resolved and canonicalised
@@ -289,22 +317,25 @@ private:
     bool appendCombinedNote(Job *job, const QString &relPath);
     bool writeCombined(Job *job);
 
-    // Inline markdown -> HTML (recursive over the span registry). With
-    // mathJax, $x$ spans become \( … \) delimiters and *sawMath is set;
-    // otherwise the TeX falls through as literal text, as before.
-    QString renderInline(const QString &md, bool mathJax = false,
-                         bool *sawMath = nullptr) const;
-
     QString cssBlock() const;
     // A `query` fence's answer as static markup: the table or the board the
     // block shows on screen, evaluated once against the collection. Falls
     // back to the fence source when there is nothing to evaluate against,
     // and reports a spec error the way the block does rather than hiding it.
     QString queryHtml(const QString &spec) const;
+    // The same answer as text: the header line, then the table or the board.
+    // Falls back to the spec for the same reason queryHtml does.
+    QString queryPlainText(const QString &spec) const;
     // An `![](url)` naming a web page rather than an image file: the preview
     // card, as a titled link. Never a broken <img> — the URL is a page.
+    // `attributes` is the block's parsed <!--kvit …--> payload, which carries
+    // the size the reader dragged the card to.
     QString embedCardHtml(const QString &url, const QString &alt,
-                          const QString &caption) const;
+                          const QString &caption,
+                          const QString &attributes) const;
+    // The same card as text: what it is called and where it points.
+    QString embedCardPlainText(const QString &url, const QString &alt,
+                               const QString &caption) const;
     QString dataUriForImagePath(const QString &storedPath) const;
     QString dataUriForMath(const QString &tex) const;
     // Rasterize a natively-supported Mermaid diagram to a PNG data URI at 2x
@@ -312,9 +343,10 @@ private:
     // family, so the caller falls back to escaped source.
     QString dataUriForMermaid(const QString &source) const;
     // Slugs for heading anchors, matching DocumentOutline (collision-suffixed).
-    QStringList headingSlugs(const QList<Blk> &blocks) const;
+    QStringList headingSlugs(const QList<Block::State> &blocks) const;
 
     Theme *m_theme = nullptr;
+    const BlockKindRegistry *m_blockKinds = nullptr;
     // Guarded pointers: an export outlives neither, but it is re-pointed at
     // whichever collection a run was handed, and a collection that closes and
     // goes away must leave a query with nothing to evaluate rather than a
