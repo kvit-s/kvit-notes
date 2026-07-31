@@ -412,8 +412,9 @@ KvitShell {
     // Every window-level shortcut is in AppShortcuts.qml, along with the
     // mouse back/forward buttons, which are the same two navigation commands
     // arriving from a different device. Shortcuts that belong to one
-    // workflow — Ctrl+O and Ctrl+N, Escape during a drag, quick capture —
-    // stay with the component that answers them.
+    // workflow — Escape during a drag, quick capture — stay with the
+    // component that answers them, provided that component is built with the
+    // window; anything behind a lazy Loader cannot hold a shortcut.
     AppShortcuts {
         anchors.fill: parent
         // The back/forward area inside covers the window and has to sit above
@@ -792,6 +793,11 @@ KvitShell {
     // Seven dialogs — recovery, unsaved-close, errors, vault creation and
     // the rest — none of which a session needs unless something goes wrong
     // or the user asks. Built on first use, like the context menus above.
+    // Nothing that has to exist before the user asks for it may go inside
+    // this component. Ctrl+N and Ctrl+O were declared here as Shortcut items
+    // and were dead on a fresh window for that reason, so they now live in
+    // AppShortcuts.qml and call in through documentDialogs() only when they
+    // have a question to ask.
     Loader {
         id: documentDialogsLoader
         // Its dialogs centre on this window, so it spans it.

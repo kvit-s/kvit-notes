@@ -9,12 +9,20 @@ import Kvit 1.0
 // different device.
 //
 // What is here is what belongs to the window rather than to one piece of it:
-// undo and redo, save, the find bar, note history and the quick switcher,
-// the panel and view toggles, focus mode, the shortcut reference, pane
-// cycling, and global search. Shortcuts that only make sense inside one
-// workflow live with it — Ctrl+O and Ctrl+N with the document-session
-// dialogs, Escape with the block drag, quick capture with the system
-// integration — so that each of those files can be read on its own.
+// undo and redo, save, new note and open, the find bar, note history and the
+// quick switcher, the panel and view toggles, focus mode, the shortcut
+// reference, pane cycling, and global search. Shortcuts that only make sense
+// inside one workflow live with it — Escape with the block drag, quick
+// capture with the system integration — so that each of those files can be
+// read on its own.
+//
+// Ctrl+N and Ctrl+O used to live with the document-session dialogs on that
+// reasoning, and it cost both keys entirely: main.qml builds that component
+// on first use, so until an error, a recovery prompt or an unsaved-close
+// question had opened one of its dialogs, the two Shortcut objects did not
+// exist and neither key did anything on a freshly launched window. A window
+// shortcut has to be instantiated with the window, so the decision is here
+// and the dialogs are asked for only on the branch that needs one.
 //
 // The undo and redo entries are the fallbacks for when no text area has
 // focus; a focused block handles those keys itself.
@@ -62,6 +70,38 @@ Item {
                 DocumentManager.saveAsync()
             } else {
                 DocumentManager.saveFileDialog()
+            }
+        }
+    }
+
+    Shortcut {
+        sequences: [StandardKey.New]  // Ctrl+N — New Note (§13.4)
+        onActivated: {
+            DocumentManager.flushPendingEdits()
+            if (shortcuts.appWindow.collectionOpen) {
+                shortcuts.appWindow.createNoteInCurrentScope()
+            } else if (DocumentManager.isDirty) {
+                shortcuts.appWindow.documentDialogs()
+                         .confirmNewWithUnsavedChanges()
+            } else {
+                DocumentManager.newDocument()
+            }
+        }
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Open]  // Ctrl+O
+        onActivated: {
+            DocumentManager.flushPendingEdits()
+            if (DocumentManager.isDirty) {
+                shortcuts.appWindow.documentDialogs()
+                         .confirmOpenWithUnsavedChanges()
+            } else if (shortcuts.appWindow.collectionOpen) {
+                // In collection mode, offer to import rather than only open a
+                // standalone file.
+                shortcuts.appWindow.documentDialogs().chooseOpenOrImport()
+            } else {
+                shortcuts.appWindow.openFileFromDialog()
             }
         }
     }

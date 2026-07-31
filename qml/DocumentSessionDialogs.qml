@@ -52,6 +52,22 @@ Item {
         recoveryOverwriteDialog.open()
     }
 
+    // Ctrl+N and Ctrl+O decide in AppShortcuts.qml and call in here only on
+    // the branch that has a question to ask, which is what keeps this whole
+    // component off the startup path. The keys themselves must NOT live here:
+    // main.qml builds this on first use, so a Shortcut inside it does not
+    // exist until something else has already opened a dialog, and the key
+    // does nothing until then.
+    function confirmNewWithUnsavedChanges() {
+        unsavedChangesBeforeNewDialog.open()
+    }
+
+    function confirmOpenWithUnsavedChanges() {
+        unsavedChangesBeforeOpenDialog.open()
+    }
+
+    function chooseOpenOrImport() { openOrImportChoiceDialog.open() }
+
     Dialog {
         id: recoveryOverwriteDialog
         objectName: "recoveryOverwriteDialog"
@@ -96,22 +112,6 @@ Item {
                     recoveryOverwriteDialog.close()
                     dialogs.appWindow.replaceEditsWithRecovery(path)
                 }
-            }
-        }
-    }
-
-    Shortcut {
-        sequences: [StandardKey.Open]  // Ctrl+O
-        onActivated: {
-            DocumentManager.flushPendingEdits()
-            if (DocumentManager.isDirty) {
-                unsavedChangesBeforeOpenDialog.open()
-            } else if (dialogs.appWindow.collectionOpen) {
-                // In collection mode, offer to import rather than only open a
-                // standalone file.
-                openOrImportChoiceDialog.open()
-            } else {
-                dialogs.appWindow.openFileFromDialog()
             }
         }
     }
@@ -191,20 +191,6 @@ Item {
                     if (dir !== "")
                         AppActions.requestOpenVault(dir)
                 }
-            }
-        }
-    }
-
-    Shortcut {
-        sequences: [StandardKey.New]  // Ctrl+N — New Note (§13.4)
-        onActivated: {
-            DocumentManager.flushPendingEdits()
-            if (dialogs.appWindow.collectionOpen) {
-                dialogs.appWindow.createNoteInCurrentScope()
-            } else if (DocumentManager.isDirty) {
-                unsavedChangesBeforeNewDialog.open()
-            } else {
-                DocumentManager.newDocument()
             }
         }
     }
