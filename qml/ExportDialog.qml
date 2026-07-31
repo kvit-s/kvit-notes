@@ -31,13 +31,34 @@ Dialog {
     property int formatIndex: 1  // HTML by default
     readonly property string format: formats[formatIndex]
 
-    // "note" | "selection" | "collection"
+    // "note" | "selection" | "collection" | "blocks"
     property string scope: "note"
+    // The dialog is modal, so the selected indexes cannot be moved by editor
+    // input while a destination is being chosen. blockMarkdown is the menu's
+    // structural snapshot for display/tests; rich formats render from the
+    // model so document-derived blocks retain their full-note context.
+    property string blockMarkdown: ""
+    property int blockCount: 0
+    property var blockIndexes: []
 
     function openDialog() {
         // Default scope: the open note; collection/selection only when a
         // collection is open.
+        blockMarkdown = ""
+        blockCount = 0
+        blockIndexes = []
         scope = "note"
+        open()
+    }
+
+    function openForBlocks(indexes) {
+        if (!indexes || indexes.length === 0)
+            return
+        DocumentManager.flushPendingEdits()
+        blockMarkdown = DocumentSerializer.serializeBlocks(BlockModel, indexes)
+        blockCount = indexes.length
+        blockIndexes = indexes
+        scope = "blocks"
         open()
     }
 
@@ -54,12 +75,12 @@ Dialog {
 
     function prepareContext() {
         DocumentManager.flushPendingEdits()
-        var noteDir = ""
+        // currentNoteRelPath is empty for a loose file, but relative media is
+        // still relative to that file's folder. currentNoteDir handles both
+        // loose files and notes inside a collection.
+        var noteDir = appWindow && appWindow.currentNoteDir
+            ? appWindow.currentNoteDir() : ""
         var root = NoteCollection.isOpen ? NoteCollection.rootPath : ""
-        if (appWindow && appWindow.currentNoteRelPath !== "") {
-            var abs = NoteCollection.absolutePath(appWindow.currentNoteRelPath)
-            noteDir = abs.substring(0, abs.lastIndexOf("/"))
-        }
         // The single-note scope renders the live model directly. A collection
         // or selection export instead reads each note from disk, where the
         // note being edited may be out of date, so hand the exporter the
@@ -75,7 +96,7 @@ Dialog {
     // Kick off the correct destination picker for the chosen scope.
     function runExport() {
         prepareContext()
-        if (scope === "note") {
+        if (scope === "note" || scope === "blocks") {
             saveFileDialog.open()
         } else {
             destFolderDialog.open()
@@ -99,8 +120,17 @@ Dialog {
         Column {
             spacing: 4
             RadioButton {
+                objectName: "exportScopeBlocks"
+                text: exportDialog.blockCount === 1
+                    ? qsTr("This block")
+                    : qsTr("Selected blocks (%1)").arg(exportDialog.blockCount)
+                visible: exportDialog.scope === "blocks"
+                checked: visible
+            }
+            RadioButton {
                 objectName: "exportScopeNote"
                 text: qsTr("This note")
+                visible: exportDialog.scope !== "blocks"
                 checked: exportDialog.scope === "note"
                 onClicked: exportDialog.scope = "note"
             }
@@ -109,6 +139,7 @@ Dialog {
                 text: qsTr("Selected notes (%1)").arg(
                           exportDialog.selectedPaths().length)
                 visible: exportDialog.appWindow
+                    && exportDialog.scope !== "blocks"
                     && exportDialog.appWindow.collectionOpen
                     && exportDialog.selectedPaths().length > 0
                 checked: exportDialog.scope === "selection"
@@ -118,6 +149,7 @@ Dialog {
                 objectName: "exportScopeCollection"
                 text: qsTr("Whole collection")
                 visible: exportDialog.appWindow
+                    && exportDialog.scope !== "blocks"
                     && exportDialog.appWindow.collectionOpen
                 checked: exportDialog.scope === "collection"
                 onClicked: exportDialog.scope = "collection"
@@ -129,6 +161,7 @@ Dialog {
             objectName: "exportSingleFileCheck"
             text: qsTr("Combine into a single file")
             visible: exportDialog.scope !== "note"
+                && exportDialog.scope !== "blocks"
         }
 
         Button {
@@ -154,9 +187,13 @@ Dialog {
         defaultSuffix: DocumentExporter.extensionFor(exportDialog.format)
         onAccepted: {
             var path = DocumentManager.toLocalPath(selectedFile)
-            var ok = DocumentExporter.writeModel(
-                BlockModel, exportDialog.currentTitle(),
-                exportDialog.format, path)
+            var ok = exportDialog.scope === "blocks"
+                ? DocumentExporter.writeModelBlocks(
+                      BlockModel, exportDialog.blockIndexes,
+                      exportDialog.currentTitle(), exportDialog.format, path)
+                : DocumentExporter.writeModel(
+                      BlockModel, exportDialog.currentTitle(),
+                      exportDialog.format, path)
             exportDialog.appWindow.showTransientStatus(
                 ok ? qsTr("Exported to ") + path
                    : qsTr("Export failed"))

@@ -165,6 +165,8 @@ BlockDelegateBase {
         activeFocusOnTab: true
 
         Keys.onPressed: function(event) {
+            if (delegate.handleContextMenuKey(event))
+                return
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier)
                 && (event.modifiers & Qt.ShiftModifier)) {

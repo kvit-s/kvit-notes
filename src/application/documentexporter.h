@@ -12,6 +12,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <QVariantList>
 #include "block.h"
 
 #include <memory>
@@ -105,16 +106,32 @@ public:
                                      const QString &title = QString()) const;
     Q_INVOKABLE QString htmlForMarkdown(const QString &markdown,
                                         const QString &title = QString()) const;
+    // Render only `indexes`, while retaining the complete model as document
+    // context. A TOC in the subset still sees every heading, and heading ids
+    // keep the collision suffix they have in the note.
+    Q_INVOKABLE QString htmlForModelBlocks(
+        BlockModel *model, const QVariantList &indexes,
+        const QString &title = QString()) const;
 
     // ---- Plain text ----
     Q_INVOKABLE QString plainTextForModel(BlockModel *model) const;
     Q_INVOKABLE QString plainTextForMarkdown(const QString &markdown) const;
+    Q_INVOKABLE QString plainTextForModelBlocks(
+        BlockModel *model, const QVariantList &indexes) const;
 
     // ---- Write to disk ----
     // format is one of "markdown", "html", "pdf", "text". markdown() writes the
     // serializer output; the caller supplies it for a live model.
     Q_INVOKABLE bool writeModel(BlockModel *model, const QString &title,
                                 const QString &format, const QString &path);
+    // Block-scope counterpart of writeModel(). The selected blocks are the
+    // output, but the whole model remains available to document-derived
+    // blocks such as the table of contents.
+    Q_INVOKABLE bool writeModelBlocks(BlockModel *model,
+                                      const QVariantList &indexes,
+                                      const QString &title,
+                                      const QString &format,
+                                      const QString &path);
     // Write from stored markdown (collection export path).
     Q_INVOKABLE bool writeMarkdownAs(const QString &markdown,
                                      const QString &title,
@@ -219,19 +236,34 @@ private:
 
     QList<Block::State> blocksFromModel(BlockModel *model) const;
     QList<Block::State> blocksFromMarkdown(const QString &markdown) const;
+    static QList<int> validIndexes(const QVariantList &indexes, int count);
+    static QList<Block::State> blocksAtIndexes(
+        const QList<Block::State> &blocks, const QList<int> &indexes);
+    static QStringList stringsAtIndexes(const QStringList &strings,
+                                        const QList<int> &indexes);
 
     // browserTarget distinguishes HTML export (MathJax TeX by default,
     // image embeds under KVIT_MATH_RENDER) from the PDF print seam (always
     // PNG math — QTextDocument runs no JavaScript).
     QString buildHtml(const QList<Block::State> &blocks, const QString &title,
                       bool browserTarget) const;
+    QString buildHtmlWithContext(const QList<Block::State> &blocks,
+                                 const QStringList &blockSlugs,
+                                 const QList<Block::State> &documentBlocks,
+                                 const QStringList &documentSlugs,
+                                 const QString &title,
+                                 bool browserTarget) const;
 
     // The two halves of buildHtml, split so a combined export can assemble
     // several notes into ONE document: the <body> contents for one note, and
     // the wrapper that closes over them. sawMath/sawMermaid report which
     // shared assets a fragment needs, so the wrapper injects each script tag
     // once for the whole file however many notes asked for it.
-    QString buildHtmlBody(const QList<Block::State> &blocks, bool browserTarget,
+    QString buildHtmlBody(const QList<Block::State> &blocks,
+                          const QStringList &blockSlugs,
+                          const QList<Block::State> &documentBlocks,
+                          const QStringList &documentSlugs,
+                          bool browserTarget,
                           bool *sawMath, bool *sawMermaid) const;
     QString wrapHtmlDocument(const QString &body, const QString &title,
                              bool browserTarget, bool sawMath,
@@ -246,7 +278,8 @@ private:
     QString bodyForExport(NoteCollection *collection,
                           const QString &relPath) const;
 
-    QString buildPlainText(const QList<Block::State> &blocks) const;
+    QString buildPlainText(const QList<Block::State> &blocks,
+                           const QList<Block::State> &documentBlocks) const;
 
     // ---- output plan ----
     // Where every note in scope will be written, resolved and canonicalised

@@ -822,6 +822,8 @@ BlockDelegateBase {
                     }
                 }
                 Keys.onPressed: function(event) {
+                    if (root.handleContextMenuKey(event))
+                        return
                     // Tab inserts two spaces in Mermaid source (§5.1).
                     if (event.key === Qt.Key_Tab
                         && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier))) {

@@ -453,6 +453,8 @@ BlockDelegateBase {
         anchors.fill: parent
         activeFocusOnTab: true
         Keys.onPressed: function(event) {
+            if (root.handleContextMenuKey(event))
+                return
             // When no cell is live, arrow/selection keys behave like the other
             // non-text delegates.
             if (root.activeRow !== -2)

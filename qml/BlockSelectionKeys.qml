@@ -101,6 +101,19 @@ Item {
     Keys.onPressed: function(event) {
         if (!DocumentSelection.hasBlockSelection)
             return
+        if (event.key === Qt.Key_Menu
+            || (event.key === Qt.Key_F10
+                && (event.modifiers & Qt.ShiftModifier))) {
+            var targetIndex = DocumentSelection.lastActiveIndex()
+            var target = targetIndex >= 0
+                ? (keys.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
+                : null
+            if (target) {
+                AppActions.requestBlockHandleMenu(target)
+                event.accepted = true
+            }
+            return
+        }
         var ctrl = event.modifiers & Qt.ControlModifier
         var shift = event.modifiers & Qt.ShiftModifier
 

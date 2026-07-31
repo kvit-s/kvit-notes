@@ -550,6 +550,10 @@ Display when cursor moves into "information":
 - Enter key at end of block creates new block below
 - Slash command (/) opens block type menu
 - Plus (+) button in gutter to add new block
+- Menu button in the gutter opens the block context menu. It can copy the
+  block, copy it as Markdown, plain text or HTML, or export just that block;
+  when the block is part of a block selection, those commands use the whole
+  selection. Menu or Shift+F10 opens the same menu for the focused block
 - Block type menu with search/filter
 - Recently used block types shown first
 - Keyboard navigation through block type menu

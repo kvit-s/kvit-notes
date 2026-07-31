@@ -275,6 +275,39 @@ QList<Block::State> DocumentExporter::blocksFromMarkdown(const QString &markdown
     return serializer.parse(markdown);
 }
 
+QList<int> DocumentExporter::validIndexes(const QVariantList &indexes, int count)
+{
+    QList<int> out;
+    out.reserve(indexes.size());
+    for (const QVariant &value : indexes) {
+        bool ok = false;
+        const int index = value.toInt(&ok);
+        if (ok && index >= 0 && index < count && !out.contains(index))
+            out.append(index);
+    }
+    return out;
+}
+
+QList<Block::State> DocumentExporter::blocksAtIndexes(
+    const QList<Block::State> &blocks, const QList<int> &indexes)
+{
+    QList<Block::State> out;
+    out.reserve(indexes.size());
+    for (const int index : indexes)
+        out.append(blocks.at(index));
+    return out;
+}
+
+QStringList DocumentExporter::stringsAtIndexes(const QStringList &strings,
+                                                const QList<int> &indexes)
+{
+    QStringList out;
+    out.reserve(indexes.size());
+    for (const int index : indexes)
+        out.append(strings.at(index));
+    return out;
+}
+
 // ---- inline rendering ----
 
 // ---- embedded resources ----
@@ -776,6 +809,9 @@ private:
 };
 
 QString DocumentExporter::buildHtmlBody(const QList<Block::State> &blocks,
+                                        const QStringList &blockSlugs,
+                                        const QList<Block::State> &documentBlocks,
+                                        const QStringList &documentSlugs,
                                         bool browserTarget,
                                         bool *sawMathOut,
                                         bool *sawMermaidOut) const
@@ -788,11 +824,11 @@ QString DocumentExporter::buildHtmlBody(const QList<Block::State> &blocks,
         qEnvironmentVariable("KVIT_MATH_RENDER").trimmed().toLower();
     const bool mathJax = browserTarget && mathMode != QLatin1String("png");
 
-    // Heading anchors are collision-suffixed across the whole document, so
-    // they are resolved here, once, and handed to each heading as it renders.
-    const QStringList slugs = headingSlugs(blocks);
-
-    const RenderServices services(this, &blocks, &slugs, mathJax,
+    // RenderServices deliberately sees the complete note even when `blocks`
+    // is only a selected subset. A TOC is a projection of the document, not
+    // of the rows being emitted. The per-output slug list is separate so a
+    // selected duplicate heading keeps its original collision suffix.
+    const RenderServices services(this, &documentBlocks, &documentSlugs, mathJax,
                                   browserTarget);
     RenderContext ctx;
     ctx.target = browserTarget ? RenderContext::Browser : RenderContext::Pdf;
@@ -856,7 +892,7 @@ QString DocumentExporter::buildHtmlBody(const QList<Block::State> &blocks,
         // inside its code-fence case a chain of comparisons against fence
         // language strings. A kind that reached neither — a `query` fence,
         // the last one added — exported as a listing of its own source spec.
-        ctx.headingSlug = slugs.at(i);
+        ctx.headingSlug = blockSlugs.at(i);
         body += kindFor(b)->toHtml(b, ctx);
         ++i;
     }
@@ -897,10 +933,22 @@ QString DocumentExporter::buildHtml(const QList<Block::State> &blocks,
                                     const QString &title,
                                     bool browserTarget) const
 {
+    const QStringList slugs = headingSlugs(blocks);
+    return buildHtmlWithContext(blocks, slugs, blocks, slugs, title,
+                                browserTarget);
+}
+
+QString DocumentExporter::buildHtmlWithContext(
+    const QList<Block::State> &blocks, const QStringList &blockSlugs,
+    const QList<Block::State> &documentBlocks,
+    const QStringList &documentSlugs, const QString &title,
+    bool browserTarget) const
+{
     bool sawMath = false;
     bool sawMermaid = false;
-    const QString body =
-        buildHtmlBody(blocks, browserTarget, &sawMath, &sawMermaid);
+    const QString body = buildHtmlBody(blocks, blockSlugs, documentBlocks,
+                                       documentSlugs, browserTarget,
+                                       &sawMath, &sawMermaid);
     return wrapHtmlDocument(body, title, browserTarget, sawMath, sawMermaid);
 }
 
@@ -915,15 +963,28 @@ QString DocumentExporter::htmlForMarkdown(const QString &markdown,
     return buildHtml(blocksFromMarkdown(markdown), title, true);
 }
 
+QString DocumentExporter::htmlForModelBlocks(
+    BlockModel *model, const QVariantList &indexes, const QString &title) const
+{
+    const QList<Block::State> documentBlocks = blocksFromModel(model);
+    const QList<int> selected = validIndexes(indexes, documentBlocks.size());
+    const QStringList documentSlugs = headingSlugs(documentBlocks);
+    return buildHtmlWithContext(blocksAtIndexes(documentBlocks, selected),
+                                stringsAtIndexes(documentSlugs, selected),
+                                documentBlocks, documentSlugs, title, true);
+}
+
 // ---- plain text ----
 
-QString DocumentExporter::buildPlainText(const QList<Block::State> &blocks) const
+QString DocumentExporter::buildPlainText(
+    const QList<Block::State> &blocks,
+    const QList<Block::State> &documentBlocks) const
 {
     // Plain text never rasterises and has no MathJax, so the context it
     // renders under is the PDF one; only the services and the ordinal are
     // read from it.
     const QStringList noSlugs;
-    const RenderServices services(this, &blocks, &noSlugs, false, false);
+    const RenderServices services(this, &documentBlocks, &noSlugs, false, false);
     RenderContext ctx;
     ctx.target = RenderContext::Pdf;
     ctx.mathJax = false;
@@ -968,12 +1029,23 @@ QString DocumentExporter::buildPlainText(const QList<Block::State> &blocks) cons
 
 QString DocumentExporter::plainTextForModel(BlockModel *model) const
 {
-    return buildPlainText(blocksFromModel(model));
+    const QList<Block::State> blocks = blocksFromModel(model);
+    return buildPlainText(blocks, blocks);
 }
 
 QString DocumentExporter::plainTextForMarkdown(const QString &markdown) const
 {
-    return buildPlainText(blocksFromMarkdown(markdown));
+    const QList<Block::State> blocks = blocksFromMarkdown(markdown);
+    return buildPlainText(blocks, blocks);
+}
+
+QString DocumentExporter::plainTextForModelBlocks(
+    BlockModel *model, const QVariantList &indexes) const
+{
+    const QList<Block::State> documentBlocks = blocksFromModel(model);
+    const QList<int> selected = validIndexes(indexes, documentBlocks.size());
+    return buildPlainText(blocksAtIndexes(documentBlocks, selected),
+                          documentBlocks);
 }
 
 // ---- write to disk ----
@@ -1041,6 +1113,42 @@ bool DocumentExporter::writeModel(BlockModel *model, const QString &title,
     if (format == QLatin1String("pdf"))
         return htmlToPdf(buildHtml(blocksFromModel(model), title, false),
                          path);
+    return false;
+}
+
+bool DocumentExporter::writeModelBlocks(BlockModel *model,
+                                        const QVariantList &indexes,
+                                        const QString &title,
+                                        const QString &format,
+                                        const QString &path)
+{
+    const QList<Block::State> documentBlocks = blocksFromModel(model);
+    const QList<int> selected = validIndexes(indexes, documentBlocks.size());
+    const QList<Block::State> blocks = blocksAtIndexes(documentBlocks, selected);
+
+    PerfLog::ScopedTimer perf(
+        QStringLiteral("export.run"),
+        QVariantMap{
+            {QStringLiteral("format"), format},
+            {QStringLiteral("path"), path},
+            {QStringLiteral("blocks"), blocks.size()},
+        });
+
+    if (format == QLatin1String("markdown")) {
+        DocumentSerializer serializer;
+        return writeText(path, serializer.serializeBlocks(model, indexes));
+    }
+    if (format == QLatin1String("text"))
+        return writeText(path, buildPlainText(blocks, documentBlocks));
+
+    const QStringList documentSlugs = headingSlugs(documentBlocks);
+    const QString html = buildHtmlWithContext(
+        blocks, stringsAtIndexes(documentSlugs, selected), documentBlocks,
+        documentSlugs, title, format != QLatin1String("pdf"));
+    if (format == QLatin1String("html"))
+        return writeText(path, html);
+    if (format == QLatin1String("pdf"))
+        return htmlToPdf(html, path);
     return false;
 }
 
@@ -1286,9 +1394,11 @@ bool DocumentExporter::appendCombinedNote(Job *job, const QString &relPath)
     } else {
         bool noteMath = false;
         bool noteMermaid = false;
-        const QString one = buildHtmlBody(blocksFromMarkdown(body),
-                                          browserTarget, &noteMath,
-                                          &noteMermaid);
+        const QList<Block::State> noteBlocks = blocksFromMarkdown(body);
+        const QStringList noteSlugs = headingSlugs(noteBlocks);
+        const QString one = buildHtmlBody(noteBlocks, noteSlugs, noteBlocks,
+                                          noteSlugs, browserTarget,
+                                          &noteMath, &noteMermaid);
         job->sawMath = job->sawMath || noteMath;
         job->sawMermaid = job->sawMermaid || noteMermaid;
         // Each note after the first starts its own printed page, and

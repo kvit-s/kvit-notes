@@ -2176,6 +2176,8 @@ BlockDelegateBase {
 
                 // Key handlers for Milestone 2, 3, 4, 5, and 7 features
                 Keys.onPressed: function(event) {
+                    if (delegate.handleContextMenuKey(event))
+                        return
                     // The open menus own their navigation keys; Enter is
                     // claimed in handleReturn. Everything else keeps typing,
                     // which is what filters them.

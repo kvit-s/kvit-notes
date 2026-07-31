@@ -174,6 +174,8 @@ BlockDelegateBase {
         activeFocusOnTab: true
 
         Keys.onPressed: function(event) {
+            if (delegate.handleContextMenuKey(event))
+                return
             // Block-selection entry points match EditableBlock: a divider
             // has no text, so Ctrl+A goes straight to select-all-blocks.
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)

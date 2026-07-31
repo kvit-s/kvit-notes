@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import Kvit 1.0
 
 // What every block delegate provides to the shell.
 //
@@ -27,6 +28,22 @@ import QtQuick
 // nothing to focus, and inheriting a sane default is better than each
 // repeating an empty implementation to satisfy an interface.
 Item {
+    id: blockDelegateBase
+
+    // Standard context-menu keys, shared by every block's primary focus
+    // target. Returning true lets each delegate put this first in its own key
+    // handler without duplicating the gesture or the AppActions route.
+    function handleContextMenuKey(event) {
+        if (event.key === Qt.Key_Menu
+            || (event.key === Qt.Key_F10
+                && (event.modifiers & Qt.ShiftModifier))) {
+            AppActions.requestBlockHandleMenu(blockDelegateBase)
+            event.accepted = true
+            return true
+        }
+        return false
+    }
+
     // A block row fills the list it is in.
     //
     // main.qml used to say this per delegate — `width: blockListView.width`

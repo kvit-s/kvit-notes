@@ -40,6 +40,7 @@ private slots:
     void testTable();
     void testCallout();
     void testTocFenceBecomesAnchorList();
+    void testBlockSubsetKeepsDocumentContext();
     void testInternalLinkAnchor();
     void testDisplayMathEmitsMathJaxDelimiters();
     void testInlineMathEmitsMathJaxDelimiters();
@@ -347,6 +348,43 @@ void TestDocumentExporter::testTocFenceBecomesAnchorList()
     QVERIFY(html.contains("class=\"toc\""));
     QVERIFY(html.contains("<a href=\"#intro\">Intro</a>"));
     QVERIFY(html.contains("<a href=\"#details\">Details</a>"));
+}
+
+void TestDocumentExporter::testBlockSubsetKeepsDocumentContext()
+{
+    BlockModel model;
+    DocumentSerializer serializer;
+    serializer.loadIntoModel(
+        &model, "# Intro\n\n```toc\n```\n\n## Details\n\n# Intro");
+    QCOMPARE(model.count(), 4);
+
+    // Only the TOC is emitted, but it remains a projection of the complete
+    // note rather than an empty projection of itself.
+    const QString html = m_exporter.htmlForModelBlocks(&model, {1});
+    QVERIFY(html.contains("class=\"toc\""));
+    QVERIFY(html.contains("<a href=\"#intro\">Intro</a>"));
+    QVERIFY(html.contains("<a href=\"#details\">Details</a>"));
+    QVERIFY(html.contains("<a href=\"#intro-1\">Intro</a>"));
+    QVERIFY(!html.contains("<h1"));
+    QVERIFY(!html.contains("<h2"));
+
+    const QString text = m_exporter.plainTextForModelBlocks(&model, {1});
+    QVERIFY(text.contains("Intro\n  Details\nIntro"));
+
+    // A selected duplicate heading keeps the slug it owns in the original
+    // document, not the unsuffixed slug it would get if rendered in isolation.
+    const QString duplicate = m_exporter.htmlForModelBlocks(&model, {3});
+    QVERIFY(duplicate.contains("id=\"intro-1\""));
+    QVERIFY(!duplicate.contains("id=\"intro\""));
+
+    QTemporaryDir out;
+    const QString path = out.filePath("toc.html");
+    QVERIFY(m_exporter.writeModelBlocks(&model, {1}, "Subset", "html", path));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QString written = QString::fromUtf8(file.readAll());
+    QVERIFY(written.contains("href=\"#details\""));
+    QVERIFY(!written.contains("<h2"));
 }
 
 void TestDocumentExporter::testInternalLinkAnchor()

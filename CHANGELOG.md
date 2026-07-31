@@ -8,6 +8,11 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Each block gutter now has a visible menu button below its drag handle. The
+  menu can copy the block normally, copy it explicitly as Markdown, plain text
+  or HTML, and export just that block as Markdown, HTML, PDF or plain text. On
+  a block selection the same commands act on the whole selection. Menu and
+  Shift+F10 provide the keyboard route.
 - The block menu opens on a right-click anywhere in a block's left gutter, for
   every block type. It answered the drag handle alone before, a fourteen-pixel
   target that appears on hover, so the commands on it — Turn into, Duplicate,

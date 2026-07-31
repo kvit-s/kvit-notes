@@ -8856,6 +8856,194 @@ Item {
             }, 1000)
         }
 
+        // The visible hamburger is the pointer-friendly route to the same
+        // block menu. Its copy variants serialize only the clicked block,
+        // while Export hands the same snapshot to the shared format dialog.
+        function test_zo1_gutterMenuButtonCopyAndExport() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.convertBlock(0, Block.Heading1, "**Menu block**")
+            BlockModel.insertBlock(1, Block.Paragraph, "not copied")
+            wait(150)
+
+            var delegateItem = findBlockDelegate(0)
+            mouseMove(delegateItem, 30, 16)
+            tryCompare(delegateItem, "isHovered", true, 1000)
+            var menuButton = findChild(delegateItem, "blockMenuButtonArea")
+            verify(menuButton !== null, "The gutter exposes a menu button")
+            tryCompare(menuButton, "visible", true, 1000)
+            mouseClick(menuButton, 3, 3, Qt.LeftButton)
+
+            var blockMenu = findChild(appLoader.item, "blockContextMenu")
+            tryCompare(blockMenu, "visible", true, 1000)
+            compare(blockMenu.target.index, 0)
+
+            findChild(appLoader.item, "ctxBlockCopy").triggered()
+            compare(Clipboard.text, "# **Menu block**")
+            verify(Clipboard.hasInternalMarkdown,
+                   "Ordinary Copy remains a lossless Kvit payload")
+
+            findChild(appLoader.item, "ctxBlockCopyAsText").triggered()
+            compare(Clipboard.text, "# Menu block")
+            compare(Clipboard.hasInternalMarkdown, false,
+                    "Copy as plain text does not claim to be Markdown")
+
+            findChild(appLoader.item, "ctxBlockCopyAsMarkdown").triggered()
+            compare(Clipboard.text, "# **Menu block**")
+            compare(Clipboard.hasInternalMarkdown, false)
+
+            findChild(appLoader.item, "ctxBlockCopyAsHtml").triggered()
+            verify(Clipboard.text.indexOf("<!DOCTYPE html>") === 0)
+            verify(Clipboard.text.indexOf("<h1") !== -1)
+            verify(Clipboard.text.indexOf("not copied") === -1,
+                   "Copy variants stay scoped to the clicked block")
+
+            findChild(appLoader.item, "ctxBlockExport").triggered()
+            blockMenu.close()
+            var exportDialog = findChild(appLoader.item, "exportDialog")
+            tryCompare(exportDialog, "visible", true, 1000)
+            compare(exportDialog.scope, "blocks")
+            compare(exportDialog.blockCount, 1)
+            compare(exportDialog.blockMarkdown, "# **Menu block**")
+            compare(findChild(exportDialog, "exportScopeBlocks").text,
+                    "This block")
+            exportDialog.close()
+
+            // The same button on a selected row routes the commands over the
+            // whole block selection, including a non-plain structural block.
+            DocumentSelection.selectBlock(0)
+            DocumentSelection.extendBlockSelectionTo(1)
+            mouseMove(delegateItem, 30, 16)
+            tryCompare(menuButton, "visible", true, 1000)
+            mouseClick(menuButton, 3, 3, Qt.LeftButton)
+            var selectionMenu = findChild(appLoader.item,
+                                          "selectionContextMenu")
+            tryCompare(selectionMenu, "visible", true, 1000)
+            findChild(appLoader.item, "ctxSelCopyAsMarkdown").triggered()
+            compare(Clipboard.text,
+                    "# **Menu block**\n\nnot copied")
+            findChild(appLoader.item, "ctxSelExport").triggered()
+            selectionMenu.close()
+            tryCompare(exportDialog, "visible", true, 1000)
+            compare(exportDialog.scope, "blocks")
+            compare(exportDialog.blockCount, 2)
+            compare(exportDialog.blockMarkdown,
+                    "# **Menu block**\n\nnot copied")
+            compare(findChild(exportDialog, "exportScopeBlocks").text,
+                    "Selected blocks (2)")
+            exportDialog.close()
+            DocumentSelection.clear()
+        }
+
+        function test_zo1b_blockMenuKeyboardRoute() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            DocumentManager.newDocument()
+            BlockModel.updateContent(0, "keyboard menu")
+            wait(150)
+
+            var delegateItem = findBlockDelegate(0)
+            var ta = findTextArea(delegateItem)
+            ensureFocus(ta)
+            tryCompare(appLoader.item, "blockContextShortcutEnabled",
+                       true, 1000)
+
+            keyClick(Qt.Key_F10, Qt.ShiftModifier)
+            var blockMenu = findChild(appLoader.item, "blockContextMenu")
+            tryCompare(blockMenu, "visible", true, 1000)
+            compare(blockMenu.target.index, 0)
+            blockMenu.close()
+            tryCompare(blockMenu, "visible", false, 1000)
+
+            ensureFocus(ta)
+            keyClick(Qt.Key_Menu)
+            tryCompare(blockMenu, "visible", true, 1000)
+            blockMenu.close()
+
+            DocumentSelection.selectBlock(0)
+            appLoader.item.selectionKeyHandler.forceActiveFocus()
+            tryCompare(appLoader.item.selectionKeyHandler,
+                       "activeFocus", true, 1000)
+            keyClick(Qt.Key_Menu)
+            var selectionMenu = findChild(appLoader.item,
+                                          "selectionContextMenu")
+            tryCompare(selectionMenu, "visible", true, 1000)
+            selectionMenu.close()
+            DocumentSelection.clear()
+        }
+
+        function test_zo1c_blockCopyExportKeepsDocumentAndMediaContext() {
+            if (isHeadless) {
+                skip("Menu tests require display")
+            }
+
+            // A TOC-only copy emits no headings of its own, but still reads
+            // the headings from the whole note.
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "# One\n\n```toc\n```\n\n## Under one")
+            wait(150)
+            var tocDelegate = null
+            tryVerify(function() {
+                tocDelegate = findBlockDelegate(1)
+                return tocDelegate !== null
+            }, 1000, "The TOC delegate is available")
+            AppActions.requestBlockHandleMenu(tocDelegate)
+            var blockMenu = findChild(appLoader.item, "blockContextMenu")
+            tryCompare(blockMenu, "visible", true, 1000)
+            findChild(appLoader.item, "ctxBlockCopyAsText").triggered()
+            verify(Clipboard.text.indexOf("One\n  Under one") !== -1)
+            findChild(appLoader.item, "ctxBlockCopyAsHtml").triggered()
+            verify(Clipboard.text.indexOf("href=\"#one\"") !== -1)
+            verify(Clipboard.text.indexOf("href=\"#under-one\"") !== -1)
+            verify(Clipboard.text.indexOf("<h1") === -1,
+                   "Only the selected TOC is emitted")
+            blockMenu.close()
+
+            // A loose file resolves a relative image against its own folder
+            // for both clipboard HTML and block export. Poison the exporter's
+            // persistent base first so the copy must actively reset it.
+            var dir = testCollectionDir + "/block-media-context"
+            var stored = AssetStore.ingestLocalFile(
+                sampleImagePath, "block-media", "", dir)
+            verify(stored !== "")
+            var notePath = dir + "/Note.md"
+            verify(testFiles.writeFile(notePath, "![](" + stored + ")\n"))
+            DocumentManager.newDocument()
+            verify(DocumentManager.open(
+                DocumentManager.toLocalFileUrl(notePath)))
+            wait(200)
+            compare(BlockModel.blockAt(0).blockType, Block.Image)
+
+            DocumentExporter.setImageContext(dir + "/wrong", "")
+            var imageDelegate = findBlockDelegate(0)
+            verify(imageDelegate !== null)
+            AppActions.requestBlockHandleMenu(imageDelegate)
+            tryCompare(blockMenu, "visible", true, 1000)
+            findChild(appLoader.item, "ctxBlockCopyAsHtml").triggered()
+            verify(Clipboard.text.indexOf("data:image/") !== -1,
+                   "Copy as HTML embeds the loose file's relative image")
+            verify(Clipboard.text.indexOf("[image:") === -1)
+            blockMenu.close()
+
+            var exportDialog = appLoader.item.exportDialog
+            exportDialog.openForBlocks([0])
+            exportDialog.prepareContext()
+            var outPath = dir + "/block.html"
+            verify(DocumentExporter.writeModelBlocks(
+                BlockModel, exportDialog.blockIndexes, "Image", "html",
+                outPath))
+            var written = testFiles.readFile(outPath)
+            verify(written.indexOf("data:image/") !== -1,
+                   "A loose-file block export embeds its relative image")
+            verify(written.indexOf("[image:") === -1)
+            exportDialog.close()
+        }
+
         // "Remove line breaks" folds a hard-wrapped block into one line,
         // leaves a quote's attribution alone, and greys out where there is
         // nothing to join.

@@ -551,6 +551,8 @@ BlockDelegateBase {
             onCursorPositionChanged: Qt.callLater(syncMathMenuQuery)
 
             Keys.onPressed: function(event) {
+                if (root.handleContextMenuKey(event))
+                    return
                 // While the menu targets this editor it owns navigation;
                 // everything else keeps typing into the source, which
                 // feeds the query.

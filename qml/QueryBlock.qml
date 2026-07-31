@@ -593,6 +593,8 @@ BlockDelegateBase {
                     }
                 }
                 Keys.onPressed: function(event) {
+                    if (root.handleContextMenuKey(event))
+                        return
                     var arrowModifiers = Qt.ControlModifier | Qt.ShiftModifier
                         | Qt.AltModifier | Qt.MetaModifier
                     if (!(event.modifiers & arrowModifiers)

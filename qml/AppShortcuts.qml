@@ -41,6 +41,18 @@ Item {
         onActivated: shortcuts.appWindow.cyclePane()
     }
 
+    // Standard keyboard context-menu gestures for the focused editor block.
+    // The note list and sidebar handle the same two keys locally; this one is
+    // enabled only while focus is inside the block editor, so it cannot steal
+    // their menus.
+    Shortcut {
+        sequences: ["Menu", "Shift+F10"]
+        context: Qt.WindowShortcut
+        enabled: shortcuts.appWindow
+                 && shortcuts.appWindow.blockContextShortcutEnabled
+        onActivated: shortcuts.appWindow.openFocusedBlockContextMenu()
+    }
+
     // Global keyboard shortcuts for undo/redo
     // Note: These are backup shortcuts when no TextArea has focus.
     // When a TextArea is focused, BlockDelegate handles Ctrl+Z/Y/Shift+Z directly.

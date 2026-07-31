@@ -949,6 +949,7 @@ KvitShell {
         active: false
         sourceComponent: EditorContextMenus {
             anchors.fill: parent
+            appWindow: root
             toolbar: appToolbar
             selectionKeys: selectionKeyHandler
         }
@@ -973,6 +974,46 @@ KvitShell {
     }
     function openBlockHandleMenu(target) {
         root.contextMenus().openHandleMenu(target)
+    }
+
+    // Whether Menu / Shift+F10 belongs to the editor rather than another
+    // focused pane. Walk from the window's active focus item because text,
+    // captions, table cells and the block-selection key handler have
+    // different immediate parents but all converge on one of these roots.
+    readonly property bool blockContextShortcutEnabled: {
+        var item = root.activeFocusItem
+        while (item) {
+            if (item === blockListView || item === selectionKeyHandler)
+                return true
+            item = item.parent
+        }
+        return false
+    }
+    function openFocusedBlockContextMenu() {
+        var target = null
+        if (DocumentSelection.hasBlockSelection) {
+            var selectedIndex = DocumentSelection.lastActiveIndex()
+            if (selectedIndex >= 0 && selectedIndex < BlockModel.count)
+                target = (blockListView.itemAtIndex(selectedIndex)
+                          as BlockDelegateBase)
+        } else {
+            // The ListView's currentIndex is updated by editor operations,
+            // but merely focusing a row does not promise to update it. Walk
+            // up from the real focus item so this route cannot target a row
+            // left current by an earlier mouse or drag operation.
+            var item = root.activeFocusItem
+            while (item && item !== blockListView) {
+                target = (item as BlockDelegateBase)
+                if (target)
+                    break
+                item = item.parent
+            }
+            if (!target && blockListView.currentIndex >= 0)
+                target = (blockListView.itemAtIndex(blockListView.currentIndex)
+                          as BlockDelegateBase)
+        }
+        if (target)
+            root.contextMenus().openHandleMenu(target, true)
     }
 
 

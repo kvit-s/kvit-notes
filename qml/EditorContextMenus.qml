@@ -29,6 +29,54 @@ Item {
     // the selection menu shares with it.
     property var toolbar
     property var selectionKeys
+    property var appWindow
+
+    function markdownForIndexes(indexes) {
+        return DocumentSerializer.serializeBlocks(BlockModel, indexes)
+    }
+
+    // DocumentExporter keeps its media base between calls because collection
+    // export advances it note by note. A direct Copy as HTML must therefore
+    // point it back at the active document every time, including a loose file
+    // whose folder is not a collection root.
+    function prepareRenderContext() {
+        var noteDir = appWindow && appWindow.currentNoteDir
+            ? appWindow.currentNoteDir() : ""
+        DocumentExporter.setImageContext(
+            noteDir, NoteCollection.isOpen ? NoteCollection.rootPath : "")
+    }
+
+    // The ordinary copy is the same multi-flavour payload as Ctrl+C on a
+    // block selection: structural Markdown for Kvit/plain targets and rendered
+    // inline HTML for rich-text targets.
+    function copyIndexes(indexes) {
+        var markdown = markdownForIndexes(indexes)
+        Clipboard.setMarkdown(markdown, MarkdownFormatter.toHtml(markdown))
+    }
+
+    // Copy-as deliberately writes source text in the requested format. It
+    // does not attach Kvit's private Markdown marker, so pasting the HTML back
+    // into the editor cannot be mistaken for a lossless internal copy.
+    function copyIndexesAs(indexes, format) {
+        var markdown = markdownForIndexes(indexes)
+        if (format === "markdown") {
+            Clipboard.text = markdown
+        } else if (format === "text") {
+            prepareRenderContext()
+            Clipboard.text = DocumentExporter.plainTextForModelBlocks(
+                BlockModel, indexes)
+                .replace(/\n$/, "")
+        } else if (format === "html") {
+            prepareRenderContext()
+            Clipboard.text = DocumentExporter.htmlForModelBlocks(
+                BlockModel, indexes)
+        }
+    }
+
+    function exportIndexes(indexes) {
+        if (appWindow && appWindow.exportDialog)
+            appWindow.exportDialog.openForBlocks(indexes)
+    }
 
     // Whether an open menu is holding this target's selection.
     function holdsSelection(target) {
@@ -39,6 +87,7 @@ Item {
     function openTextMenu(target) {
         if (DocumentSelection.hasBlockSelection
             && DocumentSelection.isBlockSelected(target.index)) {
+            selectionContextMenu.target = target
             selectionContextMenu.popup()
             return
         }
@@ -51,14 +100,26 @@ Item {
         linkContextMenu.popup()
     }
 
-    function openHandleMenu(target) {
+    function openHandleMenu(target, keyboard) {
+        var menu
         if (DocumentSelection.hasBlockSelection
             && DocumentSelection.isBlockSelected(target.index)) {
-            selectionContextMenu.popup()
-            return
+            selectionContextMenu.target = target
+            menu = selectionContextMenu
+        } else {
+            blockContextMenu.target = target
+            menu = blockContextMenu
         }
-        blockContextMenu.target = target
-        blockContextMenu.popup()
+        if (keyboard) {
+            // Position beside the gutter without reparenting the shared menu
+            // to a pooled delegate. popup(target, ...) keeps that transient
+            // parent; once the row is recycled the menu is parentless and no
+            // later block can open it.
+            var pos = target.mapToItem(menus, 40, 4)
+            menu.popup(pos.x, pos.y)
+        } else {
+            menu.popup()
+        }
     }
 
     Menu {
@@ -215,6 +276,39 @@ Item {
         objectName: "blockContextMenu"
         property var target: null
 
+        MenuItem {
+            objectName: "ctxBlockCopy"
+            text: qsTr("Copy")
+            onTriggered: menus.copyIndexes([blockContextMenu.target.index])
+        }
+        Menu {
+            objectName: "ctxBlockCopyAs"
+            title: qsTr("Copy as…")
+            MenuItem {
+                objectName: "ctxBlockCopyAsMarkdown"
+                text: qsTr("Markdown")
+                onTriggered: menus.copyIndexesAs(
+                    [blockContextMenu.target.index], "markdown")
+            }
+            MenuItem {
+                objectName: "ctxBlockCopyAsText"
+                text: qsTr("Plain text")
+                onTriggered: menus.copyIndexesAs(
+                    [blockContextMenu.target.index], "text")
+            }
+            MenuItem {
+                objectName: "ctxBlockCopyAsHtml"
+                text: qsTr("HTML")
+                onTriggered: menus.copyIndexesAs(
+                    [blockContextMenu.target.index], "html")
+            }
+        }
+        MenuItem {
+            objectName: "ctxBlockExport"
+            text: qsTr("Export…")
+            onTriggered: menus.exportIndexes([blockContextMenu.target.index])
+        }
+        MenuSeparator {}
         Menu {
             title: qsTr("Turn into")
             Repeater {
@@ -326,12 +420,42 @@ Item {
     Menu {
         id: selectionContextMenu
         objectName: "selectionContextMenu"
+        property var target: null
 
         MenuItem {
             objectName: "ctxSelCopy"
             text: qsTr("Copy")
             onTriggered: menus.selectionKeys.copyBlocksToClipboard()
         }
+        Menu {
+            objectName: "ctxSelCopyAs"
+            title: qsTr("Copy as…")
+            MenuItem {
+                objectName: "ctxSelCopyAsMarkdown"
+                text: qsTr("Markdown")
+                onTriggered: menus.copyIndexesAs(
+                    DocumentSelection.selectedIndexes(), "markdown")
+            }
+            MenuItem {
+                objectName: "ctxSelCopyAsText"
+                text: qsTr("Plain text")
+                onTriggered: menus.copyIndexesAs(
+                    DocumentSelection.selectedIndexes(), "text")
+            }
+            MenuItem {
+                objectName: "ctxSelCopyAsHtml"
+                text: qsTr("HTML")
+                onTriggered: menus.copyIndexesAs(
+                    DocumentSelection.selectedIndexes(), "html")
+            }
+        }
+        MenuItem {
+            objectName: "ctxSelExport"
+            text: qsTr("Export…")
+            onTriggered: menus.exportIndexes(
+                DocumentSelection.selectedIndexes())
+        }
+        MenuSeparator {}
         MenuItem {
             text: qsTr("Cut")
             onTriggered: {

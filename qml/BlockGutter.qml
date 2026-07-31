@@ -5,8 +5,9 @@ import QtQuick
 import Kvit 1.0
 
 // The strip to the left of a block: the plus-button that adds a block below
-// it (features.md §3.7), and the dotted handle that both selects the block
-// (§3.1) and starts a reorder drag (§3.2).
+// it (features.md §3.7), the dotted handle that both selects the block (§3.1)
+// and starts a reorder drag (§3.2), and a menu button that exposes the block
+// context menu without requiring a right-click.
 //
 // Selecting and dragging are the same press. Which one it was is only known
 // on release, so the threshold test lives here: under five pixels of movement
@@ -44,10 +45,10 @@ Item {
     signal dragDropped()
     signal dragCanceled()
 
-    // Wide enough for both buttons and the gap between them. Two button-rows
-    // tall now: the plus with the delete stacked under it, beside the handle.
-    // The HoverHandler must cover the delete so the row stays "hovered" while
-    // the pointer is on it.
+    // Wide enough for both columns and the gap between them. The plus and
+    // delete occupy the left column; the drag handle and menu button occupy
+    // the right. The HoverHandler must cover the second row so the controls
+    // stay visible while the pointer moves between them.
     width: 40
     height: 44
 
@@ -76,7 +77,7 @@ Item {
         }
 
         // The plus (add a block below) with the delete (remove this block)
-        // stacked under it; the handle sits beside the plus, top-aligned.
+        // stacked under it; the handle and menu button form the other column.
         Column {
             spacing: 2
 
@@ -134,93 +135,130 @@ Item {
             }
         }
 
-        Item {
-            width: 14
-            height: 18
+        Column {
+            spacing: 2
 
-            Column {
-                anchors.centerIn: parent
-                spacing: 2
-                opacity: 0.6
+            Item {
+                width: 14
+                height: 18
 
-                Repeater {
-                    model: 2
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 2
+                    opacity: 0.6
 
-                    Row {
-                        spacing: 2
+                    Repeater {
+                        model: 2
 
-                        Repeater {
-                            model: 2
+                        Row {
+                            spacing: 2
 
-                            Rectangle {
-                                width: 3
-                                height: 3
-                                radius: 1.5
-                                color: Theme.textFaint
+                            Repeater {
+                                model: 2
+
+                                Rectangle {
+                                    width: 3
+                                    height: 3
+                                    radius: 1.5
+                                    color: Theme.textFaint
+                                }
                             }
+                        }
+                    }
+                }
+
+                // preventStealing keeps the Flickable from grabbing the
+                // vertical movement a drag starts with.
+                MouseArea {
+                    id: handleArea
+                    objectName: "dragHandle"
+                    anchors.fill: parent
+                    anchors.margins: -2
+                    hoverEnabled: true
+                    cursorShape: Qt.OpenHandCursor
+                    preventStealing: true
+                    // Right-click remains a second route to the block menu.
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                    property real pressX: 0
+                    property real pressY: 0
+                    property bool dragging: false
+
+                    onPressed: function(mouse) {
+                        if (mouse.button === Qt.RightButton) {
+                            root.handleMenuRequested()
+                            return
+                        }
+                        pressX = mouse.x
+                        pressY = mouse.y
+                        dragging = false
+                    }
+                    onPositionChanged: function(mouse) {
+                        if (!pressed
+                            || (pressedButtons & Qt.RightButton))
+                            return
+                        if (!root.dragEnabled)
+                            return
+                        var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
+                        if (!dragging) {
+                            if (Math.abs(mouse.x - pressX) < 5
+                                && Math.abs(mouse.y - pressY) < 5)
+                                return
+                            dragging = true
+                            root.dragStarted(sp.x, sp.y)
+                        } else {
+                            root.dragMoved(sp.x, sp.y)
+                        }
+                    }
+                    onReleased: function(mouse) {
+                        if (mouse.button === Qt.RightButton)
+                            return
+                        if (dragging) {
+                            dragging = false
+                            root.dragDropped()
+                            return
+                        }
+                        root.blockSelectRequested()
+                    }
+                    onCanceled: {
+                        if (dragging) {
+                            dragging = false
+                            root.dragCanceled()
                         }
                     }
                 }
             }
 
-            // preventStealing keeps the Flickable from grabbing the vertical
-            // movement a drag starts with.
-            MouseArea {
-                id: handleArea
-                objectName: "dragHandle"
-                anchors.fill: parent
-                anchors.margins: -2
-                hoverEnabled: true
-                cursorShape: Qt.OpenHandCursor
-                preventStealing: true
-                // Right-click: the §9.5 block menu.
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
+            Rectangle {
+                objectName: "blockMenuButton"
+                width: 14
+                height: 18
+                radius: 4
+                color: menuArea.containsMouse ? Theme.hoverTint : "transparent"
 
-                property real pressX: 0
-                property real pressY: 0
-                property bool dragging: false
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 2
 
-                onPressed: function(mouse) {
-                    if (mouse.button === Qt.RightButton) {
-                        root.handleMenuRequested()
-                        return
-                    }
-                    pressX = mouse.x
-                    pressY = mouse.y
-                    dragging = false
-                }
-                onPositionChanged: function(mouse) {
-                    if (!pressed
-                        || (pressedButtons & Qt.RightButton))
-                        return
-                    if (!root.dragEnabled)
-                        return
-                    var sp = handleArea.mapToItem(null, mouse.x, mouse.y)
-                    if (!dragging) {
-                        if (Math.abs(mouse.x - pressX) < 5
-                            && Math.abs(mouse.y - pressY) < 5)
-                            return
-                        dragging = true
-                        root.dragStarted(sp.x, sp.y)
-                    } else {
-                        root.dragMoved(sp.x, sp.y)
+                    Repeater {
+                        model: 3
+                        Rectangle {
+                            width: 8
+                            height: 1.5
+                            radius: 0.75
+                            color: Theme.textMuted
+                        }
                     }
                 }
-                onReleased: function(mouse) {
-                    if (mouse.button === Qt.RightButton)
-                        return
-                    if (dragging) {
-                        dragging = false
-                        root.dragDropped()
-                        return
-                    }
-                    root.blockSelectRequested()
-                }
-                onCanceled: {
-                    if (dragging) {
-                        dragging = false
-                        root.dragCanceled()
-                    }
+
+                MouseArea {
+                    id: menuArea
+                    objectName: "blockMenuButtonArea"
+                    anchors.fill: parent
+                    anchors.margins: -2
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.handleMenuRequested()
                 }
             }
         }

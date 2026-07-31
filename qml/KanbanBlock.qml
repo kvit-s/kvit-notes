@@ -738,6 +738,8 @@ BlockDelegateBase {
         anchors.fill: parent
         activeFocusOnTab: true
         Keys.onPressed: function(event) {
+            if (root.handleContextMenuKey(event))
+                return
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier) && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
