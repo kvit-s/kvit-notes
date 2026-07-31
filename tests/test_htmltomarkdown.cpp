@@ -358,6 +358,23 @@ void TestHtmlToMarkdown::testMultiLinePreIsOneFence()
         converter.convert("<p>before</p><pre>a\nb</pre><p>after</p>");
     QCOMPARE(mixed.count(QStringLiteral("```")), 2);
     QCOMPARE(mixed, QStringLiteral("before\n\n```\na\nb\n```\n\nafter"));
+
+    // A <pre> is a listing because the source said <pre>, not because the
+    // characters in it came back monospace. The recognizer used to read only
+    // the character format's font family, which is the CSS generic
+    // "monospace" until a font configuration resolves it to a real family --
+    // observed as "DejaVu LGC Sans" under one platform plugin, where every
+    // pasted listing silently became one paragraph per line. Overriding the
+    // family in the source is the portable way to stage that.
+    const QString sansPre =
+        converter.convert("<pre style=\"font-family: Arial\">a\nb</pre>");
+    QCOMPARE(sansPre, QStringLiteral("```\na\nb\n```"));
+
+    // The family test still answers for the runs that are code without being
+    // <pre>, so removing it would cost those.
+    const QString codeSpan =
+        converter.convert("<p><code>inline_code_run</code></p>");
+    QVERIFY2(codeSpan.contains(QLatin1Char('`')), qPrintable(codeSpan));
 }
 
 QTEST_MAIN(TestHtmlToMarkdown)

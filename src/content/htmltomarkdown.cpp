@@ -130,6 +130,17 @@ bool blockIsPreformatted(const QTextBlock &block)
 {
     if (!block.isValid() || block.text().isEmpty())
         return false;
+    // What the source actually said. Qt's HTML reader sets this for <pre>
+    // (and for white-space:pre) on the block itself, so it survives whatever
+    // the font stack does to the character format underneath. The family
+    // test below cannot be the only signal: it reads the CSS generic family
+    // "monospace", and a font configuration that resolves that generic to a
+    // real family name reports something like "DejaVu LGC Sans" instead, at
+    // which point a pasted listing converts to one paragraph per line.
+    if (block.blockFormat().nonBreakableLines())
+        return true;
+    // A run that is monospace without being a <pre> — a <code> element, or
+    // text styled as code by the source — is a listing too.
     bool sawFragment = false;
     for (auto it = block.begin(); !it.atEnd(); ++it) {
         const QTextFragment fragment = it.fragment();
