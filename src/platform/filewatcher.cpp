@@ -117,7 +117,13 @@ void FileWatcher::addTreeWatches(const QString &root)
     m_discoveredDirs.insert(root);
     addPathChecked(root, true);
     // Watch every folder so an add/rename/delete anywhere in the tree fires a
-    // directoryChanged. The .kvit control directory is skipped — the app owns it.
+    // directoryChanged. The .kvit control directory is skipped — the app owns
+    // it — and skipped by its full path rather than by the text ".kvit"
+    // appearing anywhere in one: a vault whose own path contained that
+    // sequence (a folder called `.kvit-vaults`, say) matched every directory
+    // under it, so nothing in the vault was watched and external changes went
+    // unnoticed for the whole session.
+    m_controlDir = QDir::cleanPath(root) + QStringLiteral("/.kvit");
     m_discovery = std::make_unique<QDirIterator>(
         root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     continueDiscovery();
@@ -135,8 +141,10 @@ void FileWatcher::continueDiscovery()
     int budget = DiscoverySliceEntries;
     while (m_discovery->hasNext()) {
         const QString dir = m_discovery->next();
-        if (dir.contains(QStringLiteral("/.kvit")))
+        if (dir == m_controlDir
+            || dir.startsWith(m_controlDir + QLatin1Char('/'))) {
             continue;
+        }
         m_discoveredDirs.insert(dir);
         addPathChecked(dir, true);
         if (--budget <= 0) {

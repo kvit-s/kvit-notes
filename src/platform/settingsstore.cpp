@@ -46,17 +46,21 @@ bool SettingsStore::open(const QString &filePath, bool discardPendingWrite)
     // explicitly to drop the values.
     if (m_dirty && !writeFile() && !discardPendingWrite)
         return false;
-    m_writeTimer.stop();
 
+    // Nothing is given up until the new location is known to be usable. The
+    // binding, the values and the dirty flag used to be cleared first and this
+    // check made afterwards, so a directory that could not be created left the
+    // store holding nothing and bound to a path it can neither read nor write
+    // — the outcome the second half of this function's contract exists to
+    // rule out, and the same rule the pending-write refusal above follows.
+    const QDir dir = QFileInfo(filePath).absoluteDir();
+    if (!dir.exists() && !dir.mkpath(QStringLiteral(".")))
+        return false;
+
+    m_writeTimer.stop();
     m_filePath = filePath;
     m_values = QJsonObject();
     m_dirty = false;
-
-    const QDir dir = QFileInfo(filePath).absoluteDir();
-    if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) {
-        bumpRevision();
-        return false;
-    }
 
     QFile file(filePath);
     if (file.open(QIODevice::ReadOnly)) {

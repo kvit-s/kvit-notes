@@ -11,6 +11,9 @@
 #include <QtTest>
 
 #include <QCoreApplication>
+#include <QFile>
+#include <QFileInfo>
+#include <QLocalServer>
 #include <QSignalSpy>
 #include <QString>
 
@@ -74,6 +77,34 @@ private slots:
         SingleInstance b(uniqueName());
         QVERIFY(a.tryBecomePrimary());
         QVERIFY(b.tryBecomePrimary());
+    }
+
+    // A primary that crashed leaves its Unix socket file behind. Nothing
+    // answers on it, but it still makes listen() fail, so an endpoint that is
+    // only cleared when nothing answers is the difference between the next
+    // launch starting and the application being unable to start again until
+    // somebody deletes a file they have never heard of.
+    void staleEndpointIsReclaimed()
+    {
+        const QString name = uniqueName();
+        QString fullName;
+        {
+            QLocalServer server;
+            QVERIFY(server.listen(name));
+            fullName = server.fullServerName();
+        }   // closed and unlinked here
+        if (fullName.isEmpty() || fullName.startsWith(QStringLiteral("\\\\")))
+            QSKIP("named pipes leave nothing behind to go stale");
+
+        QFile stale(fullName);
+        QVERIFY(stale.open(QIODevice::WriteOnly));
+        stale.close();
+        QVERIFY(QFileInfo::exists(fullName));
+
+        SingleInstance instance(name);
+        QVERIFY2(instance.tryBecomePrimary(),
+                 "a socket file left behind by a crashed primary locked the "
+                 "endpoint out for good");
     }
 
     void forwardingWithNoPrimaryFails()

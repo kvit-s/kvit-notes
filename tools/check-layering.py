@@ -56,11 +56,17 @@ UNMODULED = {"main.cpp"}
 # EgressPolicy: scheme, credentials, address, redirects, size and time. A
 # module that could open its own connection would be a way around that, so
 # only kvit-platform is allowed to name the classes that can.
+# Named by prefix where Qt gives one, because this list is the enforcement and
+# a list of individual class names is a list that the next Qt release adds to
+# behind your back. Qt6::Network is linked PUBLIC on kvit-platform — its own
+# headers hold a QNetworkAccessManager and a QHostAddress by value — so every
+# module that links platform can compile against Qt networking whether or not
+# it should. This is what actually stops it.
 NETWORK_TYPES = re.compile(
-    r"\bQ(?:NetworkAccessManager|NetworkReply|NetworkRequest|NetworkProxy"
-    r"|NetworkCookie\w*|NetworkDatagram|NetworkInterface|HostAddress|HostInfo"
-    r"|TcpSocket|TcpServer|UdpSocket|SslSocket|SslConfiguration|LocalSocket"
-    r"|DnsLookup|AbstractSocket)\b"
+    r"\bQ(?:Network\w*|Ssl\w*|Http\w*|Dtls\w*"
+    r"|HostAddress|HostInfo|Authenticator|OcspResponse"
+    r"|TcpSocket|TcpServer|UdpSocket|LocalSocket|LocalServer"
+    r"|Dns\w*Record|DnsLookup|AbstractSocket)\b"
 )
 NETWORK_MODULES = {"platform"}
 

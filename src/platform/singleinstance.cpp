@@ -38,32 +38,55 @@ QString SingleInstance::defaultServerName()
 
 bool SingleInstance::tryBecomePrimary()
 {
-    // Probe for a live primary first. A successful connection is the only
-    // reliable proof one exists: on Unix a stale socket file survives a crash
-    // and would otherwise make listen() fail forever, while removing the file
-    // blindly would evict a live primary.
-    {
-        QLocalSocket probe;
-        probe.connectToServer(m_serverName);
-        if (probe.waitForConnected(200)) {
-            probe.abort();
-            return false;   // a primary is already running
-        }
-    }
-
-    // No live primary: clear any stale endpoint a crashed one left behind, then
-    // claim it.
-    QLocalServer::removeServer(m_serverName);
     m_server = new QLocalServer(this);
     connect(m_server, &QLocalServer::newConnection,
             this, &SingleInstance::onNewConnection);
-    if (!m_server->listen(m_serverName)) {
-        // Could not listen — a rare race with another launch claiming the name
-        // between the probe and here. Proceed as our own instance rather than
-        // fail to start; the vault lock still prevents two writers on one vault.
+
+    // Claim the name first, and only investigate if the claim fails. The
+    // order matters, because removeServer() unlinks the Unix socket whatever
+    // is behind it: probing, then removing, then listening let two launches
+    // that started together each find no primary, each unlink the other's
+    // freshly bound socket, and each come up believing it was the one that
+    // won. Two primaries is two tray icons and two windows for one open
+    // request, and in loose-file mode — which takes no vault lock — two
+    // editors writing one file.
+    if (m_server->listen(m_serverName))
+        return true;
+
+    // The name is taken, by a running primary or by a socket file a crashed
+    // one left behind. Only a connection tells the two apart: a stale file
+    // accepts nothing and would otherwise make listen() fail for good.
+    if (livePrimaryAnswers()) {
         delete m_server;
         m_server = nullptr;
+        return false;
     }
+
+    QLocalServer::removeServer(m_serverName);
+    if (m_server->listen(m_serverName))
+        return true;
+
+    // Still refused. Either another launch claimed the name in the interval
+    // above — ask it again, and become its secondary if it answers — or
+    // listening is impossible here for a reason that has nothing to do with
+    // another instance (a read-only runtime directory, a name something else
+    // owns). Only the second case proceeds without the channel, and it is the
+    // same fail-open choice the vault lock makes: an editor that will not
+    // start is a worse outcome than one running unguarded, and the vault lock
+    // is still there.
+    const bool secondary = livePrimaryAnswers();
+    delete m_server;
+    m_server = nullptr;
+    return !secondary;
+}
+
+bool SingleInstance::livePrimaryAnswers() const
+{
+    QLocalSocket probe;
+    probe.connectToServer(m_serverName);
+    if (!probe.waitForConnected(200))
+        return false;
+    probe.abort();
     return true;
 }
 

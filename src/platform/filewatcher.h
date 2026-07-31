@@ -175,6 +175,9 @@ private:
     std::unique_ptr<QDirIterator> m_discovery;
     QTimer m_discoverySlice;
     QString m_root;
+    // <root>/.kvit, resolved when the walk starts. The repository owns that
+    // subtree and its own writes must not read as external changes.
+    QString m_controlDir;
     QString m_currentFile;   // the open note, watched closely; "" when none
     int m_guardMs = 1500;
     int m_treeWatchRefreshCount = 0;

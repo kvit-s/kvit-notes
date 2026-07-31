@@ -47,6 +47,10 @@ signals:
     void requestReceived(const QString &request);
 
 private:
+    // Whether something is accepting connections on the endpoint right now.
+    // The only way to tell a running primary from the socket file a crashed
+    // one left behind, since both make listen() fail.
+    bool livePrimaryAnswers() const;
     void onNewConnection();
 
     QString m_serverName;

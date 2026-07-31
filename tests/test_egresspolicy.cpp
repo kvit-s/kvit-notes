@@ -247,6 +247,19 @@ void TestEgressPolicy::addressClassification_data()
     QTest::newRow("6to4 wrapping public") << "2002:5db8:d822::" << false;
     QTest::newRow("nat64 wrapping metadata") << "64:ff9b::a9fe:a9fe" << true;
     QTest::newRow("nat64 wrapping public") << "64:ff9b::5db8:d822" << false;
+    // RFC 8215's 64:ff9b:1::/48 is the other NAT64 prefix: reserved for
+    // translators inside one site, not globally reachable, and used precisely
+    // to map addresses that mean something only there. The whole /48 is
+    // refused rather than unwrapped — RFC 6052 lets the embedded address sit
+    // at six different offsets inside it, so there is no one place to read.
+    QTest::newRow("nat64 local-use, metadata at /96")
+        << "64:ff9b:1::a9fe:a9fe" << true;
+    QTest::newRow("nat64 local-use, rfc1918 at /64")
+        << "64:ff9b:1:0:a00:1::" << true;
+    QTest::newRow("nat64 local-use, public payload")
+        << "64:ff9b:1::5db8:d822" << true;
+    // The neighbouring prefix is ordinary global space and stays reachable.
+    QTest::newRow("public v6 near nat64 local-use") << "64:ff9b:2::1" << false;
     // Teredo stores the client's IPv4 address inverted in the last 32 bits;
     // 0xf5fffffe is ~10.0.0.1.
     QTest::newRow("teredo wrapping rfc1918") << "2001:0:0:0:0:0:f5ff:fffe" << true;

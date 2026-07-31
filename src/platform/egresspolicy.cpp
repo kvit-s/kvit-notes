@@ -39,6 +39,15 @@ constexpr SpecialUsePrefix kSpecialUsePrefixes[] = {
     {"240.0.0.0",      4},   // reserved, incl. 255.255.255.255 broadcast
     // ---- IPv6 ----
     {"::",           128},   // unspecified
+    // NAT64 local use (RFC 8215). The well-known prefix 64:ff9b::/96 below is
+    // unwrapped and its embedded IPv4 address classified, because a translator
+    // using it maps globally routable addresses. This one is the opposite
+    // case: it is reserved for translators inside a single site, is not
+    // globally reachable, and exists precisely to map addresses that have
+    // meaning only there — so the whole /48 is refused rather than unwrapped.
+    // RFC 6052 lets the embedded address sit at six different offsets within
+    // it, so there is no single position to read anyway.
+    {"64:ff9b:1::",   48},
     {"100::",         64},   // discard-only
     {"2001:db8::",    32},   // documentation
     {"fc00::",         7},   // unique-local
