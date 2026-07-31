@@ -53,8 +53,10 @@ void SearchIndexFeed::syncTo(const QString &rootPath)
     // first cold build remains the expensive one.
     if (m_openRoot != rootPath) {
         m_index->openForRoot(rootPath);
-        m_openRoot = rootPath;
+        m_openRoot = m_index->isUsable() ? rootPath : QString();
     }
+    if (m_openRoot.isEmpty())
+        return;   // nothing to reconcile against; the next sync tries again
     m_index->reconcile(m_listing());
 }
 
@@ -63,7 +65,12 @@ void SearchIndexFeed::openFor(const QString &rootPath)
     if (!m_index || rootPath.isEmpty())
         return;
     m_index->openForRoot(rootPath);
-    m_openRoot = rootPath;
+    // Remember the root only when the database actually opened. An open can
+    // fail for reasons that pass — the cache directory was briefly unwritable,
+    // the file was locked by something else — and recording the root anyway
+    // told every later syncTo() that this root was already open, so it never
+    // tried again and search stayed dead for as long as the vault stayed open.
+    m_openRoot = m_index->isUsable() ? rootPath : QString();
 }
 
 void SearchIndexFeed::reindexNoteFromText(const QString &rootPath,

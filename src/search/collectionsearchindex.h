@@ -213,7 +213,7 @@ signals:
 
 private slots:
     void onReconcileProgress(int indexed, int total);
-    void onReconcileFinished(bool ok);
+    void onReconcileFinished(quint64 epoch, bool ok);
     void onNoteReplaced();
     void onQueryReady(quint64 generation, SearchResults results);
 
@@ -238,6 +238,15 @@ private:
     // thread, so the indexing flag is a fact about the queue rather than a
     // lagging echo of the worker.
     int m_pendingReconciles = 0;
+    // Which root the work now in flight belongs to. Both database connections
+    // outlive any one vault, so a reconcile or a write queued for one root
+    // completes on its worker thread whenever it gets there — sometimes after
+    // the reader has opened a different vault, or after a rebuild has replaced
+    // the database underneath it. Every unit of work carries this number out
+    // and back, and a completion whose number no longer matches is discarded
+    // rather than allowed to set the degraded flag or clear the indexing one
+    // for a database it never touched.
+    quint64 m_rootEpoch = 0;
 
     std::atomic<quint64> m_submittedGeneration{0};
 };

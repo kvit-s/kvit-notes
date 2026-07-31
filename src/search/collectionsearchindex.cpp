@@ -66,10 +66,17 @@ public:
 
     void requestCancel() { m_cancel.store(true); }
 
-    Q_INVOKABLE void reconcile(QList<ReconcileEntry> listing)
+    // `epoch` stamps every unit of work with the root it was queued for, and
+    // travels back out on the signals below. Both database connections are
+    // long-lived and shared across roots, so a reconcile queued for the vault
+    // the reader has just left completes on the worker thread after the next
+    // vault's has begun; without the stamp its verdict lands on whatever is
+    // open then — marking a healthy index degraded, or declaring indexing
+    // finished for a build that has barely started.
+    Q_INVOKABLE void reconcile(QList<ReconcileEntry> listing, quint64 epoch)
     {
         if (!m_db.isUsable()) {
-            emit reconcileFinished(false);
+            emit reconcileFinished(epoch, false);
             return;
         }
         PerfLog::ScopedTimer perf(QStringLiteral("search.index.rebuild"),
@@ -182,12 +189,12 @@ public:
         perf.addContext(QStringLiteral("reindexed"), reindexed);
         perf.addContext(QStringLiteral("unreadable"), unreadable);
         perf.addContext(QStringLiteral("unread"), skipped);
-        emit reconcileFinished(ok);
+        emit reconcileFinished(epoch, ok);
     }
 
     Q_INVOKABLE void replaceFromText(const QString &relPath,
                                      const QString &fileText, qint64 fileSize,
-                                     qint64 modifiedMs)
+                                     qint64 modifiedMs, quint64 epoch)
     {
         if (!m_db.isUsable())
             return;
@@ -196,11 +203,11 @@ public:
         if (m_db.replaceNote(note))
             emit noteReplaced();
         else
-            emit writeFailed();
+            emit writeFailed(epoch);
     }
 
     Q_INVOKABLE void replaceFromPath(const QString &relPath,
-                                     const QString &absPath)
+                                     const QString &absPath, quint64 epoch)
     {
         if (!m_db.isUsable())
             return;
@@ -219,25 +226,25 @@ public:
         if (m_db.replaceNote(note))
             emit noteReplaced();
         else
-            emit writeFailed();
+            emit writeFailed(epoch);
     }
 
-    Q_INVOKABLE void removePath(const QString &relPath)
+    Q_INVOKABLE void removePath(const QString &relPath, quint64 epoch)
     {
         if (!m_db.isUsable())
             return;
         if (m_db.removeNote(relPath))
             emit noteReplaced();
         else
-            emit writeFailed();
+            emit writeFailed(epoch);
     }
 
 signals:
     void reconcileStarted();
     void reconcileProgress(int indexed, int total);
-    void reconcileFinished(bool ok);
+    void reconcileFinished(quint64 epoch, bool ok);
     void noteReplaced();
-    void writeFailed();
+    void writeFailed(quint64 epoch);
 
 private:
     SearchIndexDb m_db;
@@ -338,10 +345,12 @@ CollectionSearchIndex::CollectionSearchIndex(QObject *parent)
     connect(m_writeWorker, &SearchIndexWriteWorker::noteReplaced, this,
             &CollectionSearchIndex::onNoteReplaced);
     connect(m_writeWorker, &SearchIndexWriteWorker::writeFailed, this,
-            [this]() {
+            [this](quint64 epoch) {
                 // Ignore what a worker reports about a root that has already
-                // been closed: the index is not degraded, it is gone.
-                if (m_usable)
+                // been closed — the index is not degraded, it is gone — and
+                // about one that has been left for another, where the report
+                // is true of a database this object no longer has open.
+                if (epoch == m_rootEpoch && m_usable)
                     setDegraded(true);
             });
     m_writeThread->start();
@@ -421,6 +430,9 @@ void CollectionSearchIndex::openForRoot(const QString &rootPath)
         closeIndex();
         return;
     }
+    // Everything queued for the previous root belongs to the previous root,
+    // whatever order it completes in.
+    ++m_rootEpoch;
     m_rootPath = rootPath;
     m_dbPath = databasePathForRoot(rootPath);
     QDir().mkpath(QFileInfo(m_dbPath).absolutePath());
@@ -499,6 +511,7 @@ void CollectionSearchIndex::cancelWork()
 
 void CollectionSearchIndex::forgetRoot()
 {
+    ++m_rootEpoch;
     m_rootPath.clear();
     m_dbPath.clear();
     m_pendingReconciles = 0;
@@ -512,6 +525,9 @@ bool CollectionSearchIndex::rebuildIndex()
     if (m_rootPath.isEmpty() || m_dbPath.isEmpty())
         return false;
     const QString dbPath = m_dbPath;
+    // The database about to be deleted is the one every queued job was
+    // stamped for, so their verdicts are about a file that will not exist.
+    ++m_rootEpoch;
     cancelWork();
     // The reader detaches first so the writer's unlink cannot leave it on a
     // deleted inode, and reattaches only after the writer has recreated the
@@ -766,7 +782,8 @@ void CollectionSearchIndex::reconcile(const QList<ReconcileEntry> &listing)
     ++m_pendingReconciles;
     setIndexing(true);
     QMetaObject::invokeMethod(m_writeWorker, "reconcile", Qt::QueuedConnection,
-                              Q_ARG(QList<ReconcileEntry>, listing));
+                              Q_ARG(QList<ReconcileEntry>, listing),
+                              Q_ARG(quint64, m_rootEpoch));
 }
 
 void CollectionSearchIndex::replaceFromText(const QString &relPath,
@@ -778,7 +795,8 @@ void CollectionSearchIndex::replaceFromText(const QString &relPath,
     QMetaObject::invokeMethod(m_writeWorker, "replaceFromText",
                               Qt::QueuedConnection, Q_ARG(QString, relPath),
                               Q_ARG(QString, fileText), Q_ARG(qint64, fileSize),
-                              Q_ARG(qint64, modifiedMs));
+                              Q_ARG(qint64, modifiedMs),
+                              Q_ARG(quint64, m_rootEpoch));
 }
 
 void CollectionSearchIndex::replaceFromPath(const QString &relPath,
@@ -788,7 +806,8 @@ void CollectionSearchIndex::replaceFromPath(const QString &relPath,
         return;
     QMetaObject::invokeMethod(m_writeWorker, "replaceFromPath",
                               Qt::QueuedConnection, Q_ARG(QString, relPath),
-                              Q_ARG(QString, absPath));
+                              Q_ARG(QString, absPath),
+                              Q_ARG(quint64, m_rootEpoch));
 }
 
 void CollectionSearchIndex::removePath(const QString &relPath)
@@ -796,7 +815,8 @@ void CollectionSearchIndex::removePath(const QString &relPath)
     if (!m_usable)
         return;
     QMetaObject::invokeMethod(m_writeWorker, "removePath", Qt::QueuedConnection,
-                              Q_ARG(QString, relPath));
+                              Q_ARG(QString, relPath),
+                              Q_ARG(quint64, m_rootEpoch));
 }
 
 void CollectionSearchIndex::submitQuery(quint64 generation,
@@ -847,8 +867,14 @@ void CollectionSearchIndex::onReconcileProgress(int indexed, int total)
     emit indexingProgress(indexed, total);
 }
 
-void CollectionSearchIndex::onReconcileFinished(bool ok)
+void CollectionSearchIndex::onReconcileFinished(quint64 epoch, bool ok)
 {
+    // A verdict about a root this object has left, or about the database a
+    // rebuild has since replaced, says nothing about the one open now. It also
+    // must not touch the pending count: that belongs to the current root, and
+    // decrementing it here published a half-built index as complete.
+    if (epoch != m_rootEpoch)
+        return;
     if (!ok && m_usable)
         setDegraded(true);
     // Only the last outstanding job clears the flag. Two queued reconciles
