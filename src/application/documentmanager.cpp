@@ -246,6 +246,15 @@ bool DocumentManager::open(const QUrl &fileUrl, bool ignoreSizeCap)
 {
     flushPendingEdits();
     invalidateAsyncOpen();
+    // Same reasoning as newDocument(): the generation counter only stops a
+    // late result from being applied, while the worker's commit lands
+    // whatever the caller does. Every path that reaches here has either
+    // already saved the departing note synchronously (openNoteByPath) or has
+    // been told to discard it, and in the discard case an autosave still in
+    // flight would write back the very text the user refused to keep — over a
+    // file the editor no longer has open, so an external edit made in the
+    // meantime goes with it.
+    cancelPendingWrites();
     ++m_asyncSaveGeneration;
     ++m_asyncJournalGeneration;
     QString filePath = fileUrl.toLocalFile();
@@ -301,6 +310,11 @@ bool DocumentManager::openAsync(const QUrl &fileUrl, bool ignoreSizeCap)
         emit openAsyncFinished(filePath, false);
         return false;
     }
+
+    // The departing document is being abandoned here just as surely as in
+    // open(); stop any write still running against its file before the model
+    // is replaced. See the comment there.
+    cancelPendingWrites();
 
     const quint64 generation = ++m_asyncOpenGeneration;
     m_asyncOpenTimer.restart();

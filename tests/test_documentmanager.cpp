@@ -46,6 +46,7 @@ private slots:
     void testManualSaveAsyncTimingSplitsRecorded();
     void testInFlightSaveDoesNotResurrectARenamedNote();
     void testInFlightSaveDoesNotResurrectADeletedNote();
+    void testInFlightSaveDoesNotOverwriteADepartedNote();
     void testFrontMatterChangeMarksDocumentDirty();
     void testOlderBodySnapshotDoesNotRestoreStaleFrontMatter();
     void testAutoSaveTimingSplitsRecorded();
@@ -462,6 +463,38 @@ void TestDocumentManager::testInFlightSaveDoesNotResurrectADeletedNote()
 
     QVERIFY2(!QFile::exists(path),
              "the abandoned save recreated a note the user deleted");
+}
+
+// H4, the departure variant. "You have unsaved changes" answered with Discard
+// opens the next file without saving this one, but an autosave started on
+// window blur may already be running against it. The commit does not care that
+// nobody is listening for its result any more, so the text the user refused to
+// keep lands on a file the editor no longer has open — over whatever is there
+// by then. Opening another document has to call that write off.
+void TestDocumentManager::testInFlightSaveDoesNotOverwriteADepartedNote()
+{
+    m_model->insertBlockInternal(0, Block::Paragraph, "Initial");
+    const QString departed = m_tempDir->filePath("departed.md");
+    const QString next = m_tempDir->filePath("next.md");
+    QVERIFY(m_manager->saveAs(QUrl::fromLocalFile(departed)));
+    {
+        QFile f(next);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("Next note\n");
+    }
+
+    // An autosave is in flight against the departing note.
+    m_manager->setAsyncPersistenceDelayMsForTests(400);
+    m_model->updateContent(0, QStringLiteral("Edit the user then discarded"));
+    QVERIFY(m_manager->saveAsync());
+
+    // Discard, then open the other file.
+    m_manager->setAsyncPersistenceDelayMsForTests(0);
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(next)));
+    QTest::qWait(800);   // outlive the worker either way
+
+    QCOMPARE(readFile(departed), QStringLiteral("Initial\n"));
+    QCOMPARE(m_manager->currentFilePath(), next);
 }
 
 void TestDocumentManager::testManualSaveAsyncTimingSplitsRecorded()
