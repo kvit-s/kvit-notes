@@ -337,12 +337,23 @@ BlockDelegateBase {
     // its text, or at the start for a cell entered from the left, so that a
     // held Right key crosses each cell rather than stopping at its far end.
     property bool enterCellAtStart: false
-    function editCell(r, c, atStart) {
+    // A pointer can also be what makes a rendered cell live. Its scene point
+    // survives the static-cell -> shared-TextArea handoff so the editor can do
+    // the character hit test after it has been reparented and laid out.
+    property bool enterCellAtPointer: false
+    property real enterCellSceneX: 0
+    property real enterCellSceneY: 0
+    function editCell(r, c, atStart, sceneX, sceneY) {
         revealThrough(r)
         // One cell being edited and a rectangle of cells being selected are
         // exclusive: whichever starts, ends the other.
         clearCellSelection()
         enterCellAtStart = atStart === true
+        enterCellAtPointer = sceneX !== undefined && sceneY !== undefined
+        if (enterCellAtPointer) {
+            enterCellSceneX = sceneX
+            enterCellSceneY = sceneY
+        }
         // Both of these come before the cell goes live. The block's focus
         // item is what marks the table as the focused block for the shell,
         // and the cell's editor takes the caret off it as it moves to the new
@@ -992,7 +1003,11 @@ BlockDelegateBase {
                                                     if (root.hasCellSelection)
                                                         return
                                                     root.clearCellSelection()
-                                                    root.editCell(rowGroup.rowIndex, cell.colIndex)
+                                                    var scenePoint = cell.mapToItem(
+                                                        null, mouse.x, mouse.y)
+                                                    root.editCell(rowGroup.rowIndex,
+                                                        cell.colIndex, false,
+                                                        scenePoint.x, scenePoint.y)
                                                 }
                                                 // A header cell has a sort affordance on double-click.
                                                 onDoubleClicked: {
@@ -1138,8 +1153,21 @@ BlockDelegateBase {
             // on creation for the first cell, and on every move after that.
             function beginEditing() {
                 cellArea.forceActiveFocus()
-                cellArea.cursorPosition = root.enterCellAtStart
-                    ? 0 : cellArea.length
+                var usePointer = root.enterCellAtPointer
+                var sceneX = root.enterCellSceneX
+                var sceneY = root.enterCellSceneY
+                root.enterCellAtPointer = false
+                if (usePointer) {
+                    Qt.callLater(function() {
+                        var point = cellArea.mapFromItem(null, sceneX, sceneY)
+                        var pos = cellArea.positionAt(point.x, point.y)
+                        if (pos >= 0)
+                            cellArea.cursorPosition = Math.min(pos, cellArea.length)
+                    })
+                } else {
+                    cellArea.cursorPosition = root.enterCellAtStart
+                        ? 0 : cellArea.length
+                }
                 // A live cell grows its row to hold what is being typed, and
                 // a table at the end of a note grows into the space below the
                 // window. Asked once the cell has the height it just took.

@@ -245,6 +245,9 @@ BlockDelegateBase {
     function focusAtStart() { forward("focusAtStart", []) }
     function focusAtEnd() { forward("focusAtEnd", []) }
     function focusAtPosition(markdownPos) { forward("focusAtPosition", [markdownPos]) }
+    function focusAtScenePosition(sceneX, sceneY) {
+        forward("focusAtScenePosition", [sceneX, sceneY])
+    }
     function markdownPositionAt(sceneX, sceneY) {
         var item = editableItem()
         if (item && item.markdownPositionAt)
@@ -518,17 +521,13 @@ BlockDelegateBase {
                 && !DocumentSelection.isBlockSelected(root.index))
                 DocumentSelection.clear()
 
-            var localX = mouse.x - readOnlyText.x
-            var localY = mouse.y - readOnlyText.y
-            var pos = 0
-            // qmllint disable missing-property
-            if (typeof readOnlyText.positionAt === "function")
-                pos = Math.max(0, Math.min(root.content.length,
-                    readOnlyText.positionAt(localX, localY)))
-            // qmllint enable missing-property
-            else
-                pos = localX < readOnlyText.width / 2 ? 0 : root.content.length
-            root.focusAtPosition(pos)
+            // QML Text has no positionAt(): the old fallback split the whole
+            // row in half, so nearly every click on a short line resolved to
+            // position zero. Preserve the actual point while the Loader swaps
+            // this lightweight shell for the TextArea; the editor hit-tests
+            // it once its document is ready.
+            var scenePoint = root.mapToItem(null, mouse.x, mouse.y)
+            root.focusAtScenePosition(scenePoint.x, scenePoint.y)
             mouse.accepted = true
         }
     }

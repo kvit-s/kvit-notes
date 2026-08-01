@@ -891,6 +891,20 @@ BlockDelegateBase {
         })
     }
 
+    // Focus a lazily-created editor at the point that originally asked for
+    // it. Paragraphs and headings use a lightweight Text while resting, and
+    // Text has no character hit-test API. Keep the scene point across the
+    // Loader handoff and ask the real TextArea after its document and layout
+    // have settled instead of guessing a markdown offset from the row width.
+    function focusAtScenePosition(sceneX, sceneY) {
+        activateEditor()
+        textArea.forceActiveFocus()
+        Qt.callLater(function() {
+            var point = textArea.mapFromItem(null, sceneX, sceneY)
+            delegate.placeCaretAt(point)
+        })
+    }
+
     // Type text in at the caret (BlockDelegateBase's typeText). Through the
     // document rather than through BlockModel, because the engine reports a
     // document edit as a user edit and a model write as a reload: only the

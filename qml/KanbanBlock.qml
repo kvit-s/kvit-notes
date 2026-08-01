@@ -196,17 +196,28 @@ BlockDelegateBase {
     // Height of the live editor's text, so the field grows to fit what is
     // being typed instead of clipping it.
     property real activeEditorHeight: 0
+    // A tap on rendered card text supplies the point the shared editor should
+    // take its caret at. Keyboard/menu entry omits it and keeps the established
+    // end-of-field behavior.
+    property bool editAtPointer: false
+    property real editSceneX: 0
+    property real editSceneY: 0
 
     function editingField(col, idx, field) {
         return root.editCol === col && root.editIdx === idx
             && root.editField === field
     }
-    function beginEdit(col, idx, field) {
+    function beginEdit(col, idx, field, sceneX, sceneY) {
         if (col < 0 || col >= root.columns.length)
             return
         var cards = root.columns[col].cards
         if (idx < 0 || idx >= cards.length)
             return
+        root.editAtPointer = sceneX !== undefined && sceneY !== undefined
+        if (root.editAtPointer) {
+            root.editSceneX = sceneX
+            root.editSceneY = sceneY
+        }
         root.editCol = col
         root.editIdx = idx
         root.editField = field
@@ -1404,11 +1415,12 @@ BlockDelegateBase {
                                                 && root.pointInside(descArea,
                                                        descArea.mapFromItem(null, sx, sy))) {
                                                 root.beginEdit(cardItem.cardColIndex,
-                                                               cardItem.cardIndex, "description")
+                                                               cardItem.cardIndex, "description",
+                                                               sx, sy)
                                                 return
                                             }
                                             root.beginEdit(cardItem.cardColIndex,
-                                                           cardItem.cardIndex, "title")
+                                                           cardItem.cardIndex, "title", sx, sy)
                                         }
                                     }
                                     TapHandler {
@@ -1820,7 +1832,20 @@ BlockDelegateBase {
             // creation for the first field, and on every move after that.
             function beginEditing() {
                 cardArea.forceActiveFocus()
-                cardArea.cursorPosition = cardArea.length
+                var usePointer = root.editAtPointer
+                var sceneX = root.editSceneX
+                var sceneY = root.editSceneY
+                root.editAtPointer = false
+                if (usePointer) {
+                    Qt.callLater(function() {
+                        var point = cardArea.mapFromItem(null, sceneX, sceneY)
+                        var pos = cardArea.positionAt(point.x, point.y)
+                        if (pos >= 0)
+                            cardArea.cursorPosition = Math.min(pos, cardArea.length)
+                    })
+                } else {
+                    cardArea.cursorPosition = cardArea.length
+                }
                 // A card grows when it goes live — the description field is
                 // only there while it is being edited — and a board at the
                 // end of a note grows into the space below the window. Asked

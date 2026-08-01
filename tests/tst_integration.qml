@@ -190,6 +190,125 @@ Item {
             verify(textArea.activeFocus, "TextArea should have focus after click")
         }
 
+        function test_04b_clickSimpleBlockPlacesCaretAtPointer() {
+            if (isHeadless) {
+                skip("Pointer tests require display")
+            }
+
+            DocumentManager.newDocument()
+            BlockModel.updateContent(0, "alpha bravo charlie delta")
+            wait(100)
+
+            var block = findBlockDelegate(0)
+            verify(block !== null, "Simple block should exist")
+            compare(findTextAreaRaw(block), null,
+                    "An untouched simple block should use the lightweight renderer")
+            var restingText = findReadOnlyText(block)
+            verify(restingText !== null && restingText.visible,
+                   "The lightweight text should be visible")
+
+            // Land well inside the line and away from position zero. Capture
+            // the scene point because the resting Text is destroyed as the
+            // real editor is loaded by this press.
+            var x = Math.max(20, restingText.contentWidth * 0.72)
+            var y = restingText.height / 2
+            var scenePoint = restingText.mapToItem(null, x, y)
+            var blockPoint = block.mapFromItem(null, scenePoint.x, scenePoint.y)
+
+            appLoader.item.requestActivate()
+            mouseClick(block, blockPoint.x, blockPoint.y, Qt.LeftButton)
+
+            var textArea = null
+            tryVerify(function() {
+                textArea = findTextAreaRaw(block)
+                return textArea !== null && textArea.activeFocus
+            }, 1000, "Clicking the lightweight text should load and focus its editor")
+
+            var editorPoint = textArea.mapFromItem(null,
+                                                   scenePoint.x, scenePoint.y)
+            var expected = textArea.positionAt(editorPoint.x, editorPoint.y)
+            verify(expected > 0, "The fixture click must be past the block start")
+            tryCompare(textArea, "cursorPosition", expected, 1000,
+                       "The caret should land where the simple block was clicked")
+        }
+
+        function test_04c_clickTableCellPlacesCaretAtPointer() {
+            if (isHeadless) {
+                skip("Pointer tests require display")
+            }
+
+            DocumentManager.newDocument()
+            BlockModel.convertBlock(0, Block.Table,
+                "| Value |\n| --- |\n| alpha bravo charlie delta |")
+            wait(200)
+
+            var table = findBlockDelegate(0)
+            var grid = findChild(table, "tableGrid")
+            verify(table !== null && grid !== null, "The table grid should exist")
+
+            // The first data row follows the 32px header. Click within its
+            // text, then retain the scene point while the static cell swaps to
+            // the table's one shared editor.
+            var gridPoint = grid.mapToItem(table, 0, 0)
+            var clickPoint = Qt.point(gridPoint.x + 95, gridPoint.y + 48)
+            var scenePoint = table.mapToItem(null, clickPoint.x, clickPoint.y)
+
+            appLoader.item.requestActivate()
+            mouseClick(table, clickPoint.x, clickPoint.y, Qt.LeftButton)
+
+            var editor = null
+            tryVerify(function() {
+                editor = findChild(table, "tableCellEditor")
+                return editor !== null && editor.activeFocus
+            }, 1000, "Clicking a rendered cell should open its editor")
+
+            var editorPoint = editor.mapFromItem(null,
+                                                 scenePoint.x, scenePoint.y)
+            var expected = editor.positionAt(editorPoint.x, editorPoint.y)
+            verify(expected > 0 && expected < editor.length,
+                   "The fixture click should be inside the cell text")
+            tryCompare(editor, "cursorPosition", expected, 1000,
+                       "The cell caret should land where its text was clicked")
+        }
+
+        function test_04d_clickKanbanCardPlacesCaretAtPointer() {
+            if (isHeadless) {
+                skip("Pointer tests require display")
+            }
+
+            DocumentManager.newDocument()
+            BlockModel.convertBlock(0, Block.CodeBlock,
+                "## To do\n- [ ] alpha bravo charlie delta\n## Done",
+                false, "kanban")
+            wait(250)
+
+            var board = findBlockDelegate(0)
+            var title = findChild(board, "kanbanCardTitle")
+            verify(board !== null && title !== null && title.visible,
+                   "The rendered card title should exist")
+            var x = Math.min(title.width - 2, 95)
+            var y = title.height / 2
+            var scenePoint = title.mapToItem(null, x, y)
+            var boardPoint = board.mapFromItem(null, scenePoint.x, scenePoint.y)
+
+            appLoader.item.requestActivate()
+            mouseClick(board, boardPoint.x, boardPoint.y, Qt.LeftButton)
+
+            var editor = null
+            tryVerify(function() {
+                editor = findChild(board, "kanbanCardTextEditor")
+                return editor !== null && editor.activeFocus
+            }, 1000, "Clicking a rendered card title should open its editor")
+
+            var editorPoint = editor.mapFromItem(null,
+                                                 scenePoint.x, scenePoint.y)
+            var expected = editor.positionAt(editorPoint.x, editorPoint.y)
+            verify(expected > 0 && expected < editor.length,
+                   "The fixture click should be inside the card title")
+            tryCompare(editor, "cursorPosition", expected, 1000,
+                       "The card caret should land where its title was clicked")
+        }
+
         function test_05_typingUpdatesContent() {
             if (isHeadless) {
                 skip("Keyboard tests require display")
