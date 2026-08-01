@@ -158,6 +158,68 @@ KvitShell {
         blockListView.contentY = Math.max(0, Math.min(target, maxY))
     }
 
+    // Scroll the editor the least it can to put `item` fully inside the
+    // viewport, and not at all when it is already there.
+    //
+    // A block can be on screen while the part of it the reader just reached
+    // is not: a task-board card grows a description field when it is clicked,
+    // and a table row grows when its cell goes live. At the end of a note that
+    // growth lands below the window's edge, and the reader cannot scroll to it
+    // — the moment the pointer leaves the card, the card folds back and the
+    // note is short again.
+    // The scroll itself is followed for a few frames, because what asked for
+    // it is usually still growing: the card whose field went live gains the
+    // field's height, which moves the field itself further down after the
+    // first scroll has already been worked out. A settled item costs nothing
+    // — the pass below moves the view only while part of the item is outside
+    // it.
+    property Item revealTarget: null
+    function revealItem(item) {
+        if (!item || !blockListView.contentItem)
+            return
+        root.revealTarget = item
+        revealSettle.ticksLeft = 8
+        root.applyReveal()
+        revealSettle.restart()
+    }
+    function applyReveal() {
+        var item = root.revealTarget
+        if (!item || !blockListView.contentItem)
+            return
+        var top = item.mapToItem(blockListView.contentItem, 0, 0).y
+        var bottom = top + item.height
+        var margin = 16
+        var target = blockListView.contentY
+        if (bottom + margin > target + blockListView.height)
+            target = bottom + margin - blockListView.height
+        if (top - margin < target)
+            target = top - margin
+        if (target === blockListView.contentY)
+            return
+        // The list's own bottom margin is scrollable space past the last
+        // block, so the reveal may use it: a card at the very end of a note
+        // has nothing below it to scroll into view otherwise.
+        var maxY = Math.max(0, blockListView.contentHeight + blockListView.bottomMargin
+                               - blockListView.height)
+        blockListView.contentY = Math.max(0, Math.min(target, maxY))
+    }
+    Timer {
+        id: revealSettle
+        objectName: "revealSettle"
+        property int ticksLeft: 0
+        interval: 16
+        repeat: true
+        onTriggered: {
+            revealSettle.ticksLeft--
+            if (!root.revealTarget || revealSettle.ticksLeft <= 0) {
+                revealSettle.stop()
+                root.revealTarget = null
+                return
+            }
+            root.applyReveal()
+        }
+    }
+
     function openSettingsDialog() { settingsDialog.open() }
 
     // ---- Focusing a block by index --------------------------------------
@@ -367,6 +429,7 @@ KvitShell {
         function onScrollToBlockRequested(index) { root.scrollToBlock(index) }
         function onOpenNoteByPathRequested(relPath) { root.openNoteByPath(relPath) }
         function onCenterCaretLineRequested(item) { root.centerCaretLine(item) }
+        function onRevealItemRequested(item) { root.revealItem(item) }
         function onTextContextMenuRequested(target) { root.openTextContextMenu(target) }
         function onLinkContextMenuRequested(target) { root.openLinkContextMenu(target) }
         function onBlockHandleMenuRequested(target) { root.openBlockHandleMenu(target) }
@@ -1694,6 +1757,17 @@ KvitShell {
                 // wheel/flick movement without making startup instantiate a
                 // large variable-height document through the buffer.
                 cacheBuffer: 240
+
+                // Scrollable space past the last block, so the end of a note
+                // can be pulled up into the middle of the window instead of
+                // being pinned to its bottom edge. The last block was where
+                // the reader had the least room to work: a task-board card
+                // clicked there grows a description field below the window's
+                // edge, and with the document ending exactly at that edge
+                // there was nothing to scroll to. It is a scroll range, not a
+                // row and not content height, so what the seam cursor and the
+                // block list measure themselves against is unchanged.
+                bottomMargin: Math.max(120, Math.round(height * 0.35))
 
                 // §16.2 typewriter mode: caret-line centering scrolls smoothly.
                 // The animation is enabled only in typewriter mode so ordinary

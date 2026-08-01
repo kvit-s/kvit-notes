@@ -513,6 +513,13 @@ Display when cursor moves into "information":
 - Ctrl+Left / Option+Left moves by word
 - Ctrl+Right / Option+Right moves by word
 - Page Up/Down scrolls by viewport height
+- The note scrolls past its last block, by about a third of the window, so the
+  end of a note can be worked on in the middle of the window rather than
+  against its bottom edge
+- A part of a block that appears when it is edited — a task-board card's
+  description field, a table row growing around its live cell — is scrolled
+  into view when it opens and while it grows, so it cannot open below the
+  window's edge
 
 ---
 

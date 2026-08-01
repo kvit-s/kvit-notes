@@ -1821,6 +1821,16 @@ BlockDelegateBase {
             function beginEditing() {
                 cardArea.forceActiveFocus()
                 cardArea.cursorPosition = cardArea.length
+                // A card grows when it goes live — the description field is
+                // only there while it is being edited — and a board at the
+                // end of a note grows into the space below the window. Asked
+                // on the next tick, once the field has the height it just
+                // took, and again while typing grows it further.
+                Qt.callLater(editorRoot.revealField)
+            }
+            function revealField() {
+                if (root.activeFieldItem !== null)
+                    AppActions.requestRevealItem(root.activeFieldItem)
             }
             // The document is handed to the engine only once the TextArea has
             // finished building, which is what EditableBlock's editorActive
@@ -1847,6 +1857,15 @@ BlockDelegateBase {
                 target: root
                 property: "activeEditorHeight"
                 value: cardArea.contentHeight
+            }
+            // Typing a description longer than its field grows the card
+            // downwards, which at the end of a note walks the caret off the
+            // bottom of the window one line at a time.
+            Connections {
+                target: cardArea
+                function onContentHeightChanged() {
+                    Qt.callLater(editorRoot.revealField)
+                }
             }
 
             BlockEditorEngine {

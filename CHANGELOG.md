@@ -105,6 +105,17 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A part of a block that only exists while it is being edited opens where it
+  can be seen. A task-board card grows a description field when it is clicked,
+  and at the end of a note that field appeared below the bottom of the window:
+  scrolling to it was impossible, because the moment the pointer left the card
+  the field folded away and the note was short again. The editor now scrolls
+  the field into view as it opens and while typing grows it, and it does the
+  same for a table row growing around its live cell.
+- The note scrolls past its last block, by about a third of the window. The
+  end of a note could only ever sit against the bottom edge of the window,
+  which is the worst place to work on it — anything a block grows downwards
+  there had nowhere to go.
 - A table fills the same content column as the blocks around it. Its grid
   stopped 36 pixels short of the right edge a paragraph's text reaches, so a
   table read as indented from the right for no reason, and the rounding of

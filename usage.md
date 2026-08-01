@@ -214,7 +214,9 @@ The available block types:
   zoom, and add an alt text and a caption. The caption wraps to the width of the picture;
   Shift+Enter adds a line to it and Enter leaves for a new block below.
 - **Kanban board** — columns of cards, stored as readable markdown. Click a card's text to
-  edit it in place: the line you type is the card's own line, so `#label` makes a label and
+  edit it in place — the card grows a description field as it opens, and the editor scrolls
+  to it, so a board at the end of a note does not open its fields below the window's edge.
+  The line you type is the card's own line, so `#label` makes a label and
   `📅 2026-08-01` a due date, and the description under it takes as many lines as you need
   (Shift+Enter for a new line) with formulas and `[[wiki-links]]` rendered as they are
   everywhere else. Under the title is a strip for the card's labels and its due date: "+ tag"

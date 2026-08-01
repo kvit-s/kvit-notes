@@ -66,6 +66,12 @@ public:
 
     // Navigation and scrolling.
     Q_INVOKABLE void requestScrollToBlock(int index) { emit scrollToBlockRequested(index); }
+    // Scroll the editor the least it can to put `item` inside the viewport.
+    // A block whose parts grow when they are edited — a task-board card's
+    // description, a table's live cell — asks for this when one of them goes
+    // live, since the part that just appeared can be below the window's edge
+    // while the block itself is on screen.
+    Q_INVOKABLE void requestRevealItem(QObject *item) { emit revealItemRequested(item); }
     Q_INVOKABLE void requestOpenNoteByPath(const QString &relPath) { emit openNoteByPathRequested(relPath); }
     // Switch to another vault. This exists rather than QML calling
     // NoteCollection::openRootAsync() directly because giving up the previous
@@ -162,6 +168,7 @@ public:
 
 signals:
     void scrollToBlockRequested(int index);
+    void revealItemRequested(QObject *item);
     void openNoteByPathRequested(const QString &relPath);
     void openVaultRequested(const QString &path);
     void openVaultInNewWindowRequested(const QString &path);

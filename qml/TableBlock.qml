@@ -1135,6 +1135,14 @@ BlockDelegateBase {
                 cellArea.forceActiveFocus()
                 cellArea.cursorPosition = root.enterCellAtStart
                     ? 0 : cellArea.length
+                // A live cell grows its row to hold what is being typed, and
+                // a table at the end of a note grows into the space below the
+                // window. Asked once the cell has the height it just took.
+                Qt.callLater(editorRoot.revealCell)
+            }
+            function revealCell() {
+                if (root.activeCellItem !== null)
+                    AppActions.requestRevealItem(root.activeCellItem)
             }
             // Which visual line the caret sits on, for the Up/Down keys: a
             // wrapped or line-broken cell keeps them for its own text until
@@ -1316,7 +1324,12 @@ BlockDelegateBase {
                 // rectangles. Caret movement needs no tick: it can only
                 // reveal or hide a span, which changes the document text
                 // that mathBoxes already depends on.
-                onContentHeightChanged: if (editorRoot.hasMath) editorRoot.mathTick++
+                onContentHeightChanged: {
+                    if (editorRoot.hasMath)
+                        editorRoot.mathTick++
+                    // A cell that grows a line pushes its own bottom down.
+                    Qt.callLater(editorRoot.revealCell)
+                }
                 onContentWidthChanged: if (editorRoot.hasMath) editorRoot.mathTick++
             }
 

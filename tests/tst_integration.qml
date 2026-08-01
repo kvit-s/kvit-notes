@@ -8625,8 +8625,11 @@ Item {
             }, 1000, "Left in the first header cell leaves the table")
 
             // The case this was reported from: a table at the end of a long
-            // note. The view stays where it is, and the last row's Down has
-            // nowhere below it to go, so the caret stays in the cell.
+            // note. The view stays on the table — it used to jump to the top
+            // of the note — and the last row's Down has nowhere below it to
+            // go, so the caret stays in the cell. The view may still move a
+            // little: a cell going live at the very bottom of a note is
+            // scrolled far enough to clear the window's edge.
             DocumentManager.newDocument()
             wait(100)
             for (var i = 1; i <= 14; i++)
@@ -8642,12 +8645,17 @@ Item {
             liveCellEditor(last)
             typeString("h")
             wait(100)
-            var restingY = listView.contentY
+            // The table's own top, as a measure of where the view is: the
+            // defect scrolled the note back to its first blocks.
+            function tableIsOnScreen() {
+                var top = last.mapToItem(listView.contentItem, 0, 0).y
+                return top + last.height > listView.contentY
+                    && top < listView.contentY + listView.height
+            }
+            verify(tableIsOnScreen(), "the table is in view to begin with")
             keyClick(Qt.Key_Down)
             tryCompare(last, "activeRow", 0, 1000)
-            verify(Math.abs(listView.contentY - restingY) <= 1,
-                   "the view did not move: " + listView.contentY
-                   + " was " + restingY)
+            verify(tableIsOnScreen(), "and Down leaves it in view")
 
             last.editCell(2, 0)
             liveCellEditor(last)
@@ -8655,8 +8663,7 @@ Item {
             wait(200)
             compare(last.activeRow, 2,
                     "the last row of the last block keeps the caret")
-            verify(Math.abs(listView.contentY - restingY) <= 1,
-                   "and the view still did not move: " + listView.contentY)
+            verify(tableIsOnScreen(), "with the table still in view")
 
             // Right in the very last cell has nowhere to go either, and must
             // not add a row the way Tab there does.
@@ -8669,6 +8676,7 @@ Item {
             compare(last.activeCol, 2)
             compare(BlockModel.getContent(15), before,
                     "and the table is unchanged")
+            verify(tableIsOnScreen(), "and the view is still on the table")
         }
 
         // The three Enters in a table cell: plain Enter is the "done with
@@ -8860,6 +8868,72 @@ Item {
             }, 1000, "which one undo puts back")
         }
 
+        // A block whose parts appear when they are edited — a task-board
+        // card grows a description field on the way in — is scrolled to when
+        // that part is below the window's edge, and the note has scrolling
+        // room past its last block so the end of it can be worked on in the
+        // middle of the window rather than against its bottom edge.
+        function test_zx0g_editedCardIsScrolledIntoView() {
+            if (isHeadless) {
+                skip("Layout and pointer work require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            for (var i = 1; i <= 10; i++)
+                BlockModel.insertBlock(i, 0, "filler " + i)
+            BlockModel.insertBlock(11, 0, "")
+            // A column with more cards than the window is tall, so the ones
+            // at its foot are off screen while its top is in view.
+            var board = "## To do\n"
+            for (var c = 1; c <= 25; c++)
+                board += "- [ ] card " + c + "\n"
+            board += "## Doing\n## Done"
+            BlockModel.convertBlock(11, 8, board, false, "kanban")   // kanban fence
+            wait(400)
+            var listView = findChild(appLoader.item, "blockListView")
+            var kb = findBlockDelegate(11)
+            verify(kb !== null, "the board delegate exists")
+
+            // The note can be scrolled past its last block, so the board can
+            // be pulled up off the bottom edge of the window.
+            verify(listView.bottomMargin > 0,
+                   "the list has room past the last block")
+            listView.positionViewAtEnd()
+            wait(200)
+            var pinnedY = listView.contentY
+            listView.contentY = pinnedY + listView.bottomMargin
+            wait(100)
+            var boardBottom = kb.mapToItem(listView.contentItem, 0, kb.height).y
+            verify(boardBottom < listView.contentY + listView.height,
+                   "the end of the note can be brought up off the window's edge: "
+                   + boardBottom + " against "
+                   + (listView.contentY + listView.height))
+
+            // With the board's lower cards below the window, editing one
+            // brings its field into view instead of leaving it off screen.
+            listView.contentY = kb.mapToItem(listView.contentItem, 0, 0).y - 60
+            wait(200)
+            verify(kb.height > listView.height,
+                   "the board is taller than the window: " + kb.height
+                   + " against " + listView.height)
+            kb.beginEdit(0, 24, "description")
+            var editor = null
+            tryVerify(function() {
+                editor = findChild(kb, "kanbanCardTextEditor")
+                return editor !== null && editor !== undefined && editor.activeFocus
+            }, 1000, "the card's field opens")
+            wait(400)   // the reveal is asked for once the field has its height
+
+            var top = editor.mapToItem(listView.contentItem, 0, 0).y
+            var bottom = top + editor.height
+            verify(top >= listView.contentY,
+                   "the field is below the top of the window: " + top
+                   + " against " + listView.contentY)
+            verify(bottom <= listView.contentY + listView.height,
+                   "and above its bottom: " + bottom + " against "
+                   + (listView.contentY + listView.height))
+        }
+
         function test_zx0e_tableFillsTheBlockContentWidth() {
             DocumentManager.newDocument()
             wait(100)
@@ -8936,8 +9010,9 @@ Item {
                        + " past " + listView.height)
             } else {
                 // Taller than the view: the header row is what must be on
-                // screen, so the row sits at the top of the view.
-                verify(Math.abs(top) <= 2,
+                // screen, so the row sits at the top of the view — under the
+                // small margin the reveal of its live cell leaves there.
+                verify(top >= -1 && top <= 20,
                        "a table taller than the view starts at its top: " + top)
             }
 
@@ -8957,7 +9032,7 @@ Item {
                    "the 40-row table is taller than the view: "
                    + tall.height + " vs " + listView.height)
             var tallTop = tall.mapToItem(listView, 0, 0).y
-            verify(Math.abs(tallTop) <= 2,
+            verify(tallTop >= -1 && tallTop <= 20,
                    "its header row is at the top of the view: " + tallTop)
         }
 
