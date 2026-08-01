@@ -6,6 +6,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- A collection query's spec editor now opens above its results instead of in
+  place of them, the way a diagram and an equation keep their preview while
+  their source is being written. The results are the only preview a query has,
+  so putting them away for the duration hid the answer to the question being
+  asked.
+
 ### Added
 
 - The text on a web embed card, in a collection query's results, and in a

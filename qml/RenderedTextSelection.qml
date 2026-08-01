@@ -100,9 +100,8 @@ Item {
 
     function rebuildRuns() {
         var found = []
-        // A hidden card has nothing on screen to select: the query block
-        // swaps its results out for the spec editor, and its card stays in
-        // the tree with everything still in it.
+        // A card that is not on screen has nothing to select, and a card can
+        // be in the tree with everything still in it while hidden.
         if (sel.content && sel.content.visible)
             sel.collectRuns(sel.content, found)
         var placed = []

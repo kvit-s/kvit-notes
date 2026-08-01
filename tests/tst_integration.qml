@@ -9170,11 +9170,11 @@ Item {
                 var restingHeight = block.height
                 block.focusAtEnd()
                 wait(400)
-                // Opening the editor changes the block's height — taller for
-                // a diagram, an equation and a table, shorter for a query,
-                // which puts its results away while its spec is being
-                // written. Either way the list has to see the height the
-                // block ends up with, not the one it had.
+                // Opening the editor makes the block taller: a diagram and an
+                // equation add their source above their preview, a query its
+                // spec above its results, a table a live cell grown to what
+                // is being typed. The list has to see the height the block
+                // ends up with, not the one it had.
                 verify(Math.abs(block.height - restingHeight) > 1,
                        c.name + ": the editor changes the block's height: "
                        + block.height + " was " + restingHeight)
@@ -12995,6 +12995,31 @@ Item {
             verify(sel.suppressClick,
                    "a sweep holds back the click its runs sit under")
             compare(appLoader.item.currentNoteRelPath, "Welcome.md")
+
+            // Nor does it open the spec editor. The release lands on the
+            // block's own click catcher, whose answer to a click is to focus
+            // the spec, and a MouseArea's onClicked fires on release however
+            // far the pointer travelled.
+            var src = findChild(d, "querySourceArea")
+            verify(src !== null, "the spec editor exists")
+            verify(!src.activeFocus, "a sweep does not open the spec editor")
+            verify(sel.hasSelection, "and the selection survives the release")
+
+            // The results stay on screen while the spec is edited, the way a
+            // diagram and an equation keep their preview: a query's results
+            // are the only preview it has, so putting them away for the
+            // duration hid the answer to the question being written.
+            var cardItem = findChild(d, "queryCard")
+            verify(cardItem !== null, "the results card exists")
+            var restingHeight = d.height
+            d.focusAtEnd()
+            tryVerify(function() { return src.activeFocus }, 2000,
+                      "the spec editor takes focus")
+            verify(cardItem.visible, "the results stay on screen while editing")
+            verify(cardItem.height > 0, "and keep their height")
+            tryVerify(function() { return d.height > restingHeight }, 2000,
+                      "the spec is added above them rather than in place of "
+                      + "them: " + d.height + " was " + restingHeight)
 
             closeTestCollection()
         }

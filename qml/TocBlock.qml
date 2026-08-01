@@ -247,6 +247,12 @@ BlockDelegateBase {
         anchors.fill: parent
         hoverEnabled: true
         onClicked: function(mouse) {
+            // A sweep over the card ends with the button coming up over this
+            // catcher, and a MouseArea's onClicked fires on release however
+            // far the pointer travelled — so a Ctrl+drag across the headings
+            // would end by toggling the block's selection as well.
+            if (renderedSelection.suppressClick)
+                return
             if (mouse.modifiers & Qt.ControlModifier) {
                 DocumentSelection.toggleBlock(delegate.index)
                 if (DocumentSelection.hasBlockSelection)

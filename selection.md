@@ -72,7 +72,7 @@ whatever `DocumentSelection` held.
 | Audio/video | `MediaPlayer` with path, state and timecodes as plain `Text` | No |
 | Divider | nothing | not applicable |
 | **Web embed** | `SelectableText` runs: title, description, host, status | **Yes**, block-private. Button labels are not runs |
-| **Collection query** | `SelectableText` per header cell, per result cell and per board card line | **Yes**, block-private. The spec source is separately selectable while editing (`QueryBlock.qml`) |
+| **Collection query** | `SelectableText` per header cell, per result cell and per board card line | **Yes**, block-private, whether or not the spec editor is open above them. The spec source is separately selectable in its own editor (`QueryBlock.qml`) |
 | **Table of contents** | `SelectableText` per heading entry, plus the card's own header | **Yes**, block-private. This block still has no editor at all |
 
 Two block-private mechanisms therefore exist side by side, and they answer
@@ -119,11 +119,18 @@ half of the same problem.
 the coordinator. It is passive for the reason `CrossBlockTextDrag.qml` gives
 about the block editors: it never takes the press away from the handlers on the
 rows below it, and it goes on reporting the pointer after it has left the card.
-The rows those cards draw — a heading entry that scrolls to its heading, a
-result cell that opens its note — carry `TapHandler`s rather than
-`MouseArea`s for the same reason, since a `MouseArea` accepts the press and
+The rows those cards draw carry `TapHandler`s rather than `MouseArea`s for the
+same reason: a heading entry scrolls to its heading and a result cell opens its
+note, and a `MouseArea` accepts the press and
 fires `onClicked` on release however far the pointer travelled, which would
 mean sweeping a row also activated it.
+
+One `MouseArea` per block cannot be converted, the delegate-wide catcher behind
+the card that handles Ctrl+Click and Shift+Click block selection, so those three
+ask the coordinator's `suppressClick` before acting. Without that, a sweep in a
+query ended by opening the spec editor, because that catcher's answer to a click
+is to focus the spec, and a Ctrl+drag across a table of contents ended by
+toggling the block's selection.
 
 The gesture itself follows the ones already in the tree. A five-pixel travel
 gate, the same one the block drag and the cross-block text drag use, separates

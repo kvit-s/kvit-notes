@@ -306,6 +306,12 @@ BlockDelegateBase {
         anchors.fill: parent
         hoverEnabled: true
         onClicked: function(mouse) {
+            // A sweep over the results ends with the button coming up over
+            // this catcher, and a MouseArea's onClicked fires on release
+            // however far the pointer travelled. Without this the gesture
+            // that selects a row also opened the spec editor over it.
+            if (renderedSelection.suppressClick)
+                return
             if (mouse.modifiers & Qt.ControlModifier) {
                 DocumentSelection.toggleBlock(root.index)
                 if (DocumentSelection.hasBlockSelection)
@@ -339,13 +345,108 @@ BlockDelegateBase {
         anchors.topMargin: 4
         spacing: 6
 
-        // ---- Read view ----
+        // ---- Source editor (the DiagramBlock pattern) ----
+        // Above the results rather than in place of them, as a diagram and an
+        // equation put their source above their live preview. Editing a spec
+        // is watching what it matches change, and the results are the only
+        // preview a query has; putting them away for the duration hid the
+        // answer to the question being asked. It also made the results
+        // unselectable in the one gesture that ends on them, since the
+        // release lands on the block and the block's answer to a click is to
+        // open its spec.
+        Flickable {
+            id: sourceFlick
+            width: parent.width
+            visible: root.editing
+            height: root.editing ? Math.min(sourceArea.implicitHeight, 240) : 0
+            clip: true
+            contentWidth: sourceArea.implicitWidth
+            contentHeight: sourceArea.implicitHeight
+            interactive: contentWidth > width
+            boundsBehavior: Flickable.StopAtBounds
+
+            TextArea {
+                id: sourceArea
+                objectName: "querySourceArea"
+                width: Math.max(implicitWidth, sourceFlick.width)
+                text: root.content
+                font.family: Typography.monoFamily
+                font.pixelSize: Typography.monoSize
+                color: Theme.textPrimary
+                wrapMode: TextEdit.NoWrap
+                selectByMouse: true
+                background: Rectangle {
+                    color: Theme.codePanelBackground
+                    radius: 4
+                    border.color: Theme.border; border.width: 1
+                }
+                // Committing only on focus loss means a click straight from
+                // this editor onto another note replaces the model before the
+                // callback runs, and the edit is gone. commitPendingSource is
+                // therefore also driven by the document-level flush, and it
+                // addresses the block by stable id because by the time it runs
+                // this delegate may have been rebound to a different row.
+                function commitPendingSource() {
+                    if (text !== root.content)
+                        BlockModel.updateContentById(root.blockId, text)
+                }
+                onActiveFocusChanged: {
+                    if (!activeFocus) {
+                        commitPendingSource()
+                        text = Qt.binding(function() { return root.content })
+                    }
+                }
+                Keys.onPressed: function(event) {
+                    if (root.handleContextMenuKey(event))
+                        return
+                    // A query spec is a list of lines, so Enter is a line
+                    // break here and Ctrl+Enter is the way to a new block —
+                    // the same key the code, math and diagram editors use,
+                    // named in the corner below. Commit first so the spec
+                    // that the block runs is the one on screen.
+                    if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                        && (event.modifiers & Qt.ControlModifier)) {
+                        sourceArea.commitPendingSource()
+                        root.createBlockBelow()
+                        event.accepted = true
+                        return
+                    }
+                    var arrowModifiers = Qt.ControlModifier | Qt.ShiftModifier
+                        | Qt.AltModifier | Qt.MetaModifier
+                    if (!(event.modifiers & arrowModifiers)
+                        && event.key === Qt.Key_Up
+                        && root.isCursorOnFirstLine()) {
+                        if (root.focusAdjacentBlock(-1)) event.accepted = true
+                        return
+                    }
+                    if (!(event.modifiers & arrowModifiers)
+                        && event.key === Qt.Key_Down
+                        && root.isCursorOnLastLine()) {
+                        if (root.focusAdjacentBlock(1)) event.accepted = true
+                        return
+                    }
+                    if (event.key === Qt.Key_Escape) {
+                        root.focusSelectionHandler()
+                        event.accepted = true
+                    }
+                }
+
+                Connections {
+                    target: DocumentManager
+                    function onPendingEditsRequested() {
+                        sourceArea.commitPendingSource()
+                    }
+                }
+            }
+        }
+
+        // ---- Results ----
+        // Shown whether or not the spec is being edited.
         Rectangle {
             id: card
             objectName: "queryCard"
             width: parent.width
-            visible: !root.editing
-            height: root.editing ? 0 : readColumn.implicitHeight + 16
+            height: readColumn.implicitHeight + 16
             radius: 6
             color: root.blockSelected ? Theme.blockSelectionTint
                  : Theme.panelBackground
@@ -627,93 +728,6 @@ BlockDelegateBase {
                                 }
                             }
                         }
-                    }
-                }
-            }
-        }
-
-        // ---- Source editor (the DiagramBlock pattern) ----
-        Flickable {
-            id: sourceFlick
-            width: parent.width
-            visible: root.editing
-            height: root.editing ? Math.min(sourceArea.implicitHeight, 240) : 0
-            clip: true
-            contentWidth: sourceArea.implicitWidth
-            contentHeight: sourceArea.implicitHeight
-            interactive: contentWidth > width
-            boundsBehavior: Flickable.StopAtBounds
-
-            TextArea {
-                id: sourceArea
-                objectName: "querySourceArea"
-                width: Math.max(implicitWidth, sourceFlick.width)
-                text: root.content
-                font.family: Typography.monoFamily
-                font.pixelSize: Typography.monoSize
-                color: Theme.textPrimary
-                wrapMode: TextEdit.NoWrap
-                selectByMouse: true
-                background: Rectangle {
-                    color: Theme.codePanelBackground
-                    radius: 4
-                    border.color: Theme.border; border.width: 1
-                }
-                // Committing only on focus loss means a click straight from
-                // this editor onto another note replaces the model before the
-                // callback runs, and the edit is gone. commitPendingSource is
-                // therefore also driven by the document-level flush, and it
-                // addresses the block by stable id because by the time it runs
-                // this delegate may have been rebound to a different row.
-                function commitPendingSource() {
-                    if (text !== root.content)
-                        BlockModel.updateContentById(root.blockId, text)
-                }
-                onActiveFocusChanged: {
-                    if (!activeFocus) {
-                        commitPendingSource()
-                        text = Qt.binding(function() { return root.content })
-                    }
-                }
-                Keys.onPressed: function(event) {
-                    if (root.handleContextMenuKey(event))
-                        return
-                    // A query spec is a list of lines, so Enter is a line
-                    // break here and Ctrl+Enter is the way to a new block —
-                    // the same key the code, math and diagram editors use,
-                    // named in the corner below. Commit first so the spec
-                    // that the block runs is the one on screen.
-                    if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
-                        && (event.modifiers & Qt.ControlModifier)) {
-                        sourceArea.commitPendingSource()
-                        root.createBlockBelow()
-                        event.accepted = true
-                        return
-                    }
-                    var arrowModifiers = Qt.ControlModifier | Qt.ShiftModifier
-                        | Qt.AltModifier | Qt.MetaModifier
-                    if (!(event.modifiers & arrowModifiers)
-                        && event.key === Qt.Key_Up
-                        && root.isCursorOnFirstLine()) {
-                        if (root.focusAdjacentBlock(-1)) event.accepted = true
-                        return
-                    }
-                    if (!(event.modifiers & arrowModifiers)
-                        && event.key === Qt.Key_Down
-                        && root.isCursorOnLastLine()) {
-                        if (root.focusAdjacentBlock(1)) event.accepted = true
-                        return
-                    }
-                    if (event.key === Qt.Key_Escape) {
-                        root.focusSelectionHandler()
-                        event.accepted = true
-                    }
-                }
-
-                Connections {
-                    target: DocumentManager
-                    function onPendingEditsRequested() {
-                        sourceArea.commitPendingSource()
                     }
                 }
             }
