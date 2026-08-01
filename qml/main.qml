@@ -1845,14 +1845,12 @@ KvitShell {
                     }
                 }
 
-                // Enable move animations
-                displaced: Transition {
-                    NumberAnimation {
-                        properties: "y"
-                        duration: 200
-                        easing.type: Easing.OutQuad
-                    }
-                }
+                // Do not animate displaced rows. Delegates such as Mermaid
+                // diagrams acquire their final height asynchronously, after
+                // insertion. A displaced y-transition keeps the following
+                // rows at positions calculated from the delegate's temporary
+                // height and can leave them overlapped after the animation.
+                // Let ListView track changing delegate heights directly.
 
                 move: Transition {
                     NumberAnimation {

@@ -545,10 +545,12 @@ Display when cursor moves into "information":
 ### 3.2 Block Reordering
 - Drag and drop blocks to new positions
 - Visual feedback during drag (placeholder, drop indicator)
-- "Popping" animation where blocks make room for dragged block
+- Blocks make room for the dragged block as it moves
 - Keyboard shortcut: Alt+Up / Alt+Down to move selected blocks
 - Move multiple selected blocks together
-- Smooth animation during reordering
+- The moved block animates to its new row. Surrounding rows take their new
+  positions directly, so a variable-height block that finishes rendering
+  asynchronously cannot leave them overlapped at stale animated coordinates
 
 ### 3.3 Block Indentation
 - Tab key to indent block (increase nesting level)
@@ -666,11 +668,15 @@ Display when cursor moves into "information":
 ### 5.3 Paste
 - Ctrl+V / Cmd+V to paste from clipboard
 - Smart paste detection:
-  - Plain text: insert as text
+  - Plain text: insert as text, except a payload that opens a Markdown fence,
+    which is parsed into the block type named by the fence
   - HTML: convert to appropriate blocks
   - Images: create image block
   - URLs: create link or embed
   - Internal format: recreate block structure
+- When an external editor supplies both plain text and preformatted HTML for
+  fenced Markdown, use the plain-text fence as the structure source instead
+  of wrapping that fence in another code block
 - Paste at cursor position within text
 - Paste after selected block when blocks are selected
 - Ctrl+Shift+V / Cmd+Shift+V: Paste as plain text (strip formatting)
@@ -1196,7 +1202,9 @@ During drag operations, if a block is moved far from its original position, List
 1. When drag starts, create an invisible replica of the dragged block at its original position
 2. The replica occupies space in the ListView, preventing layout collapse
 3. Move the visible drag representation freely (can be OS drag image or custom)
-4. Other blocks animate to "make room" based on the invisible replica's position
+4. Other blocks make room based on the invisible replica's position; they do
+   not animate through cached y coordinates because delegate heights may
+   change asynchronously
 5. On drop, remove replica and insert block at new position
 6. On cancel, remove replica and restore original block visibility
 

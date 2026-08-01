@@ -915,27 +915,27 @@ BlockDelegateBase {
         return crossBlockSelection.cursorOnLastLine()
     }
 
-    // Refocus a block after an operation that may have recreated its
-    // delegate (any type change re-resolves the DelegateChooser choice).
+    // Whether a pasted payload opens a fence. Markdown copied out of another
+    // application carries no structure flavour Kvit can read — at best a
+    // preformatted HTML one describing how the source drew it — and splicing
+    // it in line by line leaves the fence markers themselves in the note: a
+    // pasted ```mermaid diagram became eight paragraphs, backticks included.
+    // Nobody pastes triple backticks into prose meaning to read them, so a
+    // payload that opens one is parsed into blocks like any structured
+    // payload. The test reads the clipboard's plain text, which is the
+    // markdown the reader selected. Prose without a fence keeps the literal
+    // splice, which is what pasting plain lines should do, and a verbatim
+    // block never reaches this at all — a fence pasted into a code listing is
+    // part of the listing.
+    function pasteOpensAFence(text) {
+        return /(^|\n)[ \t]*(```|~~~)/.test(text)
+    }
+
     // Insert a structured markdown payload at the caret, parsing it into typed
     // blocks (§5.3). The text before the caret stays in the original block,
     // the payload's blocks follow it, and any text after the caret trails as
     // its own paragraph. When the caret sat in an empty block, that emptied
     // block is dropped so the paste does not leave a blank line behind.
-    // Whether a pasted payload opens a fence. Text copied out of another
-    // editor arrives as plain text with no structure flavour on the
-    // clipboard, and splicing it in line by line leaves the fence markers
-    // themselves in the note: a pasted ```mermaid diagram became eight
-    // paragraphs, backticks included. Nobody pastes triple backticks into
-    // prose meaning to read them, so a payload that opens one is parsed into
-    // blocks like any structured payload. Prose without a fence keeps the
-    // literal splice, which is what pasting plain lines should do, and a
-    // verbatim block never reaches this at all — a fence pasted into a code
-    // listing is part of the listing.
-    function pasteOpensAFence(text) {
-        return /(^|\n)[ \t]*(```|~~~)/.test(text)
-    }
-
     function pasteStructuredMarkdown(idx, before, pasted, after) {
         BlockModel.updateContent(idx, before)
         var inserted = DocumentSerializer.insertMarkdownAt(BlockModel, idx + 1,
@@ -1002,6 +1002,8 @@ BlockDelegateBase {
         refocusBlock(insertAt, lastLine.length)
     }
 
+    // Refocus a block after an operation that may have recreated its
+    // delegate (any type change re-resolves the DelegateChooser choice).
     function refocusBlock(idx, markdownPos) {
         var lv = delegate.listView
         Qt.callLater(function() {
@@ -1940,8 +1942,20 @@ BlockDelegateBase {
                     // markers into the listing as though they were program
                     // text. What belongs in a code block is the source's own
                     // plain text.
+                    //
+                    // And a payload whose PLAIN text opens a fence bypasses
+                    // it as well, whatever flavours the source app also
+                    // offered. A code editor writes its HTML flavour as one
+                    // monospace, white-space:pre run, which converts to a
+                    // single listing fence around the whole selection — so a
+                    // copied ```mermaid diagram arrived as a code block with
+                    // the reader's own backticks inside it, the shape the
+                    // fence rule below exists to prevent. The plain text is
+                    // the markdown the reader actually selected, and reading
+                    // it here puts the paste back on that rule.
                     var asMarkdown = !stripFormatting
                                      && !delegate.verbatimEditing
+                                     && !delegate.pasteOpensAFence(Clipboard.text)
                     var pasted = (asMarkdown ? Clipboard.markdown()
                                              : Clipboard.text)
                                      .replace(/\r\n/g, "\n")

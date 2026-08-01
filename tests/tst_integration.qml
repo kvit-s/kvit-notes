@@ -9062,6 +9062,90 @@ Item {
             compare(BlockModel.getContent(1), "second line")
         }
 
+        // The same fence copied out of an editor rather than a plain-text
+        // view, which puts an HTML flavour on the clipboard beside the text.
+        // An editor writes that flavour as one monospace, white-space:pre run,
+        // and converting it wraps the whole selection in a listing fence, so
+        // the diagram arrived as a code block with the reader's own backticks
+        // inside it — the shape the fence rule exists to prevent. The plain
+        // text is the markdown that was actually selected, so a payload
+        // opening a fence is read from there whatever else is on offer.
+        //
+        // The copy carries the indent a fence sitting under a list item has,
+        // which the parse strips: it is the surrounding document's layout,
+        // not part of the diagram.
+        function test_zx0k_pastedFenceIgnoresAPreformattedFlavour() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            var indented = "       ```mermaid\n"
+                + "       flowchart LR\n"
+                + "           A([Start]) --> B{Vault set?}\n"
+                + "       ```"
+            var html = "<html><body><pre>" + indented + "</pre></body></html>"
+
+            freshParagraph()
+            testClipboard.setExternal(indented, html)
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+            tryVerify(function() {
+                return BlockModel.blockAt(0).language === "mermaid"
+            }, 2000, "the paste lands as a diagram, not as a listing of it: "
+                     + BlockModel.blockAt(0).language + " ["
+                     + BlockModel.getContent(0) + "]")
+            compare(BlockModel.count, 1, "and is the only block in the note")
+            verify(BlockModel.getContent(0).indexOf("```") === -1,
+                   "with no fence markers left in the content: "
+                   + BlockModel.getContent(0))
+            compare(BlockModel.getContent(0).indexOf("flowchart LR"), 0,
+                    "and the copy's indent stripped from the source: ["
+                    + BlockModel.getContent(0) + "]")
+        }
+
+        // A pasted block that opens taller than the row it replaced leaves the
+        // blocks under it where they belong.
+        function test_zx0m_pastedDiagramLeavesTheRowsBelowInPlace() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            var listView = findChild(appLoader.item, "blockListView")
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "above the paste")
+            BlockModel.insertBlock(1, 0, "below one")
+            BlockModel.insertBlock(2, 0, "below two")
+            wait(200)
+            appLoader.item.requestActivate()
+
+            var first = findBlockDelegate(0)
+            first.focusAtEnd()
+            wait(150)
+            keyClick(Qt.Key_Return)
+            tryCompare(BlockModel, "count", 4, 1000)
+            wait(200)
+
+            Clipboard.text = "```mermaid\nflowchart LR\n"
+                + "    A([Start]) --> B{Vault set?}\n"
+                + "    B -- yes --> C[Open collection]\n```"
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+            tryVerify(function() {
+                return BlockModel.blockAt(1).language === "mermaid"
+            }, 2000, "the paste lands as a diagram")
+            wait(800)
+
+            for (var i = 0; i < BlockModel.count - 1; i++) {
+                var row = findBlockDelegate(i)
+                var next = findBlockDelegate(i + 1)
+                verify(row !== null && next !== null,
+                       "rows " + i + " and " + (i + 1) + " exist")
+                var gap = next.mapToItem(listView.contentItem, 0, 0).y
+                    - row.mapToItem(listView.contentItem, 0, 0).y
+                    - row.height
+                verify(Math.abs(gap - listView.spacing) <= 1,
+                       "row " + (i + 1) + " follows row " + i + ": gap " + gap
+                       + " against the list's spacing " + listView.spacing)
+            }
+        }
+
         // Dragging from a block's very first character selects from there to
         // the pointer, and clicking it puts the caret there.
         //

@@ -139,6 +139,25 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A block that grows just after it is added no longer draws over the blocks
+  below it. The note list used to slide the rows under an insertion to
+  positions measured from the new row's height at that instant. A pasted
+  Mermaid diagram has not rendered its picture or opened its source editor at
+  that point, so it could later cover about 160 pixels of the text below it.
+  Displaced rows now take their positions directly from the list as delegate
+  heights change instead of animating toward stale coordinates.
+- A fenced block copied from outside Kvit and pasted into a note becomes the
+  block it describes. A ```mermaid diagram used to arrive either as a stack of
+  paragraphs with the backticks still in them, or as a single code block
+  holding the whole thing, fence markers and all, whenever the source offered
+  an HTML flavour of the selection the way every code editor does. Neither is
+  what anyone pastes triple backticks meaning to get, so a payload opening one
+  is now read from the clipboard's plain text and parsed the way Kvit's own
+  copied blocks are, whatever else the source put on the clipboard. The fence
+  may be indented, as one under a list item is; the indent is stripped with
+  it. Prose with no fence in it still splices in line by line, and a paste
+  into a code block still keeps every character, because there a fence is part
+  of the listing.
 - Ctrl+Enter out of a diagram, an equation, a query or a table leaves the new
   block directly under it. These blocks are a different height while they are
   being edited — a diagram shows its source above its preview, a query puts

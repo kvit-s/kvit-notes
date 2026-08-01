@@ -13,11 +13,9 @@ import Kvit 1.0
 // diagram shows its source above its preview, an equation its TeX, a query
 // its spec, a table a live cell grown to what is being typed. The block list
 // positions an inserted row against the height its neighbour has at the
-// moment of the insert, and it does not re-read that height afterwards —
-// neither a scroll nor forceLayout() reclaims it, only rebuilding the
-// delegates does. Folding the editor away in the same frame as the insert
-// therefore left the new block a whole editor's height below its neighbour,
-// with a band of nothing in between.
+// moment of the insert. Folding the editor away in the same frame as the
+// insert therefore left the new block a whole editor's height below its
+// neighbour, with a band of nothing in between.
 //
 // So the block folds first, the list lays that out, and the row is inserted a
 // frame later against the height the list can see. The delay is one frame, so
