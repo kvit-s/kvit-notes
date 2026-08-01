@@ -197,9 +197,15 @@ The available block types:
   change kind; the body, title, fold state and any custom colour stay as they were. Enter
   leaves the callout for a new block and Shift+Enter adds a line to its body, the same as
   anywhere else. The fold state is saved in the file. Ctrl+Enter folds it.
-- **Table** — a pipe table edited cell by cell, with Tab to move across a row, Up and Down to
-  move up and down a column (out of the table at its top and bottom rows), add/remove of
-  rows and columns, per-column alignment, and sort-by-column. Inserting one opens a size grid
+- **Table** — a pipe table edited cell by cell, with Tab to move across a row, the arrow keys
+  to cross into the neighbouring cell from the edge of the one you are in (and out of the
+  table at its own edges), add/remove of rows and columns, per-column alignment, and
+  sort-by-column. Enter is done with a cell and moves down the column, Shift+Enter breaks a
+  line inside it, and Ctrl+Enter makes a block below the table, which the corner under the
+  grid says while you are editing. Drag from one cell to another to select the rectangle of
+  cells between them: Ctrl+C copies it as a small table of its own, carrying the headers of
+  the columns it came from, Ctrl+X copies and empties it, Delete empties it, and Escape or a
+  click in a cell drops the selection. Inserting one opens a size grid
   of up to 8 by 8: hover or use the arrow keys (left/right for columns, up/down for rows),
   then click or press Enter to insert that size, or Escape to leave the block as it was.
 - **Image** — inserted from a file dialog, a paste, or a drag from your file manager or

@@ -8,6 +8,19 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A rectangle of table cells can be selected by dragging from one cell to
+  another, and copied with Ctrl+C. What lands on the clipboard is a table of
+  its own: the selected cells under the header cells of the columns they came
+  from, since markdown has no notation for a fragment of a table. Ctrl+X
+  copies and empties the rectangle, Backspace or Delete empties it, Escape or
+  a click in a cell drops it, and the right-click menu carries the same copy
+  and clear commands while cells are selected. A selection could only ever be
+  the text inside a single cell before, so there was no way to take part of a
+  table anywhere.
+- Ctrl+Enter in a table cell makes a block below the table and puts the caret
+  in it, the same key the code, equation, diagram and query blocks use where
+  their own Enter belongs to their content. A hint under the grid names it
+  while a cell is being edited, as those blocks name theirs.
 - The table size grid answers the arrow keys: left and right change the number
   of columns, up and down the number of rows, within the 8 by 8 grid. Enter
   inserts the selected size and Escape dismisses the grid, as before. Each
@@ -47,6 +60,11 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Enter in a table cell moves down the column, the way it does in a
+  spreadsheet and the way Down now does. It ended the edit and left the caret
+  on the block before, which meant filling a column was a press of Enter
+  followed by a click or a Tab across the whole row. Shift+Enter still breaks
+  a line inside the cell.
 - The window's two menus sit next to each other at the left of the toolbar, and
   File holds what acts on documents. Export, Import, Settings, the keyboard
   shortcut reference, quick capture and the template commands were spread
@@ -87,13 +105,22 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- Up and Down in a table cell move up and down that column, from the header
-  row through the data rows and out of the table into the blocks above and
-  below it. Neither key did anything for the table before: they reached the
-  block list's own navigation instead, which moved the view to whichever row
-  it still called current, so pressing Down in a table at the end of a note
-  scrolled to the top of the note. A cell holding line breaks keeps both keys
-  for its own lines until the caret is on its first or last one.
+- A table fills the same content column as the blocks around it. Its grid
+  stopped 36 pixels short of the right edge a paragraph's text reaches, so a
+  table read as indented from the right for no reason, and the rounding of
+  the per-column shares could leave it a pixel or two short of that edge even
+  once the width was right.
+- The arrow keys move around a table. Up and Down walk the column, from the
+  header row through the data rows and out of the table into the blocks above
+  and below it; Left and Right cross to the neighbouring cell from the two
+  ends of a cell's text, wrapping to the next or previous row past the last
+  and first column, and the caret enters each cell on the side it came in
+  from. Each key belongs to the cell's own text until the caret reaches that
+  edge of it, so a cell holding line breaks or a long wrapped value is still
+  edited normally. None of the four did anything for the table before: they
+  reached the block list's own navigation instead, which moved the view to
+  whichever row it still called current, so pressing Down in a table at the
+  end of a note scrolled to the top of the note.
 - Clicking a cell of a table that already had one live puts the caret in the
   cell that was clicked. The block took the keyboard back off the cell's
   editor immediately after handing it over, so what was typed went nowhere.

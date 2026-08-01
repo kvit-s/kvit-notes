@@ -127,8 +127,21 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Cell text alignment (left, center, right)
 - Merge cells horizontally or vertically
 - Sort by column (ascending/descending)
-- Tab to move between cells; Up and Down move within the column, from the
-  header down through the rows and out of the table at its top and bottom
+- Tab to move between cells. The arrow keys move within the cell's text and
+  cross to the next cell at its edge: Up and Down along the column from the
+  cell's first and last line, Left and Right along the row from the two ends
+  of the text, wrapping to the next or previous row and leaving the table at
+  the grid's own edges
+- Enter is done with a cell's value and moves down the column, as Down does;
+  Shift+Enter breaks a line inside the cell; Ctrl+Enter makes a new block
+  below the table, which the hint under the grid names while a cell is live
+- Dragging from one cell to another selects the rectangle of cells between
+  them. Ctrl+C copies that rectangle as a table of its own — the selected
+  cells under the header cells of the columns they came from, since markdown
+  has no notation for part of a table — Ctrl+X copies and empties it,
+  Backspace or Delete empties it, and Escape or a click into a cell drops it.
+  The same two commands are on the right-click menu while cells are selected.
+  A selection and a live cell are exclusive: one ends the other
 - Support for inline formatting within cells
 - Multi-line cells: Shift+Enter breaks a line inside a cell, stored as `<br>`
   so the row stays one line of the file. A code fence an LLM opened inside a
@@ -576,7 +589,7 @@ Display when cursor moves into "information":
   of the block above
 - Ctrl+Enter on selected blocks puts the caret in the space after them. This is
   the keyboard route to the space below a block whose own Enter belongs to it —
-  a table's Enter moves between cells and a code block's starts a line
+  a table's Enter moves down the column and a code block's starts a line
 
 ---
 

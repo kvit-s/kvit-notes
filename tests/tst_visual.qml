@@ -1904,6 +1904,18 @@ Item {
             clearFocus()
             saveScreenshot("visual_36_tables_03_sorted.png")
 
+            // A rectangle of cells swept with the pointer, which is what
+            // Ctrl+C copies as a table of its own.
+            var sweep = findBlockDelegate(1)
+            sweep.sweepAnchorRow = 0
+            sweep.sweepAnchorCol = 0
+            sweep.sweepFocusRow = 1
+            sweep.sweepFocusCol = 1
+            wait(200)
+            saveScreenshot("visual_36_tables_03b_cell_selection.png")
+            sweep.clearCellSelection()
+            wait(100)
+
             // The grid-size picker.
             BlockModel.insertBlock(2, 0, "")
             appLoader.item.insertTableIntoBlock(2)
@@ -2071,10 +2083,9 @@ Item {
                    "the indentation of a line after the first survives")
 
             // A break made in a cell by hand is stored as <br>, so the row is
-            // still one line of the file and the table still parses. (Which
-            // keys make one — Shift+Enter breaks, Enter is done with the cell
-            // — is on the manual QA list: synthetic key delivery needs an
-            // active window, which this suite cannot count on.)
+            // still one line of the file and the table still parses. Which
+            // keys make one — Shift+Enter breaks, plain Enter moves down the
+            // column — is covered by key delivery in the integration suite.
             tbl.editCell(2, 2)          // "Caller uses the matrix"
             wait(300)
             var editor = findChild(tbl, "tableCellEditor")

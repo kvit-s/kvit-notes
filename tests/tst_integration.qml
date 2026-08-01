@@ -8486,13 +8486,15 @@ Item {
             return editor
         }
 
-        // Up and Down inside a live table cell walk the column: the header
-        // cell and the data cells under it, then out of the table into the
-        // blocks above and below. They used to reach the block list's own
-        // navigation instead, which moved the view to whichever row it still
-        // called current — pressing Down in a table at the end of a note
-        // jumped to the top of the note.
-        function test_zx0c_tableCellVerticalNavigation() {
+        // The arrow keys inside a live table cell. Up and Down walk the
+        // column — the header cell, the data cells under it, then out of the
+        // table into the blocks above and below — and Left and Right cross to
+        // the neighbouring cell from the two ends of the cell's text. None of
+        // them did anything for the table before: they reached the block
+        // list's own navigation instead, which moved the view to whichever
+        // row it still called current, so pressing Down in a table at the end
+        // of a note jumped to the top of the note.
+        function test_zx0c_tableCellArrowNavigation() {
             if (isHeadless) {
                 skip("Key delivery requires display")
             }
@@ -8576,6 +8578,52 @@ Item {
             tryCompare(tbl, "activeRow", 1,
                        1000, "the second Down moves to the row below")
 
+            // Left and Right cross at the two ends of a cell's text, and
+            // carry the caret in the direction of travel: into the start of
+            // the cell on the right, into the end of the cell on the left.
+            tbl.editCell(0, 0)
+            editor = liveCellEditor(tbl)
+            compare(editor.cursorPosition, editor.length,
+                    "a cell entered from the right holds the caret at its end")
+            keyClick(Qt.Key_Right)
+            tryCompare(tbl, "activeCol", 1, 1000)
+            compare(tbl.activeRow, 0, "and stays in its row")
+            editor = liveCellEditor(tbl)
+            compare(editor.cursorPosition, 0, "at the start of that cell")
+
+            // Mid-text the keys belong to the cell.
+            typeString("xy")
+            editor.cursorPosition = 1
+            keyClick(Qt.Key_Left)
+            compare(tbl.activeCol, 1, "Left inside the text stays in the cell")
+            compare(editor.cursorPosition, 0)
+            keyClick(Qt.Key_Left)
+            tryCompare(tbl, "activeCol", 0, 1000)
+            editor = liveCellEditor(tbl)
+            compare(editor.cursorPosition, editor.length,
+                    "entering from the right lands at the end of the text")
+
+            // Past the last column: the first cell of the next row, which is
+            // where the caret goes at the end of a line.
+            tbl.editCell(0, 2)
+            liveCellEditor(tbl)
+            keyClick(Qt.Key_Right)
+            tryCompare(tbl, "activeRow", 1, 1000)
+            compare(tbl.activeCol, 0)
+
+            // And before the first: the last cell of the row above, up to the
+            // header, then out of the table.
+            keyClick(Qt.Key_Left)
+            tryCompare(tbl, "activeRow", 0, 1000)
+            compare(tbl.activeCol, 2)
+            tbl.editCell(-1, 0)
+            liveCellEditor(tbl)
+            keyClick(Qt.Key_Left)
+            tryVerify(function() {
+                var a = findTextAreaRaw(findBlockDelegate(0))
+                return a !== null && a.activeFocus
+            }, 1000, "Left in the first header cell leaves the table")
+
             // The case this was reported from: a table at the end of a long
             // note. The view stays where it is, and the last row's Down has
             // nowhere below it to go, so the caret stays in the cell.
@@ -8609,6 +8657,236 @@ Item {
                     "the last row of the last block keeps the caret")
             verify(Math.abs(listView.contentY - restingY) <= 1,
                    "and the view still did not move: " + listView.contentY)
+
+            // Right in the very last cell has nowhere to go either, and must
+            // not add a row the way Tab there does.
+            last.editCell(2, 2)
+            liveCellEditor(last)
+            var before = BlockModel.getContent(15)
+            keyClick(Qt.Key_Right)
+            wait(200)
+            compare(last.activeRow, 2, "the caret stays in the last cell")
+            compare(last.activeCol, 2)
+            compare(BlockModel.getContent(15), before,
+                    "and the table is unchanged")
+        }
+
+        // The three Enters in a table cell: plain Enter is the "done with
+        // this value" key and moves down the column exactly as Down does,
+        // Shift+Enter breaks the line inside the cell, and Ctrl+Enter makes a
+        // block below the table — the route the code, equation, diagram and
+        // query blocks already offer where their own Enter belongs to their
+        // content. The grid says so in its corner while a cell is live.
+        function test_zx0d_tableCellEnterKeys() {
+            if (isHeadless) {
+                skip("Key delivery requires display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "above")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, Block.Table, TableTools.emptyTable(3, 3))
+            BlockModel.insertBlock(2, 0, "below")
+            wait(300)
+            appLoader.item.requestActivate()
+            var tbl = findBlockDelegate(1)
+            verify(tbl !== null, "the table delegate exists")
+
+            var hint = findChild(tbl, "tableExitHint")
+            verify(hint !== null, "the grid carries the exit hint")
+            compare(hint.visible, false, "which is out of the way while reading")
+
+            tbl.editCell(-1, 1)
+            var editor = liveCellEditor(tbl)
+            tryCompare(hint, "visible", true, 1000,
+                       "and shown while a cell is being edited")
+
+            // Enter walks down the column, like Down.
+            typeString("head")
+            keyClick(Qt.Key_Return)
+            tryCompare(tbl, "activeRow", 0, 1000)
+            compare(tbl.activeCol, 1, "staying in its column")
+            keyClick(Qt.Key_Return)
+            tryCompare(tbl, "activeRow", 1, 1000)
+
+            // Shift+Enter still breaks the line inside the cell.
+            editor = liveCellEditor(tbl)
+            typeString("a")
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeString("b")
+            tryVerify(function() {
+                return TableTools.cellValue(BlockModel.getContent(1), 1, 1)
+                    === "a\nb"
+            }, 1000, "the cell holds both lines: "
+                     + TableTools.cellValue(BlockModel.getContent(1), 1, 1))
+            compare(tbl.activeRow, 1, "and the caret is still in that cell")
+
+            // Enter out of the last row leaves the table, as Down does.
+            tbl.editCell(2, 1)
+            liveCellEditor(tbl)
+            keyClick(Qt.Key_Return)
+            var belowArea = findTextAreaRaw(findBlockDelegate(2))
+            tryVerify(function() {
+                return belowArea !== null && belowArea.activeFocus
+            }, 1000, "Enter in the last row leaves the table")
+            tryCompare(hint, "visible", false, 1000,
+                       "and the hint goes with the edit")
+
+            // Ctrl+Enter makes a block below the table and puts the caret in
+            // it, without touching the table.
+            var countBefore = BlockModel.count
+            var tableBefore = BlockModel.getContent(1)
+            tbl.editCell(0, 0)
+            liveCellEditor(tbl)
+            keyClick(Qt.Key_Return, Qt.ControlModifier)
+            tryCompare(BlockModel, "count", countBefore + 1, 1000)
+            compare(BlockModel.blockAt(2).blockType, Block.Paragraph,
+                    "the new block is a paragraph directly below the table")
+            compare(BlockModel.getContent(2), "", "and is empty")
+            compare(BlockModel.getContent(1), tableBefore,
+                    "the table itself is unchanged")
+            var newArea = findTextAreaRaw(findBlockDelegate(2))
+            tryVerify(function() {
+                return newArea !== null && newArea.activeFocus
+            }, 2000, "and the caret is in it")
+            compare(tbl.activeRow, -2, "the cell edit has ended")
+        }
+
+        // A table occupies the same content column as the blocks around it.
+        // Its grid used to stop 36 pixels short of the right edge a
+        // paragraph's text reaches, which reads as the table being indented
+        // from the right for no reason.
+        // Dragging across cells selects the rectangle between the cell the
+        // drag started in and the cell it is over, and Ctrl+C copies that
+        // rectangle as a table of its own. Before this a selection could only
+        // ever be the text inside one cell, so there was no way to take part
+        // of a table anywhere.
+        function test_zx0f_tableCellSweepSelectionAndCopy() {
+            if (isHeadless) {
+                skip("Pointer and key delivery require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.convertBlock(0, Block.Table,
+                "| A | B | C |\n| --- | --- | --- |\n"
+                + "| a1 | b1 | c1 |\n| a2 | b2 | c2 |\n| a3 | b3 | c3 |")
+            wait(300)
+            appLoader.item.requestActivate()
+            var tbl = findBlockDelegate(0)
+            verify(tbl !== null, "the table delegate exists")
+            compare(tbl.hasCellSelection, false, "nothing is selected to begin with")
+
+            // The centre of a cell, in the delegate's coordinates. Row -1 is
+            // the header; the rows are equal height here.
+            function cellPoint(r, c) {
+                var grid = findChild(tbl, "tableGrid")
+                var frameTop = grid.mapToItem(tbl, 0, 0)
+                var rowHeight = 32
+                var x = 0
+                for (var i = 0; i < c; i++)
+                    x += tbl.colWidthAt(i)
+                x += tbl.colWidthAt(c) / 2
+                return Qt.point(frameTop.x + x,
+                                frameTop.y + (r + 1) * rowHeight + rowHeight / 2)
+            }
+
+            // Sweep from the first data row's first column to the second
+            // row's second column.
+            var from = cellPoint(0, 0)
+            var to = cellPoint(1, 1)
+            mousePress(tbl, from.x, from.y)
+            mouseMove(tbl, from.x + 4, from.y + 4)
+            mouseMove(tbl, to.x, to.y)
+            tryCompare(tbl, "hasCellSelection", true, 1000)
+            compare(tbl.selTop, 0, "the rectangle runs from the row pressed in")
+            compare(tbl.selBottom, 1)
+            compare(tbl.selLeft, 0)
+            compare(tbl.selRight, 1)
+            compare(tbl.activeRow, -2,
+                    "and the cell edit the press would have started is off")
+            mouseRelease(tbl, to.x, to.y)
+            compare(tbl.hasCellSelection, true, "the selection outlives the drag")
+
+            // Ctrl+C copies the rectangle as a table of its own, under the
+            // headers of the columns it came from.
+            Clipboard.text = ""
+            keyClick(Qt.Key_C, Qt.ControlModifier)
+            tryVerify(function() { return Clipboard.text !== "" }, 1000,
+                      "the copy reaches the clipboard")
+            var copied = TableTools.parse(Clipboard.text)
+            verify(copied.valid, "what was copied is a table: " + Clipboard.text)
+            compare(copied.columns, 2)
+            compare(copied.rowCount, 2)
+            compare(copied.headers[0], "A")
+            compare(copied.headers[1], "B")
+            compare(copied.rows[0][0], "a1")
+            compare(copied.rows[0][1], "b1")
+            compare(copied.rows[1][0], "a2")
+            compare(copied.rows[1][1], "b2")
+
+            // Escape drops the selection; a click into a cell also does, and
+            // starts editing it as it always did.
+            keyClick(Qt.Key_Escape)
+            tryCompare(tbl, "hasCellSelection", false, 1000)
+            var one = cellPoint(2, 2)
+            mouseClick(tbl, one.x, one.y)
+            tryCompare(tbl, "activeRow", 2, 1000)
+            compare(tbl.activeCol, 2)
+            compare(tbl.hasCellSelection, false, "one cell is an edit, not a selection")
+
+            // Backspace over a selection empties those cells in one undo step
+            // rather than deleting the whole table.
+            keyClick(Qt.Key_Escape)
+            from = cellPoint(0, 0)
+            to = cellPoint(0, 1)
+            mousePress(tbl, from.x, from.y)
+            mouseMove(tbl, to.x, to.y)
+            mouseRelease(tbl, to.x, to.y)
+            tryCompare(tbl, "hasCellSelection", true, 1000)
+            var blocksBefore = BlockModel.count
+            var stackBefore = UndoStack.count
+            keyClick(Qt.Key_Delete)
+            tryVerify(function() {
+                return TableTools.cellValue(BlockModel.getContent(0), 0, 0) === ""
+                    && TableTools.cellValue(BlockModel.getContent(0), 0, 1) === ""
+            }, 1000, "the selected cells are emptied")
+            compare(BlockModel.count, blocksBefore, "the table block survives")
+            compare(TableTools.cellValue(BlockModel.getContent(0), 0, 2), "c1",
+                    "and the cells outside the rectangle are untouched")
+            compare(UndoStack.count, stackBefore + 1, "in one undo step")
+            UndoStack.undo()
+            tryVerify(function() {
+                return TableTools.cellValue(BlockModel.getContent(0), 0, 0) === "a1"
+            }, 1000, "which one undo puts back")
+        }
+
+        function test_zx0e_tableFillsTheBlockContentWidth() {
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "a paragraph")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.insertBlock(2, 0, "")
+            BlockModel.convertBlock(1, Block.Table, TableTools.emptyTable(2, 2))
+            BlockModel.convertBlock(2, Block.Table, TableTools.emptyTable(3, 2))
+            wait(300)
+
+            var para = findBlockDelegate(0)
+            var textArea = findTextArea(para)
+            var proseRight = textArea.mapToItem(para, textArea.width, 0).x
+
+            // Both an even split and one that does not divide evenly: the
+            // rounding of the per-column shares must not leave a gap.
+            for (var i = 1; i <= 2; i++) {
+                var tbl = findBlockDelegate(i)
+                verify(tbl !== null, "the table delegate exists")
+                var grid = findChild(tbl, "tableGrid")
+                verify(grid !== null, "the grid exists")
+                compare(tbl.width, para.width, "the delegates are equally wide")
+                var gridRight = grid.mapToItem(tbl, grid.width, 0).x
+                verify(Math.abs(gridRight - proseRight) <= 1,
+                       "table " + i + " ends where the prose does: "
+                       + gridRight + " against " + proseRight)
+            }
         }
 
         function test_zx0b_insertedTableIsScrolledIntoView() {

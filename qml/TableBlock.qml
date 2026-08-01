@@ -77,7 +77,48 @@ BlockDelegateBase {
     // cell is active. One editor exists per table, not one Loader per cell.
     property Item activeCellItem: null
 
-    readonly property int tableWidth: Math.max(240, root.width - 96)
+    // ---- The swept rectangle of cells (§1.2.11) --------------------------
+    //
+    // Dragging from one cell to another selects the rectangle between them,
+    // which is what Ctrl+C then copies as a table of its own. It is a second,
+    // separate thing from the live cell: a text selection inside one cell is
+    // what the cell's own editor holds, and a sweep across cells ends the
+    // edit, because the two cannot both own the pointer or the copy key.
+    //
+    // The anchor is where the sweep began and the focus cell is where the
+    // pointer is now, each as a row (-1 = header) and a column; -2 in the
+    // anchor row means there is no sweep. One cell is not a selection — that
+    // is an ordinary click into a cell — so the properties below only report
+    // one once the rectangle covers more than the cell it started in.
+    property int sweepAnchorRow: -2
+    property int sweepAnchorCol: -1
+    property int sweepFocusRow: -2
+    property int sweepFocusCol: -1
+    readonly property bool hasCellSelection:
+        sweepAnchorRow !== -2 && sweepFocusRow !== -2
+        && (sweepAnchorRow !== sweepFocusRow || sweepAnchorCol !== sweepFocusCol)
+    readonly property int selTop: Math.min(sweepAnchorRow, sweepFocusRow)
+    readonly property int selBottom: Math.max(sweepAnchorRow, sweepFocusRow)
+    readonly property int selLeft: Math.min(sweepAnchorCol, sweepFocusCol)
+    readonly property int selRight: Math.max(sweepAnchorCol, sweepFocusCol)
+    function cellSelected(r, c) {
+        return root.hasCellSelection
+            && r >= root.selTop && r <= root.selBottom
+            && c >= root.selLeft && c <= root.selRight
+    }
+    function clearCellSelection() {
+        root.sweepAnchorRow = -2
+        root.sweepAnchorCol = -1
+        root.sweepFocusRow = -2
+        root.sweepFocusCol = -1
+    }
+
+    // The width the grid is laid out in: the block's content column, the same
+    // one a paragraph's text and a callout's card get. The grid starts at
+    // x = 52, where EditableBlock's content area starts, and ends 8 short of
+    // the block's right edge, where that area ends — it used to stop 36 pixels
+    // further in, so a table was visibly narrower than every block around it.
+    readonly property int tableWidth: Math.max(240, root.width - 60)
     // Narrowest a column can be dragged. Below this a cell stops being able
     // to show anything at all.
     readonly property int minColWidth: 48
@@ -149,13 +190,28 @@ BlockDelegateBase {
             total += w
         }
         var out = []
+        var anyStored = false
+        var autoSum = 0
         for (var i = 0; i < cols; i++) {
             var stored = root.storedWidthAt(i)
+            if (stored > 0)
+                anyStored = true
             // A floor so a short column beside long paragraph columns still
             // reads on one line rather than wrapping a single word.
-            out.push(stored > 0
+            var w2 = stored > 0
                 ? stored
-                : Math.max(92, Math.round(root.tableWidth * weights[i] / total)))
+                : Math.max(92, Math.round(root.tableWidth * weights[i] / total))
+            autoSum += w2
+            out.push(w2)
+        }
+        // The proportions are rounded per column, so their sum lands a pixel
+        // or two off the width they were shares of. The last column takes the
+        // difference, which is what makes an unsized table finish flush with
+        // the blocks above and below it rather than a hair short of them.
+        if (!anyStored && cols > 0 && autoSum !== root.tableWidth) {
+            var fixed = out[cols - 1] + (root.tableWidth - autoSum)
+            if (fixed >= 92)
+                out[cols - 1] = fixed
         }
         if (root.resizingCol >= 0 && root.resizingCol < cols)
             out[root.resizingCol] = Math.max(root.minColWidth, root.resizingWidth)
@@ -254,12 +310,21 @@ BlockDelegateBase {
 
     implicitHeight: gridColumn.implicitHeight + 16
 
-    ListView.onPooled: { isPooled = true; activeRow = -2; opacity = 0 }
+    ListView.onPooled: {
+        isPooled = true; activeRow = -2; opacity = 0
+        clearCellSelection()
+    }
     // A reused delegate is a different table, so it must not inherit however
-    // far the previous one had been expanded.
-    ListView.onReused: { isPooled = false; opacity = 1; revealedRows = rowWindowStep }
+    // far the previous one had been expanded, nor a selection swept over the
+    // cells of the table it used to be.
+    ListView.onReused: {
+        isPooled = false; opacity = 1; revealedRows = rowWindowStep
+        clearCellSelection()
+    }
 
-    function focusAtStart() { editCell(-1, 0) }
+    // Entered from above or from the block menu: the first cell, caret at its
+    // start, since that is where the caret was coming from.
+    function focusAtStart() { editCell(-1, 0, true) }
     function focusAtEnd() { editCell(dataRows > 0 ? dataRows - 1 : -1, Math.max(0, columns - 1)) }
     function focusAtPosition(markdownPos) { focusAtStart() }
     function isCursorOnFirstLine() { return true }
@@ -267,8 +332,16 @@ BlockDelegateBase {
 
     // ---- Mutations, each one model content update (one undo step) ----
     function writeTable(md) { BlockModel.updateContent(root.index, md) }
-    function editCell(r, c) {
+    // Where the caret sits in a cell that has just gone live: at the end of
+    // its text, or at the start for a cell entered from the left, so that a
+    // held Right key crosses each cell rather than stopping at its far end.
+    property bool enterCellAtStart: false
+    function editCell(r, c, atStart) {
         revealThrough(r)
+        // One cell being edited and a rectangle of cells being selected are
+        // exclusive: whichever starts, ends the other.
+        clearCellSelection()
+        enterCellAtStart = atStart === true
         // Both of these come before the cell goes live. The block's focus
         // item is what marks the table as the focused block for the shell,
         // and the cell's editor takes the caret off it as it moves to the new
@@ -340,17 +413,38 @@ BlockDelegateBase {
         if (down) {
             if (r === -1 && dataRows > 0) { editCell(0, c); return }
             if (r >= 0 && r + 1 < dataRows) { editCell(r + 1, c); return }
-            leaveTableVertically(1)
+            leaveTable(1)
         } else {
             if (r === 0) { editCell(-1, c); return }
             if (r > 0) { editCell(r - 1, c); return }
-            leaveTableVertically(-1)
+            leaveTable(-1)
+        }
+    }
+
+    // Left and Right at the two ends of a cell's text: the cell beside it,
+    // and past the end of a row the first cell of the next one, which is
+    // where a caret goes at the end of a line. The caret enters the cell on
+    // the side it came in from, so holding either key sweeps the grid in
+    // reading order. Unlike Tab, they never add a row: the last cell's Right
+    // leaves the table for the block below rather than growing it.
+    function moveCellHorizontally(right) {
+        var r = activeRow, c = activeCol
+        if (right) {
+            if (c + 1 < columns) { editCell(r, c + 1, true); return }
+            if (r === -1 && dataRows > 0) { editCell(0, 0, true); return }
+            if (r >= 0 && r + 1 < dataRows) { editCell(r + 1, 0, true); return }
+            leaveTable(1)
+        } else {
+            if (c - 1 >= 0) { editCell(r, c - 1); return }
+            if (r === 0) { editCell(-1, columns - 1); return }
+            if (r > 0) { editCell(r - 1, columns - 1); return }
+            leaveTable(-1)
         }
     }
 
     // End the cell edit and put the caret in the block above or below — the
     // route the block's own Up/Down already takes when no cell is live.
-    function leaveTableVertically(direction) {
+    function leaveTable(direction) {
         var targetIndex = root.index + direction
         if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
             return
@@ -365,6 +459,111 @@ BlockDelegateBase {
         else
             target.focusAtStart()
     }
+    // ---- Sweeping a rectangle of cells with the pointer ------------------
+
+    // Which column a point in the grid's own coordinates falls in.
+    function columnAtX(x) {
+        var left = 0
+        for (var c = 0; c < root.columns; c++) {
+            left += root.colWidthAt(c)
+            if (x < left)
+                return c
+        }
+        return Math.max(0, root.columns - 1)
+    }
+    // And which row. Rows have their own heights — a cell holding several
+    // lines makes a tall one — so they are measured rather than assumed, top
+    // to bottom, with the header as the first of them. Past either end the
+    // sweep holds at the first or last row instead of falling out of the grid.
+    function rowAtY(y) {
+        var lastRow = Math.min(root.renderedRows, root.dataRows) - 1
+        if (y < 0)
+            return -1
+        var laidOut = []
+        var kids = rowsColumn.children
+        for (var i = 0; i < kids.length; i++) {
+            if (kids[i].height > 0)
+                laidOut.push(kids[i])
+        }
+        laidOut.sort(function(a, b) { return a.y - b.y })
+        for (var j = 0; j < laidOut.length; j++) {
+            if (y < laidOut[j].y + laidOut[j].height)
+                return Math.max(-1, Math.min(lastRow, j - 1))
+        }
+        return lastRow
+    }
+
+    // A press in a cell anchors a sweep there. It is not a selection yet:
+    // until the pointer reaches another cell this is an ordinary click, and
+    // the release turns it into an edit.
+    function beginCellSweep(r, c) {
+        root.clearCellSelection()
+        root.sweepAnchorRow = r
+        root.sweepAnchorCol = c
+        root.sweepFocusRow = r
+        root.sweepFocusCol = c
+    }
+    // The pointer has moved to `point` in the coordinates of `fromItem`.
+    function extendCellSweep(fromItem, x, y) {
+        if (root.sweepAnchorRow === -2)
+            return
+        var p = fromItem.mapToItem(rowsColumn, x, y)
+        var r = root.rowAtY(p.y)
+        var c = root.columnAtX(p.x)
+        if (r === root.sweepFocusRow && c === root.sweepFocusCol)
+            return
+        root.sweepFocusRow = r
+        root.sweepFocusCol = c
+        // Past the first cell this is a selection, and a selection and a live
+        // cell cannot both hold the keyboard: the edit ends, and the block's
+        // focus item takes the keys so Ctrl+C copies the rectangle.
+        if (root.hasCellSelection) {
+            root.activeRow = -2
+            root.activeCol = -1
+            focusTarget.forceActiveFocus()
+        }
+    }
+
+    // The swept rectangle as a table of its own. Markdown has no notation for
+    // a fragment of a table, so what is copied is a whole small table: the
+    // selected cells, under the header cells of the columns they came from,
+    // which is what makes the copy paste back as a table and say what its
+    // columns are. Selecting header cells alone therefore yields a table with
+    // a header and no rows.
+    function selectionMarkdown() {
+        if (!root.hasCellSelection)
+            return ""
+        var cols = root.selRight - root.selLeft + 1
+        var firstData = Math.max(root.selTop, 0)
+        var rows = root.selBottom >= 0 ? root.selBottom - firstData + 1 : 0
+        var md = TableTools.emptyTable(cols, rows)
+        for (var c = 0; c < cols; c++) {
+            md = TableTools.setCell(md, -1, c, root.cellText(-1, root.selLeft + c))
+            for (var r = 0; r < rows; r++)
+                md = TableTools.setCell(md, r, c,
+                                        root.cellText(firstData + r, root.selLeft + c))
+        }
+        return md
+    }
+    function copyCellSelection() {
+        var md = root.selectionMarkdown()
+        if (md === "")
+            return
+        Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
+    }
+    // Empty every selected cell in one model write, so the whole rectangle is
+    // one undo step rather than one per cell.
+    function clearSelectedCells() {
+        if (!root.hasCellSelection)
+            return
+        var md = root.content
+        for (var r = root.selTop; r <= root.selBottom; r++)
+            for (var c = root.selLeft; c <= root.selRight; c++)
+                md = TableTools.setCell(md, r, c, "")
+        if (md !== root.content)
+            root.writeTable(md)
+    }
+
     // Write a whole width list to the block's attributes as one undo step. A
     // zero becomes an empty slot, which is how a column says it still
     // measures itself; an all-zero list drops the key entirely, so a table
@@ -514,6 +713,37 @@ BlockDelegateBase {
             // non-text delegates.
             if (root.activeRow !== -2)
                 return
+            // A swept rectangle of cells owns the keys that act on a
+            // selection: copy it, cut it, empty it, or drop it. Anything else
+            // drops it first and then means what it always did — in
+            // particular Backspace, which would otherwise delete the whole
+            // table while the reader was looking at a few selected cells.
+            if (root.hasCellSelection) {
+                // A modifier arrives as a key press of its own, before the
+                // key it modifies. Holding Ctrl to copy must not be read as
+                // "some other key", which drops the selection below — the
+                // rectangle was gone by the time the C arrived.
+                if (event.key === Qt.Key_Control || event.key === Qt.Key_Shift
+                    || event.key === Qt.Key_Alt || event.key === Qt.Key_Meta)
+                    return
+                var ctrlHeld = event.modifiers & Qt.ControlModifier
+                if (event.key === Qt.Key_Escape) {
+                    root.clearCellSelection(); event.accepted = true; return
+                }
+                if (ctrlHeld && event.key === Qt.Key_C) {
+                    root.copyCellSelection(); event.accepted = true; return
+                }
+                if (ctrlHeld && event.key === Qt.Key_X) {
+                    root.copyCellSelection()
+                    root.clearSelectedCells()
+                    root.clearCellSelection()
+                    event.accepted = true; return
+                }
+                if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
+                    root.clearSelectedCells(); event.accepted = true; return
+                }
+                root.clearCellSelection()
+            }
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier)
                 && (event.modifiers & Qt.ShiftModifier)) {
@@ -660,8 +890,11 @@ BlockDelegateBase {
                                             // only thing a cell paints is the tint
                                             // that marks it as the live one.
                                             height: cell.implicitHeight
-                                            color: cell.isActive ? Theme.focusTint
-                                                                 : "transparent"
+                                            color: cell.isActive
+                                                ? Theme.focusTint
+                                                : (root.cellSelected(rowGroup.rowIndex,
+                                                                     cell.colIndex)
+                                                   ? Theme.selectionTint : "transparent")
 
                                             readonly property bool isActive:
                                                 root.activeRow === rowGroup.rowIndex
@@ -722,11 +955,38 @@ BlockDelegateBase {
                                             MouseArea {
                                                 anchors.fill: parent
                                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                // The sweep keeps the pointer
+                                                // for its whole gesture: the
+                                                // list would otherwise take a
+                                                // downward drag as a scroll
+                                                // and the selection would stop
+                                                // at the row it started in.
+                                                preventStealing: true
+                                                onPressed: function(mouse) {
+                                                    if (mouse.button !== Qt.LeftButton)
+                                                        return
+                                                    root.beginCellSweep(rowGroup.rowIndex,
+                                                                        cell.colIndex)
+                                                }
+                                                onPositionChanged: function(mouse) {
+                                                    if (!(mouse.buttons & Qt.LeftButton))
+                                                        return
+                                                    root.extendCellSweep(cell, mouse.x, mouse.y)
+                                                }
                                                 onClicked: function(mouse) {
                                                     if (mouse.button === Qt.RightButton) {
                                                         root.openCellMenu(rowGroup.rowIndex, cell.colIndex)
                                                         return
                                                     }
+                                                    // A press and release in
+                                                    // one cell is a click into
+                                                    // it; a sweep that reached
+                                                    // another cell has already
+                                                    // made a selection, which
+                                                    // an edit would throw away.
+                                                    if (root.hasCellSelection)
+                                                        return
+                                                    root.clearCellSelection()
                                                     root.editCell(rowGroup.rowIndex, cell.colIndex)
                                                 }
                                                 // A header cell has a sort affordance on double-click.
@@ -837,6 +1097,17 @@ BlockDelegateBase {
                     TableTools.insertColumn(root.content, root.columns - 1))
             }
         }
+
+        // The exit key, in the corner the source-editing blocks put it in.
+        // A table's Enter belongs to the grid — it moves down the column —
+        // so, as in those blocks, Ctrl+Enter is what makes a block below it,
+        // and it needs saying while a cell is being edited.
+        BlockKeyHint {
+            objectName: "tableExitHint"
+            width: root.gridWidth
+            visible: root.activeRow !== -2
+            basePixelSize: Typography.baseSize
+        }
     }
 
     // One editor for the whole table, reparented into whichever cell is
@@ -862,7 +1133,8 @@ BlockDelegateBase {
             // on creation for the first cell, and on every move after that.
             function beginEditing() {
                 cellArea.forceActiveFocus()
-                cellArea.cursorPosition = cellArea.length
+                cellArea.cursorPosition = root.enterCellAtStart
+                    ? 0 : cellArea.length
             }
             // Which visual line the caret sits on, for the Up/Down keys: a
             // wrapped or line-broken cell keeps them for its own text until
@@ -968,20 +1240,35 @@ BlockDelegateBase {
                     if (event.key === Qt.Key_Tab) {
                         root.moveCell(true); event.accepted = true; return
                     }
-                    // Up and Down walk the column. A cell can hold line
-                    // breaks, so they belong to the text first and to the
-                    // grid only at the cell's top and bottom line — the rule
-                    // the prose and equation editors follow at their own
-                    // edges. Modified arrows are left to the editor for
-                    // selection and word movement.
+                    // The four arrows belong to the cell's own text first and
+                    // to the grid only at its edges — the rule the prose and
+                    // equation editors follow at theirs. Up and Down walk the
+                    // column from the cell's top and bottom line, since a cell
+                    // can hold line breaks; Left and Right cross to the
+                    // neighbouring cell from the two ends of the text.
+                    // Modified arrows are left to the editor for selection and
+                    // word movement, and so is an arrow that has a selection
+                    // to collapse.
                     var arrowModifiers = Qt.ControlModifier | Qt.ShiftModifier
                         | Qt.AltModifier | Qt.MetaModifier
-                    if (!(event.modifiers & arrowModifiers)
+                    var plainArrow = !(event.modifiers & arrowModifiers)
+                        && cellArea.selectedText.length === 0
+                    if (plainArrow
                         && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
                         var goingDown = event.key === Qt.Key_Down
                         if (goingDown ? editorRoot.cursorOnLastLine()
                                       : editorRoot.cursorOnFirstLine()) {
                             root.moveCellVertically(goingDown)
+                            event.accepted = true
+                        }
+                        return
+                    }
+                    if (plainArrow
+                        && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+                        var goingRight = event.key === Qt.Key_Right
+                        if (goingRight ? cellArea.cursorPosition === cellArea.length
+                                       : cellArea.cursorPosition === 0) {
+                            root.moveCellHorizontally(goingRight)
                             event.accepted = true
                         }
                         return
@@ -996,12 +1283,17 @@ BlockDelegateBase {
                         focusTarget.forceActiveFocus()
                         event.accepted = true; return
                     }
-                    // Shift+Enter breaks the line inside the cell, Enter is
-                    // done with it — the split the callout and code blocks
-                    // already use. A cell keeps its breaks now, so plain Enter
-                    // had to stop being the one that made them: it is the key
-                    // reached for after typing a value, and every stray press
-                    // would have left a blank line in the table.
+                    // The three Enters. Shift+Enter breaks the line inside the
+                    // cell — a cell keeps its breaks, so plain Enter could not
+                    // be the key that made them: it is what is pressed after
+                    // typing a value, and every stray press would have left a
+                    // blank line in the table. Plain Enter is that "done with
+                    // this value" key and moves down the column, the way it
+                    // does in a spreadsheet, which is also what Down does.
+                    // Ctrl+Enter is the way to a new block below the table,
+                    // the same key the code, equation, diagram and query
+                    // blocks use where their own Enter belongs to their
+                    // content; the hint under the grid says so.
                     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                         // Enter belongs to the command menu while it is open:
                         // it takes the highlighted entry.
@@ -1009,9 +1301,13 @@ BlockDelegateBase {
                             return
                         if (event.modifiers & Qt.ShiftModifier)
                             return          // the TextArea inserts the break
-                        root.activeRow = -2
-                        root.activeCol = -1
-                        focusTarget.forceActiveFocus()
+                        if (event.modifiers & Qt.ControlModifier) {
+                            root.activeRow = -2
+                            root.activeCol = -1
+                            root.createBlockBelow()
+                            event.accepted = true; return
+                        }
+                        root.moveCellVertically(true)
                         event.accepted = true; return
                     }
                 }
@@ -1085,6 +1381,25 @@ BlockDelegateBase {
     Menu {
         id: cellMenu
         objectName: "tableCellMenu"
+        // The swept rectangle's own commands, so the selection is not
+        // keyboard-only. They are here rather than in a menu of their own
+        // because a right-click on a selected cell is where a reader looks
+        // for them.
+        MenuItem {
+            objectName: "tableCopyCells"
+            text: qsTr("Copy selected cells")
+            visible: root.hasCellSelection
+            height: visible ? implicitHeight : 0
+            onTriggered: root.copyCellSelection()
+        }
+        MenuItem {
+            objectName: "tableClearCells"
+            text: qsTr("Clear selected cells")
+            visible: root.hasCellSelection
+            height: visible ? implicitHeight : 0
+            onTriggered: root.clearSelectedCells()
+        }
+        MenuSeparator { visible: root.hasCellSelection }
         MenuItem {
             objectName: "tableInsertRowAbove"
             text: qsTr("Insert row above")
