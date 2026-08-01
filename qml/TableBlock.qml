@@ -72,6 +72,7 @@ BlockDelegateBase {
     // The one live cell: activeRow -2 = none, -1 = header row, 0..n data row.
     property int activeRow: -2
     property int activeCol: -1
+    readonly property bool editing: activeRow !== -2
 
     // The cell rectangle the single editor is parented into, set by whichever
     // cell is active. One editor exists per table, not one Loader per cell.
@@ -655,8 +656,8 @@ BlockDelegateBase {
         })
     }
     // Ctrl+Enter out of the block: end the cell edit, which folds the grid
-    // back to its resting height, then insert the new row a frame later.
-    // BlockExitBelow.qml says why the two are separated.
+    // back to its resting height, then insert once the list has applied that
+    // geometry.
     function createBlockBelow() {
         root.activeRow = -2
         root.activeCol = -1
@@ -666,6 +667,8 @@ BlockDelegateBase {
         id: exitBelow
         blockIndex: root.index
         listView: root.listView
+        blockItem: root
+        editing: root.editing
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1

@@ -269,7 +269,7 @@ BlockDelegateBase {
         })
     }
     // Ctrl+Enter out of the block: fold the editor away, then insert the new
-    // row a frame later. BlockExitBelow.qml says why the two are separated.
+    // row once the list has applied the resting geometry.
     function createBlockBelow() {
         root.forceActiveFocus()            // folds the spec editor away
         exitBelow.begin()
@@ -278,6 +278,8 @@ BlockDelegateBase {
         id: exitBelow
         blockIndex: root.index
         listView: root.listView
+        blockItem: root
+        editing: root.editing
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1

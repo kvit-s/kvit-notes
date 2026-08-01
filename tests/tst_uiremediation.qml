@@ -533,7 +533,7 @@ Item {
 
         // A block below the viewport has no delegate at the moment the model
         // edit returns, so the old immediate itemAtIndex() focused nothing.
-        // The router positions the view and retries until the row exists.
+        // The router positions the view and completes from delegate readiness.
         function test_qml8_focusReachesABlockOutsideTheViewport() {
             var body = ""
             for (var i = 0; i < 60; ++i)
@@ -577,9 +577,9 @@ Item {
                 var item = list.itemAtIndex(3)
                 return item !== null && item.isFocused === true
             }, 2000, "the last request is the one that lands")
-            var retry = childNamed("blockFocusRetry")
-            tryCompare(retry, "running", false, 2000,
-                       "and the stale retry stopped")
+            var guard = childNamed("blockFocusGuard")
+            tryCompare(guard, "running", false, 2000,
+                       "and no stale focus guard remains")
         }
 
         // Inserting from the toolbar focuses the new block even when it is

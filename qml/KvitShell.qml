@@ -70,6 +70,19 @@ ApplicationWindow {
     function activeMathMenu(host) { return null }
     function activeWikiMenu(host) { return null }
 
+    // List-delegate lifecycle hooks. The editor shell overrides these to
+    // coalesce variable-height relayouts and to finish a focus request once a
+    // virtualized row exists. Keeping the hooks on the typed window boundary
+    // lets BlockDelegateBase report its own lifecycle without reaching into a
+    // particular ListView.
+    function blockGeometryChanged(item) {}
+    function blockDelegateReady(item) {}
+
+    // Focus a model row after bringing it into the virtualized list. Blocks
+    // that create another row (for example Ctrl+Enter out of a diagram) use
+    // the same readiness-driven path as insert dialogs and navigation.
+    function focusBlockAtIndex(index, atEnd, typed) {}
+
     // Whether a context menu is open holding `target`'s selection — a bool,
     // so it is a plain typed query.
     function contextMenuHoldsSelection(target) { return false }

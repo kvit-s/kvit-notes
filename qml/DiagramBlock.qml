@@ -195,8 +195,7 @@ BlockDelegateBase {
         })
     }
     // Ctrl+Enter out of the block: fold the source editor away, then insert
-    // the new row a frame later. BlockExitBelow.qml says why the two are
-    // separated.
+    // once the list has applied the resting geometry.
     function createBlockBelow() {
         selectionKeys.forceActiveFocus()   // folds the editor away
         exitBelow.begin()
@@ -205,6 +204,8 @@ BlockDelegateBase {
         id: exitBelow
         blockIndex: root.index
         listView: root.listView
+        blockItem: root
+        editing: root.editing
     }
 
     function insertBlockBelowAndOpenMenu() {
@@ -269,6 +270,14 @@ BlockDelegateBase {
         activationFillColor: Theme.hoverTint
         pageBackgroundColor: Theme.windowBackground
         selectionRingColor: Theme.focusRing
+        // Rendering finishes off the GUI thread. Report both the scene update
+        // and the end of rendering so the shell's coalesced forceLayout runs
+        // after either a new scene or a diagnostic-only result.
+        onSceneChanged: root.notifyShellGeometryChanged()
+        onRenderingChanged: {
+            if (!rendering)
+                root.notifyShellGeometryChanged()
+        }
     }
 
     Rectangle {
@@ -317,7 +326,7 @@ BlockDelegateBase {
                     height: Math.max(24, Math.min(readCanvas.implicitHeight, root.maxReadHeight))
                     visible: readCanvas.hasScene
                     clip: true
-                    contentWidth: readCanvas.implicitWidth
+                    contentWidth: readCanvas.width
                     contentHeight: readCanvas.implicitHeight
                     interactive: contentWidth > width || contentHeight > height
                     boundsBehavior: Flickable.StopAtBounds
@@ -334,7 +343,12 @@ BlockDelegateBase {
                                        sceneWidth > 0 ? readFlick.width / sceneWidth : 1.0,
                                        sceneHeight > 0 ? root.maxReadHeight / sceneHeight : 1.0)
                             : root.zoomLevel
-                        width: implicitWidth
+                        // Keep the hit surface as wide as the read viewport.
+                        // The painted scene can be narrower after fitting; if
+                        // the item stopped at that painted width, the blank
+                        // space to its right had no MouseArea and a click there
+                        // could not enter the source editor.
+                        width: Math.max(implicitWidth, readFlick.width)
                         height: implicitHeight
 
                         // Clicking a node or edge selects it; empty

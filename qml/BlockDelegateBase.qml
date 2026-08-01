@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import QtQuick.Window
 import Kvit 1.0
 
 // What every block delegate provides to the shell.
@@ -29,6 +30,23 @@ import Kvit 1.0
 // repeating an empty implementation to satisfy an interface.
 Item {
     id: blockDelegateBase
+
+    // Variable-height rows tell their own shell whenever their geometry
+    // changes. The shell coalesces all notifications in the current event turn
+    // before asking ListView to process outstanding layout. This also gives
+    // specialized delegates (notably asynchronous diagrams) an explicit hook
+    // for completion signals that do not themselves change height.
+    readonly property KvitShell geometryShell: Window.window as KvitShell
+    function notifyShellGeometryChanged() {
+        if (blockDelegateBase.geometryShell)
+            blockDelegateBase.geometryShell.blockGeometryChanged(blockDelegateBase)
+    }
+    onHeightChanged: blockDelegateBase.notifyShellGeometryChanged()
+    Component.onCompleted: {
+        blockDelegateBase.notifyShellGeometryChanged()
+        if (blockDelegateBase.geometryShell)
+            blockDelegateBase.geometryShell.blockDelegateReady(blockDelegateBase)
+    }
 
     // Standard context-menu keys, shared by every block's primary focus
     // target. Returning true lets each delegate put this first in its own key

@@ -158,33 +158,67 @@ KvitShell {
         blockListView.contentY = Math.max(0, Math.min(target, maxY))
     }
 
+    // ---- Completion-driven block geometry -------------------------------
+    // ListView batches model and delegate geometry changes. Every block row
+    // reports height changes through BlockDelegateBase; diagrams additionally
+    // report their asynchronous render lifecycle. One callLater coalesces all
+    // notifications from the turn and forceLayout() processes the outstanding
+    // list geometry before focus/reveal consumers read it.
+    property bool blockRelayoutScheduled: false
+    function blockGeometryChanged(item) {
+        if (root.blockRelayoutScheduled)
+            return
+        root.blockRelayoutScheduled = true
+        Qt.callLater(root.completeBlockRelayout)
+    }
+    function completeBlockRelayout() {
+        root.blockRelayoutScheduled = false
+        blockListView.forceLayout()
+        root.scheduleFocusedBlockPosition()
+        root.scheduleReveal()
+    }
+
     // Scroll the editor the least it can to put `item` fully inside the
-    // viewport, and not at all when it is already there.
-    //
-    // A block can be on screen while the part of it the reader just reached
-    // is not: a task-board card grows a description field when it is clicked,
-    // and a table row grows when its cell goes live. At the end of a note that
-    // growth lands below the window's edge, and the reader cannot scroll to it
-    // — the moment the pointer leaves the card, the card folds back and the
-    // note is short again.
-    // The scroll itself is followed for a few frames, because what asked for
-    // it is usually still growing: the card whose field went live gains the
-    // field's height, which moves the field itself further down after the
-    // first scroll has already been worked out. A settled item costs nothing
-    // — the pass below moves the view only while part of the item is outside
-    // it.
+    // viewport, and not at all when it is already there. The target and its
+    // containing block stay connected while it owns focus, so growth follows
+    // geometry changes rather than an eight-tick settling window. A newer
+    // target replaces it; focus loss or manual scrolling cancels it.
     property Item revealTarget: null
+    property Item revealBlock: null
+    property bool revealScheduled: false
+    function containingBlock(item) {
+        var candidate = item
+        while (candidate && candidate !== blockListView) {
+            var block = candidate as BlockDelegateBase
+            if (block)
+                return block
+            candidate = candidate.parent
+        }
+        return null
+    }
     function revealItem(item) {
         if (!item || !blockListView.contentItem)
             return
         root.revealTarget = item
-        revealSettle.ticksLeft = 8
-        root.applyReveal()
-        revealSettle.restart()
+        root.revealBlock = root.containingBlock(item)
+        root.scheduleReveal()
+    }
+    function scheduleReveal() {
+        if (!root.revealTarget || root.revealScheduled)
+            return
+        root.revealScheduled = true
+        Qt.callLater(function() {
+            root.revealScheduled = false
+            root.applyReveal()
+        })
+    }
+    function cancelRevealTracking() {
+        root.revealTarget = null
+        root.revealBlock = null
     }
     function applyReveal() {
         var item = root.revealTarget
-        if (!item || !blockListView.contentItem)
+        if (!item || !item.visible || !blockListView.contentItem)
             return
         var top = item.mapToItem(blockListView.contentItem, 0, 0).y
         var bottom = top + item.height
@@ -203,138 +237,174 @@ KvitShell {
                                - blockListView.height)
         blockListView.contentY = Math.max(0, Math.min(target, maxY))
     }
-    Timer {
-        id: revealSettle
-        objectName: "revealSettle"
-        property int ticksLeft: 0
-        interval: 16
-        repeat: true
-        onTriggered: {
-            revealSettle.ticksLeft--
-            if (!root.revealTarget || revealSettle.ticksLeft <= 0) {
-                revealSettle.stop()
-                root.revealTarget = null
-                return
-            }
-            root.applyReveal()
+    Connections {
+        target: root.revealTarget
+        function onHeightChanged() { root.scheduleReveal() }
+        function onYChanged() { root.scheduleReveal() }
+        function onVisibleChanged() {
+            if (root.revealTarget && root.revealTarget.visible)
+                root.scheduleReveal()
+            else
+                root.cancelRevealTracking()
         }
+    }
+    Connections {
+        target: root.revealBlock
+        function onHeightChanged() { root.scheduleReveal() }
+        function onYChanged() { root.scheduleReveal() }
     }
 
     function openSettingsDialog() { settingsDialog.open() }
 
     // ---- Focusing a block by index --------------------------------------
     // The editor list is virtualized, so a row only exists once the view has
-    // positioned and polished it. Insertion, drop and navigation all finish
-    // their model edit and then want the keyboard in the affected block, and
-    // asking itemAtIndex() in that same turn returns null for anything that
-    // was offscreen: the edit lands, the caret does not follow it. Everything
-    // that focuses by index goes through here, which sets the current index,
-    // brings the row into view, and keeps trying across frames until the
-    // delegate exists — or until a newer request replaces this one, so a
-    // rapid second insertion is never fought over by a stale retry.
-    //
-    // `typed` is optional: text to put in the row once it has the caret, as
-    // though it had been typed there. The gap cursor (§3.7) uses it to hand
-    // the character that asked for a block to the block it just inserted, and
-    // it has to travel with the request rather than follow it, because the
-    // row may be several frames away from existing.
+    // positioned and created it. Requests set currentIndex and position once;
+    // currentItemChanged or the delegate's Component.onCompleted then finishes
+    // the focus. Once the caret lands, the row's heightChanged signal keeps it
+    // contained until focus leaves, the user scrolls, or a newer request wins.
+    // The one timer below is only a generous cancellation/error guard.
     property int focusRequestGeneration: 0
+    property bool focusRequestPending: false
+    property int focusTargetIndex: -1
+    property bool focusTargetAtEnd: false
+    property string focusTargetTyped: ""
+    property BlockDelegateBase focusWatchItem: null
+    property bool focusWatchHasFocus: false
+    property bool focusPositionScheduled: false
+    property bool trackedFocusValidationScheduled: false
+
     function focusBlockAtIndex(index, atEnd, typed) {
         if (BlockModel.count === 0)
             return
         var idx = Math.max(0, Math.min(index, BlockModel.count - 1))
         root.focusRequestGeneration++
+        root.clearBlockFocusLifecycle()
+        root.focusTargetIndex = idx
+        root.focusTargetAtEnd = atEnd === true
+        root.focusTargetTyped = typed === undefined ? "" : typed
+        root.focusRequestPending = true
+        blockFocusGuard.generation = root.focusRequestGeneration
+        blockFocusGuard.restart()
         blockListView.currentIndex = idx
         blockListView.positionViewAtIndex(idx, ListView.Contain)
-        blockFocusRetry.targetIndex = idx
-        blockFocusRetry.atEnd = atEnd === true
-        blockFocusRetry.typed = typed === undefined ? "" : typed
-        blockFocusRetry.generation = root.focusRequestGeneration
-        blockFocusRetry.attemptsLeft = 12
-        blockFocusRetry.settleTicks = 0
-        blockFocusRetry.settleHeight = -1
-        if (root.applyPendingBlockFocus())
-            blockFocusRetry.beginSettle()
-        blockFocusRetry.restart()
+        root.applyPendingBlockFocus(blockListView.itemAtIndex(idx))
     }
-    // One attempt: true when the delegate was there and took the focus.
-    function applyPendingBlockFocus() {
-        var item = (blockListView.itemAtIndex(blockFocusRetry.targetIndex)
+    function blockDelegateReady(item) {
+        if (!root.focusRequestPending || !item)
+            return
+        if (item === blockListView.itemAtIndex(root.focusTargetIndex))
+            root.applyPendingBlockFocus(item)
+    }
+    function applyPendingBlockFocus(candidate) {
+        if (!root.focusRequestPending)
+            return false
+        var item = candidate as BlockDelegateBase
+        if (!item || item !== blockListView.itemAtIndex(root.focusTargetIndex))
+            item = (blockListView.itemAtIndex(root.focusTargetIndex)
                     as BlockDelegateBase)
         if (!item)
             return false
-        if (blockFocusRetry.atEnd && item.focusAtEnd)
+
+        if (root.focusTargetAtEnd)
             item.focusAtEnd()
-        else if (item.focusAtStart)
-            item.focusAtStart()
         else
-            return false
-        if (blockFocusRetry.typed !== "") {
-            item.typeText(blockFocusRetry.typed)
-            blockFocusRetry.typed = ""
+            item.focusAtStart()
+        if (root.focusTargetTyped !== "") {
+            item.typeText(root.focusTargetTyped)
+            root.focusTargetTyped = ""
         }
+
+        root.focusRequestPending = false
+        root.focusWatchItem = item
+        root.focusWatchHasFocus = false
+        root.updateTrackedFocus()
         return true
     }
-    // Follows the focused row for a few frames after it takes the caret, and
-    // brings it back into view whenever its height changes. A row that has
-    // just become a table, a diagram or an image is a fraction of its final
-    // height on the frame the caret lands in, so positioning it once puts the
-    // top of a grid on screen and the rest of it below the fold: a table
-    // inserted at the foot of the view showed its header row and nothing
-    // else. Positioning only on a height change leaves a settled view alone.
-    function settleFocusedBlockInView() {
-        var item = blockListView.itemAtIndex(blockFocusRetry.targetIndex)
+    function activeFocusIsInside(item) {
+        if (!item)
+            return false
+        var focusItem = root.activeFocusItem
+        while (focusItem) {
+            if (focusItem === item)
+                return true
+            focusItem = focusItem.parent
+        }
+        return false
+    }
+    function updateTrackedFocus() {
+        var item = root.focusWatchItem
         if (!item)
             return
-        if (item.height === blockFocusRetry.settleHeight)
+        if (root.activeFocusIsInside(item)) {
+            root.focusWatchHasFocus = true
+            blockFocusGuard.stop()
+            root.scheduleFocusedBlockPosition()
+        } else if (root.focusWatchHasFocus) {
+            root.clearBlockFocusLifecycle()
+        }
+    }
+    function scheduleTrackedFocusValidation() {
+        if (root.trackedFocusValidationScheduled)
             return
-        blockFocusRetry.settleHeight = item.height
-        // Contain shows the whole row where it fits and puts its top at the
-        // top of the view where it does not, which for a table is its header.
-        blockListView.positionViewAtIndex(blockFocusRetry.targetIndex,
-                                          ListView.Contain)
+        root.trackedFocusValidationScheduled = true
+        Qt.callLater(function() {
+            root.trackedFocusValidationScheduled = false
+            root.updateTrackedFocus()
+            if (root.revealTarget
+                    && !root.activeFocusIsInside(root.revealTarget))
+                root.cancelRevealTracking()
+        })
+    }
+    onActiveFocusItemChanged: root.scheduleTrackedFocusValidation()
+
+    function scheduleFocusedBlockPosition() {
+        if (!root.focusWatchItem || !root.focusWatchHasFocus
+                || root.focusPositionScheduled)
+            return
+        root.focusPositionScheduled = true
+        Qt.callLater(function() {
+            root.focusPositionScheduled = false
+            if (!root.focusWatchItem || !root.focusWatchHasFocus)
+                return
+            blockListView.forceLayout()
+            // Contain shows the whole row where it fits and puts its top at the
+            // top of the view where it does not, which for a table is its header.
+            blockListView.positionViewAtIndex(root.focusTargetIndex,
+                                              ListView.Contain)
+        })
+    }
+    function clearBlockFocusLifecycle() {
+        root.focusRequestPending = false
+        root.focusWatchItem = null
+        root.focusWatchHasFocus = false
+        blockFocusGuard.stop()
+    }
+    function cancelGeometryTrackingForMovement() {
+        if (root.focusRequestPending || root.focusWatchItem) {
+            root.focusRequestGeneration++
+            root.clearBlockFocusLifecycle()
+        }
+        root.cancelRevealTracking()
+    }
+    Connections {
+        target: root.focusWatchItem
+        function onHeightChanged() { root.scheduleFocusedBlockPosition() }
     }
     Timer {
-        id: blockFocusRetry
-        objectName: "blockFocusRetry"
-        property int targetIndex: -1
-        property bool atEnd: false
-        property string typed: ""
+        id: blockFocusGuard
+        objectName: "blockFocusGuard"
         property int generation: 0
-        property int attemptsLeft: 0
-        // Frames of height-watching left once the caret has landed. Ten
-        // frames is about 160ms, which covers the layout passes a converted
-        // block needs without holding the view against a reader who scrolls
-        // away from it.
-        property int settleTicks: 0
-        property real settleHeight: -1
-        function beginSettle() {
-            settleTicks = 10
-            settleHeight = -1
-        }
-        interval: 16
-        repeat: true
+        interval: 5000
+        repeat: false
         onTriggered: {
-            if (blockFocusRetry.generation !== root.focusRequestGeneration) {
-                blockFocusRetry.stop()
+            if (blockFocusGuard.generation !== root.focusRequestGeneration)
                 return
+            if (root.focusRequestPending
+                    || (root.focusWatchItem && !root.focusWatchHasFocus)) {
+                console.warn("Block delegate did not become focus-ready at index "
+                             + root.focusTargetIndex)
+                root.clearBlockFocusLifecycle()
             }
-            if (blockFocusRetry.settleTicks > 0) {
-                blockFocusRetry.settleTicks--
-                root.settleFocusedBlockInView()
-                if (blockFocusRetry.settleTicks <= 0)
-                    blockFocusRetry.stop()
-                return
-            }
-            if (blockFocusRetry.attemptsLeft <= 0) {
-                blockFocusRetry.stop()
-                return
-            }
-            blockFocusRetry.attemptsLeft--
-            blockListView.positionViewAtIndex(blockFocusRetry.targetIndex,
-                                              ListView.Contain)
-            if (root.applyPendingBlockFocus())
-                blockFocusRetry.beginSettle()
         }
     }
 
@@ -1790,6 +1860,13 @@ KvitShell {
                 }
 
                 model: BlockModel
+
+                // Delegate readiness completes pending focus without polling.
+                // Geometry-driven reveal/focus tracking yields immediately to
+                // the reader as soon as they start moving the view themselves.
+                onCurrentItemChanged: root.blockDelegateReady(currentItem)
+                onMovementStarted: root.cancelGeometryTrackingForMovement()
+                onContentHeightChanged: root.scheduleReveal()
 
                 // One delegate per block type; paragraphs and headings
                 // share the default text choice.

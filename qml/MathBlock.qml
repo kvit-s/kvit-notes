@@ -213,7 +213,7 @@ BlockDelegateBase {
         })
     }
     // Ctrl+Enter out of the block: fold the editor away, then insert the new
-    // row a frame later. BlockExitBelow.qml says why the two are separated.
+    // row once the list has applied the resting geometry.
     function createBlockBelow() {
         root.forceActiveFocus()            // folds the source and preview away
         exitBelow.begin()
@@ -222,6 +222,8 @@ BlockDelegateBase {
         id: exitBelow
         blockIndex: root.index
         listView: root.listView
+        blockItem: root
+        editing: root.editing
     }
     // The shared block context menu's Turn-into submenu calls this on its
     // target; same fallback path as TextBlockDelegate's.

@@ -64,6 +64,26 @@ Item {
             return listView.itemAtIndex(index)
         }
 
+        function blockRowGap(listView, upper, lower) {
+            if (!listView || !upper || !lower)
+                return Number.NaN
+            return lower.mapToItem(listView.contentItem, 0, 0).y
+                - upper.mapToItem(listView.contentItem, 0, 0).y
+                - upper.height
+        }
+
+        function allBlockRowsAreAdjacent(listView) {
+            for (var i = 0; i < BlockModel.count - 1; ++i) {
+                var row = findBlockDelegate(i)
+                var next = findBlockDelegate(i + 1)
+                if (!row || !next
+                        || Math.abs(blockRowGap(listView, row, next)
+                                    - listView.spacing) > 1)
+                    return false
+            }
+            return true
+        }
+
         function findTextAreaRaw(blockDelegate) {
             return findChild(blockDelegate, "blockTextArea")
         }
@@ -7754,7 +7774,21 @@ Item {
 
         function test_za_paragraphSpacingDrivesList() {
             var listView = findChild(appLoader.item, "blockListView")
+            DocumentManager.newDocument()
+            tryCompare(BlockModel, "count", 1, 1000)
+            BlockModel.updateContent(0, "first")
+            BlockModel.insertBlock(1, 0, "third")
+            BlockModel.insertBlock(1, 0, "inserted second")
+            tryCompare(BlockModel, "count", 3, 1000)
+            listView.positionViewAtBeginning()
+
             compare(listView.spacing, 8)
+            tryVerify(function() {
+                return allBlockRowsAreAdjacent(listView)
+            }, 2000, "the insertion settles at the configured spacing")
+
+            // Changing typography after an insertion must keep the live
+            // binding; a relayout repair must never replace it with a literal.
             Typography.paragraphSpacing = 20
             compare(listView.spacing, 20)
             Typography.paragraphSpacing = 8
@@ -8955,10 +8989,12 @@ Item {
                 board += "- [ ] card " + c + "\n"
             board += "## Doing\n## Done"
             BlockModel.convertBlock(11, 8, board, false, "kanban")   // kanban fence
-            wait(400)
             var listView = findChild(appLoader.item, "blockListView")
-            var kb = findBlockDelegate(11)
-            verify(kb !== null, "the board delegate exists")
+            var kb = null
+            tryVerify(function() {
+                kb = findBlockDelegate(11)
+                return kb !== null && kb.height > listView.height
+            }, 3000, "the tall board delegate is laid out")
 
             // The note can be scrolled past its last block, so the board can
             // be pulled up off the bottom edge of the window.
@@ -8988,7 +9024,14 @@ Item {
                 editor = findChild(kb, "kanbanCardTextEditor")
                 return editor !== null && editor !== undefined && editor.activeFocus
             }, 1000, "the card's field opens")
-            wait(400)   // the reveal is asked for once the field has its height
+            tryVerify(function() {
+                if (!editor)
+                    return false
+                var fieldTop = editor.mapToItem(listView.contentItem, 0, 0).y
+                var fieldBottom = fieldTop + editor.height
+                return fieldTop >= listView.contentY
+                    && fieldBottom <= listView.contentY + listView.height
+            }, 3000, "the focused field's geometry drives the reveal")
 
             var top = editor.mapToItem(listView.contentItem, 0, 0).y
             var bottom = top + editor.height
@@ -9130,16 +9173,23 @@ Item {
             tryVerify(function() {
                 return BlockModel.blockAt(1).language === "mermaid"
             }, 2000, "the paste lands as a diagram")
-            wait(800)
+            tryVerify(function() {
+                var diagram = findBlockDelegate(1)
+                var canvas = diagram
+                    ? findChild(diagram, "diagramReadCanvas") : null
+                return canvas && canvas.hasScene && !canvas.rendering
+            }, 5000, "the pasted diagram finishes rendering")
+            waitForRendering(listView)
+            tryVerify(function() {
+                return allBlockRowsAreAdjacent(listView)
+            }, 2000, "all rows settle next to their rendered neighbours")
 
             for (var i = 0; i < BlockModel.count - 1; i++) {
                 var row = findBlockDelegate(i)
                 var next = findBlockDelegate(i + 1)
                 verify(row !== null && next !== null,
                        "rows " + i + " and " + (i + 1) + " exist")
-                var gap = next.mapToItem(listView.contentItem, 0, 0).y
-                    - row.mapToItem(listView.contentItem, 0, 0).y
-                    - row.height
+                var gap = blockRowGap(listView, row, next)
                 verify(Math.abs(gap - listView.spacing) <= 1,
                        "row " + (i + 1) + " follows row " + i + ": gap " + gap
                        + " against the list's spacing " + listView.spacing)
@@ -9246,39 +9296,54 @@ Item {
                 BlockModel.updateContent(0, "above")
                 BlockModel.insertBlock(1, 0, "")
                 BlockModel.convertBlock(1, c.type, c.content, false, c.language)
-                wait(600)
                 appLoader.item.requestActivate()
 
-                var block = findBlockDelegate(1)
-                verify(block !== null, c.name + ": the delegate exists")
+                var block = null
+                tryVerify(function() {
+                    block = findBlockDelegate(1)
+                    return block !== null && block.height > 0
+                }, 3000, c.name + ": the delegate exists and is laid out")
+                if (c.name === "diagram") {
+                    tryVerify(function() {
+                        var canvas = findChild(block, "diagramReadCanvas")
+                        return canvas && canvas.hasScene && !canvas.rendering
+                    }, 5000, "diagram: the resting render is complete")
+                }
+                waitForRendering(listView)
                 var restingHeight = block.height
                 block.focusAtEnd()
-                wait(400)
                 // Opening the editor makes the block taller: a diagram and an
                 // equation add their source above their preview, a query its
                 // spec above its results, a table a live cell grown to what
                 // is being typed. The list has to see the height the block
                 // ends up with, not the one it had.
-                verify(Math.abs(block.height - restingHeight) > 1,
-                       c.name + ": the editor changes the block's height: "
-                       + block.height + " was " + restingHeight)
+                tryVerify(function() {
+                    return Math.abs(block.height - restingHeight) > 1
+                }, 3000, c.name + ": the editor changes the block's height: "
+                         + block.height + " was " + restingHeight)
 
                 keyClick(Qt.Key_Return, Qt.ControlModifier)
                 tryCompare(BlockModel, "count", 3, 2000)
-                wait(500)
-
-                var folded = findBlockDelegate(1)
-                var inserted = findBlockDelegate(2)
-                verify(folded !== null && inserted !== null,
-                       c.name + ": both rows exist")
-                var gap = inserted.mapToItem(listView.contentItem, 0, 0).y
-                    - folded.mapToItem(listView.contentItem, 0, 0).y
-                    - folded.height
+                var folded = null
+                var inserted = null
+                tryVerify(function() {
+                    folded = findBlockDelegate(1)
+                    inserted = findBlockDelegate(2)
+                    return folded && inserted && !folded.editing
+                }, 3000, c.name + ": both settled rows exist")
+                tryVerify(function() {
+                    return Math.abs(blockRowGap(listView, folded, inserted)
+                                    - listView.spacing) <= 1
+                }, 3000, c.name + ": the inserted row follows resting geometry; gap "
+                         + blockRowGap(listView, folded, inserted)
+                         + " against " + listView.spacing)
+                waitForRendering(listView)
+                var gap = blockRowGap(listView, folded, inserted)
                 verify(Math.abs(gap - listView.spacing) <= 1,
                        c.name + ": the new block follows the folded one: gap "
                        + gap + " against the list's spacing " + listView.spacing)
-                var newArea = findTextAreaRaw(inserted)
                 tryVerify(function() {
+                    var newArea = findTextAreaRaw(inserted)
                     return newArea !== null && newArea.activeFocus
                 }, 1000, c.name + ": and the caret is in it")
             }
@@ -9348,10 +9413,17 @@ Item {
                 return BlockModel.blockAt(15).blockType === Block.Table
             }, 1000, "the table is inserted")
 
-            // Give the grid its layout passes before measuring it.
-            wait(400)
-            var table = findBlockDelegate(15)
-            verify(table !== null, "the table's delegate exists")
+            var table = null
+            tryVerify(function() {
+                table = findBlockDelegate(15)
+                if (!table)
+                    return false
+                var tableTop = table.mapToItem(listView, 0, 0).y
+                return table.height <= listView.height
+                    ? tableTop >= -1
+                        && tableTop + table.height <= listView.height + 1
+                    : tableTop >= -1 && tableTop <= 20
+            }, 5000, "the inserted table's final geometry is contained")
             var top = table.mapToItem(listView, 0, 0).y
             if (table.height <= listView.height) {
                 verify(top >= -1, "the table starts inside the view: " + top)
@@ -9371,13 +9443,16 @@ Item {
             // being left wherever it was.
             BlockModel.insertBlock(16, 0, "")
             BlockModel.convertBlock(16, Block.Table, TableTools.emptyTable(3, 40))
-            wait(300)
             listView.positionViewAtBeginning()
-            wait(150)
             appLoader.item.focusBlockAtIndex(16)
-            wait(500)
-            var tall = findBlockDelegate(16)
-            verify(tall !== null, "the tall table's delegate exists")
+            var tall = null
+            tryVerify(function() {
+                tall = findBlockDelegate(16)
+                if (!tall || tall.height <= listView.height)
+                    return false
+                var candidateTop = tall.mapToItem(listView, 0, 0).y
+                return candidateTop >= -1 && candidateTop <= 20
+            }, 5000, "the tall table is focused after creation and kept at the top")
             verify(tall.height > listView.height,
                    "the 40-row table is taller than the view: "
                    + tall.height + " vs " + listView.height)
@@ -12425,6 +12500,35 @@ Item {
             compare(zoomText.text,
                     Math.round(canvas.renderScale * 100) + "%",
                     "indicator shows the effective zoom level")
+        }
+
+        // A fitted diagram is commonly narrower than its panel. The canvas's
+        // click target must still fill that panel so the whitespace on its
+        // right enters the editor just like whitespace on the drawing side.
+        function test_zzy2b_diagramRightWhitespaceOpensEditor() {
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "```mermaid\nflowchart LR\n  A[a]\n```")
+
+            var d = findBlockDelegate(0)
+            verify(d !== null, "diagram delegate exists")
+            var canvas = findChild(d, "diagramReadCanvas")
+            var flick = findChild(d, "diagramReadFlick")
+            var src = findChild(d, "mermaidSourceArea")
+            verify(canvas !== null && flick !== null && src !== null,
+                   "diagram read and source controls exist")
+            tryVerify(function() { return canvas.hasScene && !canvas.rendering },
+                      3000, "the narrow diagram renders")
+            verify(canvas.implicitWidth < flick.width - 40,
+                   "the fixture leaves right-side whitespace")
+            verify(canvas.width >= flick.width,
+                   "the canvas hit target fills that whitespace")
+
+            appLoader.item.requestActivate()
+            mouseClick(flick, flick.width - 12, flick.height / 2,
+                       Qt.LeftButton)
+            tryVerify(function() { return src.activeFocus }, 2000,
+                      "clicking right-side whitespace opens the source editor")
         }
 
         // Enter in the Mermaid source editor continues the current line's
