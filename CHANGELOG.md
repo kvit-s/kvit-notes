@@ -8,6 +8,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The caret in the space between blocks now accepts Ctrl+V / Cmd+V. Plain
+  lines become paragraphs at that exact seam, structured Clipboard content
+  keeps its block types, and paste-as-plain drops formatting; the caret then
+  continues at the end of the pasted blocks.
 - A collection query's spec editor now opens above its results instead of in
   place of them, the way a diagram and an equation keep their preview while
   their source is being written. The results are the only preview a query has,

@@ -927,6 +927,8 @@ KvitShell {
             largePasteConfirmDialog.pendingText = text
             largePasteConfirmDialog.pendingIndex = insertAt
             largePasteConfirmDialog.pendingPlain = plain
+            largePasteConfirmDialog.pendingStripFormatting = plain
+            largePasteConfirmDialog.pendingFocusLast = false
             largePasteConfirmDialog.open()
         }
     }
@@ -942,6 +944,16 @@ KvitShell {
         listView: blockListView
         appWindow: root
         dragState: blockDragState
+
+        onOversizedPasteRequested: function(text, insertAt, plain,
+                                            stripFormatting) {
+            largePasteConfirmDialog.pendingText = text
+            largePasteConfirmDialog.pendingIndex = insertAt
+            largePasteConfirmDialog.pendingPlain = plain
+            largePasteConfirmDialog.pendingStripFormatting = stripFormatting
+            largePasteConfirmDialog.pendingFocusLast = true
+            largePasteConfirmDialog.open()
+        }
     }
 
     // Right-click anywhere in a row's gutter opens that block's menu (§9.5).
@@ -1324,6 +1336,10 @@ KvitShell {
         // Carries the Ctrl+Shift+V intent across the confirm step, so a
         // confirmed oversized paste-as-plain stays plain (§5.3).
         property bool pendingPlain: false
+        property bool pendingStripFormatting: false
+        // Block-selection paste selects the inserted range; a paste at the
+        // between-block caret instead resumes editing at the end of it.
+        property bool pendingFocusLast: false
 
         contentItem: Item {
             implicitWidth: 380
@@ -1343,17 +1359,36 @@ KvitShell {
         standardButtons: Dialog.Ok | Dialog.Cancel
 
         onAccepted: {
+            var at = pendingIndex
+            var focusLast = pendingFocusLast
+            var pasted = pendingStripFormatting
+                ? blockGapCursor.stripPastedFormatting(pendingText)
+                : pendingText
             var count = pendingPlain
                 ? DocumentSerializer.insertPlainTextAt(
-                    BlockModel, pendingIndex, pendingText)
+                    BlockModel, at, pasted)
                 : DocumentSerializer.insertMarkdownAt(
-                    BlockModel, pendingIndex, pendingText)
-            if (count > 0)
-                selectionKeyHandler.selectRange(pendingIndex, pendingIndex + count - 1)
+                    BlockModel, at, pasted)
+            if (count > 0) {
+                if (focusLast) {
+                    Qt.callLater(function() {
+                        root.focusBlockAtIndex(at + count - 1, true)
+                    })
+                } else {
+                    selectionKeyHandler.selectRange(at, at + count - 1)
+                }
+            }
             pendingText = ""
             pendingPlain = false
+            pendingStripFormatting = false
+            pendingFocusLast = false
         }
-        onRejected: { pendingText = ""; pendingPlain = false }
+        onRejected: {
+            pendingText = ""
+            pendingPlain = false
+            pendingStripFormatting = false
+            pendingFocusLast = false
+        }
     }
 
     // Auto-save when window loses focus

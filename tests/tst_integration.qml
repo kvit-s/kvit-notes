@@ -5556,6 +5556,71 @@ Item {
             }, 1000, "The caret is in the new block, after what was typed")
         }
 
+        function test_gc_da_plainTextPastesAtTheSeam() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            docWithBlocks(["one", "two"])
+            Clipboard.text = "pasted one\r\npasted two"
+
+            placeGapCaret(1)
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+
+            tryVerify(function() { return BlockModel.count === 4 }, 1000,
+                      "Pasting in the seam makes blocks there")
+            compare(BlockModel.getContent(0), "one")
+            compare(BlockModel.getContent(1), "pasted one")
+            compare(BlockModel.getContent(2), "pasted two")
+            compare(BlockModel.getContent(3), "two")
+            compare(BlockModel.blockAt(1).blockType, 0)
+            compare(BlockModel.blockAt(2).blockType, 0)
+            compare(gapCursorItem().gap, -1, "The gap caret is spent")
+            tryVerify(function() {
+                var ta = findTextArea(findBlockDelegate(2))
+                return ta !== null && ta.activeFocus
+                    && ta.cursorPosition === ta.length
+            }, 1000, "The caret follows the pasted text")
+
+            keyClick(Qt.Key_Z, Qt.ControlModifier)
+            tryVerify(function() { return BlockModel.count === 2 }, 1000,
+                      "The whole paste is one undo step")
+            compare(BlockModel.getContent(0), "one")
+            compare(BlockModel.getContent(1), "two")
+        }
+
+        function test_gc_db_structuredAndPlainPasteKeepTheirMeaning() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            docWithBlocks(["one", "two"])
+            Clipboard.setMarkdown(
+                "## **Pasted** heading\n\n- [x] *pasted* task")
+
+            placeGapCaret(1)
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+
+            tryVerify(function() { return BlockModel.count === 4 }, 1000,
+                      "Structured Clipboard content pastes as typed blocks")
+            compare(BlockModel.blockAt(1).blockType, 2, "The heading is kept")
+            compare(BlockModel.getContent(1), "**Pasted** heading")
+            compare(BlockModel.blockAt(2).blockType, 6, "The todo is kept")
+            compare(BlockModel.blockAt(2).checked, true)
+            compare(BlockModel.getContent(2), "*pasted* task")
+
+            // Paste-as-plain uses the Clipboard's plain-text flavour and
+            // removes inline formatting instead of recreating block types.
+            placeGapCaret(1)
+            keyClick(Qt.Key_V, Qt.ControlModifier | Qt.ShiftModifier)
+            tryVerify(function() { return BlockModel.count === 7 }, 1000,
+                      "Paste-as-plain inserts one paragraph per source line")
+            compare(BlockModel.blockAt(1).blockType, 0)
+            compare(BlockModel.getContent(1), "## Pasted heading")
+            compare(BlockModel.blockAt(2).blockType, 0)
+            compare(BlockModel.getContent(2), "")
+            compare(BlockModel.blockAt(3).blockType, 0)
+            compare(BlockModel.getContent(3), "- [x] pasted task")
+        }
+
         function test_gc_e_slashInASeamOpensTheBlockMenu() {
             if (isHeadless) {
                 skip("Mouse tests require display")
@@ -12125,6 +12190,18 @@ Item {
             wait(50)
             compare(BlockModel.count, countBefore,
                     "cancel pastes nothing")
+
+            // The between-block caret uses the same guard and remembers the
+            // exact seam for the eventual insert rather than silently
+            // bypassing the cap.
+            placeGapCaret(1)
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+            tryCompare(dialog, "opened", true, 1000)
+            compare(dialog.pendingIndex, 1)
+            compare(dialog.pendingFocusLast, true)
+            compare(BlockModel.count, countBefore)
+            dialog.reject()
+            wait(50)
 
             // Under the cap the paste is immediate, no dialog.
             Clipboard.text = "small paste"

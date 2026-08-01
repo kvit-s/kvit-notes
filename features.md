@@ -604,6 +604,9 @@ Display when cursor moves into "information":
   The space above the first block and below the last one are both such places
 - Up and Down move that caret to the next space; Escape leaves it for the end
   of the block above
+- Ctrl+V / Cmd+V pastes at that caret. Flat text makes paragraphs, structured
+  Clipboard content keeps its block types, and Ctrl+Shift+V / Cmd+Shift+V
+  pastes the source's plain text as paragraphs with inline formatting removed
 - Ctrl+Enter on selected blocks puts the caret in the space after them. This is
   the keyboard route to the space below a block whose own Enter belongs to it —
   a table's Enter moves down the column and a code block's starts a line

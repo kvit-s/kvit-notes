@@ -37,6 +37,14 @@ Item {
     property var appWindow: null
     property var dragState: null
 
+    // A paste larger than the open-file cap is handed to the window's shared
+    // confirmation dialog. `plain` chooses paragraph insertion rather than
+    // Markdown parsing; `stripFormatting` distinguishes paste-as-plain from
+    // an ordinary flat-text paste, which is also made of paragraphs but
+    // keeps inline Markdown literal in their content.
+    signal oversizedPasteRequested(string text, int insertAt, bool plain,
+                                   bool stripFormatting)
+
     // The armed gap, counted like an insertion index: gap g is the seam
     // above block g, and gap BlockModel.count is the space below the last
     // block. -1 when the mode is off.
@@ -211,6 +219,64 @@ Item {
         cursor.appWindow.focusBlockAtIndex(at, false, typed)
     }
 
+    // Whether the Clipboard's plain-text flavour opens a fenced block. A
+    // source editor commonly also supplies preformatted HTML; using that
+    // flavour would wrap the reader's fence in a second code block, so the
+    // plain Markdown is the structure source in this case. This is the same
+    // rule used when pasting into an existing paragraph.
+    function pasteOpensAFence(text) {
+        return /(^|\n)[ \t]*(```|~~~)/.test(text)
+    }
+
+    function stripPastedFormatting(text) {
+        return text.split("\n").map(function(line) {
+            return DocumentStats.displayTextFor(line, false)
+        }).join("\n")
+    }
+
+    // Paste into the armed seam as though it were a new empty paragraph.
+    // Flat external text makes paragraph blocks, while Kvit's private
+    // Markdown flavour, structured HTML, and fenced payloads are parsed into
+    // their typed blocks. All inserted blocks form one undo step through the
+    // serializer helpers.
+    function pasteFromClipboard(stripFormatting) {
+        if (cursor.gap < 0 || !cursor.appWindow || !Clipboard.hasText)
+            return
+
+        var at = cursor.gap
+        var opensFence = cursor.pasteOpensAFence(Clipboard.text)
+        var structured = !stripFormatting
+            && (Clipboard.hasStructuredMarkdown || opensFence)
+        var pasted = (stripFormatting || opensFence
+                      ? Clipboard.text : Clipboard.markdown())
+                         .replace(/\r\n/g, "\n")
+        if (pasted.length === 0)
+            return
+
+        // Keep the same guard as block-selection paste and file open. The
+        // formatting pass is deferred until confirmation for a very large
+        // paste, so merely pressing the shortcut cannot cause the stall the
+        // dialog exists to prevent.
+        var capBytes = DocumentManager.maxOpenFileSizeMiB > 0
+            ? DocumentManager.maxOpenFileSizeMiB * 1024 * 1024
+            : 0
+        if (capBytes > 0 && pasted.length > capBytes) {
+            cursor.oversizedPasteRequested(pasted, at, !structured,
+                                           stripFormatting)
+            return
+        }
+
+        if (stripFormatting)
+            pasted = cursor.stripPastedFormatting(pasted)
+        var count = structured
+            ? DocumentSerializer.insertMarkdownAt(BlockModel, at, pasted)
+            : DocumentSerializer.insertPlainTextAt(BlockModel, at, pasted)
+        if (count > 0) {
+            cursor.dismiss()
+            cursor.appWindow.focusBlockAtIndex(at + count - 1, true)
+        }
+    }
+
     // Leave for the text either side: the end of the block above, or the
     // start of the first block when the caret was above it.
     function leaveToText() {
@@ -250,6 +316,10 @@ Item {
         if (cursor.gap < 0)
             return
 
+        var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
+        var alt = (event.modifiers & Qt.AltModifier) !== 0
+        var meta = (event.modifiers & Qt.MetaModifier) !== 0
+
         if (event.key === Qt.Key_Escape) {
             cursor.leaveToText()
             event.accepted = true
@@ -266,11 +336,19 @@ Item {
             return
         }
 
+        // Ctrl+V / Cmd+V pastes at the seam; Shift selects paste-as-plain.
+        // Do not claim Ctrl+Alt+V because that modifier pair is AltGr on
+        // Windows and X11 and may be typing a printable character.
+        if (event.key === Qt.Key_V && (ctrl || meta) && !alt) {
+            cursor.pasteFromClipboard(
+                (event.modifiers & Qt.ShiftModifier) !== 0)
+            event.accepted = true
+            return
+        }
+
         // Anything that types a character starts a paragraph holding it.
         // AltGr reaches here as Ctrl+Alt on X11 and Windows, so the two
         // together are a typed character rather than a shortcut.
-        var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
-        var alt = (event.modifiers & Qt.AltModifier) !== 0
         if (event.text.length > 0 && ((!ctrl && !alt) || (ctrl && alt))) {
             var code = event.text.charCodeAt(0)
             if (code >= 0x20 && code !== 0x7f) {
