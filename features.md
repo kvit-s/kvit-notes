@@ -746,6 +746,14 @@ Display when cursor moves into "information":
 - Tag sidebar showing all tags with note counts
 
 ### 8.3 Note List
+- A note created without a name arrives as "Untitled N" and takes its name
+  from its first block once that block is finished — the heading in the usual
+  case, the first 60 characters of the text otherwise, sanitized to a valid
+  file name. It happens once: only a note still carrying the automatic name is
+  renamed this way, so a name the reader typed, or one this produced, stays
+  put however the first block is edited afterwards. A name already taken, or
+  first-block text that cannot be a file name (a table, an image, a code
+  fence), leaves the note called what it was called
 - List view of notes in current folder/filter
 - Sort by: date modified, date created, title, manual order
 - Sort ascending/descending

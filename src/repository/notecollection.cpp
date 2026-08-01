@@ -2338,14 +2338,11 @@ QString NoteCollection::createNote(const QString &folder, const QString &title,
     return relPath;
 }
 
-QString NoteCollection::captureNote(const QString &text)
+QString NoteCollection::titleFromText(const QString &text) const
 {
-    if (!isOpen())
-        return QString();
-
-    // A title from the first non-empty line, sanitized to a valid name and
-    // capped; anything unusable falls back to an Untitled name.
-    QString title;
+    // The first non-empty line, with the characters a file name cannot hold
+    // removed and the rest capped, so a paragraph titles a note by its
+    // opening words rather than by its whole self.
     const QStringList lines = text.split(QLatin1Char('\n'));
     for (const QString &line : lines) {
         const QString t = line.trimmed();
@@ -2358,10 +2355,54 @@ QString NoteCollection::captureNote(const QString &text)
             candidate.remove(0, 1);
         candidate = candidate.trimmed().left(60);
         QString reason;
-        if (validName(candidate, &reason))
-            title = candidate;
-        break;
+        return validName(candidate, &reason) ? candidate : QString();
     }
+    return QString();
+}
+
+bool NoteCollection::isUntitledNote(const QString &relPath) const
+{
+    if (!relPath.endsWith(mdSuffix))
+        return false;
+    QString name = relPath;
+    const int slash = name.lastIndexOf(QLatin1Char('/'));
+    if (slash >= 0)
+        name = name.mid(slash + 1);
+    name.chop(mdSuffix.size());
+
+    const QString base = tr("Untitled");
+    if (name == base)
+        return true;
+    if (!name.startsWith(base + QLatin1Char(' ')))
+        return false;
+    const QString suffix = name.mid(base.size() + 1);
+    if (suffix.isEmpty())
+        return false;
+    for (const QChar &c : suffix) {
+        if (!c.isDigit())
+            return false;
+    }
+    return true;
+}
+
+bool NoteCollection::noteTitleTaken(const QString &folder,
+                                    const QString &title) const
+{
+    if (!isOpen() || title.isEmpty())
+        return false;
+    const QString relPath = joinRelPath(folder, title + mdSuffix);
+    return m_notes.contains(relPath)
+        || QFileInfo::exists(absolutePath(relPath));
+}
+
+QString NoteCollection::captureNote(const QString &text)
+{
+    if (!isOpen())
+        return QString();
+
+    // A title from the first non-empty line; anything unusable falls back to
+    // an Untitled name.
+    const QString title = titleFromText(text);
 
     // The captured text is usually the only copy — the window holds no
     // draft and the user typed it seconds ago — so the note reaches disk in

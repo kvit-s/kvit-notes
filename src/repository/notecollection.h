@@ -202,6 +202,19 @@ public:
     // titled from its first line (falling back to an Untitled name). Returns the
     // new note's relPath, or "" on failure.
     Q_INVOKABLE QString captureNote(const QString &text);
+    // A note name derived from free text — the first non-empty line,
+    // sanitized to a valid file name and capped — or "" when nothing usable
+    // comes out of it. Quick capture titles a new note with this, and the
+    // editor titles a note still called "Untitled N" from its first block.
+    Q_INVOKABLE QString titleFromText(const QString &text) const;
+    // Whether this note still carries the name it was created with, i.e.
+    // nobody has titled it. The automatic titling only ever touches these.
+    Q_INVOKABLE bool isUntitledNote(const QString &relPath) const;
+    // Whether a note of this title already exists in `folder`, on disk or in
+    // the index. Asked before an automatic rename, which has to stay silent
+    // rather than report a collision nobody asked to create.
+    Q_INVOKABLE bool noteTitleTaken(const QString &folder,
+                                    const QString &title) const;
     Q_INVOKABLE bool renameNote(const QString &relPath, const QString &newTitle);
     Q_INVOKABLE bool moveNote(const QString &relPath, const QString &targetFolder);
     // Two-phase rename-safe operations. Planning is read-only and snapshots

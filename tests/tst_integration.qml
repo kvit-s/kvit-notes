@@ -6423,6 +6423,72 @@ Item {
             closeTestCollection()
         }
 
+        // A new note is created before there is anything to name it after, so
+        // it arrives as "Untitled N" and takes its name from its first block
+        // once that block is finished — the heading in the usual case, the
+        // opening words of a paragraph otherwise. It happens once: a note that
+        // has a name, however it got one, keeps it.
+        function test_t3b_untitledNoteTakesItsNameFromTheFirstBlock() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            openTestCollection()
+            NoteListModel.scope = "all"
+            NoteListModel.folderPath = ""
+
+            // A heading names the note when the caret leaves the block.
+            keyClick(Qt.Key_N, Qt.ControlModifier)
+            tryCompare(appLoader.item, "currentNoteRelPath", "Untitled.md", 2000)
+            var textArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(textArea)
+            typeString("# Release checklist")
+            tryCompare(BlockModel.blockAt(0), "blockType", Block.Heading1, 1000)
+            compare(appLoader.item.currentNoteRelPath, "Untitled.md",
+                    "not while the heading is still being typed")
+            keyClick(Qt.Key_Return)     // out of the first block
+            tryCompare(appLoader.item, "currentNoteRelPath",
+                       "Release checklist.md", 2000)
+            verify(NoteCollection.noteInfo("Release checklist.md").title
+                       === "Release checklist",
+                   "and the collection knows it under that name")
+            verify(NoteCollection.noteInfo("Untitled.md").title === undefined,
+                   "with nothing left at the old one")
+
+            // Editing the heading afterwards does not rename the file again.
+            BlockModel.updateContent(0, "Release checklist v2")
+            DocumentManager.save()
+            wait(200)
+            compare(appLoader.item.currentNoteRelPath, "Release checklist.md",
+                    "a note that has a name keeps it")
+
+            // A note whose first block is a paragraph takes its opening words.
+            keyClick(Qt.Key_N, Qt.ControlModifier)
+            tryCompare(appLoader.item, "currentNoteRelPath", "Untitled.md", 2000)
+            var second = findTextArea(findBlockDelegate(0))
+            ensureFocus(second)
+            typeString("Notes from the planning call")
+            keyClick(Qt.Key_Return)
+            tryCompare(appLoader.item, "currentNoteRelPath",
+                       "Notes from the planning call.md", 2000)
+
+            // A name already taken leaves the note untitled rather than
+            // reporting a collision nobody asked to create.
+            keyClick(Qt.Key_N, Qt.ControlModifier)
+            tryVerify(function() {
+                return appLoader.item.currentNoteRelPath.indexOf("Untitled") === 0
+            }, 2000)
+            var untitledPath = appLoader.item.currentNoteRelPath
+            var third = findTextArea(findBlockDelegate(0))
+            ensureFocus(third)
+            typeString("# Release checklist")
+            keyClick(Qt.Key_Return)
+            wait(300)
+            compare(appLoader.item.currentNoteRelPath, untitledPath,
+                    "the taken name is left alone")
+
+            closeTestCollection()
+        }
+
         function test_t4_inlineRenameKeepsNoteOpen() {
             if (isHeadless) {
                 skip("Keyboard tests require display")

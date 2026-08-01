@@ -56,7 +56,11 @@ chevron in its header, and resize a panel by dragging the thin seam on its right
 
 ## Working with notes
 
-**Create a note** with **Ctrl+N**; it lands in the folder you currently have in scope.
+**Create a note** with **Ctrl+N**; it lands in the folder you currently have in scope. It
+starts out called "Untitled" and names itself from its first block as soon as you move on
+from that block — the heading you typed, or the opening words of the paragraph if there is no
+heading. That happens once, so a note that has a name keeps it however you edit the heading
+afterwards, and a name you chose is never overwritten.
 **Rename** a note by pressing **F2** or double-clicking its title in the list — the file on
 disk renames to match, because a note's file name *is* its title.
 

@@ -602,6 +602,15 @@ KvitShell {
         appWindow: root
     }
 
+    // A note created before it had a name takes one from its first block,
+    // once, through that same rename path.
+    NoteAutoTitle {
+        id: noteAutoTitle
+        objectName: "noteAutoTitle"
+        appWindow: root
+        renameWorkflow: renameWorkflow
+    }
+
     function requestNoteRename(relPath, newTitle) {
         renameWorkflow.requestNoteRename(relPath, newTitle)
     }

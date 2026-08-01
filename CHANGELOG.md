@@ -8,6 +8,16 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A new note names itself from its first block. Notes are created before
+  there is anything in them to name them after, so they arrive as "Untitled",
+  "Untitled 2" and so on, and a list of those says nothing about what is in
+  them. The first block usually does: the note takes that heading, or the
+  first 60 characters of the paragraph where there is no heading, as soon as
+  the caret leaves the block or the note is saved. It happens once — only a
+  note still carrying the automatic name is renamed this way, so a name you
+  typed, or one this produced, stays put however the heading is edited later.
+  A name already taken, or a first block that is a table, an image or a code
+  fence, leaves the note called what it was called.
 - A rectangle of table cells can be selected by dragging from one cell to
   another, and copied with Ctrl+C. What lands on the clipboard is a table of
   its own: the selected cells under the header cells of the columns they came
