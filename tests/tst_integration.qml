@@ -8381,6 +8381,308 @@ Item {
             tryCompare(picker, "visible", false, 1000)
         }
 
+        // The grid-size picker that "/table" opens is driveable from the
+        // keyboard as well as the pointer: the arrows move the selection and
+        // stop at the edges of the 8x8 grid, Enter inserts the selected size,
+        // Escape leaves the block alone.
+        function test_zx0_tableSizePickerArrowKeys() {
+            if (isHeadless) {
+                skip("Key delivery requires display")
+            }
+            // Through the route the reader uses: "/table" in the slash menu,
+            // which hands the block to the picker.
+            freshParagraph()
+            typeString("/table")
+            var menu = theBlockMenu()
+            tryCompare(menu, "visible", true, 1000)
+            keyClick(Qt.Key_Return)
+
+            var picker = findChild(appLoader.item, "tableSizePicker")
+            verify(picker !== null, "the size picker exists")
+            tryCompare(picker, "visible", true, 1000)
+            compare(picker.hoverCols, 3, "opens on the 3x3 default")
+            compare(picker.hoverRows, 3)
+
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Down)
+            tryCompare(picker, "hoverCols", 5, 1000)
+            compare(picker.hoverRows, 4)
+
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            tryCompare(picker, "hoverCols", 4, 1000)
+            compare(picker.hoverRows, 2)
+
+            // Neither axis can walk off the grid.
+            for (var i = 0; i < 12; i++) {
+                keyClick(Qt.Key_Left)
+                keyClick(Qt.Key_Up)
+            }
+            compare(picker.hoverCols, 1, "columns stop at one")
+            compare(picker.hoverRows, 1, "rows stop at one")
+            for (var j = 0; j < 12; j++) {
+                keyClick(Qt.Key_Right)
+                keyClick(Qt.Key_Down)
+            }
+            compare(picker.hoverCols, picker.maxCols, "columns stop at the maximum")
+            compare(picker.hoverRows, picker.maxRows, "rows stop at the maximum")
+
+            // Escape dismisses without touching the block.
+            keyClick(Qt.Key_Escape)
+            tryCompare(picker, "visible", false, 1000)
+            compare(BlockModel.blockAt(0).blockType, Block.Paragraph,
+                    "a dismissed picker inserts nothing")
+            // The caret comes back to the block the reader typed "/table" in,
+            // still holding that text, so it can be edited or deleted.
+            compare(BlockModel.getContent(0), "/table")
+            tryVerify(function() {
+                var ta = findTextAreaRaw(findBlockDelegate(0))
+                return ta !== null && ta.activeFocus
+            }, 1000, "dismissing the grid hands the keyboard back to the block")
+
+            // Enter inserts the size the arrows selected: 2 columns, 4 rows.
+            // Reopening starts from the default again, not from wherever the
+            // previous opening was left.
+            appLoader.item.insertTableIntoBlock(0)
+            tryCompare(picker, "visible", true, 1000)
+            compare(picker.hoverCols, 3, "reopening resets the selection")
+            compare(picker.hoverRows, 3)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            compare(picker.hoverCols, 2)
+            compare(picker.hoverRows, 4)
+            keyClick(Qt.Key_Return)
+            tryCompare(picker, "visible", false, 1000)
+
+            tryVerify(function() {
+                return BlockModel.blockAt(0).blockType === Block.Table
+            }, 1000, "Enter converts the block to a table")
+            var md = BlockModel.getContent(0)
+            // Header row, delimiter row and four data rows, two columns wide.
+            var lines = md.split("\n").filter(function(l) { return l.trim() !== "" })
+            compare(lines.length, 6, "four data rows under a header: " + md)
+            compare(lines[0].split("|").length - 2, 2,
+                    "two columns wide: " + lines[0])
+        }
+
+        // An inserted table replaces a one-line paragraph with a grid several
+        // times its height, so a table inserted at the bottom edge of the view
+        // is mostly below it. The row is scrolled into view once the grid has
+        // its real height: fully visible when it fits, its header row at the
+        // top of the view when it does not.
+        // The editor of whichever cell is live, once it has been built and
+        // has the caret. A cell's editor is created when the cell goes live
+        // and destroyed when the caret leaves the table, so it is looked up
+        // again after every re-entry rather than held.
+        function liveCellEditor(tableDelegate) {
+            var editor = null
+            tryVerify(function() {
+                editor = findChild(tableDelegate, "tableCellEditor")
+                return editor !== null && editor !== undefined
+                    && editor.activeFocus
+            }, 1000, "the live cell has an editor holding the caret")
+            return editor
+        }
+
+        // Up and Down inside a live table cell walk the column: the header
+        // cell and the data cells under it, then out of the table into the
+        // blocks above and below. They used to reach the block list's own
+        // navigation instead, which moved the view to whichever row it still
+        // called current — pressing Down in a table at the end of a note
+        // jumped to the top of the note.
+        function test_zx0c_tableCellVerticalNavigation() {
+            if (isHeadless) {
+                skip("Key delivery requires display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "above")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, Block.Table, TableTools.emptyTable(3, 3))
+            BlockModel.insertBlock(2, 0, "below")
+            wait(300)
+            appLoader.item.requestActivate()
+            var listView = findChild(appLoader.item, "blockListView")
+            var tbl = findBlockDelegate(1)
+            verify(tbl !== null, "the table delegate exists")
+
+            // A live cell holds the caret: the same call the click on a cell
+            // makes.
+            tbl.editCell(-1, 1)
+            var editor = liveCellEditor(tbl)
+            tryCompare(editor, "activeFocus", true, 1000)
+            compare(listView.currentIndex, 1,
+                    "the list's current row follows the caret into the table")
+
+            typeString("hdr")
+            tryVerify(function() {
+                return BlockModel.getContent(1).indexOf("hdr") !== -1
+            }, 1000, "typing lands in the header cell")
+
+            // Down: the cell below, in the same column.
+            keyClick(Qt.Key_Down)
+            tryCompare(tbl, "activeRow", 0, 1000)
+            compare(tbl.activeCol, 1, "and stays in its column")
+            typeString("one")
+            keyClick(Qt.Key_Down)
+            tryCompare(tbl, "activeRow", 1, 1000)
+
+            // Up walks back to the header.
+            keyClick(Qt.Key_Up)
+            tryCompare(tbl, "activeRow", 0, 1000)
+            keyClick(Qt.Key_Up)
+            tryCompare(tbl, "activeRow", -1, 1000)
+            compare(tbl.activeCol, 1)
+            compare(BlockModel.getContent(1).indexOf("one") !== -1, true,
+                    "what was typed in the row below is still there: "
+                    + BlockModel.getContent(1))
+
+            // Up from the header leaves the table for the block above, at its
+            // end, and Down from the last row leaves for the block below.
+            keyClick(Qt.Key_Up)
+            var aboveArea = findTextAreaRaw(findBlockDelegate(0))
+            tryVerify(function() {
+                return aboveArea !== null && aboveArea.activeFocus
+            }, 1000, "the caret leaves the top of the table upwards")
+            compare(aboveArea.cursorPosition, aboveArea.length,
+                    "landing at the end of that block")
+
+            // The editor is unloaded when the caret leaves the table, so a
+            // re-entered cell has a new one.
+            tbl.editCell(2, 0)
+            editor = liveCellEditor(tbl)
+            keyClick(Qt.Key_Down)
+            var belowArea = findTextAreaRaw(findBlockDelegate(2))
+            tryVerify(function() {
+                return belowArea !== null && belowArea.activeFocus
+            }, 1000, "the caret leaves the bottom of the table downwards")
+            compare(belowArea.cursorPosition, 0, "landing at its start")
+
+            // A cell holding a line break keeps Up and Down for its own text
+            // until the caret is on its top or bottom line.
+            tbl.editCell(0, 0)
+            editor = liveCellEditor(tbl)
+            typeString("a")
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            typeString("b")
+            editor.cursorPosition = 0
+            keyClick(Qt.Key_Down)
+            compare(tbl.activeRow, 0, "the first Down stays inside the cell")
+            verify(editor.cursorPosition > 0,
+                   "moving the caret to its second line: " + editor.cursorPosition)
+            keyClick(Qt.Key_Down)
+            tryCompare(tbl, "activeRow", 1,
+                       1000, "the second Down moves to the row below")
+
+            // The case this was reported from: a table at the end of a long
+            // note. The view stays where it is, and the last row's Down has
+            // nowhere below it to go, so the caret stays in the cell.
+            DocumentManager.newDocument()
+            wait(100)
+            for (var i = 1; i <= 14; i++)
+                BlockModel.insertBlock(i, 0, "filler " + i)
+            BlockModel.insertBlock(15, 0, "")
+            BlockModel.convertBlock(15, Block.Table, TableTools.emptyTable(3, 3))
+            wait(300)
+            listView.positionViewAtEnd()
+            wait(200)
+            var last = findBlockDelegate(15)
+            verify(last !== null, "the table at the end of the note")
+            last.editCell(-1, 0)
+            liveCellEditor(last)
+            typeString("h")
+            wait(100)
+            var restingY = listView.contentY
+            keyClick(Qt.Key_Down)
+            tryCompare(last, "activeRow", 0, 1000)
+            verify(Math.abs(listView.contentY - restingY) <= 1,
+                   "the view did not move: " + listView.contentY
+                   + " was " + restingY)
+
+            last.editCell(2, 0)
+            liveCellEditor(last)
+            keyClick(Qt.Key_Down)
+            wait(200)
+            compare(last.activeRow, 2,
+                    "the last row of the last block keeps the caret")
+            verify(Math.abs(listView.contentY - restingY) <= 1,
+                   "and the view still did not move: " + listView.contentY)
+        }
+
+        function test_zx0b_insertedTableIsScrolledIntoView() {
+            if (isHeadless) {
+                skip("Key delivery requires display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            for (var i = 1; i <= 14; i++)
+                BlockModel.insertBlock(i, 0, "filler " + i)
+            BlockModel.insertBlock(15, 0, "")
+            wait(200)
+            var listView = findChild(appLoader.item, "blockListView")
+            listView.positionViewAtEnd()
+            wait(200)
+
+            // The caret in the empty block at the foot of the view.
+            var lastArea = findTextArea(findBlockDelegate(15))
+            ensureFocus(lastArea)
+            typeString("/table")
+            var menu = theBlockMenu()
+            tryCompare(menu, "visible", true, 1000)
+            keyClick(Qt.Key_Return)
+
+            var picker = findChild(appLoader.item, "tableSizePicker")
+            tryCompare(picker, "visible", true, 1000)
+            // The largest grid on offer, which is what overruns the view.
+            for (var j = 0; j < 8; j++) {
+                keyClick(Qt.Key_Right)
+                keyClick(Qt.Key_Down)
+            }
+            keyClick(Qt.Key_Return)
+            tryCompare(picker, "visible", false, 1000)
+            tryVerify(function() {
+                return BlockModel.blockAt(15).blockType === Block.Table
+            }, 1000, "the table is inserted")
+
+            // Give the grid its layout passes before measuring it.
+            wait(400)
+            var table = findBlockDelegate(15)
+            verify(table !== null, "the table's delegate exists")
+            var top = table.mapToItem(listView, 0, 0).y
+            if (table.height <= listView.height) {
+                verify(top >= -1, "the table starts inside the view: " + top)
+                verify(top + table.height <= listView.height + 1,
+                       "and ends inside it: " + (top + table.height)
+                       + " past " + listView.height)
+            } else {
+                // Taller than the view: the header row is what must be on
+                // screen, so the row sits at the top of the view.
+                verify(Math.abs(top) <= 2,
+                       "a table taller than the view starts at its top: " + top)
+            }
+
+            // A table that cannot fit whatever the view does with it: its
+            // header row goes to the top of the view rather than the row
+            // being left wherever it was.
+            BlockModel.insertBlock(16, 0, "")
+            BlockModel.convertBlock(16, Block.Table, TableTools.emptyTable(3, 40))
+            wait(300)
+            listView.positionViewAtBeginning()
+            wait(150)
+            appLoader.item.focusBlockAtIndex(16)
+            wait(500)
+            var tall = findBlockDelegate(16)
+            verify(tall !== null, "the tall table's delegate exists")
+            verify(tall.height > listView.height,
+                   "the 40-row table is taller than the view: "
+                   + tall.height + " vs " + listView.height)
+            var tallTop = tall.mapToItem(listView, 0, 0).y
+            verify(Math.abs(tallTop) <= 2,
+                   "its header row is at the top of the view: " + tallTop)
+        }
+
         function test_zx_tableEditMutateSortUndo() {
             if (isHeadless) {
                 skip("Focus tests require display")

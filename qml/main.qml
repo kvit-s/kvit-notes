@@ -189,8 +189,11 @@ KvitShell {
         blockFocusRetry.typed = typed === undefined ? "" : typed
         blockFocusRetry.generation = root.focusRequestGeneration
         blockFocusRetry.attemptsLeft = 12
-        if (!root.applyPendingBlockFocus())
-            blockFocusRetry.restart()
+        blockFocusRetry.settleTicks = 0
+        blockFocusRetry.settleHeight = -1
+        if (root.applyPendingBlockFocus())
+            blockFocusRetry.beginSettle()
+        blockFocusRetry.restart()
     }
     // One attempt: true when the delegate was there and took the focus.
     function applyPendingBlockFocus() {
@@ -210,6 +213,25 @@ KvitShell {
         }
         return true
     }
+    // Follows the focused row for a few frames after it takes the caret, and
+    // brings it back into view whenever its height changes. A row that has
+    // just become a table, a diagram or an image is a fraction of its final
+    // height on the frame the caret lands in, so positioning it once puts the
+    // top of a grid on screen and the rest of it below the fold: a table
+    // inserted at the foot of the view showed its header row and nothing
+    // else. Positioning only on a height change leaves a settled view alone.
+    function settleFocusedBlockInView() {
+        var item = blockListView.itemAtIndex(blockFocusRetry.targetIndex)
+        if (!item)
+            return
+        if (item.height === blockFocusRetry.settleHeight)
+            return
+        blockFocusRetry.settleHeight = item.height
+        // Contain shows the whole row where it fits and puts its top at the
+        // top of the view where it does not, which for a table is its header.
+        blockListView.positionViewAtIndex(blockFocusRetry.targetIndex,
+                                          ListView.Contain)
+    }
     Timer {
         id: blockFocusRetry
         objectName: "blockFocusRetry"
@@ -218,11 +240,31 @@ KvitShell {
         property string typed: ""
         property int generation: 0
         property int attemptsLeft: 0
+        // Frames of height-watching left once the caret has landed. Ten
+        // frames is about 160ms, which covers the layout passes a converted
+        // block needs without holding the view against a reader who scrolls
+        // away from it.
+        property int settleTicks: 0
+        property real settleHeight: -1
+        function beginSettle() {
+            settleTicks = 10
+            settleHeight = -1
+        }
         interval: 16
         repeat: true
         onTriggered: {
-            if (blockFocusRetry.generation !== root.focusRequestGeneration
-                || blockFocusRetry.attemptsLeft <= 0) {
+            if (blockFocusRetry.generation !== root.focusRequestGeneration) {
+                blockFocusRetry.stop()
+                return
+            }
+            if (blockFocusRetry.settleTicks > 0) {
+                blockFocusRetry.settleTicks--
+                root.settleFocusedBlockInView()
+                if (blockFocusRetry.settleTicks <= 0)
+                    blockFocusRetry.stop()
+                return
+            }
+            if (blockFocusRetry.attemptsLeft <= 0) {
                 blockFocusRetry.stop()
                 return
             }
@@ -230,7 +272,7 @@ KvitShell {
             blockListView.positionViewAtIndex(blockFocusRetry.targetIndex,
                                               ListView.Contain)
             if (root.applyPendingBlockFocus())
-                blockFocusRetry.stop()
+                blockFocusRetry.beginSettle()
         }
     }
 
@@ -670,9 +712,16 @@ KvitShell {
     property alias blockMenu: blockMenu
     BlockMenu {
         id: blockMenu
-        onApplied: function(blockIndex, type) {
+        onApplied: function(blockIndex, type, opensDialog) {
             Qt.callLater(function() {
                 blockListView.currentIndex = blockIndex
+                // An entry that opened an insert dialog (image, embed, table
+                // size grid) leaves the keyboard to that dialog. Focusing the
+                // block here would take it straight back, one tick after the
+                // dialog appeared. The insert flow focuses the block itself
+                // once it has what it asked for.
+                if (opensDialog)
+                    return
                 var item = (blockListView.itemAtIndex(blockIndex) as BlockDelegateBase)
                 if (item)
                     item.focusAtStart()
@@ -1055,7 +1104,9 @@ KvitShell {
         active: false
         sourceComponent: BlockInsertDialogs {
             anchors.fill: parent
-            listView: blockListView
+            onFocusBlockRequested: function(index) {
+                root.focusBlockAtIndex(index)
+            }
         }
     }
     function blockInserts() {

@@ -8,6 +8,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- The table size grid answers the arrow keys: left and right change the number
+  of columns, up and down the number of rows, within the 8 by 8 grid. Enter
+  inserts the selected size and Escape dismisses the grid, as before. Each
+  opening starts from the 3 by 3 default rather than from the last selection.
 - Each block gutter now has a visible menu button below its drag handle. The
   menu can copy the block normally, copy it explicitly as Markdown, plain text
   or HTML, and export just that block as Markdown, HTML, PDF or plain text. On
@@ -83,6 +87,28 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Up and Down in a table cell move up and down that column, from the header
+  row through the data rows and out of the table into the blocks above and
+  below it. Neither key did anything for the table before: they reached the
+  block list's own navigation instead, which moved the view to whichever row
+  it still called current, so pressing Down in a table at the end of a note
+  scrolled to the top of the note. A cell holding line breaks keeps both keys
+  for its own lines until the caret is on its first or last one.
+- Clicking a cell of a table that already had one live puts the caret in the
+  cell that was clicked. The block took the keyboard back off the cell's
+  editor immediately after handing it over, so what was typed went nowhere.
+- A block that grows when it is inserted is scrolled into view at its full
+  height. An inserted table replaces a one-line paragraph with a grid several
+  times taller, and the view was positioned before the grid had that height,
+  so a table inserted at the foot of the view showed its header row and
+  nothing else. The focused row is now followed for a few frames and brought
+  back into view as its height settles: fully visible where it fits, header
+  row at the top of the view where it does not.
+- An insert dialog opened from the slash menu keeps the keyboard. Choosing
+  Table, Image, Audio / Video or Web Embed put the caret back into the block
+  behind the dialog one tick after it appeared, so keys went to the block
+  rather than to the dialog — visibly so on the table size grid, whose arrow
+  keys moved the caret instead of the selection.
 - A chooser that drops out of a button stays inside the window. On a callout
   at the foot of a long note, the list of kinds ran past the bottom edge and
   was cut off there: of the seven kinds only the first few were visible, and

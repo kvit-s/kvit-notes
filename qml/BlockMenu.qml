@@ -41,7 +41,15 @@ Popup {
     // Emitted after a selection converted the target block, so the view
     // can re-establish focus by index (the DelegateChooser may have
     // recreated the delegate).
-    signal applied(int blockIndex, int type)
+    //
+    // opensDialog marks the entries that do not convert anything here but
+    // hand the block to an insert flow — the image/media chooser, the embed
+    // URL prompt, the table size grid. Those own the keyboard until the
+    // reader finishes with them, so re-focusing the block behind them takes
+    // the keys back off them: the table grid stopped answering its arrow keys
+    // because the caret had been put back in the block a tick after the grid
+    // opened.
+    signal applied(int blockIndex, int type, bool opensDialog)
 
     modal: false
     dim: false
@@ -168,18 +176,18 @@ Popup {
         // ![](url) image expression that classifies to the embed card.
         if (type === Block.Image && row.language === "embed") {
             AppActions.requestInsertEmbed(idx)
-            applied(idx, type)
+            applied(idx, type, true)
             return
         }
         if (type === Block.Image || type === Block.Media) {
             AppActions.requestInsertImage(
                 idx, type === Block.Media ? "media" : "image")
-            applied(idx, type)
+            applied(idx, type, true)
             return
         }
         if (type === Block.Table) {
             AppActions.requestInsertTable(idx)
-            applied(idx, type)
+            applied(idx, type, true)
             return
         }
         // Drop cap (§1.2.16) is a paragraph attribute rather than a stored
@@ -194,7 +202,7 @@ Popup {
             BlockModel.setBlockAttributes(
                 idx, BlockAttributes.withValue(BlockModel.getAttributes(idx),
                                                "dropcap", "3"))
-            applied(idx, type)
+            applied(idx, type, false)
             return
         }
         // A "/code <language>" row carries the language to seed.
@@ -211,7 +219,7 @@ Popup {
         if (lang === "toc")
             seed = DocumentOutline.tocMarkdown()
         BlockModel.convertBlock(idx, type, seed, false, lang)
-        applied(idx, type)
+        applied(idx, type, false)
     }
 
     function dismiss() {

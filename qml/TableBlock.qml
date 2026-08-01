@@ -269,9 +269,22 @@ BlockDelegateBase {
     function writeTable(md) { BlockModel.updateContent(root.index, md) }
     function editCell(r, c) {
         revealThrough(r)
+        // Both of these come before the cell goes live. The block's focus
+        // item is what marks the table as the focused block for the shell,
+        // and the cell's editor takes the caret off it as it moves to the new
+        // cell — done in the other order, the block took the caret back off
+        // the editor it had just handed it to, and the keys went to an item
+        // that ignores them.
+        focusTarget.forceActiveFocus()
+        // The list's current row follows the caret into the table. Without it
+        // the list still pointed at whatever row was current before, so any
+        // key the live cell did not take reached the list's own navigation
+        // and moved the view there — Down in a cell of a table at the end of
+        // a note jumped to the top of the note.
+        if (root.listView)
+            root.listView.currentIndex = root.index
         activeRow = r
         activeCol = c
-        focusTarget.forceActiveFocus()  // keep the block "focused" for the shell
     }
     function commitCell(r, c, value) {
         var md = TableTools.setCell(content, r, c, value)
@@ -309,6 +322,48 @@ BlockDelegateBase {
             if (r > 0) { editCell(r - 1, columns - 1); return }
             // At header first cell: stay.
         }
+    }
+
+    // Up and Down inside a live cell: the cell above or below it in the same
+    // column, with the header row counting as the row above the first data
+    // row. Tab walks the grid in reading order; this is the other axis, and
+    // it is what the reader presses after typing a heading to fill the column
+    // under it.
+    //
+    // Off the top or the bottom of the grid the caret leaves the table for
+    // the neighbouring block, as it does at the edge of a paragraph or an
+    // equation. Where there is no such block — a table last in the note — the
+    // caret stays in the cell rather than the key travelling on to the list's
+    // own navigation.
+    function moveCellVertically(down) {
+        var r = activeRow, c = activeCol
+        if (down) {
+            if (r === -1 && dataRows > 0) { editCell(0, c); return }
+            if (r >= 0 && r + 1 < dataRows) { editCell(r + 1, c); return }
+            leaveTableVertically(1)
+        } else {
+            if (r === 0) { editCell(-1, c); return }
+            if (r > 0) { editCell(r - 1, c); return }
+            leaveTableVertically(-1)
+        }
+    }
+
+    // End the cell edit and put the caret in the block above or below — the
+    // route the block's own Up/Down already takes when no cell is live.
+    function leaveTableVertically(direction) {
+        var targetIndex = root.index + direction
+        if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
+            return
+        var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
+        if (!target)
+            return
+        root.activeRow = -2
+        root.activeCol = -1
+        root.listView.currentIndex = targetIndex
+        if (direction < 0)
+            target.focusAtEnd()
+        else
+            target.focusAtStart()
     }
     // Write a whole width list to the block's attributes as one undo step. A
     // zero becomes an empty slot, which is how a column says it still
@@ -809,6 +864,17 @@ BlockDelegateBase {
                 cellArea.forceActiveFocus()
                 cellArea.cursorPosition = cellArea.length
             }
+            // Which visual line the caret sits on, for the Up/Down keys: a
+            // wrapped or line-broken cell keeps them for its own text until
+            // the caret is on its top or bottom line.
+            function cursorOnFirstLine() {
+                return Math.abs(cellArea.positionToRectangle(cellArea.cursorPosition).y
+                                - cellArea.positionToRectangle(0).y) < 1
+            }
+            function cursorOnLastLine() {
+                return Math.abs(cellArea.positionToRectangle(cellArea.cursorPosition).y
+                                - cellArea.positionToRectangle(cellArea.length).y) < 1
+            }
             // The document is handed to the engine only once the TextArea has
             // finished building, which is what EditableBlock's editorActive
             // gate does for prose blocks. A TextArea applies its own (empty)
@@ -901,6 +967,24 @@ BlockDelegateBase {
                         return
                     if (event.key === Qt.Key_Tab) {
                         root.moveCell(true); event.accepted = true; return
+                    }
+                    // Up and Down walk the column. A cell can hold line
+                    // breaks, so they belong to the text first and to the
+                    // grid only at the cell's top and bottom line — the rule
+                    // the prose and equation editors follow at their own
+                    // edges. Modified arrows are left to the editor for
+                    // selection and word movement.
+                    var arrowModifiers = Qt.ControlModifier | Qt.ShiftModifier
+                        | Qt.AltModifier | Qt.MetaModifier
+                    if (!(event.modifiers & arrowModifiers)
+                        && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
+                        var goingDown = event.key === Qt.Key_Down
+                        if (goingDown ? editorRoot.cursorOnLastLine()
+                                      : editorRoot.cursorOnFirstLine()) {
+                            root.moveCellVertically(goingDown)
+                            event.accepted = true
+                        }
+                        return
                     }
                     if (event.key === Qt.Key_Backtab
                         || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {

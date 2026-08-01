@@ -17,13 +17,19 @@ import Kvit 1.0
 // block and everything else an Image, including a path that turns out to be
 // neither, which renders as a placeholder rather than failing.
 //
-// A block-type conversion may replace the row's delegate, so focus is
-// re-established by index on the next tick rather than held across the call.
+// A block-type conversion may replace the row's delegate, so the row is
+// asked for by index afterwards rather than held across the call: the window
+// scrolls it into view and gives it the caret once its delegate exists.
 Item {
     id: inserts
 
-    // Wired by main.qml.
-    property var listView
+    // Asked of the window once a dialog has converted its block: bring that
+    // row into view and give it the caret. The window's router is what does
+    // both, because a converted block's delegate is rebuilt and can be
+    // several frames away from existing at its final height — an inserted
+    // table is the visible case, since it replaces a one-line paragraph with
+    // a grid that is usually taller than the space the paragraph occupied.
+    signal focusBlockRequested(int index)
 
     // Whether the block a dialog was opened for is still the block it was
     // opened for.
@@ -119,11 +125,7 @@ Item {
                 BlockModel.updateContent(targetIndex, md)
             else
                 BlockModel.convertBlock(targetIndex, Block.Image, md)
-            var idx = targetIndex
-            Qt.callLater(function() {
-                var item = (inserts.listView.itemAtIndex(idx) as BlockDelegateBase)
-                if (item && item.focusAtStart) item.focusAtStart()
-            })
+            inserts.focusBlockRequested(targetIndex)
         }
         onAccepted: commit()
         // OK stays disabled until the field holds something that can be
@@ -188,11 +190,7 @@ Item {
             }
             BlockModel.convertBlock(targetIndex, Block.Table,
                                     TableTools.emptyTable(cols, rows))
-            var idx = targetIndex
-            Qt.callLater(function() {
-                var item = (inserts.listView.itemAtIndex(idx) as BlockDelegateBase)
-                if (item && item.focusAtStart) item.focusAtStart()
-            })
+            inserts.focusBlockRequested(targetIndex)
         }
     }
 
@@ -227,11 +225,7 @@ Item {
             var type = ImageAssets.parse(md).kind === "media"
                      ? Block.Media : Block.Image
             BlockModel.convertBlock(targetIndex, type, md)
-            var idx = targetIndex
-            Qt.callLater(function() {
-                var item = (inserts.listView.itemAtIndex(idx) as BlockDelegateBase)
-                if (item && item.focusAtStart) item.focusAtStart()
-            })
+            inserts.focusBlockRequested(targetIndex)
         }
         onAccepted: commit()
 

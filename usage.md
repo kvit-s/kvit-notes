@@ -197,8 +197,11 @@ The available block types:
   change kind; the body, title, fold state and any custom colour stay as they were. Enter
   leaves the callout for a new block and Shift+Enter adds a line to its body, the same as
   anywhere else. The fold state is saved in the file. Ctrl+Enter folds it.
-- **Table** — a pipe table edited cell by cell, with Tab to move across a row, add/remove of
-  rows and columns, per-column alignment, and sort-by-column.
+- **Table** — a pipe table edited cell by cell, with Tab to move across a row, Up and Down to
+  move up and down a column (out of the table at its top and bottom rows), add/remove of
+  rows and columns, per-column alignment, and sort-by-column. Inserting one opens a size grid
+  of up to 8 by 8: hover or use the arrow keys (left/right for columns, up/down for rows),
+  then click or press Enter to insert that size, or Escape to leave the block as it was.
 - **Image** — inserted from a file dialog, a paste, or a drag from your file manager or
   browser. The bytes are copied into an `assets/` folder beside your notes and linked by a
   relative path, so moving a note never breaks the image. Drag the corner to resize, click to

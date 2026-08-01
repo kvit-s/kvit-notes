@@ -127,7 +127,8 @@ currently present in the repository; remaining hardening work is recorded in §2
 - Cell text alignment (left, center, right)
 - Merge cells horizontally or vertically
 - Sort by column (ascending/descending)
-- Tab to move between cells
+- Tab to move between cells; Up and Down move within the column, from the
+  header down through the rows and out of the table at its top and bottom
 - Support for inline formatting within cells
 - Multi-line cells: Shift+Enter breaks a line inside a cell, stored as `<br>`
   so the row stays one line of the file. A code fence an LLM opened inside a
@@ -600,7 +601,8 @@ Display when cursor moves into "information":
 - **Code**: Code block with language selection
 - **Divider**: Horizontal separator
 - **Image**: Insert image (opens file dialog or URL input)
-- **Table**: Insert table with row/column configuration
+- **Table**: Insert table with row/column configuration (grid picker driven by pointer or
+  arrow keys, Enter to accept, Escape to cancel)
 - **Callout**: Alert/notification block
 - **Toggle**: Collapsible section
 - **Task Board**: Kanban board

@@ -13,20 +13,31 @@ import QtQuick.Controls
 import Kvit 1.0
 
 // Grid-size picker for inserting a table: a word-processor-style hover grid
-// up to 8×8, Enter accepting the default 3×3. Emits sizePicked(columns, rows).
+// up to 8×8, the arrow keys moving the selection the same way the pointer
+// does, Enter accepting it (3×3 until something moves it). Emits
+// sizePicked(columns, rows).
 Popup {
     id: root
     signal sizePicked(int columns, int rows)
 
     property int maxCols: 8
     property int maxRows: 8
-    property int hoverCols: 3
-    property int hoverRows: 3
+    // The size the picker starts on, and what Enter inserts if nothing moves
+    // the selection. Each opening starts here rather than wherever the last
+    // one was left, so the keyboard route always begins from a known cell.
+    property int defaultCols: 3
+    property int defaultRows: 3
+    property int hoverCols: defaultCols
+    property int hoverRows: defaultRows
 
     padding: 8
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    onAboutToShow: {
+        hoverCols = defaultCols
+        hoverRows = defaultRows
+    }
     onOpened: contentRoot.forceActiveFocus()
 
     background: Rectangle {
@@ -44,6 +55,18 @@ Popup {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 root.sizePicked(root.hoverCols, root.hoverRows)
                 root.close()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Left) {
+                root.hoverCols = Math.max(1, root.hoverCols - 1)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Right) {
+                root.hoverCols = Math.min(root.maxCols, root.hoverCols + 1)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Up) {
+                root.hoverRows = Math.max(1, root.hoverRows - 1)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Down) {
+                root.hoverRows = Math.min(root.maxRows, root.hoverRows + 1)
                 event.accepted = true
             }
         }
