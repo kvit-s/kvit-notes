@@ -194,17 +194,19 @@ BlockDelegateBase {
             }
         })
     }
+    // Ctrl+Enter out of the block: fold the source editor away, then insert
+    // the new row a frame later. BlockExitBelow.qml says why the two are
+    // separated.
     function createBlockBelow() {
-        var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
-        Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = newIndex
-                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
-                if (item) item.focusAtStart()
-            }
-        })
+        selectionKeys.forceActiveFocus()   // folds the editor away
+        exitBelow.begin()
     }
+    BlockExitBelow {
+        id: exitBelow
+        blockIndex: root.index
+        listView: root.listView
+    }
+
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
         BlockModel.insertBlock(newIndex, 0, "")

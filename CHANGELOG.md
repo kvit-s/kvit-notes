@@ -115,6 +115,15 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Ctrl+Enter out of a diagram, an equation, a query or a table leaves the new
+  block directly under it. These blocks are a different height while they are
+  being edited — a diagram shows its source above its preview, a query puts
+  its results away while its spec is written — and the block list positions an
+  inserted row against the height its neighbour has at that moment, without
+  re-reading it afterwards. Folding the editor away in the same frame as the
+  insert left a band of empty space the height of the editor between the block
+  and the new one, and nothing reclaimed it: not scrolling, not a forced
+  relayout. The block now folds first and the row is inserted a frame later.
 - A part of a block that only exists while it is being edited opens where it
   can be seen. A task-board card grows a description field when it is clicked,
   and at the end of a note that field appeared below the bottom of the window:

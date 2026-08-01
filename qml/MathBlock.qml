@@ -212,16 +212,16 @@ BlockDelegateBase {
             }
         })
     }
+    // Ctrl+Enter out of the block: fold the editor away, then insert the new
+    // row a frame later. BlockExitBelow.qml says why the two are separated.
     function createBlockBelow() {
-        var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
-        Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = newIndex
-                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
-                if (item) item.focusAtStart()
-            }
-        })
+        root.forceActiveFocus()            // folds the source and preview away
+        exitBelow.begin()
+    }
+    BlockExitBelow {
+        id: exitBelow
+        blockIndex: root.index
+        listView: root.listView
     }
     // The shared block context menu's Turn-into submenu calls this on its
     // target; same fallback path as TextBlockDelegate's.

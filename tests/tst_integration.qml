@@ -9000,6 +9000,77 @@ Item {
                    + (listView.contentY + listView.height))
         }
 
+        // Ctrl+Enter out of a block that folds when it stops being edited.
+        // A diagram, an equation, a query and a table are all taller with
+        // their editor open, and the list positions an inserted row against
+        // the height its neighbour has at that moment: folding in the same
+        // frame as the insert left the new block a whole editor's height
+        // below its neighbour, with a band of nothing between them that
+        // neither scrolling nor a forced relayout reclaimed.
+        function test_zx0h_ctrlEnterLeavesNoGapUnderAFoldingBlock() {
+            if (isHeadless) {
+                skip("Key delivery requires display")
+            }
+            var listView = findChild(appLoader.item, "blockListView")
+
+            // Each case: the fence or content to convert block 1 to, and the
+            // language that picks its delegate.
+            var cases = [
+                { name: "diagram", type: 8, language: "mermaid",
+                  content: "flowchart TD\n  A[Start] --> B[End]" },
+                { name: "equation", type: 13, language: "",
+                  content: "$$\nx^2 + y^2 = z^2\n$$" },
+                { name: "query", type: 8, language: "query",
+                  content: "from: .\nview: table" },
+                { name: "table", type: 15, language: "",
+                  content: "| A | B |\n| --- | --- |\n| a | b |" }
+            ]
+
+            for (var i = 0; i < cases.length; i++) {
+                var c = cases[i]
+                DocumentManager.newDocument()
+                wait(100)
+                BlockModel.updateContent(0, "above")
+                BlockModel.insertBlock(1, 0, "")
+                BlockModel.convertBlock(1, c.type, c.content, false, c.language)
+                wait(600)
+                appLoader.item.requestActivate()
+
+                var block = findBlockDelegate(1)
+                verify(block !== null, c.name + ": the delegate exists")
+                var restingHeight = block.height
+                block.focusAtEnd()
+                wait(400)
+                // Opening the editor changes the block's height — taller for
+                // a diagram, an equation and a table, shorter for a query,
+                // which puts its results away while its spec is being
+                // written. Either way the list has to see the height the
+                // block ends up with, not the one it had.
+                verify(Math.abs(block.height - restingHeight) > 1,
+                       c.name + ": the editor changes the block's height: "
+                       + block.height + " was " + restingHeight)
+
+                keyClick(Qt.Key_Return, Qt.ControlModifier)
+                tryCompare(BlockModel, "count", 3, 2000)
+                wait(500)
+
+                var folded = findBlockDelegate(1)
+                var inserted = findBlockDelegate(2)
+                verify(folded !== null && inserted !== null,
+                       c.name + ": both rows exist")
+                var gap = inserted.mapToItem(listView.contentItem, 0, 0).y
+                    - folded.mapToItem(listView.contentItem, 0, 0).y
+                    - folded.height
+                verify(Math.abs(gap - listView.spacing) <= 1,
+                       c.name + ": the new block follows the folded one: gap "
+                       + gap + " against the list's spacing " + listView.spacing)
+                var newArea = findTextAreaRaw(inserted)
+                tryVerify(function() {
+                    return newArea !== null && newArea.activeFocus
+                }, 1000, c.name + ": and the caret is in it")
+            }
+        }
+
         function test_zx0e_tableFillsTheBlockContentWidth() {
             DocumentManager.newDocument()
             wait(100)

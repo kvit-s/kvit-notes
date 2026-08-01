@@ -654,16 +654,18 @@ BlockDelegateBase {
             }
         })
     }
+    // Ctrl+Enter out of the block: end the cell edit, which folds the grid
+    // back to its resting height, then insert the new row a frame later.
+    // BlockExitBelow.qml says why the two are separated.
     function createBlockBelow() {
-        var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
-        Qt.callLater(function() {
-            if (listView) {
-                listView.currentIndex = newIndex
-                var item = (listView.itemAtIndex(newIndex) as BlockDelegateBase)
-                if (item) item.focusAtStart()
-            }
-        })
+        root.activeRow = -2
+        root.activeCol = -1
+        exitBelow.begin()
+    }
+    BlockExitBelow {
+        id: exitBelow
+        blockIndex: root.index
+        listView: root.listView
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
@@ -1310,8 +1312,6 @@ BlockDelegateBase {
                         if (event.modifiers & Qt.ShiftModifier)
                             return          // the TextArea inserts the break
                         if (event.modifiers & Qt.ControlModifier) {
-                            root.activeRow = -2
-                            root.activeCol = -1
                             root.createBlockBelow()
                             event.accepted = true; return
                         }
