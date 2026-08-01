@@ -838,6 +838,36 @@ BlockDelegateBase {
     // Public functions for focus management. Positions are MARKDOWN
     // positions (model coordinates); they are converted to document
     // positions through the engine, which honors the reveal state.
+    // Put the caret where a pointer landed, in the editor's coordinates.
+    //
+    // The editor's own hit test misplaces a press in the top-left corner of
+    // its text — the first character's cell and the margin around it, about
+    // twelve pixels square on Qt 6.10.1. It answers with a position a line
+    // further down and applies that on the release, so clicking the first
+    // character of a block put the caret on the second line, and a drag from
+    // there anchored at wherever the caret had been: the selection ran from
+    // the pointer to the end of the block and shrank as the pointer went on
+    // down, which is the opposite of the gesture. positionAt() maps the same
+    // point correctly, so the caret is placed from it on the press — which is
+    // what the editor then anchors a drag at — and again on the release of a
+    // click that did not turn into one.
+    function placeCaretAt(editorPoint) {
+        // Not gated on focus: the press that starts a drag in a block the
+        // reader has not been in yet arrives BEFORE the editor takes the
+        // keyboard, and that press is exactly the one the corner swallows.
+        // Not gated on an existing selection either: a plain left press
+        // collapses one anyway, so skipping the correction there only meant
+        // that a second attempt at the same drag went as wrong as the first.
+        if (!textArea.visible)
+            return
+        if (editorPoint.x < 0 || editorPoint.y < 0
+            || editorPoint.x > textArea.width || editorPoint.y > textArea.height)
+            return
+        var wanted = textArea.positionAt(editorPoint.x, editorPoint.y)
+        if (wanted >= 0 && wanted !== textArea.cursorPosition)
+            textArea.cursorPosition = wanted
+    }
+
     function focusAtStart() {
         activateEditor()
         textArea.forceActiveFocus()
@@ -892,6 +922,20 @@ BlockDelegateBase {
     // the payload's blocks follow it, and any text after the caret trails as
     // its own paragraph. When the caret sat in an empty block, that emptied
     // block is dropped so the paste does not leave a blank line behind.
+    // Whether a pasted payload opens a fence. Text copied out of another
+    // editor arrives as plain text with no structure flavour on the
+    // clipboard, and splicing it in line by line leaves the fence markers
+    // themselves in the note: a pasted ```mermaid diagram became eight
+    // paragraphs, backticks included. Nobody pastes triple backticks into
+    // prose meaning to read them, so a payload that opens one is parsed into
+    // blocks like any structured payload. Prose without a fence keeps the
+    // literal splice, which is what pasting plain lines should do, and a
+    // verbatim block never reaches this at all — a fence pasted into a code
+    // listing is part of the listing.
+    function pasteOpensAFence(text) {
+        return /(^|\n)[ \t]*(```|~~~)/.test(text)
+    }
+
     function pasteStructuredMarkdown(idx, before, pasted, after) {
         BlockModel.updateContent(idx, before)
         var inserted = DocumentSerializer.insertMarkdownAt(BlockModel, idx + 1,
@@ -937,6 +981,14 @@ BlockDelegateBase {
         if (lines.length === 1) {
             BlockModel.updateContent(idx, before + pasted + after)
             refocusBlock(idx, mdPos + pasted.length)
+            return
+        }
+        // The same rule the in-block paste follows: a payload that opens a
+        // fence is parsed into blocks rather than spliced in as lines.
+        if (!stripFormatting
+            && (Clipboard.hasStructuredMarkdown
+                || delegate.pasteOpensAFence(pasted))) {
+            delegate.pasteStructuredMarkdown(idx, before, pasted, after)
             return
         }
         BlockModel.updateContent(idx, before + lines[0])
@@ -1938,7 +1990,9 @@ BlockDelegateBase {
                     // markdown literal, so a pasted "## Title" would render as
                     // the characters "## Title". Flat text keeps the literal
                     // splice, which is what pasting plain lines should do.
-                    if (!stripFormatting && Clipboard.hasStructuredMarkdown) {
+                    if (!stripFormatting
+                        && (Clipboard.hasStructuredMarkdown
+                            || delegate.pasteOpensAFence(pasted))) {
                         delegate.pasteStructuredMarkdown(delegate.index, before,
                                                          pasted, after)
                         return
@@ -2144,18 +2198,41 @@ BlockDelegateBase {
                 // move — even outside this block — while the TextArea
                 // keeps its exclusive grab and native selection.
                 PointHandler {
+                    id: pressObserver
                     acceptedButtons: Qt.LeftButton
+                    // Where the press landed in the editor's own coordinates,
+                    // for the correction on release.
+                    property real pressX: 0
+                    property real pressY: 0
                     onActiveChanged: {
                         var drag = delegate.dragCoordinator()
-                        if (!drag)
-                            return
                         if (active) {
                             var sp = point.scenePosition
-                            drag.beginPress(delegate.index,
-                                crossBlockSelection.markdownPositionAt(sp.x, sp.y),
-                                sp.x, sp.y)
+                            var lp = textArea.mapFromItem(null, sp.x, sp.y)
+                            pressObserver.pressX = lp.x
+                            pressObserver.pressY = lp.y
+                            if (drag)
+                                drag.beginPress(delegate.index,
+                                    crossBlockSelection.markdownPositionAt(sp.x, sp.y),
+                                    sp.x, sp.y)
                         } else {
-                            drag.endPress()
+                            // A click that never became a drag needs the same
+                            // correction again: the editor applies its own
+                            // answer on the release, over the one the press
+                            // placed. Deferred, so it lands after that; a
+                            // drag is left alone, since its release ends a
+                            // selection rather than placing a caret.
+                            var travel = Math.abs(point.position.x - point.pressPosition.x)
+                                       + Math.abs(point.position.y - point.pressPosition.y)
+                            if (travel < 5) {
+                                var px = pressObserver.pressX
+                                var py = pressObserver.pressY
+                                Qt.callLater(function() {
+                                    delegate.placeCaretAt(Qt.point(px, py))
+                                })
+                            }
+                            if (drag)
+                                drag.endPress()
                         }
                     }
                     onPointChanged: {
@@ -2810,6 +2887,26 @@ BlockDelegateBase {
                 mouse.accepted = true
                 return
             }
+            // Where the caret goes on a plain press.
+            //
+            // The editor's own hit test misplaces a press in the top-left
+            // corner of its text — the first character's own cell and the
+            // margin around it. It leaves the caret where it was, and a drag
+            // from there anchors at that stale caret instead of at the press:
+            // pressing the first character of a block and dragging down
+            // selected from the pointer to the end of the block and shrank as
+            // the pointer went further, which is the opposite of the gesture.
+            // positionAt() maps the same point correctly, so the caret is
+            // placed here, before the editor sees the press, and the editor's
+            // own anchor is then that position. Measured on Qt 6.10.1; the
+            // dead corner is about twelve pixels square.
+            //
+            // Shift keeps its anchor, since Shift+click extends the selection
+            // from wherever the caret already is, and a press with a selection
+            // under it is left alone so a click inside one still behaves.
+            if (!shift && !ctrl)
+                delegate.placeCaretAt(mapToItem(textArea, mouse.x, mouse.y))
+
             // Plain press: any document-level selection ends here; the
             // press falls through to the normal editing path. Exception:
             // the gutter of a SELECTED block keeps the selection — its

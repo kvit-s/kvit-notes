@@ -9007,6 +9007,135 @@ Item {
         // frame as the insert left the new block a whole editor's height
         // below its neighbour, with a band of nothing between them that
         // neither scrolling nor a forced relayout reclaimed.
+        // A fenced block pasted from outside Kvit arrives as plain text with
+        // no structure flavour on the clipboard, and used to be spliced in
+        // line by line — a pasted ```mermaid diagram became a stack of
+        // paragraphs with the backticks in them. A payload that opens a fence
+        // is parsed into blocks instead; inside a code block it stays
+        // literal, because there a fence is part of the listing.
+        function test_zx0i_pastedFenceBecomesItsBlock() {
+            if (isHeadless) {
+                skip("Keyboard tests require display")
+            }
+            var fence = "```mermaid\nflowchart LR\n"
+                + "    A([Start]) --> B{Vault set?}\n"
+                + "    B -- yes --> C[Open collection]\n```"
+
+            var textArea = freshParagraph()
+            Clipboard.text = fence
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+            tryVerify(function() {
+                return BlockModel.blockAt(0).language === "mermaid"
+            }, 2000, "the paste lands as a diagram, not as text: "
+                     + BlockModel.blockAt(0).language)
+            compare(BlockModel.blockAt(0).blockType, Block.CodeBlock,
+                    "stored as the mermaid fence it was")
+            verify(BlockModel.getContent(0).indexOf("```") === -1,
+                   "with no fence markers left in the content: "
+                   + BlockModel.getContent(0))
+            verify(BlockModel.getContent(0).indexOf("flowchart LR") === 0,
+                   "and the source it was pasted with")
+
+            // Inside a code block the same paste is text, markers included.
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.convertBlock(0, Block.CodeBlock, "")
+            wait(150)
+            var codeArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(codeArea)
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+            tryVerify(function() {
+                return BlockModel.getContent(0).indexOf("```mermaid") !== -1
+            }, 2000, "a fence pasted into a listing keeps its markers: "
+                     + BlockModel.getContent(0))
+            compare(BlockModel.count, 1, "and stays one block")
+
+            // Plain prose still splices in as lines rather than being parsed.
+            DocumentManager.newDocument()
+            wait(100)
+            var proseArea = findTextArea(findBlockDelegate(0))
+            ensureFocus(proseArea)
+            Clipboard.text = "first line\nsecond line"
+            keyClick(Qt.Key_V, Qt.ControlModifier)
+            tryCompare(BlockModel, "count", 2, 1000)
+            compare(BlockModel.getContent(0), "first line")
+            compare(BlockModel.getContent(1), "second line")
+        }
+
+        // Dragging from a block's very first character selects from there to
+        // the pointer, and clicking it puts the caret there.
+        //
+        // The editor's own hit test misplaces a press in the top-left corner
+        // of its text — about twelve pixels square on Qt 6.10.1 — and answers
+        // by leaving the caret where it was, then applies its own answer, a
+        // line further down, on the release. So a drag from the first
+        // character anchored at the old caret: it selected from the pointer to
+        // the end of the block and shrank as the pointer went further down.
+        // Both entry states matter, because the press that starts the drag
+        // arrives before the editor takes the keyboard: the case a reader
+        // meets is a block they have not been in yet.
+        function test_zx0j_dragFromTheFirstCharacterSelectsForwards() {
+            if (isHeadless) {
+                skip("Pointer tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "a paragraph above")
+            BlockModel.insertBlock(1, 0, "")
+            BlockModel.convertBlock(1, Block.CodeBlock,
+                "line one here\nline two here\nline three here\nline four here")
+            wait(300)
+            appLoader.item.requestActivate()
+            // The caret is in the block above, so the code block has never
+            // been touched.
+            ensureFocus(findTextArea(findBlockDelegate(0)))
+            wait(100)
+
+            var textArea = findTextArea(findBlockDelegate(1))
+            var first = textArea.positionToRectangle(0)
+            var third = textArea.positionToRectangle(textArea.text.indexOf("three"))
+
+            function dragFromFirstCharacter() {
+                mousePress(textArea, first.x + 1, first.y + first.height / 2)
+                mouseMove(textArea, first.x + 4, first.y + first.height / 2 + 4)
+                mouseMove(textArea, third.x + 20, third.y + third.height / 2)
+                wait(150)
+                compare(textArea.selectionStart, 0,
+                        "the selection starts where the press did")
+                verify(textArea.selectionEnd > 20,
+                       "and runs to the pointer: " + textArea.selectionEnd)
+                mouseRelease(textArea, third.x + 20, third.y + third.height / 2)
+                wait(200)
+                compare(textArea.selectionStart, 0, "which the release keeps")
+                verify(textArea.selectedText.indexOf("line one here") === 0,
+                       "so the first line is in it: [" + textArea.selectedText + "]")
+            }
+
+            // Into a block that has not been edited yet, and again with the
+            // first attempt's selection still on screen: a press collapses a
+            // selection anyway, so the second drag must go the same way.
+            dragFromFirstCharacter()
+            dragFromFirstCharacter()
+
+            // And the click on its own: the caret lands on the character that
+            // was clicked, not on the line below it.
+            textArea.deselect()
+            textArea.cursorPosition = textArea.length
+            wait(100)
+            mousePress(textArea, first.x + 1, first.y + first.height / 2)
+            mouseRelease(textArea, first.x + 1, first.y + first.height / 2)
+            tryCompare(textArea, "cursorPosition", 0, 1000)
+
+            // What this case leaves behind, since the cases share one window:
+            // the selection, and the pointer itself. A synthetic pointer stays
+            // where the last move put it, and a menu that opens under it in a
+            // later case highlights whatever row it lands on.
+            textArea.deselect()
+            DocumentSelection.clear()
+            mouseMove(appLoader.item.contentItem, 4, 4)
+            wait(100)
+        }
+
         function test_zx0h_ctrlEnterLeavesNoGapUnderAFoldingBlock() {
             if (isHeadless) {
                 skip("Key delivery requires display")
