@@ -502,6 +502,14 @@ Display when cursor moves into "information":
 - Multi-block selection: click and drag across multiple blocks
 - Shift+Click to extend selection to clicked position
 - Selection highlighting with distinct color
+- Blocks that draw their text rather than editing it (the web embed card, a
+  collection query's results, a table of contents) carry a selection of their
+  own over what they drew: drag for a character span, double-click for a word,
+  a third click for a whole line, Ctrl+A for the block before the document,
+  Ctrl+C to copy, Escape to drop. It stays inside the one block, and what it
+  copies is the text on screen as plain text (tabs between cells on a line,
+  newlines between lines). A document-level range across such a block still
+  takes it whole and still carries its markdown source.
 
 ### 2.6 Cursor Behavior
 - Blinking cursor indicator

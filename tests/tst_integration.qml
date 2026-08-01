@@ -10615,6 +10615,167 @@ Item {
             compare(BlockModel.blockAt(2).content, "Renamed Section")
         }
 
+        // Selecting part of what a block drew, on the block whose text is
+        // furthest from its markdown: a table of contents has no editor at
+        // all, and the heading list it draws is a projection of the document's
+        // outline rather than anything at an offset into the `toc` fence. The
+        // sweep is driven through RenderedTextSelection's own entry points
+        // rather than through synthesised mouse events, so the case measures
+        // the run ordering, the hit testing and the copy payload rather than
+        // Qt's event delivery, and it runs with or without a display.
+        function test_zw_tocBlockRenderedTextIsSelectable() {
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "# Alpha Beta\n\n```toc\n```\n\n## Second\n\nbody")
+            DocumentOutline.rebuildNow()
+            wait(200)   // outline rebuild + toc sync timer
+
+            var tocDelegate = findBlockDelegate(1)
+            verify(tocDelegate !== null, "toc delegate exists")
+            var sel = findChild(tocDelegate, "renderedSelection")
+            verify(sel !== null, "the toc carries a rendered-text selection")
+
+            // The runs come out in reading order: the card's own heading,
+            // then one per document heading, top to bottom.
+            sel.rebuildRuns()
+            compare(sel.runs.length, 3)
+            compare(sel.runs[0].runText, "Contents")
+            compare(sel.runs[1].runText, "Alpha Beta")
+            compare(sel.runs[2].runText, "Second")
+
+            // A sweep from the left edge of one entry to past the right edge
+            // of the next takes both whole, joined by the line break between
+            // them. Points outside a run clamp into it, which is what lets a
+            // drag that has left the card sideways still mean something.
+            var first = sel.runs[1]
+            var second = sel.runs[2]
+            var from = first.mapToItem(null, 0, first.height / 2)
+            var to = second.mapToItem(null, second.width + 40, second.height / 2)
+            sel.beginPress(from.x, from.y)
+            sel.updatePress(to.x, to.y)
+            sel.endPress()
+            verify(sel.hasSelection, "the sweep selected something")
+            compare(sel.selectedText(), "Alpha Beta\nSecond")
+
+            // Ctrl+C over that selection puts the rendered text on the
+            // clipboard. The block's markdown is the `toc` fence, and copying
+            // it is what a document-level range over this block still does;
+            // this is the other thing, and it is the text on screen.
+            Clipboard.text = ""
+            verify(sel.copySelection(), "the selection copied")
+            compare(Clipboard.text, "Alpha Beta\nSecond")
+            verify(BlockModel.getContent(1).indexOf("Contents") === -1
+                   || Clipboard.text.indexOf("- [") === -1,
+                   "the copy is the rendered list, not the fence body")
+
+            // Character granularity: a sweep that stops inside a heading takes
+            // a proper prefix of it rather than the whole entry.
+            var half = second.mapToItem(null, second.width * 0.5,
+                                        second.height / 2)
+            var start = second.mapToItem(null, 0, second.height / 2)
+            sel.beginPress(start.x, start.y)
+            sel.updatePress(half.x, half.y)
+            sel.endPress()
+            var partial = sel.selectedText()
+            verify(partial.length > 0 && partial.length < "Second".length,
+                   "a partial entry was selected; got '" + partial + "'")
+            compare("Second".substring(0, partial.length), partial)
+
+            // A second press at the same point inside 400ms is a double
+            // click, which takes the word under it.
+            var mid = first.mapToItem(null, 3, first.height / 2)
+            sel.beginPress(mid.x, mid.y)
+            sel.endPress()
+            sel.beginPress(mid.x, mid.y)
+            sel.endPress()
+            compare(sel.selectedText(), "Alpha")
+
+            // A third takes the whole entry.
+            sel.beginPress(mid.x, mid.y)
+            sel.endPress()
+            compare(sel.selectedText(), "Alpha Beta")
+
+            // The two selections are mutually exclusive, as the document's own
+            // two are: selecting blocks drops the rendered selection.
+            DocumentSelection.selectBlock(0)
+            verify(!sel.hasSelection,
+                   "a block selection ends the rendered one")
+            DocumentSelection.clear()
+
+            // Ctrl+A inside the block takes everything the block drew; a
+            // second one is left to the document's own select-all.
+            verify(sel.selectAll(), "select-all covers the card")
+            compare(sel.selectedText(), "Contents\nAlpha Beta\nSecond")
+            verify(sel.everythingSelected())
+
+            // The same gesture through real pointer events, which is the part
+            // the calls above cannot reach: every entry sits under a tap
+            // handler that scrolls to that heading, and the sweep handler is
+            // on the card behind them. A press that a MouseArea accepted
+            // would never be offered to the card at all, which is why those
+            // rows carry handlers instead.
+            sel.clear()
+            var pressAt = first.mapToItem(tocDelegate, 1, first.height / 2)
+            var dragTo = second.mapToItem(tocDelegate, second.width + 40,
+                                          second.height / 2)
+            mousePress(tocDelegate, pressAt.x, pressAt.y, Qt.LeftButton)
+            mouseMove(tocDelegate, dragTo.x, dragTo.y, 0, Qt.LeftButton)
+            mouseRelease(tocDelegate, dragTo.x, dragTo.y, Qt.LeftButton)
+            verify(sel.hasSelection, "a pointer sweep selects")
+            compare(sel.selectedText(), "Alpha Beta\nSecond")
+            verify(sel.suppressClick,
+                   "a sweep holds back the click its entries sit under")
+        }
+
+        // The same mechanism on the embed card, where the text on screen is
+        // fetched page metadata and the block's markdown is an image
+        // expression naming the URL.
+        function test_zw_embedCardRenderedTextIsSelectable() {
+            DocumentManager.newDocument()
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "![](https://example.com/article)")
+            wait(300)
+
+            var embed = findBlockDelegate(0)
+            verify(embed !== null, "embed delegate exists")
+            var sel = findChild(embed, "renderedSelection")
+            verify(sel !== null, "the embed carries a rendered-text selection")
+
+            // Nothing has been fetched, so the card shows the URL as its title
+            // and the host beneath it. Both are selectable; the buttons that
+            // offer to load the preview are not.
+            sel.rebuildRuns()
+            verify(sel.runs.length >= 2,
+                   "the card has selectable runs; got " + sel.runs.length)
+            compare(sel.runs[0].runText, "https://example.com/article")
+
+            verify(sel.selectAll(), "select-all covers the card")
+            var text = sel.selectedText()
+            verify(text.indexOf("https://example.com/article") !== -1,
+                   "the selection holds the card's title; got '" + text + "'")
+            verify(text.indexOf("example.com") !== -1,
+                   "the selection holds the host; got '" + text + "'")
+
+            Clipboard.text = ""
+            verify(sel.copySelection(), "the selection copied")
+            compare(Clipboard.text, text)
+            verify(Clipboard.text.indexOf("![](") === -1,
+                   "the copy is the card's text, not the image expression")
+
+            // A document-level range over the same block is unchanged: the
+            // embed joins it as a whole unit and contributes its markdown.
+            BlockModel.insertBlock(0, Block.Paragraph, "before")
+            BlockModel.insertBlock(2, Block.Paragraph, "after")
+            wait(150)
+            DocumentSelection.beginTextSelection(0, 0, 0)
+            DocumentSelection.updateTextSelectionHead(2, 5)
+            var range = DocumentSelection.rangeMarkdown()
+            verify(range.indexOf("![](https://example.com/article)") !== -1,
+                   "a range across the embed still carries its source; got '"
+                   + range + "'")
+            DocumentSelection.clear()
+        }
+
         // ---- Focus and typewriter modes ----
 
         function test_zx_focusModeHidesChrome() {
@@ -12761,6 +12922,79 @@ Item {
             tryVerify(function() {
                 return appLoader.item.currentNoteRelPath !== "Welcome.md"
             }, 2000, "clicking a result opens that note")
+
+            closeTestCollection()
+        }
+
+        // Selecting part of a query's results. This is the block where the
+        // gap the selection is closing is widest: the rows are computed from
+        // other notes and appear nowhere in this note's markdown, so before
+        // this the only way to take any of that text was the block menu's
+        // "Copy as → Plain text", which takes all of it.
+        function test_wiki9_queryResultsAreSelectable() {
+            openTestCollection()
+            verify(testFiles.writeFile(
+                NoteCollection.absolutePath("Ideas/Reading.md"),
+                "---\nstatus: active\ndue: 2026-08-01\n---\nReading body\n"))
+            NoteCollection.refresh()
+            wait(100)
+
+            verify(appLoader.item.openNoteByPath("Welcome.md"))
+            BlockModel.convertBlock(0, Block.CodeBlock,
+                "where: status = active\ncolumns: title, due\nsort: title asc",
+                false, "query")
+            wait(200)
+
+            var d = findBlockDelegate(0)
+            verify(d !== null, "query delegate exists")
+            tryVerify(function() {
+                return d.queryResult !== undefined && d.queryResult.ok
+                    && d.queryResult.rows.length === 1
+            }, 2000, "the query evaluates to one row")
+
+            var sel = findChild(d, "renderedSelection")
+            verify(sel !== null, "the query carries a rendered-text selection")
+
+            // The grid's runs come out in reading order: the two header cells
+            // left to right, then the row's two cells.
+            tryVerify(function() {
+                sel.rebuildRuns()
+                return sel.runs.length === 4
+            }, 2000, "header and result cells are all runs")
+            compare(sel.runs[0].runText, "title")
+            compare(sel.runs[1].runText, "due")
+            compare(sel.runs[2].runText, "Reading")
+            compare(sel.runs[3].runText, "2026-08-01")
+
+            // Cells sharing a visual line are joined by a tab, so a swept
+            // grid pastes as a grid; a new line starts a new line.
+            verify(sel.selectAll(), "select-all covers the grid")
+            compare(sel.selectedText(), "title\tdue\nReading\t2026-08-01")
+
+            // Sweeping the result row alone takes that row and not the header
+            // above it. Driven through real pointer events, because every
+            // result cell sits under a tap handler that opens the note it
+            // names, and the sweep handler is on the card behind them.
+            sel.clear()
+            var firstCell = sel.runs[2]
+            var lastCell = sel.runs[3]
+            var from = firstCell.mapToItem(d, 1, firstCell.height / 2)
+            var to = lastCell.mapToItem(d, lastCell.width - 1,
+                                        lastCell.height / 2)
+            mousePress(d, from.x, from.y, Qt.LeftButton)
+            mouseMove(d, to.x, to.y, 0, Qt.LeftButton)
+            mouseRelease(d, to.x, to.y, Qt.LeftButton)
+            compare(sel.selectedText(), "Reading\t2026-08-01")
+
+            Clipboard.text = ""
+            verify(sel.copySelection(), "the selection copied")
+            compare(Clipboard.text, "Reading\t2026-08-01")
+
+            // The sweep suppressed the tap the result cells sit under, so
+            // selecting a row does not also open the note it names.
+            verify(sel.suppressClick,
+                   "a sweep holds back the click its runs sit under")
+            compare(appLoader.item.currentNoteRelPath, "Welcome.md")
 
             closeTestCollection()
         }

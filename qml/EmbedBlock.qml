@@ -44,7 +44,7 @@ BlockDelegateBase {
     // fold in too, or the gutter and the card's buttons would stay hidden for
     // as long as the pointer is over the card that owns them.
     property bool isHovered: hoverArea.containsMouse
-        || blockHandle.hovered || cardArea.containsMouse
+        || blockHandle.hovered || cardHover.hovered
         || editArea.containsMouse || loadArea.containsMouse
         || retryArea.containsMouse
 
@@ -158,11 +158,32 @@ BlockDelegateBase {
         return DocumentSelection.isBlockSelected(root.index)
             || DocumentSelection.portionForBlock(root.index).selected === true
     }
+    // Cross-block position helpers. The card's title, description and host
+    // are fetched metadata, not text at any offset into the block's
+    // `![](url)` source, so the block joins a document-level range as a whole
+    // unit and answers a single position 0 — copying such a range still
+    // yields the image expression. Selecting part of the card itself is a
+    // separate, block-private thing; renderedSelection below is where that
+    // lives.
     function markdownPositionAt(sceneX, sceneY) { return 0 }
     function pointInText(sceneX, sceneY) { return false }
     function lineStepPosition(mdPos, dir) { return -1 }
     function entryPositionAtX(x, fromTop) { return 0 }
     function xAtMarkdown(mdPos) { return 0 }
+
+    // Selecting part of the card's text with the pointer.
+    RenderedTextSelection {
+        id: renderedSelection
+        objectName: "renderedSelection"
+        content: card
+        blockList: root.listView
+        // Ctrl+C and Escape belong to the block's focus item, so a sweep
+        // hands it the keyboard.
+        onSweepStarted: focusTarget.forceActiveFocus()
+    }
+    // A fetch replaces the card's text, taking the runs a selection names
+    // with it.
+    onMetaChanged: renderedSelection.clear()
 
     readonly property bool isDragSource: {
         if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
@@ -185,6 +206,7 @@ BlockDelegateBase {
     ListView.onPooled: {
         isPooled = true; focusTarget.focus = false; opacity = 0
         previewWidth = 0; previewHeight = 0
+        renderedSelection.clear()
     }
     ListView.onReused: {
         isPooled = false; opacity = 1
@@ -240,6 +262,8 @@ BlockDelegateBase {
         activeFocusOnTab: true
         Keys.onPressed: function(event) {
             if (root.handleContextMenuKey(event))
+                return
+            if (renderedSelection.handleSelectionKey(event))
                 return
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier)
@@ -385,7 +409,7 @@ BlockDelegateBase {
             Column {
                 width: parent.width - thumb.width - parent.spacing
                 spacing: 3
-                Text {
+                SelectableText {
                     objectName: "embedTitle"
                     width: parent.width
                     text: root.loaded
@@ -399,7 +423,8 @@ BlockDelegateBase {
                     font.bold: true
                     color: Theme.textPrimary
                 }
-                Text {
+                SelectableText {
+                    objectName: "embedDescription"
                     visible: root.loaded && root.meta.description
                         && root.meta.description.length > 0
                     width: parent.width
@@ -440,7 +465,7 @@ BlockDelegateBase {
                             onClicked: root.loadPreview()
                         }
                     }
-                    Text {
+                    SelectableText {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.canOfferLoad
                             ? qsTr("· not loaded")
@@ -462,7 +487,8 @@ BlockDelegateBase {
                         sourceSize.width: 14
                         sourceSize.height: 14
                     }
-                    Text {
+                    SelectableText {
+                        objectName: "embedHost"
                         text: {
                             var u = root.embedUrl
                             var m = u.match(/^https?:\/\/([^\/]+)/)
@@ -471,7 +497,7 @@ BlockDelegateBase {
                         font.pixelSize: 11
                         color: Theme.textFaint
                     }
-                    Text {
+                    SelectableText {
                         visible: root.failed
                         text: qsTr("· preview unavailable")
                         font.pixelSize: 11
@@ -512,15 +538,43 @@ BlockDelegateBase {
             }
         }
 
-        MouseArea {
-            id: cardArea
-            anchors.fill: parent
-            hoverEnabled: true
+        // Opening the page, and the card's own hover. Handlers rather than a
+        // MouseArea: a MouseArea takes the press, which would keep the sweep
+        // handler below from ever seeing a drag that started on the card, and
+        // its onClicked fires on release however far the pointer travelled,
+        // so sweeping the title would also open the page. A TapHandler does
+        // neither, and modifier-clicks still reach the delegate's selection
+        // MouseArea underneath.
+        HoverHandler {
+            id: cardHover
             cursorShape: Qt.PointingHandCursor
+        }
+        TapHandler {
             acceptedButtons: Qt.LeftButton
-            onClicked: root.openEmbed()
-            // Let modifier-clicks fall through to the selection MouseArea below.
-            propagateComposedEvents: true
+            onTapped: {
+                if (renderedSelection.suppressClick)
+                    return
+                root.openEmbed()
+            }
+        }
+
+        // The sweep, reporting the pointer even after it has left the card.
+        PointHandler {
+            id: sweepObserver
+            acceptedButtons: Qt.LeftButton
+            onActiveChanged: {
+                var at = sweepObserver.point.scenePosition
+                if (sweepObserver.active)
+                    renderedSelection.beginPress(at.x, at.y)
+                else
+                    renderedSelection.endPress()
+            }
+            onPointChanged: {
+                if (!sweepObserver.active)
+                    return
+                var at = sweepObserver.point.scenePosition
+                renderedSelection.updatePress(at.x, at.y)
+            }
         }
 
         // Edit button (top-right): reopens the URL dialog on this card, so a

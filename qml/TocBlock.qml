@@ -71,12 +71,30 @@ BlockDelegateBase {
             || DocumentSelection.portionForBlock(delegate.index).selected === true
     }
 
-    // Cross-block position helpers (a TOC has no text: a single position 0).
+    // Cross-block position helpers. A TOC's markdown is a `toc` fence whose
+    // body is regenerated, and nothing on screen is at an offset into it, so
+    // the block joins a document-level range as a whole unit and answers a
+    // single position 0. Selecting part of what it drew is a separate,
+    // block-private thing; renderedSelection below is where that lives.
     function markdownPositionAt(sceneX, sceneY) { return 0 }
     function pointInText(sceneX, sceneY) { return false }
     function lineStepPosition(mdPos, dir) { return -1 }
     function entryPositionAtX(x, fromTop) { return 0 }
     function xAtMarkdown(mdPos) { return 0 }
+
+    // Selecting part of the heading list with the pointer.
+    RenderedTextSelection {
+        id: renderedSelection
+        objectName: "renderedSelection"
+        content: card
+        blockList: delegate.listView
+        // Ctrl+C and Escape belong to the block's focus item, so a sweep
+        // hands it the keyboard.
+        onSweepStarted: focusTarget.forceActiveFocus()
+    }
+    // The list it projects is rebuilt as headings change, and the runs a
+    // selection names go with it.
+    onHeadingsChanged: renderedSelection.clear()
 
     readonly property bool isDragSource: {
         if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
@@ -102,6 +120,7 @@ BlockDelegateBase {
         isPooled = true
         focusTarget.focus = false
         opacity = 0
+        renderedSelection.clear()
     }
     ListView.onReused: {
         isPooled = false
@@ -166,6 +185,8 @@ BlockDelegateBase {
 
         Keys.onPressed: function(event) {
             if (delegate.handleContextMenuKey(event))
+                return
+            if (renderedSelection.handleSelectionKey(event))
                 return
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier)
@@ -269,6 +290,28 @@ BlockDelegateBase {
         opacity: delegate.isDragSource ? 0.35 : 1
         implicitHeight: cardColumn.implicitHeight + 16
 
+        // The sweep. A passive handler rather than a MouseArea, for the
+        // reason CrossBlockTextDrag gives about the block editors: it never
+        // takes the press away from the row handlers below it, and it goes on
+        // reporting the pointer after it has left the card.
+        PointHandler {
+            id: sweepObserver
+            acceptedButtons: Qt.LeftButton
+            onActiveChanged: {
+                var at = sweepObserver.point.scenePosition
+                if (sweepObserver.active)
+                    renderedSelection.beginPress(at.x, at.y)
+                else
+                    renderedSelection.endPress()
+            }
+            onPointChanged: {
+                if (!sweepObserver.active)
+                    return
+                var at = sweepObserver.point.scenePosition
+                renderedSelection.updatePress(at.x, at.y)
+            }
+        }
+
         Column {
             id: cardColumn
             anchors.left: parent.left
@@ -277,7 +320,7 @@ BlockDelegateBase {
             anchors.margins: 8
             spacing: 2
 
-            Text {
+            SelectableText {
                 text: qsTr("Contents")
                 font.pixelSize: 11
                 font.bold: true
@@ -285,7 +328,7 @@ BlockDelegateBase {
                 bottomPadding: 2
             }
 
-            Text {
+            SelectableText {
                 visible: delegate.headings.length === 0
                 text: qsTr("No headings yet.")
                 font.pixelSize: 12
@@ -308,25 +351,33 @@ BlockDelegateBase {
                     width: cardColumn.width
                     height: entry.implicitHeight + 4
 
-                    Text {
+                    SelectableText {
                         id: entry
                         x: (headingRow.heading.level - delegate.minLevel) * 16
                         text: headingRow.heading.text === "" ? qsTr("(untitled)")
                                                     : headingRow.heading.text
                         font.pixelSize: 13
-                        color: linkArea.containsMouse ? Theme.accent
-                                                      : Theme.link
-                        font.underline: linkArea.containsMouse
+                        color: linkHover.hovered ? Theme.accent
+                                                 : Theme.link
+                        font.underline: linkHover.hovered
                     }
-                    MouseArea {
-                        id: linkArea
-                        anchors.fill: parent
-                        hoverEnabled: true
+                    HoverHandler {
+                        id: linkHover
                         cursorShape: Qt.PointingHandCursor
-                        // No window lookup any more: the request goes to
-                        // AppActions, and an unconnected signal is a no-op
-                        // exactly as the old `if (window)` guard was.
-                        onClicked: {
+                    }
+                    // Handlers rather than a MouseArea: a MouseArea takes the
+                    // press, which would keep the card's sweep handler from
+                    // ever seeing a drag that started on an entry, and its
+                    // onClicked fires on release however far the pointer
+                    // travelled, so sweeping a row would also jump to it.
+                    // A TapHandler does neither.
+                    TapHandler {
+                        // The request goes to AppActions, and an unconnected
+                        // signal is a no-op exactly as the old `if (window)`
+                        // guard was.
+                        onTapped: {
+                            if (renderedSelection.suppressClick)
+                                return
                             if (headingRow.heading.blockIndex >= 0)
                                 AppActions.requestScrollToBlock(
                                     headingRow.heading.blockIndex)

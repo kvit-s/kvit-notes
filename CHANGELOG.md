@@ -8,6 +8,22 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- The text on a web embed card, in a collection query's results, and in a
+  table of contents can now be selected with the pointer and copied. Those
+  blocks draw their text rather than putting it in an editor, so it behaved
+  like a picture of text: it could not be swept, and the only way to take any
+  of it was the block menu's "Copy as → Plain text", which takes all of it.
+  A drag now selects a span the way it does in a paragraph, from mid-word in
+  one line to mid-word in another, with a double-click taking the word under
+  the pointer and a third click the whole line. Ctrl+A takes everything the
+  block drew before it takes the document, Ctrl+C copies what is highlighted,
+  and Escape drops it. What lands on the clipboard is the text on screen:
+  cells that share a line are joined by tabs and lines by newlines, so a
+  swept query grid pastes as a grid. Selecting a query row no longer opens the
+  note it names, and sweeping a table-of-contents entry no longer jumps to
+  that heading. A selection that runs across one of these blocks from the
+  paragraphs around it is unchanged: the block joins that range whole and
+  still contributes its markdown source.
 - A new note names itself from its first block. Notes are created before
   there is anything in them to name them after, so they arrive as "Untitled",
   "Untitled 2" and so on, and a list of those says nothing about what is in

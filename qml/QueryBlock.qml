@@ -136,11 +136,63 @@ BlockDelegateBase {
     }
 
     // ---- non-text focus API (matches the other wave-2 blocks) ----
+    // The results are computed from other notes and are at no offset into
+    // this block's `query` fence, so the block joins a document-level range as
+    // a whole unit and answers a single position 0 — copying such a range
+    // still yields the fence. Selecting part of the results is a separate,
+    // block-private thing; renderedSelection below is where that lives.
     function markdownPositionAt(sceneX, sceneY) { return 0 }
     function pointInText(sceneX, sceneY) { return false }
     function lineStepPosition(mdPos, dir) { return -1 }
     function entryPositionAtX(x, fromTop) { return 0 }
     function xAtMarkdown(mdPos) { return 0 }
+
+    // Selecting part of the results with the pointer.
+    RenderedTextSelection {
+        id: renderedSelection
+        objectName: "renderedSelection"
+        content: card
+        blockList: root.listView
+        // Ctrl+C and Escape belong to selectionFocus below, so a sweep hands
+        // it the keyboard. Not the spec editor: focusing that would open the
+        // source over the results the sweep is selecting.
+        onSweepStarted: selectionFocus.forceActiveFocus()
+    }
+    // Every collection revision replaces the rows, taking the runs a
+    // selection names with them.
+    onQueryResultChanged: renderedSelection.clear()
+
+    // Where the keyboard sits while a rendered selection is showing. The
+    // block's only other focus target is the spec editor, and taking focus
+    // there is what opens it, so a sweep over the results needs somewhere
+    // else to put the keyboard. It is never reached by Tab; only a sweep
+    // focuses it.
+    Item {
+        id: selectionFocus
+        objectName: "querySelectionFocus"
+        activeFocusOnTab: false
+        width: 0
+        height: 0
+        Keys.onPressed: function(event) {
+            if (root.handleContextMenuKey(event))
+                return
+            if (renderedSelection.handleSelectionKey(event))
+                return
+            // The second Ctrl+A, once the block's own text is all selected,
+            // is the document's, as it is in every other block.
+            if (event.key === Qt.Key_A
+                && (event.modifiers & Qt.ControlModifier)) {
+                DocumentSelection.selectAllBlocks()
+                root.focusSelectionHandler()
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Escape) {
+                root.focusSelectionHandler()
+                event.accepted = true
+            }
+        }
+    }
 
     readonly property bool isDragSource: {
         if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
@@ -164,6 +216,7 @@ BlockDelegateBase {
         refreshTimer.stop()
         isPooled = true
         opacity = 0
+        renderedSelection.clear()
         // An unlimited query over a large vault produces a large structure,
         // and holding it for a row that is off screen is holding it for
         // nothing. onBlockIdChanged already re-runs the query on reuse.
@@ -301,6 +354,28 @@ BlockDelegateBase {
             opacity: root.isDragSource ? 0.35 : 1
             clip: true
 
+            // The sweep. A passive handler rather than a MouseArea, for the
+            // reason CrossBlockTextDrag gives about the block editors: it
+            // never takes the press away from the cell handlers below it, and
+            // it goes on reporting the pointer after it has left the card.
+            PointHandler {
+                id: sweepObserver
+                acceptedButtons: Qt.LeftButton
+                onActiveChanged: {
+                    var at = sweepObserver.point.scenePosition
+                    if (sweepObserver.active)
+                        renderedSelection.beginPress(at.x, at.y)
+                    else
+                        renderedSelection.endPress()
+                }
+                onPointChanged: {
+                    if (!sweepObserver.active)
+                        return
+                    var at = sweepObserver.point.scenePosition
+                    renderedSelection.updatePress(at.x, at.y)
+                }
+            }
+
             Column {
                 id: readColumn
                 anchors.left: parent.left
@@ -327,7 +402,7 @@ BlockDelegateBase {
                 }
 
                 // Parse error / empty collection message.
-                Text {
+                SelectableText {
                     objectName: "queryErrorText"
                     visible: !root.queryResult.ok
                     width: parent.width
@@ -353,7 +428,7 @@ BlockDelegateBase {
                         model: root.queryResult.ok
                                && root.queryResult.view === "table"
                                ? root.queryResult.columns : []
-                        Text {
+                        SelectableText {
                             id: headerCell
                             required property var modelData
                             text: modelData
@@ -397,7 +472,7 @@ BlockDelegateBase {
                             height: cellText.implicitHeight + 8
                             color: cellHover.hovered
                                    ? Theme.hoverTint : "transparent"
-                            Text {
+                            SelectableText {
                                 id: cellText
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width
@@ -408,13 +483,17 @@ BlockDelegateBase {
                             }
                             HoverHandler { id: cellHover }
                             TapHandler {
-                                onTapped: root.openRow(tableCell.modelData.relPath)
+                                onTapped: {
+                                    if (renderedSelection.suppressClick)
+                                        return
+                                    root.openRow(tableCell.modelData.relPath)
+                                }
                             }
                         }
                     }
                 }
 
-                Text {
+                SelectableText {
                     visible: root.queryResult.ok
                              && root.queryResult.view === "table"
                              && root.queryResult.rows.length === 0
@@ -481,13 +560,13 @@ BlockDelegateBase {
 
                                     Row {
                                         spacing: 5
-                                        Text {
+                                        SelectableText {
                                             text: boardGroup.modelData.name
                                             font.pixelSize: 12
                                             font.bold: true
                                             color: Theme.textSecondary
                                         }
-                                        Text {
+                                        SelectableText {
                                             text: boardGroup.modelData.cards.length
                                             font.pixelSize: 11
                                             color: Theme.textFaint
@@ -519,7 +598,7 @@ BlockDelegateBase {
                                                 spacing: 1
                                                 Repeater {
                                                     model: boardCard.modelData.cells
-                                                    Text {
+                                                    SelectableText {
                                                         required property var modelData
                                                         required property int index
                                                         width: cardCol.width
@@ -536,8 +615,12 @@ BlockDelegateBase {
                                             }
                                             HoverHandler { id: cardHover }
                                             TapHandler {
-                                                onTapped: root.openRow(
-                                                    boardCard.modelData.relPath)
+                                                onTapped: {
+                                                    if (renderedSelection.suppressClick)
+                                                        return
+                                                    root.openRow(
+                                                        boardCard.modelData.relPath)
+                                                }
                                             }
                                         }
                                     }
