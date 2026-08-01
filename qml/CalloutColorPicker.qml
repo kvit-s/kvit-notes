@@ -38,6 +38,9 @@ Popup {
     modal: false
     focus: false
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+    // Qt leaves a popup outside its window unless it is given a margin, and
+    // a callout can sit at the bottom of the page (see CalloutTypePicker).
+    margins: 6
 
     background: Rectangle {
         color: Theme.popupBackground

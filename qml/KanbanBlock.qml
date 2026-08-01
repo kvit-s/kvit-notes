@@ -2096,6 +2096,9 @@ BlockDelegateBase {
         padding: 2
         focus: false
         closePolicy: Popup.NoAutoClose
+        // Qt leaves a popup outside its window unless it is given a
+        // margin, and a card can sit low on a tall board.
+        margins: 6
         background: Rectangle {
             color: Theme.popupBackground
             border.color: Theme.borderStrong

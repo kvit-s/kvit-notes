@@ -174,6 +174,9 @@ EditableBlock {
                 padding: 8
                 focus: true
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                // Qt leaves a popup outside its window unless it is
+                // given a margin, and a to-do can sit at the foot of a note.
+                margins: 6
                 background: Rectangle {
                     color: Theme.popupBackground
                     border.color: Theme.borderStrong; border.width: 1; radius: 6

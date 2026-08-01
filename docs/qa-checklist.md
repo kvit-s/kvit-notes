@@ -495,6 +495,17 @@ Run against the installed artifact with a fresh user profile.
         it runs into. The list scrolls normally afterwards. The document does
         not scroll under a selection drag unless the pointer reaches the top or
         bottom edge of the viewport, where it scrolls to follow.
+23. [ ] Open every chooser that drops out of a button while its block sits at
+        the very bottom of a long note, so the space below the button is
+        smaller than the list: a callout's kind and its colour dot, a
+        divider's style, an image's effects, a to-do's due date, the label
+        list on a task-board card, and the text colour on the formatting bar.
+        Then shrink the window until it is barely taller than one of them and
+        repeat.
+        *Expect:* each one is wholly on screen, with its last row reachable.
+        A chooser that will not fit below its button is moved up rather than
+        cut off at the window edge, so it may overlap the block it belongs
+        to.
 
 ## Distribution
 

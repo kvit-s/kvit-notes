@@ -1161,6 +1161,10 @@ BlockDelegateBase {
         objectName: "diagramLabelEditor"
         property bool renameMode: false
         padding: 4
+        // openFor() clamps against the block, which says nothing about
+        // where the block is. Qt leaves a popup outside its window unless
+        // it is given a margin.
+        margins: 6
         background: Rectangle {
             color: Theme.popupBackground
             border.color: Theme.accent

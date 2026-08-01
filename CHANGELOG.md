@@ -83,6 +83,17 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A chooser that drops out of a button stays inside the window. On a callout
+  at the foot of a long note, the list of kinds ran past the bottom edge and
+  was cut off there: of the seven kinds only the first few were visible, and
+  the rest could not be reached at all. Qt does not push a popup within its
+  window unless it is given a margin, and nine of them had none, so the same
+  thing happened to the callout colour dot, the divider style picker, the
+  image effects popover, a to-do's due-date calendar, a task-board card's
+  label list, the tag suggestions, the replace-all preview and the diagram
+  label editor. Each is now moved up rather than clipped, which can overlap
+  the block it belongs to. The block menu, the slash menu and the two
+  completion menus already did their own edge handling and are unchanged.
 - A block equation, a Mermaid diagram and a query spec can be left from the
   keyboard. All three edit a fenced source where Enter is a line break, since
   an `aligned` body, a list of diagram statements and a `from:`/`where:` spec

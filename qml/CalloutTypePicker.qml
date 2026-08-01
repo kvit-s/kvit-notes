@@ -32,6 +32,12 @@ Popup {
     modal: false
     focus: false
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+    // A popup with negative margins — Qt's default — is not pushed within
+    // its window, and this one opens below a button that can sit anywhere
+    // down the page. On a callout at the foot of a note the seven kinds ran
+    // past the bottom edge and were simply cut off, so the last of them could
+    // be neither seen nor reached. Any margin at all makes Qt keep it inside.
+    margins: 6
 
     background: Rectangle {
         color: Theme.popupBackground

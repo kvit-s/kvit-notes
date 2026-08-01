@@ -187,6 +187,9 @@ Item {
                 focus: false
                 closePolicy: Popup.CloseOnPressOutsideParent
                 visible: false
+                // Qt leaves a popup outside its window unless it is
+                // given a margin, and this list is as long as the matches.
+                margins: 6
 
                 // Without a themed background the popup fell back to the light
                 // Fusion default, so in dark mode the panel stayed light.

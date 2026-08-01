@@ -8309,6 +8309,78 @@ Item {
             }, 1000, "The change is one undo step")
         }
 
+        // A picker that opens below its button runs out of window when the
+        // block is at the foot of a long note, and a popup Qt is not told to
+        // keep inside the window is simply cut off at the bottom edge: the
+        // last four of the seven kinds were unreachable, with nothing on
+        // screen to say they existed.
+        function test_zw2c_calloutTypePickerStaysInsideTheWindow() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            for (var i = 0; i < 30; ++i)
+                BlockModel.insertBlock(i, Block.Paragraph, "filler " + i)
+            var last = BlockModel.count - 1
+            BlockModel.convertBlock(last, Block.Callout, "callout body",
+                                    false, "info", "Heads up")
+            wait(250)
+
+            // Put the callout where the report puts it: the last block, with
+            // the view scrolled to the end, so its header sits a header's
+            // height above the bottom of the window.
+            var listView = findChild(appLoader.item, "blockListView")
+            verify(listView !== null, "the block list exists")
+            listView.positionViewAtEnd()
+            wait(250)
+
+            var delegateItem = findBlockDelegate(last)
+            verify(delegateItem !== null, "the callout delegate exists")
+            var button = findChild(delegateItem, "calloutTypeButton")
+            var picker = findChild(delegateItem, "calloutTypePicker")
+            verify(button !== null && picker !== null,
+                   "the header carries its type button and picker")
+
+            mouseClick(button, button.width / 2, button.height / 2)
+            tryCompare(picker, "visible", true, 1000)
+
+            // Measure where the popup actually is rather than what it was
+            // asked for: keeping it in the window moves the item without
+            // changing the x and y the call site set.
+            var content = picker.contentItem
+            var shell = appLoader.item.contentItem
+            var topLeft = content.mapToItem(shell, 0, 0)
+            verify(topLeft.y >= 0,
+                   "the picker does not run off the top of the window: "
+                   + topLeft.y)
+            verify(topLeft.y + content.height <= shell.height,
+                   "the picker does not run off the bottom of the window: "
+                   + (topLeft.y + content.height) + " past " + shell.height)
+            verify(topLeft.x >= 0 && topLeft.x + content.width <= shell.width,
+                   "and stays within its left and right edges")
+
+            // Fully on screen means every kind is reachable, which is the
+            // point: the last row must be inside the window too. The Column
+            // holds the Repeater as well as the rows it built, so pick out
+            // the ones that carry a label.
+            var rows = []
+            for (var c = 0; c < content.children.length; ++c) {
+                if (findChild(content.children[c], "calloutTypeLabel"))
+                    rows.push(content.children[c])
+            }
+            compare(rows.length, picker.types.length,
+                    "the picker draws a row per kind")
+            var lastRow = rows[rows.length - 1]
+            var rowTopLeft = lastRow.mapToItem(shell, 0, 0)
+            verify(rowTopLeft.y + lastRow.height <= shell.height,
+                   "the last kind is on screen: "
+                   + (rowTopLeft.y + lastRow.height) + " past " + shell.height)
+
+            picker.close()
+            tryCompare(picker, "visible", false, 1000)
+        }
+
         function test_zx_tableEditMutateSortUndo() {
             if (isHeadless) {
                 skip("Focus tests require display")

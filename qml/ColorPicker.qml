@@ -37,6 +37,9 @@ Popup {
     modal: false
     focus: false
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+    // Qt leaves a popup outside its window unless it is given a margin, and
+    // the bar this drops out of follows the caret down the page.
+    margins: 6
 
     background: Rectangle {
         color: Theme.popupBackground

@@ -460,6 +460,9 @@ Rectangle {
         width: 480
         padding: 10
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        // Qt leaves a popup outside its window unless it is given a
+        // margin, and this panel is as tall as the replacement list is long.
+        margins: 6
 
         // A stale preview must never apply: any observable search
         // change (an edit recomputing matches, an option flip)
