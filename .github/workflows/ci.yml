@@ -539,11 +539,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install FUSE 3 and headless Wayland verifier
+      - name: Install graphics baseline, FUSE 3 and headless Wayland verifier
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            fuse3 weston sqlite3
+            fuse3 libopengl0 weston sqlite3
 
           # Hosted-runner images can change underneath us. Remove the FUSE 2
           # compatibility library if it is ever preinstalled, then prove it is
