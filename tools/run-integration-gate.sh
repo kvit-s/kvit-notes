@@ -33,8 +33,12 @@ fi
 
 # read -r in a loop rather than mapfile, which macOS's bash 3.2 does not have.
 cases=()
+if ! discovery_output=$("$binary" -input "$input" -functions 2>&1); then
+    printf '%s\n' "$discovery_output" >&2
+    exit 2
+fi
 while IFS= read -r case_name; do cases+=("$case_name"); done < <(
-    "$binary" -input "$input" -functions 2>&1 \
+    printf '%s\n' "$discovery_output" \
         | sed -n 's/^\([^ ][^ ]*::.*\)()$/\1/p'
 )
 if [[ ${#cases[@]} -eq 0 ]]; then
