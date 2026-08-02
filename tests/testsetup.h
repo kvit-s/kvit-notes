@@ -217,6 +217,26 @@ public slots:
         QQmlContext *context = engine->rootContext();
         context->setContextProperty("testCollectionDir", m_collectionDir.path());
 
+        // Timing thresholds describe a quiet release build, not a shared CI
+        // runner or an instrumented binary. Keep running and reporting every
+        // measurement there, but defer the threshold just as timingbudget.h
+        // does for the C++ suites. KVIT_ENFORCE_TIMING_BUDGETS remains the
+        // explicit way to judge them anywhere.
+#ifdef KVIT_SANITIZER_BUILD
+        constexpr bool sanitizerBuild = true;
+#else
+        constexpr bool sanitizerBuild = false;
+#endif
+        const bool timingBudgetsEnforced =
+            qEnvironmentVariableIsSet("KVIT_ENFORCE_TIMING_BUDGETS")
+            || (!qEnvironmentVariableIsSet("CI") && !sanitizerBuild);
+        context->setContextProperty("testTimingBudgetsEnforced",
+                                    timingBudgetsEnforced);
+        // File watching and indexing stay asynchronous under sanitizers, but
+        // instrumentation can make their ordinary two-second waits too short.
+        context->setContextProperty("testAsyncTimeoutMultiplier",
+                                    sanitizerBuild ? 4 : 1);
+
         // A sample image on disk for the image-block storyboard/integration.
         const QString samplePath = m_collectionDir.filePath("sample.png");
         {

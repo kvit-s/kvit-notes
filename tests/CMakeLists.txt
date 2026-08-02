@@ -506,15 +506,17 @@ set_tests_properties(IntegrationTestsIsolated PROPERTIES
 # second executable.
 #
 # It runs offscreen and blocking, under `shell` rather than `visual`: unlike
-# the storyboard and integration suites it needs no focused window, and it
-# measured 31 of 31 with no skips across repeated offscreen runs. The
-# behaviours it covers are the ones a user loses data to, so they should fail
-# a merge rather than be reported for information.
-add_test(NAME UiRemediationTests
-         COMMAND test_integration
-                 -input ${CMAKE_CURRENT_SOURCE_DIR}/tst_uiremediation.qml)
+# the storyboard and integration suites it needs no focused window. Each case
+# gets a fresh process through the same isolation runner as the large suite;
+# one shared Linux CI process once stalled after five passing cases until the
+# CTest timeout, while every case passed alone. The behaviours it covers are
+# the ones a user loses data to, so they should fail a merge rather than be
+# reported for information.
+add_test(NAME UiRemediationTests COMMAND
+    bash ${CMAKE_SOURCE_DIR}/tools/run-integration-gate.sh
+    $<TARGET_FILE:test_integration> ${CMAKE_CURRENT_SOURCE_DIR}/tst_uiremediation.qml)
 set_tests_properties(UiRemediationTests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+    ENVIRONMENT "KVIT_QML_TEST_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
     TIMEOUT 600)
 
 # Visual storyboard tests (Qt Quick Test) — screenshot walkthroughs.

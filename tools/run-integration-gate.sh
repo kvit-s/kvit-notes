@@ -23,7 +23,11 @@ input=$2
 # The VNC plugin is a real windowing surface with working focus and input, it
 # skips nothing, and nothing has to connect to the port for the run to
 # proceed. A human diagnosing a focus case can still opt into the desktop.
-if [[ ${KVIT_INTEGRATION_VISIBLE:-0} != 1 ]]; then
+use_vnc=0
+if [[ -n ${KVIT_QML_TEST_PLATFORM:-} ]]; then
+    export QT_QPA_PLATFORM=$KVIT_QML_TEST_PLATFORM
+elif [[ ${KVIT_INTEGRATION_VISIBLE:-0} != 1 ]]; then
+    use_vnc=1
     export QT_QPA_PLATFORM="vnc:size=1600x1200"
 fi
 
@@ -31,7 +35,7 @@ fi
 cases=()
 while IFS= read -r case_name; do cases+=("$case_name"); done < <(
     "$binary" -input "$input" -functions 2>&1 \
-        | sed -n 's/^IntegrationTests::\(.*\)()$/\1/p'
+        | sed -n 's/^\([^ ][^ ]*::.*\)()$/\1/p'
 )
 if [[ ${#cases[@]} -eq 0 ]]; then
     echo "No integration test functions were discovered" >&2
@@ -47,7 +51,7 @@ fi
 # case refuses the bind and fails a test that has nothing wrong with it.
 vnc_port=5900
 next_platform() {
-    if [[ ${KVIT_INTEGRATION_VISIBLE:-0} == 1 ]]; then
+    if [[ $use_vnc != 1 ]]; then
         return
     fi
     vnc_port=$((vnc_port + 1))
@@ -66,15 +70,15 @@ next_platform() {
 run_case() {
     if command -v timeout >/dev/null 2>&1; then
         timeout "${KVIT_INTEGRATION_CASE_TIMEOUT:-60}" \
-            "$binary" -input "$input" "IntegrationTests::$1" 2>&1
+            "$binary" -input "$input" "$1" 2>&1
     else
-        "$binary" -input "$input" "IntegrationTests::$1" 2>&1
+        "$binary" -input "$input" "$1" 2>&1
     fi
 }
 
 failed=0
 for test_case in "${cases[@]}"; do
-    echo "[integration] $test_case"
+    echo "[integration] ${test_case#*::}"
     passed=0
     for attempt in 1 2 3; do
         # Give the display server a beat to retire the prior process's window.
@@ -85,7 +89,7 @@ for test_case in "${cases[@]}"; do
             break
         fi
         if [[ $attempt -lt 3 ]]; then
-            echo "[integration] retry $attempt: $test_case"
+            echo "[integration] retry $attempt: ${test_case#*::}"
         fi
     done
     if [[ $passed -eq 0 ]]; then

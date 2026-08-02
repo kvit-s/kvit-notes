@@ -84,6 +84,7 @@ QList<UrlLauncher::Opener> UrlLauncher::desktopOpeners()
 void UrlLauncher::setOpenersForTests(const QList<Opener> &openers)
 {
     m_openers = openers;
+    m_testOpenersSet = true;
 }
 
 bool UrlLauncher::isOpenableScheme(const QString &url)
@@ -101,6 +102,18 @@ void UrlLauncher::open(const QString &url)
         emit refused(url);
         return;
     }
+    // Tests inject known processes instead of opening the machine's browser.
+    // This branch deliberately precedes the native-platform branch: Windows
+    // and macOS used to ignore the seam, launching QDesktopServices and making
+    // the same unit suite mean something different on every operating system.
+    if (m_testOpenersSet) {
+        if (m_openers.isEmpty())
+            emit failed(url);
+        else
+            tryOpener(url, 0);
+        return;
+    }
+
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     if (QDesktopServices::openUrl(QUrl(url)))
         emit opened(url);

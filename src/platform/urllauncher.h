@@ -101,6 +101,10 @@ private:
     void tryOpener(const QString &url, int index);
 
     QList<Opener> m_openers;
+    // setOpenersForTests() must override the native QDesktopServices path on
+    // Windows and macOS too. An empty injected list is meaningful: it models
+    // a desktop with no handler and must not fall back to the real browser.
+    bool m_testOpenersSet = false;
     int m_verdictMs = 1500;
 };
 

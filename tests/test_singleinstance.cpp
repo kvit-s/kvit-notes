@@ -17,6 +17,8 @@
 #include <QSignalSpy>
 #include <QString>
 
+#include <future>
+
 #include "singleinstance.h"
 
 namespace {
@@ -43,12 +45,20 @@ private slots:
 
         QSignalSpy received(&primary, &SingleInstance::requestReceived);
 
-        SingleInstance secondary(name);
-        QVERIFY2(!secondary.tryBecomePrimary(),
-                 "a second instance on a claimed name must not become primary");
-        QVERIFY(secondary.forwardToPrimary(QStringLiteral("/home/user/Vault")));
+        // A real secondary is another process, so the primary's event loop
+        // keeps accepting while the secondary connects. Running both sides
+        // synchronously on this thread deadlocks that handshake on Windows'
+        // named pipes: forwardToPrimary waits while the primary cannot process
+        // newConnection. A worker gives the test the production topology.
+        auto forwarded = std::async(std::launch::async, [name]() {
+            SingleInstance secondary(name);
+            return !secondary.tryBecomePrimary()
+                && secondary.forwardToPrimary(
+                    QStringLiteral("/home/user/Vault"));
+        });
 
         QVERIFY(received.wait(2000));
+        QVERIFY(forwarded.get());
         QCOMPARE(received.count(), 1);
         QCOMPARE(received.first().at(0).toString(),
                  QStringLiteral("/home/user/Vault"));
@@ -62,11 +72,14 @@ private slots:
         QVERIFY(primary.tryBecomePrimary());
         QSignalSpy received(&primary, &SingleInstance::requestReceived);
 
-        SingleInstance secondary(name);
-        QVERIFY(!secondary.tryBecomePrimary());
-        QVERIFY(secondary.forwardToPrimary(QString()));
+        auto forwarded = std::async(std::launch::async, [name]() {
+            SingleInstance secondary(name);
+            return !secondary.tryBecomePrimary()
+                && secondary.forwardToPrimary(QString());
+        });
 
         QVERIFY(received.wait(2000));
+        QVERIFY(forwarded.get());
         QCOMPARE(received.count(), 1);
         QVERIFY(received.first().at(0).toString().isEmpty());
     }
