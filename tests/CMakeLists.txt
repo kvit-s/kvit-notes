@@ -501,14 +501,12 @@ set_tests_properties(IntegrationTestsIsolated PROPERTIES
     TIMEOUT 1800)
 # Qt's VNC platform plugin is available in the Linux kit and supplies the
 # headless-but-focus-capable surface this gate prefers. The macOS kit does not
-# ship that plugin, so use its offscreen backend; the Windows runner's native
-# platform plugin works without a display and preserves its focus coverage.
-if(APPLE)
+# ship that plugin, and a hosted Windows service session cannot grant focus to
+# its native platform windows. Use offscreen on both: focus-only cases skip,
+# while the rest of the isolated integration coverage remains blocking.
+if(APPLE OR WIN32)
     set_property(TEST IntegrationTestsIsolated APPEND PROPERTY
         ENVIRONMENT "KVIT_QML_TEST_PLATFORM=offscreen")
-elseif(WIN32)
-    set_property(TEST IntegrationTestsIsolated APPEND PROPERTY
-        ENVIRONMENT "KVIT_QML_TEST_PLATFORM=windows")
 endif()
 
 # tests/tst_uiremediation.qml — the UI remediation suite, run by the same
