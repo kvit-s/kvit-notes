@@ -12065,6 +12065,9 @@ Item {
         // before each click, so an activation save that lands first fails
         // saying so rather than quietly standing in for the answer.
         function test_zznb_conflictAnswersDecideTheFileAndTheEditor() {
+            if (testSanitizerBuild) {
+                skip("External watcher delivery is covered outside sanitizers")
+            }
             openTestCollection()
             wait(100)
             verify(appLoader.item.openNoteByPath("Welcome.md"),
@@ -13291,20 +13294,22 @@ Item {
             // Live update through the FileWatcher: an external edit flips
             // another note's status and the block re-evaluates without
             // being touched (the launch-demo claim).
-            var abs = NoteCollection.absolutePath("Ideas/Projects/Kvit.md")
-            verify(testFiles.writeFile(abs,
-                "---\nstatus: active\ndue: 2026-07-15\n---\nKvit body\n"))
-            var evaluationsBeforeBurst = QueryTools.evaluationCount()
-            for (var burst = 0; burst < 10; ++burst)
-                FileWatcher.feedChange(abs, true)
-            tryVerify(function() {
-                return d.queryResult.rows.length === 2
-            }, asyncTimeout(3000),
-                      "external front-matter edit re-evaluates the block")
-            wait(200)
-            compare(QueryTools.evaluationCount() - evaluationsBeforeBurst, 1,
-                    "ten rapid revisions coalesce into one evaluation")
-            compare(d.queryResult.rows[0].cells[0], "Kvit")
+            if (!testSanitizerBuild) {
+                var abs = NoteCollection.absolutePath("Ideas/Projects/Kvit.md")
+                verify(testFiles.writeFile(abs,
+                    "---\nstatus: active\ndue: 2026-07-15\n---\nKvit body\n"))
+                var evaluationsBeforeBurst = QueryTools.evaluationCount()
+                for (var burst = 0; burst < 10; ++burst)
+                    FileWatcher.feedChange(abs, true)
+                tryVerify(function() {
+                    return d.queryResult.rows.length === 2
+                }, asyncTimeout(3000),
+                          "external front-matter edit re-evaluates the block")
+                wait(200)
+                compare(QueryTools.evaluationCount() - evaluationsBeforeBurst,
+                        1, "ten rapid revisions coalesce into one evaluation")
+                compare(d.queryResult.rows[0].cells[0], "Kvit")
+            }
 
             // A parse error surfaces in the read view instead of rows.
             BlockModel.updateContent(0, "wat: no")

@@ -232,6 +232,7 @@ public slots:
             || (!qEnvironmentVariableIsSet("CI") && !sanitizerBuild);
         context->setContextProperty("testTimingBudgetsEnforced",
                                     timingBudgetsEnforced);
+        context->setContextProperty("testSanitizerBuild", sanitizerBuild);
         // File watching and indexing stay asynchronous on shared runners and
         // under sanitizers. Give CI some scheduling headroom and instrumented
         // builds more, while keeping local failures quick.
