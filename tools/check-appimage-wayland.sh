@@ -88,7 +88,7 @@ grep -qE 'failed to load component|is not a type|module .* not installed|plugin 
     && { grep -nE 'failed to load component|is not a type|module .* not installed|plugin .* not found|Could not (find|load) the Qt platform plugin' "$RUN_LOG" >&2
          fail "QML or Wayland plugin errors from the packaged app"; }
 
-grep -qE 'libqwayland-(egl|generic)\.so.*loaded library' "$RUN_LOG" \
+grep -qE 'libqwayland\.so.*loaded library' "$RUN_LOG" \
     || { tail -80 "$RUN_LOG" >&2
          fail "Qt did not report loading a bundled Wayland QPA plugin"; }
 

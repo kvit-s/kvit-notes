@@ -464,7 +464,7 @@ jobs:
         with:
           version: ${{ env.QT_VERSION }}
           arch: linux_gcc_64
-          modules: qtmultimedia qtshadertools qtimageformats qtwaylandcompositor
+          modules: qtmultimedia qtshadertools qtimageformats
           cache: true
 
       # The script configures the preset itself, so a fresh checkout is all it

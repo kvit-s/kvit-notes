@@ -109,12 +109,10 @@ components:
   - name: Qt Wayland client integration
     version: "6.10.1"
     spdx: LGPL-3.0-only OR GPL-2.0-only
-    origin: Qt-provided Wayland integration plugin (qtwaylandcompositor
-      installer component)
-    files: libQt6WaylandClient.so.6, plugins/platforms/libqwayland-egl.so,
-      plugins/platforms/libqwayland-generic.so, and the client-side
-      wayland-decoration-client, wayland-graphics-integration-client and
-      wayland-shell-integration plugin directories in the Linux AppImage
+    origin: Qt-provided Wayland client integration in the Linux base kit
+    files: libQt6WaylandClient.so.6, plugins/platforms/libqwayland.so, and the
+      client-side wayland-decoration-client, wayland-graphics-integration-client
+      and wayland-shell-integration plugin directories in the Linux AppImage
     license_file: covered by the Qt licenses folder in the artifact
       (share/licenses/kvit-notes/qt)
     ships_in: [linux]

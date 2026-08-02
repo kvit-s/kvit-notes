@@ -70,14 +70,13 @@ fi
 # ── Platform plugins promised by the Linux package.
 #
 # XCB is the X11/XWayland path, offscreen supports packaged headless probes,
-# and both Wayland plugins are required by linuxdeploy-plugin-qt for native
-# Wayland. Merely running on a Wayland desktop is not enough when only XCB is
-# present: Qt then exercises XWayland instead.
+# and Qt 6.10's unified Wayland plugin provides native Wayland. Merely running
+# on a Wayland desktop is not enough when only XCB is present: Qt then
+# exercises XWayland instead.
 PLATFORMS=(
     libqxcb.so
     libqoffscreen.so
-    libqwayland-egl.so
-    libqwayland-generic.so
+    libqwayland.so
 )
 
 echo "QPA platform plugin check: $APPDIR/usr/plugins/platforms"
@@ -95,9 +94,9 @@ if [ "$MISSING" -ne 0 ]; then
     exit 1
 fi
 
-# The Qt installer component is named qtwaylandcompositor, but a desktop
-# application needs only its LGPL/GPL-2 client integration. The compositor API
-# is GPL-3-only under Qt's open-source terms and must not enter this artifact.
+# The Qt Linux base kit includes the LGPL/GPL-2 client integration. The
+# separate compositor API is GPL-3-only under Qt's open-source terms and must
+# not enter this artifact.
 if compgen -G "$APPDIR/usr/lib/libQt6WaylandClient.so*" > /dev/null; then
     echo "  ok  libQt6WaylandClient"
 else

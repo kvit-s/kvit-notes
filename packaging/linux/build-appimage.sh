@@ -156,11 +156,12 @@ cmake --install "$BUILD_DIR" --prefix "$APPDIR/usr"
 [ -n "${QT_ROOT_DIR:-}" ] && \
     export LD_LIBRARY_PATH="$QT_ROOT_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 # Qt applications do not link the Wayland client module directly; the QPA
-# plugin loads it at runtime. Force both the client module and its platform
-# plugins into the AppDir so a Wayland login uses native Wayland instead of
-# silently falling back to XWayland.
-export EXTRA_QT_MODULES="multimedia;waylandcompositor"
-export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
+# plugin loads it at runtime. Qt 6.10's Linux kit ships one unified Wayland
+# platform plugin (rather than the older generic/EGL pair). Deploying that
+# plugin also pulls in libQt6WaylandClient and keeps Wayland sessions native
+# instead of silently falling back to XWayland.
+export EXTRA_QT_MODULES="multimedia"
+export EXTRA_PLATFORM_PLUGINS="libqwayland.so"
 
 # linuxdeploy-plugin-qt works out which QML modules to deploy by scanning QML
 # source files. This app compiles its QML into resources.qrc, so there is no

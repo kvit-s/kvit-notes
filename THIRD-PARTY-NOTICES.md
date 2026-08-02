@@ -79,8 +79,8 @@ manifest, not this file.
 
 - **Version:** 6.10.1
 - **License:** LGPL-3.0-only OR GPL-2.0-only
-- **Origin:** Qt-provided Wayland integration plugin (qtwaylandcompositor installer component)
-- **Files:** libQt6WaylandClient.so.6, plugins/platforms/libqwayland-egl.so, plugins/platforms/libqwayland-generic.so, and the client-side wayland-decoration-client, wayland-graphics-integration-client and wayland-shell-integration plugin directories in the Linux AppImage
+- **Origin:** Qt-provided Wayland client integration in the Linux base kit
+- **Files:** libQt6WaylandClient.so.6, plugins/platforms/libqwayland.so, and the client-side wayland-decoration-client, wayland-graphics-integration-client and wayland-shell-integration plugin directories in the Linux AppImage
 - **License text:** covered by the Qt licenses folder in the artifact (share/licenses/kvit-notes/qt)
 - **Ships in:** linux
 - **Obligations:** Dynamically linked client integration only. Qt publishes this integration under LGPL-3.0-only or GPL-2.0-only. Do not ship libQt6WaylandCompositor: that API is GPL-3.0-only under Qt's open-source terms and Kvit is a Wayland client, not a compositor. The AppDir runtime check enforces both sides of this boundary.
