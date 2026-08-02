@@ -6558,6 +6558,8 @@ Item {
             verify(treeView !== null, "folder tree exists")
             var row = FolderTreeModel.rowOf(relPath)
             verify(row >= 0, "folder " + relPath + " is a visible row")
+            treeView.positionViewAtIndex(row, ListView.Contain)
+            waitForRendering(treeView)
             var item = treeView.itemAtIndex(row)
             verify(item !== null, "folder row instantiated")
             return item

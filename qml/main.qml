@@ -1459,15 +1459,30 @@ KvitShell {
     // Collection UI notifications. Open-note rebind/detach and metadata
     // persistence happen inside the C++ session/repository transaction.
     Connections {
+        id: collectionConnections
         target: NoteCollection
         enabled: root.collectionOpen
 
+        property string removedOpenNotePending: ""
+
+        function openRemovedNoteFallback() {
+            if (removedOpenNotePending === "")
+                return
+            // NoteListModel deliberately coalesces collection revisions for
+            // 20 ms. Do not read its first row until that rebuild has removed
+            // the deleted path; otherwise a fast callLater can try to reopen
+            // the note that just moved to trash.
+            if (NoteListModel.rowOf(removedOpenNotePending) >= 0)
+                return
+            var next = NoteListModel.relPathAt(0)
+            removedOpenNotePending = ""
+            if (next !== "")
+                root.openNoteByPath(next)
+        }
+
         function onOpenNoteRemoved(relPath) {
-            Qt.callLater(function() {
-                var next = NoteListModel.relPathAt(0)
-                if (next !== "")
-                    root.openNoteByPath(next)
-            })
+            removedOpenNotePending = relPath
+            Qt.callLater(openRemovedNoteFallback)
         }
         function onOperationFailed(message) {
             root.documentDialogs().showError(message)
@@ -1496,6 +1511,13 @@ KvitShell {
                     .arg(linkCount === 1 ? qsTr("link") : qsTr("links"))
                     .arg(noteCount)
                     .arg(noteCount === 1 ? qsTr("note") : qsTr("notes")))
+        }
+    }
+
+    Connections {
+        target: NoteListModel
+        function onCountChanged() {
+            collectionConnections.openRemovedNoteFallback()
         }
     }
 
