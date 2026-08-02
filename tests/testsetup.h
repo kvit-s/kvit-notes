@@ -236,7 +236,7 @@ public slots:
         // under sanitizers. Give CI some scheduling headroom and instrumented
         // builds more, while keeping local failures quick.
         const int asyncTimeoutMultiplier = sanitizerBuild
-            ? 4
+            ? 8
             : (qEnvironmentVariableIsSet("CI") ? 2 : 1);
         context->setContextProperty("testAsyncTimeoutMultiplier",
                                     asyncTimeoutMultiplier);
