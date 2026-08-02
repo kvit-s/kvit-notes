@@ -30,6 +30,7 @@ private slots:
     void testManualSortInFolderScope();
     void testManualSortFallsBackToTitleElsewhere();
     void testRebuildsOnCollectionChange();
+    void testRebuildNowSynchronizesPendingRevision();
     void testMetadataChangeUpdatesRowsWithoutReset();
     void testShapeChangesUseIncrementalSignals();
     void testRowLookups();
@@ -264,6 +265,24 @@ void TestNoteListModel::testRebuildsOnCollectionChange()
     QCOMPARE(m_model->rowCount(), 2);
     QVERIFY(m_collection->setFavorite(QStringLiteral("Banana.md"), true));
     QTRY_COMPARE(m_model->rowCount(), 3);
+}
+
+void TestNoteListModel::testRebuildNowSynchronizesPendingRevision()
+{
+    QCOMPARE(m_model->rowCount(), 5);
+    QCOMPARE(m_collection->createNote(QString(), QStringLiteral("Fig")),
+             QStringLiteral("Fig.md"));
+    // The ordinary projection is intentionally still waiting on its timer.
+    QCOMPARE(m_model->rowCount(), 5);
+    m_model->rebuildNow();
+    QCOMPARE(m_model->rowCount(), 6);
+    QVERIFY(m_model->rowOf(QStringLiteral("Fig.md")) >= 0);
+
+    QVERIFY(m_collection->deleteNote(QStringLiteral("Fig.md")));
+    QCOMPARE(m_model->rowCount(), 6);
+    m_model->rebuildNow();
+    QCOMPARE(m_model->rowCount(), 5);
+    QCOMPARE(m_model->rowOf(QStringLiteral("Fig.md")), -1);
 }
 
 void TestNoteListModel::testMetadataChangeUpdatesRowsWithoutReset()

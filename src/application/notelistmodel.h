@@ -68,6 +68,10 @@ public:
 
     Q_INVOKABLE int rowOf(const QString &relPath) const;
     Q_INVOKABLE QString relPathAt(int row) const;
+    // Collection revisions are normally coalesced for 20 ms. Transitions
+    // that must immediately consume the new projection (such as choosing a
+    // fallback after deleting the open note) can synchronize explicitly.
+    Q_INVOKABLE void rebuildNow();
 
 signals:
     void projectionChanged();

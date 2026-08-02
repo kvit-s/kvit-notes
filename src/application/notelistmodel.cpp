@@ -88,6 +88,11 @@ void NoteListModel::scheduleRebuild()
         m_rebuildTimer.start();
 }
 
+void NoteListModel::rebuildNow()
+{
+    rebuild();
+}
+
 QStringList NoteListModel::projectedRows() const
 {
     QStringList rows;

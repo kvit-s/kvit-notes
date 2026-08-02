@@ -6753,25 +6753,27 @@ Item {
             nameField.text = "Archive"
             dialog.selectedColor = "#e05c5c"
             dialog.accept()
-            wait(50)
-            compare(FolderTreeModel.rowOf("Archive") >= 0, true,
-                    "created folder is a row")
+            tryVerify(function() {
+                return FolderTreeModel.rowOf("Archive") >= 0
+            }, asyncTimeout(1000), "created folder is a row")
             verify(folderRowFor("Archive") !== null)
 
             // Rename via the dialog.
             dialog.openForRename("Archive", "Archive", "#e05c5c")
             nameField.text = "Vault"
             dialog.accept()
-            wait(50)
-            verify(FolderTreeModel.rowOf("Vault") >= 0, "renamed row exists")
-            compare(FolderTreeModel.rowOf("Archive"), -1)
+            tryVerify(function() {
+                return FolderTreeModel.rowOf("Vault") >= 0
+                    && FolderTreeModel.rowOf("Archive") === -1
+            }, asyncTimeout(1000), "renamed row replaces the old row")
 
             // Delete (confirmed) moves it to trash and drops the row.
             var deleteDialog = findChild(appLoader.item, "deleteFolderDialog")
             deleteDialog.openFor("Vault", "Vault", 0)
             deleteDialog.accept()
-            wait(50)
-            compare(FolderTreeModel.rowOf("Vault"), -1)
+            tryVerify(function() {
+                return FolderTreeModel.rowOf("Vault") === -1
+            }, asyncTimeout(1000), "deleted folder row is removed")
 
             closeTestCollection()
         }
