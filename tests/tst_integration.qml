@@ -3121,7 +3121,8 @@ Item {
                                 c: BlockModel.getContent(i) })
             }
 
-            var url = DocumentManager.toLocalFileUrl("/tmp/kvit_roundtrip_test.md")
+            var url = DocumentManager.toLocalFileUrl(
+                testCollectionDir + "/kvit_roundtrip_test.md")
             verify(DocumentManager.saveAs(url), "Save should succeed")
 
             DocumentManager.newDocument()
@@ -3189,7 +3190,8 @@ Item {
             // content to make all 200 blocks round-trip.
             BlockModel.updateContent(199, "Final load test block")
             wait(100)
-            var url = DocumentManager.toLocalFileUrl("/tmp/kvit_loadtime_test.md")
+            var url = DocumentManager.toLocalFileUrl(
+                testCollectionDir + "/kvit_loadtime_test.md")
             verify(DocumentManager.saveAs(url), "Save should succeed")
 
             DocumentManager.newDocument()
@@ -8041,6 +8043,9 @@ Item {
         // watching a theme change land in the document, so the title bar
         // drags it.
         function test_zb2_settingsDialogFitsAndMoves() {
+            if (isHeadless) {
+                skip("Dialog geometry tests require display fonts")
+            }
             var dialog = findChild(appLoader.item, "settingsDialog")
             verify(dialog !== null)
             dialog.open()
@@ -13352,6 +13357,9 @@ Item {
         // this the only way to take any of that text was the block menu's
         // "Copy as → Plain text", which takes all of it.
         function test_wiki9_queryResultsAreSelectable() {
+            if (isHeadless) {
+                skip("Rendered selection tests require display fonts")
+            }
             openTestCollection()
             verify(testFiles.writeFile(
                 NoteCollection.absolutePath("Ideas/Reading.md"),
