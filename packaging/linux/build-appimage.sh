@@ -159,8 +159,12 @@ cmake --install "$BUILD_DIR" --prefix "$APPDIR/usr"
 # plugin loads it at runtime. Qt 6.10's Linux kit ships one unified Wayland
 # platform plugin (rather than the older generic/EGL pair). Deploying that
 # plugin also pulls in libQt6WaylandClient and keeps Wayland sessions native
-# instead of silently falling back to XWayland.
-export EXTRA_QT_MODULES="multimedia"
+# instead of silently falling back to XWayland. linuxdeploy-plugin-qt calls
+# its client-plugin-directory deployer "waylandcompositor"; that token copies
+# only wayland-{decoration,graphics,shell}-integration client plugins. CI does
+# not install the separate Qt Wayland Compositor add-on, and the AppDir check
+# below rejects its GPL-only library if it ever appears.
+export EXTRA_QT_MODULES="multimedia;waylandcompositor"
 export EXTRA_PLATFORM_PLUGINS="libqwayland.so"
 
 # linuxdeploy-plugin-qt works out which QML modules to deploy by scanning QML

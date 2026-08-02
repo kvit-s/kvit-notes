@@ -94,6 +94,29 @@ if [ "$MISSING" -ne 0 ]; then
     exit 1
 fi
 
+# Native Wayland also loads client integration plugins at runtime. The XDG
+# shell plugin is required to create a window under current compositors; the
+# graphics and decoration plugins cover the corresponding Qt client paths.
+WAYLAND_CLIENT_PLUGINS=(
+    wayland-shell-integration/libxdg-shell.so
+    wayland-graphics-integration-client/libqt-plugin-wayland-egl.so
+    wayland-decoration-client/libbradient.so
+)
+
+echo "Wayland client plugin check: $APPDIR/usr/plugins"
+for plugin in "${WAYLAND_CLIENT_PLUGINS[@]}"; do
+    if [ -f "$APPDIR/usr/plugins/$plugin" ]; then
+        echo "  ok  $plugin"
+    else
+        echo "MISSING Wayland client plugin: $plugin" >&2
+        MISSING=1
+    fi
+done
+if [ "$MISSING" -ne 0 ]; then
+    echo "The AppDir cannot initialize the promised native Wayland client" >&2
+    exit 1
+fi
+
 # The Qt Linux base kit includes the LGPL/GPL-2 client integration. The
 # separate compositor API is GPL-3-only under Qt's open-source terms and must
 # not enter this artifact.
