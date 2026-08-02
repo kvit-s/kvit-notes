@@ -11932,6 +11932,26 @@ Item {
             verify(qc !== null, "quick capture window exists")
             var ta = findChild(qc, "quickCaptureText")
             verify(ta !== null, "quick capture text field exists")
+            var cancelButton = findChild(qc, "quickCaptureCancel")
+            var saveButton = findChild(qc, "quickCaptureSave")
+            verify(cancelButton !== null && saveButton !== null,
+                   "quick capture actions exist")
+
+            // A top-level Window does not inherit the main window's palette.
+            // Exercise the dark theme that exposed platform-default black
+            // placeholder text and white buttons in this otherwise dark UI.
+            Theme.themeId = "dark"
+            verify(Qt.colorEqual(qc.palette.text, Theme.textPrimary),
+                   "capture window text follows the theme")
+            verify(Qt.colorEqual(ta.palette.placeholderText,
+                                 Theme.textDisabled),
+                   "capture placeholder follows the theme")
+            verify(Qt.colorEqual(cancelButton.palette.button,
+                                 Theme.footerBackground),
+                   "capture buttons follow the theme")
+            verify(Qt.colorEqual(saveButton.palette.highlight,
+                                 Theme.accent),
+                   "highlighted capture action follows the theme")
             ta.text = "Captured by the seam test\nwith a second body line"
             qc.save()
             wait(250)

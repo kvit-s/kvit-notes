@@ -25,6 +25,28 @@ Window {
     title: qsTr("Quick capture")
     color: Theme.windowBackground
 
+    // This is a separate top-level Window, so it cannot inherit the control
+    // palette from main.qml's ApplicationWindow. Without its own palette the
+    // TextArea placeholder, buttons and scrollbars fall back to the platform
+    // colors even though the window surface itself uses the selected theme.
+    palette {
+        window: Theme.panelBackground
+        windowText: Theme.textPrimary
+        base: Theme.windowBackground
+        alternateBase: Theme.listBackground
+        text: Theme.textPrimary
+        button: Theme.footerBackground
+        buttonText: Theme.textPrimary
+        highlight: Theme.accent
+        highlightedText: Theme.onAccent
+        placeholderText: Theme.textDisabled
+        mid: Theme.borderStrong
+        dark: Theme.textSecondary
+        light: Theme.hoverTint
+        toolTipBase: Theme.popupBackground
+        toolTipText: Theme.textPrimary
+    }
+
     // Open centered and focused on the text field. Text that failed to save
     // survives a re-open — the hotkey firing again must not be the thing that
     // finally discards it.
