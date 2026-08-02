@@ -67,6 +67,48 @@ if [ "$MISSING" -ne 0 ]; then
     exit 1
 fi
 
+# ── Platform plugins promised by the Linux package.
+#
+# XCB is the X11/XWayland path, offscreen supports packaged headless probes,
+# and both Wayland plugins are required by linuxdeploy-plugin-qt for native
+# Wayland. Merely running on a Wayland desktop is not enough when only XCB is
+# present: Qt then exercises XWayland instead.
+PLATFORMS=(
+    libqxcb.so
+    libqoffscreen.so
+    libqwayland-egl.so
+    libqwayland-generic.so
+)
+
+echo "QPA platform plugin check: $APPDIR/usr/plugins/platforms"
+for plugin in "${PLATFORMS[@]}"; do
+    if [ -f "$APPDIR/usr/plugins/platforms/$plugin" ]; then
+        echo "  ok  $plugin"
+    else
+        echo "MISSING QPA platform plugin: $plugin" >&2
+        MISSING=1
+    fi
+done
+if [ "$MISSING" -ne 0 ]; then
+    echo "The AppDir cannot cover its promised X11, Wayland and offscreen" \
+         "platform paths." >&2
+    exit 1
+fi
+
+# The Qt installer component is named qtwaylandcompositor, but a desktop
+# application needs only its LGPL/GPL-2 client integration. The compositor API
+# is GPL-3-only under Qt's open-source terms and must not enter this artifact.
+if compgen -G "$APPDIR/usr/lib/libQt6WaylandClient.so*" > /dev/null; then
+    echo "  ok  libQt6WaylandClient"
+else
+    echo "MISSING Qt Wayland client library" >&2
+    exit 1
+fi
+if compgen -G "$APPDIR/usr/lib/libQt6WaylandCompositor.so*" > /dev/null; then
+    echo "FORBIDDEN GPL-only Qt Wayland compositor library in AppDir" >&2
+    exit 1
+fi
+
 # ── Launch check.
 #
 # The binary has no "load the shell and exit" mode, so it is started headless

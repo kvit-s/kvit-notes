@@ -18,6 +18,18 @@ span revealed only while your cursor is inside it.
 | Windows | [Installer or portable zip](https://github.com/kvit-s/kvit-notes/releases/latest) |
 | macOS | [DMG](https://github.com/kvit-s/kvit-notes/releases/latest) |
 
+The Linux download is a self-contained AppImage rather than a system package:
+
+```bash
+chmod +x Kvit_Notes-*-x86_64.AppImage
+./Kvit_Notes-*-x86_64.AppImage
+```
+
+Its AppImage runtime carries its FUSE userspace dependency, so current Ubuntu
+and Fedora installations do not need the legacy `libfuse2` compatibility
+package. On a system where FUSE mounting itself is unavailable (for example a
+restricted container), use `--appimage-extract-and-run` as a slower fallback.
+
 **Neither the Windows nor the macOS download is code-signed.** A release tag
 builds all three: the Linux AppImage, a per-user Inno Setup installer and a
 portable zip for Windows, and a `macdeployqt` bundle inside a compressed DMG.

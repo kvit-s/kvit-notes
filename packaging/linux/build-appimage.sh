@@ -5,9 +5,11 @@
 #
 # Run from anywhere; the script works from the repo root. It is self-contained:
 # a clean checkout needs only Qt on QT_ROOT_DIR, network access to fetch the
-# pinned linuxdeploy tools on first run, and FUSE or APPIMAGE_EXTRACT_AND_RUN=1.
-# It configures the preset itself rather than assuming a build tree exists,
-# because the tag-triggered packaging job in CI runs on a fresh checkout.
+# pinned packaging tools on first run. linuxdeploy and appimagetool themselves
+# run through extract-and-run so the build host needs no FUSE 2 compatibility
+# library; the finished artifact is deliberately exercised through FUSE. It
+# configures the preset itself rather than assuming a build tree exists, because
+# the tag-triggered packaging job in CI runs on a fresh checkout.
 #
 # Version: pass KVIT_VERSION_FULL, or let the script derive it from the tag
 # being built (GITHUB_REF_NAME, or `git describe`). See "Release version"
@@ -86,13 +88,21 @@ echo "Building version $VERSION (from $VERSION_SOURCE)"
 # what users are given. Each tool is verified against the digest below before
 # it is made executable, and a mismatch stops the build.
 #
-# Digests recorded 2026-07-20 by downloading each asset and running sha256sum.
-# To move to a newer linuxdeploy release, update both the URL and its digest;
-# a URL change without a digest change fails closed.
+# The linuxdeploy core digest was recorded 2026-07-20. The Qt plugin,
+# appimagetool and runtime digests were recorded 2026-08-02 and independently
+# verified with sha256sum. The runtime is pinned independently from
+# appimagetool so an older runtime embedded in the packer cannot silently
+# restore the libfuse.so.2 dependency on Ubuntu 24.04 and other FUSE 3 systems.
+# To update any tool, change both its URL and digest; changing only the URL
+# fails closed.
 LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage"
 LINUXDEPLOY_SHA256="c86d6540f1df31061f02f539a2d3445f8d7f85cc3994eee1e74cd1ac97b76df0"
-LINUXDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20240109-1/linuxdeploy-plugin-qt-x86_64.AppImage"
-LINUXDEPLOY_QT_SHA256="f53349093d333a6558c560844c1a0f64a3b6bd077bf02740af3ad3dbb8827433"
+LINUXDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage"
+LINUXDEPLOY_QT_SHA256="15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724"
+APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+APPIMAGETOOL_SHA256="a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0"
+APPIMAGE_RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64"
+APPIMAGE_RUNTIME_SHA256="1cc49bcf1e2ccd593c379adb17c9f85a36d619088296504de95b1d06215aebbf"
 
 mkdir -p "$TOOLS" "$DIST"
 
@@ -126,6 +136,8 @@ fetch_verified() {
 
 fetch_verified "$LINUXDEPLOY_URL" "$LINUXDEPLOY_SHA256"
 fetch_verified "$LINUXDEPLOY_QT_URL" "$LINUXDEPLOY_QT_SHA256"
+fetch_verified "$APPIMAGETOOL_URL" "$APPIMAGETOOL_SHA256"
+fetch_verified "$APPIMAGE_RUNTIME_URL" "$APPIMAGE_RUNTIME_SHA256"
 
 # ── Configure, build, install
 #
@@ -139,13 +151,16 @@ cmake --build --preset linux-release -j "$(nproc)" --target kvit-notes
 rm -rf "$APPDIR"
 cmake --install "$BUILD_DIR" --prefix "$APPDIR/usr"
 
-export APPIMAGE_EXTRACT_AND_RUN=1   # works without FUSE (containers, WSL)
 # linuxdeploy resolves dependencies through the loader, so the Qt kit's lib
 # dir must be visible to it.
 [ -n "${QT_ROOT_DIR:-}" ] && \
     export LD_LIBRARY_PATH="$QT_ROOT_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export EXTRA_QT_MODULES="multimedia"
-export EXTRA_QT_PLUGINS="imageformats;multimedia"
+# Qt applications do not link the Wayland client module directly; the QPA
+# plugin loads it at runtime. Force both the client module and its platform
+# plugins into the AppDir so a Wayland login uses native Wayland instead of
+# silently falling back to XWayland.
+export EXTRA_QT_MODULES="multimedia;waylandcompositor"
+export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
 
 # linuxdeploy-plugin-qt works out which QML modules to deploy by scanning QML
 # source files. This app compiles its QML into resources.qrc, so there is no
@@ -191,7 +206,7 @@ export QMAKE="$(pwd)/$BUILD_DIR/qmake-staged"
 export LDAI_OUTPUT="$DIST/Kvit_Notes-$VERSION-x86_64.AppImage"
 
 # Pass 1: deploy Qt into the AppDir (no packing yet).
-"$TOOLS/$(basename "$LINUXDEPLOY_URL")" \
+APPIMAGE_EXTRACT_AND_RUN=1 "$TOOLS/$(basename "$LINUXDEPLOY_URL")" \
     --appdir "$APPDIR" \
     --desktop-file "$APPDIR/usr/share/applications/kvit-notes.desktop" \
     --icon-file packaging/icons/hicolor/256x256/apps/kvit-notes.png \
@@ -230,25 +245,41 @@ else
          "and GPL-3 texts are the artifact's Qt license payload."
 fi
 
+# appimagetool prefixes the AppDir with the static type-2 runtime after the
+# normal install step. Carry its notice and the LGPL-2.1 text for its embedded
+# libfuse inside the payload so they remain accessible through both mounting
+# and --appimage-extract.
+APPIMAGE_RUNTIME_LICENSE_DIR="$APPDIR/usr/share/licenses/kvit-notes/appimage-runtime"
+mkdir -p "$APPIMAGE_RUNTIME_LICENSE_DIR"
+install -m644 packaging/licenses/appimage-runtime/LICENSE \
+    "$APPIMAGE_RUNTIME_LICENSE_DIR/LICENSE.appimage-runtime"
+install -m644 packaging/licenses/appimage-runtime/LICENSE.LGPL2.1 \
+    "$APPIMAGE_RUNTIME_LICENSE_DIR/LICENSE.LGPL2.1"
+
 # Fail closed. Neither an artifact missing a required notice nor one that
 # cannot start its interface is published: both checks run against the
 # finished AppDir, before it is packed.
-tools/check-license-payload.sh "$APPDIR/usr" --qt
+tools/check-license-payload.sh "$APPDIR/usr" --qt --appimage-runtime
 tools/check-appdir-runtime.sh "$APPDIR"
 
 mkdir -p packaging/manifests
 find "$APPDIR" \( -name '*.so*' -o -name 'kvit-notes' \) -type f | sort \
     > "packaging/manifests/linux-$VERSION.txt"
 
-# Pass 2: pack the finished AppDir.
-"$TOOLS/$(basename "$LINUXDEPLOY_URL")" \
-    --appdir "$APPDIR" \
-    --output appimage
+# Pass 2: pack the finished AppDir with a separately pinned, statically linked
+# type-2 runtime. linuxdeploy remains responsible for the relocatable AppDir;
+# appimagetool only creates the SquashFS image and prefixes this exact runtime.
+ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 \
+    "$TOOLS/$(basename "$APPIMAGETOOL_URL")" \
+    --runtime-file "$TOOLS/$(basename "$APPIMAGE_RUNTIME_URL")" \
+    "$APPDIR" "$LDAI_OUTPUT"
 
 # The packed artifact is the thing users download, so it is the thing that
 # gets run. The AppDir checks above cannot see anything the squashfs image,
-# AppRun or the relocation step breaks, and this suggestion used to be
-# printed rather than executed.
+# AppRun, runtime or relocation step breaks. Do not set
+# APPIMAGE_EXTRACT_AND_RUN here: this check must exercise the actual mount path
+# users take. A separate Ubuntu 24.04 CI job repeats it with libfuse2 absent.
+unset APPIMAGE_EXTRACT_AND_RUN
 tools/check-appimage.sh "$LDAI_OUTPUT"
 
 echo "AppImage: $LDAI_OUTPUT"

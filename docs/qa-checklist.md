@@ -168,6 +168,12 @@ pass.
        in the run record, because the AppImage baseline claim in the
        README is only as good as the oldest distribution actually tested.
 
+       *Confirm the backend:* for the Wayland pass, launch once with
+       `QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=wayland` and confirm the output
+       loads `libqwayland-generic.so` or `libqwayland-egl.so` from inside the
+       AppImage. For the X11 pass, use `QT_QPA_PLATFORM=xcb`. A Wayland login
+       running the XCB plugin is an XWayland pass, not a native Wayland pass.
+
 3. [ ] **Tray on GNOME.** Check tray behavior with no extension
        installed.
 

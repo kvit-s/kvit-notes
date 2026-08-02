@@ -47,9 +47,10 @@ command -v sqlite3 > /dev/null || {
     exit 2
 }
 
-# Extract rather than mount: works without FUSE in containers and WSL, and
-# keeps the run deterministic.
-export APPIMAGE_EXTRACT_AND_RUN=1
+# The caller chooses the runtime path. The package build and Ubuntu 24.04 CI
+# intentionally leave APPIMAGE_EXTRACT_AND_RUN unset to exercise a direct FUSE
+# mount. Containers and WSL may set it explicitly when they only need the
+# payload checks.
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -159,7 +160,7 @@ echo "      QtMultimedia QML plugin loaded"
 
 # The ffmpeg backend is loaded on first playback rather than at startup, so
 # this is a presence check on the extracted image.
-EXTRACTED=$(grep -oE '/tmp/appimage_extracted_[a-f0-9]+' "$RUN" | head -1)
+EXTRACTED=$(grep -oE '/tmp/appimage_extracted_[a-f0-9]+' "$RUN" | head -1 || true)
 if [ -n "$EXTRACTED" ] && [ -d "$EXTRACTED" ]; then
     find "$EXTRACTED" -name 'libffmpegmediaplugin.so' | grep -q . \
         || fail "the ffmpeg multimedia backend is missing from the AppImage"

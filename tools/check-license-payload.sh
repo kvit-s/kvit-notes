@@ -6,12 +6,13 @@
 # Verify that a built artifact carries every license text it is obliged to
 # distribute, and fail if one is missing or empty.
 #
-#   tools/check-license-payload.sh <root> [--qt]
+#   tools/check-license-payload.sh <root> [--qt] [--appimage-runtime]
 #
 # <root> is the directory the install layout starts at: an AppDir's usr/, a
 # `cmake --install` prefix, or an extracted portable tree. --qt additionally
 # requires the Qt LGPL texts, which come from the Qt kit at deploy time and so
-# only exist in artifacts a deploy tool has processed.
+# only exist in artifacts a deploy tool has processed. --appimage-runtime
+# requires the notices for the static runtime prepended to the Linux AppImage.
 #
 # The obligations, and why each file has to be in the artifact rather than
 # only in the repository:
@@ -23,6 +24,8 @@
 #   math-res font licenses   Knuth/OFL/dsrom/LPPL/Bitstream texts, which must
 #                            sit beside the fonts they cover
 #   Qt LGPL texts (--qt)     packaging/qt-lgpl-checklist.md
+#   AppImage runtime notice  MIT plus embedded third-party components
+#   libfuse LGPL-2.1 text    statically linked into the AppImage runtime
 #
 # An empty file counts as missing: the AppImage script used to copy the Qt
 # texts with `|| true`, which turned a failed copy into an empty directory and
@@ -30,13 +33,22 @@
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
-    echo "usage: $0 <root> [--qt]" >&2
+    echo "usage: $0 <root> [--qt] [--appimage-runtime]" >&2
     exit 2
 fi
 
 ROOT=$1
+shift
 REQUIRE_QT=0
-[ "${2:-}" = "--qt" ] && REQUIRE_QT=1
+REQUIRE_APPIMAGE_RUNTIME=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --qt) REQUIRE_QT=1 ;;
+        --appimage-runtime) REQUIRE_APPIMAGE_RUNTIME=1 ;;
+        *) echo "unknown option: $1" >&2; exit 2 ;;
+    esac
+    shift
+done
 
 if [ ! -d "$ROOT" ]; then
     echo "not a directory: $ROOT" >&2
@@ -87,7 +99,14 @@ require "kvit-newtx provenance notice"   "NOTICE.md"
 require "Greek font pack (GPL-3)"        "LICENSE"   "GNU GENERAL PUBLIC LICENSE"
 
 if [ "$REQUIRE_QT" -eq 1 ]; then
-    require "Qt LGPL-3 text" "LICENSE.LGPL*"
+    require "Qt LGPL-3 text" "LICENSE.LGPL3" \
+        "GNU LESSER GENERAL PUBLIC LICENSE"
+fi
+if [ "$REQUIRE_APPIMAGE_RUNTIME" -eq 1 ]; then
+    require "AppImage type-2 runtime notice" "LICENSE.appimage-runtime" \
+        "The AppImage runtime executable contains statically linked code"
+    require "AppImage runtime libfuse LGPL-2.1 text" "LICENSE.LGPL2.1" \
+        "GNU LESSER GENERAL PUBLIC LICENSE"
 fi
 
 if [ "$MISSING" -ne 0 ]; then

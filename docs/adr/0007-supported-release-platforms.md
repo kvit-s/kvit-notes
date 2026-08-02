@@ -99,7 +99,8 @@ The CMake floor agrees everywhere it is stated: `cmake_minimum_required` in
 - `.github/workflows/ci.yml`: the `build-test` matrix and the three tag-gated packaging jobs (`package`, `package-windows`, `package-macos`)
 - `packaging/windows/build-windows.ps1`, `packaging/windows/kvit-notes.iss`: the portable zip and the per-user installer
 - `packaging/macos/build-macos.sh`: the bundle, the DMG, and the signing and notarization steps that stay inert while their credentials are empty
-- `packaging/linux/build-appimage.sh`: the AppImage build, with linuxdeploy pinned by SHA-256
+- `packaging/linux/build-appimage.sh`: the AppImage build, with linuxdeploy,
+  appimagetool and the static type-2 runtime independently pinned by SHA-256
 - `tools/check-appimage.sh`: runs the packed artifact and probes math resources, QML imports, SQLite FTS5 and plugins before publication
 - `packaging/aur/kvit-notes-bin/PKGBUILD`, `tools/update-aur-digest.sh`
 - `packaging/flatpak/org.kvit.Notes.yaml`, `tools/update-flatpak-commit.sh`

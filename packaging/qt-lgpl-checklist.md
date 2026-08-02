@@ -56,6 +56,8 @@ packaging pipeline produces a real artifact, then re-verified per release.
 
 - [ ] AppImage: license folder inside the AppDir; linuxdeploy manifest
       committed.
+- [ ] AppImage: Qt Wayland client library and platform/integration plugins are
+      present; the GPL-only `libQt6WaylandCompositor` library is absent.
 - [ ] Flatpak: Qt comes from the KDE runtime, so the runtime carries the Qt
       licenses; the app manifest must not bundle a second Qt.
 

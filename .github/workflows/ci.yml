@@ -395,6 +395,8 @@ jobs:
     needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     # No protected environment on a manual dry-run: it publishes no release and
     # needs no signing secrets. A tag push keeps the release gate.
     environment: ${{ github.event_name != 'workflow_dispatch' && 'release' || '' }}
@@ -445,22 +447,24 @@ jobs:
       # links libtiff.so.5, which 24.04 dropped in favour of libtiff6, so
       # linuxdeploy could not bundle it and the AppImage build failed. 22.04
       # ships libtiff.so.5, and building on the older base also widens the
-      # AppImage's glibc compatibility. libfuse2 is the 22.04 package name
-      # (24.04 renamed it libfuse2t64 in the 64-bit time_t transition).
+      # AppImage's glibc compatibility. The packaging tools use extract-and-run
+      # and need no FUSE 2 library; fuse3 supplies the mount helper for testing
+      # the finished AppImage's separately pinned static runtime. Ubuntu 24.04
+      # repeats that compatibility proof in verify-linux-package below.
       - name: Linux system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev \
             libxkbcommon-x11-0 libxcb-cursor0 libfontconfig1 \
-            libfuse2 file sqlite3
+            fuse3 file sqlite3
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ env.QT_VERSION }}
           arch: linux_gcc_64
-          modules: qtmultimedia qtshadertools qtimageformats
+          modules: qtmultimedia qtshadertools qtimageformats qtwaylandcompositor
           cache: true
 
       # The script configures the preset itself, so a fresh checkout is all it
@@ -468,8 +472,10 @@ jobs:
       # digests before executing them, refuses to produce an artifact whose
       # license payload is incomplete, and finally runs the packed AppImage
       # (tools/check-appimage.sh) to prove the math resources, QML imports,
-      # SQLite FTS5 index and image plugins work in the packaged runtime.
-      # sqlite3 above is what inspects the index the probe run builds.
+      # SQLite FTS5 index and image plugins work in the packaged runtime. The
+      # Ubuntu 24.04 verification job then repeats the artifact check with no
+      # FUSE 2 library and exercises the native Wayland QPA plugin under
+      # Weston. sqlite3 above inspects the index the probe run builds.
       - name: Build AppImage
         env:
           KVIT_VERSION_FULL: ${{ steps.version.outputs.version }}
@@ -478,7 +484,7 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          sha256sum * > SHA256SUMS.txt
+          sha256sum -- * > SHA256SUMS.txt
 
       # Pin the AUR -bin package to the artifact this run produced, and fail
       # if the two disagree. The PKGBUILD carries a placeholder digest until
@@ -503,9 +509,11 @@ jobs:
             dist/*
             THIRD-PARTY-NOTICES.md
 
-      # Manual dry-run: no release, just downloadable run artifacts.
-      - name: Upload artifacts (dry-run)
-        if: github.event_name == 'workflow_dispatch'
+      # Every build gets an Actions artifact so the Ubuntu 24.04 job below
+      # verifies the exact bytes users download. On a manual dry-run this is
+      # also the final downloadable artifact; on a tag the draft release above
+      # remains the publication path.
+      - name: Upload Linux artifact for verification and dry-run
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: linux-${{ steps.version.outputs.version }}
@@ -513,6 +521,73 @@ jobs:
             dist/*
             THIRD-PARTY-NOTICES.md
           if-no-files-found: error
+
+  # Validate the exact Linux artifact on the current Ubuntu baseline. The
+  # build remains on 22.04 for glibc/libtiff compatibility; this separate job
+  # is intentionally 24.04 so a missing static runtime or Wayland deployment
+  # cannot be hidden by the older packaging host.
+  verify-linux-package:
+    if: needs.package.result == 'success'
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install FUSE 3 and headless Wayland verifier
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fuse3 weston sqlite3
+
+          # Hosted-runner images can change underneath us. Remove the FUSE 2
+          # compatibility library if it is ever preinstalled, then prove it is
+          # absent so this check cannot regress into testing the old runtime.
+          if dpkg-query -W -f='${Status}' libfuse2t64 2>/dev/null \
+              | grep -q 'ok installed'; then
+            sudo apt-get remove -y libfuse2t64
+          fi
+          if ldconfig -p | grep -q 'libfuse\.so\.2'; then
+            echo '::error::Ubuntu 24.04 verifier still has libfuse.so.2'
+            exit 1
+          fi
+
+      - name: Download packaged Linux artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-${{ needs.package.outputs.version }}
+          path: qa-package
+
+      - name: Resolve and inspect AppImage runtime
+        id: artifact
+        run: |
+          set -euo pipefail
+          APPIMAGE=$(find qa-package -type f -name '*.AppImage' -print -quit)
+          if [ -z "$APPIMAGE" ]; then
+            echo '::error::Downloaded artifact contains no AppImage'
+            exit 1
+          fi
+          chmod +x "$APPIMAGE"
+          echo "appimage=$APPIMAGE" >> "$GITHUB_OUTPUT"
+
+          if readelf -d "$APPIMAGE" 2>&1 \
+              | grep -q 'Shared library: \[libfuse\.so\.2\]'; then
+            echo '::error::AppImage runtime dynamically depends on libfuse.so.2'
+            exit 1
+          fi
+          file "$APPIMAGE"
+
+      - name: Direct-launch packaged runtime without FUSE 2
+        run: |
+          env -u APPIMAGE_EXTRACT_AND_RUN \
+            tools/check-appimage.sh '${{ steps.artifact.outputs.appimage }}'
+
+      - name: Native Wayland launch under Weston
+        run: |
+          env -u APPIMAGE_EXTRACT_AND_RUN \
+            tools/check-appimage-wayland.sh '${{ steps.artifact.outputs.appimage }}'
 
   # Tag-triggered Windows packaging: the windeployqt portable zip and the Inno
   # Setup per-user installer, uploaded into the same draft release as the Linux

@@ -106,6 +106,42 @@ components:
       license texts in every artifact, source-availability statement,
       relink/replace ability preserved (no static Qt).
 
+  - name: Qt Wayland client integration
+    version: "6.10.1"
+    spdx: LGPL-3.0-only OR GPL-2.0-only
+    origin: Qt-provided Wayland integration plugin (qtwaylandcompositor
+      installer component)
+    files: libQt6WaylandClient.so.6, plugins/platforms/libqwayland-egl.so,
+      plugins/platforms/libqwayland-generic.so, and the client-side
+      wayland-decoration-client, wayland-graphics-integration-client and
+      wayland-shell-integration plugin directories in the Linux AppImage
+    license_file: covered by the Qt licenses folder in the artifact
+      (share/licenses/kvit-notes/qt)
+    ships_in: [linux]
+    obligations: >-
+      Dynamically linked client integration only. Qt publishes this integration
+      under LGPL-3.0-only or GPL-2.0-only. Do not ship
+      libQt6WaylandCompositor: that API is GPL-3.0-only under Qt's open-source
+      terms and Kvit is a Wayland client, not a compositor. The AppDir runtime
+      check enforces both sides of this boundary.
+
+  - name: AppImage type-2 runtime
+    version: commit 75849dce7cc37e4319b633df1f116ca895c71a12
+    spdx: MIT AND LGPL-2.1-only AND BSD-2-Clause AND BSD-3-Clause AND Zlib
+    origin: https://github.com/AppImage/type2-runtime
+    files: the static-pie executable header prepended to the Linux AppImage;
+      includes musl libc, libfuse, squashfuse, libzstd and zlib
+    license_file: packaging/licenses/appimage-runtime contains the upstream
+      composite notice and the LGPL-2.1 text; packaging copies both into the
+      Linux AppImage under share/licenses/kvit-notes/appimage-runtime
+    ships_in: [linux]
+    obligations: >-
+      Preserve the upstream runtime notice and the embedded libraries'
+      attribution. Ship the LGPL-2.1 terms for the statically linked libfuse.
+      The exact corresponding runtime source is the origin repository at commit
+      75849dce7cc37e4319b633df1f116ca895c71a12; keep the runtime URL, digest,
+      source commit and this entry synchronized when updating it.
+
   - name: Qt Multimedia FFmpeg backend
     version: FFmpeg 7.1 (libavcodec 61.19.101) as shipped with Qt 6.10.1
     spdx: LGPL-2.1-or-later
