@@ -527,7 +527,10 @@ jobs:
   # is intentionally 24.04 so a missing static runtime or Wayland deployment
   # cannot be hidden by the older packaging host.
   verify-linux-package:
-    if: needs.package.result == 'success'
+    # `package` can run after deliberately skipped test jobs on a manual
+    # dry-run. Override GitHub's implicit success() skip propagation just as
+    # the package job does, while still refusing failed or cancelled builds.
+    if: ${{ !cancelled() && needs.package.result == 'success' }}
     needs: package
     runs-on: ubuntu-24.04
     timeout-minutes: 20
