@@ -7966,7 +7966,7 @@ Item {
             tryCompare(BlockModel, "count", 3, 1000)
             listView.positionViewAtBeginning()
 
-            compare(listView.spacing, 8)
+            compare(listView.spacing, 4)
             tryVerify(function() {
                 return allBlockRowsAreAdjacent(listView)
             }, 2000, "the insertion settles at the configured spacing")
@@ -7975,7 +7975,7 @@ Item {
             // binding; a relayout repair must never replace it with a literal.
             Typography.paragraphSpacing = 20
             compare(listView.spacing, 20)
-            Typography.paragraphSpacing = 8
+            Typography.paragraphSpacing = 4
         }
 
         function test_zb_settingsDialogBindsLive() {
@@ -8001,6 +8001,13 @@ Item {
             sizeSpin.value = 18
             sizeSpin.valueModified()
             compare(Typography.baseSize, 18)
+
+            var spacingSpin = findChild(appLoader.item,
+                                        "paragraphSpacingSpin")
+            verify(spacingSpin !== null)
+            spacingSpin.value = 6
+            spacingSpin.valueModified()
+            compare(Typography.paragraphSpacing, 6)
 
             Typography.resetToDefaults()
             dialog.close()

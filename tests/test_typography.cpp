@@ -63,7 +63,7 @@ void TestTypography::testDefaultScaleIsLegacyPixelValues()
     QCOMPARE(t.bodySize(), 15);
     QCOMPARE(t.monoSize(), 13);
     QCOMPARE(t.lineHeight(), 1.0);
-    QCOMPARE(t.paragraphSpacing(), 8);
+    QCOMPARE(t.paragraphSpacing(), Typography::DefaultParagraphSpacing);
     QCOMPARE(t.maxContentWidth(), 0);
     QCOMPARE(t.monoFamily(), QString("monospace"));
     QCOMPARE(t.fontFamily(), QString());
@@ -201,10 +201,12 @@ void TestTypography::testResetToDefaults()
     Typography t;
     t.setBaseSize(20);
     t.setLineHeight(1.6);
+    t.setParagraphSpacing(20);
     t.setMaxContentWidth(600);
     t.resetToDefaults();
     QCOMPARE(t.baseSize(), 15);
     QCOMPARE(t.lineHeight(), 1.0);
+    QCOMPARE(t.paragraphSpacing(), Typography::DefaultParagraphSpacing);
     QCOMPARE(t.maxContentWidth(), 0);
     QCOMPARE(t.monoFamily(), QString("monospace"));
 }

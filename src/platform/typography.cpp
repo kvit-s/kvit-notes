@@ -188,7 +188,7 @@ void Typography::resetToDefaults()
     setFontFamily(QString());
     setBaseSize(15);
     setLineHeight(1.0);
-    setParagraphSpacing(8);
+    setParagraphSpacing(DefaultParagraphSpacing);
     setMaxContentWidth(0);
     setMonoFamily(QStringLiteral("monospace"));
 }

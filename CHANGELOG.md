@@ -8,6 +8,9 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The default gap between editor blocks is now 4 px instead of 8 px. It can
+  still be adjusted from 0–40 px under Settings → Typography → Block spacing;
+  previously saved choices are left unchanged.
 - The caret in the space between blocks now accepts Ctrl+V / Cmd+V. Plain
   lines become paragraphs at that exact seam, structured Clipboard content
   keeps its block types, and paste-as-plain drops formatting; the caret then

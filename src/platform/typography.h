@@ -57,6 +57,7 @@ public:
     // enough that a corrupt settings value cannot break the layout.
     static constexpr int MinBaseSize = 10, MaxBaseSize = 28;
     static constexpr qreal MinLineHeight = 1.0, MaxLineHeight = 2.0;
+    static constexpr int DefaultParagraphSpacing = 4;
     static constexpr int MinParagraphSpacing = 0, MaxParagraphSpacing = 40;
     static constexpr int MinContentWidth = 300;  // when non-zero
 
@@ -108,7 +109,7 @@ private:
     QString m_fontFamily;
     int m_baseSize = 15;
     qreal m_lineHeight = 1.0;
-    int m_paragraphSpacing = 8;
+    int m_paragraphSpacing = DefaultParagraphSpacing;
     int m_maxContentWidth = 0;
     QString m_monoFamily = QStringLiteral("monospace");
 };
