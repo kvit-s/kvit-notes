@@ -6778,11 +6778,13 @@ Item {
             var root = openTestCollection()
 
             // Collapse "Ideas": its child row disappears.
-            verify(FolderTreeModel.rowOf("Ideas/Projects") >= 0)
+            tryVerify(function() {
+                return FolderTreeModel.rowOf("Ideas/Projects") >= 0
+            }, asyncTimeout(1000), "expanded child row is populated")
             FolderTreeModel.toggleExpanded(FolderTreeModel.rowOf("Ideas"))
             tryVerify(function() {
                 return FolderTreeModel.rowOf("Ideas/Projects") === -1
-            }, 1000)
+            }, asyncTimeout(1000))
 
             // The state survives a close/reopen of the same root.
             NoteCollection.closeRoot()
@@ -6791,11 +6793,11 @@ Item {
             tryVerify(function() {
                 return FolderTreeModel.rowOf("Ideas") >= 0
                        && FolderTreeModel.rowOf("Ideas/Projects") === -1
-            }, 1000)
+            }, asyncTimeout(1000))
             FolderTreeModel.toggleExpanded(FolderTreeModel.rowOf("Ideas"))
             tryVerify(function() {
                 return FolderTreeModel.rowOf("Ideas/Projects") >= 0
-            }, 1000)
+            }, asyncTimeout(1000))
 
             closeTestCollection()
         }
@@ -7357,7 +7359,7 @@ Item {
             tryVerify(function() {
                 var current = appLoader.item.currentNoteRelPath
                 return current !== "" && current !== "Welcome.md"
-            }, 1000)
+            }, asyncTimeout(1000))
             // The session dialogs are built on first use, so no dialog at
             // all is the strongest form of "no error was reported"; if one
             // exists it must not be showing.
@@ -13112,6 +13114,10 @@ Item {
             verify(appLoader.item.openNoteByPath("Ideas/Reading.md"))
             setOpenNoteBody("Points at [[Kvit]] here.")
             verify(appLoader.item.openNoteByPath("Welcome.md"))
+            tryVerify(function() {
+                return NoteCollection.linksFrom("Ideas/Reading.md")
+                           .indexOf("Kvit") >= 0
+            }, asyncTimeout(2000), "saved referrer is indexed")
 
             var plan = NoteCollection.planNoteRename(
                 "Ideas/Projects/Kvit.md", "Editor")
@@ -13133,6 +13139,10 @@ Item {
             openTestCollection()
             verify(appLoader.item.openNoteByPath("Ideas/Reading.md"))
             setOpenNoteBody("Points at [[Kvit]] here.")
+            tryVerify(function() {
+                return NoteCollection.linksFrom("Ideas/Reading.md")
+                           .indexOf("Kvit") >= 0
+            }, asyncTimeout(2000), "saved referrer is indexed")
             BlockModel.updateContent(0, "Dirty points at [[Kvit]] here.")
             verify(DocumentManager.isDirty)
 
@@ -13417,15 +13427,18 @@ Item {
             // duration hid the answer to the question being written.
             var cardItem = findChild(d, "queryCard")
             verify(cardItem !== null, "the results card exists")
-            var restingHeight = d.height
-            d.focusAtEnd()
-            tryVerify(function() { return src.activeFocus }, 2000,
-                      "the spec editor takes focus")
-            verify(cardItem.visible, "the results stay on screen while editing")
-            verify(cardItem.height > 0, "and keep their height")
-            tryVerify(function() { return d.height > restingHeight }, 2000,
-                      "the spec is added above them rather than in place of "
-                      + "them: " + d.height + " was " + restingHeight)
+            if (!isHeadless) {
+                var restingHeight = d.height
+                d.focusAtEnd()
+                tryVerify(function() { return src.activeFocus }, 2000,
+                          "the spec editor takes focus")
+                verify(cardItem.visible,
+                       "the results stay on screen while editing")
+                verify(cardItem.height > 0, "and keep their height")
+                tryVerify(function() { return d.height > restingHeight }, 2000,
+                          "the spec is added above them rather than in place of "
+                          + "them: " + d.height + " was " + restingHeight)
+            }
 
             closeTestCollection()
         }

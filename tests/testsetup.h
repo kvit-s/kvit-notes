@@ -232,10 +232,14 @@ public slots:
             || (!qEnvironmentVariableIsSet("CI") && !sanitizerBuild);
         context->setContextProperty("testTimingBudgetsEnforced",
                                     timingBudgetsEnforced);
-        // File watching and indexing stay asynchronous under sanitizers, but
-        // instrumentation can make their ordinary two-second waits too short.
+        // File watching and indexing stay asynchronous on shared runners and
+        // under sanitizers. Give CI some scheduling headroom and instrumented
+        // builds more, while keeping local failures quick.
+        const int asyncTimeoutMultiplier = sanitizerBuild
+            ? 4
+            : (qEnvironmentVariableIsSet("CI") ? 2 : 1);
         context->setContextProperty("testAsyncTimeoutMultiplier",
-                                    sanitizerBuild ? 4 : 1);
+                                    asyncTimeoutMultiplier);
 
         // A sample image on disk for the image-block storyboard/integration.
         const QString samplePath = m_collectionDir.filePath("sample.png");
