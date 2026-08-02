@@ -69,15 +69,40 @@ next_platform() {
 # hang seen in practice is a VNC port that a previous process has not let go
 # of, where the server neither binds nor gives up. Without a bound the run
 # stops at that case and CTest eventually kills it with nothing to read.
-# `timeout` is coreutils and is not on a stock macOS, so its absence degrades
-# to the old behaviour rather than failing the run.
+# Polling the child keeps this portable to stock macOS, whose Bash 3.2 has no
+# GNU `timeout`. A normal case pays at most one 100 ms poll; a stalled one is
+# terminated, then killed if it does not exit promptly, and the outer loop
+# retries it in a fresh process.
 run_case() {
-    if command -v timeout >/dev/null 2>&1; then
-        timeout "${KVIT_INTEGRATION_CASE_TIMEOUT:-60}" \
-            "$binary" -input "$input" "$1" 2>&1
-    else
-        "$binary" -input "$input" "$1" 2>&1
+    local case_timeout=${KVIT_INTEGRATION_CASE_TIMEOUT:-60}
+    local max_ticks=$((case_timeout * 10))
+    local tick=0
+    local case_status=0
+    local case_pid
+
+    "$binary" -input "$input" "$1" 2>&1 &
+    case_pid=$!
+    while kill -0 "$case_pid" 2>/dev/null && [[ $tick -lt $max_ticks ]]; do
+        sleep 0.1
+        tick=$((tick + 1))
+    done
+
+    if kill -0 "$case_pid" 2>/dev/null; then
+        echo "[integration] case timeout after ${case_timeout}s: ${1#*::}"
+        kill -TERM "$case_pid" 2>/dev/null || true
+        for ((tick = 0; tick < 20; tick++)); do
+            if ! kill -0 "$case_pid" 2>/dev/null; then
+                break
+            fi
+            sleep 0.1
+        done
+        kill -KILL "$case_pid" 2>/dev/null || true
+        wait "$case_pid" 2>/dev/null || true
+        return 124
     fi
+
+    wait "$case_pid" || case_status=$?
+    return "$case_status"
 }
 
 failed=0
