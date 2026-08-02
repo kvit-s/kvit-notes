@@ -729,6 +729,16 @@ KvitShell {
     // table gives Save As no binding). Ctrl+S on an untitled document
     // still opens the save dialog.
 
+    // One route for the File menu and Ctrl+S. Loading the session-dialog
+    // component first also wires save failures to its error dialog; without
+    // it, a first save attempt could fail before that lazy component existed.
+    function saveCurrentDocument(forceSaveAs) {
+        root.documentDialogs()
+        if (forceSaveAs || !DocumentManager.hasFile)
+            return DocumentManager.saveFileDialog()
+        return DocumentManager.saveAsync()
+    }
+
     // Opens link targets (features.md §2.4). Routed through one object so
     // tests can observe activations without launching a browser.
     property alias linkOpener: linkOpener

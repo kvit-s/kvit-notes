@@ -158,6 +158,15 @@ Rectangle {
         background: BarBackground { control: barButton }
     }
 
+    // Fusion's MenuItem uses palette.text for both enabled and disabled
+    // entries. The window supplies its own themed text palette, so collection-
+    // only commands otherwise look active even though the menu correctly
+    // skips them. Keep them discoverable, but make their disabled state
+    // unmistakable in both the File and View menus.
+    component DiscoverableMenuItem: MenuItem {
+        opacity: enabled ? 1.0 : 0.42
+    }
+
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 8
@@ -193,8 +202,9 @@ Rectangle {
             Menu {
                 id: fileMenu
                 objectName: "toolbarFileMenu"
+                delegate: DiscoverableMenuItem {}
 
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuOpenFile"
                     text: qsTr("Open File…")
                     // Routed by window mode: a vault window opens the file in
@@ -202,7 +212,7 @@ Rectangle {
                     // current document in place.
                     onTriggered: toolbar.appWindow.openFileFromDialog()
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuOpenFolder"
                     text: qsTr("Open Folder…")
                     // Switches this window to the chosen vault (raising an
@@ -212,7 +222,7 @@ Rectangle {
                         openFolderDialog.open()
                     }
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuOpenFolderNewWindow"
                     text: qsTr("Open Folder in New Window…")
                     onTriggered: {
@@ -221,6 +231,22 @@ Rectangle {
                     }
                 }
                 MenuSeparator {}
+
+                DiscoverableMenuItem {
+                    objectName: "fileMenuSave"
+                    text: qsTr("Save")
+                    enabled: DocumentManager
+                             && (!DocumentManager.hasFile
+                                 || DocumentManager.isDirty)
+                    onTriggered: toolbar.appWindow.saveCurrentDocument(false)
+                }
+                DiscoverableMenuItem {
+                    objectName: "fileMenuSaveAs"
+                    text: qsTr("Save As…")
+                    onTriggered: toolbar.appWindow.saveCurrentDocument(true)
+                }
+                MenuSeparator {}
+
                 Menu {
                     id: recentVaultsMenu
                     objectName: "fileMenuRecent"
@@ -232,7 +258,7 @@ Rectangle {
                             var r = AppSettings.revision  // reactive dependency
                             return AppSettings.value("session.recentVaults", [])
                         }
-                        MenuItem {
+                        DiscoverableMenuItem {
                             required property string modelData
                             text: modelData
                             onTriggered: AppActions.requestOpenVault(modelData)
@@ -256,7 +282,7 @@ Rectangle {
                             var r = NoteTemplates.revision  // dependency
                             return NoteTemplates.templateNames()
                         }
-                        MenuItem {
+                        DiscoverableMenuItem {
                             required property string modelData
                             text: modelData
                             onTriggered:
@@ -264,40 +290,40 @@ Rectangle {
                         }
                     }
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "manageTemplatesItem"
                     text: qsTr("Manage templates…")
                     enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
                     onTriggered: toolbar.appWindow.templateDialog.openManage()
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuQuickCapture"
-                    text: qsTr("Quick capture… (Ctrl+Alt+N)")
+                    text: qsTr("Quick capture note… (Ctrl+Alt+N)")
                     enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
                     onTriggered: toolbar.appWindow.openQuickCapture()
                 }
 
                 // Notes in and out of the collection (features.md §12.5–12.6).
                 MenuSeparator {}
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuImport"
                     text: qsTr("Import…")
-                    visible: toolbar.appWindow && toolbar.appWindow.collectionOpen
+                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
                     onTriggered: toolbar.appWindow.importDialog.openDialog()
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuExport"
                     text: qsTr("Export…")
                     onTriggered: toolbar.appWindow.exportDialog.openDialog()
                 }
 
                 MenuSeparator {}
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuSettings"
                     text: qsTr("Settings…")
                     onTriggered: toolbar.appWindow.openSettingsDialog()
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "fileMenuShortcuts"
                     text: qsTr("Keyboard shortcuts…")
                     onTriggered: toolbar.appWindow.openShortcutReference()
@@ -324,8 +350,9 @@ Rectangle {
             Menu {
                 id: viewMenu
                 objectName: "toolbarViewMenu"
+                delegate: DiscoverableMenuItem {}
 
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuSidebar"
                     text: qsTr("Sidebar")
                     checkable: true
@@ -334,7 +361,7 @@ Rectangle {
                     onTriggered: toolbar.appWindow.sidebarCollapsed
                         = !toolbar.appWindow.sidebarCollapsed
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuNoteList"
                     text: qsTr("Note list")
                     checkable: true
@@ -343,7 +370,7 @@ Rectangle {
                     onTriggered: toolbar.appWindow.noteListCollapsed
                         = !toolbar.appWindow.noteListCollapsed
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuOutline"
                     text: qsTr("Outline")
                     checkable: true
@@ -351,7 +378,7 @@ Rectangle {
                     onTriggered: toolbar.appWindow.outlineVisible
                         = !toolbar.appWindow.outlineVisible
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuBacklinks"
                     text: qsTr("Backlinks")
                     checkable: true
@@ -361,7 +388,7 @@ Rectangle {
                         = !toolbar.appWindow.backlinksVisible
                 }
                 MenuSeparator {}
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuFocusMode"
                     text: qsTr("Focus mode")
                     checkable: true
@@ -369,7 +396,7 @@ Rectangle {
                     onTriggered: toolbar.appWindow.focusMode
                         = !toolbar.appWindow.focusMode
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuTypewriterMode"
                     text: qsTr("Typewriter mode")
                     checkable: true
@@ -378,7 +405,7 @@ Rectangle {
                         = !toolbar.appWindow.typewriterMode
                 }
                 MenuSeparator {}
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuStatusBar"
                     text: qsTr("Status bar")
                     checkable: true
@@ -386,7 +413,7 @@ Rectangle {
                     onTriggered: toolbar.appWindow.statusBarVisible
                         = !toolbar.appWindow.statusBarVisible
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuCodeLineNumbers"
                     text: qsTr("Code line numbers")
                     checkable: true
@@ -400,7 +427,7 @@ Rectangle {
                     onTriggered: AppSettings.setValue("view.codeLineNumbers",
                                                       !checked)
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuEquationNumbers"
                     text: qsTr("Equation numbers")
                     checkable: true
@@ -420,7 +447,7 @@ Rectangle {
                     title: qsTr("Theme")
                     Repeater {
                         model: Theme.availableThemes
-                        MenuItem {
+                        DiscoverableMenuItem {
                             required property string modelData
                             text: Theme.displayName(modelData)
                             checkable: true
@@ -429,7 +456,7 @@ Rectangle {
                         }
                     }
                 }
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuReducedMotion"
                     text: qsTr("Reduced motion")
                     checkable: true
@@ -437,7 +464,7 @@ Rectangle {
                     onTriggered: Theme.reducedMotion = checked
                 }
                 MenuSeparator {}
-                MenuItem {
+                DiscoverableMenuItem {
                     objectName: "viewMenuFocusEditor"
                     text: qsTr("Focus editor")
                     onTriggered: toolbar.appWindow.focusEditor()

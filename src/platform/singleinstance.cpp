@@ -7,8 +7,11 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QFileInfo>
+#include <QLockFile>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QStandardPaths>
 
 #include <memory>
 
@@ -23,12 +26,29 @@ SingleInstance::~SingleInstance() = default;
 QString SingleInstance::defaultServerName()
 {
     // Per-user and per-install: two users on one machine, or a development
-    // build and an installed one, must not share an instance. Hashing the home
-    // directory and the executable path keeps the name stable across launches
-    // of the same install by the same user, and distinct otherwise.
+    // build and an installed one, must not share an instance. On Windows,
+    // QDir::homePath() can follow environment variables inherited from the
+    // launcher; the shell, an installer and a desktop shortcut need not
+    // inherit the same ones. AppLocalDataLocation comes from Windows' known
+    // folders and remains stable across those launch paths.
+#ifdef Q_OS_WIN
+    QString userScope = QStandardPaths::writableLocation(
+        QStandardPaths::AppLocalDataLocation);
+#else
+    QString userScope = QDir::homePath();
+#endif
+    QString executable = QFileInfo(
+        QCoreApplication::applicationFilePath()).canonicalFilePath();
+    if (executable.isEmpty())
+        executable = QCoreApplication::applicationFilePath();
+#ifdef Q_OS_WIN
+    // The filesystem is case-insensitive, so differently cased spellings of
+    // the same installed executable must elect the same primary.
+    userScope = userScope.toCaseFolded();
+    executable = executable.toCaseFolded();
+#endif
     const QByteArray seed =
-        (QDir::homePath() + QLatin1Char('|')
-         + QCoreApplication::applicationFilePath()).toUtf8();
+        (userScope + QLatin1Char('|') + executable).toUtf8();
     const QString digest = QString::fromLatin1(
         QCryptographicHash::hash(seed, QCryptographicHash::Sha1)
             .toHex()
@@ -38,7 +58,33 @@ QString SingleInstance::defaultServerName()
 
 bool SingleInstance::tryBecomePrimary()
 {
+    if (m_ownerLock && m_ownerLock->isLocked())
+        return true;
+
+    // A successful QLocalServer::listen() is not an ownership test on
+    // Windows: the platform explicitly permits multiple listeners for one
+    // pipe name. Elect one process with an atomic file lock before creating
+    // the transport. TempLocation is per-user on Windows; the server name
+    // itself also includes the user scope on every platform.
+    const QString lockDigest = QString::fromLatin1(
+        QCryptographicHash::hash(m_serverName.toUtf8(),
+                                 QCryptographicHash::Sha1).toHex());
+    const QString lockPath = QDir(QStandardPaths::writableLocation(
+        QStandardPaths::TempLocation))
+        .filePath(QStringLiteral("kvit-notes-%1.lock").arg(lockDigest));
+    m_ownerLock = std::make_unique<QLockFile>(lockPath);
+    // Never declare a slow but live process stale based only on the age of its
+    // lock. QLockFile still reclaims it when the recorded process is dead.
+    m_ownerLock->setStaleLockTime(0);
+    if (!m_ownerLock->tryLock(0)) {
+        m_ownerLock.reset();
+        return false;
+    }
+
     m_server = new QLocalServer(this);
+    // The endpoint carries file paths. Keep it private to this user even on
+    // platforms whose default local-server permissions are broader.
+    m_server->setSocketOptions(QLocalServer::UserAccessOption);
     connect(m_server, &QLocalServer::newConnection,
             this, &SingleInstance::onNewConnection);
 
@@ -59,6 +105,8 @@ bool SingleInstance::tryBecomePrimary()
     if (livePrimaryAnswers()) {
         delete m_server;
         m_server = nullptr;
+        m_ownerLock->unlock();
+        m_ownerLock.reset();
         return false;
     }
 
@@ -77,6 +125,10 @@ bool SingleInstance::tryBecomePrimary()
     const bool secondary = livePrimaryAnswers();
     delete m_server;
     m_server = nullptr;
+    if (secondary) {
+        m_ownerLock->unlock();
+        m_ownerLock.reset();
+    }
     return !secondary;
 }
 

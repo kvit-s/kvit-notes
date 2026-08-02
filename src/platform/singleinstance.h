@@ -7,10 +7,14 @@
 #include <QObject>
 #include <QString>
 
-class QLocalServer;
+#include <memory>
 
-// The single-instance channel: a per-user named local endpoint (a named pipe on
-// Windows, a Unix domain socket elsewhere) owned by the first process to start.
+class QLocalServer;
+class QLockFile;
+
+// The single-instance channel: a per-user lock elects the first process, then
+// a named local endpoint (a named pipe on Windows, a Unix domain socket
+// elsewhere) carries requests to it.
 //
 // A later launch connects to that endpoint, forwards its request (a folder
 // path, a file path, or an empty string for a bare launch), and exits, so the
@@ -19,8 +23,9 @@ class QLocalServer;
 // backstop for a genuinely separate process (a different user, or a shared
 // filesystem); this only removes the same-user, same-install pile-up.
 //
-// The endpoint name folds in the user's home and the executable path, so two
-// users, or a development build and an installed one, never share an instance.
+// The endpoint name folds in a stable per-user location and the executable
+// path, so two users, or a development build and an installed one, never share
+// an instance.
 class SingleInstance : public QObject
 {
     Q_OBJECT
@@ -54,6 +59,11 @@ private:
     void onNewConnection();
 
     QString m_serverName;
+    // QLocalServer::listen() is not exclusive on Windows: multiple servers may
+    // listen on the same named pipe and Windows distributes connections among
+    // them. QLockFile is the actual atomic owner election on every platform;
+    // the local server is transport only.
+    std::unique_ptr<QLockFile> m_ownerLock;
     QLocalServer *m_server = nullptr;
 };
 

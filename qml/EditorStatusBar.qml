@@ -282,10 +282,13 @@ Rectangle {
             color: Theme.textDisabled
         }
 
-        // File path or "New Document"
+        // File path, or an explicit statement that this document exists only
+        // in memory. "New Document" looked like a location even though there
+        // was no file behind it.
         Text {
             objectName: "filePathText"
-            text: DocumentManager && DocumentManager.hasFile ? DocumentManager.currentFilePath : "New Document"
+            text: DocumentManager && DocumentManager.hasFile
+                  ? DocumentManager.currentFilePath : qsTr("Not saved to disk")
             elide: Text.ElideMiddle
             Layout.fillWidth: true
             font.pixelSize: 11

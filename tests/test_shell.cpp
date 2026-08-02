@@ -589,6 +589,87 @@ private slots:
         QCOMPARE(context.typography()->baseSize(), 19);
     }
 
+    // A file-less window is the state the Windows duplicate-instance bug used
+    // to expose after the second process lost the vault lock. The menu must
+    // still offer persistence, must show collection-only entries as disabled
+    // rather than as active-looking or blank rows, and the status bar must say
+    // plainly that there is no location on disk yet.
+    void singleFileMenusExplainTheirState()
+    {
+        QVERIFY(!m_engine.rootObjects().isEmpty());
+        QObject *root = m_engine.rootObjects().first();
+        QVERIFY(!m_context->noteCollection()->isOpen());
+        QVERIFY(!m_context->documentManager()->hasFile());
+
+        QObject *save = root->findChild<QObject *>(
+            QStringLiteral("fileMenuSave"));
+        QObject *saveAs = root->findChild<QObject *>(
+            QStringLiteral("fileMenuSaveAs"));
+        QVERIFY(save);
+        QVERIFY(saveAs);
+        QCOMPARE(save->property("text").toString(), QStringLiteral("Save"));
+        QVERIFY(save->property("enabled").toBool());
+        QVERIFY(saveAs->property("enabled").toBool());
+
+        QObject *importItem = root->findChild<QObject *>(
+            QStringLiteral("fileMenuImport"));
+        QObject *quickCapture = root->findChild<QObject *>(
+            QStringLiteral("fileMenuQuickCapture"));
+        QObject *sidebar = root->findChild<QObject *>(
+            QStringLiteral("viewMenuSidebar"));
+        QObject *fileMenu = root->findChild<QObject *>(
+            QStringLiteral("toolbarFileMenu"));
+        QVERIFY(importItem);
+        QVERIFY(quickCapture);
+        QVERIFY(sidebar);
+        QVERIFY(fileMenu);
+        // QQuickItem::visible reports effective visibility, so open the parent
+        // popup before checking that Import is a real labelled row rather than
+        // the hidden full-height row that produced the blank slot.
+        QVERIFY(QMetaObject::invokeMethod(fileMenu, "open"));
+        QCoreApplication::processEvents();
+        QVERIFY(importItem->property("visible").toBool());
+        QVERIFY(!importItem->property("enabled").toBool());
+        QVERIFY(!quickCapture->property("enabled").toBool());
+        QVERIFY(!sidebar->property("enabled").toBool());
+        QVERIFY(importItem->property("opacity").toDouble() < 0.5);
+        QVERIFY(quickCapture->property("opacity").toDouble() < 0.5);
+        QVERIFY(sidebar->property("opacity").toDouble() < 0.5);
+
+        // Submenus are represented by generated MenuItems, so the parent
+        // menu's delegate (rather than the Menu popup object) supplies their
+        // disabled appearance. Check those rows too: these were the largest
+        // active-looking stretch in the reported hover path.
+        const auto menuRowWithText = [fileMenu](const QString &text) {
+            const int count = fileMenu->property("count").toInt();
+            for (int i = 0; i < count; ++i) {
+                QQuickItem *row = nullptr;
+                if (QMetaObject::invokeMethod(
+                        fileMenu, "itemAt", Q_RETURN_ARG(QQuickItem *, row),
+                        Q_ARG(int, i))
+                    && row && row->property("text").toString() == text)
+                    return row;
+            }
+            return static_cast<QQuickItem *>(nullptr);
+        };
+        QQuickItem *recent = menuRowWithText(QStringLiteral("Open Recent"));
+        QQuickItem *fromTemplate = menuRowWithText(
+            QStringLiteral("New from template"));
+        QVERIFY(recent);
+        QVERIFY(fromTemplate);
+        QVERIFY(!recent->isEnabled());
+        QVERIFY(!fromTemplate->isEnabled());
+        QVERIFY(recent->opacity() < 0.5);
+        QVERIFY(fromTemplate->opacity() < 0.5);
+        QVERIFY(QMetaObject::invokeMethod(fileMenu, "close"));
+
+        QObject *path = root->findChild<QObject *>(
+            QStringLiteral("filePathText"));
+        QVERIFY(path);
+        QCOMPARE(path->property("text").toString(),
+                 QStringLiteral("Not saved to disk"));
+    }
+
     // Declared last on purpose: QtTest runs test functions in declaration
     // order, so this sees everything the cases above provoked.
     //

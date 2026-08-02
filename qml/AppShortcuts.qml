@@ -77,13 +77,7 @@ Item {
     // File shortcuts
     Shortcut {
         sequences: [StandardKey.Save]  // Ctrl+S
-        onActivated: {
-            if (DocumentManager.hasFile) {
-                DocumentManager.saveAsync()
-            } else {
-                DocumentManager.saveFileDialog()
-            }
-        }
+        onActivated: shortcuts.appWindow.saveCurrentDocument(false)
     }
 
     Shortcut {
