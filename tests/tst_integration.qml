@@ -11467,13 +11467,18 @@ Item {
             tryVerify(function() { return img.status === Image.Ready }, 4000,
                       "overlay image loads")
 
-            compare(img.width, img.implicitWidth)
-            compare(img.height, img.implicitHeight)
-
             var overlay = findChild(para, "mathOverlayLayer")
             verify(overlay !== null, "overlay layer present")
             var dpr = overlay.devicePixelRatio > 0
                 ? overlay.devicePixelRatio : 1
+
+            // An Image reports its implicit size in bitmap pixels even when
+            // the provider rasterized at the screen's ratio, so the drawn
+            // size is that count divided by the ratio. Comparing the two
+            // directly would pass at ratio 1 and demand a double-size
+            // formula on a Retina or 4K screen.
+            fuzzyCompare(img.width, img.implicitWidth / dpr, 0.01)
+            fuzzyCompare(img.height, img.implicitHeight / dpr, 0.01)
             var scene = img.mapToItem(null, 0, 0)
             var offGridX = Math.abs(scene.x * dpr
                                     - Math.round(scene.x * dpr))

@@ -64,6 +64,11 @@ Popup {
     // only the margin hangs over the gap to the label.
     readonly property int glyphSidePadding:
         MathRenderer.sideBearingPadding(menu.glyphPixelSize)
+    // The ratio the glyph bitmaps are rasterized at, and the divisor that
+    // turns their pixel size back into a logical one.
+    readonly property real renderDpr:
+        Screen.devicePixelRatio > 0
+        ? Math.round(Screen.devicePixelRatio * 100) / 100 : 1
 
     modal: false
     dim: false
@@ -98,8 +103,7 @@ Popup {
         return "image://math/" + MathRenderer.encode(tex)
              + "?fg=" + argbHex(Theme.textPrimary)
              + "&size=" + menu.glyphPixelSize
-             + "&dpr=" + (Screen.devicePixelRatio > 0
-                          ? Math.round(Screen.devicePixelRatio * 100) / 100 : 1)
+             + "&dpr=" + menu.renderDpr.toFixed(2)
              + "&hpad=" + menu.glyphSidePadding
     }
 
@@ -301,9 +305,13 @@ Popup {
                         Image {
                             anchors.centerIn: parent
                             source: menu.glyphSource(completionRow.modelData.preview)
-                            width: Math.min(implicitWidth,
+                            // implicitWidth counts bitmap pixels, which is
+                            // twice the logical width on a Retina or 4K
+                            // screen; the row's caps are logical.
+                            width: Math.min(implicitWidth / menu.renderDpr,
                                             32 + 2 * menu.glyphSidePadding)
-                            height: Math.min(implicitHeight, 26)
+                            height: Math.min(implicitHeight / menu.renderDpr,
+                                             26)
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             cache: true
@@ -426,8 +434,12 @@ Popup {
                             anchors.centerIn: parent
                             visible: gridCell.modelData.preview !== ""
                             source: menu.glyphSource(gridCell.modelData.preview)
-                            width: Math.min(implicitWidth, parent.width - 6)
-                            height: Math.min(implicitHeight, parent.height - 6)
+                            // Bitmap pixels to logical units, as in the
+                            // completion rows above.
+                            width: Math.min(implicitWidth / menu.renderDpr,
+                                            parent.width - 6)
+                            height: Math.min(implicitHeight / menu.renderDpr,
+                                             parent.height - 6)
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             cache: true

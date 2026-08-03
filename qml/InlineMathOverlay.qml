@@ -52,6 +52,12 @@ Item {
     // amount so the formula still starts where the box does.
     readonly property int horizontalPadding:
         MathRenderer.sideBearingPadding(root.pixelSize)
+    // The ratio the URL asks the renderer for, which is also the divisor that
+    // turns a loaded bitmap's pixel size back into a logical one. Rounded
+    // once here so the two uses cannot disagree.
+    readonly property real renderDpr:
+        root.devicePixelRatio > 0
+        ? Math.round(root.devicePixelRatio * 100) / 100 : 1
 
     objectName: "mathOverlayLayer"
     z: 3
@@ -65,10 +71,9 @@ Item {
         function hex(x) { return ("0" + Math.round(x * 255).toString(16)).slice(-2) }
         var c = root.textColor
         var fg = hex(c.a) + hex(c.r) + hex(c.g) + hex(c.b)
-        var dpr = Math.round(root.devicePixelRatio * 100) / 100
         return "image://math/" + MathRenderer.encode(tex)
              + "?fg=" + fg + "&size=" + root.pixelSize
-             + "&dpr=" + dpr.toFixed(2)
+             + "&dpr=" + root.renderDpr.toFixed(2)
              + "&vpad=" + root.verticalPadding
              + "&hpad=" + root.horizontalPadding
     }
@@ -190,11 +195,17 @@ Item {
             // the provider rasterizes whole physical pixels. Drawing it at
             // any other size resamples it, so the item takes the image's
             // size and falls back to the measurement only until it loads.
+            //
+            // An Image reports its implicit size in bitmap PIXELS, ignoring
+            // the device pixel ratio the provider set on the QImage, so the
+            // ratio the URL asked for is what converts that back to logical
+            // units. Without it a Retina or 4K screen draws every formula at
+            // twice the size of the text it sits in.
             width: mathImg.implicitWidth > 0
-                ? mathImg.implicitWidth
+                ? mathImg.implicitWidth / root.renderDpr
                 : measuredWidth + 2 * root.horizontalPadding
             height: mathImg.implicitHeight > 0
-                ? mathImg.implicitHeight : measuredHeight
+                ? mathImg.implicitHeight / root.renderDpr : measuredHeight
             fillMode: Image.PreserveAspectFit
             horizontalAlignment: Image.AlignLeft
             verticalAlignment: Image.AlignTop

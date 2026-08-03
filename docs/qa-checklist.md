@@ -49,7 +49,27 @@ pass.
        then click away. The line should return to exactly its previous
        layout with no leftover gap.
 
-2. [ ] **Sort by created time.** Make two notes: one with front matter
+2. [ ] **Equation size on a Retina or 4K screen.** On a display whose
+       device pixel ratio is not 1 (any Retina Mac, an external 4K screen
+       at the default scaling, or Windows at 125% or more), open a note
+       with one inline formula and one `$$ … $$` block, and open the `\`
+       completion menu inside a formula.
+
+       *Expect:* the inline formula is the height of the line it sits in,
+       the display equation is prose-sized, and the completion menu's
+       preview glyphs fit their rows. Drag the window between screens of
+       different ratios and confirm the size does not change.
+
+       *Recently fixed, so worth confirming by eye:* formulas are
+       rasterized at the screen's ratio for sharpness, and a Qt `Image`
+       reports such a bitmap in physical pixels, so every formula used to
+       be drawn at the ratio's multiple of its size: a Retina Mac drew it
+       at twice its height, where it overlapped the text beside it and the
+       block below. No automated suite catches this by default, because
+       the test platforms run at ratio 1; running the Qt Quick suites with
+       `QT_SCALE_FACTOR=2` does exercise it.
+
+3. [ ] **Sort by created time.** Make two notes: one with front matter
        `created: 2026-03-01`, one with no `created:` field that you then
        edit so its modification time is recent. Sort the note list by
        Created, then by Modified, and compare the two orderings.

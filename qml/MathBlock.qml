@@ -96,6 +96,11 @@ BlockDelegateBase {
         function h(x) { return ("0" + Math.round(x * 255).toString(16)).slice(-2) }
         return h(c.a) + h(c.r) + h(c.g) + h(c.b)
     }
+    // The device pixel ratio the equation bitmap is rasterized at, and the
+    // divisor that turns its pixel size back into a logical one. A binding
+    // that calls currentDpr() still tracks whatever that function reads, so
+    // this follows the window across screens of different ratios.
+    readonly property real renderDpr: root.currentDpr()
     function currentDpr() {
         // Qt's type description for ApplicationWindow omits devicePixelRatio,
         // which is documented QML API, so the linter cannot see it. Same gap
@@ -117,7 +122,7 @@ BlockDelegateBase {
         return "image://math/" + MathRenderer.encode(tex)
              + "?fg=" + argbHex(Theme.textPrimary)
              + "&size=" + root.mathPixelSize
-             + "&dpr=" + root.currentDpr().toFixed(2)
+             + "&dpr=" + root.renderDpr.toFixed(2)
              + "&vpad=" + root.pngMathVerticalPadding
              + "&hpad=" + root.mathSideBearingPadding
     }
@@ -328,7 +333,7 @@ BlockDelegateBase {
         Item {
             width: parent.width
             height: root.editing ? 0
-                : Math.max(renderedImage.implicitHeight,
+                : Math.max(renderedImage.height,
                            readError.implicitHeight, 24)
             visible: !root.editing
             clip: true
@@ -340,8 +345,17 @@ BlockDelegateBase {
                 anchors.centerIn: parent
                 visible: root.errorText === "" && root.renderTex.trim().length > 0
                 source: root.mathSource(root.renderTex)
-                width: implicitWidth
-                height: implicitHeight
+                // An Image takes its implicit size from the bitmap's PIXEL
+                // count: it ignores the device pixel ratio a provider sets on
+                // the QImage it returns, unlike the file case where a `@2x`
+                // name halves the size. The renderer rasterizes at the
+                // screen's ratio for sharpness, so on a Retina or 4K screen
+                // the untouched implicit size would draw the equation at
+                // twice the text's size. Dividing by the same ratio the URL
+                // asked for restores the logical size and keeps every
+                // physical pixel of the raster.
+                width: implicitWidth / root.renderDpr
+                height: implicitHeight / root.renderDpr
                 fillMode: Image.PreserveAspectFit
                 smooth: true
                 cache: false
@@ -673,7 +687,7 @@ BlockDelegateBase {
         Rectangle {
             width: parent.width
             height: root.editing
-                ? Math.max(previewImage.implicitHeight,
+                ? Math.max(previewImage.height,
                            previewError.implicitHeight, 28) + 12
                 : 0
             visible: root.editing
@@ -686,8 +700,9 @@ BlockDelegateBase {
                 anchors.centerIn: parent
                 visible: root.errorText === "" && root.previewTex.trim().length > 0
                 source: root.mathSource(root.previewTex)
-                width: implicitWidth
-                height: implicitHeight
+                // Pixel size to logical size, as in the read view above.
+                width: implicitWidth / root.renderDpr
+                height: implicitHeight / root.renderDpr
                 fillMode: Image.PreserveAspectFit
                 smooth: true
                 cache: false

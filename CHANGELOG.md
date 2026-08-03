@@ -150,6 +150,17 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- An equation is drawn at the size of the text around it on a high-resolution
+  screen. Formulas are rasterized at the display's device pixel ratio so they
+  stay sharp, but a Qt image reports such a bitmap's size in physical pixels,
+  and that number was used as the drawn size. Every inline and display formula
+  therefore came out at the ratio's multiple of the size it should have had:
+  double on a Retina Mac or a 4K screen at the default scaling, where a
+  formula overlapped the words beside it and the block below, and half again
+  as large on Windows at 125%. The equation blocks, the inline overlay and the
+  `\` completion menu's preview glyphs now convert that pixel count back to
+  logical units, so a formula matches its text at every ratio and still uses
+  the full-resolution bitmap.
 - A block that grows just after it is added no longer draws over the blocks
   below it. The note list used to slide the rows under an insertion to
   positions measured from the new row's height at that instant. A pasted
