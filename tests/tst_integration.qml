@@ -5808,12 +5808,13 @@ Item {
                       1000, "Live make-room moves the row while dragging")
 
             // The drag itself never touches the undo stack (its moves are
-            // previews only); the proxy is visible
+            // previews only). The live-moving row is the sole drag visual;
+            // there must not also be a scaled snapshot under the pointer.
             compare(UndoStack.count, stackBefore,
                     "No undo entries accumulate during the drag")
             var proxy = findChild(appLoader.item, "dragProxy")
-            verify(proxy !== null && proxy.visible,
-                   "The floating proxy follows the drag")
+            verify(proxy !== null && !proxy.visible,
+                   "A single-block drag has no duplicate floating proxy")
 
             mouseRelease(listView, 100, 140)
             compare(BlockModel.getContent(0), "b")
@@ -5873,6 +5874,9 @@ Item {
             var indicator = findChild(appLoader.item, "dropIndicator")
             tryVerify(function() { return indicator && indicator.visible }, 1000,
                       "Multi-block drag shows the drop indicator")
+            var proxy = findChild(appLoader.item, "dragProxy")
+            tryVerify(function() { return proxy && proxy.visible }, 1000,
+                      "Multi-block drag keeps the compact selection proxy")
             compare(BlockModel.getContent(0), "a",
                     "No live reorder during a multi-block drag")
 

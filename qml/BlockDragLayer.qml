@@ -10,15 +10,15 @@ import QtQuick
 import QtQuick.Controls
 import Kvit 1.0
 
-// What a block drag draws: the proxy that follows the pointer, and the line
-// showing where a multi-block drop would land.
+// What a block drag draws: the compact proxy for a multi-block selection and
+// the line showing where that selection would land.
 //
-// A single-block drag live-moves its row through the list, so the row itself
-// shows where the block is going and the proxy is what the pointer carries.
-// A multi-block drag cannot do that — the blocks are not contiguous — so it
-// leaves them in place and draws the insertion gap instead. The indicator
-// re-parents to the list's viewport rather than its content item, which is
-// why its position subtracts contentY.
+// A single-block drag live-moves its row through the list, so that row is the
+// complete drag visual. A second, scaled copy under the pointer only made the
+// block appear twice. A multi-block drag cannot live-move a discontiguous
+// selection, so it keeps the compact proxy and draws an insertion gap. The
+// indicator re-parents to the list's viewport rather than its content item,
+// which is why its position subtracts contentY.
 //
 // Escape belongs here too: cancelling is part of the gesture, and this is the
 // drag's only item in the window's tree.
@@ -36,13 +36,14 @@ Item {
     function moveTo(sceneX, sceneY) { dragProxy.moveTo(sceneX, sceneY) }
     function clear() { dragProxy.clear() }
 
-    // The floating drag proxy: snapshots of up to three dragged blocks
-    // stacked under the pointer, with a count badge for larger
-    // selections.
+    // The floating multi-block proxy: snapshots of up to three selected
+    // blocks stacked under the pointer, with a count badge for larger
+    // selections. A single block is already represented by its live-moving
+    // row and deliberately has no duplicate snapshot.
     Item {
         id: dragProxy
         objectName: "dragProxy"
-        visible: layer.dragState.active
+        visible: layer.dragState.active && layer.dragState.isMulti
         z: 1000
         width: 300
         height: proxyColumn.height

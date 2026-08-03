@@ -550,8 +550,9 @@ BlockDelegateBase {
     }
 
     // Whether this row is being dragged (or is part of the dragged
-    // selection): it stays in place as §21.4's space-holder, dimmed,
-    // while the floating proxy follows the pointer.
+    // selection): a single row dims while it live-moves through the list;
+    // multi-selected rows stay in place while their compact proxy follows
+    // the pointer.
     readonly property bool isDragSource: {
         if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
             return false

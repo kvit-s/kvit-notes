@@ -354,9 +354,9 @@ With blocks selected, one keystroke acts on all of them, each as a single undo s
 - **Ctrl+C / Ctrl+X / Ctrl+V** copy, cut, and paste them as markdown, so they round-trip
   through the clipboard and into other editors.
 
-**Reorder by dragging** a block's handle: a floating proxy lifts, the document makes room as
-you move, and dropping commits the move. Dragging the handle of a selected block carries the
-whole selection. Escape cancels a drag.
+**Reorder by dragging** a block's handle: the block dims, the document makes room as you move,
+and dropping commits the move. Dragging the handle of a selected block carries the whole
+selection with a compact proxy. Escape cancels a drag.
 
 **The block menu** — turn into, duplicate, delete, move, indent, remove line breaks — opens on
 a right-click anywhere in a block's left gutter, the handle included. When the block is part of

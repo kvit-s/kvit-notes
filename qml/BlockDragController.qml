@@ -50,7 +50,10 @@ BlockDragState {
         controller.dragCount = controller.dragIndexes.length
         controller.indicatorGap = -1
         controller.active = true
-        controller.dragLayer.buildFrom(controller.dragIndexes)
+        if (controller.isMulti)
+            controller.dragLayer.buildFrom(controller.dragIndexes)
+        else
+            controller.dragLayer.clear()
         controller.update(sceneX, sceneY)
     }
 

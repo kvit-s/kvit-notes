@@ -754,10 +754,9 @@ Item {
             wait(100)
         }
 
-        // Drag-and-drop reordering (features.md §3.2, §21.4) — the floating
-        // proxy under the pointer, the dimmed source row making room
-        // live, the multi-drag drop indicator with its count badge, and
-        // the document after the drop.
+        // Drag-and-drop reordering (features.md §3.2, §21.4) — the dimmed
+        // single source row making room live, the multi-drag proxy and drop
+        // indicator with its count badge, and the document after the drop.
         // The find bar (features.md §7.1): the bar over a document
         // with matches tinted and the current one distinct; the current
         // match inside a revealed span; a regex query with its option
@@ -879,7 +878,7 @@ Item {
             var listView = findChild(appLoader.item, "blockListView")
 
             // Single drag: lift "apples" and hold it past "cheese" —
-            // the gap has opened, the proxy floats, the source is dimmed
+            // the source row alone moves and dims as the gap opens.
             var delegate = findBlockDelegate(1)
             mouseMove(delegate, 30, delegate.height / 2)
             tryCompare(delegate, "isHovered", true, 1000)

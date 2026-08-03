@@ -903,8 +903,9 @@ KvitShell {
         selectionKeys: selectionKeyHandler
     }
 
-    // The floating proxy draws over the whole shell, which is what the z
-    // value on the proxy used to say from here.
+    // The multi-block floating proxy draws over the whole shell, which is
+    // what the z value on the proxy used to say from here. Single-block
+    // drags use only the live-moving row.
     BlockDragLayer {
         id: blockDragLayer
         anchors.fill: parent
