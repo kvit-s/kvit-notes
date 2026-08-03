@@ -8,6 +8,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- On macOS the File and View menus are in the system menu bar at the top of
+  the screen, where a Mac application's menus belong, rather than on buttons
+  inside the window; "Settings…" and the quit command appear in the
+  application menu the way macOS places them. The toolbar keeps its File and
+  View buttons on Windows and Linux, and both places show the same commands
+  because they are the same two menu definitions.
+
 - macOS packages from release tags and manual `main` packaging runs are now
   Developer ID-signed, notarized and stapled. The packaging job fails instead
   of uploading an ad-hoc artifact when credentials, signing, notarization or

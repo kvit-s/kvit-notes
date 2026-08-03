@@ -50,6 +50,9 @@
         <file>qml/SettingsDialog.qml</file>
         <file>qml/PanelSeam.qml</file>
         <file>qml/Toolbar.qml</file>
+        <file>qml/FileMenu.qml</file>
+        <file>qml/ViewMenu.qml</file>
+        <file>qml/DiscoverableMenuItem.qml</file>
         <file>qml/FormattingBar.qml</file>
         <file>qml/DateRangePicker.qml</file>
         <file>qml/DayPicker.qml</file>

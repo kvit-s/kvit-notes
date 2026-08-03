@@ -7,7 +7,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import QtQuick.Layouts
 import Kvit 1.0
 
@@ -27,6 +26,13 @@ Rectangle {
 
     property var appWindow
     property var listView
+
+    // macOS puts an application's menus in the system menu bar at the top of
+    // the screen, where main.qml hangs File and View instead. The buttons for
+    // them are then not just redundant but wrong, so they and their menus are
+    // left out of the toolbar there rather than hidden: two menus with the
+    // same commands would otherwise both exist in the window.
+    readonly property bool nativeMenuBar: Qt.platform.os === "osx"
 
     height: visible ? 36 : 0
     color: Theme.footerBackground
@@ -158,15 +164,6 @@ Rectangle {
         background: BarBackground { control: barButton }
     }
 
-    // Fusion's MenuItem uses palette.text for both enabled and disabled
-    // entries. The window supplies its own themed text palette, so collection-
-    // only commands otherwise look active even though the menu correctly
-    // skips them. Keep them discoverable, but make their disabled state
-    // unmistakable in both the File and View menus.
-    component DiscoverableMenuItem: MenuItem {
-        opacity: enabled ? 1.0 : 0.42
-    }
-
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 8
@@ -183,6 +180,7 @@ Rectangle {
         ToolButton {
             id: fileButton
             objectName: "toolbarFileButton"
+            visible: !toolbar.nativeMenuBar
             focusPolicy: Qt.TabFocus
             text: qsTr("File")
             font.pixelSize: 12
@@ -190,144 +188,18 @@ Rectangle {
             Accessible.role: Accessible.ButtonMenu
             Accessible.name: qsTr("File")
             background: BarBackground { control: fileButton }
-            onClicked: {
-                // The template list is built from what is on disk, so the
-                // built-ins are seeded before the menu reads it — the same
-                // point in the flow the separate Templates button used.
-                if (toolbar.appWindow && toolbar.appWindow.collectionOpen)
-                    NoteTemplates.seedBuiltinsIfEmpty()
-                fileMenu.popup(this, 0, height)
-            }
+            // The menu seeds the built-in templates itself as it opens, so
+            // the list it shows is what is on disk by then.
+            onClicked: (fileMenuLoader.item as FileMenu).popup(this, 0, height)
 
-            Menu {
-                id: fileMenu
-                objectName: "toolbarFileMenu"
-                delegate: DiscoverableMenuItem {}
-
-                DiscoverableMenuItem {
-                    objectName: "fileMenuOpenFile"
-                    text: qsTr("Open File…")
-                    // Routed by window mode: a vault window opens the file in
-                    // its own single-file window; single-file mode replaces the
-                    // current document in place.
-                    onTriggered: toolbar.appWindow.openFileFromDialog()
-                }
-                DiscoverableMenuItem {
-                    objectName: "fileMenuOpenFolder"
-                    text: qsTr("Open Folder…")
-                    // Switches this window to the chosen vault (raising an
-                    // existing window if that vault is already open).
-                    onTriggered: {
-                        openFolderDialog.inNewWindow = false
-                        openFolderDialog.open()
-                    }
-                }
-                DiscoverableMenuItem {
-                    objectName: "fileMenuOpenFolderNewWindow"
-                    text: qsTr("Open Folder in New Window…")
-                    onTriggered: {
-                        openFolderDialog.inNewWindow = true
-                        openFolderDialog.open()
-                    }
-                }
-                MenuSeparator {}
-
-                DiscoverableMenuItem {
-                    objectName: "fileMenuSave"
-                    text: qsTr("Save")
-                    enabled: DocumentManager
-                             && (!DocumentManager.hasFile
-                                 || DocumentManager.isDirty)
-                    onTriggered: toolbar.appWindow.saveCurrentDocument(false)
-                }
-                DiscoverableMenuItem {
-                    objectName: "fileMenuSaveAs"
-                    text: qsTr("Save As…")
-                    onTriggered: toolbar.appWindow.saveCurrentDocument(true)
-                }
-                MenuSeparator {}
-
-                Menu {
-                    id: recentVaultsMenu
-                    objectName: "fileMenuRecent"
-                    title: qsTr("Open Recent")
-                    enabled: recentVaultsRepeater.count > 0
-                    Repeater {
-                        id: recentVaultsRepeater
-                        model: {
-                            var r = AppSettings.revision  // reactive dependency
-                            return AppSettings.value("session.recentVaults", [])
-                        }
-                        DiscoverableMenuItem {
-                            required property string modelData
-                            text: modelData
-                            onTriggered: AppActions.requestOpenVault(modelData)
-                        }
-                    }
-                }
-
-                // features.md §18 templates, and quick capture: both make a
-                // new note, and both need a collection, since templates live
-                // under .kvit and a captured note has to land somewhere.
-                // Disabled rather than hidden without one, so the commands can
-                // still be found in single-file mode.
-                MenuSeparator {}
-                Menu {
-                    id: newFromTemplateMenu
-                    objectName: "newFromTemplateMenu"
-                    title: qsTr("New from template")
-                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
-                    Repeater {
-                        model: {
-                            var r = NoteTemplates.revision  // dependency
-                            return NoteTemplates.templateNames()
-                        }
-                        DiscoverableMenuItem {
-                            required property string modelData
-                            text: modelData
-                            onTriggered:
-                                toolbar.appWindow.createFromTemplate(modelData)
-                        }
-                    }
-                }
-                DiscoverableMenuItem {
-                    objectName: "manageTemplatesItem"
-                    text: qsTr("Manage templates…")
-                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
-                    onTriggered: toolbar.appWindow.templateDialog.openManage()
-                }
-                DiscoverableMenuItem {
-                    objectName: "fileMenuQuickCapture"
-                    text: qsTr("Quick capture note… (Ctrl+Alt+N)")
-                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
-                    onTriggered: toolbar.appWindow.openQuickCapture()
-                }
-
-                // Notes in and out of the collection (features.md §12.5–12.6).
-                MenuSeparator {}
-                DiscoverableMenuItem {
-                    objectName: "fileMenuImport"
-                    text: qsTr("Import…")
-                    enabled: toolbar.appWindow && toolbar.appWindow.collectionOpen
-                    onTriggered: toolbar.appWindow.importDialog.openDialog()
-                }
-                DiscoverableMenuItem {
-                    objectName: "fileMenuExport"
-                    text: qsTr("Export…")
-                    onTriggered: toolbar.appWindow.exportDialog.openDialog()
-                }
-
-                MenuSeparator {}
-                DiscoverableMenuItem {
-                    objectName: "fileMenuSettings"
-                    text: qsTr("Settings…")
-                    onTriggered: toolbar.appWindow.openSettingsDialog()
-                }
-                DiscoverableMenuItem {
-                    objectName: "fileMenuShortcuts"
-                    text: qsTr("Keyboard shortcuts…")
-                    onTriggered: toolbar.appWindow.openShortcutReference()
-                }
+            // One definition, two homes: FileMenu.qml is also what the
+            // macOS menu bar hangs (main.qml). It is loaded only where this
+            // button is shown, so no window ever holds two copies of the same
+            // commands.
+            Loader {
+                id: fileMenuLoader
+                active: !toolbar.nativeMenuBar
+                sourceComponent: FileMenu { appWindow: toolbar.appWindow }
             }
         }
 
@@ -337,7 +209,7 @@ Rectangle {
         ToolButton {
             id: viewButton
             objectName: "toolbarViewButton"
-            visible: toolbar.showViewGroup
+            visible: toolbar.showViewGroup && !toolbar.nativeMenuBar
             focusPolicy: Qt.TabFocus
             text: qsTr("View")
             font.pixelSize: 12
@@ -345,130 +217,12 @@ Rectangle {
             Accessible.role: Accessible.ButtonMenu
             Accessible.name: qsTr("View")
             background: BarBackground { control: viewButton }
-            onClicked: viewMenu.popup(this, 0, height)
+            onClicked: (viewMenuLoader.item as ViewMenu).popup(this, 0, height)
 
-            Menu {
-                id: viewMenu
-                objectName: "toolbarViewMenu"
-                delegate: DiscoverableMenuItem {}
-
-                DiscoverableMenuItem {
-                    objectName: "viewMenuSidebar"
-                    text: qsTr("Sidebar")
-                    checkable: true
-                    enabled: toolbar.appWindow.collectionOpen
-                    checked: !toolbar.appWindow.sidebarCollapsed
-                    onTriggered: toolbar.appWindow.sidebarCollapsed
-                        = !toolbar.appWindow.sidebarCollapsed
-                }
-                DiscoverableMenuItem {
-                    objectName: "viewMenuNoteList"
-                    text: qsTr("Note list")
-                    checkable: true
-                    enabled: toolbar.appWindow.collectionOpen
-                    checked: !toolbar.appWindow.noteListCollapsed
-                    onTriggered: toolbar.appWindow.noteListCollapsed
-                        = !toolbar.appWindow.noteListCollapsed
-                }
-                DiscoverableMenuItem {
-                    objectName: "viewMenuOutline"
-                    text: qsTr("Outline")
-                    checkable: true
-                    checked: toolbar.appWindow.outlineVisible
-                    onTriggered: toolbar.appWindow.outlineVisible
-                        = !toolbar.appWindow.outlineVisible
-                }
-                DiscoverableMenuItem {
-                    objectName: "viewMenuBacklinks"
-                    text: qsTr("Backlinks")
-                    checkable: true
-                    enabled: toolbar.appWindow.collectionOpen
-                    checked: toolbar.appWindow.backlinksVisible
-                    onTriggered: toolbar.appWindow.backlinksVisible
-                        = !toolbar.appWindow.backlinksVisible
-                }
-                MenuSeparator {}
-                DiscoverableMenuItem {
-                    objectName: "viewMenuFocusMode"
-                    text: qsTr("Focus mode")
-                    checkable: true
-                    checked: toolbar.appWindow.focusMode
-                    onTriggered: toolbar.appWindow.focusMode
-                        = !toolbar.appWindow.focusMode
-                }
-                DiscoverableMenuItem {
-                    objectName: "viewMenuTypewriterMode"
-                    text: qsTr("Typewriter mode")
-                    checkable: true
-                    checked: toolbar.appWindow.typewriterMode
-                    onTriggered: toolbar.appWindow.typewriterMode
-                        = !toolbar.appWindow.typewriterMode
-                }
-                MenuSeparator {}
-                DiscoverableMenuItem {
-                    objectName: "viewMenuStatusBar"
-                    text: qsTr("Status bar")
-                    checkable: true
-                    checked: toolbar.appWindow.statusBarVisible
-                    onTriggered: toolbar.appWindow.statusBarVisible
-                        = !toolbar.appWindow.statusBarVisible
-                }
-                DiscoverableMenuItem {
-                    objectName: "viewMenuCodeLineNumbers"
-                    text: qsTr("Code line numbers")
-                    checkable: true
-                    // The revision read re-evaluates this when the setting flips
-                    // from anywhere; the gutter binding in EditableBlock reads
-                    // the same key.
-                    checked: {
-                        var r = AppSettings.revision  // dependency only
-                        return AppSettings.value("view.codeLineNumbers", false) === true
-                    }
-                    onTriggered: AppSettings.setValue("view.codeLineNumbers",
-                                                      !checked)
-                }
-                DiscoverableMenuItem {
-                    objectName: "viewMenuEquationNumbers"
-                    text: qsTr("Equation numbers")
-                    checkable: true
-                    // Same reactive pattern as code line numbers; MathBlock
-                    // reads the same key.
-                    checked: {
-                        var r = AppSettings.revision  // dependency only
-                        return AppSettings.value("view.equationNumbers", false) === true
-                    }
-                    onTriggered: AppSettings.setValue("view.equationNumbers",
-                                                      !checked)
-                }
-                MenuSeparator {}
-                Menu {
-                    id: themeMenu
-                    objectName: "viewMenuTheme"
-                    title: qsTr("Theme")
-                    Repeater {
-                        model: Theme.availableThemes
-                        DiscoverableMenuItem {
-                            required property string modelData
-                            text: Theme.displayName(modelData)
-                            checkable: true
-                            checked: Theme.themeId === modelData
-                            onTriggered: Theme.themeId = modelData
-                        }
-                    }
-                }
-                DiscoverableMenuItem {
-                    objectName: "viewMenuReducedMotion"
-                    text: qsTr("Reduced motion")
-                    checkable: true
-                    checked: Theme.reducedMotion
-                    onTriggered: Theme.reducedMotion = checked
-                }
-                MenuSeparator {}
-                DiscoverableMenuItem {
-                    objectName: "viewMenuFocusEditor"
-                    text: qsTr("Focus editor")
-                    onTriggered: toolbar.appWindow.focusEditor()
-                }
+            Loader {
+                id: viewMenuLoader
+                active: !toolbar.nativeMenuBar
+                sourceComponent: ViewMenu { appWindow: toolbar.appWindow }
             }
         }
 
@@ -777,31 +531,6 @@ Rectangle {
         else if (kind === "kanban")
             BlockModel.convertBlock(newIdx, 8,   // Block.CodeBlock, kanban fence
                 "## To do\n## In progress\n## Done", false, "kanban")
-    }
-
-    // Native folder picker for "Open Folder…" / "Open Folder in New Window…".
-    // inNewWindow chooses which route the chosen folder takes; both raise an
-    // already-open window instead of duplicating it.
-    FolderDialog {
-        id: openFolderDialog
-        objectName: "toolbarOpenFolderDialog"
-        // Owned by the application window, and where the platform has no
-        // folder chooser of its own, shown inside it: the dialog Qt builds
-        // in that case is a top-level window, and an unowned one never gives
-        // the keyboard focus back on Wayland when it closes.
-        parentWindow: toolbar.appWindow
-        popupType: Popup.Item
-        property bool inNewWindow: false
-        title: qsTr("Open Folder as Vault")
-        onAccepted: {
-            var path = DocumentManager.toLocalPath(openFolderDialog.selectedFolder)
-            if (path === "")
-                return
-            if (openFolderDialog.inNewWindow)
-                AppActions.requestOpenVaultInNewWindow(path)
-            else
-                AppActions.requestOpenVault(path)
-        }
     }
 
     // §9.2 "toolbar customization (show/hide buttons)": right-click.

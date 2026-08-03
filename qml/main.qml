@@ -562,6 +562,7 @@ KvitShell {
     Component.onCompleted: {
         applyPersistedSessionState()
         refreshSessionBaseline()
+        installNativeMenuBar()
     }
 
     onPanelsVisibleChanged:
@@ -1045,6 +1046,37 @@ KvitShell {
             DocumentManager.open(DocumentManager.toLocalFileUrl(path))
     }
 
+    // Native folder picker behind "Open Folder…" and "Open Folder in New
+    // Window…". inNewWindow chooses which route the chosen folder takes; both
+    // raise an already-open window instead of duplicating it. The window owns
+    // the picker because both the toolbar's File menu and the macOS menu bar
+    // reach it, and only one of those exists at a time.
+    function openFolderFromDialog(inNewWindow) {
+        openFolderDialog.inNewWindow = inNewWindow === true
+        openFolderDialog.open()
+    }
+    FolderDialog {
+        id: openFolderDialog
+        objectName: "toolbarOpenFolderDialog"
+        // Owned by the application window, and where the platform has no
+        // folder chooser of its own, shown inside it: the dialog Qt builds
+        // in that case is a top-level window, and an unowned one never gives
+        // the keyboard focus back on Wayland when it closes.
+        parentWindow: root
+        popupType: Popup.Item
+        property bool inNewWindow: false
+        title: qsTr("Open Folder as Vault")
+        onAccepted: {
+            var path = DocumentManager.toLocalPath(openFolderDialog.selectedFolder)
+            if (path === "")
+                return
+            if (openFolderDialog.inNewWindow)
+                AppActions.requestOpenVaultInNewWindow(path)
+            else
+                AppActions.requestOpenVault(path)
+        }
+    }
+
     SettingsDialog {
         id: settingsDialog
     }
@@ -1500,6 +1532,42 @@ KvitShell {
                     .arg(noteCount)
                     .arg(noteCount === 1 ? qsTr("note") : qsTr("notes")))
         }
+    }
+
+    // ---- The menu bar on macOS -------------------------------------
+    // A Mac application's menus belong in the system menu bar at the top of
+    // the screen rather than in a strip inside the window, and Qt puts a
+    // MenuBar there when its menus are native popups. The two menus are the
+    // same components the toolbar's File and View buttons use, so the commands
+    // cannot drift apart; whichever platform this is, exactly one of the two
+    // homes instantiates them.
+    //
+    // The bar is built only on macOS and assigned rather than declared: an
+    // ApplicationWindow lays out whatever its `menuBar` holds, so on the
+    // platforms that do not want one the property stays empty instead of
+    // holding something switched off, and no window grows a menu strip it did
+    // not have before.
+    //
+    // macOS moves "Settings…" and the quit command into the application menu
+    // by the text of the item, so the File menu needs no macOS-only entries.
+    Component {
+        id: macMenuBarComponent
+        MenuBar {
+            objectName: "macMenuBar"
+            FileMenu {
+                appWindow: root
+                popupType: Popup.Native
+            }
+            ViewMenu {
+                appWindow: root
+                popupType: Popup.Native
+            }
+        }
+    }
+    function installNativeMenuBar() {
+        if (Qt.platform.os !== "osx" || root.menuBar)
+            return
+        root.menuBar = macMenuBarComponent.createObject(root)
     }
 
     // ---- The three-pane shell: sidebar and note list on the left, the

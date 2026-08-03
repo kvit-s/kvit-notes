@@ -93,11 +93,28 @@ pass.
        not, the fix is to prefer front-matter dates more aggressively,
        which is a product decision rather than a defect.
 
-3. [ ] **Gatekeeper first open.** Launch the downloaded artifact before
+4. [ ] **Gatekeeper first open.** Launch the downloaded artifact before
        any `xattr` clearing.
 
        *Expect:* one Gatekeeper prompt, then the app opens and does not
        prompt again on later launches.
+
+5. [ ] **System menu bar.** Look at the top of the screen with a Kvit
+       window active, and open every entry.
+
+       *Expect:* File and View are in the macOS menu bar, with the same
+       commands and the same enabled and checked states as on the other
+       platforms, and the window's own toolbar has no File or View button.
+       "Settings…" and the quit command are in the application menu that
+       carries the app's name. Open Recent, New from template and Theme
+       open as submenus and list what is actually there, and the template
+       list is populated the first time it is opened in a vault. With two
+       vault windows open, the bar follows the active window.
+
+       *New, and testable only on real macOS:* the menus are one
+       definition shared with the toolbar's File and View buttons
+       (qml/FileMenu.qml, qml/ViewMenu.qml), and Qt is what puts them in
+       the system bar. Nothing in the automated suites runs on that path.
 
 ### Windows
 

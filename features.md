@@ -833,6 +833,9 @@ Display when cursor moves into "information":
 - View options (outline, backlinks, word count)
 - Back/forward navigation buttons with enabled-state feedback
 - Toolbar customization (show/hide buttons)
+- On macOS the File and View menus are in the system menu bar at the top of
+  the screen instead of on toolbar buttons; the rest of the toolbar is the
+  same on every platform
 
 ### 9.3 Formatting Bar
 - Floating toolbar appears on text selection
