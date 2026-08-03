@@ -11,9 +11,10 @@
 # under continue-on-error until the release review pointed out that every
 # required check could pass with a shell that does not load.
 #
-# Third-party actions are pinned by commit SHA, and the packaging/signing job
-# runs through the protected "release" environment so a compromised PR cannot
-# reach signing credentials.
+# Third-party actions are pinned by commit SHA, and the macOS signing job runs
+# through the credential-bearing "release" environment so a compromised PR cannot reach
+# signing credentials. Manual macOS packages are signed too, but only when the
+# dispatch uses main; arbitrary refs never receive the Developer ID key.
 #
 # The local acceptance gate for the UI suites remains DISPLAY=:0
 # ./build.sh --test on a rested real display (CONTRIBUTING.md): CI protects
@@ -26,13 +27,12 @@ on:
     tags: ["v*"]
   pull_request:
   # Manual packaging dry-run. The three package jobs also run on a
-  # workflow_dispatch, without the protected release environment or a draft
-  # release: they build the artifacts, run their license and self-test gates,
-  # and upload the result as downloadable run artifacts. This is for iterating
-  # on the packaging scripts (the macOS DMG in particular is unproven on real
-  # hardware) before committing to a v* tag. macOS stays unsigned here, because
-  # the signing secrets live in the release environment a dispatch does not
-  # enter.
+  # workflow_dispatch without creating a draft release: they build the
+  # artifacts, run their license and self-test gates, and upload the result as
+  # downloadable run artifacts. This is for iterating on the packaging scripts
+  # before committing to a v* tag. The macOS job enters the release environment
+  # and signs/notarizes dispatches from main; the other platforms need no
+  # release-environment credentials today.
   workflow_dispatch:
     inputs:
       version:
@@ -687,21 +687,15 @@ jobs:
 
   # macOS packaging: the macdeployqt bundle inside a compressed DMG. On a v*
   # tag it uploads into the same draft release as the Linux and Windows
-  # artifacts, through the protected release environment. On a manual
-  # workflow_dispatch it skips that environment and uploads the DMG as a
-  # downloadable run artifact instead.
+  # artifacts. On a manual workflow_dispatch from main it uploads the DMG as a
+  # downloadable run artifact instead. Both paths enter the release
+  # environment and must produce a Developer ID-signed, notarized, stapled DMG.
   #
-  # Signing and notarization are gated on credentials. On a dispatch there is no
-  # release environment, so its secrets are absent and the DMG is always
-  # ad-hoc-signed. On a tag, until the Apple Developer account is active the
-  # secrets are still empty, so build-macos.sh produces a complete,
-  # self-contained, ad-hoc-signed DMG and skips notarization; the packaging
-  # mechanism is exercised end to end regardless. To enable signing at launch,
-  # add a step before "Build macOS package" that imports the Developer ID
-  # Application certificate into a temporary keychain and stores a notarytool
-  # profile, then set KVIT_CODESIGN_IDENTITY and KVIT_NOTARY_KEYCHAIN_PROFILE
-  # from the release-environment secrets. The empty defaults below take the
-  # unsigned path today and the signed path unchanged once the secrets exist.
+  # APPLE_DEV_ID_CERT_P12 is the base64-encoded Developer ID Application P12.
+  # APPLE_NOTARY_KEY_P8 may be the PEM text or its base64 encoding. The setup
+  # step imports the certificate into an ephemeral keychain, verifies that it
+  # contains a Developer ID Application identity, and writes the API key to a
+  # temporary file for notarytool. Missing or invalid credentials fail closed.
   package-macos:
     # See the package job: runs on a passed or a deliberately skipped gate,
     # never on a failed one.
@@ -713,11 +707,12 @@ jobs:
       && (needs.optional-targets.result == 'success' || needs.optional-targets.result == 'skipped')
       && (startsWith(github.ref, 'refs/tags/v') ||
           (github.event_name == 'workflow_dispatch' &&
+           github.ref == 'refs/heads/main' &&
            (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos')))
     needs: [secret-scan, build-test, qmllint, optional-targets]
     runs-on: macos-14
     timeout-minutes: 90
-    environment: ${{ github.event_name != 'workflow_dispatch' && 'release' || '' }}
+    environment: release
     permissions:
       contents: write
     steps:
@@ -764,17 +759,88 @@ jobs:
           modules: qtmultimedia qtshadertools qtimageformats
           cache: true
 
+      # GitHub-hosted runners are ephemeral, but use a dedicated keychain and
+      # remove it explicitly so this remains safe if the runner type changes.
+      # The identity output is the certificate's SHA-1 fingerprint, which
+      # avoids coupling the workflow to the account's display name.
+      - name: Install Apple signing credentials
+        id: signing
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEV_ID_CERT_P12 }}
+          P12_PASSWORD: ${{ secrets.APPLE_DEV_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          for name in BUILD_CERTIFICATE_BASE64 P12_PASSWORD KEYCHAIN_PASSWORD \
+                      NOTARY_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Required release-environment secret $name is empty."
+              exit 1
+            fi
+          done
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/kvit-developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/kvit-signing.keychain-db"
+          NOTARY_KEY_PATH="$RUNNER_TEMP/kvit-notary-api-key.p8"
+
+          printf '%s' "$BUILD_CERTIFICATE_BASE64" \
+            | base64 --decode -o "$CERTIFICATE_PATH"
+          if [[ "$NOTARY_KEY_P8" == *"BEGIN PRIVATE KEY"* ]]; then
+            printf '%s\n' "$NOTARY_KEY_P8" > "$NOTARY_KEY_PATH"
+          else
+            printf '%s' "$NOTARY_KEY_P8" \
+              | base64 --decode -o "$NOTARY_KEY_PATH"
+          fi
+          chmod 600 "$CERTIFICATE_PATH" "$NOTARY_KEY_PATH"
+          if ! grep -q -- '-----BEGIN PRIVATE KEY-----' "$NOTARY_KEY_PATH"; then
+            echo "::error::APPLE_NOTARY_KEY_P8 is not a PEM private key or its base64 encoding."
+            exit 1
+          fi
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A \
+            -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | awk '/"Developer ID Application:/ { print $2; exit }')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::The P12 contains no valid Developer ID Application identity."
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+            exit 1
+          fi
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "notary-key-path=$NOTARY_KEY_PATH" >> "$GITHUB_OUTPUT"
+          echo "Developer ID Application identity installed."
+
       # Configures and installs the macos-release preset, bundles Qt with
       # macdeployqt and the offscreen plugin, verifies the license payload and a
       # headless --math-selftest, then writes the DMG and the checksum into
-      # dist/. Signing and notarization are skipped when their env vars are
-      # empty (see the job comment above).
+      # dist/. KVIT_REQUIRE_SIGNING makes every credential, signing,
+      # notarization, stapling and Gatekeeper check mandatory in CI.
       - name: Build macOS package
         env:
           KVIT_VERSION_FULL: ${{ steps.version.outputs.version }}
-          KVIT_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
-          KVIT_NOTARY_KEYCHAIN_PROFILE: ${{ secrets.MACOS_NOTARY_KEYCHAIN_PROFILE }}
+          KVIT_REQUIRE_SIGNING: "1"
+          KVIT_CODESIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
+          KVIT_NOTARY_KEY_PATH: ${{ steps.signing.outputs.notary-key-path }}
+          KVIT_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          KVIT_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: ./packaging/macos/build-macos.sh
+
+      - name: Remove Apple signing credentials
+        if: ${{ always() }}
+        run: |
+          security delete-keychain "$RUNNER_TEMP/kvit-signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/kvit-developer-id.p12" \
+                "$RUNNER_TEMP/kvit-notary-api-key.p8"
 
       - name: Draft release with artifacts
         if: github.event_name != 'workflow_dispatch'

@@ -8,6 +8,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- macOS packages from release tags and manual `main` packaging runs are now
+  Developer ID-signed, notarized and stapled. The packaging job fails instead
+  of uploading an ad-hoc artifact when credentials, signing, notarization or
+  Gatekeeper verification fails.
 - The default gap between editor blocks is now 4 px instead of 8 px. It can
   still be adjusted from 0–40 px under Settings → Typography → Block spacing;
   previously saved choices are left unchanged.

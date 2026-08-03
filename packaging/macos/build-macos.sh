@@ -17,13 +17,11 @@
 # packaging/linux/build-appimage.sh and packaging/windows/build-windows.ps1;
 # keep the three in step.
 #
-# Signing and notarization are OPTIONAL and run only when their credentials are
-# present in the environment (see "Code signing and notarization" below). With
-# no credentials the script still produces a complete, self-contained,
-# ad-hoc-signed .dmg — Gatekeeper will warn on first open, but every packaging
-# mechanism the launch build needs is exercised. The Developer ID identity and
-# the notarization profile plug in unchanged once the Apple Developer account
-# is active.
+# Signing and notarization are optional for local packaging and mandatory when
+# KVIT_REQUIRE_SIGNING=1 (the setting used by every CI macOS package). With no
+# credentials a local run can still produce a complete, self-contained,
+# ad-hoc-signed .dmg for packaging development, but CI fails closed rather than
+# publishing one. See "Code signing and notarization" below.
 #
 # Version: pass KVIT_VERSION_FULL, or let the script derive it from the tag
 # being built (GITHUB_REF_NAME, or `git describe`). See "Release version".
@@ -34,6 +32,33 @@ BUILD_DIR=build-macos-release
 DIST=dist
 STAGE="$BUILD_DIR/stage"
 APP="$STAGE/kvit-notes.app"
+
+SIGNING_REQUIRED=${KVIT_REQUIRE_SIGNING:-0}
+case "$SIGNING_REQUIRED" in
+    0|1) ;;
+    *)
+        echo "KVIT_REQUIRE_SIGNING must be 0 or 1, not '$SIGNING_REQUIRED'." >&2
+        exit 1
+        ;;
+esac
+if [ "$SIGNING_REQUIRED" = 1 ]; then
+    if [ -z "${KVIT_CODESIGN_IDENTITY:-}" ]; then
+        echo "KVIT_REQUIRE_SIGNING=1 but no Developer ID Application identity" \
+             "was supplied in KVIT_CODESIGN_IDENTITY." >&2
+        exit 1
+    fi
+    if [ -z "${KVIT_NOTARY_KEYCHAIN_PROFILE:-}" ] \
+            && ! { [ -n "${KVIT_NOTARY_KEY_PATH:-}" ] \
+                    && [ -n "${KVIT_NOTARY_KEY_ID:-}" ] \
+                    && [ -n "${KVIT_NOTARY_ISSUER_ID:-}" ]; } \
+            && ! { [ -n "${KVIT_NOTARY_APPLE_ID:-}" ] \
+                    && [ -n "${KVIT_NOTARY_TEAM_ID:-}" ] \
+                    && [ -n "${KVIT_NOTARY_PASSWORD:-}" ]; }; then
+        echo "KVIT_REQUIRE_SIGNING=1 but no complete notarization credential" \
+             "set was supplied." >&2
+        exit 1
+    fi
+fi
 
 # ── Release version
 #
@@ -225,6 +250,23 @@ done < <(find "$APP/Contents/PlugIns" "$APP/Contents/Frameworks" \
              -name '*.dylib' -type f 2>/dev/null)
 # The bundle last.
 sign_one "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
+
+if [ -n "${KVIT_CODESIGN_IDENTITY:-}" ]; then
+    SIGNATURE_DETAILS=$(codesign --display --verbose=4 "$APP" 2>&1)
+    if ! grep -q '^Authority=Developer ID Application:' \
+            <<< "$SIGNATURE_DETAILS"; then
+        echo "The app is not signed by a Developer ID Application certificate." >&2
+        echo "$SIGNATURE_DETAILS" >&2
+        exit 1
+    fi
+    if ! grep -Eq '^TeamIdentifier=[A-Z0-9]{10}$' \
+            <<< "$SIGNATURE_DETAILS"; then
+        echo "The app signature has no valid TeamIdentifier." >&2
+        echo "$SIGNATURE_DETAILS" >&2
+        exit 1
+    fi
+fi
 
 # ── Fail closed: a complete license payload and a runnable interface
 #
@@ -283,16 +325,19 @@ fi
 # ── Notarization (optional; gated on credentials)
 #
 # Submit the image to Apple's notary service and staple the ticket so the app
-# validates offline. Two ways to supply credentials; the keychain profile is
-# preferred because no secret sits in the environment.
+# validates offline. Three ways to supply credentials; the keychain profile is
+# preferred for persistent local use, while CI uses the API key triple.
 #
 #   KVIT_NOTARY_KEYCHAIN_PROFILE   a profile stored by `xcrun notarytool
 #                                  store-credentials`, or
+#   KVIT_NOTARY_KEY_PATH + KVIT_NOTARY_KEY_ID + KVIT_NOTARY_ISSUER_ID
+#                                  an App Store Connect API key triple, or
 #   KVIT_NOTARY_APPLE_ID + KVIT_NOTARY_TEAM_ID + KVIT_NOTARY_PASSWORD
 #                                  an app-specific password triple.
 #
 # Notarization requires a Developer ID signature, so it is skipped (not failed)
 # whenever the bundle was only ad-hoc signed.
+NOTARIZED=0
 if [ -z "${KVIT_CODESIGN_IDENTITY:-}" ]; then
     echo "Notarization skipped: no Developer ID identity, so the image is" \
          "ad-hoc signed. Gatekeeper will warn on first open."
@@ -300,7 +345,17 @@ elif [ -n "${KVIT_NOTARY_KEYCHAIN_PROFILE:-}" ]; then
     echo "Notarizing via keychain profile $KVIT_NOTARY_KEYCHAIN_PROFILE"
     xcrun notarytool submit "$DMG" \
         --keychain-profile "$KVIT_NOTARY_KEYCHAIN_PROFILE" --wait
-    xcrun stapler staple "$DMG"
+    NOTARIZED=1
+elif [ -n "${KVIT_NOTARY_KEY_PATH:-}" ] \
+        && [ -n "${KVIT_NOTARY_KEY_ID:-}" ] \
+        && [ -n "${KVIT_NOTARY_ISSUER_ID:-}" ]; then
+    echo "Notarizing via App Store Connect API key $KVIT_NOTARY_KEY_ID"
+    xcrun notarytool submit "$DMG" \
+        --key "$KVIT_NOTARY_KEY_PATH" \
+        --key-id "$KVIT_NOTARY_KEY_ID" \
+        --issuer "$KVIT_NOTARY_ISSUER_ID" \
+        --wait
+    NOTARIZED=1
 elif [ -n "${KVIT_NOTARY_APPLE_ID:-}" ] && [ -n "${KVIT_NOTARY_TEAM_ID:-}" ] \
         && [ -n "${KVIT_NOTARY_PASSWORD:-}" ]; then
     echo "Notarizing via Apple ID $KVIT_NOTARY_APPLE_ID"
@@ -308,11 +363,20 @@ elif [ -n "${KVIT_NOTARY_APPLE_ID:-}" ] && [ -n "${KVIT_NOTARY_TEAM_ID:-}" ] \
         --apple-id "$KVIT_NOTARY_APPLE_ID" \
         --team-id "$KVIT_NOTARY_TEAM_ID" \
         --password "$KVIT_NOTARY_PASSWORD" --wait
-    xcrun stapler staple "$DMG"
+    NOTARIZED=1
 else
     echo "Notarization skipped: signed with a Developer ID identity but no" \
-         "notary credentials supplied (KVIT_NOTARY_KEYCHAIN_PROFILE, or the" \
-         "KVIT_NOTARY_APPLE_ID/TEAM_ID/PASSWORD triple)." >&2
+         "complete notary credential set was supplied." >&2
+fi
+
+if [ "$NOTARIZED" = 1 ]; then
+    xcrun stapler staple "$DMG"
+    xcrun stapler validate "$DMG"
+    spctl --assess --type open --context context:primary-signature \
+        --verbose=4 "$DMG"
+elif [ "$SIGNING_REQUIRED" = 1 ]; then
+    echo "KVIT_REQUIRE_SIGNING=1 but the DMG was not notarized." >&2
+    exit 1
 fi
 
 # ── Checksum

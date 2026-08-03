@@ -33,19 +33,19 @@ matching `refs/tags/v`. It produces an AppImage, `SHA256SUMS.txt`, a
 `THIRD-PARTY-NOTICES.md`, attached to a **draft** release that a human
 publishes.
 
-**Published, unsigned.** Windows x86_64 and macOS. `package-windows` runs on
+**Published.** Windows x86_64 and macOS. `package-windows` runs on
 `windows-2022` and produces the `windeployqt` portable zip and a per-user Inno
 Setup installer (`packaging/windows/build-windows.ps1`,
 `packaging/windows/kvit-notes.iss`); `package-macos` runs on `macos-14` and
 produces a `macdeployqt` bundle inside a compressed DMG
-(`packaging/macos/build-macos.sh`). Both are tag-gated, both take their own
-approval in the protected `release` environment, and both attach to the same
-draft release as the Linux artifacts. Neither is signed: the Windows artifacts
-carry no Authenticode signature, and the DMG is ad-hoc-signed and not
-notarized, so SmartScreen and Gatekeeper both warn. The signing and
-notarization steps read their credentials from the release environment and
-take the unsigned path while those secrets are empty, which is the state
-today.
+(`packaging/macos/build-macos.sh`). Both attach to the same draft release as the
+Linux artifacts on a tag. The Windows artifacts carry no Authenticode
+signature, so SmartScreen warns. The macOS job imports its Developer ID
+Application certificate from the `release` environment, signs the nested code
+with hardened runtime, applies secure timestamps to the app and DMG, notarizes
+through an App Store Connect API key, staples the ticket, and blocks publication
+unless Gatekeeper accepts it. Manual macOS packaging from main follows the same
+signed path and uploads the result as a run artifact.
 
 The `build-test` matrix still builds `windows-msvc-release` and
 `macos-release` and runs the blocking `unit` and `shell` gates on all three
@@ -61,11 +61,9 @@ unverified bytes.
 hand and pins both tag and commit, with a placeholder commit that is not a real
 object so an unpinned manifest fails to fetch. No CI job builds it.
 
-**Absent.** Every form of signing and notarization. All three packaging jobs
-declare the protected `release` environment, but no step in any of them
-consumes a signing credential, because there is none to consume: those
-credentials require an identified organization and cannot be provisioned or
-tested from this repository.
+**Absent.** Windows Authenticode signing. The macOS Developer ID and
+notarization credentials are installed only in the `release`
+environment; pull requests and arbitrary manual refs cannot access them.
 
 Supported toolchain: Qt 6.10 or newer, with CI pinned to 6.10.1; CMake 3.21 or
 newer; C++20 with GCC 12 or newer, MSVC 2022, or a recent AppleClang.
@@ -73,15 +71,11 @@ newer; C++20 with GCC 12 or newer, MSVC 2022, or a recent AppleClang.
 ## Consequences
 
 The download table is true: it lists all three platforms, because a tag now
-produces artifacts for all three, and it states plainly that two of them are
-unsigned. A reader who downloads the Windows installer or the macOS DMG meets
-an operating-system warning, and the README tells them so before they do.
-
-The cost is that an unsigned download is a worse first impression than no
-download at all for some readers, and that the packaging jobs are exercised
-end to end without ever exercising the signing path they will eventually take.
-That path is written and inert rather than absent, so enabling it is a matter
-of adding credentials to the release environment.
+produces artifacts for all three, and it states plainly that Windows remains
+unsigned while macOS is signed and notarized. The macOS packaging job cannot
+silently regress to an ad-hoc artifact: absent credentials, a signing failure,
+a rejected notarization, an unstapled ticket or a failed Gatekeeper assessment
+fails the job.
 
 One loose end is worth recording rather than leaving to be rediscovered:
 
@@ -96,9 +90,9 @@ The CMake floor agrees everywhere it is stated: `cmake_minimum_required` in
 
 ## Evidence in the tree
 
-- `.github/workflows/ci.yml`: the `build-test` matrix and the three tag-gated packaging jobs (`package`, `package-windows`, `package-macos`)
+- `.github/workflows/ci.yml`: the `build-test` matrix, the three tag-gated packaging jobs, and signed manual macOS packaging from main
 - `packaging/windows/build-windows.ps1`, `packaging/windows/kvit-notes.iss`: the portable zip and the per-user installer
-- `packaging/macos/build-macos.sh`: the bundle, the DMG, and the signing and notarization steps that stay inert while their credentials are empty
+- `packaging/macos/build-macos.sh`: the bundle, DMG, Developer ID signing, notarization, stapling and Gatekeeper verification
 - `packaging/linux/build-appimage.sh`: the AppImage build, with linuxdeploy,
   appimagetool and the static type-2 runtime independently pinned by SHA-256
 - `tools/check-appimage.sh`: runs the packed artifact and probes math resources, QML imports, SQLite FTS5 and plugins before publication

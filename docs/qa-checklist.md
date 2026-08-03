@@ -524,8 +524,9 @@ Run against the installed artifact, never a build tree.
        app.
 2. [ ] Signature verification: `signtool verify` (Windows, once signed),
        `spctl -a` and Gatekeeper first-open (macOS).
-       *Expect:* verification passes, or the unsigned state matches what
-       the README documents.
+       *Expect:* the macOS Developer ID signature, notarization ticket and
+       Gatekeeper assessment all pass. Windows remains unsigned as documented
+       in the README.
 3. [ ] `kvit-notes --math-selftest` from the installed location.
        *Expect:* passes, and math renders in the app with the build tree
        absent. This is the relocatability check in packaged form.

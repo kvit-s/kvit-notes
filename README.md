@@ -30,14 +30,13 @@ and Fedora installations do not need the legacy `libfuse2` compatibility
 package. On a system where FUSE mounting itself is unavailable (for example a
 restricted container), use `--appimage-extract-and-run` as a slower fallback.
 
-**Neither the Windows nor the macOS download is code-signed.** A release tag
-builds all three: the Linux AppImage, a per-user Inno Setup installer and a
-portable zip for Windows, and a `macdeployqt` bundle inside a compressed DMG.
-The Windows artifacts carry no Authenticode signature and the DMG is
-ad-hoc-signed and not notarized, so SmartScreen on Windows and Gatekeeper on
-macOS will both warn before running them. Signing is wired into the release
-workflow and switches on when the certificates exist; until then, building
-from source (see below) is the way to avoid the warning.
+**The Windows download is not code-signed.** A release tag builds all three:
+the Linux AppImage, a per-user Inno Setup installer and a portable zip for
+Windows, and a `macdeployqt` bundle inside a compressed DMG. The Windows
+artifacts carry no Authenticode signature, so SmartScreen will warn before
+running them. The macOS DMG is Developer ID-signed, notarized and stapled;
+Gatekeeper verification is a blocking part of both release and manual macOS
+packaging runs.
 
 Flathub and the Homebrew tap are likewise not live yet. The Flatpak manifest
 lives at `packaging/flatpak/org.kvit.Notes.yaml` and is submitted by hand;
