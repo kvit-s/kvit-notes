@@ -525,6 +525,48 @@ Things worth knowing before changing this:
   (QLocalServer) and a window-raise protocol. `NoteCollection::vaultInUse`
   carries the holder's description, and main.qml explains it.
 
+## Menu labels carry their access key
+
+Every hand-written menu label in `qml/` is written with its access key marked
+by `&`, and reaches the menu through the `MenuText` singleton:
+
+```qml
+MenuItem { text: MenuText.label(qsTr("&Copy")) }        // a label
+MenuItem { text: MenuText.plain(folderName) }           // a name off the disk
+Menu     { title: MenuText.label(qsTr("Copy &as…")) }   // a submenu's entry
+```
+
+Qt does the rest: the label goes through `QQuickMnemonicLabel`, which draws the
+underline, and `QQuickAbstractButton` builds Alt+<letter> from the same text.
+The binding is live only while the item is shown, so a context menu's letters
+cost nothing while it is closed. The three toolbar buttons that open menus are
+the exception worth knowing: they are always shown, which is exactly why
+marking them gives Alt+F, Alt+V and Alt+I from anywhere in the window.
+
+Three things this rule exists for.
+
+`MenuText.label()` removes the markers on macOS, which has no access keys. That
+matters beyond appearance for one entry: Qt moves "Settings…" into the macOS
+application menu by matching the item's text, so a surviving marker would leave
+it in File. Nothing here can test the macOS side, so it is item 6 of the macOS
+watch-list in docs/qa-checklist.md.
+
+`MenuText.plain()` is for text nobody wrote as a label — a vault path, a
+template's file name, a folder or a board column. Without it a folder called
+"R&D" shows as "RD" with an underlined D, because the menu reads the ampersand
+as a marker. It escapes rather than strips, so the name survives on every
+platform.
+
+The letters have to be distinct within one menu, which the
+`MenuAccessKeyGuard` test (`tools/check-menu-access-keys.py`) checks over the
+QML. A clash is invisible in review and invisible in a screenshot — both
+letters are underlined either way — and shows only as a key that runs the wrong
+command.
+
+The rule itself, in both directions, is `src/platform/menuaccesskeys.h`, and
+`tests/test_menuaccesskeys.cpp` exercises both platforms by naming the platform
+rather than running on it.
+
 ## Settings wiring order in AppContext
 
 `Theme::setSettings()` and `Typography::setSettings()` snapshot the store's

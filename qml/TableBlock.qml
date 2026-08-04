@@ -1431,14 +1431,14 @@ BlockDelegateBase {
         // for them.
         MenuItem {
             objectName: "tableCopyCells"
-            text: qsTr("Copy selected cells")
+            text: MenuText.label(qsTr("&Copy selected cells"))
             visible: root.hasCellSelection
             height: visible ? implicitHeight : 0
             onTriggered: root.copyCellSelection()
         }
         MenuItem {
             objectName: "tableClearCells"
-            text: qsTr("Clear selected cells")
+            text: MenuText.label(qsTr("C&lear selected cells"))
             visible: root.hasCellSelection
             height: visible ? implicitHeight : 0
             onTriggered: root.clearSelectedCells()
@@ -1446,13 +1446,13 @@ BlockDelegateBase {
         MenuSeparator { visible: root.hasCellSelection }
         MenuItem {
             objectName: "tableInsertRowAbove"
-            text: qsTr("Insert row above")
+            text: MenuText.label(qsTr("Insert row &above"))
             enabled: root.menuRow >= 0
             onTriggered: root.writeTable(TableTools.insertRow(root.content, root.menuRow - 1))
         }
         MenuItem {
             objectName: "tableInsertRowBelow"
-            text: qsTr("Insert row below")
+            text: MenuText.label(qsTr("Insert row &below"))
             onTriggered: {
                 root.revealThrough(root.menuRow + 1)
                 root.writeTable(TableTools.insertRow(root.content, root.menuRow))
@@ -1460,14 +1460,14 @@ BlockDelegateBase {
         }
         MenuItem {
             objectName: "tableDeleteRow"
-            text: qsTr("Delete row")
+            text: MenuText.label(qsTr("&Delete row"))
             enabled: root.menuRow >= 0 && root.dataRows > 0
             onTriggered: root.writeTable(TableTools.removeRow(root.content, root.menuRow))
         }
         MenuSeparator {}
         MenuItem {
             objectName: "tableInsertColumnLeft"
-            text: qsTr("Insert column left")
+            text: MenuText.label(qsTr("Insert column lef&t"))
             onTriggered: {
                 root.shiftColumnWidths(root.menuCol, true)
                 root.writeTable(TableTools.insertColumn(root.content, root.menuCol - 1))
@@ -1475,7 +1475,7 @@ BlockDelegateBase {
         }
         MenuItem {
             objectName: "tableInsertColumnRight"
-            text: qsTr("Insert column right")
+            text: MenuText.label(qsTr("Insert column &right"))
             onTriggered: {
                 root.shiftColumnWidths(root.menuCol + 1, true)
                 root.writeTable(TableTools.insertColumn(root.content, root.menuCol))
@@ -1483,7 +1483,7 @@ BlockDelegateBase {
         }
         MenuItem {
             objectName: "tableDeleteColumn"
-            text: qsTr("Delete column")
+            text: MenuText.label(qsTr("Delete colu&mn"))
             enabled: root.columns > 1
             onTriggered: {
                 root.shiftColumnWidths(root.menuCol, false)
@@ -1495,7 +1495,7 @@ BlockDelegateBase {
             // The way back from a dragged layout: without this a column
             // sized too narrow could only be fixed by dragging it again.
             objectName: "tableResetColumnWidths"
-            text: qsTr("Reset column widths")
+            text: MenuText.label(qsTr("R&eset column widths"))
             enabled: root.hasStoredColWidths
             onTriggered: root.clearColumnWidths()
         }

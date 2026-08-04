@@ -22,6 +22,12 @@ import Kvit 1.0
 // can never drift from what the highlighter supports. Opened from the code
 // block's header button; the chosen id is written back as one undo step by
 // the caller (EditableBlock.setCodeLanguage).
+//
+// Deliberately the one menu with no access keys. The entries are a list of
+// values to pick from rather than commands to run, most of them come from a
+// list in C++, and half the names ("C++", "JSON") share their first letters,
+// so a key per entry would be arbitrary where the arrow keys already are not.
+// The convention and the `&` spelling are in src/platform/menuaccesskeys.h.
 Menu {
     id: root
 

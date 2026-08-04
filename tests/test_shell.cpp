@@ -21,6 +21,7 @@
 #include "block.h"
 #include "blockmodel.h"
 #include "extensionregistry.h"
+#include "menuaccesskeys.h"
 #include "perflog.h"
 #include "qmlservices.h"
 
@@ -607,7 +608,11 @@ private slots:
             QStringLiteral("fileMenuSaveAs"));
         QVERIFY(save);
         QVERIFY(saveAs);
-        QCOMPARE(save->property("text").toString(), QStringLiteral("Save"));
+        // Labels are written with their access key marked ("&Save"), and the
+        // running platform decides whether the marker stays; asking
+        // MenuAccessKeys for the same label is what the menu itself does.
+        QCOMPARE(save->property("text").toString(),
+                 MenuAccessKeys::label(QStringLiteral("&Save")));
         QVERIFY(save->property("enabled").toBool());
         QVERIFY(saveAs->property("enabled").toBool());
 
@@ -652,9 +657,10 @@ private slots:
             }
             return static_cast<QQuickItem *>(nullptr);
         };
-        QQuickItem *recent = menuRowWithText(QStringLiteral("Open Recent"));
+        QQuickItem *recent = menuRowWithText(
+            MenuAccessKeys::label(QStringLiteral("Open &Recent")));
         QQuickItem *fromTemplate = menuRowWithText(
-            QStringLiteral("New from template"));
+            MenuAccessKeys::label(QStringLiteral("&New from template")));
         QVERIFY(recent);
         QVERIFY(fromTemplate);
         QVERIFY(!recent->isEnabled());

@@ -1020,14 +1020,14 @@ BlockDelegateBase {
         objectName: "diagramContextMenu"
 
         MenuItem {
-            text: qsTr("Rename id…")
+            text: MenuText.label(qsTr("&Rename id…"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedNodeId !== ""
             onTriggered: labelEditor.openFor(true)
         }
         MenuItem {
-            text: qsTr("Edit label…")
+            text: MenuText.label(qsTr("Edit &label…"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedNodeId !== ""
@@ -1035,7 +1035,7 @@ BlockDelegateBase {
         }
         // Sequence diagrams reorder by statement order.
         MenuItem {
-            text: qsTr("Move message up")
+            text: MenuText.label(qsTr("Move message &up"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedEdgeIndex >= 0
@@ -1043,7 +1043,7 @@ BlockDelegateBase {
                 readCanvas.moveSelectedMessageSource(-1), qsTr("Moved up"))
         }
         MenuItem {
-            text: qsTr("Move message down")
+            text: MenuText.label(qsTr("Move message dow&n"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedEdgeIndex >= 0
@@ -1051,7 +1051,7 @@ BlockDelegateBase {
                 readCanvas.moveSelectedMessageSource(1), qsTr("Moved down"))
         }
         MenuItem {
-            text: qsTr("Move participant left")
+            text: MenuText.label(qsTr("Move participant le&ft"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedNodeId !== ""
@@ -1059,7 +1059,7 @@ BlockDelegateBase {
                 readCanvas.moveSelectedParticipantSource(-1), qsTr("Moved left"))
         }
         MenuItem {
-            text: qsTr("Move participant right")
+            text: MenuText.label(qsTr("Move participant ri&ght"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedNodeId !== ""
@@ -1073,25 +1073,25 @@ BlockDelegateBase {
             // Binding it to an async render result can therefore try to open
             // this menu while contextMenu is closed (and crashes Qt 6.10's
             // QQuickMenu). Keep unavailable submenus disabled instead.
-            title: qsTr("Shape")
+            title: MenuText.label(qsTr("&Shape"))
             enabled: readCanvas.selectedNodeId !== ""
                      && readCanvas.supportsArrangement
             Repeater {
                 model: [
-                    { name: "rect", label: qsTr("Rectangle") },
-                    { name: "rounded", label: qsTr("Rounded") },
-                    { name: "stadium", label: qsTr("Stadium") },
-                    { name: "subroutine", label: qsTr("Subroutine") },
-                    { name: "cylinder", label: qsTr("Cylinder") },
-                    { name: "circle", label: qsTr("Circle") },
-                    { name: "rhombus", label: qsTr("Decision") },
-                    { name: "hexagon", label: qsTr("Hexagon") },
-                    { name: "parallelogram", label: qsTr("Parallelogram") },
-                    { name: "trapezoid", label: qsTr("Trapezoid") },
+                    { name: "rect", label: qsTr("&Rectangle") },
+                    { name: "rounded", label: qsTr("Rou&nded") },
+                    { name: "stadium", label: qsTr("&Stadium") },
+                    { name: "subroutine", label: qsTr("Su&broutine") },
+                    { name: "cylinder", label: qsTr("C&ylinder") },
+                    { name: "circle", label: qsTr("&Circle") },
+                    { name: "rhombus", label: qsTr("&Decision") },
+                    { name: "hexagon", label: qsTr("&Hexagon") },
+                    { name: "parallelogram", label: qsTr("&Parallelogram") },
+                    { name: "trapezoid", label: qsTr("&Trapezoid") },
                 ]
                 MenuItem {
                     required property var modelData
-                    text: modelData.label
+                    text: MenuText.label(modelData.label)
                     onTriggered: root.applyGesture(
                         readCanvas.shapeSelectionSource(modelData.name),
                         qsTr("Shape changed"))
@@ -1100,34 +1100,34 @@ BlockDelegateBase {
         }
         Menu {
             id: edgeStyleMenu
-            title: qsTr("Edge style")
+            title: MenuText.label(qsTr("Edge st&yle"))
             enabled: readCanvas.selectedEdgeIndex >= 0
                      && readCanvas.supportsArrangement
-            MenuItem { text: qsTr("Solid"); onTriggered: root.applyGesture(
+            MenuItem { text: MenuText.label(qsTr("&Solid")); onTriggered: root.applyGesture(
                 readCanvas.edgeStyleSelectionSource("solid"), qsTr("Edge restyled")) }
-            MenuItem { text: qsTr("Dotted"); onTriggered: root.applyGesture(
+            MenuItem { text: MenuText.label(qsTr("&Dotted")); onTriggered: root.applyGesture(
                 readCanvas.edgeStyleSelectionSource("dotted"), qsTr("Edge restyled")) }
-            MenuItem { text: qsTr("Thick"); onTriggered: root.applyGesture(
+            MenuItem { text: MenuText.label(qsTr("&Thick")); onTriggered: root.applyGesture(
                 readCanvas.edgeStyleSelectionSource("thick"), qsTr("Edge restyled")) }
         }
         Menu {
             id: colorMenu
-            title: qsTr("Color")
+            title: MenuText.label(qsTr("&Color"))
             enabled: readCanvas.selectedNodeId !== ""
                      && readCanvas.supportsArrangement
             Repeater {
                 model: [
-                    { label: qsTr("Red"), fill: "#fecaca", stroke: "#dc2626" },
-                    { label: qsTr("Orange"), fill: "#fed7aa", stroke: "#ea580c" },
-                    { label: qsTr("Yellow"), fill: "#fef08a", stroke: "#ca8a04" },
-                    { label: qsTr("Green"), fill: "#bbf7d0", stroke: "#16a34a" },
-                    { label: qsTr("Blue"), fill: "#bfdbfe", stroke: "#2563eb" },
-                    { label: qsTr("Purple"), fill: "#e9d5ff", stroke: "#9333ea" },
-                    { label: qsTr("Gray"), fill: "#e5e7eb", stroke: "#4b5563" },
+                    { label: qsTr("&Red"), fill: "#fecaca", stroke: "#dc2626" },
+                    { label: qsTr("&Orange"), fill: "#fed7aa", stroke: "#ea580c" },
+                    { label: qsTr("&Yellow"), fill: "#fef08a", stroke: "#ca8a04" },
+                    { label: qsTr("&Green"), fill: "#bbf7d0", stroke: "#16a34a" },
+                    { label: qsTr("&Blue"), fill: "#bfdbfe", stroke: "#2563eb" },
+                    { label: qsTr("&Purple"), fill: "#e9d5ff", stroke: "#9333ea" },
+                    { label: qsTr("Gr&ay"), fill: "#e5e7eb", stroke: "#4b5563" },
                 ]
                 MenuItem {
                     required property var modelData
-                    text: modelData.label
+                    text: MenuText.label(modelData.label)
                     onTriggered: root.applyGesture(
                         readCanvas.styleSelectionSource(modelData.fill,
                                                         modelData.stroke),
@@ -1136,7 +1136,7 @@ BlockDelegateBase {
             }
         }
         MenuItem {
-            text: qsTr("Add connected node")
+            text: MenuText.label(qsTr("&Add connected node"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedNodeId !== ""
@@ -1145,7 +1145,7 @@ BlockDelegateBase {
                 qsTr("Added a connected node"))
         }
         MenuItem {
-            text: qsTr("Delete")
+            text: MenuText.label(qsTr("&Delete"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
             enabled: readCanvas.hasSelection
@@ -1154,7 +1154,7 @@ BlockDelegateBase {
         }
         MenuSeparator { }
         MenuItem {
-            text: qsTr("Reset layout")
+            text: MenuText.label(qsTr("Reset layou&t"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
             enabled: readCanvas.hasArrangement
@@ -1165,7 +1165,7 @@ BlockDelegateBase {
             }
         }
         MenuItem {
-            text: qsTr("Edit source")
+            text: MenuText.label(qsTr("&Edit source"))
             onTriggered: root.editSelectionSource()
         }
     }

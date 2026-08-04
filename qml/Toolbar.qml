@@ -177,12 +177,20 @@ Rectangle {
         // in and out of the collection, and the application-wide settings.
         // Always visible, since it is the only in-app way to change where
         // notes live.
+        //
+        // The `&` marks the access key. On Windows and Linux these three
+        // buttons stand in for a menu bar, so Alt+F, Alt+V and Alt+I have to
+        // open their menus from anywhere in the window; a ToolButton gets
+        // that binding from the marker on its own, because Qt Quick builds
+        // Alt+<letter> out of any button's label. macOS has a real menu bar
+        // and no access keys, so the markers come out there and these three
+        // buttons are not built at all (see `nativeMenuBar` above).
         ToolButton {
             id: fileButton
             objectName: "toolbarFileButton"
             visible: !toolbar.nativeMenuBar
             focusPolicy: Qt.TabFocus
-            text: qsTr("File")
+            text: MenuText.label(qsTr("&File"))
             font.pixelSize: 12
             implicitHeight: 28
             Accessible.role: Accessible.ButtonMenu
@@ -211,7 +219,7 @@ Rectangle {
             objectName: "toolbarViewButton"
             visible: toolbar.showViewGroup && !toolbar.nativeMenuBar
             focusPolicy: Qt.TabFocus
-            text: qsTr("View")
+            text: MenuText.label(qsTr("&View"))
             font.pixelSize: 12
             implicitHeight: 28
             Accessible.role: Accessible.ButtonMenu
@@ -448,7 +456,7 @@ Rectangle {
             objectName: "toolbarInsertButton"
             visible: toolbar.showInsertGroup
             focusPolicy: Qt.TabFocus
-            text: qsTr("+ Insert")
+            text: MenuText.label(qsTr("+ &Insert"))
             font.pixelSize: 12
             implicitHeight: 28
             Accessible.role: Accessible.ButtonMenu
@@ -465,7 +473,7 @@ Rectangle {
                     MenuItem {
                         required property int index
                         required property string modelData
-                        text: modelData
+                        text: MenuText.plain(modelData)
                         onTriggered: toolbar.insertBlockOfType(
                             toolbar.typeValues[index])
                     }
@@ -475,23 +483,23 @@ Rectangle {
                 // uses.
                 MenuSeparator {}
                 MenuItem {
-                    text: qsTr("Table")
+                    text: MenuText.label(qsTr("&Table"))
                     onTriggered: toolbar.insertSpecialBelow("table")
                 }
                 MenuItem {
-                    text: qsTr("Task Board")
+                    text: MenuText.label(qsTr("Tas&k Board"))
                     onTriggered: toolbar.insertSpecialBelow("kanban")
                 }
                 MenuItem {
-                    text: qsTr("Math Block")
+                    text: MenuText.label(qsTr("&Math Block"))
                     onTriggered: toolbar.insertBlockOfType(13)   // Block.MathBlock
                 }
                 MenuItem {
-                    text: qsTr("Image")
+                    text: MenuText.label(qsTr("&Image"))
                     onTriggered: toolbar.insertSpecialBelow("image")
                 }
                 MenuItem {
-                    text: qsTr("Audio / Video")
+                    text: MenuText.label(qsTr("&Audio / Video"))
                     onTriggered: toolbar.insertSpecialBelow("media")
                 }
             }
@@ -544,28 +552,28 @@ Rectangle {
         id: customizeMenu
         objectName: "toolbarCustomizeMenu"
         MenuItem {
-            text: qsTr("Block type")
+            text: MenuText.label(qsTr("&Block type"))
             checkable: true
             checked: toolbar.showBlockGroup
             onTriggered: toolbar.setGroupVisible(
                 "toolbar.showBlockType", "showBlockGroup", checked)
         }
         MenuItem {
-            text: qsTr("Formatting")
+            text: MenuText.label(qsTr("&Formatting"))
             checkable: true
             checked: toolbar.showFormatGroup
             onTriggered: toolbar.setGroupVisible(
                 "toolbar.showFormatting", "showFormatGroup", checked)
         }
         MenuItem {
-            text: qsTr("Insert")
+            text: MenuText.label(qsTr("&Insert"))
             checkable: true
             checked: toolbar.showInsertGroup
             onTriggered: toolbar.setGroupVisible(
                 "toolbar.showInsert", "showInsertGroup", checked)
         }
         MenuItem {
-            text: qsTr("View")
+            text: MenuText.label(qsTr("&View"))
             checkable: true
             checked: toolbar.showViewGroup
             onTriggered: toolbar.setGroupVisible(

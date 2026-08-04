@@ -34,6 +34,24 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Menu access keys on Windows and Linux. Every command in the File, View and
+  Insert menus, and in each of the twelve menus the pointer opens, now has one
+  letter of its label underlined; typing that letter while the menu is open
+  runs the command. Submenus have their own, so a path can be typed whole: in
+  the block menu `A` then `C` is Align → Center. The three toolbar menus stand
+  in for a menu bar the window does not have, so Alt+F, Alt+V and Alt+I open
+  them from anywhere, including while typing in a block. Pressing Alt on its
+  own still does nothing, because Qt Quick binds the key combinations but does
+  not implement the Windows menu-bar activation a bare Alt press expects. The
+  underlines are also drawn from the start rather than appearing when Alt is
+  held, since Qt does not read the Windows "Underline access keys" setting.
+  macOS has no access-key convention and shows no underlines; its menus keep
+  the system menu bar and the Command shortcuts. The code-block language
+  chooser is deliberately left out, since its entries are values rather than
+  commands. A command with no key, and two commands in one menu claiming the
+  same letter, both leave a menu that photographs correctly, so the letters
+  are checked (`tools/check-menu-access-keys.py`) rather than reviewed.
+
 - The text on a web embed card, in a collection query's results, and in a
   table of contents can now be selected with the pointer and copied. Those
   blocks draw their text rather than putting it in an editor, so it behaved

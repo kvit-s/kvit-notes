@@ -41,6 +41,7 @@
 #include "markdownformatter.h"
 #include "mathcommandmodel.h"
 #include "mathrenderer.h"
+#include "menuaccesskeys.h"
 #include "navigationhistory.h"
 #include "notecollection.h"
 #include "notelistmodel.h"
@@ -261,6 +262,7 @@ private:
     AssetStore m_assetStore;
     BlockAttributes m_blockAttributes;
     ShortcutCatalog m_shortcutCatalog;
+    MenuAccessKeys m_menuAccessKeys;
     AccessibilityAnnouncer m_a11y;
     FileWatcher m_fileWatcher;
     TableTools m_tableTools;

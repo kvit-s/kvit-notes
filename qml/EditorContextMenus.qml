@@ -21,6 +21,15 @@ import Kvit 1.0
 // held in `target` while the menu is open, which is also what lets a delegate
 // ask whether a menu is currently keeping its selection alive: a menu takes
 // focus, and the delegate would otherwise deselect on focus loss.
+//
+// Every command marks its access key with `&` — the letter typed to run it
+// while the menu is open, drawn underlined on Windows and Linux and taken out
+// on macOS, which has no such convention. The letters have to be distinct
+// within one menu, and tools/check-menu-access-keys.py — the MenuAccessKeyGuard
+// test — is what keeps them that way. The one list here
+// that is data rather than labels — the block types the "Turn into" submenu
+// offers — goes through MenuText.plain() instead, so a `&` in a type's name
+// stays an ampersand. See src/platform/menuaccesskeys.h.
 Item {
     id: menus
 
@@ -131,69 +140,69 @@ Item {
 
         MenuItem {
             objectName: "ctxCut"
-            text: qsTr("Cut")
+            text: MenuText.label(qsTr("Cu&t"))
             enabled: textContextMenu.hasSel
             onTriggered: textContextMenu.target.cutSelection()
         }
         MenuItem {
             objectName: "ctxCopy"
-            text: qsTr("Copy")
+            text: MenuText.label(qsTr("&Copy"))
             enabled: textContextMenu.hasSel
             onTriggered: textContextMenu.target.copySelection()
         }
         MenuItem {
             objectName: "ctxPaste"
-            text: qsTr("Paste")
+            text: MenuText.label(qsTr("&Paste"))
             enabled: Clipboard.hasText
             onTriggered: textContextMenu.target.pasteClipboard(false)
         }
         MenuItem {
             objectName: "ctxPastePlain"
-            text: qsTr("Paste as plain text")
+            text: MenuText.label(qsTr("Paste as plain te&xt"))
             enabled: Clipboard.hasText
             onTriggered: textContextMenu.target.pasteClipboard(true)
         }
         MenuSeparator {}
         Menu {
-            title: qsTr("Formatting")
+            title: MenuText.label(qsTr("&Formatting"))
             enabled: textContextMenu.target
                      && !textContextMenu.target.verbatimEditing
             Repeater {
                 model: [
-                    { name: qsTr("Bold"), type: "bold" },
-                    { name: qsTr("Italic"), type: "italic" },
-                    { name: qsTr("Underline"), type: "underline" },
-                    { name: qsTr("Strikethrough"), type: "strike" },
-                    { name: qsTr("Inline code"), type: "code" },
-                    { name: qsTr("Highlight"), type: "highlight" },
-                    { name: qsTr("Superscript"), type: "superscript" },
-                    { name: qsTr("Subscript"), type: "subscript" },
-                    { name: qsTr("Inline math"), type: "math" }]
+                    { name: qsTr("&Bold"), type: "bold" },
+                    { name: qsTr("&Italic"), type: "italic" },
+                    { name: qsTr("&Underline"), type: "underline" },
+                    { name: qsTr("&Strikethrough"), type: "strike" },
+                    { name: qsTr("Inline &code"), type: "code" },
+                    { name: qsTr("&Highlight"), type: "highlight" },
+                    { name: qsTr("Su&perscript"), type: "superscript" },
+                    { name: qsTr("Subsc&ript"), type: "subscript" },
+                    { name: qsTr("Inline &math"), type: "math" }]
                 MenuItem {
                     id: spanTypeItem
                     required property var modelData
-                    text: spanTypeItem.modelData.name
+                    text: MenuText.label(spanTypeItem.modelData.name)
                     onTriggered: textContextMenu.target.toggleSpanType(
                         spanTypeItem.modelData.type)
                 }
             }
         }
         Menu {
-            title: qsTr("Text color")
+            title: MenuText.label(qsTr("Text c&olor"))
             enabled: textContextMenu.target
                      && !textContextMenu.target.verbatimEditing
             Repeater {
                 model: [
-                    { name: qsTr("Red"), value: "#e05c5c" },
-                    { name: qsTr("Orange"), value: "#e0a04c" },
-                    { name: qsTr("Green"), value: "#58a866" },
-                    { name: qsTr("Blue"), value: "#4a90d9" },
-                    { name: qsTr("Purple"), value: "#9068c8" },
-                    { name: qsTr("Pink"), value: "#d06ca8" }]
+                    { name: qsTr("&Red"), value: "#e05c5c" },
+                    { name: qsTr("&Orange"), value: "#e0a04c" },
+                    { name: qsTr("&Green"), value: "#58a866" },
+                    { name: qsTr("&Blue"), value: "#4a90d9" },
+                    { name: qsTr("&Purple"), value: "#9068c8" },
+                    { name: qsTr("Pin&k"), value: "#d06ca8" }]
                 MenuItem {
                     id: colorItem
                     required property var modelData
-                    text: colorItem.modelData.name
+                    text: MenuText.label(colorItem.modelData.name)
                     // A leading swatch of the color the item applies.
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
@@ -208,28 +217,28 @@ Item {
             }
             MenuSeparator {}
             MenuItem {
-                text: qsTr("Custom…")
+                text: MenuText.label(qsTr("&Custom…"))
                 onTriggered: {
                     textColorDialog.target = textContextMenu.target
                     textColorDialog.open()
                 }
             }
             MenuItem {
-                text: qsTr("Remove color")
+                text: MenuText.label(qsTr("Re&move color"))
                 enabled: textContextMenu.target
                          && textContextMenu.target.currentColor !== ""
                 onTriggered: textContextMenu.target.removeColor()
             }
         }
         MenuItem {
-            text: qsTr("Link…")
+            text: MenuText.label(qsTr("Lin&k…"))
             enabled: textContextMenu.target
                      && !textContextMenu.target.verbatimEditing
             onTriggered: textContextMenu.target.openLinkDialog()
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("Select all")
+            text: MenuText.label(qsTr("&Select all"))
             onTriggered: textContextMenu.target.selectAllText()
         }
     }
@@ -256,17 +265,17 @@ Item {
 
         MenuItem {
             objectName: "ctxOpenLink"
-            text: qsTr("Open link")
+            text: MenuText.label(qsTr("&Open link"))
             onTriggered: linkContextMenu.target.openLinkUnderCursor()
         }
         MenuItem {
             objectName: "ctxEditLink"
-            text: qsTr("Edit link…")
+            text: MenuText.label(qsTr("&Edit link…"))
             onTriggered: linkContextMenu.target.openLinkDialog()
         }
         MenuItem {
             objectName: "ctxRemoveLink"
-            text: qsTr("Remove link")
+            text: MenuText.label(qsTr("&Remove link"))
             onTriggered: linkContextMenu.target.removeLinkAtCursor()
         }
     }
@@ -278,45 +287,45 @@ Item {
 
         MenuItem {
             objectName: "ctxBlockCopy"
-            text: qsTr("Copy")
+            text: MenuText.label(qsTr("&Copy"))
             onTriggered: menus.copyIndexes([blockContextMenu.target.index])
         }
         Menu {
             objectName: "ctxBlockCopyAs"
-            title: qsTr("Copy as…")
+            title: MenuText.label(qsTr("Copy &as…"))
             MenuItem {
                 objectName: "ctxBlockCopyAsMarkdown"
-                text: qsTr("Markdown")
+                text: MenuText.label(qsTr("&Markdown"))
                 onTriggered: menus.copyIndexesAs(
                     [blockContextMenu.target.index], "markdown")
             }
             MenuItem {
                 objectName: "ctxBlockCopyAsText"
-                text: qsTr("Plain text")
+                text: MenuText.label(qsTr("&Plain text"))
                 onTriggered: menus.copyIndexesAs(
                     [blockContextMenu.target.index], "text")
             }
             MenuItem {
                 objectName: "ctxBlockCopyAsHtml"
-                text: qsTr("HTML")
+                text: MenuText.label(qsTr("&HTML"))
                 onTriggered: menus.copyIndexesAs(
                     [blockContextMenu.target.index], "html")
             }
         }
         MenuItem {
             objectName: "ctxBlockExport"
-            text: qsTr("Export…")
+            text: MenuText.label(qsTr("&Export…"))
             onTriggered: menus.exportIndexes([blockContextMenu.target.index])
         }
         MenuSeparator {}
         Menu {
-            title: qsTr("Turn into")
+            title: MenuText.label(qsTr("&Turn into"))
             Repeater {
                 model: menus.toolbar.typeNames
                 MenuItem {
                     required property int index
                     required property string modelData
-                    text: modelData
+                    text: MenuText.plain(modelData)
                     onTriggered: blockContextMenu.target.convertBlockType(
                         menus.toolbar.typeValues[index])
                 }
@@ -325,44 +334,44 @@ Item {
         // Alignment (§9.2): paragraphs, headings, and images.
         Menu {
             objectName: "ctxAlignMenu"
-            title: qsTr("Align")
+            title: MenuText.label(qsTr("Ali&gn"))
             enabled: blockContextMenu.target
                 && blockContextMenu.target.setBlockAlignment !== undefined
                 && blockContextMenu.target.isAlignable === true
             MenuItem {
-                text: qsTr("Left")
+                text: MenuText.label(qsTr("&Left"))
                 onTriggered: blockContextMenu.target.setBlockAlignment("left")
             }
             MenuItem {
-                text: qsTr("Center")
+                text: MenuText.label(qsTr("&Center"))
                 onTriggered: blockContextMenu.target.setBlockAlignment("center")
             }
             MenuItem {
-                text: qsTr("Right")
+                text: MenuText.label(qsTr("&Right"))
                 onTriggered: blockContextMenu.target.setBlockAlignment("right")
             }
         }
         // Drop cap (§1.2.16): a paragraph-only enlarged initial.
         Menu {
             objectName: "ctxDropCapMenu"
-            title: qsTr("Drop cap")
+            title: MenuText.label(qsTr("Dro&p cap"))
             enabled: blockContextMenu.target
                 && blockContextMenu.target.setDropCap !== undefined
                 && blockContextMenu.target.blockType === 0   // Paragraph
             MenuItem {
-                text: qsTr("None")
+                text: MenuText.label(qsTr("&None"))
                 onTriggered: blockContextMenu.target.setDropCap(0)
             }
             MenuItem {
-                text: qsTr("2 lines")
+                text: MenuText.label(qsTr("&2 lines"))
                 onTriggered: blockContextMenu.target.setDropCap(2)
             }
             MenuItem {
-                text: qsTr("3 lines")
+                text: MenuText.label(qsTr("&3 lines"))
                 onTriggered: blockContextMenu.target.setDropCap(3)
             }
             MenuItem {
-                text: qsTr("5 lines")
+                text: MenuText.label(qsTr("&5 lines"))
                 onTriggered: blockContextMenu.target.setDropCap(5)
             }
         }
@@ -371,7 +380,7 @@ Item {
         // with no break and on the types whose newlines are content.
         MenuItem {
             objectName: "ctxRemoveLineBreaks"
-            text: qsTr("Remove line breaks")
+            text: MenuText.label(qsTr("Remove &line breaks"))
             enabled: blockContextMenu.target
                 && BlockModel.canJoinLines([blockContextMenu.target.index])
             onTriggered: BlockModel.joinLinesForBlocks(
@@ -380,38 +389,38 @@ Item {
         MenuSeparator {}
         MenuItem {
             objectName: "ctxBlockDuplicate"
-            text: qsTr("Duplicate")
+            text: MenuText.label(qsTr("D&uplicate"))
             onTriggered: BlockModel.duplicateBlocks(
                 [blockContextMenu.target.index])
         }
         MenuItem {
             objectName: "ctxBlockDelete"
-            text: qsTr("Delete")
+            text: MenuText.label(qsTr("&Delete"))
             onTriggered: BlockModel.removeBlocks(
                 [blockContextMenu.target.index])
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("Move up")
+            text: MenuText.label(qsTr("&Move up"))
             enabled: blockContextMenu.target
                      && blockContextMenu.target.index > 0
             onTriggered: BlockModel.moveBlocksBy(
                 [blockContextMenu.target.index], -1)
         }
         MenuItem {
-            text: qsTr("Move down")
+            text: MenuText.label(qsTr("Move dow&n"))
             enabled: blockContextMenu.target
                      && blockContextMenu.target.index < BlockModel.count - 1
             onTriggered: BlockModel.moveBlocksBy(
                 [blockContextMenu.target.index], 1)
         }
         MenuItem {
-            text: qsTr("Indent")
+            text: MenuText.label(qsTr("&Indent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 [blockContextMenu.target.index], 1)
         }
         MenuItem {
-            text: qsTr("Outdent")
+            text: MenuText.label(qsTr("&Outdent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 [blockContextMenu.target.index], -1)
         }
@@ -424,40 +433,40 @@ Item {
 
         MenuItem {
             objectName: "ctxSelCopy"
-            text: qsTr("Copy")
+            text: MenuText.label(qsTr("&Copy"))
             onTriggered: menus.selectionKeys.copyBlocksToClipboard()
         }
         Menu {
             objectName: "ctxSelCopyAs"
-            title: qsTr("Copy as…")
+            title: MenuText.label(qsTr("Copy &as…"))
             MenuItem {
                 objectName: "ctxSelCopyAsMarkdown"
-                text: qsTr("Markdown")
+                text: MenuText.label(qsTr("&Markdown"))
                 onTriggered: menus.copyIndexesAs(
                     DocumentSelection.selectedIndexes(), "markdown")
             }
             MenuItem {
                 objectName: "ctxSelCopyAsText"
-                text: qsTr("Plain text")
+                text: MenuText.label(qsTr("&Plain text"))
                 onTriggered: menus.copyIndexesAs(
                     DocumentSelection.selectedIndexes(), "text")
             }
             MenuItem {
                 objectName: "ctxSelCopyAsHtml"
-                text: qsTr("HTML")
+                text: MenuText.label(qsTr("&HTML"))
                 onTriggered: menus.copyIndexesAs(
                     DocumentSelection.selectedIndexes(), "html")
             }
         }
         MenuItem {
             objectName: "ctxSelExport"
-            text: qsTr("Export…")
+            text: MenuText.label(qsTr("&Export…"))
             onTriggered: menus.exportIndexes(
                 DocumentSelection.selectedIndexes())
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("Cut")
+            text: MenuText.label(qsTr("Cu&t"))
             onTriggered: {
                 menus.selectionKeys.copyBlocksToClipboard()
                 menus.selectionKeys.removeSelectedBlocks()
@@ -465,7 +474,7 @@ Item {
         }
         MenuItem {
             objectName: "ctxSelDuplicate"
-            text: qsTr("Duplicate")
+            text: MenuText.label(qsTr("D&uplicate"))
             onTriggered: {
                 var clones = BlockModel.duplicateBlocks(
                     DocumentSelection.selectedIndexes())
@@ -477,7 +486,7 @@ Item {
         }
         MenuItem {
             objectName: "ctxSelDelete"
-            text: qsTr("Delete")
+            text: MenuText.label(qsTr("&Delete"))
             onTriggered: menus.selectionKeys.removeSelectedBlocks()
         }
         // The same fold across the whole selection, as one undo step: what
@@ -485,7 +494,7 @@ Item {
         // re-evaluates the enabled state as the selection changes.
         MenuItem {
             objectName: "ctxSelRemoveLineBreaks"
-            text: qsTr("Remove line breaks")
+            text: MenuText.label(qsTr("Remove &line breaks"))
             enabled: {
                 var revision = DocumentSelection.revision  // dependency only
                 return BlockModel.canJoinLines(
@@ -496,7 +505,7 @@ Item {
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("Move up")
+            text: MenuText.label(qsTr("&Move up"))
             onTriggered: {
                 BlockModel.moveBlocksBy(
                     DocumentSelection.selectedIndexes(), -1)
@@ -504,7 +513,7 @@ Item {
             }
         }
         MenuItem {
-            text: qsTr("Move down")
+            text: MenuText.label(qsTr("Move dow&n"))
             onTriggered: {
                 BlockModel.moveBlocksBy(
                     DocumentSelection.selectedIndexes(), 1)
@@ -512,12 +521,12 @@ Item {
             }
         }
         MenuItem {
-            text: qsTr("Indent")
+            text: MenuText.label(qsTr("&Indent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 DocumentSelection.selectedIndexes(), 1)
         }
         MenuItem {
-            text: qsTr("Outdent")
+            text: MenuText.label(qsTr("&Outdent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 DocumentSelection.selectedIndexes(), -1)
         }

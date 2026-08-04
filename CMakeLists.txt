@@ -373,6 +373,7 @@ add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/filewatcher.cpp
     src/platform/globalhotkey.cpp
     src/platform/localimageprovider.cpp
+    src/platform/menuaccesskeys.cpp
     src/platform/remoteimageprovider.cpp
     src/platform/remotemediacache.cpp
     src/platform/settingsstore.cpp

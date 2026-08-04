@@ -37,6 +37,7 @@
 #include "markdownformatter.h"
 #include "mathcommandmodel.h"
 #include "mathrenderer.h"
+#include "menuaccesskeys.h"
 #include "navigationhistory.h"
 #include "notecollection.h"
 #include "notelistmodel.h"
@@ -121,6 +122,7 @@
     X(QueryTools, QueryTools)                 \
     X(FileWatcher, FileWatcher)               \
     X(ShortcutCatalog, ShortcutCatalog)       \
+    X(MenuAccessKeys, MenuText)               \
     X(QuickSwitcherModel, QuickSwitcherModel) \
     X(FolderTreeModel, FolderTreeModel)       \
     X(MarkdownFormatter, MarkdownFormatter)   \

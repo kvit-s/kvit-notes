@@ -116,6 +116,26 @@ pass.
        (qml/FileMenu.qml, qml/ViewMenu.qml), and Qt is what puts them in
        the system bar. Nothing in the automated suites runs on that path.
 
+6. [ ] **No access-key markers or underlines.** Open the File and View
+       menus in the system bar, then right-click a paragraph, a block's
+       drag handle, a note in the note list, a folder in the sidebar, a
+       table cell, a board card and a diagram, and open every submenu.
+
+       *Expect:* no underlined letters anywhere, and no stray `&` in any
+       label. "Settings…" still reads exactly that, and still sits in the
+       application menu rather than in File.
+
+       *Why this is a macOS item:* labels are written with the access key
+       marked, as "Se&ttings…", because Windows and Linux underline that
+       letter and bind it. macOS has no such convention, so
+       MenuAccessKeys::label() removes the markers there
+       (src/platform/menuaccesskeys.h). A marker that survives shows as a
+       literal ampersand or an underline; on "Settings…" it would also
+       stop Qt recognising the item and leave it in the File menu, since
+       Qt moves that one into the application menu by matching its text.
+       The removal is unit-tested, but only on the platform the tests run
+       on, so the macOS half of the path is unexercised.
+
 ### Windows
 
 1. [ ] **Second launch while the first is open.** Launch the app, close
@@ -182,6 +202,29 @@ pass.
        *Expect:* one SmartScreen warning, cleared through "More info →
        Run anyway", matching what the README tells users. Builds ship
        unsigned for now.
+
+6. [ ] **Menu access keys.** With the caret in a block, press Alt+F, then
+       Escape; then Alt+V followed by `O`. Right-click a paragraph and
+       press `T`. Right-click a block's drag handle, press `A` for Align
+       and then `C` for Center.
+
+       *Expect:* Alt+F opens the File menu and Alt+V the View menu, each
+       with one letter of every entry underlined; `O` toggles the outline
+       panel and closes the menu; `T` cuts the selected text; `A` then `C`
+       centres the block. A bare Alt press does nothing, which is a known
+       gap rather than a defect.
+
+       *Also check:* whether the underlines are drawn before Alt is
+       pressed. Windows hides access-key underlines until Alt is held
+       unless "Underline access keys" is on in Accessibility settings, and
+       Qt Quick ignores that setting: the underlines are always drawn.
+       Confirm that is what the artifact does, and that it looks
+       acceptable rather than noisy.
+
+       *Why it needs a human:* the automated cases run on Linux, where the
+       same Qt code path is exercised but the platform convention differs.
+       Windows is where the convention is native, so it is where a wrong
+       key or a missing underline would be noticed.
 
 ### Linux
 

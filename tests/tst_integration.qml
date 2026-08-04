@@ -10228,6 +10228,76 @@ Item {
             }, 1000)
         }
 
+        // Access keys, the Windows and Linux way into a menu without a
+        // pointer: Alt and the underlined letter opens one from anywhere in
+        // the window, and a plain letter then runs a command inside it.
+        //
+        // Both bindings come from the `&` in a label — Qt builds the underline
+        // and the key from the same text — so nothing here is wired by hand,
+        // and what can go wrong is the marker landing on the wrong string or
+        // on no string at all. Neither shows up in a screenshot, because a
+        // label with a misplaced marker still reads correctly.
+        function test_zo0_altOpensTheFileAndViewMenus() {
+            if (isHeadless) {
+                skip("Access keys need a focused window")
+            }
+            var fileMenu = findChild(appLoader.item, "toolbarFileMenu")
+            var viewMenu = findChild(appLoader.item, "toolbarViewMenu")
+            verify(fileMenu !== null, "the toolbar's File button carries its menu")
+            verify(viewMenu !== null, "and the View button carries its own")
+            compare(fileMenu.visible, false, "closed to begin with")
+
+            keyClick(Qt.Key_F, Qt.AltModifier)
+            tryCompare(fileMenu, "visible", true, 2000,
+                       "Alt+F opens the File menu")
+            fileMenu.close()
+            tryCompare(fileMenu, "visible", false, 1000)
+
+            // …and a letter inside the open menu runs that command: Alt+V
+            // then O is View → Outline, which toggles the outline panel and
+            // closes the menu behind itself.
+            var outlineBefore = appLoader.item.outlineVisible
+            keyClick(Qt.Key_V, Qt.AltModifier)
+            tryCompare(viewMenu, "visible", true, 2000,
+                       "Alt+V opens the View menu")
+            keyClick(Qt.Key_O)
+            tryCompare(appLoader.item, "outlineVisible", !outlineBefore, 2000,
+                       "O runs the Outline command")
+            tryCompare(viewMenu, "visible", false, 1000,
+                       "and the menu closes behind it")
+            appLoader.item.outlineVisible = outlineBefore
+        }
+
+        // The same keyboard route through a context menu, which has no button
+        // to open it: the menu is raised by the pointer, and from there the
+        // underlined letter is the whole interaction. Cut is checked rather
+        // than something inert because it has to be the command that ran, not
+        // merely a menu that closed.
+        function test_zo0_aLetterRunsACommandInAContextMenu() {
+            if (isHeadless) {
+                skip("Access keys need a focused window")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "plain words here")
+            wait(150)
+            var ta = findTextArea(findBlockDelegate(0))
+            ensureFocus(ta)
+            ta.select(0, 5)   // "plain"
+
+            mouseClick(ta, 8, 10, Qt.RightButton)
+            var textMenu = findChild(appLoader.item, "textContextMenu")
+            tryCompare(textMenu, "visible", true, 1000)
+
+            keyClick(Qt.Key_T)   // "Cu&t"
+            tryVerify(function() {
+                return BlockModel.getContent(0).indexOf("plain") === -1
+            }, 2000, "T runs Cut; the block still reads "
+                     + BlockModel.getContent(0))
+            compare(Clipboard.text, "plain")
+            tryCompare(textMenu, "visible", false, 1000)
+        }
+
         // The visible hamburger is the pointer-friendly route to the same
         // block menu. Its copy variants serialize only the clicked block,
         // while Export hands the same snapshot to the shared format dialog.

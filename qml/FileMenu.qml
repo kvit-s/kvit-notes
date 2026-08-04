@@ -22,10 +22,16 @@ import Kvit 1.0
 //
 // The commands act on `appWindow`, which is main.qml's root; everything else
 // they need is a singleton.
+//
+// Each command's label marks its access key with `&`, and MenuText.label()
+// takes the markers back out on macOS, which has no such convention. The
+// recent vaults and the template names go through MenuText.plain() instead:
+// they are names off the disk, so an `&` in one is part of the name.
+// See src/platform/menuaccesskeys.h.
 Menu {
     id: fileMenu
     objectName: "toolbarFileMenu"
-    title: qsTr("File")
+    title: MenuText.label(qsTr("&File"))
 
     // The editor window these commands act on. Untyped because KvitShell
     // declares only what block delegates read, not the window's own API.
@@ -44,7 +50,7 @@ Menu {
 
     DiscoverableMenuItem {
         objectName: "fileMenuOpenFile"
-        text: qsTr("Open File…")
+        text: MenuText.label(qsTr("&Open File…"))
         // Routed by window mode: a vault window opens the file in
         // its own single-file window; single-file mode replaces the
         // current document in place.
@@ -52,21 +58,21 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "fileMenuOpenFolder"
-        text: qsTr("Open Folder…")
+        text: MenuText.label(qsTr("Open &Folder…"))
         // Switches this window to the chosen vault (raising an
         // existing window if that vault is already open).
         onTriggered: fileMenu.appWindow.openFolderFromDialog(false)
     }
     DiscoverableMenuItem {
         objectName: "fileMenuOpenFolderNewWindow"
-        text: qsTr("Open Folder in New Window…")
+        text: MenuText.label(qsTr("Open Folder in New &Window…"))
         onTriggered: fileMenu.appWindow.openFolderFromDialog(true)
     }
     MenuSeparator {}
 
     DiscoverableMenuItem {
         objectName: "fileMenuSave"
-        text: qsTr("Save")
+        text: MenuText.label(qsTr("&Save"))
         enabled: DocumentManager
                  && (!DocumentManager.hasFile
                      || DocumentManager.isDirty)
@@ -74,7 +80,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "fileMenuSaveAs"
-        text: qsTr("Save As…")
+        text: MenuText.label(qsTr("Save &As…"))
         onTriggered: fileMenu.appWindow.saveCurrentDocument(true)
     }
     MenuSeparator {}
@@ -82,7 +88,7 @@ Menu {
     Menu {
         id: recentVaultsMenu
         objectName: "fileMenuRecent"
-        title: qsTr("Open Recent")
+        title: MenuText.label(qsTr("Open &Recent"))
         enabled: recentVaultsRepeater.count > 0
         Repeater {
             id: recentVaultsRepeater
@@ -92,7 +98,7 @@ Menu {
             }
             DiscoverableMenuItem {
                 required property string modelData
-                text: modelData
+                text: MenuText.plain(modelData)
                 onTriggered: AppActions.requestOpenVault(modelData)
             }
         }
@@ -107,7 +113,7 @@ Menu {
     Menu {
         id: newFromTemplateMenu
         objectName: "newFromTemplateMenu"
-        title: qsTr("New from template")
+        title: MenuText.label(qsTr("&New from template"))
         enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
         Repeater {
             model: {
@@ -116,7 +122,7 @@ Menu {
             }
             DiscoverableMenuItem {
                 required property string modelData
-                text: modelData
+                text: MenuText.plain(modelData)
                 onTriggered:
                     fileMenu.appWindow.createFromTemplate(modelData)
             }
@@ -124,13 +130,13 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "manageTemplatesItem"
-        text: qsTr("Manage templates…")
+        text: MenuText.label(qsTr("&Manage templates…"))
         enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
         onTriggered: fileMenu.appWindow.templateDialog.openManage()
     }
     DiscoverableMenuItem {
         objectName: "fileMenuQuickCapture"
-        text: qsTr("Quick capture note… (Ctrl+Alt+N)")
+        text: MenuText.label(qsTr("&Quick capture note… (Ctrl+Alt+N)"))
         enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
         onTriggered: fileMenu.appWindow.openQuickCapture()
     }
@@ -139,25 +145,25 @@ Menu {
     MenuSeparator {}
     DiscoverableMenuItem {
         objectName: "fileMenuImport"
-        text: qsTr("Import…")
+        text: MenuText.label(qsTr("&Import…"))
         enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
         onTriggered: fileMenu.appWindow.importDialog.openDialog()
     }
     DiscoverableMenuItem {
         objectName: "fileMenuExport"
-        text: qsTr("Export…")
+        text: MenuText.label(qsTr("&Export…"))
         onTriggered: fileMenu.appWindow.exportDialog.openDialog()
     }
 
     MenuSeparator {}
     DiscoverableMenuItem {
         objectName: "fileMenuSettings"
-        text: qsTr("Settings…")
+        text: MenuText.label(qsTr("Se&ttings…"))
         onTriggered: fileMenu.appWindow.openSettingsDialog()
     }
     DiscoverableMenuItem {
         objectName: "fileMenuShortcuts"
-        text: qsTr("Keyboard shortcuts…")
+        text: MenuText.label(qsTr("&Keyboard shortcuts…"))
         onTriggered: fileMenu.appWindow.openShortcutReference()
     }
 }

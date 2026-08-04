@@ -465,6 +465,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(m_globals.globalHotkey());
     m_services.add(&m_fileWatcher);
     m_services.add(&m_shortcutCatalog);
+    m_services.add(&m_menuAccessKeys);
     m_services.add(&m_quickSwitcherModel);
     m_services.add(&m_folderTreeModel);
     m_services.add(&m_markdownFormatter);

@@ -84,7 +84,7 @@ Rectangle {
                             model: 4
                             MenuItem {
                                 required property int index
-                                text: qsTr("Heading ") + (index + 1)
+                                text: MenuText.label(qsTr("Heading &%1").arg(index + 1))
                                 checkable: true
                                 checked: (DocumentOutline.levelMask
                                           & (1 << index)) !== 0

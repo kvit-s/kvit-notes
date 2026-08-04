@@ -719,7 +719,7 @@ Rectangle {
         objectName: "trashMenu"
         MenuItem {
             objectName: "emptyTrashItem"
-            text: qsTr("Empty trash…")
+            text: MenuText.label(qsTr("&Empty trash…"))
             enabled: NoteCollection.isOpen
                      && NoteCollection.trashItemCount() > 0
             onTriggered: emptyTrashDialog.openFor(
@@ -770,7 +770,7 @@ Rectangle {
 
         MenuItem {
             objectName: "ctxFolderNewNote"
-            text: qsTr("New note")
+            text: MenuText.label(qsTr("&New note"))
             onTriggered: {
                 var created = NoteCollection.createNote(
                     folderContextMenu.relPath, "")
@@ -779,20 +779,20 @@ Rectangle {
             }
         }
         MenuItem {
-            text: qsTr("New subfolder…")
+            text: MenuText.label(qsTr("New &subfolder…"))
             onTriggered: folderDialog.openForCreate(folderContextMenu.relPath)
         }
         MenuSeparator {}
         MenuItem {
             objectName: "ctxFolderRename"
-            text: qsTr("Rename / color…")
+            text: MenuText.label(qsTr("&Rename / color…"))
             onTriggered: folderDialog.openForRename(
                 folderContextMenu.relPath, folderContextMenu.folderName,
                 folderContextMenu.folderColor)
         }
         MenuItem {
             objectName: "ctxFolderDelete"
-            text: qsTr("Delete…")
+            text: MenuText.label(qsTr("&Delete…"))
             onTriggered: deleteFolderDialog.openFor(
                 folderContextMenu.relPath, folderContextMenu.folderName,
                 NoteCollection.noteCountInFolder(
@@ -816,13 +816,13 @@ Rectangle {
 
         MenuItem {
             objectName: "ctxTagRename"
-            text: qsTr("Rename / color…")
+            text: MenuText.label(qsTr("&Rename / color…"))
             onTriggered: tagDialog.openFor(tagContextMenu.tagName,
                                            tagContextMenu.tagColor)
         }
         MenuItem {
             objectName: "ctxTagDelete"
-            text: qsTr("Delete…")
+            text: MenuText.label(qsTr("&Delete…"))
             onTriggered: deleteTagDialog.openFor(tagContextMenu.tagName,
                                                  tagContextMenu.tagCount)
         }

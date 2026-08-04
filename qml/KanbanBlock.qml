@@ -2230,36 +2230,38 @@ BlockDelegateBase {
 
         MenuItem {
             objectName: "kanbanCardEditText"
-            text: qsTr("Edit card text")
+            text: MenuText.label(qsTr("Edit card &text"))
             onTriggered: root.beginEdit(cardMenu.col, cardMenu.idx, "title")
         }
         MenuItem {
             objectName: "kanbanCardEditDescription"
-            text: qsTr("Edit description")
+            text: MenuText.label(qsTr("Edit &description"))
             onTriggered: root.beginEdit(cardMenu.col, cardMenu.idx, "description")
         }
         MenuItem {
             objectName: "kanbanCardToggleDone"
-            text: cardMenu.cardDone ? qsTr("Mark as not done") : qsTr("Mark as done")
+            text: MenuText.label(cardMenu.cardDone
+                                 ? qsTr("&Mark as not done")
+                                 : qsTr("&Mark as done"))
             onTriggered: root.toggleCardDone(cardMenu.col, cardMenu.idx)
         }
         MenuSeparator {}
         MenuItem {
             objectName: "kanbanCardDetails"
-            text: qsTr("Labels and due date…")
+            text: MenuText.label(qsTr("&Labels and due date…"))
             onTriggered: cardDetails.openFor(cardMenu.col, cardMenu.idx)
         }
         Menu {
             id: moveToMenu
             objectName: "kanbanCardMoveMenu"
-            title: qsTr("Move to column")
+            title: MenuText.label(qsTr("Move to &column"))
             Repeater {
                 model: root.columns.length
                 delegate: MenuItem {
                     id: moveToItem
                     required property int index
                     objectName: "kanbanMoveToItem"
-                    text: root.columnName(moveToItem.index)
+                    text: MenuText.plain(root.columnName(moveToItem.index))
                     enabled: moveToItem.index !== cardMenu.col
                     onTriggered: root.moveCardToColumn(cardMenu.col, cardMenu.idx,
                                                        moveToItem.index)
@@ -2269,7 +2271,7 @@ BlockDelegateBase {
         MenuSeparator {}
         MenuItem {
             objectName: "kanbanCardDelete"
-            text: qsTr("Delete card")
+            text: MenuText.label(qsTr("Delete c&ard"))
             onTriggered: root.removeCardAt(cardMenu.col, cardMenu.idx)
         }
     }

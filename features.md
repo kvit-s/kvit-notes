@@ -855,6 +855,7 @@ Display when cursor moves into "information":
 - Right-click on block: block-specific options, convert, delete, duplicate
 - Right-click on selection: options relevant to selection type
 - Right-click on link: open link, edit link, remove link
+- Every entry carries an access key on Windows and Linux (§9.6.1)
 
 ### 9.6 Keyboard Navigation
 - Tab/Shift+Tab to navigate UI elements
@@ -862,6 +863,29 @@ Display when cursor moves into "information":
 - Enter to activate/select
 - Escape to cancel/close dialogs and menus
 - Comprehensive keyboard accessibility
+
+#### 9.6.1 Menu access keys (Windows and Linux)
+- Every command in every menu has an access key: one letter of its label,
+  drawn underlined, that runs the command when it is typed while the menu is
+  open. A submenu's own entry has one too, so a whole path is reachable by
+  typing — in the block menu, `A` then `C` is Align → Center.
+- The File, View and Insert menus have no menu bar to hang from, so their
+  toolbar buttons carry the access key instead and Alt+F, Alt+V and Alt+I open
+  them from anywhere in the window.
+- Pressing Alt on its own does nothing. Qt Quick's menus bind the key
+  combination but do not implement the Windows behaviour of activating the
+  menu bar on a bare Alt press.
+- Every command has a key, and the keys are distinct within one menu. Both are
+  checked rather than reviewed (`tools/check-menu-access-keys.py`).
+- The underlines are drawn from the start rather than appearing only while Alt
+  is held, because Qt does not read the Windows "Underline access keys"
+  setting.
+- The code-block language chooser is the one menu without them: its entries
+  are values to pick from rather than commands, and most of them share their
+  first letters.
+- macOS has no access-key convention, so no underlines appear there and the
+  markers are removed from the labels; its menus are reached through the
+  system menu bar and the standard Command shortcuts.
 
 ### 9.7 Status Bar
 - Current line/column position
@@ -1020,6 +1044,7 @@ Display when cursor moves into "information":
 - Logical tab order
 - Visible focus indicators
 - Skip navigation links
+- Underlined menu access keys on Windows and Linux (§9.6.1)
 
 ### 14.2 Screen Reader Support
 - ARIA labels on interactive elements

@@ -950,33 +950,35 @@ Rectangle {
 
         MenuItem {
             objectName: "ctxNoteOpen"
-            text: qsTr("Open")
+            text: MenuText.label(qsTr("&Open"))
             onTriggered: noteListPane.appWindow.openNoteByPath(noteContextMenu.relPath)
         }
         MenuItem {
             objectName: "ctxNoteRename"
-            text: qsTr("Rename")
+            text: MenuText.label(qsTr("&Rename"))
             onTriggered: noteListPane.startRename(noteContextMenu.relPath)
         }
         MenuSeparator {}
         MenuItem {
             objectName: "ctxNotePin"
-            text: noteContextMenu.notePinned ? qsTr("Unpin") : qsTr("Pin")
+            text: MenuText.label(noteContextMenu.notePinned
+                                 ? qsTr("&Unpin") : qsTr("&Pin"))
             onTriggered: NoteCollection.setPinned(
                 noteContextMenu.relPath, !noteContextMenu.notePinned)
         }
         MenuItem {
             objectName: "ctxNoteFavorite"
-            text: noteContextMenu.noteFavorite
-                ? qsTr("Remove from favorites") : qsTr("Add to favorites")
+            text: MenuText.label(noteContextMenu.noteFavorite
+                ? qsTr("Remove from &favorites")
+                : qsTr("&Add to favorites"))
             onTriggered: NoteCollection.setFavorite(
                 noteContextMenu.relPath, !noteContextMenu.noteFavorite)
         }
         Menu {
             objectName: "ctxNoteMoveMenu"
-            title: qsTr("Move to")
+            title: MenuText.label(qsTr("&Move to"))
             MenuItem {
-                text: qsTr("Notes root")
+                text: MenuText.label(qsTr("&Notes root"))
                 onTriggered: noteListPane.appWindow.requestNoteMove(
                     noteContextMenu.relPath, "")
             }
@@ -985,7 +987,7 @@ Rectangle {
                     ? NoteCollection.folderRelPaths() : []
                 MenuItem {
                     required property string modelData
-                    text: modelData
+                    text: MenuText.plain(modelData)
                     onTriggered: noteListPane.appWindow.requestNoteMove(
                         noteContextMenu.relPath, modelData)
                 }
@@ -994,7 +996,7 @@ Rectangle {
         MenuSeparator {}
         MenuItem {
             objectName: "ctxNoteDelete"
-            text: qsTr("Delete…")
+            text: MenuText.label(qsTr("&Delete…"))
             onTriggered: bulkDeleteDialog.openFor([noteContextMenu.relPath])
         }
     }

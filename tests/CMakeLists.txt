@@ -25,6 +25,14 @@ add_test(NAME ShortcutMapTests COMMAND test_shortcutmap)
 set_tests_properties(ShortcutMapTests
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Menu access keys — the `&` spelling menu labels are written in, and what
+# each platform does with it. Pure string work with no Qt objects behind it,
+# so this needs no application at all; the half of the rule that only applies
+# on macOS is reached by naming the platform rather than running there.
+qt_add_executable(test_menuaccesskeys test_menuaccesskeys.cpp)
+target_link_libraries(test_menuaccesskeys PRIVATE kvit-core Qt6::Test)
+add_test(NAME MenuAccessKeyTests COMMAND test_menuaccesskeys)
+
 # Accessibility announcer tests (live-region seam). Needs a GUI
 # context for the QAccessible announcement path, so Qt6::Gui gives QGuiApplication.
 qt_add_executable(test_accessibility test_accessibility.cpp)
@@ -693,6 +701,15 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME BlockKindsGuard
              COMMAND ${Python3_EXECUTABLE}
                      ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-block-kinds.py)
+
+    # Menu access keys: that every menu label declares one, and that no two
+    # commands in a menu declare the same letter. Both mistakes leave a menu
+    # that reads correctly in the source, passes qmllint and photographs
+    # correctly, and goes wrong only under a keystroke, so neither the
+    # compiler nor a reviewer nor a screenshot test can be the check.
+    add_test(NAME MenuAccessKeyGuard
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-menu-access-keys.py)
 endif()
 
 # Static QML analysis, as a test rather than only as a script somebody has to

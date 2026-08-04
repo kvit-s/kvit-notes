@@ -16,10 +16,14 @@ import Kvit 1.0
 // Like the File menu this has two homes and is therefore one definition: the
 // toolbar's View button on Windows and Linux, the macOS system menu bar in
 // main.qml. Only one of the two exists in a running window.
+//
+// The `&` in each label marks its access key, and the theme names go through
+// MenuText.plain() because they are data rather than labels written here. The
+// rule and what macOS does with it are in src/platform/menuaccesskeys.h.
 Menu {
     id: viewMenu
     objectName: "toolbarViewMenu"
-    title: qsTr("View")
+    title: MenuText.label(qsTr("&View"))
 
     // The editor window these commands act on (main.qml's root).
     property var appWindow
@@ -28,7 +32,7 @@ Menu {
 
     DiscoverableMenuItem {
         objectName: "viewMenuSidebar"
-        text: qsTr("Sidebar")
+        text: MenuText.label(qsTr("&Sidebar"))
         checkable: true
         enabled: viewMenu.appWindow.collectionOpen
         checked: !viewMenu.appWindow.sidebarCollapsed
@@ -37,7 +41,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "viewMenuNoteList"
-        text: qsTr("Note list")
+        text: MenuText.label(qsTr("&Note list"))
         checkable: true
         enabled: viewMenu.appWindow.collectionOpen
         checked: !viewMenu.appWindow.noteListCollapsed
@@ -46,7 +50,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "viewMenuOutline"
-        text: qsTr("Outline")
+        text: MenuText.label(qsTr("&Outline"))
         checkable: true
         checked: viewMenu.appWindow.outlineVisible
         onTriggered: viewMenu.appWindow.outlineVisible
@@ -54,7 +58,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "viewMenuBacklinks"
-        text: qsTr("Backlinks")
+        text: MenuText.label(qsTr("&Backlinks"))
         checkable: true
         enabled: viewMenu.appWindow.collectionOpen
         checked: viewMenu.appWindow.backlinksVisible
@@ -64,7 +68,7 @@ Menu {
     MenuSeparator {}
     DiscoverableMenuItem {
         objectName: "viewMenuFocusMode"
-        text: qsTr("Focus mode")
+        text: MenuText.label(qsTr("&Focus mode"))
         checkable: true
         checked: viewMenu.appWindow.focusMode
         onTriggered: viewMenu.appWindow.focusMode
@@ -72,7 +76,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "viewMenuTypewriterMode"
-        text: qsTr("Typewriter mode")
+        text: MenuText.label(qsTr("&Typewriter mode"))
         checkable: true
         checked: viewMenu.appWindow.typewriterMode
         onTriggered: viewMenu.appWindow.typewriterMode
@@ -81,7 +85,7 @@ Menu {
     MenuSeparator {}
     DiscoverableMenuItem {
         objectName: "viewMenuStatusBar"
-        text: qsTr("Status bar")
+        text: MenuText.label(qsTr("Status ba&r"))
         checkable: true
         checked: viewMenu.appWindow.statusBarVisible
         onTriggered: viewMenu.appWindow.statusBarVisible
@@ -89,7 +93,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "viewMenuCodeLineNumbers"
-        text: qsTr("Code line numbers")
+        text: MenuText.label(qsTr("&Code line numbers"))
         checkable: true
         // The revision read re-evaluates this when the setting flips
         // from anywhere; the gutter binding in EditableBlock reads
@@ -103,7 +107,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "viewMenuEquationNumbers"
-        text: qsTr("Equation numbers")
+        text: MenuText.label(qsTr("&Equation numbers"))
         checkable: true
         // Same reactive pattern as code line numbers; MathBlock
         // reads the same key.
@@ -118,12 +122,12 @@ Menu {
     Menu {
         id: themeMenu
         objectName: "viewMenuTheme"
-        title: qsTr("Theme")
+        title: MenuText.label(qsTr("T&heme"))
         Repeater {
             model: Theme.availableThemes
             DiscoverableMenuItem {
                 required property string modelData
-                text: Theme.displayName(modelData)
+                text: MenuText.plain(Theme.displayName(modelData))
                 checkable: true
                 checked: Theme.themeId === modelData
                 onTriggered: Theme.themeId = modelData
@@ -132,7 +136,7 @@ Menu {
     }
     DiscoverableMenuItem {
         objectName: "viewMenuReducedMotion"
-        text: qsTr("Reduced motion")
+        text: MenuText.label(qsTr("Reduced &motion"))
         checkable: true
         checked: Theme.reducedMotion
         onTriggered: Theme.reducedMotion = checked
@@ -140,7 +144,7 @@ Menu {
     MenuSeparator {}
     DiscoverableMenuItem {
         objectName: "viewMenuFocusEditor"
-        text: qsTr("Focus editor")
+        text: MenuText.label(qsTr("Focus e&ditor"))
         onTriggered: viewMenu.appWindow.focusEditor()
     }
 }
