@@ -307,8 +307,11 @@ QImage render(const QString &tex, int textSizePx, const QColor &fg,
     if (!render)
         return QImage();
 
-    const int w = qMax(1, render->getWidth());
-    const int h = qMax(1, render->getHeight());
+    // Rounded up, and matching what measure() reports: the truncated getters
+    // undersize the raster by up to a pixel in each direction, which cuts the
+    // last row and column of ink off the formula.
+    const int w = qMax(1, qCeil(render->getExactWidth()));
+    const int h = qMax(1, qCeil(render->getExactHeight()));
     const int vpad = qMax(0, verticalPaddingPx);
     const int hpad = qMax(0, horizontalPaddingPx);
     qreal ratio = dpr > 0 ? qMin(dpr, Diagram::kMaxDevicePixelRatio) : 1.0;
@@ -399,13 +402,21 @@ static Metrics measureUncached(const QString &tex, int textSizePx,
     if (!render)
         return metrics;
 
-    metrics.width = qMax(1, render->getWidth());
-    metrics.height = qMax(1, render->getHeight());
-    const qreal baselineRatio = render->getBaseline();
-    metrics.baseline = baselineRatio * metrics.height;
+    // MicroTeX's whole-pixel getters truncate, but draw() positions the
+    // formula from the unrounded box, so the baseline sits at exactly
+    // getExactBaseline() below the top of the drawn content. Scaling the
+    // baseline ratio by the truncated height instead reported a baseline up
+    // to a pixel above the ink, and the inline overlay, which puts that
+    // baseline on the text's, then hung every equation that far below the
+    // line. The extents round up for the same reason: a raster sized to the
+    // truncated height clips the last row of ink.
+    metrics.width = qMax<qreal>(1, qCeil(render->getExactWidth()));
+    metrics.height = qMax<qreal>(1, qCeil(render->getExactHeight()));
+    metrics.baseline = qBound<qreal>(0, render->getExactBaseline(),
+                                     metrics.height);
     metrics.ascent = metrics.baseline;
     metrics.descent = qMax<qreal>(0, metrics.height - metrics.baseline);
-    metrics.depth = qMax(0, render->getDepth());
+    metrics.depth = qMax<qreal>(0, render->getExactDepth());
     metrics.valid = true;
     metrics.error.clear();
     return metrics;

@@ -157,6 +157,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- An inline equation now stands on the same baseline as the words around it.
+  `$x$` sat about a pixel lower than the `x` beside it, because the math
+  engine reports a formula's height as a whole number of pixels while drawing
+  it from the unrounded one, and the baseline the editor aligned to was
+  derived from the rounded height. The formula's extents are also rounded up
+  rather than down, so the last row and column of a glyph can no longer fall
+  outside its own bitmap.
 - An equation is drawn at the size of the text around it on a high-resolution
   screen. Formulas are rasterized at the display's device pixel ratio so they
   stay sharp, but a Qt image reports such a bitmap's size in physical pixels,

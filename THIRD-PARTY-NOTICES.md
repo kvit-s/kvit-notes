@@ -7,7 +7,7 @@ manifest, not this file.
 
 ## MicroTeX (cLaTeXMath)
 
-- **Version:** pinned commit 0e3707f6, with three local memory fixes found by AddressSanitizer (src/latex.cpp released an asprintf buffer with delete instead of free; src/utils/indexed_arr.h searched one row past the end of every indexed table; src/atom/atom_matrix.cpp assigned an Environment from a copy the assignment itself destroyed)
+- **Version:** pinned commit 0e3707f6, with three local memory fixes found by AddressSanitizer (src/latex.cpp released an asprintf buffer with delete instead of free; src/utils/indexed_arr.h searched one row past the end of every indexed table; src/atom/atom_matrix.cpp assigned an Environment from a copy the assignment itself destroyed) and one local addition (src/render.cpp exposes the unrounded layout metrics its whole-pixel getters truncate, which is what lets a formula be aligned to a text baseline)
 - **License:** MIT
 - **Origin:** https://github.com/NanoMichael/cLaTeXMath
 - **Files:** third_party/microtex/src, third_party/microtex/res (excluding the font sub-licenses listed separately below)

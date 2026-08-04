@@ -52,6 +52,21 @@ public:
 
   float getBaseline() const;
 
+  // Local change (kvit-notes): the four getters above truncate to whole
+  // pixels, but draw() lays the formula out from the unrounded box — its
+  // baseline lands at exactly y + getExactBaseline(), and its ink reaches
+  // y + getExactHeight(). A caller that aligns a formula to a text baseline,
+  // or sizes a raster to hold one, needs the unrounded values; deriving the
+  // baseline as getBaseline() * getHeight() places it up to a pixel above
+  // the ink.
+  float getExactWidth() const;
+
+  float getExactHeight() const;
+
+  float getExactDepth() const;
+
+  float getExactBaseline() const;
+
   void setTextSize(float textSize);
 
   void setForeground(color fg);

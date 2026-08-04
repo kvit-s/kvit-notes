@@ -425,6 +425,90 @@ private slots:
         }
     }
 
+    // The reported baseline is the distance from the top of the rendered
+    // content down to the line the formula stands on, and the inline overlay
+    // places an equation by putting that line on the text's own baseline. It
+    // therefore has to locate the ink rather than approximate it. MicroTeX's
+    // whole-pixel getters truncate, so deriving the baseline from the
+    // truncated height left it up to a pixel above the glyph feet, and every
+    // inline `$…$` sat that far below the line of text it was set in.
+    //
+    // Measured at a high device pixel ratio: an error of well under a logical
+    // pixel is several physical rows there, which is also where a reader sees
+    // it most clearly.
+    void baselineLocatesTheFeetOfTheGlyphs_data()
+    {
+        QTest::addColumn<QString>("tex");
+        QTest::addColumn<int>("textSize");
+
+        // Upright letters and digits stand flat on the baseline with nothing
+        // below it, so the lowest row of ink is the baseline itself.
+        const QStringList corpus{
+            QStringLiteral("\\mathrm{H}"),
+            QStringLiteral("\\mathrm{HET}"),
+            QStringLiteral("\\mathrm{A} + \\mathrm{B}"),
+            QStringLiteral("1 + 11"),
+        };
+        for (const int size : {15, 17, 20, 32}) {
+            for (const QString &tex : corpus) {
+                QTest::newRow(qPrintable(QStringLiteral("size%1:%2")
+                                             .arg(size).arg(tex)))
+                    << tex << size;
+            }
+        }
+    }
+
+    void baselineLocatesTheFeetOfTheGlyphs()
+    {
+        QFETCH(QString, tex);
+        QFETCH(int, textSize);
+
+        constexpr qreal dpr = 4.0;
+        const int vpad = pngVerticalPadding(textSize);
+        const int hpad = MathRenderer::sideBearingPaddingPx(textSize);
+
+        const MathRenderer::Metrics metrics = MathRenderer::measure(tex, textSize);
+        QVERIFY2(metrics.valid, qPrintable(metrics.error));
+        QVERIFY2(metrics.depth < 1.0,
+                 qPrintable(QStringLiteral("'%1' was chosen for having nothing "
+                                           "below the baseline, but reports "
+                                           "depth %2")
+                                .arg(tex).arg(metrics.depth)));
+
+        QString error;
+        const QImage image = MathRenderer::render(tex, textSize, QColor(Qt::black),
+                                                  dpr, &error, vpad, hpad);
+        QVERIFY2(!image.isNull(), qPrintable(error));
+        QCOMPARE(image.devicePixelRatio(), dpr);
+
+        int lowestInk = -1;
+        for (int y = image.height() - 1; y >= 0 && lowestInk < 0; --y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (qAlpha(image.pixel(x, y)) >= 32) {
+                    lowestInk = y;
+                    break;
+                }
+            }
+        }
+        QVERIFY2(lowestInk >= 0, "the formula rendered nothing");
+        QVERIFY2(lowestInk < image.height() - 1,
+                 "the ink reaches the bottom edge, so the raster is cutting "
+                 "the formula off");
+
+        // The baseline runs along the bottom of the lowest inked row, so that
+        // row's index is one less than the baseline's. Two physical pixels of
+        // slack cover antialiasing and the font's own rounding; the defect
+        // this guards against is several times that.
+        const qreal baselineRow = (vpad + metrics.baseline) * dpr;
+        QVERIFY2(qAbs(baselineRow - (lowestInk + 1)) <= 2.0,
+                 qPrintable(QStringLiteral("'%1' at %2px: baseline %3 puts the "
+                                           "feet at row %4, ink ends at %5")
+                                .arg(tex).arg(textSize)
+                                .arg(metrics.baseline, 0, 'f', 2)
+                                .arg(baselineRow, 0, 'f', 1)
+                                .arg(lowestInk)));
+    }
+
     // The margin is transparent padding, not a re-layout: the formula keeps
     // its measured width and gains the margin on each side, so a caller that
     // shifts the image left by the padding puts it back where the unpadded

@@ -75,26 +75,40 @@ float TeXRender::getTextSize() const {
 }
 
 int TeXRender::getHeight() const {
-  return (int) (
-    _box->_height * _textSize +
-    _box->_depth * _textSize +
+  return (int) getExactHeight();
+}
+
+int TeXRender::getDepth() const {
+  return (int) getExactDepth();
+}
+
+int TeXRender::getWidth() const {
+  return (int) getExactWidth();
+}
+
+float TeXRender::getBaseline() const {
+  return getExactBaseline() / getExactHeight();
+}
+
+float TeXRender::getExactWidth() const {
+  return _box->_width * _textSize + _insets.left + _insets.right;
+}
+
+float TeXRender::getExactHeight() const {
+  return (
+    (_box->_height + _box->_depth) * _textSize +
     _insets.top + _insets.bottom
   );
 }
 
-int TeXRender::getDepth() const {
-  return (int) (_box->_depth * _textSize + _insets.bottom);
+float TeXRender::getExactDepth() const {
+  return _box->_depth * _textSize + _insets.bottom;
 }
 
-int TeXRender::getWidth() const {
-  return (int) (_box->_width * _textSize + _insets.left + _insets.right);
-}
-
-float TeXRender::getBaseline() const {
-  return (
-    (_box->_height * _textSize + _insets.top) /
-    ((_box->_height + _box->_depth) * _textSize + _insets.top + _insets.bottom)
-  );
+// draw() places the box's baseline here: `(y + _insets.top) / _textSize +
+// _box->_height` in box units, which is this value in pixels below y.
+float TeXRender::getExactBaseline() const {
+  return _box->_height * _textSize + _insets.top;
 }
 
 void TeXRender::setTextSize(float textSize) {
