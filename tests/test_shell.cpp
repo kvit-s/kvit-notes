@@ -705,20 +705,33 @@ private slots:
         QStringList unnamed;
         int operable = 0;
         walkForNames(root, QString(), &unnamed, &operable);
-        // Without this the case passes on an empty tree, which is exactly
-        // what a broken walk or an inactive accessibility layer produces.
-        // The shipped shell shows a toolbar, a status bar and their buttons
-        // before anything is opened; twenty is well under that and well over
-        // nothing.
-        QVERIFY2(operable >= 20,
-                 qPrintable(QStringLiteral("the walk found only %1 operable "
-                                           "node(s); the tree is not being "
-                                           "served").arg(operable)));
+
+        // The finding first, so a real naming gap is reported even on a
+        // platform whose count comes out lower than expected. Asserting the
+        // count first hid exactly that: the macOS run stopped on the count
+        // and never said whether any node was nameless.
         QVERIFY2(unnamed.isEmpty(),
                  qPrintable(QStringLiteral(
                      "%1 operable node(s) in the accessibility tree report no "
                      "name:\n  %2")
                      .arg(unnamed.size()).arg(unnamed.join(QStringLiteral("\n  ")))));
+
+        // And a floor, because without one the case passes on an empty tree,
+        // which is what a broken walk or an inactive accessibility layer
+        // produces.
+        //
+        // Deliberately far below what any platform actually serves rather
+        // than tuned to one. The count is not the same everywhere: macOS
+        // hangs File and View on the system menu bar and does not build those
+        // two toolbar buttons at all, so it serves fewer nodes than Linux and
+        // Windows for the same shell. A floor set from the Linux count failed
+        // there for no defect. What this is guarding is "a tree is being
+        // served", so it only has to clear zero by a margin no platform
+        // difference can close.
+        QVERIFY2(operable >= 10,
+                 qPrintable(QStringLiteral("the walk found only %1 operable "
+                                           "node(s); the tree is not being "
+                                           "served").arg(operable)));
     }
 
     // Declared last on purpose: QtTest runs test functions in declaration
