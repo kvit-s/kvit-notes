@@ -28,7 +28,7 @@ Popup {
     modal: false
     focus: false
     padding: 0
-    width: 240
+    width: Interface.px(240)
 
     property var docStats: ({})
     property var selStats: null
@@ -107,7 +107,7 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     contentItem: ColumnLayout {
@@ -115,14 +115,14 @@ Popup {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 30
+            Layout.preferredHeight: Interface.px(30)
             color: "transparent"
             Text {
                 anchors.left: parent.left
-                anchors.leftMargin: 12
+                anchors.leftMargin: Interface.px(12)
                 anchors.verticalCenter: parent.verticalCenter
                 text: statsPopup.selStats ? qsTr("Selection") : qsTr("Document")
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 font.bold: true
                 color: Theme.textSecondary
             }
@@ -153,19 +153,19 @@ Popup {
                 id: statRow
                 required property var modelData
                 Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
-                Layout.topMargin: 5
-                Layout.bottomMargin: 5
+                Layout.leftMargin: Interface.px(12)
+                Layout.rightMargin: Interface.px(12)
+                Layout.topMargin: Interface.px(5)
+                Layout.bottomMargin: Interface.px(5)
                 Text {
                     text: statRow.modelData.k
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Text {
                     text: statRow.modelData.v
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     font.bold: true
                     color: Theme.textPrimary
                 }
@@ -180,13 +180,13 @@ Popup {
         RowLayout {
             visible: statsPopup.appWindow && statsPopup.appWindow.collectionOpen
             Layout.fillWidth: true
-            Layout.leftMargin: 12
-            Layout.rightMargin: 12
-            Layout.topMargin: 5
-            Layout.bottomMargin: 8
+            Layout.leftMargin: Interface.px(12)
+            Layout.rightMargin: Interface.px(12)
+            Layout.topMargin: Interface.px(5)
+            Layout.bottomMargin: Interface.px(8)
             Text {
                 text: qsTr("This session")
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 color: Theme.textMuted
                 Layout.fillWidth: true
             }
@@ -197,7 +197,7 @@ Popup {
                       - statsPopup.appWindow.sessionStartWords
                     : 0
                 text: (sessionDelta.delta >= 0 ? "+" : "") + sessionDelta.delta
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 font.bold: true
                 color: sessionDelta.delta >= 0 ? Theme.success : Theme.textMuted
             }

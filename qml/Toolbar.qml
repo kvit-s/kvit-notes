@@ -34,13 +34,13 @@ Rectangle {
     // same commands would otherwise both exist in the window.
     readonly property bool nativeMenuBar: Qt.platform.os === "osx"
 
-    height: visible ? 36 : 0
+    height: visible ? Interface.px(36) : 0
     color: Theme.footerBackground
 
     Rectangle { // bottom edge
         anchors.bottom: parent.bottom
         width: parent.width
-        height: 1
+        height: Interface.px(1)
         color: Theme.border
     }
 
@@ -82,10 +82,20 @@ Rectangle {
     readonly property var targetBlock: {
         var focusDep = toolbar.appWindow ? toolbar.appWindow.activeFocusItem : null
         var indexDep = toolbar.appWindow ? toolbar.appWindow.lastFocusedBlock : 0
+        // A popup that is acting on the caret's selection — the colour picker
+        // — takes the keyboard from the block by design, so it can be used
+        // without a pointer (accessibility.md Finding 2). That does not mean
+        // the block stopped being the one the toolbar's commands act on: it is
+        // the block whose selection the popup is about to change. Reading the
+        // count is also what makes this re-evaluate when a popup opens.
+        var holdDep = toolbar.appWindow && toolbar.appWindow.selectionHolders
+            !== undefined ? toolbar.appWindow.selectionHolders : 0
         if (!toolbar.appWindow || !listView)
             return null
         var item = listView.itemAtIndex(toolbar.appWindow.lastFocusedBlock)
-        return (item && item.isFocused) ? item : null
+        if (!item)
+            return null
+        return (item.isFocused || holdDep > 0) ? item : null
     }
     readonly property int caretFlags:
         targetBlock && targetBlock.cursorFormatFlags !== undefined
@@ -132,7 +142,7 @@ Rectangle {
     // than reached through `parent`, which is untyped in a background scope.
     component BarBackground: Rectangle {
         property var control: null
-        radius: 4
+        radius: Interface.px(4)
         color: control && control.checked ? Theme.selectionTint
              : control && control.hovered && control.enabled ? Theme.hoverTint
              : "transparent"
@@ -149,9 +159,9 @@ Rectangle {
         id: barButton
         property int flagBit: 0
         focusPolicy: Qt.TabFocus
-        implicitWidth: 30
-        implicitHeight: 28
-        font.pixelSize: 13
+        implicitWidth: Interface.px(30)
+        implicitHeight: Interface.px(28)
+        font.pixelSize: Interface.strong
         enabled: toolbar.canFormat
         checked: barButton.flagBit !== 0
                  && (toolbar.caretFlags & barButton.flagBit) !== 0
@@ -164,348 +174,371 @@ Rectangle {
         background: BarBackground { control: barButton }
     }
 
-    RowLayout {
+    // The row scrolls sideways rather than being cut off at the window edge.
+    // At the default interface size it never has to: the buttons fit, the
+    // spacer in the middle takes up the slack, and the flickable is inert. At
+    // a larger interface size, or in a narrow window, the buttons past the
+    // right edge would otherwise be unreachable by any means — they are the
+    // toolbar's only route to Insert, Templates and View, which have no chord
+    // of their own (accessibility.md Finding 4).
+    Flickable {
+        id: toolbarScroll
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        anchors.bottomMargin: 1
-        spacing: 2
-
-        // File menu: everything that acts on documents rather than on what
-        // the window shows — opening a vault or a loose file, the recent
-        // list, creating a note from a template, capturing one, moving notes
-        // in and out of the collection, and the application-wide settings.
-        // Always visible, since it is the only in-app way to change where
-        // notes live.
-        //
-        // The `&` marks the access key. On Windows and Linux these three
-        // buttons stand in for a menu bar, so Alt+F, Alt+V and Alt+I have to
-        // open their menus from anywhere in the window; a ToolButton gets
-        // that binding from the marker on its own, because Qt Quick builds
-        // Alt+<letter> out of any button's label. macOS has a real menu bar
-        // and no access keys, so the markers come out there and these three
-        // buttons are not built at all (see `nativeMenuBar` above).
-        ToolButton {
-            id: fileButton
-            objectName: "toolbarFileButton"
-            visible: !toolbar.nativeMenuBar
-            focusPolicy: Qt.TabFocus
-            text: MenuText.label(qsTr("&File"))
-            font.pixelSize: 12
-            implicitHeight: 28
-            Accessible.role: Accessible.ButtonMenu
-            Accessible.name: qsTr("File")
-            background: BarBackground { control: fileButton }
-            // The menu seeds the built-in templates itself as it opens, so
-            // the list it shows is what is on disk by then.
-            onClicked: (fileMenuLoader.item as FileMenu).popup(this, 0, height)
-
-            // One definition, two homes: FileMenu.qml is also what the
-            // macOS menu bar hangs (main.qml). It is loaded only where this
-            // button is shown, so no window ever holds two copies of the same
-            // commands.
-            Loader {
-                id: fileMenuLoader
-                active: !toolbar.nativeMenuBar
-                sourceComponent: FileMenu { appWindow: toolbar.appWindow }
-            }
-        }
-
-        // View menu, beside File: what the window shows — the panels,
-        // the editor modes, the theme. Anything that acts on documents
-        // rather than on the view lives in File, one button to its left.
-        ToolButton {
-            id: viewButton
-            objectName: "toolbarViewButton"
-            visible: toolbar.showViewGroup && !toolbar.nativeMenuBar
-            focusPolicy: Qt.TabFocus
-            text: MenuText.label(qsTr("&View"))
-            font.pixelSize: 12
-            implicitHeight: 28
-            Accessible.role: Accessible.ButtonMenu
-            Accessible.name: qsTr("View")
-            background: BarBackground { control: viewButton }
-            onClicked: (viewMenuLoader.item as ViewMenu).popup(this, 0, height)
-
-            Loader {
-                id: viewMenuLoader
-                active: !toolbar.nativeMenuBar
-                sourceComponent: ViewMenu { appWindow: toolbar.appWindow }
-            }
-        }
-
-        // Back/forward over the note history; collection mode only, like
-        // the shortcuts they mirror.
-        ToolButton {
-            id: backButton
-            objectName: "toolbarBackButton"
-            visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
-            focusPolicy: Qt.TabFocus
-            implicitWidth: 30
-            implicitHeight: 28
-            font.pixelSize: 14
-            flat: true
-            text: "←"
-            enabled: NavigationHistory.canGoBack
-            ToolTip.visible: hovered
-            ToolTip.text: qsTr("Back (Alt+Left)")
-            onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateBack()
-        }
-        ToolButton {
-            id: forwardButton
-            objectName: "toolbarForwardButton"
-            visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
-            focusPolicy: Qt.TabFocus
-            implicitWidth: 30
-            implicitHeight: 28
-            font.pixelSize: 14
-            flat: true
-            text: "→"
-            enabled: NavigationHistory.canGoForward
-            ToolTip.visible: hovered
-            ToolTip.text: qsTr("Forward (Alt+Right)")
-            onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateForward()
-        }
-
-        ComboBox {
-            id: blockTypeCombo
-            objectName: "toolbarBlockTypeCombo"
-            visible: toolbar.showBlockGroup
-            focusPolicy: Qt.TabFocus
-            implicitWidth: 130
-            implicitHeight: 28
-            font.pixelSize: 12
-            flat: true
-            enabled: toolbar.canConvert
-            model: toolbar.typeNames
-            currentIndex: toolbar.targetBlock
-                ? toolbar.typeValues.indexOf(toolbar.targetBlock.blockType)
-                : -1
-            displayText: currentIndex >= 0 ? toolbar.typeNames[currentIndex]
-                                           : qsTr("Block type")
-            onActivated: function(index) {
-                if (toolbar.targetBlock)
-                    toolbar.targetBlock.convertBlockType(
-                        toolbar.typeValues[index])
-            }
-        }
-
-        ToolSeparator {
-            visible: toolbar.showBlockGroup && toolbar.showFormatGroup
-            implicitHeight: 24
-        }
+        contentWidth: Math.max(width, toolbarRow.implicitWidth
+                                      + Interface.px(16))
+        contentHeight: height
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
 
         RowLayout {
-            visible: toolbar.showFormatGroup
-            spacing: 1
+            id: toolbarRow
+            x: Interface.px(8)
+            width: toolbarScroll.contentWidth - Interface.px(16)
+            // One pixel short of the bar, leaving the bottom edge rule
+            // drawn above uncovered.
+            height: toolbarScroll.height - Interface.px(1)
+            spacing: Interface.px(2)
 
-            BarButton {
-                objectName: "toolbarBoldButton"
-                text: "B"; font.bold: true; flagBit: 0x2
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Bold (Ctrl+B)")
-                onClicked: toolbar.targetBlock.toggleSpanType("bold")
-            }
-            BarButton {
-                objectName: "toolbarItalicButton"
-                text: "I"; font.italic: true; flagBit: 0x4
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Italic (Ctrl+I)")
-                onClicked: toolbar.targetBlock.toggleSpanType("italic")
-            }
-            BarButton {
-                objectName: "toolbarUnderlineButton"
-                text: "U"; font.underline: true; flagBit: 0x10
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Underline (Ctrl+U)")
-                onClicked: toolbar.targetBlock.toggleSpanType("underline")
-            }
-            BarButton {
-                objectName: "toolbarStrikeButton"
-                text: "S"; font.strikeout: true; flagBit: 0x8
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Strikethrough (Ctrl+Shift+S)")
-                onClicked: toolbar.targetBlock.toggleSpanType("strike")
-            }
-            BarButton {
-                objectName: "toolbarCodeButton"
-                text: "<>"; flagBit: 0x20; font.pixelSize: 11
-                implicitWidth: 34
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Inline code (Ctrl+E)")
-                onClicked: toolbar.targetBlock.toggleSpanType("code")
-            }
-            BarButton {
-                id: highlightButton
-                objectName: "toolbarHighlightButton"
-                text: "H"; flagBit: 0x40
-                // Overrides the shared background to tint with the highlight
-                // colour, so it repeats the pattern and needs its own id.
-                background: Rectangle {
-                    radius: 4
-                    color: highlightButton.checked ? Theme.highlightBackground
-                         : highlightButton.hovered && highlightButton.enabled
-                           ? Theme.hoverTint
-                         : "transparent"
-                }
-                ToolTip.visible: highlightButton.hovered
-                ToolTip.text: qsTr("Highlight")
-                onClicked: toolbar.targetBlock.toggleSpanType("highlight")
-            }
-            BarButton {
-                objectName: "toolbarSuperscriptButton"
-                text: "x²"; flagBit: 0x100; font.pixelSize: 11
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Superscript")
-                onClicked: toolbar.targetBlock.toggleSpanType("superscript")
-            }
-            BarButton {
-                objectName: "toolbarSubscriptButton"
-                text: "x₂"; flagBit: 0x200; font.pixelSize: 11
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Subscript")
-                onClicked: toolbar.targetBlock.toggleSpanType("subscript")
-            }
-            BarButton {
-                objectName: "toolbarLinkButton"
-                // A text label: the chain emoji has no glyph in the
-                // default Linux UI fonts and rendered as tofu.
-                text: qsTr("Link"); flagBit: 0x80; font.pixelSize: 11
-                implicitWidth: 40; font.underline: true
-                enabled: toolbar.canFormat
-                         && toolbar.targetBlock.openLinkDialog !== undefined
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Link (Ctrl+K)")
-                onClicked: toolbar.targetBlock.openLinkDialog()
-            }
-            // Text color: "A" with an underline in the
-            // caret's current color; opens a swatch/custom/remove picker.
-            BarButton {
-                objectName: "toolbarColorButton"
-                text: "A"; flagBit: 0x400
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Text color")
-                onClicked: toolbarColorPicker.open()
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 4
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: 16; height: 3; radius: 1
-                    color: (toolbar.targetBlock && toolbar.targetBlock.currentColor)
-                        ? toolbar.targetBlock.currentColor : Theme.textPrimary
-                }
-                ColorPicker {
-                    id: toolbarColorPicker
-                    y: parent.height
-                    currentColor: (toolbar.targetBlock
-                        && toolbar.targetBlock.currentColor !== undefined)
-                        ? toolbar.targetBlock.currentColor : ""
-                    onColorPicked: function(v) {
-                        if (toolbar.targetBlock) toolbar.targetBlock.applyColor(v)
-                    }
-                    onRemoveRequested: {
-                        if (toolbar.targetBlock) toolbar.targetBlock.removeColor()
-                    }
-                }
-            }
-
-            ToolSeparator { implicitHeight: 20 }
-
-            // Alignment group (§9.2): left / center / right for paragraphs,
-            // headings, and images. Disabled for any other block type.
-            component AlignButton: ToolButton {
-                // Named for the same reason BarButton is: its background and
-                // accessibility bindings are separate scopes.
-                id: alignButton
-                property string alignValue: "left"
+            // File menu: everything that acts on documents rather than on what
+            // the window shows — opening a vault or a loose file, the recent
+            // list, creating a note from a template, capturing one, moving notes
+            // in and out of the collection, and the application-wide settings.
+            // Always visible, since it is the only in-app way to change where
+            // notes live.
+            //
+            // The `&` marks the access key. On Windows and Linux these three
+            // buttons stand in for a menu bar, so Alt+F, Alt+V and Alt+I have to
+            // open their menus from anywhere in the window; a ToolButton gets
+            // that binding from the marker on its own, because Qt Quick builds
+            // Alt+<letter> out of any button's label. macOS has a real menu bar
+            // and no access keys, so the markers come out there and these three
+            // buttons are not built at all (see `nativeMenuBar` above).
+            ToolButton {
+                id: fileButton
+                objectName: "toolbarFileButton"
+                visible: !toolbar.nativeMenuBar
                 focusPolicy: Qt.TabFocus
-                implicitWidth: 28
-                implicitHeight: 28
-                font.pixelSize: 13
-                enabled: toolbar.canAlign
-                checked: toolbar.canAlign && toolbar.currentAlign === alignValue
-                Accessible.role: Accessible.Button
-                Accessible.name: alignButton.ToolTip.text !== ""
-                                 ? alignButton.ToolTip.text : alignButton.text
-                Accessible.checkable: true
-                Accessible.checked: alignButton.checked
-                onClicked: if (toolbar.targetBlock)
-                               toolbar.targetBlock.setBlockAlignment(
-                                   alignButton.alignValue)
-                background: BarBackground { control: alignButton }
-            }
-            AlignButton {
-                objectName: "toolbarAlignLeft"
-                alignValue: "left"; text: "⇤"
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Align left")
-            }
-            AlignButton {
-                objectName: "toolbarAlignCenter"
-                alignValue: "center"; text: "⇔"
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Align center")
-            }
-            AlignButton {
-                objectName: "toolbarAlignRight"
-                alignValue: "right"; text: "⇥"
-                ToolTip.visible: hovered; ToolTip.text: qsTr("Align right")
-            }
-        }
+                text: MenuText.label(qsTr("&File"))
+                font.pixelSize: Interface.body
+                implicitHeight: Interface.px(28)
+                Accessible.role: Accessible.ButtonMenu
+                Accessible.name: qsTr("File")
+                background: BarBackground { control: fileButton }
+                // The menu seeds the built-in templates itself as it opens, so
+                // the list it shows is what is on disk by then.
+                onClicked: (fileMenuLoader.item as FileMenu).popup(this, 0, height)
 
-        ToolSeparator {
-            visible: toolbar.showFormatGroup && toolbar.showInsertGroup
-            implicitHeight: 24
-        }
+                // One definition, two homes: FileMenu.qml is also what the
+                // macOS menu bar hangs (main.qml). It is loaded only where this
+                // button is shown, so no window ever holds two copies of the same
+                // commands.
+                Loader {
+                    id: fileMenuLoader
+                    active: !toolbar.nativeMenuBar
+                    sourceComponent: FileMenu { appWindow: toolbar.appWindow }
+                }
+            }
 
-        ToolButton {
-            id: insertButton
-            objectName: "toolbarInsertButton"
-            visible: toolbar.showInsertGroup
-            focusPolicy: Qt.TabFocus
-            text: MenuText.label(qsTr("+ &Insert"))
-            font.pixelSize: 12
-            implicitHeight: 28
-            Accessible.role: Accessible.ButtonMenu
-            Accessible.name: qsTr("Insert block")
-            background: BarBackground { control: insertButton }
-            onClicked: insertMenu.popup(this, 0, height)
+            // View menu, beside File: what the window shows — the panels,
+            // the editor modes, the theme. Anything that acts on documents
+            // rather than on the view lives in File, one button to its left.
+            ToolButton {
+                id: viewButton
+                objectName: "toolbarViewButton"
+                visible: toolbar.showViewGroup && !toolbar.nativeMenuBar
+                focusPolicy: Qt.TabFocus
+                text: MenuText.label(qsTr("&View"))
+                font.pixelSize: Interface.body
+                implicitHeight: Interface.px(28)
+                Accessible.role: Accessible.ButtonMenu
+                Accessible.name: qsTr("View")
+                background: BarBackground { control: viewButton }
+                onClicked: (viewMenuLoader.item as ViewMenu).popup(this, 0, height)
 
-            Menu {
-                id: insertMenu
-                objectName: "toolbarInsertMenu"
+                Loader {
+                    id: viewMenuLoader
+                    active: !toolbar.nativeMenuBar
+                    sourceComponent: ViewMenu { appWindow: toolbar.appWindow }
+                }
+            }
 
-                Repeater {
-                    model: toolbar.typeNames
-                    MenuItem {
-                        required property int index
-                        required property string modelData
-                        text: MenuText.plain(modelData)
-                        onTriggered: toolbar.insertBlockOfType(
+            // Back/forward over the note history; collection mode only, like
+            // the shortcuts they mirror.
+            ToolButton {
+                id: backButton
+                objectName: "toolbarBackButton"
+                visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
+                focusPolicy: Qt.TabFocus
+                implicitWidth: Interface.px(30)
+                implicitHeight: Interface.px(28)
+                font.pixelSize: Interface.px(14)
+                flat: true
+                text: "←"
+                Accessible.name: qsTr("Back")
+                enabled: NavigationHistory.canGoBack
+                ToolTip.visible: hovered || visualFocus
+                ToolTip.text: qsTr("Back (Alt+Left)")
+                onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateBack()
+            }
+            ToolButton {
+                id: forwardButton
+                objectName: "toolbarForwardButton"
+                visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
+                focusPolicy: Qt.TabFocus
+                implicitWidth: Interface.px(30)
+                implicitHeight: Interface.px(28)
+                font.pixelSize: Interface.px(14)
+                flat: true
+                text: "→"
+                Accessible.name: qsTr("Forward")
+                enabled: NavigationHistory.canGoForward
+                ToolTip.visible: hovered || visualFocus
+                ToolTip.text: qsTr("Forward (Alt+Right)")
+                onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateForward()
+            }
+
+            ComboBox {
+                id: blockTypeCombo
+                objectName: "toolbarBlockTypeCombo"
+                visible: toolbar.showBlockGroup
+                focusPolicy: Qt.TabFocus
+                implicitWidth: Interface.px(130)
+                implicitHeight: Interface.px(28)
+                font.pixelSize: Interface.body
+                flat: true
+                enabled: toolbar.canConvert
+                model: toolbar.typeNames
+                currentIndex: toolbar.targetBlock
+                    ? toolbar.typeValues.indexOf(toolbar.targetBlock.blockType)
+                    : -1
+                displayText: currentIndex >= 0 ? toolbar.typeNames[currentIndex]
+                                               : qsTr("Block type")
+                onActivated: function(index) {
+                    if (toolbar.targetBlock)
+                        toolbar.targetBlock.convertBlockType(
                             toolbar.typeValues[index])
+                }
+            }
+
+            ToolSeparator {
+                visible: toolbar.showBlockGroup && toolbar.showFormatGroup
+                implicitHeight: Interface.px(24)
+            }
+
+            RowLayout {
+                visible: toolbar.showFormatGroup
+                spacing: Interface.px(1)
+
+                BarButton {
+                    objectName: "toolbarBoldButton"
+                    text: "B"; font.bold: true; flagBit: 0x2
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Bold (Ctrl+B)")
+                    onClicked: toolbar.targetBlock.toggleSpanType("bold")
+                }
+                BarButton {
+                    objectName: "toolbarItalicButton"
+                    text: "I"; font.italic: true; flagBit: 0x4
+                    ToolTip.visible: hovered || visualFocus
+                    ToolTip.text: qsTr("Italic (Ctrl+I)")
+                    onClicked: toolbar.targetBlock.toggleSpanType("italic")
+                }
+                BarButton {
+                    objectName: "toolbarUnderlineButton"
+                    text: "U"; font.underline: true; flagBit: 0x10
+                    ToolTip.visible: hovered || visualFocus
+                    ToolTip.text: qsTr("Underline (Ctrl+U)")
+                    onClicked: toolbar.targetBlock.toggleSpanType("underline")
+                }
+                BarButton {
+                    objectName: "toolbarStrikeButton"
+                    text: "S"; font.strikeout: true; flagBit: 0x8
+                    ToolTip.visible: hovered || visualFocus
+                    ToolTip.text: qsTr("Strikethrough (Ctrl+Shift+S)")
+                    onClicked: toolbar.targetBlock.toggleSpanType("strike")
+                }
+                BarButton {
+                    objectName: "toolbarCodeButton"
+                    text: "<>"; flagBit: 0x20; font.pixelSize: Interface.small
+                    implicitWidth: Interface.px(34)
+                    ToolTip.visible: hovered || visualFocus
+                    ToolTip.text: qsTr("Inline code (Ctrl+E)")
+                    onClicked: toolbar.targetBlock.toggleSpanType("code")
+                }
+                BarButton {
+                    id: highlightButton
+                    objectName: "toolbarHighlightButton"
+                    text: "H"; flagBit: 0x40
+                    // Overrides the shared background to tint with the highlight
+                    // colour, so it repeats the pattern and needs its own id.
+                    background: Rectangle {
+                        radius: Interface.px(4)
+                        color: highlightButton.checked ? Theme.highlightBackground
+                             : highlightButton.hovered && highlightButton.enabled
+                               ? Theme.hoverTint
+                             : "transparent"
+                    }
+                    ToolTip.visible: highlightButton.hovered
+                    ToolTip.text: qsTr("Highlight")
+                    onClicked: toolbar.targetBlock.toggleSpanType("highlight")
+                }
+                BarButton {
+                    objectName: "toolbarSuperscriptButton"
+                    text: "x²"; flagBit: 0x100; font.pixelSize: Interface.small
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Superscript")
+                    onClicked: toolbar.targetBlock.toggleSpanType("superscript")
+                }
+                BarButton {
+                    objectName: "toolbarSubscriptButton"
+                    text: "x₂"; flagBit: 0x200; font.pixelSize: Interface.small
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Subscript")
+                    onClicked: toolbar.targetBlock.toggleSpanType("subscript")
+                }
+                BarButton {
+                    objectName: "toolbarLinkButton"
+                    // A text label: the chain emoji has no glyph in the
+                    // default Linux UI fonts and rendered as tofu.
+                    text: qsTr("Link"); flagBit: 0x80; font.pixelSize: Interface.small
+                    implicitWidth: 40; font.underline: true
+                    enabled: toolbar.canFormat
+                             && toolbar.targetBlock.openLinkDialog !== undefined
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Link (Ctrl+K)")
+                    onClicked: toolbar.targetBlock.openLinkDialog()
+                }
+                // Text color: "A" with an underline in the
+                // caret's current color; opens a swatch/custom/remove picker.
+                BarButton {
+                    objectName: "toolbarColorButton"
+                    text: "A"; flagBit: 0x400
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Text color")
+                    onClicked: toolbarColorPicker.open()
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: Interface.px(4)
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 16; height: 3; radius: 1
+                        color: (toolbar.targetBlock && toolbar.targetBlock.currentColor)
+                            ? toolbar.targetBlock.currentColor : Theme.textPrimary
+                    }
+                    ColorPicker {
+                        id: toolbarColorPicker
+                        objectName: "toolbarColorPicker"
+                        y: parent.height
+                        currentColor: (toolbar.targetBlock
+                            && toolbar.targetBlock.currentColor !== undefined)
+                            ? toolbar.targetBlock.currentColor : ""
+                        onColorPicked: function(v) {
+                            if (toolbar.targetBlock) toolbar.targetBlock.applyColor(v)
+                        }
+                        onRemoveRequested: {
+                            if (toolbar.targetBlock) toolbar.targetBlock.removeColor()
+                        }
                     }
                 }
-                // Wave-2 types that insert rather than convert (features.md
-                // §4.2 parity). Each routes to the same flow the slash menu
-                // uses.
-                MenuSeparator {}
-                MenuItem {
-                    text: MenuText.label(qsTr("&Table"))
-                    onTriggered: toolbar.insertSpecialBelow("table")
+
+                ToolSeparator { implicitHeight: 20 }
+
+                // Alignment group (§9.2): left / center / right for paragraphs,
+                // headings, and images. Disabled for any other block type.
+                component AlignButton: ToolButton {
+                    // Named for the same reason BarButton is: its background and
+                    // accessibility bindings are separate scopes.
+                    id: alignButton
+                    property string alignValue: "left"
+                    focusPolicy: Qt.TabFocus
+                    implicitWidth: Interface.px(28)
+                    implicitHeight: Interface.px(28)
+                    font.pixelSize: Interface.strong
+                    enabled: toolbar.canAlign
+                    checked: toolbar.canAlign && toolbar.currentAlign === alignValue
+                    Accessible.role: Accessible.Button
+                    Accessible.name: alignButton.ToolTip.text !== ""
+                                     ? alignButton.ToolTip.text : alignButton.text
+                    Accessible.checkable: true
+                    Accessible.checked: alignButton.checked
+                    onClicked: if (toolbar.targetBlock)
+                                   toolbar.targetBlock.setBlockAlignment(
+                                       alignButton.alignValue)
+                    background: BarBackground { control: alignButton }
                 }
-                MenuItem {
-                    text: MenuText.label(qsTr("Tas&k Board"))
-                    onTriggered: toolbar.insertSpecialBelow("kanban")
+                AlignButton {
+                    objectName: "toolbarAlignLeft"
+                    alignValue: "left"; text: "⇤"
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Align left")
                 }
-                MenuItem {
-                    text: MenuText.label(qsTr("&Math Block"))
-                    onTriggered: toolbar.insertBlockOfType(13)   // Block.MathBlock
+                AlignButton {
+                    objectName: "toolbarAlignCenter"
+                    alignValue: "center"; text: "⇔"
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Align center")
                 }
-                MenuItem {
-                    text: MenuText.label(qsTr("&Image"))
-                    onTriggered: toolbar.insertSpecialBelow("image")
-                }
-                MenuItem {
-                    text: MenuText.label(qsTr("&Audio / Video"))
-                    onTriggered: toolbar.insertSpecialBelow("media")
+                AlignButton {
+                    objectName: "toolbarAlignRight"
+                    alignValue: "right"; text: "⇥"
+                    ToolTip.visible: hovered || visualFocus; ToolTip.text: qsTr("Align right")
                 }
             }
-        }
 
-        Item { Layout.fillWidth: true }
+            ToolSeparator {
+                visible: toolbar.showFormatGroup && toolbar.showInsertGroup
+                implicitHeight: Interface.px(24)
+            }
+
+            ToolButton {
+                id: insertButton
+                objectName: "toolbarInsertButton"
+                visible: toolbar.showInsertGroup
+                focusPolicy: Qt.TabFocus
+                text: MenuText.label(qsTr("+ &Insert"))
+                font.pixelSize: Interface.body
+                implicitHeight: Interface.px(28)
+                Accessible.role: Accessible.ButtonMenu
+                Accessible.name: qsTr("Insert block")
+                background: BarBackground { control: insertButton }
+                onClicked: insertMenu.popup(this, 0, height)
+
+                Menu {
+                    id: insertMenu
+                    objectName: "toolbarInsertMenu"
+
+                    Repeater {
+                        model: toolbar.typeNames
+                        MenuItem {
+                            required property int index
+                            required property string modelData
+                            text: MenuText.plain(modelData)
+                            onTriggered: toolbar.insertBlockOfType(
+                                toolbar.typeValues[index])
+                        }
+                    }
+                    // Wave-2 types that insert rather than convert (features.md
+                    // §4.2 parity). Each routes to the same flow the slash menu
+                    // uses.
+                    MenuSeparator {}
+                    MenuItem {
+                        text: MenuText.label(qsTr("&Table"))
+                        onTriggered: toolbar.insertSpecialBelow("table")
+                    }
+                    MenuItem {
+                        text: MenuText.label(qsTr("Tas&k Board"))
+                        onTriggered: toolbar.insertSpecialBelow("kanban")
+                    }
+                    MenuItem {
+                        text: MenuText.label(qsTr("&Math Block"))
+                        onTriggered: toolbar.insertBlockOfType(13)   // Block.MathBlock
+                    }
+                    MenuItem {
+                        text: MenuText.label(qsTr("&Image"))
+                        onTriggered: toolbar.insertSpecialBelow("image")
+                    }
+                    MenuItem {
+                        text: MenuText.label(qsTr("&Audio / Video"))
+                        onTriggered: toolbar.insertSpecialBelow("media")
+                    }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+        }
     }
 
     // Insert below the caret's block (or at the end), focusing the new

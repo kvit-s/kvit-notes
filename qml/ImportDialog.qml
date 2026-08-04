@@ -11,7 +11,7 @@ import Kvit 1.0
 // files or a whole folder tree into the collection. A dry-run summary ("N
 // files into folder X, M collisions") precedes the copy. Import is a
 // collection operation (the trash is the safety net), not an editor undo step.
-Dialog {
+KvitDialog {
     id: importDialog
     objectName: "importDialog"
 
@@ -20,7 +20,7 @@ Dialog {
     title: qsTr("Import into collection")
     modal: true
     anchors.centerIn: parent
-    width: 380
+    width: Interface.px(380)
     standardButtons: Dialog.Close
 
     // Pending operation, resolved after the picker: "files" | "folder".
@@ -190,14 +190,22 @@ Dialog {
         }
     }
 
-    Dialog {
+    KvitDialog {
         id: progressDialog
         objectName: "importProgressDialog"
+        // Parented explicitly to the item the outer dialog is parented
+        // to, rather than being left to default into it. A Popup declared
+        // inside a dialog that both derives from a composite type and
+        // assigns its own `contentItem` lands on the content item the base
+        // created and the derived assignment then replaced — an orphan with
+        // no window — and `open()` on a popup with no window does nothing at
+        // all, silently. See the note in KvitDialog.qml.
+        parent: importDialog.parent
         modal: true
         closePolicy: Popup.NoAutoClose
         title: qsTr("Importing")
         anchors.centerIn: parent
-        width: 340
+        width: Interface.px(340)
         standardButtons: Dialog.Cancel
         onRejected: {
             importDialog.importCancelled = true
@@ -205,7 +213,7 @@ Dialog {
         }
 
         contentItem: ColumnLayout {
-            spacing: 8
+            spacing: Interface.px(8)
             Label {
                 id: progressLabel
                 objectName: "importProgressLabel"
@@ -233,7 +241,7 @@ Dialog {
     }
 
     contentItem: ColumnLayout {
-        spacing: 10
+        spacing: Interface.px(10)
         Label {
             text: qsTr("Destination: ")
                 + (importDialog.targetFolder() === ""
@@ -293,20 +301,28 @@ Dialog {
     }
 
     // Dry-run confirmation.
-    Dialog {
+    KvitDialog {
         id: summaryDialog
         objectName: "importSummaryDialog"
+        // Parented explicitly to the item the outer dialog is parented
+        // to, rather than being left to default into it. A Popup declared
+        // inside a dialog that both derives from a composite type and
+        // assigns its own `contentItem` lands on the content item the base
+        // created and the derived assignment then replaced — an orphan with
+        // no window — and `open()` on a popup with no window does nothing at
+        // all, silently. See the note in KvitDialog.qml.
+        parent: importDialog.parent
         modal: true
         title: qsTr("Confirm import")
         anchors.centerIn: parent
-        width: 340
+        width: Interface.px(340)
         standardButtons: Dialog.Ok | Dialog.Cancel
         onAccepted: importDialog.performImport()
         contentItem: Label {
             id: summaryLabel
             objectName: "importSummaryLabel"
             wrapMode: Text.WordWrap
-            padding: 8
+            padding: Interface.px(8)
         }
     }
 }

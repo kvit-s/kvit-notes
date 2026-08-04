@@ -50,18 +50,18 @@ Rectangle {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: 1
+        width: Interface.px(1)
         color: Theme.border
     }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 1
+        anchors.leftMargin: Interface.px(1)
         spacing: 0
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 32
+            Layout.preferredHeight: Interface.px(32)
             color: Theme.panelBackground
             Rectangle {
                 anchors.bottom: parent.bottom
@@ -69,11 +69,11 @@ Rectangle {
             }
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
+                anchors.leftMargin: Interface.px(10)
+                anchors.rightMargin: Interface.px(10)
                 Text {
                     text: qsTr("Backlinks")
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     font.bold: true
                     color: Theme.textSecondary
                     Layout.fillWidth: true
@@ -86,7 +86,7 @@ Rectangle {
                             total += panel.rows[i].count
                         return total > 0 ? String(total) : ""
                     }
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: Theme.textFaint
                 }
             }
@@ -99,7 +99,7 @@ Rectangle {
             Layout.fillHeight: true
             clip: true
             model: panel.rows
-            spacing: 2
+            spacing: Interface.px(2)
 
             delegate: Column {
                 id: entryColumn
@@ -116,12 +116,12 @@ Rectangle {
                         id: titleRow
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
-                        anchors.leftMargin: 10
+                        anchors.leftMargin: Interface.px(10)
                         anchors.right: parent.right
-                        anchors.rightMargin: 10
+                        anchors.rightMargin: Interface.px(10)
                         Text {
                             text: entryColumn.modelData.title
-                            font.pixelSize: 13
+                            font.pixelSize: Interface.strong
                             font.bold: true
                             color: Theme.textPrimary
                             elide: Text.ElideRight
@@ -129,11 +129,17 @@ Rectangle {
                         }
                         Text {
                             text: entryColumn.modelData.count
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: Theme.textFaint
                         }
                     }
-                    HoverHandler { id: rowHover }
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: qsTr("%1, %n backlink(s)", "",
+                                          entryColumn.modelData.count)
+                                     .arg(entryColumn.modelData.title)
+                    Accessible.onPressAction: if (panel.appWindow)
+                        panel.appWindow.openNoteByPath(entryColumn.modelData.relPath)
+                    HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
                         onTapped: if (panel.appWindow)
                             panel.appWindow.openNoteByPath(entryColumn.modelData.relPath)
@@ -153,16 +159,23 @@ Rectangle {
                             id: contextText
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left: parent.left
-                            anchors.leftMargin: 22
+                            anchors.leftMargin: Interface.px(22)
                             anchors.right: parent.right
-                            anchors.rightMargin: 10
+                            anchors.rightMargin: Interface.px(10)
                             text: contextRow.modelData
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: Theme.textMuted
                             elide: Text.ElideRight
                             maximumLineCount: 1
                         }
-                        HoverHandler { id: ctxHover }
+                        Accessible.role: Accessible.ListItem
+                        Accessible.name: contextRow.modelData
+                        Accessible.description: qsTr("In %1")
+                                                .arg(entryColumn.modelData.title)
+                        Accessible.onPressAction: if (panel.appWindow)
+                            panel.appWindow.openNoteByPath(
+                                entryColumn.modelData.relPath)
+                        HoverHandler { id: ctxHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler {
                             onTapped: if (panel.appWindow)
                                 panel.appWindow.openNoteByPath(
@@ -176,7 +189,7 @@ Rectangle {
                 anchors.centerIn: parent
                 visible: panel.rows.length === 0
                 text: qsTr("No backlinks")
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 color: Theme.textFaint
             }
         }

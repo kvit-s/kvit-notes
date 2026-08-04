@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
+import QtQuick.Controls
 import Kvit 1.0
 
 // The strip to the left of a block: the plus-button that adds a block below
@@ -49,8 +50,8 @@ Item {
     // delete occupy the left column; the drag handle and menu button occupy
     // the right. The HoverHandler must cover the second row so the controls
     // stay visible while the pointer moves between them.
-    width: 40
-    height: 44
+    width: Interface.px(40)
+    height: Interface.px(44)
 
     HoverHandler {
         id: gutterHover
@@ -62,9 +63,9 @@ Item {
         // over delete), so centring would push the plus and handle down off
         // the block's first line.
         anchors.top: parent.top
-        anchors.topMargin: 3
+        anchors.topMargin: Interface.px(3)
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 4
+        spacing: Interface.px(4)
         // Stays visible while the handle is pressed: hiding an item cancels
         // its MouseArea's grab, which would kill a drag the moment the
         // pointer left this block's hover area (bites multi-drags, whose
@@ -73,92 +74,101 @@ Item {
         visible: opacity > 0
 
         Behavior on opacity {
-            NumberAnimation { duration: 150 }
+            NumberAnimation { duration: 150 * Theme.motionScale }
         }
 
         // The plus (add a block below) with the delete (remove this block)
         // stacked under it; the handle and menu button form the other column.
         Column {
-            spacing: 2
+            spacing: Interface.px(2)
 
-            Rectangle {
+            IconButton {
                 objectName: "plusButton"
-                width: 18
-                height: 18
-                radius: 4
-                color: plusArea.containsMouse ? Theme.hoverTint : "transparent"
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "+"
-                    color: Theme.textMuted
-                    font.pixelSize: 14
-                    font.bold: true
-                }
-
-                MouseArea {
-                    id: plusArea
-                    anchors.fill: parent
-                    anchors.margins: -2
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.insertRequested()
-                }
+                width: Interface.px(18)
+                height: Interface.px(18)
+                glyph: "+"
+                glyphSize: Interface.px(14)
+                glyphBold: true
+                label: qsTr("Insert block below")
+                onClicked: root.insertRequested()
             }
 
             // Delete this block. Undoable (Ctrl+Z), so no confirmation; the
             // red hover fill is the destructive cue. Stays lit while the
             // pointer is on it because the gutter HoverHandler covers it.
-            Rectangle {
+            IconButton {
                 objectName: "deleteButton"
-                width: 18
-                height: 18
-                radius: 4
-                color: deleteArea.containsMouse ? Theme.danger : "transparent"
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "×"
-                    color: deleteArea.containsMouse ? Theme.onAccent : Theme.textMuted
-                    font.pixelSize: 16
-                    font.bold: true
-                }
-
-                MouseArea {
-                    id: deleteArea
-                    anchors.fill: parent
-                    anchors.margins: -2
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.deleteRequested()
-                }
+                width: Interface.px(18)
+                height: Interface.px(18)
+                glyph: "×"
+                glyphSize: Interface.px(16)
+                glyphBold: true
+                hoverColor: Theme.danger
+                hoverGlyphColor: Theme.labelOn(Theme.danger)
+                label: qsTr("Delete block")
+                onClicked: root.deleteRequested()
             }
         }
 
         Column {
-            spacing: 2
+            spacing: Interface.px(2)
 
+            // Not an IconButton: this one press is both a click and the
+            // start of a drag, and which it was is only known on release,
+            // so the MouseArea below has to stay. What it gains here is the
+            // half a button gives for free — a role, a name, tab focus and
+            // a focus ring — with Space and Return standing in for the
+            // click half of the gesture. Reordering from the keyboard
+            // is Alt+Up and Alt+Down on the block itself, so this
+            // control does not have to carry the drag half.
             Item {
-                width: 14
-                height: 18
+                id: handleItem
+                width: Interface.px(14)
+                height: Interface.px(18)
+
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Block handle")
+                Accessible.description: qsTr("Selects the block; drag to reorder")
+                Accessible.onPressAction: root.blockSelectRequested()
+                Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                        || event.key === Qt.Key_Enter) {
+                        root.blockSelectRequested()
+                        event.accepted = true
+                    }
+                }
+
+                ToolTip.text: qsTr("Block handle")
+                ToolTip.visible: handleItem.activeFocus
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: -2
+                    radius: Interface.px(4)
+                    color: "transparent"
+                    visible: handleItem.activeFocus
+                    border.width: 2
+                    border.color: Theme.focusRing
+                }
 
                 Column {
                     anchors.centerIn: parent
-                    spacing: 2
+                    spacing: Interface.px(2)
                     opacity: 0.6
 
                     Repeater {
                         model: 2
 
                         Row {
-                            spacing: 2
+                            spacing: Interface.px(2)
 
                             Repeater {
                                 model: 2
 
                                 Rectangle {
-                                    width: 3
-                                    height: 3
+                                    width: Interface.px(3)
+                                    height: Interface.px(3)
                                     radius: 1.5
                                     color: Theme.textFaint
                                 }
@@ -229,36 +239,31 @@ Item {
                 }
             }
 
-            Rectangle {
-                objectName: "blockMenuButton"
-                width: 14
-                height: 18
-                radius: 4
-                color: menuArea.containsMouse ? Theme.hoverTint : "transparent"
+            IconButton {
+                objectName: "blockMenuButtonArea"
+                width: Interface.px(14)
+                height: Interface.px(18)
+                label: qsTr("Block menu")
+                Accessible.role: Accessible.ButtonMenu
+                onClicked: root.handleMenuRequested()
 
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 2
+                // Three stacked rules rather than a glyph, so the drawing
+                // replaces IconButton's text content item.
+                contentItem: Item {
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: Interface.px(2)
 
-                    Repeater {
-                        model: 3
-                        Rectangle {
-                            width: 8
-                            height: 1.5
-                            radius: 0.75
-                            color: Theme.textMuted
+                        Repeater {
+                            model: 3
+                            Rectangle {
+                                width: Interface.px(8)
+                                height: 1.5
+                                radius: 0.75
+                                color: Theme.textMuted
+                            }
                         }
                     }
-                }
-
-                MouseArea {
-                    id: menuArea
-                    objectName: "blockMenuButtonArea"
-                    anchors.fill: parent
-                    anchors.margins: -2
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.handleMenuRequested()
                 }
             }
         }

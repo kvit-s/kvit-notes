@@ -490,6 +490,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(m_globals.egressPolicy());
     m_services.add(m_globals.remoteMediaCache());
     m_services.add(m_globals.typography());
+    m_services.add(m_globals.interfaceMetrics());
     m_services.add(&m_imageAssets);
     m_services.add(&m_assetStore);
     m_services.add(&m_blockAttributes);
@@ -505,6 +506,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_blockModel);
     m_services.add(&m_documentSelection);
     m_services.add(m_globals.theme());
+    m_services.add(m_globals.systemAppearance());
     m_services.add(&m_appActions);
     KvitQml::attachServices(engine, &m_services);
 

@@ -14,7 +14,7 @@ import Kvit 1.0
 // Every edit goes through the model as one content replacement, like every
 // other formatting command, so a link costs one undo step. The caret returns
 // to the block by index afterwards.
-Dialog {
+KvitDialog {
     id: linkDialog
     objectName: "linkDialog"
 
@@ -24,7 +24,7 @@ Dialog {
     modal: true
     title: editing ? qsTr("Edit Link") : qsTr("Insert Link")
     anchors.centerIn: parent
-    width: 380
+    width: Interface.px(380)
 
     property alias textField: linkTextField
     property alias urlField: linkUrlField
@@ -114,7 +114,7 @@ Dialog {
     }
 
     contentItem: ColumnLayout {
-        spacing: 8
+        spacing: Interface.px(8)
         Label { text: qsTr("Text") }
         TextField {
             id: linkTextField

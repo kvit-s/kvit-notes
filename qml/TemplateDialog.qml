@@ -18,7 +18,7 @@ import Kvit 1.0
 // The pick-on-create flow lives in the toolbar's Templates menu; this dialog
 // edits the templates themselves. All state is in NoteTemplates (files on
 // disk); this dialog reads and forwards.
-Dialog {
+KvitDialog {
     id: dlg
     objectName: "templateDialog"
 
@@ -27,8 +27,8 @@ Dialog {
     title: qsTr("Manage templates")
     modal: true
     anchors.centerIn: parent
-    width: 580
-    height: 440
+    width: Interface.px(580)
+    height: Interface.px(440)
     standardButtons: Dialog.Close
 
     property string selected: ""
@@ -48,13 +48,13 @@ Dialog {
     onSelectedChanged: loadSelected()
 
     contentItem: RowLayout {
-        spacing: 10
+        spacing: Interface.px(10)
 
         // Template list + new/delete.
         ColumnLayout {
-            Layout.preferredWidth: 180
+            Layout.preferredWidth: Interface.px(180)
             Layout.fillHeight: true
-            spacing: 6
+            spacing: Interface.px(6)
 
             Frame {
                 Layout.fillWidth: true
@@ -126,7 +126,7 @@ Dialog {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 6
+            spacing: Interface.px(6)
 
             Label {
                 text: dlg.selected !== ""
@@ -137,7 +137,7 @@ Dialog {
             Frame {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                padding: 2
+                padding: Interface.px(2)
                 ScrollView {
                     anchors.fill: parent
                     TextArea {
@@ -165,13 +165,25 @@ Dialog {
     }
 
     // "Save current note as template" name prompt.
-    Dialog {
+    KvitDialog {
         id: saveNoteDialog
+        // Opens on the field it is about, so a screen reader
+        // announces something to type into and a keyboard user
+        // does not have to guess how many tabs reach it.
+        initialFocusItem: saveNoteName
         objectName: "saveNoteAsTemplateDialog"
+        // Parented explicitly to the item the outer dialog is parented
+        // to, rather than being left to default into it. A Popup declared
+        // inside a dialog that both derives from a composite type and
+        // assigns its own `contentItem` lands on the content item the base
+        // created and the derived assignment then replaced — an orphan with
+        // no window — and `open()` on a popup with no window does nothing at
+        // all, silently. See the note in KvitDialog.qml.
+        parent: dlg.parent
         modal: true
         title: qsTr("Save note as template")
         anchors.centerIn: parent
-        width: 320
+        width: Interface.px(320)
         standardButtons: Dialog.Ok | Dialog.Cancel
         onOpened: saveNoteName.text = dlg.appWindow
             ? NoteCollection.noteInfo(dlg.appWindow.currentNoteRelPath).title : ""

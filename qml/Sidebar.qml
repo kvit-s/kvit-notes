@@ -55,7 +55,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: 1
+        width: Interface.px(1)
         color: Theme.border
     }
 
@@ -128,7 +128,7 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.rightMargin: 1
+        anchors.rightMargin: Interface.px(1)
         spacing: 0
 
         // ---- Global search (§8.4; Ctrl+Shift+F) --------------------------
@@ -136,10 +136,10 @@ Rectangle {
             id: globalSearchField
             objectName: "globalSearchField"
             Layout.fillWidth: true
-            Layout.margins: 8
-            Layout.bottomMargin: 4
-            implicitHeight: 26
-            font.pixelSize: 11
+            Layout.margins: Interface.px(8)
+            Layout.bottomMargin: Interface.px(4)
+            implicitHeight: Interface.px(26)
+            font.pixelSize: Interface.small
             placeholderText: qsTr("Search all notes")
             onTextEdited: CollectionSearch.query = text
             onAccepted: {
@@ -159,8 +159,8 @@ Rectangle {
         ColumnLayout {
             objectName: "recentSearchesColumn"
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Interface.px(8)
+            Layout.rightMargin: Interface.px(8)
             spacing: 0
             visible: globalSearchField.activeFocus
                      && globalSearchField.text === ""
@@ -172,17 +172,24 @@ Rectangle {
                     id: recentRow
                     required property string modelData
                     Layout.fillWidth: true
-                    height: 20
+                    height: Interface.px(20)
                     color: recentHover.hovered ? Theme.hoverTint : "transparent"
                     HoverHandler { id: recentHover }
                     Label {
                         anchors.fill: parent
-                        anchors.leftMargin: 6
+                        anchors.leftMargin: Interface.px(6)
                         verticalAlignment: Text.AlignVCenter
                         text: "↺ " + recentRow.modelData
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textMuted
                         elide: Text.ElideRight
+                    }
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: qsTr("Recent search: %1")
+                                     .arg(recentRow.modelData)
+                    Accessible.onPressAction: {
+                        globalSearchField.text = recentRow.modelData
+                        CollectionSearch.query = recentRow.modelData
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -198,12 +205,12 @@ Rectangle {
         // ---- Header ----------------------------------------------------
         RowLayout {
             Layout.fillWidth: true
-            Layout.margins: 8
-            spacing: 4
+            Layout.margins: Interface.px(8)
+            spacing: Interface.px(4)
 
             Label {
                 text: qsTr("Notes")
-                font.pixelSize: 13
+                font.pixelSize: Interface.strong
                 font.bold: true
                 color: Theme.textSecondary
                 Layout.fillWidth: true
@@ -211,19 +218,21 @@ Rectangle {
             ToolButton {
                 objectName: "newFolderButton"
                 text: "+▤"
-                font.pixelSize: 11
-                implicitHeight: 24
-                ToolTip.visible: hovered
+                Accessible.name: qsTr("New folder")
+                font.pixelSize: Interface.small
+                implicitHeight: Interface.px(24)
+                ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("New folder")
                 onClicked: folderDialog.openForCreate("")
             }
             ToolButton {
                 objectName: "sidebarCollapseButton"
                 text: "«"
-                font.pixelSize: 12
-                implicitWidth: 22
-                implicitHeight: 24
-                ToolTip.visible: hovered
+                Accessible.name: qsTr("Collapse sidebar")
+                font.pixelSize: Interface.body
+                implicitWidth: Interface.px(22)
+                implicitHeight: Interface.px(24)
+                ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Collapse sidebar")
                 onClicked: if (sidebar.appWindow)
                                sidebar.appWindow.sidebarCollapsed = true
@@ -235,25 +244,29 @@ Rectangle {
             id: allNotesRow
             objectName: "allNotesRow"
             Layout.fillWidth: true
-            height: 28
+            height: Interface.px(28)
             color: NoteListModel.scope === "all" ? Theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: Interface.px(12)
+                anchors.rightMargin: Interface.px(12)
                 Label {
                     text: qsTr("All Notes")
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     Layout.fillWidth: true
                 }
                 Label {
                     text: NoteCollection.revision >= 0
                           ? NoteCollection.noteCountInFolder("", true) : 0
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: Theme.textFaint
                 }
             }
+            Accessible.role: Accessible.ListItem
+            Accessible.name: qsTr("All notes")
+            Accessible.selected: NoteListModel.scope === "all"
+            Accessible.onPressAction: NoteListModel.scope = "all"
             MouseArea {
                 anchors.fill: parent
                 onClicked: NoteListModel.scope = "all"
@@ -264,19 +277,23 @@ Rectangle {
             id: favoritesRow
             objectName: "favoritesRow"
             Layout.fillWidth: true
-            height: 28
+            height: Interface.px(28)
             color: NoteListModel.scope === "favorites" ? Theme.selectionTint : "transparent"
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: Interface.px(12)
+                anchors.rightMargin: Interface.px(12)
                 Label {
                     text: "★ " + qsTr("Favorites")
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     Layout.fillWidth: true
                 }
             }
+            Accessible.role: Accessible.ListItem
+            Accessible.name: qsTr("Favorites")
+            Accessible.selected: NoteListModel.scope === "favorites"
+            Accessible.onPressAction: NoteListModel.scope = "favorites"
             MouseArea {
                 anchors.fill: parent
                 onClicked: NoteListModel.scope = "favorites"
@@ -286,12 +303,12 @@ Rectangle {
         // ---- Folder tree -----------------------------------------------
         Label {
             text: qsTr("Folders")
-            font.pixelSize: 10
+            font.pixelSize: Interface.caption
             font.bold: true
             color: Theme.textFaint
-            Layout.leftMargin: 12
-            Layout.topMargin: 10
-            Layout.bottomMargin: 2
+            Layout.leftMargin: Interface.px(12)
+            Layout.topMargin: Interface.px(10)
+            Layout.bottomMargin: Interface.px(2)
         }
 
         ListView {
@@ -363,7 +380,12 @@ Rectangle {
                 required property int noteCount
                 required property int index
                 width: folderTreeView.width
-                height: 28
+                // Content-derived with a scaled floor, rather than a fixed
+                // 28: at a large interface size the label is taller than the
+                // row it was pinned inside, and the name clipped
+                // (accessibility.md Finding 4).
+                height: Math.max(Interface.px(28),
+                                 folderRowContent.implicitHeight + Interface.px(6))
                 // Screen-reader name/role and the keyboard's position (§14.2).
                 Accessible.role: Accessible.TreeItem
                 Accessible.name: folderRow.name
@@ -389,12 +411,12 @@ Rectangle {
                 Rectangle {
                     objectName: "folderRowFocusRing"
                     anchors.fill: parent
-                    anchors.margins: 1
+                    anchors.margins: Interface.px(1)
                     visible: folderRow.isCurrentRow && folderTreeView.activeFocus
                     color: "transparent"
                     border.width: 2
                     border.color: Theme.focusRing
-                    radius: 3
+                    radius: Interface.px(3)
                 }
 
                 // What the view's key handler needs from whichever row is
@@ -434,36 +456,41 @@ Rectangle {
             }
 
                 RowLayout {
+                    id: folderRowContent
                     anchors.fill: parent
-                    anchors.leftMargin: 8 + folderRow.depth * 14
-                    anchors.rightMargin: 6
-                    spacing: 4
+                    anchors.leftMargin: Interface.px(8)
+                                        + folderRow.depth * Interface.px(14)
+                    anchors.rightMargin: Interface.px(6)
+                    spacing: Interface.px(4)
 
                     // Chevron: expand/collapse (§8.1)
                     Text {
                         text: folderRow.expanded ? "▾" : "▸"
-                        font.pixelSize: 10
+                        font.pixelSize: Interface.caption
                         color: Theme.textMuted
                         visible: folderRow.hasChildren
-                        width: 10
+                        width: Interface.px(10)
                         TapHandler {
                             onTapped: FolderTreeModel.toggleExpanded(folderRow.index)
                         }
                     }
-                    Item { width: 10; visible: !folderRow.hasChildren }
+                    Item {
+                        width: Interface.px(10)
+                        visible: !folderRow.hasChildren
+                    }
 
                     // Folder glyph, tinted by the folder color (§8.1)
                     Rectangle {
-                        width: 10
-                        height: 8
-                        radius: 2
+                        width: Interface.px(10)
+                        height: Interface.px(8)
+                        radius: Interface.px(2)
                         color: folderRow.folderColor !== ""
                                ? folderRow.folderColor : Theme.mutedGlyph
                     }
 
                     Label {
                         text: folderRow.name
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -473,9 +500,9 @@ Rectangle {
                         objectName: "folderRenameButton"
                         visible: rowHover.hovered
                         text: "✎"
-                        font.pixelSize: 10
-                        implicitWidth: 20
-                        implicitHeight: 22
+                        font.pixelSize: Interface.caption
+                        implicitWidth: Interface.px(20)
+                        implicitHeight: Interface.px(22)
                         onClicked: folderDialog.openForRename(
                                        folderRow.relPath, folderRow.name,
                                        folderRow.folderColor)
@@ -484,18 +511,18 @@ Rectangle {
                         objectName: "folderNewChildButton"
                         visible: rowHover.hovered
                         text: "+"
-                        font.pixelSize: 11
-                        implicitWidth: 20
-                        implicitHeight: 22
+                        font.pixelSize: Interface.small
+                        implicitWidth: Interface.px(20)
+                        implicitHeight: Interface.px(22)
                         onClicked: folderDialog.openForCreate(folderRow.relPath)
                     }
                     ToolButton {
                         objectName: "folderDeleteButton"
                         visible: rowHover.hovered
                         text: "✕"
-                        font.pixelSize: 10
-                        implicitWidth: 20
-                        implicitHeight: 22
+                        font.pixelSize: Interface.caption
+                        implicitWidth: Interface.px(20)
+                        implicitHeight: Interface.px(22)
                         onClicked: deleteFolderDialog.openFor(
                                        folderRow.relPath, folderRow.name,
                                        folderRow.noteCount)
@@ -504,7 +531,7 @@ Rectangle {
                     Label {
                         visible: !rowHover.hovered
                         text: folderRow.noteCount
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                     }
                 }
@@ -525,12 +552,12 @@ Rectangle {
         // ---- Tags (§8.2: sidebar with counts; click filters) -----------
         Label {
             text: qsTr("Tags")
-            font.pixelSize: 10
+            font.pixelSize: Interface.caption
             font.bold: true
             color: Theme.textFaint
-            Layout.leftMargin: 12
-            Layout.topMargin: 6
-            Layout.bottomMargin: 2
+            Layout.leftMargin: Interface.px(12)
+            Layout.topMargin: Interface.px(6)
+            Layout.bottomMargin: Interface.px(2)
             visible: tagListView.count > 0
         }
 
@@ -539,9 +566,12 @@ Rectangle {
             objectName: "tagListView"
             Layout.fillWidth: true
             // Fixed-height rows: computable before any delegate exists
-            // (the folder tree above takes the leftover height).
-            Layout.preferredHeight: Math.min(count * 24, 170)
-            Layout.bottomMargin: 4
+            // (the folder tree above takes the leftover height). The row
+            // height and the cap both follow the interface size, so the list
+            // still shows the same number of tags at any of them.
+            Layout.preferredHeight: Math.min(count * Interface.px(24),
+                                             Interface.px(170))
+            Layout.bottomMargin: Interface.px(4)
             clip: true
 
             // Array-of-maps model, live under the collection revision.
@@ -578,7 +608,7 @@ Rectangle {
                 required property var modelData
                 required property int index
                 width: tagListView.width
-                height: 24
+                height: Interface.px(24)
                 Accessible.role: Accessible.ListItem
                 Accessible.name: tagRow.modelData.name
                 Accessible.description: qsTr("%1 notes").arg(tagRow.modelData.count)
@@ -597,12 +627,12 @@ Rectangle {
                 Rectangle {
                     objectName: "tagRowFocusRing"
                     anchors.fill: parent
-                    anchors.margins: 1
+                    anchors.margins: Interface.px(1)
                     visible: tagRow.isCurrentRow && tagListView.activeFocus
                     color: "transparent"
                     border.width: 2
                     border.color: Theme.focusRing
-                    radius: 3
+                    radius: Interface.px(3)
                 }
 
                 HoverHandler { id: tagHover }
@@ -615,20 +645,20 @@ Rectangle {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 6
-                    spacing: 6
+                    anchors.leftMargin: Interface.px(14)
+                    anchors.rightMargin: Interface.px(6)
+                    spacing: Interface.px(6)
 
                     Rectangle {
-                        width: 8
-                        height: 8
-                        radius: 4
+                        width: Interface.px(8)
+                        height: Interface.px(8)
+                        radius: Interface.px(4)
                         color: tagRow.modelData.color !== "" ? tagRow.modelData.color
                                                       : Theme.mutedGlyph
                     }
                     Label {
                         text: tagRow.modelData.name
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -636,9 +666,9 @@ Rectangle {
                         objectName: "tagEditButton"
                         visible: tagHover.hovered
                         text: "✎"
-                        font.pixelSize: 10
-                        implicitWidth: 20
-                        implicitHeight: 20
+                        font.pixelSize: Interface.caption
+                        implicitWidth: Interface.px(20)
+                        implicitHeight: Interface.px(20)
                         onClicked: tagDialog.openFor(tagRow.modelData.name,
                                                      tagRow.modelData.color)
                     }
@@ -646,16 +676,16 @@ Rectangle {
                         objectName: "tagDeleteButton"
                         visible: tagHover.hovered
                         text: "✕"
-                        font.pixelSize: 10
-                        implicitWidth: 20
-                        implicitHeight: 20
+                        font.pixelSize: Interface.caption
+                        implicitWidth: Interface.px(20)
+                        implicitHeight: Interface.px(20)
                         onClicked: deleteTagDialog.openFor(tagRow.modelData.name,
                                                            tagRow.modelData.count)
                     }
                     Label {
                         visible: !tagHover.hovered
                         text: tagRow.modelData.count
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                     }
                 }
@@ -680,7 +710,7 @@ Rectangle {
             id: trashRow
             objectName: "trashRow"
             Layout.fillWidth: true
-            height: 26
+            height: Interface.px(26)
             color: trashHover.hovered ? Theme.hoverTint : "transparent"
 
             readonly property int trashCount: {
@@ -692,21 +722,24 @@ Rectangle {
             HoverHandler { id: trashHover }
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: Interface.px(12)
+                anchors.rightMargin: Interface.px(12)
                 Label {
                     text: qsTr("Trash")
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Label {
                     objectName: "trashCountLabel"
                     text: trashRow.trashCount
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: Theme.textFaint
                 }
             }
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("Trash, %n note(s)", "", trashRow.trashCount)
+            Accessible.onPressAction: trashMenu.popup()
             TapHandler {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onTapped: trashMenu.popup()
@@ -727,13 +760,13 @@ Rectangle {
         }
     }
 
-    Dialog {
+    KvitDialog {
         id: emptyTrashDialog
         objectName: "emptyTrashDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 320
+        width: Interface.px(320)
         title: qsTr("Empty Trash")
         standardButtons: Dialog.Ok | Dialog.Cancel
 
@@ -749,7 +782,7 @@ Rectangle {
             id: emptyTrashText
             width: parent.width
             wrapMode: Text.Wrap
-            font.pixelSize: 12
+            font.pixelSize: Interface.body
         }
     }
 
@@ -829,13 +862,17 @@ Rectangle {
     }
 
     // ---- Folder create/rename dialog with the color palette ------------
-    Dialog {
+    KvitDialog {
         id: folderDialog
+        // Opens on the field it is about, so a screen reader
+        // announces something to type into and a keyboard user
+        // does not have to guess how many tabs reach it.
+        initialFocusItem: folderNameField
         objectName: "folderDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 300
+        width: Interface.px(300)
         title: mode === "create" ? qsTr("New Folder") : qsTr("Rename Folder")
 
         property string mode: "create"   // "create" | "rename"
@@ -882,7 +919,7 @@ Rectangle {
         }
 
         contentItem: ColumnLayout {
-            spacing: 8
+            spacing: Interface.px(8)
             TextField {
                 id: folderNameField
                 objectName: "folderDialogNameField"
@@ -891,18 +928,25 @@ Rectangle {
                 onAccepted: folderDialog.accept()
             }
             Row {
-                spacing: 6
+                spacing: Interface.px(6)
                 Repeater {
                     model: folderDialog.palette
                     Rectangle {
                         id: folderSwatch
                         required property string modelData
-                        width: 20
-                        height: 20
-                        radius: 10
+                        width: Interface.px(20)
+                        height: Interface.px(20)
+                        radius: Interface.px(10)
                         color: folderSwatch.modelData === "" ? Theme.mutedGlyph : folderSwatch.modelData
                         border.width: folderDialog.selectedColor === folderSwatch.modelData ? 2 : 0
                         border.color: Theme.textPrimary
+                        Accessible.role: Accessible.RadioButton
+                        Accessible.name: Theme.colorName(folderSwatch.modelData)
+                        Accessible.checkable: true
+                        Accessible.checked: folderDialog.selectedColor
+                                            === folderSwatch.modelData
+                        Accessible.onPressAction:
+                            folderDialog.selectedColor = folderSwatch.modelData
                         TapHandler {
                             onTapped: folderDialog.selectedColor = folderSwatch.modelData
                         }
@@ -916,13 +960,17 @@ Rectangle {
 
     // ---- Tag manage dialog: rename (merge when the target exists) and
     // color (features.md §8.2 tag management) --------------------------
-    Dialog {
+    KvitDialog {
         id: tagDialog
+        // Opens on the field it is about, so a screen reader
+        // announces something to type into and a keyboard user
+        // does not have to guess how many tabs reach it.
+        initialFocusItem: tagNameField
         objectName: "tagDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 300
+        width: Interface.px(300)
         title: qsTr("Edit Tag")
 
         property string originalName: ""
@@ -958,7 +1006,7 @@ Rectangle {
         }
 
         contentItem: ColumnLayout {
-            spacing: 8
+            spacing: Interface.px(8)
             TextField {
                 id: tagNameField
                 objectName: "tagDialogNameField"
@@ -966,18 +1014,25 @@ Rectangle {
                 onAccepted: tagDialog.accept()
             }
             Row {
-                spacing: 6
+                spacing: Interface.px(6)
                 Repeater {
                     model: tagDialog.palette
                     Rectangle {
                         id: tagSwatch
                         required property string modelData
-                        width: 20
-                        height: 20
-                        radius: 10
+                        width: Interface.px(20)
+                        height: Interface.px(20)
+                        radius: Interface.px(10)
                         color: tagSwatch.modelData
                         border.width: tagDialog.selectedColor === tagSwatch.modelData ? 2 : 0
                         border.color: Theme.textPrimary
+                        Accessible.role: Accessible.RadioButton
+                        Accessible.name: Theme.colorName(tagSwatch.modelData)
+                        Accessible.checkable: true
+                        Accessible.checked: tagDialog.selectedColor
+                                            === tagSwatch.modelData
+                        Accessible.onPressAction:
+                            tagDialog.selectedColor = tagSwatch.modelData
                         TapHandler {
                             onTapped: tagDialog.selectedColor = tagSwatch.modelData
                         }
@@ -989,13 +1044,13 @@ Rectangle {
         standardButtons: Dialog.Ok | Dialog.Cancel
     }
 
-    Dialog {
+    KvitDialog {
         id: mergeTagDialog
         objectName: "mergeTagDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 320
+        width: Interface.px(320)
         title: qsTr("Merge Tags")
 
         property string fromName: ""
@@ -1020,22 +1075,22 @@ Rectangle {
         contentItem: Label {
             id: mergeText
             wrapMode: Text.WordWrap
-            leftPadding: 12
-            rightPadding: 12
-            topPadding: 8
-            bottomPadding: 8
+            leftPadding: Interface.px(12)
+            rightPadding: Interface.px(12)
+            topPadding: Interface.px(8)
+            bottomPadding: Interface.px(8)
         }
 
         standardButtons: Dialog.Ok | Dialog.Cancel
     }
 
-    Dialog {
+    KvitDialog {
         id: deleteTagDialog
         objectName: "deleteTagDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 320
+        width: Interface.px(320)
         title: qsTr("Delete Tag")
 
         property string targetName: ""
@@ -1056,23 +1111,23 @@ Rectangle {
         contentItem: Label {
             id: deleteTagText
             wrapMode: Text.WordWrap
-            leftPadding: 12
-            rightPadding: 12
-            topPadding: 8
-            bottomPadding: 8
+            leftPadding: Interface.px(12)
+            rightPadding: Interface.px(12)
+            topPadding: Interface.px(8)
+            bottomPadding: Interface.px(8)
         }
 
         standardButtons: Dialog.Ok | Dialog.Cancel
     }
 
     // ---- Delete-folder confirmation (to trash, confirmed) -------------
-    Dialog {
+    KvitDialog {
         id: deleteFolderDialog
         objectName: "deleteFolderDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 320
+        width: Interface.px(320)
         title: qsTr("Delete Folder")
 
         property string targetPath: ""
@@ -1097,10 +1152,10 @@ Rectangle {
         contentItem: Label {
             id: messageText
             wrapMode: Text.WordWrap
-            leftPadding: 12
-            rightPadding: 12
-            topPadding: 8
-            bottomPadding: 8
+            leftPadding: Interface.px(12)
+            rightPadding: Interface.px(12)
+            topPadding: Interface.px(8)
+            bottomPadding: Interface.px(8)
         }
 
         standardButtons: Dialog.Ok | Dialog.Cancel

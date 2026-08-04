@@ -1285,8 +1285,13 @@ BlockDelegateBase {
             // portion; otherwise focus loss clears the highlight. A
             // context menu targeting this block holds the selection: its
             // Cut/Copy/formatting act on it.
-            var menuHolds = delegate.shell && delegate.shell.contextMenuHoldsSelection
-                            && delegate.shell.contextMenuHoldsSelection(delegate)
+            // An open colour picker counts the same way a context menu does:
+            // it is the selection's own control, and taking the keyboard to
+            // it must not be what empties it.
+            var menuHolds = delegate.shell
+                            && ((delegate.shell.contextMenuHoldsSelection
+                                 && delegate.shell.contextMenuHoldsSelection(delegate))
+                                || delegate.shell.selectionHolders > 0)
             if (!DocumentSelection.hasTextSelection && !menuHolds)
                 textArea.deselect()
         }
@@ -1391,7 +1396,7 @@ BlockDelegateBase {
             radius: 4
 
             Behavior on color {
-                ColorAnimation { duration: 100 }
+                ColorAnimation { duration: 100 * Theme.motionScale }
             }
         }
 
@@ -1817,6 +1822,13 @@ BlockDelegateBase {
 
                 // Screen-reader role/name (§14.2): an editable text field whose
                 // accessible value is its content; the name labels the kind.
+                //
+                // Headings keep EditableText rather than taking
+                // Accessible.Heading. Inside an editor, "this text can be
+                // edited" is the more useful thing to hear, and the heading
+                // level rides in the name — Qt Quick's Accessible attached
+                // type has no heading-level property, so the name is the only
+                // place it can go.
                 Accessible.role: Accessible.EditableText
                 Accessible.name: {
                     var kinds = ["Paragraph", "Heading 1", "Heading 2",
@@ -1824,6 +1836,18 @@ BlockDelegateBase {
                         "To-do", "Quote", "Code block", "Divider", "Heading 4"]
                     var k = kinds[delegate.blockType]
                     return (k ? k : qsTr("Text")) + qsTr(" block")
+                }
+                // A to-do's done state belongs on the block, not only on the
+                // checkbox beside it: the block is the element a screen
+                // reader lands on while moving through a note, so this is
+                // where "checked" has to be readable (accessibility.md
+                // Finding 1). Ctrl+Enter is the keyboard toggle.
+                Accessible.checkable: delegate.blockType === Block.Todo
+                Accessible.checked: delegate.blockType === Block.Todo
+                                    && delegate.checked
+                Accessible.onToggleAction: {
+                    if (delegate.blockType === Block.Todo)
+                        BlockModel.setChecked(delegate.index, !delegate.checked)
                 }
 
                 // Formatting commands (Ctrl+B / Ctrl+I) operate on storage

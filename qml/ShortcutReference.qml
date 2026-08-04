@@ -15,7 +15,7 @@ import Kvit 1.0
 // It renders the ShortcutCatalog — the same source the test_shortcutmap audit
 // checks — grouped by section. Actions without a shortcut (the documented
 // deviations) show a dash and their reason, so nothing reads as missing.
-Dialog {
+KvitDialog {
     id: root
     objectName: "shortcutReference"
 
@@ -30,14 +30,14 @@ Dialog {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 8
+        radius: Interface.px(8)
     }
     header: Label {
         text: root.title
-        font.pixelSize: 16
+        font.pixelSize: Interface.px(16)
         font.bold: true
         color: Theme.textPrimary
-        padding: 16
+        padding: Interface.px(16)
     }
 
     function rowsFor(category) {
@@ -55,7 +55,7 @@ Dialog {
 
         Column {
             width: root.availableWidth
-            spacing: 14
+            spacing: Interface.px(14)
 
             Repeater {
                 model: ShortcutCatalog.categories()
@@ -66,14 +66,14 @@ Dialog {
                     id: category
                     required property string modelData
                     width: parent.width
-                    spacing: 2
+                    spacing: Interface.px(2)
 
                     Label {
                         text: category.modelData
-                        font.pixelSize: 13
+                        font.pixelSize: Interface.strong
                         font.bold: true
                         color: Theme.accent
-                        bottomPadding: 4
+                        bottomPadding: Interface.px(4)
                     }
 
                     Repeater {
@@ -83,18 +83,18 @@ Dialog {
                             id: shortcutRow
                             required property var modelData
                             width: parent.width
-                            spacing: 12
+                            spacing: Interface.px(12)
 
                             Label {
                                 text: shortcutRow.modelData.action
                                 color: Theme.textPrimary
-                                font.pixelSize: 13
-                                Layout.preferredWidth: 180
+                                font.pixelSize: Interface.strong
+                                Layout.preferredWidth: Interface.px(180)
                             }
                             // The chord as key caps, or a dash for a deviation.
                             Rectangle {
                                 visible: shortcutRow.modelData.chord !== ""
-                                radius: 4
+                                radius: Interface.px(4)
                                 color: Theme.chipBackground
                                 border.color: Theme.border
                                 border.width: 1
@@ -104,7 +104,7 @@ Dialog {
                                     id: chordLabel
                                     anchors.centerIn: parent
                                     text: shortcutRow.modelData.displayChord
-                                    font.pixelSize: 12
+                                    font.pixelSize: Interface.body
                                     font.family: "monospace"
                                     color: Theme.textPrimary
                                 }
@@ -112,14 +112,18 @@ Dialog {
                             Label {
                                 visible: shortcutRow.modelData.chord === ""
                                 text: "—"
+                                // The dash stands for "this command has no
+                                // chord"; the note beside it says why.
+                                Accessible.role: Accessible.StaticText
+                                Accessible.name: qsTr("No shortcut")
                                 color: Theme.textMuted
-                                font.pixelSize: 13
+                                font.pixelSize: Interface.strong
                             }
                             Label {
                                 visible: shortcutRow.modelData.note !== ""
                                 text: shortcutRow.modelData.note
                                 color: Theme.textMuted
-                                font.pixelSize: 11
+                                font.pixelSize: Interface.small
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }

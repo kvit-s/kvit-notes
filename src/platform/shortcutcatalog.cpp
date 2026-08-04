@@ -54,6 +54,11 @@ const QList<ShortcutInfo> &ShortcutCatalog::entries()
          "Enter as a newline, blank lines included, so leaving one has its "
          "own chord — named in the block's bottom-right corner while the "
          "caret is inside."},
+        {"Block Operations", "Toggle a to-do", "Ctrl+Enter", "engine", false,
+         "Inside a to-do block only, where the same chord that leaves a source "
+         "block instead ticks the box. The only keyboard route to the "
+         "checkbox, so it belongs in the reference (accessibility.md "
+         "Finding 1)."},
         {"Block Operations", "Caret between blocks", "Ctrl+Enter", "window", false,
          "On selected blocks: puts the caret in the space after them, where "
          "typing makes a block (§3.7). The keyboard route to the space below a "

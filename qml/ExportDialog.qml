@@ -12,7 +12,7 @@ import Kvit 1.0
 // selection, or the whole collection), then a destination. The actual export
 // runs through DocumentExporter, which builds one self-contained HTML string
 // and prints PDF from it.
-Dialog {
+KvitDialog {
     id: exportDialog
     objectName: "exportDialog"
 
@@ -21,7 +21,7 @@ Dialog {
     title: qsTr("Export")
     modal: true
     anchors.centerIn: parent
-    width: 380
+    width: Interface.px(380)
     standardButtons: Dialog.Cancel
 
     // "markdown" | "html" | "pdf" | "text"
@@ -104,7 +104,7 @@ Dialog {
     }
 
     contentItem: ColumnLayout {
-        spacing: 10
+        spacing: Interface.px(10)
 
         Label { text: qsTr("Format"); font.bold: true }
         ComboBox {
@@ -118,7 +118,7 @@ Dialog {
 
         Label { text: qsTr("Scope"); font.bold: true }
         Column {
-            spacing: 4
+            spacing: Interface.px(4)
             RadioButton {
                 objectName: "exportScopeBlocks"
                 text: exportDialog.blockCount === 1
@@ -275,19 +275,27 @@ Dialog {
         }
     }
 
-    Dialog {
+    KvitDialog {
         id: progressDialog
         objectName: "exportProgressDialog"
+        // Parented explicitly to the item the outer dialog is parented
+        // to, rather than being left to default into it. A Popup declared
+        // inside a dialog that both derives from a composite type and
+        // assigns its own `contentItem` lands on the content item the base
+        // created and the derived assignment then replaced — an orphan with
+        // no window — and `open()` on a popup with no window does nothing at
+        // all, silently. See the note in KvitDialog.qml.
+        parent: exportDialog.parent
         modal: true
         closePolicy: Popup.NoAutoClose
         title: qsTr("Exporting")
         anchors.centerIn: parent
-        width: 340
+        width: Interface.px(340)
         standardButtons: Dialog.Cancel
         onRejected: DocumentExporter.cancelExport()
 
         contentItem: ColumnLayout {
-            spacing: 8
+            spacing: Interface.px(8)
             Label {
                 id: progressLabel
                 objectName: "exportProgressLabel"

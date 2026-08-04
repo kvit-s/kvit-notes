@@ -65,7 +65,7 @@ Item {
         id: panel
         objectName: "calloutPanel"
         anchors.fill: parent
-        radius: 5
+        radius: Interface.px(5)
         color: Qt.alpha(root.accent, 0.10)
         border.width: 1
         border.color: Qt.alpha(root.accent, 0.35)
@@ -73,8 +73,8 @@ Item {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: 4
-            radius: 2
+            width: Interface.px(4)
+            radius: Interface.px(2)
             color: root.accent
         }
     }
@@ -95,7 +95,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.folded ? "▸" : "▾"
             color: root.accent
-            font.pixelSize: 12
+            font.pixelSize: Interface.body
             TapHandler { onTapped: root.foldToggled() }
         }
         // The type button: the callout's own icon with a caret, opening the
@@ -105,41 +105,48 @@ Item {
             id: typeButton
             objectName: "calloutTypeButton"
             anchors.left: chevron.right
-            anchors.leftMargin: 4
+            anchors.leftMargin: Interface.px(4)
             anchors.verticalCenter: parent.verticalCenter
-            height: 20
+            height: Interface.px(20)
             width: (typeIcon.visible ? typeIcon.implicitWidth + 6 : 0)
                    + typeCaret.implicitWidth + 10
-            radius: 3
+            radius: Interface.px(3)
             color: typeHover.hovered ? Theme.hoverTint : "transparent"
 
             Text {
                 id: typeIcon
                 anchors.left: parent.left
-                anchors.leftMargin: 5
+                anchors.leftMargin: Interface.px(5)
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.icon !== ""
                 text: root.icon
                 color: root.accent
-                font.pixelSize: 13
+                font.pixelSize: Interface.strong
                 font.bold: true
             }
             Text {
                 id: typeCaret
                 anchors.right: parent.right
-                anchors.rightMargin: 5
+                anchors.rightMargin: Interface.px(5)
                 anchors.verticalCenter: parent.verticalCenter
                 text: "▾"
                 color: Theme.textFaint
-                font.pixelSize: 9
+                font.pixelSize: Interface.px(9)
                 // Held back until the pointer is over the row, like the
                 // colour dot beside it: a resting callout shows its own icon
                 // and title, not the controls for changing them. The width is
                 // reserved either way, so nothing shifts on hover.
                 opacity: root.rowHovered || typePicker.visible ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 150 } }
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 * Theme.motionScale }
+                }
             }
-            HoverHandler { id: typeHover }
+            // The row is drawn as an icon and a caret, neither of which
+            // says anything out loud (accessibility.md Finding 1).
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("Callout type: %1").arg(root.typeLabel)
+            Accessible.onPressAction: typePicker.open()
+            HoverHandler { id: typeHover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: typePicker.open() }
 
             CalloutTypePicker {
@@ -156,14 +163,14 @@ Item {
             id: titleField
             objectName: "calloutTitleField"
             anchors.left: typeButton.right
-            anchors.leftMargin: 6
+            anchors.leftMargin: Interface.px(6)
             anchors.right: colorDot.left
-            anchors.rightMargin: 6
+            anchors.rightMargin: Interface.px(6)
             anchors.verticalCenter: parent.verticalCenter
             text: root.title
             placeholderText: root.typeLabel
             color: root.accent
-            font.pixelSize: 13
+            font.pixelSize: Interface.strong
             font.bold: true
             background: null
             padding: 0
@@ -179,14 +186,18 @@ Item {
             id: colorDot
             objectName: "calloutColorDot"
             anchors.right: parent.right
-            anchors.rightMargin: 2
+            anchors.rightMargin: Interface.px(2)
             anchors.verticalCenter: parent.verticalCenter
-            width: 14; height: 14; radius: 7
+            width: Interface.px(14)
+            height: Interface.px(14)
+            radius: width / 2
             color: root.accent
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.4)
             opacity: root.rowHovered || colorPicker.visible ? 1 : 0.35
-            Behavior on opacity { NumberAnimation { duration: 150 } }
+            Behavior on opacity {
+                NumberAnimation { duration: 150 * Theme.motionScale }
+            }
             TapHandler { onTapped: colorPicker.open() }
 
             CalloutColorPicker {

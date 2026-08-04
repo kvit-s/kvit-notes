@@ -1734,8 +1734,9 @@ Item {
             mouseClick(colorButton)
             wait(250)
             saveScreenshot("visual_32_color_03_palette.png")
-            // The picker is non-focusable (it must not blur the block), so it
-            // closes on an outside press rather than Escape.
+            // An outside press closes it, as Escape now also does: the picker
+            // takes focus so it can be used from the keyboard, and the block
+            // holds its selection meanwhile (accessibility.md Finding 2).
             mouseClick(appLoader.item, 400, 420)
             wait(150)
 

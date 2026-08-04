@@ -9,6 +9,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import Kvit 1.0
 
 // The custom date-range picker for global search (features.md §8.4).
@@ -16,17 +17,36 @@ import Kvit 1.0
 // the second completes it (swapped if earlier), and each pick applies
 // live through CollectionSearch.customFrom/customTo with the "custom"
 // preset.
+//
+// Keyboard and screen-reader behaviour follows ColorPicker.qml
+// (accessibility.md Finding 2): the popup takes focus and names itself, each
+// day is a named choice rather than a bare number, and closing hands the
+// keyboard back to whatever opened it.
 Popup {
     id: picker
     objectName: "dateRangePicker"
 
-    width: 252
-    padding: 10
+    width: Interface.px(252)
+    padding: Interface.px(10)
+    focus: true
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+    // What had the keyboard before this opened, so closing can hand it back.
+    property Item openedFrom: null
+    onAboutToShow: {
+        const w = picker.parent ? picker.parent.Window.window : null
+        picker.openedFrom = w ? w.activeFocusItem : null
+    }
+    onClosed: {
+        if (picker.openedFrom)
+            picker.openedFrom.forceActiveFocus()
+        picker.openedFrom = null
+    }
     background: Rectangle {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     property date visibleMonth: new Date()
@@ -76,14 +96,17 @@ Popup {
     }
 
     contentItem: ColumnLayout {
-        spacing: 6
+        spacing: Interface.px(6)
+        Accessible.role: Accessible.Dialog
+        Accessible.name: qsTr("Custom date range")
 
         RowLayout {
             Layout.fillWidth: true
             ToolButton {
                 objectName: "pickerPrevMonth"
                 text: "‹"
-                focusPolicy: Qt.NoFocus
+                Accessible.name: qsTr("Previous month")
+                focusPolicy: Qt.TabFocus
                 implicitWidth: 24; implicitHeight: 24
                 onClicked: picker.visibleMonth = new Date(
                     picker.visibleMonth.getFullYear(),
@@ -94,13 +117,14 @@ Popup {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: Qt.formatDate(picker.visibleMonth, "MMMM yyyy")
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 font.bold: true
             }
             ToolButton {
                 objectName: "pickerNextMonth"
                 text: "›"
-                focusPolicy: Qt.NoFocus
+                Accessible.name: qsTr("Next month")
+                focusPolicy: Qt.TabFocus
                 implicitWidth: 24; implicitHeight: 24
                 onClicked: picker.visibleMonth = new Date(
                     picker.visibleMonth.getFullYear(),
@@ -110,11 +134,11 @@ Popup {
 
         DayOfWeekRow {
             Layout.fillWidth: true
-            font.pixelSize: 10
+            font.pixelSize: Interface.caption
             delegate: Label {
                 required property var model
                 text: model.shortName
-                font.pixelSize: 10
+                font.pixelSize: Interface.caption
                 color: Theme.textFaint
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -126,7 +150,7 @@ Popup {
             Layout.fillWidth: true
             month: picker.visibleMonth.getMonth()
             year: picker.visibleMonth.getFullYear()
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
 
             delegate: Rectangle {
                 id: dayCell
@@ -138,27 +162,46 @@ Popup {
                 readonly property bool inRange:
                     picker.fromKey !== "" && picker.toKey !== ""
                     && dayCell.cellKey >= picker.fromKey && dayCell.cellKey <= picker.toKey
-                implicitWidth: 30
-                implicitHeight: 24
-                radius: 4
+                implicitWidth: Interface.px(30)
+                implicitHeight: Interface.px(24)
+                radius: Interface.px(4)
                 color: dayCell.isEndpoint ? Theme.accent
                      : dayCell.inRange ? Theme.selectionTint
                      : dayHover.hovered ? Theme.hoverTint : "transparent"
                 opacity: dayCell.model.month === grid.month ? 1 : 0.35
 
+                // The full date, not the bare day number a sighted reader
+                // gets from the column it sits under, plus whether this day
+                // is in the range so far.
+                Accessible.role: Accessible.Button
+                Accessible.name: {
+                    var name = Qt.formatDate(new Date(dayCell.model.year,
+                                                      dayCell.model.month,
+                                                      dayCell.model.day),
+                                             "dddd d MMMM yyyy")
+                    if (dayCell.isEndpoint)
+                        return name + qsTr(", range endpoint")
+                    if (dayCell.inRange)
+                        return name + qsTr(", in range")
+                    return name
+                }
+                Accessible.onPressAction: dayCell.pick()
+
+                function pick() {
+                    picker.pickDay(new Date(dayCell.model.year,
+                                            dayCell.model.month,
+                                            dayCell.model.day))
+                }
+
                 Label {
                     anchors.centerIn: parent
                     text: dayCell.model.day
-                    font.pixelSize: 11
-                    color: parent.isEndpoint ? Theme.onAccent
-                                             : Theme.textPrimary
+                    font.pixelSize: Interface.small
+                    color: dayCell.isEndpoint ? Theme.onAccent
+                                              : Theme.textPrimary
                 }
-                HoverHandler { id: dayHover }
-                TapHandler {
-                    onTapped: picker.pickDay(new Date(parent.model.year,
-                                                      parent.model.month,
-                                                      parent.model.day))
-                }
+                HoverHandler { id: dayHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: dayCell.pick() }
             }
         }
 
@@ -167,7 +210,7 @@ Popup {
             Label {
                 objectName: "pickerRangeLabel"
                 Layout.fillWidth: true
-                font.pixelSize: 10
+                font.pixelSize: Interface.caption
                 color: Theme.textMuted
                 elide: Text.ElideRight
                 text: {
@@ -185,9 +228,10 @@ Popup {
             ToolButton {
                 objectName: "pickerClearButton"
                 text: qsTr("Clear")
-                font.pixelSize: 10
-                focusPolicy: Qt.NoFocus
-                implicitHeight: 22
+                Accessible.name: qsTr("Clear the date range")
+                font.pixelSize: Interface.caption
+                focusPolicy: Qt.TabFocus
+                implicitHeight: Interface.px(22)
                 onClicked: {
                     CollectionSearch.customFrom = new Date(NaN)
                     CollectionSearch.customTo = new Date(NaN)

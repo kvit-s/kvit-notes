@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
 import Kvit 1.0
 
 // Image-effects popover (features.md §1.2.8): toggle rounded
@@ -10,16 +11,34 @@ import Kvit 1.0
 // canonical attribute payload through `applied`, computed from the CURRENT
 // attributes so unrelated keys (e.g. alignment) are preserved; the image writes
 // it via setBlockAttributes (one undo step per toggle).
+//
+// Keyboard and screen-reader behaviour follows ColorPicker.qml
+// (accessibility.md Finding 2). These four rows are checkboxes drawn by hand,
+// so each one publishes its own checked state; the popup stays open while
+// they are used, which is why they are tab stops rather than one arrow-key
+// list.
 Popup {
     id: root
 
     property string attributes: ""
     signal applied(string payload)
 
-    padding: 8
+    // What had the keyboard before this opened, so closing can hand it back.
+    property Item openedFrom: null
+    onAboutToShow: {
+        const w = root.parent ? root.parent.Window.window : null
+        root.openedFrom = w ? w.activeFocusItem : null
+    }
+    onClosed: {
+        if (root.openedFrom)
+            root.openedFrom.forceActiveFocus()
+        root.openedFrom = null
+    }
+
+    padding: Interface.px(8)
     modal: false
-    focus: false
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+    focus: true
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     // Qt leaves a popup outside its window unless it is given a margin, and
     // an image can sit at the bottom of the page.
     margins: 6
@@ -28,7 +47,7 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     function toggleFlag(key) {
@@ -43,36 +62,62 @@ Popup {
         property string label: ""
         property bool on: false
         signal toggled()
-        implicitWidth: 180
-        implicitHeight: 26
+        implicitWidth: Interface.px(180)
+        implicitHeight: Interface.px(26)
+
+        activeFocusOnTab: true
+        Accessible.role: Accessible.CheckBox
+        Accessible.name: row.label
+        Accessible.checkable: true
+        Accessible.checked: row.on
+        Accessible.onToggleAction: row.toggled()
+        Accessible.onPressAction: row.toggled()
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                row.toggled()
+                event.accepted = true
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            radius: Interface.px(4)
+            visible: row.activeFocus
+            border.width: 2
+            border.color: Theme.focusRing
+        }
         Rectangle {
             id: box
             width: 16; height: 16; radius: 3
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: parent.on ? Theme.accent : "transparent"
+            color: row.on ? Theme.accent : "transparent"
             border.width: 1
-            border.color: parent.on ? Theme.accent : Theme.border
+            border.color: row.on ? Theme.accent : Theme.borderStrong
             Text {
                 anchors.centerIn: parent
                 visible: row.on
-                text: "✓"; color: "white"; font.pixelSize: 11
+                text: "✓"; color: Theme.onAccent; font.pixelSize: Interface.small
             }
         }
         Text {
             anchors.left: box.right
-            anchors.leftMargin: 8
+            anchors.leftMargin: Interface.px(8)
             anchors.verticalCenter: parent.verticalCenter
-            text: parent.label
+            text: row.label
             color: Theme.textPrimary
-            font.pixelSize: 12
+            font.pixelSize: Interface.body
         }
-        TapHandler { onTapped: parent.toggled() }
+        TapHandler { onTapped: row.toggled() }
         HoverHandler { cursorShape: Qt.PointingHandCursor }
     }
 
     contentItem: Column {
-        spacing: 4
+        spacing: Interface.px(4)
+        Accessible.role: Accessible.Dialog
+        Accessible.name: qsTr("Image effects")
         ToggleRow {
             label: qsTr("Rounded corners")
             on: BlockAttributes.has(root.attributes, "rounded")

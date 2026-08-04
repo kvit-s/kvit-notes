@@ -28,8 +28,8 @@ Rectangle {
 
     z: 600
     width: buttonRow.implicitWidth + 8
-    height: 34
-    radius: 6
+    height: Interface.px(34)
+    radius: Interface.px(6)
     color: Theme.popupBackground
     border.color: Theme.borderStrong
     border.width: 1
@@ -95,15 +95,32 @@ Rectangle {
         // button's state instead of reaching it through an untyped `parent`.
         id: barButton
         property int flagBit: 0
+        // What the button is called. The visible text is a single styled
+        // letter or a glyph, which a screen reader would otherwise read out
+        // as that character (accessibility.md Finding 1).
+        property string label: ""
+        // This bar deliberately never takes focus — it hovers over a live
+        // text selection, and focusing it would collapse the selection it
+        // formats. So the label reaches a screen reader through the name
+        // and a pointer user through the tooltip, and there is no keyboard
+        // route through the bar itself; every command here also has a chord.
         focusPolicy: Qt.NoFocus
-        implicitWidth: 28
-        implicitHeight: 26
-        font.pixelSize: 12
+        implicitWidth: Interface.px(28)
+        implicitHeight: Interface.px(26)
+        font.pixelSize: Interface.body
         checked: flagBit !== 0
                  && bar.target && bar.target.cursorFormatFlags !== undefined
                  && (bar.target.cursorFormatFlags & flagBit) !== 0
+        Accessible.role: barButton.flagBit !== 0 ? Accessible.CheckBox
+                                                 : Accessible.Button
+        Accessible.name: barButton.label !== "" ? barButton.label : barButton.text
+        Accessible.checkable: barButton.flagBit !== 0
+        Accessible.checked: barButton.checked
+        ToolTip.text: barButton.label
+        ToolTip.visible: barButton.hovered && barButton.label !== ""
+        ToolTip.delay: 500
         background: Rectangle {
-            radius: 4
+            radius: Interface.px(4)
             color: barButton.checked ? Theme.selectionTint
                  : barButton.hovered ? Theme.hoverTint : "transparent"
         }
@@ -112,43 +129,43 @@ Rectangle {
     Row {
         id: buttonRow
         anchors.centerIn: parent
-        spacing: 1
+        spacing: Interface.px(1)
 
         BarButton {
             objectName: "fbBoldButton"
-            text: "B"; font.bold: true; flagBit: 0x2
+            text: "B"; label: qsTr("Bold"); font.bold: true; flagBit: 0x2
             onClicked: bar.target.toggleSpanType("bold")
         }
         BarButton {
             objectName: "fbItalicButton"
-            text: "I"; font.italic: true; flagBit: 0x4
+            text: "I"; label: qsTr("Italic"); font.italic: true; flagBit: 0x4
             onClicked: bar.target.toggleSpanType("italic")
         }
         BarButton {
             objectName: "fbUnderlineButton"
-            text: "U"; font.underline: true; flagBit: 0x10
+            text: "U"; label: qsTr("Underline"); font.underline: true; flagBit: 0x10
             onClicked: bar.target.toggleSpanType("underline")
         }
         BarButton {
             objectName: "fbStrikeButton"
-            text: "S"; font.strikeout: true; flagBit: 0x8
+            text: "S"; label: qsTr("Strikethrough"); font.strikeout: true; flagBit: 0x8
             onClicked: bar.target.toggleSpanType("strike")
         }
         BarButton {
             objectName: "fbCodeButton"
-            text: "<>"; flagBit: 0x20; font.pixelSize: 11
-            implicitWidth: 32
+            text: "<>"; label: qsTr("Inline code"); flagBit: 0x20; font.pixelSize: Interface.small
+            implicitWidth: Interface.px(32)
             onClicked: bar.target.toggleSpanType("code")
         }
         BarButton {
             id: highlightButton
             objectName: "fbHighlightButton"
-            text: "H"; flagBit: 0x40
+            text: "H"; label: qsTr("Highlight"); flagBit: 0x40
             // This one overrides the shared background to tint with the
             // highlight colour, so it repeats the pattern and needs its own
             // id for the same reason.
             background: Rectangle {
-                radius: 4
+                radius: Interface.px(4)
                 color: highlightButton.checked ? Theme.highlightBackground
                      : highlightButton.hovered ? Theme.hoverTint : "transparent"
             }
@@ -156,27 +173,27 @@ Rectangle {
         }
         BarButton {
             objectName: "fbSuperscriptButton"
-            text: "x²"; flagBit: 0x100; font.pixelSize: 11
+            text: "x²"; label: qsTr("Superscript"); flagBit: 0x100; font.pixelSize: Interface.small
             onClicked: bar.target.toggleSpanType("superscript")
         }
         BarButton {
             objectName: "fbSubscriptButton"
-            text: "x₂"; flagBit: 0x200; font.pixelSize: 11
+            text: "x₂"; label: qsTr("Subscript"); flagBit: 0x200; font.pixelSize: Interface.small
             onClicked: bar.target.toggleSpanType("subscript")
         }
         BarButton {
             objectName: "fbLinkButton"
-            text: qsTr("Link"); flagBit: 0x80; font.pixelSize: 11
+            text: qsTr("Link"); label: qsTr("Insert link"); flagBit: 0x80; font.pixelSize: Interface.small
             implicitWidth: 36; font.underline: true
             onClicked: bar.target.openLinkDialog()
         }
         BarButton {
             objectName: "fbColorButton"
-            text: "A"; flagBit: 0x400
+            text: "A"; label: qsTr("Text colour"); flagBit: 0x400
             onClicked: fbColorPicker.open()
             Rectangle {
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: 3
+                anchors.bottomMargin: Interface.px(3)
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: 14; height: 3; radius: 1
                 color: (bar.target && bar.target.currentColor)

@@ -307,6 +307,10 @@ BlockDelegateBase {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
+        // Not an element: this covers the whole block so the §3.1
+        // modifier-click gestures work on it, and the block itself is what a
+        // screen reader should find here (accessibility.md Finding 1).
+        Accessible.ignored: true
         onClicked: function(mouse) {
             // A sweep over the results ends with the button coming up over
             // this catcher, and a MouseArea's onClicked fires on release
@@ -491,7 +495,7 @@ BlockDelegateBase {
                     spacing: 6
                     Text {
                         text: qsTr("Query")
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         font.bold: true
                         color: Theme.textMuted
                     }
@@ -499,7 +503,7 @@ BlockDelegateBase {
                         objectName: "queryCountText"
                         visible: root.queryResult.ok
                         text: qsTr("%1 notes").arg(root.queryResult.rows.length)
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                     }
                 }
@@ -511,7 +515,7 @@ BlockDelegateBase {
                     width: parent.width
                     text: root.queryResult.error
                     wrapMode: Text.Wrap
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     color: Theme.danger
                 }
 
@@ -535,7 +539,7 @@ BlockDelegateBase {
                             id: headerCell
                             required property var modelData
                             text: modelData
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             font.bold: true
                             color: Theme.textMuted
                             elide: Text.ElideRight
@@ -580,11 +584,17 @@ BlockDelegateBase {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width
                                 text: tableCell.modelData.text
-                                font.pixelSize: 12
+                                font.pixelSize: Interface.body
                                 color: Theme.textPrimary
                                 elide: Text.ElideRight
                             }
-                            HoverHandler { id: cellHover }
+                            Accessible.role: Accessible.Cell
+                            Accessible.name: tableCell.modelData.text
+                            Accessible.description: qsTr("Opens %1")
+                                .arg(tableCell.modelData.relPath)
+                            Accessible.onPressAction:
+                                root.openRow(tableCell.modelData.relPath)
+                            HoverHandler { id: cellHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
                                 onTapped: {
                                     if (renderedSelection.suppressClick)
@@ -601,7 +611,7 @@ BlockDelegateBase {
                              && root.queryResult.view === "table"
                              && root.queryResult.rows.length === 0
                     text: qsTr("No matching notes")
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     color: Theme.textFaint
                 }
 
@@ -612,9 +622,13 @@ BlockDelegateBase {
                     visible: root.hiddenRows > 0
                     text: qsTr("%n more result(s) — show all", "",
                                root.hiddenRows)
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: showAllRows.containsMouse ? Theme.accent : Theme.link
                     font.underline: showAllRows.containsMouse
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("Show all %n result(s)", "",
+                                          root.hiddenRows)
+                    Accessible.onPressAction: root.revealAllRows()
                     MouseArea {
                         id: showAllRows
                         anchors.fill: parent
@@ -665,13 +679,13 @@ BlockDelegateBase {
                                         spacing: 5
                                         SelectableText {
                                             text: boardGroup.modelData.name
-                                            font.pixelSize: 12
+                                            font.pixelSize: Interface.body
                                             font.bold: true
                                             color: Theme.textSecondary
                                         }
                                         SelectableText {
                                             text: boardGroup.modelData.cards.length
-                                            font.pixelSize: 11
+                                            font.pixelSize: Interface.small
                                             color: Theme.textFaint
                                         }
                                     }
@@ -716,7 +730,19 @@ BlockDelegateBase {
                                                     }
                                                 }
                                             }
-                                            HoverHandler { id: cardHover }
+                                            Accessible.role: Accessible.ListItem
+                                            // The first cell is the card's
+                                            // heading line, drawn larger and
+                                            // bold; the rest are its detail.
+                                            Accessible.name:
+                                                boardCard.modelData.cells.length > 0
+                                                    ? boardCard.modelData.cells[0]
+                                                    : boardCard.modelData.relPath
+                                            Accessible.description: qsTr("Opens %1")
+                                                .arg(boardCard.modelData.relPath)
+                                            Accessible.onPressAction: root.openRow(
+                                                boardCard.modelData.relPath)
+                                            HoverHandler { id: cardHover; cursorShape: Qt.PointingHandCursor }
                                             TapHandler {
                                                 onTapped: {
                                                     if (renderedSelection.suppressClick)
@@ -762,9 +788,12 @@ BlockDelegateBase {
             id: editChipText
             anchors.centerIn: parent
             text: qsTr("Edit query")
-            font.pixelSize: 10
+            font.pixelSize: Interface.caption
             color: Theme.textMuted
         }
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Edit query")
+        Accessible.onPressAction: root.focusAtEnd()
         MouseArea {
             id: editChipArea
             anchors.fill: parent

@@ -246,6 +246,10 @@ BlockDelegateBase {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
+        // Not an element: this covers the whole block so the §3.1
+        // modifier-click gestures work on it, and the block itself is what a
+        // screen reader should find here (accessibility.md Finding 1).
+        Accessible.ignored: true
         onClicked: function(mouse) {
             // A sweep over the card ends with the button coming up over this
             // catcher, and a MouseArea's onClicked fires on release however
@@ -328,7 +332,7 @@ BlockDelegateBase {
 
             SelectableText {
                 text: qsTr("Contents")
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 font.bold: true
                 color: Theme.textMuted
                 bottomPadding: 2
@@ -337,7 +341,7 @@ BlockDelegateBase {
             SelectableText {
                 visible: delegate.headings.length === 0
                 text: qsTr("No headings yet.")
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 color: Theme.textFaint
             }
 
@@ -362,7 +366,7 @@ BlockDelegateBase {
                         x: (headingRow.heading.level - delegate.minLevel) * 16
                         text: headingRow.heading.text === "" ? qsTr("(untitled)")
                                                     : headingRow.heading.text
-                        font.pixelSize: 13
+                        font.pixelSize: Interface.strong
                         color: linkHover.hovered ? Theme.accent
                                                  : Theme.link
                         font.underline: linkHover.hovered
@@ -377,6 +381,15 @@ BlockDelegateBase {
                     // onClicked fires on release however far the pointer
                     // travelled, so sweeping a row would also jump to it.
                     // A TapHandler does neither.
+                    Accessible.role: Accessible.Link
+                    Accessible.name: qsTr("Heading level %1: %2")
+                                     .arg(headingRow.heading.level)
+                                     .arg(headingRow.heading.text)
+                    Accessible.onPressAction: {
+                        if (headingRow.heading.blockIndex >= 0)
+                            AppActions.requestScrollToBlock(
+                                headingRow.heading.blockIndex)
+                    }
                     TapHandler {
                         // The request goes to AppActions, and an unconnected
                         // signal is a no-op exactly as the old `if (window)`
@@ -400,16 +413,20 @@ BlockDelegateBase {
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("%n more heading(s) not shown", "",
                                delegate.hiddenEntries)
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: Theme.textFaint
                 }
                 Text {
                     objectName: "tocShowAllEntries"
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("Show all")
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: showAllArea.containsMouse ? Theme.accent : Theme.link
                     font.underline: showAllArea.containsMouse
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("Show all %n heading(s)", "",
+                                          delegate.hiddenEntries)
+                    Accessible.onPressAction: delegate.revealAllEntries()
                     MouseArea {
                         id: showAllArea
                         anchors.fill: parent

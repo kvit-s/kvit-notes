@@ -33,6 +33,7 @@
 #include "foldertreemodel.h"
 #include "globalhotkey.h"
 #include "imageassets.h"
+#include "interfacemetrics.h"
 #include "kanbandata.h"
 #include "markdownformatter.h"
 #include "mathcommandmodel.h"
@@ -49,6 +50,7 @@
 #include "remotemediacache.h"
 #include "settingsstore.h"
 #include "shortcutcatalog.h"
+#include "systemappearance.h"
 #include "systemtray.h"
 #include "tabledata.h"
 #include "theme.h"
@@ -108,10 +110,12 @@
 #define KVIT_QML_SINGLETONS_GLOBAL(X)         \
     X(GlobalHotkey, GlobalHotkey)             \
     X(SystemTray, SystemTray)                 \
+    X(SystemAppearance, SystemAppearance)     \
     X(UpdateChecker, UpdateChecker)           \
     X(EgressPolicy, EgressPolicy)             \
     X(RemoteMediaCache, RemoteMediaCache)     \
     X(Typography, Typography)                 \
+    X(InterfaceMetrics, Interface)            \
     X(ExtensionRegistry, Extensions)          \
     X(BlockKindRegistry, BlockKindRegistry)   \
     X(SettingsStore, AppSettings)             \

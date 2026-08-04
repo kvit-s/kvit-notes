@@ -75,7 +75,7 @@ Popup {
     focus: false
     closePolicy: Popup.CloseOnPressOutside
     parent: Overlay.overlay
-    padding: 4
+    padding: Interface.px(4)
     width: completionMode ? 320 : 470
 
     // Near the caret, clamped into the viewport; flips above the caret
@@ -249,7 +249,7 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     contentItem: Item {
@@ -266,7 +266,7 @@ Popup {
             anchors.centerIn: parent
             text: qsTr("No matches")
             color: Theme.textFaint
-            font.pixelSize: 13
+            font.pixelSize: Interface.strong
         }
 
         ListView {
@@ -286,21 +286,21 @@ Popup {
                 required property int index
 
                 width: completionList.width
-                height: 36
-                radius: 4
+                height: Interface.px(36)
+                radius: Interface.px(4)
                 color: index === menu.highlightIndex ? Theme.focusTint
                                                      : "transparent"
 
                 Row {
                     anchors.fill: parent
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
-                    spacing: 10
+                    anchors.leftMargin: Interface.px(8)
+                    anchors.rightMargin: Interface.px(8)
+                    spacing: Interface.px(10)
 
                     // The rendered glyph — pixel-honest via image://math.
                     Item {
-                        width: 34
-                        height: 28
+                        width: Interface.px(34)
+                        height: Interface.px(28)
                         anchors.verticalCenter: parent.verticalCenter
                         Image {
                             anchors.centerIn: parent
@@ -323,16 +323,21 @@ Popup {
                         text: completionRow.modelData.name
                         color: Theme.textPrimary
                         font.family: "monospace"
-                        font.pixelSize: 13
+                        font.pixelSize: Interface.strong
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: completionRow.modelData.category
                         color: Theme.textFaint
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                     }
                 }
 
+                Accessible.role: Accessible.ListItem
+                Accessible.name: completionRow.modelData.name
+                Accessible.description: completionRow.modelData.category
+                Accessible.selected: menu.highlightIndex === completionRow.index
+                Accessible.onPressAction: menu.applyRow(completionRow.modelData)
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
@@ -347,13 +352,13 @@ Popup {
             id: browsePanel
             visible: !menu.completionMode
             width: parent.width
-            height: 292
-            spacing: 6
+            height: Interface.px(292)
+            spacing: Interface.px(6)
 
             ListView {
                 id: categoryList
                 objectName: "mathMenuCategoryList"
-                width: 132
+                width: Interface.px(132)
                 height: browsePanel.height
                 clip: true
                 interactive: contentHeight > height
@@ -367,8 +372,8 @@ Popup {
                     required property int index
 
                     width: categoryList.width
-                    height: 26
-                    radius: 4
+                    height: Interface.px(26)
+                    radius: Interface.px(4)
                     color: index === menu.categoryIndex
                            ? (menu.inCategoryPane ? Theme.focusTint
                                                   : Theme.hoverTint)
@@ -376,12 +381,20 @@ Popup {
 
                     Text {
                         anchors.left: parent.left
-                        anchors.leftMargin: 8
+                        anchors.leftMargin: Interface.px(8)
                         anchors.verticalCenter: parent.verticalCenter
                         text: categoryRow.modelData
                         color: categoryRow.index === menu.categoryIndex
                                ? Theme.textPrimary : Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
+                    }
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: categoryRow.modelData
+                    Accessible.selected:
+                        categoryRow.index === menu.categoryIndex
+                    Accessible.onPressAction: {
+                        menu.selectCategory(categoryRow.index)
+                        menu.inCategoryPane = false
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -399,7 +412,7 @@ Popup {
 
             Column {
                 width: browsePanel.width - categoryList.width - 13
-                spacing: 4
+                spacing: Interface.px(4)
 
                 GridView {
                     id: glyphGrid
@@ -421,7 +434,7 @@ Popup {
 
                         width: glyphGrid.cellWidth - 2
                         height: glyphGrid.cellHeight - 2
-                        radius: 4
+                        radius: Interface.px(4)
                         color: index === menu.gridIndex && !menu.inCategoryPane
                                ? Theme.focusTint : "transparent"
                         border.color: index === menu.gridIndex
@@ -451,9 +464,15 @@ Popup {
                             text: gridCell.modelData.name
                             color: Theme.textPrimary
                             font.family: "monospace"
-                            font.pixelSize: 12
+                            font.pixelSize: Interface.body
                         }
 
+                        // The cell renders the command as a picture of the
+                        // equation it inserts, so its name is the command.
+                        Accessible.role: Accessible.ListItem
+                        Accessible.name: gridCell.modelData.name
+                        Accessible.selected: menu.gridIndex === gridCell.index
+                        Accessible.onPressAction: menu.applyRow(gridCell.modelData)
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
@@ -480,7 +499,7 @@ Popup {
                             ? row.name + "  —  " + row.description : row.name
                     }
                     color: Theme.textMuted
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                 }
             }
         }

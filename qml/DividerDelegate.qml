@@ -338,13 +338,16 @@ BlockDelegateBase {
         color: dividerStyleArea.containsMouse ? Theme.hoverTint : "transparent"
         opacity: delegate.isHovered || dividerStylePicker.visible ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Behavior on opacity { NumberAnimation { duration: 150 * Theme.motionScale } }
         Text {
             anchors.centerIn: parent
             text: "╌"
             color: Theme.textMuted
-            font.pixelSize: 13
+            font.pixelSize: Interface.strong
         }
+        Accessible.role: Accessible.ButtonMenu
+        Accessible.name: qsTr("Divider style")
+        Accessible.onPressAction: dividerStylePicker.open()
         MouseArea {
             id: dividerStyleArea
             anchors.fill: parent
@@ -370,6 +373,10 @@ BlockDelegateBase {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
+        // Not an element: this covers the whole block so the §3.1
+        // modifier-click gestures work on it, and the block itself is what a
+        // screen reader should find here (accessibility.md Finding 1).
+        Accessible.ignored: true
         onClicked: function(mouse) {
             // The §3.1 modifier gestures work on dividers too; a divider
             // has no text, so there is no link carve-out here.

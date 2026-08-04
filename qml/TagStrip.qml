@@ -82,7 +82,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 6
+        spacing: Interface.px(6)
 
         Repeater {
             id: chipRepeater
@@ -95,27 +95,37 @@ Item {
                 property string tagName: chip.modelData
 
                 width: chipRow.width + 16
-                height: 22
-                radius: 11
+                height: Interface.px(22)
+                radius: Interface.px(11)
                 color: Qt.alpha(tagStrip.colorOf(chip.modelData), 0.18)
                 border.color: Qt.alpha(tagStrip.colorOf(chip.modelData), 0.5)
+
+                Accessible.role: Accessible.ListItem
+                Accessible.name: qsTr("Tag %1").arg(chip.modelData)
 
                 Row {
                     id: chipRow
                     anchors.centerIn: parent
-                    spacing: 4
+                    spacing: Interface.px(4)
                     Text {
                         text: chip.modelData
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textPrimary
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
                         objectName: "tagChipRemove"
                         text: "×"
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                         color: Theme.textMuted
                         anchors.verticalCenter: parent.verticalCenter
+                        // A bare "×" is read out as whatever the screen
+                        // reader calls that character, which says nothing
+                        // about what it removes (accessibility.md Finding 1).
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Remove tag %1").arg(chip.tagName)
+                        Accessible.onPressAction: NoteCollection.removeTag(
+                            tagStrip.appWindow.currentNoteRelPath, chip.tagName)
                         MouseArea {
                             anchors.fill: parent
                             anchors.margins: -4 // a comfortable hit target
@@ -131,16 +141,16 @@ Item {
         TextField {
             id: addField
             objectName: "tagAddField"
-            width: 110
-            implicitHeight: 22
-            font.pixelSize: 11
+            width: Interface.px(110)
+            implicitHeight: Interface.px(22)
+            font.pixelSize: Interface.small
             placeholderText: qsTr("+ Tag")
             background: Rectangle {
                 color: "transparent"
-                border.color: addField.activeFocus ? Theme.accent : Theme.border
-                radius: 11
+                border.color: addField.activeFocus ? Theme.accent : Theme.borderStrong
+                radius: Interface.px(11)
             }
-            leftPadding: 10
+            leftPadding: Interface.px(10)
 
             property int highlighted: -1
 
@@ -182,8 +192,8 @@ Item {
                 id: suggestionsPopup
                 objectName: "tagSuggestionsPopup"
                 y: addField.height + 2
-                width: 160
-                padding: 2
+                width: Interface.px(160)
+                padding: Interface.px(2)
                 focus: false
                 closePolicy: Popup.CloseOnPressOutsideParent
                 visible: false
@@ -197,39 +207,53 @@ Item {
                     color: Theme.popupBackground
                     border.color: Theme.borderStrong
                     border.width: 1
-                    radius: 6
+                    radius: Interface.px(6)
                 }
 
+                // Deliberately not focusable, unlike the choice popups in
+                // accessibility.md Finding 2: this is a completion list for
+                // the field beside it, the field keeps the keyboard and drives
+                // it with Up and Down, and taking focus here would close it.
+                // What it needed was to be described rather than to be
+                // reachable.
                 contentItem: ListView {
                     id: suggestionList
                     implicitHeight: Math.min(contentHeight, 140)
                     clip: true
+                    Accessible.role: Accessible.List
+                    Accessible.name: qsTr("Tag suggestions")
                     model: tagStrip.suggestions
                     delegate: Rectangle {
                         id: suggestionRow
                         required property string modelData
                         required property int index
                         width: suggestionList.width
-                        height: 22
+                        height: Interface.px(22)
                         color: suggestionRow.index === addField.highlighted
                                ? Theme.selectionTint
                                : (suggestionHover.hovered ? Theme.hoverTint
                                                           : "transparent")
-                        HoverHandler { id: suggestionHover }
+                        Accessible.role: Accessible.ListItem
+                        Accessible.name: suggestionRow.modelData
+                        Accessible.selected:
+                            suggestionRow.index === addField.highlighted
+                        Accessible.onPressAction:
+                            tagStrip.applyTag(suggestionRow.modelData)
+                        HoverHandler { id: suggestionHover; cursorShape: Qt.PointingHandCursor }
                         Row {
                             anchors.verticalCenter: parent.verticalCenter
                             x: 6
-                            spacing: 6
+                            spacing: Interface.px(6)
                             Rectangle {
-                                width: 8
-                                height: 8
-                                radius: 4
+                                width: Interface.px(8)
+                                height: Interface.px(8)
+                                radius: Interface.px(4)
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: tagStrip.colorOf(suggestionRow.modelData)
                             }
                             Text {
                                 text: suggestionRow.modelData
-                                font.pixelSize: 11
+                                font.pixelSize: Interface.small
                                 color: Theme.textPrimary
                             }
                         }

@@ -282,12 +282,12 @@ BlockDelegateBase {
                 visible: root.hasError
                 Text {
                     text: (root.isAudio ? "♪  " : "▷  ") + qsTr("Media unavailable")
-                    color: Theme.textPrimary; font.bold: true; font.pixelSize: 13
+                    color: Theme.textPrimary; font.bold: true; font.pixelSize: Interface.strong
                 }
                 Text {
                     width: parent.width
                     text: root.media.path
-                    color: Theme.textMuted; font.pixelSize: 11; elide: Text.ElideMiddle
+                    color: Theme.textMuted; font.pixelSize: Interface.small; elide: Text.ElideMiddle
                 }
                 Text {
                     visible: !root.awaitingConsent && !root.awaitingDownload
@@ -296,7 +296,7 @@ BlockDelegateBase {
                           : root.resolvedSource === ""
                           ? qsTr("File not found")
                           : qsTr("Cannot play this file: ") + player.errorString
-                    color: Theme.danger; font.pixelSize: 11
+                    color: Theme.danger; font.pixelSize: Interface.small
                     width: parent.width; wrapMode: Text.Wrap
                 }
                 Row {
@@ -310,14 +310,20 @@ BlockDelegateBase {
                         visible: EgressPolicy.canRequestConsent(root.resolvedSource)
                         color: Theme.hoverTint
                         border.color: mediaLoadArea.containsMouse ? Theme.accent
-                                                                  : Theme.border
+                                                                  : Theme.borderStrong
                         Text {
                             id: mediaLoadLabel
                             anchors.centerIn: parent
                             text: qsTr("Load media")
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: mediaLoadArea.containsMouse ? Theme.textPrimary
                                                                : Theme.textMuted
+                        }
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Load this remote media")
+                        Accessible.onPressAction: {
+                            EgressPolicy.allowOrigin(root.resolvedSource)
+                            root.requestRemoteMedia()
                         }
                         MouseArea {
                             id: mediaLoadArea
@@ -333,7 +339,7 @@ BlockDelegateBase {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: qsTr("Remote media not loaded")
-                        color: Theme.textMuted; font.pixelSize: 11
+                        color: Theme.textMuted; font.pixelSize: Interface.small
                     }
                 }
             }
@@ -353,14 +359,14 @@ BlockDelegateBase {
                 spacing: 8
                 visible: root.isAudio && !root.hasError
                 Text {
-                    text: "♪"; font.pixelSize: 18; color: Theme.textMuted
+                    text: "♪"; font.pixelSize: Interface.px(18); color: Theme.textMuted
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - 30
                     text: root.media.alt !== "" ? root.media.alt : root.media.path
-                    color: Theme.textPrimary; font.pixelSize: 12; elide: Text.ElideMiddle
+                    color: Theme.textPrimary; font.pixelSize: Interface.body; elide: Text.ElideMiddle
                 }
             }
 
@@ -382,8 +388,9 @@ BlockDelegateBase {
                         anchors.centerIn: parent
                         visible: !root.isPlaying
                         text: "▶"
-                        color: playHover.containsMouse ? Theme.onAccent : Theme.textPrimary
-                        font.pixelSize: 13
+                        color: playHover.containsMouse ? Theme.labelOn(Theme.accent)
+                                                       : Theme.textPrimary
+                        font.pixelSize: Interface.strong
                     }
                     Row {
                         anchors.centerIn: parent
@@ -391,9 +398,13 @@ BlockDelegateBase {
                         spacing: 3
                         Repeater { model: 2
                             Rectangle { width: 3; height: 12; radius: 1
-                                color: playHover.containsMouse ? Theme.onAccent
-                                                                            : Theme.textPrimary } }
+                                color: playHover.containsMouse
+                                    ? Theme.labelOn(Theme.accent)
+                                    : Theme.textPrimary } }
                     }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: root.isPlaying ? qsTr("Pause") : qsTr("Play")
+                    Accessible.onPressAction: root.togglePlay()
                     MouseArea {
                         id: playHover; anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
@@ -404,7 +415,7 @@ BlockDelegateBase {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.fmtTime(player.position)
-                    color: Theme.textMuted; font.pixelSize: 11
+                    color: Theme.textMuted; font.pixelSize: Interface.small
                     width: 34; horizontalAlignment: Text.AlignRight
                 }
 
@@ -422,7 +433,7 @@ BlockDelegateBase {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.fmtTime(player.duration)
-                    color: Theme.textMuted; font.pixelSize: 11
+                    color: Theme.textMuted; font.pixelSize: Interface.small
                     width: 34
                 }
 
@@ -433,7 +444,7 @@ BlockDelegateBase {
                     anchors.verticalCenter: parent.verticalCenter
                     text: audioOut.volume <= 0 ? "◀" : "◀))"
                     color: Theme.textMuted
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                 }
                 Slider {
                     objectName: "mediaVolume"
@@ -446,7 +457,7 @@ BlockDelegateBase {
                 Text {
                     visible: root.awaitingDownload
                     text: qsTr("Loading remote media…")
-                    color: Theme.textMuted; font.pixelSize: 11
+                    color: Theme.textMuted; font.pixelSize: Interface.small
                 }
             }
     }

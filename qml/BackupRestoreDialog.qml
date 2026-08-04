@@ -17,7 +17,7 @@ import Kvit 1.0
 // by. Restoring applies the chosen body through the block model as one undo
 // step, so a restore that turns out to be wrong costs one Ctrl+Z, which is
 // why it asks no second question.
-Dialog {
+KvitDialog {
     id: backupDialog
     objectName: "backupDialog"
 
@@ -26,7 +26,7 @@ Dialog {
 
     modal: true
     anchors.centerIn: parent
-    width: 420
+    width: Interface.px(420)
     title: qsTr("Restore from Backup")
 
     property var backups: []
@@ -52,13 +52,13 @@ Dialog {
     }
 
     contentItem: ColumnLayout {
-        spacing: 4
+        spacing: Interface.px(4)
         Label {
             visible: backupDialog.backups.length === 0
             text: qsTr("No backups yet — they appear as the note is edited over time.")
             wrapMode: Text.WordWrap
             Layout.fillWidth: true
-            padding: 8
+            padding: Interface.px(8)
         }
         ListView {
             objectName: "backupDialogList"
@@ -72,29 +72,38 @@ Dialog {
                 required property int index
                 required property var modelData
                 width: parent ? parent.width : 0
-                height: 44
+                height: Interface.px(44)
                 color: backupRow.index === backupDialog.selectedRow
                        ? Theme.selectionTint : "transparent"
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 6
-                    spacing: 2
+                    anchors.margins: Interface.px(6)
+                    spacing: Interface.px(2)
                     Label {
                         text: Qt.formatDateTime(backupRow.modelData.timestamp,
                                                 "MMM d, yyyy hh:mm:ss")
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                         font.bold: true
                     }
                     Label {
                         text: backupRow.modelData.preview !== ""
                               ? backupRow.modelData.preview
                               : qsTr("(empty)")
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                         elide: Text.ElideRight
                         width: parent.width
                     }
                 }
+                Accessible.role: Accessible.ListItem
+                Accessible.name: Qt.formatDateTime(
+                    backupRow.modelData.timestamp, "MMMM d, yyyy, hh:mm:ss")
+                Accessible.description: backupRow.modelData.preview !== ""
+                                        ? backupRow.modelData.preview
+                                        : qsTr("(empty)")
+                Accessible.selected: backupDialog.selectedRow === backupRow.index
+                Accessible.onPressAction:
+                    backupDialog.selectedRow = backupRow.index
                 MouseArea {
                     anchors.fill: parent
                     onClicked: backupDialog.selectedRow = backupRow.index

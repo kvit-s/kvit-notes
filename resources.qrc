@@ -22,6 +22,8 @@
         <file>qml/QuoteDelegate.qml</file>
         <file>qml/CodeBlockDelegate.qml</file>
         <file>qml/LanguagePicker.qml</file>
+        <file>qml/IconButton.qml</file>
+        <file>qml/KvitDialog.qml</file>
         <file>qml/ColorPicker.qml</file>
         <file>qml/ImageBlock.qml</file>
         <file>qml/Lightbox.qml</file>

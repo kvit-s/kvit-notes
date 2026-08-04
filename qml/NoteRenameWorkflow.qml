@@ -106,18 +106,18 @@ Item {
     // The authorization step: how many links in how many notes, and the
     // three answers. It does not close on an outside click, because
     // dismissing it would leave a plan the collection is still holding.
-    Dialog {
+    KvitDialog {
         id: renameLinksDialog
         objectName: "renameLinksDialog"
         title: qsTr("Update wiki-links?")
         modal: true
         closePolicy: Popup.NoAutoClose
         anchors.centerIn: parent
-        width: 440
+        width: Interface.px(440)
 
         contentItem: Label {
-            width: 390
-            padding: 18
+            width: Interface.px(390)
+            padding: Interface.px(18)
             wrapMode: Text.WordWrap
             text: workflow.pendingPlan
                 ? qsTr("Update %1 links in %2 notes?")
@@ -158,18 +158,18 @@ Item {
         }
     }
 
-    Dialog {
+    KvitDialog {
         id: rewriteResultDialog
         objectName: "rewriteResultDialog"
         title: qsTr("Some links are not rewritten yet")
         modal: true
         anchors.centerIn: parent
-        width: 460
+        width: Interface.px(460)
         property var failed: []
 
         contentItem: Label {
-            width: 420
-            padding: 18
+            width: Interface.px(420)
+            padding: Interface.px(18)
             wrapMode: Text.WordWrap
             text: qsTr("These notes could not be read or written, so they "
                        + "still spell the old name:\n%1\n\nTheir links "

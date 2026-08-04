@@ -593,6 +593,92 @@ Run against the installed artifact with a fresh user profile.
         cut off at the window edge, so it may overlap the block it belongs
         to.
 
+## Screen readers
+
+No automated suite in this repository can hear a screen reader. The tests
+assert what the application *supplies* to one — roles, names, state, live
+announcements — and this is the only place anyone finds out what is actually
+spoken. `accessibility.md` explains what each item is checking and why.
+
+Run the tour on each platform with that platform's reader. Record a stop that
+is announced as a character name ("multiplication sign", "black up-pointing
+triangle") or as nothing at all as a defect; every reader has a dictionary
+entry for those characters, so hearing one means the application supplied the
+glyph where it should have supplied a name.
+
+### Windows, with Narrator or NVDA
+
+1. [ ] Tab through the toolbar, the note list and a note.
+       *Expect:* every stop is announced with a name that says what it does.
+       No stop is read out as a glyph's character name.
+2. [ ] Put the caret in a to-do block and press `Ctrl+Enter`.
+       *Expect:* the block is announced as a checkbox, and the state change
+       is spoken as the box is ticked and unticked.
+3. [ ] Open the text-colour picker from the formatting bar over a selection.
+       Move between swatches with the arrow keys and take one with Return.
+       *Expect:* opening it is announced; each swatch is announced by name
+       ("Red", "Blue") rather than as a hex value; the colour lands on the
+       text that was selected before the picker opened; and the keyboard
+       goes back to the block afterwards.
+4. [ ] Open Settings.
+       *Expect:* the dialog's title is announced, and then the control the
+       keyboard landed on. Nothing is silent between the two.
+5. [ ] Turn on High Contrast in Windows settings while the application is
+       running.
+       *Expect:* the application follows within a moment, unless a theme
+       other than "system" has been chosen in Settings, in which case that
+       choice stands.
+6. [ ] Turn off animations in Windows settings ("Show animations in
+       Windows"), with the motion setting left on "Follow the system".
+       *Expect:* inserting and deleting blocks no longer slides the rows
+       below them.
+7. [ ] Confirm the access-key underlines still look right (the standing item
+       in the Windows watch-list above).
+
+### macOS, with VoiceOver
+
+1. [ ] The same tour: toolbar, note list, a note, a to-do, the colour
+       picker, Settings.
+2. [ ] The context menu is bound to `Menu` and `Shift+F10`
+       (`qml/AppShortcuts.qml`), and Mac keyboards have no `Menu` key.
+       *Expect:* `Shift+F10` opens the block menu. If it does not, that is a
+       gap to fill with a chord that exists on Apple hardware, not a
+       checklist failure to wave through.
+3. [ ] The native menu bar carries File and View only.
+       *Expect:* Insert and the block commands are reachable through the
+       toolbar via `F6`, and VoiceOver announces them there.
+4. [ ] Turn on Increase Contrast and Reduce Motion in System Settings →
+       Accessibility → Display, then open Kvit's Settings dialog.
+       *Expect:* the Motion explanation under "Follow the system" says the
+       desktop asks for reduced motion, and the theme resolves to high
+       contrast if no explicit theme is chosen. Both are read when the
+       dialog opens rather than pushed, so opening Settings is what picks
+       them up.
+
+### Linux, with Orca
+
+This is the tour that has never been run: the development machine's WSL
+session has no accessibility bus. The packaging side was verified — in Qt
+6.10 the AT-SPI bridge is compiled into `libQt6Gui` rather than shipped as a
+separate plugin, the AppImage manifest bundles `libQt6DBus.so.6`, which is
+what the bridge needs, and the Flatpak runs on the KDE runtime with the
+accessibility bus proxied by default. That establishes that the bridge can
+load, not that the tree it serves is any good.
+
+1. [ ] Run the tour from the AppImage rather than a development build, since
+       the AppImage is what most Linux users will get.
+2. [ ] The same stops: toolbar, note list, a note, a to-do, the colour
+       picker, Settings.
+3. [ ] `gsettings set org.gnome.desktop.interface enable-animations false`,
+       then open Kvit's Settings dialog with the motion setting on "Follow
+       the system".
+       *Expect:* the explanation says the desktop asks for reduced motion,
+       and block moves are instant.
+4. [ ] `gsettings set org.gnome.desktop.a11y.interface high-contrast true`,
+       then open Settings.
+       *Expect:* with the theme on "system", the application resolves to the
+       high-contrast theme.
+
 ## Distribution
 
 Run against the installed artifact, never a build tree.

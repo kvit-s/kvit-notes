@@ -64,7 +64,7 @@ Item {
         objectName: "codePanel"
         anchors.fill: parent
         color: Theme.codePanelBackground
-        radius: 4
+        radius: Interface.px(4)
         border.width: 1
         border.color: Theme.border
     }
@@ -136,17 +136,17 @@ Item {
         Rectangle {
             id: langButton
             objectName: "codeLanguageButton"
-            height: 20
+            height: Interface.px(20)
             anchors.left: parent.left
-            anchors.leftMargin: 6
+            anchors.leftMargin: Interface.px(6)
             anchors.verticalCenter: parent.verticalCenter
             width: langLabel.implicitWidth + 20
-            radius: 3
+            radius: Interface.px(3)
             color: langHover.hovered ? Theme.hoverTint : "transparent"
             Text {
                 id: langLabel
                 anchors.left: parent.left
-                anchors.leftMargin: 6
+                anchors.leftMargin: Interface.px(6)
                 anchors.verticalCenter: parent.verticalCenter
                 text: (root.language && root.language.length > 0)
                       ? root.language : "plain text"
@@ -155,25 +155,30 @@ Item {
             }
             Text {
                 anchors.right: parent.right
-                anchors.rightMargin: 5
+                anchors.rightMargin: Interface.px(5)
                 anchors.verticalCenter: parent.verticalCenter
                 text: "▾"
                 color: Theme.textFaint
-                font.pixelSize: 9
+                font.pixelSize: Interface.px(9)
             }
-            HoverHandler { id: langHover }
+            Accessible.role: Accessible.ButtonMenu
+            Accessible.name: qsTr("Code language: %1")
+                             .arg((root.language && root.language.length > 0)
+                                  ? root.language : qsTr("plain text"))
+            Accessible.onPressAction: languagePicker.open()
+            HoverHandler { id: langHover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: languagePicker.open() }
         }
 
         Rectangle {
             id: copyButton
             objectName: "codeCopyButton"
-            height: 20
+            height: Interface.px(20)
             width: copyLabel.implicitWidth + 14
             anchors.right: parent.right
-            anchors.rightMargin: 6
+            anchors.rightMargin: Interface.px(6)
             anchors.verticalCenter: parent.verticalCenter
-            radius: 3
+            radius: Interface.px(3)
             color: copyHover.hovered ? Theme.hoverTint : "transparent"
             Text {
                 id: copyLabel
@@ -183,7 +188,15 @@ Item {
                 font.pixelSize: Math.max(10, root.fontPixelSize - 3)
             }
             property bool copied: false
-            HoverHandler { id: copyHover }
+            Accessible.role: Accessible.Button
+            Accessible.name: copyButton.copied ? qsTr("Copied")
+                                               : qsTr("Copy the code")
+            Accessible.onPressAction: {
+                Clipboard.text = root.copyText
+                copyButton.copied = true
+                copyResetTimer.restart()
+            }
+            HoverHandler { id: copyHover; cursorShape: Qt.PointingHandCursor }
             TapHandler {
                 onTapped: {
                     Clipboard.text = root.copyText
@@ -217,7 +230,7 @@ Item {
         BlockKeyHint {
             objectName: "codeExitHint"
             anchors.right: parent.right
-            anchors.rightMargin: 8
+            anchors.rightMargin: Interface.px(8)
             anchors.verticalCenter: parent.verticalCenter
             basePixelSize: root.fontPixelSize
         }
@@ -252,7 +265,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.leftMargin: root.contentLeft
-        height: 8
+        height: Interface.px(8)
         z: 2
         size: root.viewportWidth / Math.max(1, root.textContentWidth)
         position: root.maxScroll > 0

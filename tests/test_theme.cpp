@@ -11,6 +11,7 @@
 
 #include "theme.h"
 #include "settingsstore.h"
+#include "systemappearance.h"
 #include "blockeditorengine.h"
 
 // The theme token object: the three built-in token tables, system
@@ -28,9 +29,16 @@ private slots:
     void testSystemResolvesToLightOrDark();
     void testTablesAreCompleteAndDistinct();
     void testDarkAndSepiaKeepContrast();
+    void testEveryTokenPairMeetsItsFloor_data();
+    void testEveryTokenPairMeetsItsFloor();
+    void testAccentLabelIsDerivedFromTheAccent();
+    void testPaletteNamesCoverEveryColor();
     void testFocusRingIsVisible();
     void testHighContrastMeetsStricterFloor();
     void testReducedMotionScale();
+    void testReducedMotionFollowsTheSystem();
+    void testHighContrastFollowsTheSystem();
+    void testAnExistingMotionChoiceSurvivesTheUpgrade();
     void testAccentOverride();
     void testHighlightOverride();
     void testInvalidOverrideClears();
@@ -68,9 +76,12 @@ void TestTheme::testDefaultIsLightTable()
     QCOMPARE(theme.accent(), light.accent);
     QCOMPARE(theme.marker(), light.marker);
 
-    // The light table IS the pre-Phase-9 appearance: the engine's
-    // documented fallback values are its inline tokens.
-    QCOMPARE(theme.marker(), QColor("#b8b8b8"));
+    // The light table was the pre-Phase-9 appearance verbatim. It is no
+    // longer, in one direction only: the tokens that failed a WCAG floor were
+    // darkened to meet it (accessibility.md Finding 3), which is what moved
+    // the list marker from #b8b8b8 to a value that clears 3:1 against white.
+    // The rest of the engine's documented fallbacks are unchanged.
+    QCOMPARE(theme.marker(), QColor("#949494"));
     QCOMPARE(theme.link(), QColor("#2970c8"));
     QCOMPARE(theme.highlightBackground(), QColor("#fdf3a9"));
     QCOMPARE(theme.inlineCodeBackground(), QColor("#f0f0ee"));
@@ -190,6 +201,143 @@ void TestTheme::testDarkAndSepiaKeepContrast()
     }
 }
 
+// Every foreground/background pair that actually appears together on screen,
+// in every theme, against the WCAG 2.1 level AA floor for what it is: 4.5:1
+// where the foreground is text, 3:1 where it is the part of a control that
+// says where the control is or what state it is in (accessibility.md
+// Finding 3).
+//
+// This is the check the two coarse floors above do not reach. They compare
+// luminance gaps for body text and hold the focus ring to a real ratio;
+// everything else — the faint text a date or a count is set in, the code
+// theme, a warning, the outline of an unchecked to-do box — went unmeasured,
+// and most of it was below the line in the light and sepia themes.
+//
+// `border` is deliberately absent. It is the decorative rule between two
+// panels, which WCAG asks nothing of; `borderStrong` is the control-boundary
+// token and is here. See the note on the two in theme.h.
+void TestTheme::testEveryTokenPairMeetsItsFloor_data()
+{
+    QTest::addColumn<QString>("themeId");
+    QTest::addColumn<QString>("pairName");
+    QTest::addColumn<QColor>("foreground");
+    QTest::addColumn<QColor>("background");
+    QTest::addColumn<double>("floor");
+
+    struct Pair {
+        const char *name;
+        QColor Theme::Tokens::*foreground;
+        QColor Theme::Tokens::*background;
+        double floor;
+    };
+    // 4.5 = text; 3.0 = a control's own boundary or state mark.
+    static const Pair kPairs[] = {
+        {"onAccent on accent", &Theme::Tokens::onAccent,
+         &Theme::Tokens::accent, 4.5},
+        {"warning on window", &Theme::Tokens::warning,
+         &Theme::Tokens::windowBackground, 4.5},
+        {"success on window", &Theme::Tokens::success,
+         &Theme::Tokens::windowBackground, 4.5},
+        {"textFaint on window", &Theme::Tokens::textFaint,
+         &Theme::Tokens::windowBackground, 4.5},
+        {"codeComment on code panel", &Theme::Tokens::codeComment,
+         &Theme::Tokens::codePanelBackground, 4.5},
+        {"codeString on code panel", &Theme::Tokens::codeString,
+         &Theme::Tokens::codePanelBackground, 4.5},
+        {"codeType on code panel", &Theme::Tokens::codeType,
+         &Theme::Tokens::codePanelBackground, 4.5},
+        {"bannerText on banner", &Theme::Tokens::bannerText,
+         &Theme::Tokens::bannerBackground, 4.5},
+        {"textPrimary on the current match",
+         &Theme::Tokens::textPrimary,
+         &Theme::Tokens::searchCurrentBackground, 4.5},
+        {"textPrimary on active selection", &Theme::Tokens::textPrimary,
+         &Theme::Tokens::selectionActiveTint, 4.5},
+        {"borderStrong on window", &Theme::Tokens::borderStrong,
+         &Theme::Tokens::windowBackground, 3.0},
+        {"mutedGlyph on panel", &Theme::Tokens::mutedGlyph,
+         &Theme::Tokens::panelBackground, 3.0},
+        {"quoteBar on window", &Theme::Tokens::quoteBar,
+         &Theme::Tokens::windowBackground, 3.0},
+        {"marker on window", &Theme::Tokens::marker,
+         &Theme::Tokens::windowBackground, 3.0},
+    };
+
+    for (const QString &id : { QStringLiteral("light"), QStringLiteral("dark"),
+                               QStringLiteral("sepia"),
+                               QStringLiteral("highContrast") }) {
+        const Theme::Tokens &t = Theme::tokensFor(id);
+        for (const Pair &p : kPairs) {
+            QTest::newRow(qPrintable(id + ": " + QString::fromLatin1(p.name)))
+                << id << QString::fromLatin1(p.name)
+                << t.*(p.foreground) << t.*(p.background) << p.floor;
+        }
+    }
+}
+
+void TestTheme::testEveryTokenPairMeetsItsFloor()
+{
+    QFETCH(QString, themeId);
+    QFETCH(QString, pairName);
+    QFETCH(QColor, foreground);
+    QFETCH(QColor, background);
+    QFETCH(double, floor);
+
+    const double r = Theme::contrastRatio(foreground, background);
+    QVERIFY2(r >= floor,
+             qPrintable(themeId + ": " + pairName + " is only "
+                        + QString::number(r, 'f', 2) + ":1 (need "
+                        + QString::number(floor, 'f', 1) + ":1)"));
+}
+
+// The accent label is computed, not stored, so a custom accent gets a label
+// that suits it. Without this the label stayed pure white whatever the user
+// picked, and a pale accent gave white text on a pale fill.
+void TestTheme::testAccentLabelIsDerivedFromTheAccent()
+{
+    Theme theme;
+
+    // Pale accent → a dark label; dark accent → a light one. Both clear the
+    // 4.5:1 text floor, which is the property that matters rather than the
+    // exact shade.
+    theme.setAccentOverride(QStringLiteral("#ffe9a0"));
+    QVERIFY(Theme::contrastRatio(theme.onAccent(), theme.accent()) >= 4.5);
+    const QColor onPale = theme.onAccent();
+
+    theme.setAccentOverride(QStringLiteral("#102030"));
+    QVERIFY(Theme::contrastRatio(theme.onAccent(), theme.accent()) >= 4.5);
+    QVERIFY2(theme.onAccent() != onPale,
+             "the label has to move when the accent moves from pale to dark");
+
+    // Clearing the override puts the theme's own accent back, label included.
+    theme.setAccentOverride(QString());
+    QCOMPARE(theme.onAccent(),
+             Theme::tokensFor(QStringLiteral("light")).onAccent);
+}
+
+// A swatch is announced by name, so every colour a picker offers has to have
+// one. The two lists are parallel to the palettes by position, which is the
+// kind of pairing that goes wrong silently when a colour is added.
+void TestTheme::testPaletteNamesCoverEveryColor()
+{
+    Theme theme;
+    QCOMPARE(theme.colorPaletteNames().size(), theme.colorPalette().size());
+    QCOMPARE(theme.highlightPaletteNames().size(),
+             theme.highlightPalette().size());
+
+    const QStringList palette = theme.colorPalette();
+    for (int i = 0; i < palette.size(); ++i) {
+        QCOMPARE(theme.colorName(palette.at(i)),
+                 theme.colorPaletteNames().at(i));
+        // Spelling must not decide the answer: the same colour arrives
+        // lowercase from the palette and uppercase from a hand-edited note.
+        QCOMPARE(theme.colorName(palette.at(i).toUpper()),
+                 theme.colorPaletteNames().at(i));
+    }
+    QVERIFY(!theme.colorName(QString()).isEmpty());     // "Theme default"
+    QVERIFY(!theme.colorName(QStringLiteral("#123456")).isEmpty());
+}
+
 void TestTheme::testFocusRingIsVisible()
 {
     // The keyboard-focus ring (§14.1) must stand out against the editor
@@ -278,6 +426,108 @@ void TestTheme::testReducedMotionScale()
     b.setSettings(&store);
     QCOMPARE(b.reducedMotion(), true);
     QCOMPARE(b.motionScale(), 0.0);
+}
+
+// "system" is the third state: the desktop's own reduce-motion preference,
+// which is where a person who needs it has usually already said so
+// (accessibility.md Finding 7).
+void TestTheme::testReducedMotionFollowsTheSystem()
+{
+    SystemAppearance system;
+    system.setOverride(false, /*reducedMotion=*/true);
+
+    Theme theme;
+    QCOMPARE(theme.reducedMotionSetting(), QString("system"));
+    // Nothing attached: "system" has nothing to follow, so motion stays on.
+    QCOMPARE(theme.reducedMotion(), false);
+
+    QSignalSpy spy(&theme, &Theme::reducedMotionChanged);
+    theme.setSystemAppearance(&system);
+    QVERIFY(spy.count() >= 1);
+    QCOMPARE(theme.reducedMotion(), true);
+    QCOMPARE(theme.motionScale(), 0.0);
+
+    // An explicit choice outranks the desktop, in both directions.
+    theme.setReducedMotionSetting(QStringLiteral("off"));
+    QCOMPARE(theme.reducedMotion(), false);
+    theme.setReducedMotionSetting(QStringLiteral("on"));
+    QCOMPARE(theme.reducedMotion(), true);
+
+    // And going back to "system" starts following it again.
+    theme.setReducedMotionSetting(QStringLiteral("system"));
+    QCOMPARE(theme.reducedMotion(), true);
+    system.setOverride(false, false);
+    QCOMPARE(theme.reducedMotion(), false);
+
+    // A value no setting can hold is refused rather than stored.
+    theme.setReducedMotionSetting(QStringLiteral("sometimes"));
+    QCOMPARE(theme.reducedMotionSetting(), QString("system"));
+}
+
+// System-wide high contrast folds into the theme's "system" setting, which
+// already means "follow the desktop". An explicit theme choice is the user
+// speaking about this application in particular and wins.
+void TestTheme::testHighContrastFollowsTheSystem()
+{
+    SystemAppearance system;
+    system.setOverride(/*highContrast=*/true, false);
+
+    Theme theme;
+    theme.setThemeId(QStringLiteral("system"));
+    theme.setSystemAppearance(&system);
+    QCOMPARE(theme.resolvedTheme(), QString("highContrast"));
+    QCOMPARE(theme.windowBackground(),
+             Theme::tokensFor(QStringLiteral("highContrast")).windowBackground);
+
+    // An explicit theme is not overridden by the desktop.
+    theme.setThemeId(QStringLiteral("sepia"));
+    QCOMPARE(theme.resolvedTheme(), QString("sepia"));
+
+    // Back to following, and then the desktop turning it off.
+    theme.setThemeId(QStringLiteral("system"));
+    QCOMPARE(theme.resolvedTheme(), QString("highContrast"));
+    system.setOverride(false, false);
+    QVERIFY(theme.resolvedTheme() == QLatin1String("light")
+            || theme.resolvedTheme() == QLatin1String("dark"));
+}
+
+// An installation that had already turned reduced motion on keeps it on. The
+// old setting was a plain bool, written only when somebody chose; its
+// presence is what distinguishes a choice from a default.
+void TestTheme::testAnExistingMotionChoiceSurvivesTheUpgrade()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    SettingsStore store;
+    QVERIFY(store.open(dir.filePath(QStringLiteral("s.json"))));
+    store.setValue(QStringLiteral("view.reducedMotion"), true);
+
+    Theme upgraded;
+    upgraded.setSettings(&store);
+    QCOMPARE(upgraded.reducedMotionSetting(), QString("on"));
+    QCOMPARE(upgraded.reducedMotion(), true);
+
+    // Someone who had explicitly turned it OFF keeps that too, rather than
+    // silently starting to follow a desktop that asks for it.
+    SettingsStore off;
+    QVERIFY(off.open(dir.filePath(QStringLiteral("off.json"))));
+    off.setValue(QStringLiteral("view.reducedMotion"), false);
+    SystemAppearance system;
+    system.setOverride(false, true);
+    Theme keptOff;
+    keptOff.setSystemAppearance(&system);
+    keptOff.setSettings(&off);
+    QCOMPARE(keptOff.reducedMotionSetting(), QString("off"));
+    QCOMPARE(keptOff.reducedMotion(), false);
+
+    // A fresh installation has neither key and follows the desktop.
+    SettingsStore fresh;
+    QVERIFY(fresh.open(dir.filePath(QStringLiteral("fresh.json"))));
+    Theme brandNew;
+    brandNew.setSystemAppearance(&system);
+    brandNew.setSettings(&fresh);
+    QCOMPARE(brandNew.reducedMotionSetting(), QString("system"));
+    QCOMPARE(brandNew.reducedMotion(), true);
 }
 
 void TestTheme::testAccentOverride()

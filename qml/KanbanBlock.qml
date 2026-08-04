@@ -616,6 +616,15 @@ BlockDelegateBase {
     // pointer reaches it, and it says what it does while the pointer is
     // there. The board's controls used to be bare glyphs with a tap handler,
     // which gave no sign that they were controls at all.
+    // These three are not IconButtons, deliberately. Their TapHandlers take
+    // the press outright (see the note below), which a control's ordinary
+    // press handling cannot do: pointer handlers are offered an event before
+    // any item accepts it, so the card's own handler underneath would grab
+    // the press first and open the card editor behind the button. What they
+    // take from IconButton is everything that does not depend on how the
+    // press is routed — a role, a name off the tooltip, tab focus, a focus
+    // ring, and Space or Return as the activation key (accessibility.md
+    // Finding 1).
     component KanbanIconButton: Rectangle {
         id: iconButton
         property string glyph: ""
@@ -629,13 +638,32 @@ BlockDelegateBase {
         radius: 4
         color: !iconButton.actionEnabled || !iconHover.hovered ? "transparent"
              : (iconButton.destructive ? Theme.danger : Theme.hoverTint)
+        border.width: iconButton.activeFocus ? 2 : 0
+        border.color: Theme.focusRing
+
+        activeFocusOnTab: iconButton.actionEnabled
+        Accessible.role: Accessible.Button
+        Accessible.name: iconButton.tip
+        Accessible.onPressAction: {
+            if (iconButton.actionEnabled)
+                iconButton.activated()
+        }
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                if (iconButton.actionEnabled)
+                    iconButton.activated()
+                event.accepted = true
+            }
+        }
 
         Text {
             anchors.centerIn: parent
             text: iconButton.glyph
-            font.pixelSize: 13
+            font.pixelSize: Interface.strong
             color: !iconButton.actionEnabled ? Theme.textFaint
-                 : (iconButton.destructive && iconHover.hovered ? Theme.onAccent
+                 : (iconButton.destructive && iconHover.hovered
+                    ? Theme.labelOn(Theme.danger)
                                                                 : Theme.textMuted)
         }
         HoverHandler {
@@ -653,9 +681,10 @@ BlockDelegateBase {
             gesturePolicy: TapHandler.ReleaseWithinBounds
             onTapped: iconButton.activated()
         }
-        ToolTip.visible: iconHover.hovered && iconButton.tip !== ""
+        ToolTip.visible: (iconHover.hovered || iconButton.activeFocus)
+                         && iconButton.tip !== ""
         ToolTip.text: iconButton.tip
-        ToolTip.delay: 400
+        ToolTip.delay: iconButton.activeFocus ? 0 : 400
     }
 
     // A pill the size of a card's label chips, for the controls that sit
@@ -675,15 +704,28 @@ BlockDelegateBase {
         color: chipButton.filled
             ? Qt.alpha(Theme.accent, chipButtonHover.hovered ? 0.35 : 0.18)
             : (chipButtonHover.hovered ? Theme.hoverTint : "transparent")
-        border.width: 1
-        border.color: chipButtonHover.hovered ? Theme.accent
-                    : (chipButton.filled ? "transparent" : Theme.border)
+        border.width: chipButton.activeFocus ? 2 : 1
+        border.color: chipButton.activeFocus ? Theme.focusRing
+                    : chipButtonHover.hovered ? Theme.accent
+                    : (chipButton.filled ? "transparent" : Theme.borderStrong)
+
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: chipButton.tip !== "" ? chipButton.tip : chipButton.label
+        Accessible.onPressAction: chipButton.activated()
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                chipButton.activated()
+                event.accepted = true
+            }
+        }
 
         Text {
             id: chipButtonLabel
             anchors.centerIn: parent
             text: chipButton.label
-            font.pixelSize: 9
+            font.pixelSize: Interface.px(9)
             color: chipButtonHover.hovered ? Theme.textPrimary : Theme.textMuted
         }
         HoverHandler { id: chipButtonHover; cursorShape: Qt.PointingHandCursor }
@@ -694,9 +736,10 @@ BlockDelegateBase {
             gesturePolicy: TapHandler.ReleaseWithinBounds
             onTapped: chipButton.activated()
         }
-        ToolTip.visible: chipButtonHover.hovered && chipButton.tip !== ""
+        ToolTip.visible: (chipButtonHover.hovered || chipButton.activeFocus)
+                         && chipButton.tip !== ""
         ToolTip.text: chipButton.tip
-        ToolTip.delay: 400
+        ToolTip.delay: chipButton.activeFocus ? 0 : 400
     }
 
     // A flat labelled button, matching the app's in-block affordances
@@ -712,15 +755,28 @@ BlockDelegateBase {
         implicitHeight: 22
         radius: 4
         color: textHover.hovered ? Theme.hoverTint : "transparent"
-        border.width: textButton.outlined ? 1 : 0
-        border.color: Theme.border
+        border.width: textButton.activeFocus ? 2 : (textButton.outlined ? 1 : 0)
+        border.color: textButton.activeFocus ? Theme.focusRing : Theme.borderStrong
+
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: textButton.label
+        Accessible.description: textButton.tip
+        Accessible.onPressAction: textButton.activated()
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                textButton.activated()
+                event.accepted = true
+            }
+        }
 
         Text {
             id: textButtonLabel
             anchors.centerIn: parent
             text: textButton.label
             color: textHover.hovered ? Theme.textPrimary : Theme.textMuted
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
         }
         HoverHandler { id: textHover; cursorShape: Qt.PointingHandCursor }
         // Takes the press, for the reason KanbanIconButton does.
@@ -728,9 +784,10 @@ BlockDelegateBase {
             gesturePolicy: TapHandler.ReleaseWithinBounds
             onTapped: textButton.activated()
         }
-        ToolTip.visible: textHover.hovered && textButton.tip !== ""
+        ToolTip.visible: (textHover.hovered || textButton.activeFocus)
+                         && textButton.tip !== ""
         ToolTip.text: textButton.tip
-        ToolTip.delay: 400
+        ToolTip.delay: textButton.activeFocus ? 0 : 400
     }
 
     // Hover for the block as a whole. First in the file, so it sits under the
@@ -814,7 +871,7 @@ BlockDelegateBase {
                 height: 20
                 verticalAlignment: Text.AlignVCenter
                 text: qsTr("Filter")
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textFaint
             }
 
@@ -832,25 +889,49 @@ BlockDelegateBase {
                          : (filterChipHover.hovered
                             ? Qt.alpha(root.labelColor(filterChip.modelData), 0.25)
                             : Theme.chipBackground)
-                    border.width: 1
-                    border.color: root.labelColor(filterChip.modelData)
+                    border.width: filterChip.activeFocus ? 2 : 1
+                    border.color: filterChip.activeFocus ? Theme.focusRing
+                                : root.labelColor(filterChip.modelData)
                     Text {
                         id: filterChipLabel
                         anchors.centerIn: parent
                         text: "#" + filterChip.modelData
-                        font.pixelSize: 11
-                        color: filterChip.active ? Theme.onAccent : Theme.textMuted
+                        font.pixelSize: Interface.small
+                        color: filterChip.active
+                            ? Theme.labelOn(root.labelColor(filterChip.modelData))
+                            : Theme.textMuted
                     }
                     HoverHandler { id: filterChipHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
-                        onTapped: root.labelFilter = filterChip.active
+                        onTapped: filterChip.toggleFilter()
+                    }
+                    function toggleFilter() {
+                        root.labelFilter = filterChip.active
                             ? "" : filterChip.modelData
                     }
-                    ToolTip.visible: filterChipHover.hovered
+                    // A filter chip is on or off, so it is announced as a
+                    // checkbox rather than a button: hearing "pressed" would
+                    // not say which of the two states it left in.
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.CheckBox
+                    Accessible.name: qsTr("Filter by label #%1")
+                                     .arg(filterChip.modelData)
+                    Accessible.checkable: true
+                    Accessible.checked: filterChip.active
+                    Accessible.onToggleAction: filterChip.toggleFilter()
+                    Accessible.onPressAction: filterChip.toggleFilter()
+                    Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                            || event.key === Qt.Key_Enter) {
+                            filterChip.toggleFilter()
+                            event.accepted = true
+                        }
+                    }
+                    ToolTip.visible: filterChipHover.hovered || filterChip.activeFocus
                     ToolTip.text: filterChip.active
                         ? qsTr("Show cards with every label again")
                         : qsTr("Show only cards labelled #%1").arg(filterChip.modelData)
-                    ToolTip.delay: 400
+                    ToolTip.delay: filterChip.activeFocus ? 0 : 400
                 }
             }
 
@@ -863,21 +944,36 @@ BlockDelegateBase {
                 width: hideDoneLabel.implicitWidth + 16
                 color: root.hideDone ? Theme.accent
                      : (hideDoneHover.hovered ? Theme.hoverTint : Theme.chipBackground)
-                border.width: 1
-                border.color: root.hideDone ? Theme.accent : Theme.border
+                border.width: hideDoneChip.activeFocus ? 2 : 1
+                border.color: hideDoneChip.activeFocus ? Theme.focusRing
+                            : root.hideDone ? Theme.accent : Theme.borderStrong
                 Text {
                     id: hideDoneLabel
                     anchors.centerIn: parent
                     text: qsTr("Hide done")
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: root.hideDone ? Theme.onAccent : Theme.textMuted
                 }
                 HoverHandler { id: hideDoneHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.hideDone = !root.hideDone }
-                ToolTip.visible: hideDoneHover.hovered
+                activeFocusOnTab: true
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: qsTr("Hide done")
+                Accessible.checkable: true
+                Accessible.checked: root.hideDone
+                Accessible.onToggleAction: root.hideDone = !root.hideDone
+                Accessible.onPressAction: root.hideDone = !root.hideDone
+                Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                        || event.key === Qt.Key_Enter) {
+                        root.hideDone = !root.hideDone
+                        event.accepted = true
+                    }
+                }
+                ToolTip.visible: hideDoneHover.hovered || hideDoneChip.activeFocus
                 ToolTip.text: root.hideDone ? qsTr("Show finished cards again")
                                             : qsTr("Keep finished cards out of the columns")
-                ToolTip.delay: 400
+                ToolTip.delay: hideDoneChip.activeFocus ? 0 : 400
             }
 
             Text {
@@ -886,7 +982,7 @@ BlockDelegateBase {
                 height: 20
                 verticalAlignment: Text.AlignVCenter
                 text: qsTr("%1 of %2 cards").arg(root.visibleCardCount).arg(root.cardCount)
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textMuted
             }
 
@@ -1044,7 +1140,7 @@ BlockDelegateBase {
                                     text: columnItem.colData.name
                                     elide: Text.ElideRight
                                     font.bold: true
-                                    font.pixelSize: 12
+                                    font.pixelSize: Interface.body
                                     color: colNameHover.hovered ? Theme.accent
                                                                 : Theme.textPrimary
                                 }
@@ -1060,7 +1156,7 @@ BlockDelegateBase {
                                         ? qsTr("%1 of %2").arg(columnItem.visibleIndices.length)
                                                           .arg(columnItem.colData.cards.length)
                                         : String(columnItem.colData.cards.length)
-                                    font.pixelSize: 11
+                                    font.pixelSize: Interface.small
                                     color: Theme.textFaint
                                 }
 
@@ -1073,6 +1169,16 @@ BlockDelegateBase {
                                     enabled: !columnItem.isRenaming
                                     onTapped: root.renamingCol = columnItem.colIndex
                                 }
+                                // The name is also the rename field and the
+                                // grip the column is dragged by, so it is a
+                                // control and not a caption.
+                                Accessible.role: Accessible.Button
+                                Accessible.name: qsTr("Column %1, %n card(s)", "",
+                                                      columnItem.colData.cards.length)
+                                                 .arg(columnItem.colData.name)
+                                Accessible.description: qsTr("Rename this column")
+                                Accessible.onPressAction:
+                                    root.renamingCol = columnItem.colIndex
                                 // The grip: past the drag threshold the press
                                 // that would have opened the rename field
                                 // carries the column instead.
@@ -1115,7 +1221,7 @@ BlockDelegateBase {
                                     anchors.fill: parent
                                     padding: 2
                                     font.bold: true
-                                    font.pixelSize: 12
+                                    font.pixelSize: Interface.body
                                     color: Theme.textPrimary
                                     selectionColor: Theme.selectionActiveTint
                                     selectedTextColor: Theme.textPrimary
@@ -1275,6 +1381,29 @@ BlockDelegateBase {
                                     border.width: 1
                                     border.color: cardItem.editing ? Theme.accent
                                         : (cardHover.hovered ? Theme.borderStrong : Theme.border)
+
+                                    // The card is the unit a screen reader
+                                    // moves through the board by, so it says
+                                    // which column it is in and what it holds:
+                                    // its title, whether it is done, and any
+                                    // due date. Without this the board reads
+                                    // as an unlabelled stack of rectangles.
+                                    Accessible.role: Accessible.ListItem
+                                    Accessible.name: {
+                                        var card = cardItem.cardData
+                                        var parts = [card.title !== ""
+                                                     ? card.title : qsTr("Untitled card")]
+                                        if (card.done)
+                                            parts.push(qsTr("done"))
+                                        if (card.due !== "")
+                                            parts.push(qsTr("due %1").arg(card.due))
+                                        return parts.join(", ")
+                                    }
+                                    Accessible.description:
+                                        qsTr("Card %1 of %2 in %3")
+                                            .arg(cardItem.cardIndex + 1)
+                                            .arg(columnItem.colData.cards.length)
+                                            .arg(columnItem.colData.name)
 
                                     // Card drag (features.md §1.2.12). Drag
                                     // carries this card as the drop payload;
@@ -1472,12 +1601,26 @@ BlockDelegateBase {
                                                 border.color: cardItem.cardData.done || cardItem.doneHovered
                                                     ? Theme.accent : Theme.borderStrong
                                                 border.width: 1.5
+                                                // Toggled by the card's own
+                                                // tap handler, which routes by
+                                                // where the tap landed, so
+                                                // there is nothing here to
+                                                // click; what it needs is to
+                                                // report that it is a checkbox
+                                                // and whether it is ticked.
+                                                Accessible.role: Accessible.CheckBox
+                                                Accessible.name: qsTr("Done")
+                                                Accessible.checkable: true
+                                                Accessible.checked: cardItem.cardData.done
+                                                Accessible.onToggleAction:
+                                                    root.toggleCardDone(cardItem.cardColIndex,
+                                                                        cardItem.cardIndex)
                                                 Text {
                                                     anchors.centerIn: parent
                                                     visible: cardItem.cardData.done
                                                     text: "✓"
                                                     color: Theme.onAccent
-                                                    font.pixelSize: 9
+                                                    font.pixelSize: Interface.px(9)
                                                 }
                                             }
 
@@ -1583,7 +1726,7 @@ BlockDelegateBase {
                                                         x: 6
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         text: "#" + cardLabelChip.modelData
-                                                        font.pixelSize: 9
+                                                        font.pixelSize: Interface.px(9)
                                                         color: root.labelColor(cardLabelChip.modelData)
                                                     }
                                                     Text {
@@ -1592,7 +1735,7 @@ BlockDelegateBase {
                                                         anchors.rightMargin: 5
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         text: "×"
-                                                        font.pixelSize: 11
+                                                        font.pixelSize: Interface.small
                                                         color: Theme.textMuted
                                                     }
                                                     HoverHandler {
@@ -1606,6 +1749,13 @@ BlockDelegateBase {
                                                             cardItem.cardIndex,
                                                             cardLabelChip.modelData)
                                                     }
+                                                    Accessible.role: Accessible.Button
+                                                    Accessible.name: qsTr("Remove #%1")
+                                                        .arg(cardLabelChip.modelData)
+                                                    Accessible.onPressAction: root.removeLabel(
+                                                        cardItem.cardColIndex,
+                                                        cardItem.cardIndex,
+                                                        cardLabelChip.modelData)
                                                     ToolTip.visible: labelChipHover.hovered
                                                     ToolTip.text: qsTr("Remove #%1")
                                                         .arg(cardLabelChip.modelData)
@@ -1722,7 +1872,7 @@ BlockDelegateBase {
                                             visible: cardItem.cardData.created !== ""
                                                      || cardItem.cardData.modified !== ""
                                             elide: Text.ElideRight
-                                            font.pixelSize: 9
+                                            font.pixelSize: Interface.px(9)
                                             color: Theme.textFaint
                                             text: {
                                                 var created = cardItem.cardData.created
@@ -1750,7 +1900,7 @@ BlockDelegateBase {
                                 text: root.filtering && columnItem.colData.cards.length > 0
                                     ? qsTr("No cards match the filter")
                                     : qsTr("Drop a card here")
-                                font.pixelSize: 11
+                                font.pixelSize: Interface.small
                                 font.italic: true
                                 color: Theme.textFaint
                             }
@@ -1764,7 +1914,7 @@ BlockDelegateBase {
                                 wrapMode: Text.Wrap
                                 text: qsTr("%n more card(s) — show all", "",
                                            columnItem.hiddenCards)
-                                font.pixelSize: 11
+                                font.pixelSize: Interface.small
                                 color: showAllCards.hovered ? Theme.accent : Theme.link
                                 font.underline: showAllCards.hovered
                                 HoverHandler {
@@ -1776,6 +1926,13 @@ BlockDelegateBase {
                                         columnItem.colData.name,
                                         columnItem.visibleIndices.length)
                                 }
+                                Accessible.role: Accessible.Button
+                                Accessible.name: qsTr("Show all %n card(s) in %1", "",
+                                                      columnItem.colData.cards.length)
+                                                 .arg(columnItem.colData.name)
+                                Accessible.onPressAction: root.revealAllCardsIn(
+                                    columnItem.colData.name,
+                                    columnItem.visibleIndices.length)
                             }
 
                             KanbanTextButton {
@@ -2081,7 +2238,7 @@ BlockDelegateBase {
             width: 110
             height: 18
             padding: 2
-            font.pixelSize: 10
+            font.pixelSize: Interface.caption
             color: Theme.textPrimary
             placeholderText: qsTr("#tag")
             placeholderTextColor: Theme.textFaint
@@ -2168,7 +2325,7 @@ BlockDelegateBase {
                         x: 6
                         anchors.verticalCenter: parent.verticalCenter
                         text: "#" + tagChoiceRow.modelData
-                        font.pixelSize: 10
+                        font.pixelSize: Interface.caption
                         color: root.labelColor(tagChoiceRow.modelData)
                     }
                     HoverHandler {
@@ -2179,6 +2336,10 @@ BlockDelegateBase {
                         gesturePolicy: TapHandler.ReleaseWithinBounds
                         onTapped: root.commitTag(tagChoiceRow.modelData)
                     }
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: qsTr("Label #%1").arg(tagChoiceRow.modelData)
+                    Accessible.selected: root.tagHighlight === tagChoiceRow.index
+                    Accessible.onPressAction: root.commitTag(tagChoiceRow.modelData)
                 }
             }
         }
@@ -2376,12 +2537,12 @@ BlockDelegateBase {
                 objectName: "kanbanDueError"
                 visible: !cardDetails.dueValid
                 text: qsTr("Enter a date as YYYY-MM-DD, or leave it empty")
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textMuted
             }
             Text {
                 text: qsTr("Move to column")
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textMuted
             }
             Flow {

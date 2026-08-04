@@ -88,7 +88,7 @@ Item {
         // The hover tint the mask sits on fades over 100ms; matching it keeps
         // the covered glyph's patch from stepping ahead of its background.
         Behavior on color {
-            ColorAnimation { duration: 100 }
+            ColorAnimation { duration: 100 * Theme.motionScale }
         }
     }
 

@@ -87,6 +87,15 @@ ApplicationWindow {
     // so it is a plain typed query.
     function contextMenuHoldsSelection(target) { return false }
 
+    // How many open popups are acting on the caret's text selection. A block
+    // that loses focus drops its selection, which is the right default; a
+    // keyboard-navigable colour picker takes focus by definition, and the
+    // selection it is about to recolour must survive that. Each such popup
+    // raises this while it is open and lowers it on close, so the count is
+    // what the block consults rather than a list of popup types it would
+    // otherwise have to know about (accessibility.md Finding 2).
+    property int selectionHolders: 0
+
     // Open a link, or fall back to the external opener when this window has
     // none. Returns whether the shell handled it, so the caller can choose
     // the fallback without reaching for the opener object.

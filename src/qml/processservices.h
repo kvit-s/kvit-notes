@@ -14,8 +14,10 @@
 #include "egresspolicy.h"
 #include "extensionregistry.h"
 #include "globalhotkey.h"
+#include "interfacemetrics.h"
 #include "remotemediacache.h"
 #include "settingsstore.h"
+#include "systemappearance.h"
 #include "systemtray.h"
 #include "theme.h"
 #include "typography.h"
@@ -34,8 +36,9 @@
 //   * the bounded remote-media cache the transport feeds;
 //   * the system tray icon and the system-wide hotkey;
 //   * the once-a-day update check;
+//   * what the desktop says about high contrast and reduced motion;
 //   * the module and block-kind registries, installed once at startup;
-//   * the user-global theme and typography.
+//   * the user-global theme, typography and interface size.
 //
 // Every window shares one ProcessServices; AppContext registers these
 // instances into each engine's service table alongside its own per-vault
@@ -77,7 +80,9 @@ public:
 
     SettingsStore *settings() { return &m_settings; }
     Theme *theme() { return &m_theme; }
+    SystemAppearance *systemAppearance() { return &m_systemAppearance; }
     Typography *typography() { return &m_typography; }
+    InterfaceMetrics *interfaceMetrics() { return &m_interfaceMetrics; }
     EgressPolicy *egressPolicy() { return &m_egressPolicy; }
     EgressFetcher *egressFetcher() { return m_egressFetcher.get(); }
     RemoteMediaCache *remoteMediaCache() { return &m_remoteMediaCache; }
@@ -97,8 +102,12 @@ private:
     // and the tray all read it on attach. The policy precedes the fetcher that
     // borrows it; the fetcher precedes the media cache and update check.
     SettingsStore m_settings;
+    // Before the theme, which borrows it: the theme resolves "system" through
+    // it and reads the effective reduced-motion value from it.
+    SystemAppearance m_systemAppearance;
     Theme m_theme;
     Typography m_typography;
+    InterfaceMetrics m_interfaceMetrics;
     EgressPolicy m_egressPolicy;
     std::unique_ptr<EgressFetcher> m_egressFetcher;
     RemoteMediaCache m_remoteMediaCache;

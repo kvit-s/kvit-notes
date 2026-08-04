@@ -35,8 +35,8 @@ Popup {
     focus: false
     closePolicy: Popup.CloseOnPressOutside
     parent: Overlay.overlay
-    padding: 4
-    width: 320
+    padding: Interface.px(4)
+    width: Interface.px(320)
 
     readonly property int rowsHeight: rows.length * 40
 
@@ -145,7 +145,7 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     contentItem: Item {
@@ -160,7 +160,7 @@ Popup {
             anchors.centerIn: parent
             text: qsTr("No matches — Enter keeps the typed link")
             color: Theme.textFaint
-            font.pixelSize: 12
+            font.pixelSize: Interface.body
         }
 
         ListView {
@@ -176,17 +176,17 @@ Popup {
                 required property var modelData
                 required property int index
                 width: menuList.width
-                height: 40
-                radius: 4
+                height: Interface.px(40)
+                radius: Interface.px(4)
                 color: menuRow.index === menu.highlightIndex
                        ? Theme.hoverTint : "transparent"
 
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
-                    anchors.leftMargin: 8
+                    anchors.leftMargin: Interface.px(8)
                     anchors.right: parent.right
-                    anchors.rightMargin: 8
+                    anchors.rightMargin: Interface.px(8)
                     spacing: 0
 
                     Text {
@@ -194,7 +194,7 @@ Popup {
                         text: menuRow.modelData.kind === "heading"
                               ? "# " + menuRow.modelData.heading : menuRow.modelData.title
                         color: Theme.textPrimary
-                        font.pixelSize: 13
+                        font.pixelSize: Interface.strong
                         elide: Text.ElideRight
                     }
                     Text {
@@ -204,11 +204,21 @@ Popup {
                         text: menuRow.modelData.kind === "note"
                               ? menuRow.modelData.folder : ""
                         color: Theme.textFaint
-                        font.pixelSize: 10
+                        font.pixelSize: Interface.caption
                         elide: Text.ElideRight
                     }
                 }
 
+                Accessible.role: Accessible.ListItem
+                Accessible.name: menuRow.modelData.title !== undefined
+                                 ? menuRow.modelData.title : ""
+                Accessible.description: menuRow.modelData.kind === "note"
+                                        ? menuRow.modelData.folder : ""
+                Accessible.selected: menu.highlightIndex === menuRow.index
+                Accessible.onPressAction: {
+                    menu.highlightIndex = menuRow.index
+                    menu.applyHighlighted()
+                }
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true

@@ -1145,13 +1145,17 @@ KvitShell {
     }
 
     // §19.2 writing-goal dialog: set or clear the open note's word target.
-    Dialog {
+    KvitDialog {
         id: goalDialog
+        // Opens on the field it is about, so a screen reader
+        // announces something to type into and a keyboard user
+        // does not have to guess how many tabs reach it.
+        initialFocusItem: goalField
         objectName: "goalDialog"
         modal: true
         title: qsTr("Writing goal")
         anchors.centerIn: parent
-        width: 300
+        width: Interface.px(300)
         standardButtons: Dialog.Ok | Dialog.Cancel
         property string relPath: ""
         function openFor(rel) {
@@ -1161,7 +1165,7 @@ KvitShell {
         }
         onAccepted: NoteCollection.setGoal(relPath, goalField.value)
         contentItem: ColumnLayout {
-            spacing: 8
+            spacing: Interface.px(8)
             Label {
                 text: qsTr("Target word count for this note (0 to clear):")
                 wrapMode: Text.WordWrap
@@ -1368,7 +1372,7 @@ KvitShell {
 
     // Oversized-paste confirm: pasting a payload over the open-size cap
     // is allowed, but only deliberately.
-    Dialog {
+    KvitDialog {
         id: largePasteConfirmDialog
         objectName: "largePasteConfirmDialog"
         title: qsTr("Paste very large text?")
@@ -1385,7 +1389,7 @@ KvitShell {
         property bool pendingFocusLast: false
 
         contentItem: Item {
-            implicitWidth: 380
+            implicitWidth: Interface.px(380)
             implicitHeight: largePasteText.implicitHeight + 40
             Text {
                 id: largePasteText
@@ -1604,19 +1608,19 @@ KvitShell {
             anchors.left: parent.left
             anchors.leftMargin: 14
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
+            spacing: Interface.px(10)
             Label {
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("This note changed on disk. Keep your version or load the disk version?")
                 color: Theme.bannerText
-                font.pixelSize: 13
+                font.pixelSize: Interface.strong
             }
         }
         Row {
             anchors.right: parent.right
             anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 8
+            spacing: Interface.px(8)
             Button {
                 objectName: "conflictKeepMine"
                 text: qsTr("Keep mine")
@@ -1665,14 +1669,14 @@ KvitShell {
                     .arg(root.formatMiB(root.oversizedFileCap))
             }
             color: Theme.bannerText
-            font.pixelSize: 13
+            font.pixelSize: Interface.strong
         }
         Row {
             id: oversizedActions
             anchors.right: parent.right
             anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 8
+            spacing: Interface.px(8)
             Button {
                 objectName: "oversizedOpenAnyway"
                 text: qsTr("Open anyway")
@@ -1740,7 +1744,7 @@ KvitShell {
             Rectangle {
                 anchors.right: parent.right
                 height: parent.height
-                width: 1
+                width: Interface.px(1)
                 color: Theme.border
             }
             ToolButton {
@@ -1749,8 +1753,9 @@ KvitShell {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: parent.width
                 text: "»"
-                font.pixelSize: 12
-                ToolTip.visible: hovered
+                Accessible.name: qsTr("Expand sidebar")
+                font.pixelSize: Interface.body
+                ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Expand sidebar")
                 onClicked: root.sidebarCollapsed = false
             }
@@ -1791,7 +1796,7 @@ KvitShell {
             Rectangle {
                 anchors.right: parent.right
                 height: parent.height
-                width: 1
+                width: Interface.px(1)
                 color: Theme.border
             }
             ToolButton {
@@ -1800,8 +1805,9 @@ KvitShell {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: parent.width
                 text: "»"
-                font.pixelSize: 12
-                ToolTip.visible: hovered
+                Accessible.name: qsTr("Expand note list")
+                font.pixelSize: Interface.body
+                ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Expand note list")
                 onClicked: root.noteListCollapsed = false
             }
@@ -1883,10 +1889,11 @@ KvitShell {
             anchors.topMargin: 10
             anchors.rightMargin: 16
             text: "↺"
-            font.pixelSize: 13
-            implicitWidth: 26
-            implicitHeight: 26
-            ToolTip.visible: hovered
+            Accessible.name: qsTr("Restore from backup")
+            font.pixelSize: Interface.strong
+            implicitWidth: Interface.px(26)
+            implicitHeight: Interface.px(26)
+            ToolTip.visible: hovered || visualFocus
             ToolTip.text: qsTr("Restore from backup…")
             onClicked: backupDialog.openForCurrentNote()
         }
@@ -2045,10 +2052,15 @@ KvitShell {
                 // height and can leave them overlapped after the animation.
                 // Let ListView track changing delegate heights directly.
 
+                // The one positional animation in the editor, and the
+                // category reduced-motion settings exist for: every block
+                // insert, delete and reorder slides the rows below it. It is
+                // the first thing that has to go still when the setting is on
+                // (accessibility.md Finding 5).
                 move: Transition {
                     NumberAnimation {
                         properties: "y"
-                        duration: 200
+                        duration: 200 * Theme.motionScale
                         easing.type: Easing.OutQuad
                     }
                 }
@@ -2058,7 +2070,7 @@ KvitShell {
                     NumberAnimation {
                         property: "opacity"
                         to: 0
-                        duration: 150
+                        duration: 150 * Theme.motionScale
                     }
                 }
 
@@ -2068,7 +2080,7 @@ KvitShell {
                         property: "opacity"
                         from: 0
                         to: 1
-                        duration: 150
+                        duration: 150 * Theme.motionScale
                     }
                 }
 

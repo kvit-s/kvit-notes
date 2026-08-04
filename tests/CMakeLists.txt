@@ -450,6 +450,11 @@ qt_add_executable(test_typography test_typography.cpp)
 target_link_libraries(test_typography PRIVATE kvit-core Qt6::Test)
 add_test(NAME TypographyTests COMMAND test_typography)
 
+# Interface metrics tests (the chrome's own type scale and geometry)
+qt_add_executable(test_interfacemetrics test_interfacemetrics.cpp)
+target_link_libraries(test_interfacemetrics PRIVATE kvit-core Qt6::Test)
+add_test(NAME InterfaceMetricsTests COMMAND test_interfacemetrics)
+
 # BlockEditorEngine tests (hybrid editing engine)
 qt_add_executable(test_blockeditorengine test_blockeditorengine.cpp)
 target_link_libraries(test_blockeditorengine PRIVATE kvit-core Qt6::Test)
@@ -710,6 +715,16 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME MenuAccessKeyGuard
              COMMAND ${Python3_EXECUTABLE}
                      ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-menu-access-keys.py)
+
+    # Accessible names, glyph labels and reduced motion, for the same reason:
+    # a control drawn as a rectangle with a tap handler is invisible to the
+    # accessibility tree, a glyph label is read out as that character, and a
+    # bare animation duration ignores the reduce-motion setting. All three
+    # read correctly in the source, pass qmllint and photograph correctly, so
+    # nothing else in the build can be the check. See accessibility.md.
+    add_test(NAME AccessibleNameGuard
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-accessible-names.py)
 endif()
 
 # Static QML analysis, as a test rather than only as a script somebody has to

@@ -68,13 +68,13 @@ Item {
 
     function chooseOpenOrImport() { openOrImportChoiceDialog.open() }
 
-    Dialog {
+    KvitDialog {
         id: recoveryOverwriteDialog
         objectName: "recoveryOverwriteDialog"
         modal: true
         title: qsTr("Recovered version")
         anchors.centerIn: parent
-        width: 400
+        width: Interface.px(400)
         closePolicy: Popup.CloseOnEscape
         property string relPath: ""
 
@@ -83,7 +83,7 @@ Item {
                 + "recovered version. Using the recovered version replaces "
                 + "them; a copy of the current version is kept as a backup.")
             wrapMode: Text.WordWrap
-            padding: 12
+            padding: Interface.px(12)
         }
 
         footer: DialogButtonBox {
@@ -118,18 +118,18 @@ Item {
 
     // Ctrl+O in collection mode: open a file standalone, or import it into the
     // collection (§12.6).
-    Dialog {
+    KvitDialog {
         id: openOrImportChoiceDialog
         objectName: "openOrImportChoiceDialog"
         modal: true
         title: qsTr("Open a file")
         anchors.centerIn: parent
-        width: 320
+        width: Interface.px(320)
         contentItem: Label {
             text: qsTr("Open the file on its own, or import it into your "
                 + "collection?")
             wrapMode: Text.WordWrap
-            padding: 10
+            padding: Interface.px(10)
         }
         footer: DialogButtonBox {
             Button {
@@ -155,20 +155,20 @@ Item {
     // Single-file mode → vault upgrade: confirms, then opens the current
     // file's folder as the collection root. The open file stays open and
     // becomes a note of the new vault.
-    Dialog {
+    KvitDialog {
         id: createVaultDialog
         objectName: "createVaultDialog"
         modal: true
         title: qsTr("Create a vault")
         anchors.centerIn: parent
-        width: 360
+        width: Interface.px(360)
         contentItem: Label {
             text: qsTr("Use this file's folder as a vault? The sidebar, "
                 + "tags, global search, and wiki links will then work "
                 + "across every markdown file in it. The folder's files "
                 + "are left exactly as they are.")
             wrapMode: Text.WordWrap
-            padding: 10
+            padding: Interface.px(10)
         }
         footer: DialogButtonBox {
             Button {
@@ -199,20 +199,20 @@ Item {
     // discard it silently: there is no file to fall back on and the recovery
     // journal only covers crashes, so this was an unrecoverable loss on an
     // ordinary quit.
-    Dialog {
+    KvitDialog {
         id: closeConfirmDialog
         title: "Unsaved Changes"
         modal: true
         anchors.centerIn: parent
 
         contentItem: Item {
-            implicitWidth: 360
+            implicitWidth: Interface.px(360)
             implicitHeight: closeDialogText.implicitHeight + 40
 
             Text {
                 id: closeDialogText
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: Interface.px(20)
                 text: "This document has never been saved. Save it before closing?"
                 wrapMode: Text.WordWrap
             }
@@ -235,20 +235,20 @@ Item {
     }
 
     // Unsaved changes dialog before opening a new file
-    Dialog {
+    KvitDialog {
         id: unsavedChangesBeforeOpenDialog
         title: "Unsaved Changes"
         modal: true
         anchors.centerIn: parent
 
         contentItem: Item {
-            implicitWidth: 360
+            implicitWidth: Interface.px(360)
             implicitHeight: openDialogText.implicitHeight + 40
 
             Text {
                 id: openDialogText
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: Interface.px(20)
                 text: "You have unsaved changes. Do you want to save them before opening another file?"
                 wrapMode: Text.WordWrap
             }
@@ -279,20 +279,20 @@ Item {
     }
 
     // Unsaved changes dialog before creating new document
-    Dialog {
+    KvitDialog {
         id: unsavedChangesBeforeNewDialog
         title: "Unsaved Changes"
         modal: true
         anchors.centerIn: parent
 
         contentItem: Item {
-            implicitWidth: 360
+            implicitWidth: Interface.px(360)
             implicitHeight: newDialogText.implicitHeight + 40
 
             Text {
                 id: newDialogText
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: Interface.px(20)
                 text: "You have unsaved changes. Do you want to save them before creating a new document?"
                 wrapMode: Text.WordWrap
             }
@@ -320,7 +320,7 @@ Item {
         // Cancel - do nothing
     }
 
-    Dialog {
+    KvitDialog {
         id: errorDialog
         objectName: "errorDialog"
         title: "Error"
@@ -329,13 +329,13 @@ Item {
         property string errorMessage: ""
 
         contentItem: Item {
-            implicitWidth: 360
+            implicitWidth: Interface.px(360)
             implicitHeight: errorDialogText.implicitHeight + 40
 
             Text {
                 id: errorDialogText
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: Interface.px(20)
                 text: errorDialog.errorMessage
                 wrapMode: Text.WordWrap
             }

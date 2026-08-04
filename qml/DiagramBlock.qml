@@ -647,7 +647,7 @@ BlockDelegateBase {
                     Text {
                         visible: root.content.trim().length === 0
                         text: qsTr("Empty Mermaid diagram — click to edit")
-                        color: Theme.textFaint; font.italic: true; font.pixelSize: 13
+                        color: Theme.textFaint; font.italic: true; font.pixelSize: Interface.strong
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
@@ -656,7 +656,7 @@ BlockDelegateBase {
                         wrapMode: Text.Wrap
                         text: qsTr("Unsupported Mermaid diagram type in this Kvit version. "
                                    + "The source is preserved — click to edit, or treat it as code.")
-                        color: Theme.textMuted; font.pixelSize: 12
+                        color: Theme.textMuted; font.pixelSize: Interface.body
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
@@ -667,14 +667,14 @@ BlockDelegateBase {
                         text: "⚠ " + readCanvas.errorText
                               + (readCanvas.errorLine > 0
                                  ? " (line " + readCanvas.errorLine + ")" : "")
-                        color: Theme.danger; font.pixelSize: 12
+                        color: Theme.danger; font.pixelSize: Interface.body
                         TapHandler { onTapped: root.focusAtEnd() }
                     }
                     Text {
                         visible: root.content.trim().length > 0 && !readCanvas.hasError
                                  && !readCanvas.hasScene
                         text: qsTr("Rendering…")
-                        color: Theme.textFaint; font.pixelSize: 12
+                        color: Theme.textFaint; font.pixelSize: Interface.body
                     }
                 }
 
@@ -682,7 +682,7 @@ BlockDelegateBase {
                 Text {
                     visible: readCanvas.hasScene && readCanvas.hasError
                     text: qsTr("⚠ Preview is from the last valid source")
-                    color: Theme.warning; font.pixelSize: 11
+                    color: Theme.warning; font.pixelSize: Interface.small
                 }
             }
 
@@ -693,7 +693,9 @@ BlockDelegateBase {
                 spacing: 4
                 opacity: root.isHovered ? 1 : 0
                 visible: opacity > 0
-                Behavior on opacity { NumberAnimation { duration: 120 } }
+                Behavior on opacity {
+                    NumberAnimation { duration: 120 * Theme.motionScale }
+                }
 
                 component ChipButton: Rectangle {
                     id: chip
@@ -705,13 +707,13 @@ BlockDelegateBase {
                          : (active ? Theme.selectionTint : Theme.chipBackground)
                     border.color: Theme.border; border.width: 1
                     Text { id: chipText; anchors.centerIn: parent; text: chip.label
-                        color: Theme.textSecondary; font.pixelSize: 10 }
+                        color: Theme.textSecondary; font.pixelSize: Interface.caption }
                     MouseArea { id: chipArea; anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor; onClicked: chip.clicked() }
                 }
 
                 Text { anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Mermaid"); color: Theme.textFaint; font.pixelSize: 10 }
+                    text: qsTr("Mermaid"); color: Theme.textFaint; font.pixelSize: Interface.caption }
                 ChipButton { label: qsTr("Fit"); active: root.fitMode
                     onClicked: root.fitMode = true }
                 ChipButton { label: "100%"; active: !root.fitMode && root.zoomLevel === 1.0
@@ -771,7 +773,7 @@ BlockDelegateBase {
                     objectName: "diagramZoomText"
                     anchors.centerIn: parent
                     text: Math.round(readCanvas.renderScale * 100) + "%"
-                    color: Theme.textFaint; font.pixelSize: 9
+                    color: Theme.textFaint; font.pixelSize: Interface.px(9)
                 }
             }
         }
@@ -921,7 +923,7 @@ BlockDelegateBase {
                 anchors.centerIn: parent
                 visible: !previewCanvas.hasScene && !previewCanvas.hasError
                 text: previewCanvas.rendering ? qsTr("Rendering…") : qsTr("Preview")
-                color: Theme.textFaint; font.pixelSize: 12
+                color: Theme.textFaint; font.pixelSize: Interface.body
             }
             Flickable {
                 id: previewFlick
@@ -948,6 +950,20 @@ BlockDelegateBase {
                     // the editor text.
                     readonly property bool linked:
                         sceneCurrent && sourceArea.text === root.previewSource
+
+                    // The preview shown while the source is being edited.
+                    // The tap handler below is a pointer aid over the drawing
+                    // — clicking a shape moves the source caret to the line
+                    // that draws it — so the name belongs on the drawing
+                    // rather than on the handler, which is not an Item and
+                    // cannot carry one.
+                    Accessible.role: Accessible.Graphic
+                    Accessible.name: qsTr("Diagram preview")
+                    Accessible.description: previewCanvas.rendering
+                        ? qsTr("Rendering") : qsTr("Click a shape to move the "
+                                                   + "caret to the line that "
+                                                   + "draws it")
+
                     TapHandler {
                         onTapped: function(eventPoint) {
                             if (!previewCanvas.linked)
@@ -986,12 +1002,12 @@ BlockDelegateBase {
                     text: (previewCanvas.errorLine > 0
                            ? "line " + previewCanvas.errorLine + ":" + previewCanvas.errorColumn + "  " : "")
                           + "⚠ " + previewCanvas.errorText
-                    color: Theme.danger; font.pixelSize: 11
+                    color: Theme.danger; font.pixelSize: Interface.small
                 }
                 Text {
                     visible: previewCanvas.hasError && previewCanvas.hasScene
                     text: qsTr("Preview is from the last valid source")
-                    color: Theme.warning; font.pixelSize: 10
+                    color: Theme.warning; font.pixelSize: Interface.caption
                 }
             }
         }
@@ -1207,13 +1223,13 @@ BlockDelegateBase {
                 anchors.verticalCenter: parent.verticalCenter
                 text: labelEditor.renameMode ? qsTr("Id:") : qsTr("Label:")
                 color: Theme.textMuted
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
             }
             TextField {
                 id: labelField
                 objectName: "diagramLabelField"
                 width: 180
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 onAccepted: {
                     var src = labelEditor.renameMode
                         ? readCanvas.renameSelectionSource(text)

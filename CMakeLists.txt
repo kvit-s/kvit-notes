@@ -372,6 +372,7 @@ add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/egresspolicy.cpp
     src/platform/filewatcher.cpp
     src/platform/globalhotkey.cpp
+    src/platform/interfacemetrics.cpp
     src/platform/localimageprovider.cpp
     src/platform/menuaccesskeys.cpp
     src/platform/remoteimageprovider.cpp
@@ -379,6 +380,7 @@ add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/settingsstore.cpp
     src/platform/shortcutcatalog.cpp
     src/platform/singleinstance.cpp
+    src/platform/systemappearance.cpp
     src/platform/systemtray.cpp
     src/platform/theme.cpp
     src/platform/typography.cpp

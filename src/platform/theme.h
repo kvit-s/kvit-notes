@@ -12,6 +12,7 @@
 #include <QVariantMap>
 
 class SettingsStore;
+class SystemAppearance;
 class QQmlEngine;
 class QJSEngine;
 
@@ -32,13 +33,22 @@ class Theme : public QObject
 {
     Q_OBJECT
 
-    // "light" | "dark" | "sepia" | "system" (persisted).
+    // "light" | "dark" | "sepia" | "highContrast" | "system" (persisted).
     Q_PROPERTY(QString themeId READ themeId WRITE setThemeId NOTIFY themeChanged)
     // Reduced motion (§14.3): one source every animation and the typewriter
     // scroll reads. motionScale is 0 when on (all motion stilled), 1 when off,
     // so a duration written `150 * theme.motionScale` becomes instant.
+    //
+    // This is the effective value, and writing it is still the way to make an
+    // explicit choice — it sets reducedMotionSetting to "on" or "off". What
+    // it can no longer be is the whole story, because "follow the system" is
+    // now a third state (accessibility.md Finding 7).
     Q_PROPERTY(bool reducedMotion READ reducedMotion WRITE setReducedMotion
                    NOTIFY reducedMotionChanged)
+    // "on" | "off" | "system" (persisted). "system" is the default for a new
+    // installation; an existing one keeps whatever explicit value it had.
+    Q_PROPERTY(QString reducedMotionSetting READ reducedMotionSetting
+                   WRITE setReducedMotionSetting NOTIFY reducedMotionChanged)
     Q_PROPERTY(qreal motionScale READ motionScale NOTIFY reducedMotionChanged)
     // What themeId currently renders as: never "system".
     Q_PROPERTY(QString resolvedTheme READ resolvedTheme NOTIFY themeChanged)
@@ -67,9 +77,26 @@ class Theme : public QObject
     Q_PROPERTY(QColor textFaint READ textFaint NOTIFY themeChanged)
     Q_PROPERTY(QColor textDisabled READ textDisabled NOTIFY themeChanged)
     Q_PROPERTY(QColor bannerText READ bannerText NOTIFY themeChanged)
+    // The label colour on an accent-filled control. Derived from the
+    // effective accent rather than stored, because the accent is
+    // user-overridable (§10.3) and this was not: a pale custom accent gave
+    // white text on a pale fill with nothing anywhere to catch it. See
+    // labelOn(), and use that directly for a fill that is NOT the accent —
+    // a danger button, a tag colour — since this one answers only for the
+    // accent (accessibility.md Finding 3).
     Q_PROPERTY(QColor onAccent READ onAccent NOTIFY themeChanged)
 
     // Lines and glyphs.
+    //
+    // The two border tokens are not "the same line, lighter and darker".
+    // `border` is decorative: the rule between two panels, a separator, a
+    // block frame. WCAG asks nothing of it, and it is deliberately below 3:1
+    // in every theme. `borderStrong` is the control-boundary token — the
+    // outline that says where a button, field, checkbox or swatch is — and
+    // it is held to 3:1 against the surface behind it by the contrast floors
+    // in tests/test_theme.cpp. A new control's resting outline takes
+    // `borderStrong`; using `border` for it is the mistake accessibility.md
+    // Finding 3 describes.
     Q_PROPERTY(QColor border READ border NOTIFY themeChanged)
     Q_PROPERTY(QColor borderStrong READ borderStrong NOTIFY themeChanged)
     Q_PROPERTY(QColor quoteBar READ quoteBar NOTIFY themeChanged)
@@ -137,12 +164,23 @@ class Theme : public QObject
     // text sits ON these, so the saturated folder palette above would
     // be wrong. Choice candidates, not chrome — theme-independent.
     Q_PROPERTY(QStringList highlightPalette READ highlightPalette CONSTANT)
+    // What each of those swatches is called, in the same order. A screen
+    // reader has to say something when the caret reaches a swatch, and a
+    // six-digit hex value is not it (accessibility.md Finding 2). The two
+    // lists are kept the same length as the palettes above by
+    // paletteNamesCoverEveryColor in tests/test_theme.cpp.
+    Q_PROPERTY(QStringList colorPaletteNames READ colorPaletteNames CONSTANT)
+    Q_PROPERTY(QStringList highlightPaletteNames READ highlightPaletteNames
+                   CONSTANT)
 
 public:
     struct Tokens {
         QColor windowBackground, panelBackground, listBackground,
             footerBackground, popupBackground, chipBackground,
             bannerBackground, codePanelBackground;
+        // onAccent is the one token no table sets: labelOn(accent) fills it
+        // in, so a built-in accent and a user's custom one go through the
+        // same rule.
         QColor textPrimary, textSecondary, textMuted, textFaint,
             textDisabled, bannerText, onAccent;
         QColor border, borderStrong, quoteBar, mutedGlyph;
@@ -169,9 +207,20 @@ public:
     QString resolvedTheme() const { return m_resolved; }
     QStringList availableThemes() const;
 
-    bool reducedMotion() const { return m_reducedMotion; }
+    bool reducedMotion() const;
     void setReducedMotion(bool reduced);
-    qreal motionScale() const { return m_reducedMotion ? 0.0 : 1.0; }
+    QString reducedMotionSetting() const { return m_reducedMotionSetting; }
+    void setReducedMotionSetting(const QString &mode);
+    // The three values reducedMotionSetting accepts, for the settings UI and
+    // for rejecting a hand-edited settings file.
+    Q_INVOKABLE static QStringList availableReducedMotionSettings();
+    qreal motionScale() const { return reducedMotion() ? 0.0 : 1.0; }
+
+    // What the desktop says about high contrast and animation. Optional:
+    // without one, "system" resolves to light or dark only and "follow the
+    // system" for motion means off. Attached once by ProcessServices, and by
+    // a test that wants to drive both from a stand-in.
+    void setSystemAppearance(SystemAppearance *appearance);
     // Friendly label for a theme id (the menu uses it); handles camelCase ids.
     Q_INVOKABLE QString displayName(const QString &themeId) const;
 
@@ -236,9 +285,33 @@ public:
 
     QStringList colorPalette() const;
     QStringList highlightPalette() const;
+    QStringList colorPaletteNames() const;
+    QStringList highlightPaletteNames() const;
+
+    // The name for one colour value: a palette entry's own name, one of the
+    // two greys the text-colour picker adds, "Theme default" for the empty
+    // string, or a fallback naming the hex for anything chosen through the
+    // system colour dialog. This is what a swatch publishes as its accessible
+    // name, and it is here rather than in QML so the folder, tag, text and
+    // highlight pickers all say the same words for the same colour.
+    Q_INVOKABLE QString colorName(const QString &value) const;
+
+    // The label colour to draw on a filled control: near-black or white,
+    // whichever contrasts more with the fill. This is what onAccent is
+    // computed with, and what a call site drawing a label on any other fill
+    // should ask — a delete button on `danger`, a chip on a tag's own colour.
+    Q_INVOKABLE static QColor labelOn(const QColor &fill);
+
+    // WCAG 2.1 relative contrast between two opaque colours, from 1.0
+    // (identical) to 21.0 (black on white). Exposed to QML so the settings
+    // dialog can warn about a custom accent that disappears into the page,
+    // and used by the contrast floors in tests/test_theme.cpp.
+    Q_INVOKABLE static qreal contrastRatio(const QColor &a, const QColor &b);
 
     // The unmodified token table of a built-in theme (tests compare
     // against these; the settings dialog previews swatches from them).
+    // The accent override does not ride on this, so `onAccent` here is the
+    // value derived from the theme's own accent.
     static const Tokens &tokensFor(const QString &resolvedTheme);
 
     // Swatch colors for the settings dialog's theme cards ("system"
@@ -254,8 +327,9 @@ private:
     QString resolveSystem() const;
 
     SettingsStore *m_settings = nullptr;
+    SystemAppearance *m_systemAppearance = nullptr;
     QString m_themeId = QStringLiteral("light");
-    bool m_reducedMotion = false;
+    QString m_reducedMotionSetting = QStringLiteral("system");
     QString m_resolved = QStringLiteral("light");
     QString m_accentOverride;
     QString m_highlightOverride;

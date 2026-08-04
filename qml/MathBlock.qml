@@ -367,7 +367,7 @@ BlockDelegateBase {
                 text: qsTr("Empty equation — click to edit")
                 color: Theme.textFaint
                 font.italic: true
-                font.pixelSize: 13
+                font.pixelSize: Interface.strong
             }
             // Error state: source + named message, never blank.
             Column {
@@ -377,13 +377,13 @@ BlockDelegateBase {
                 visible: root.errorText !== "" && root.renderTex.trim().length > 0
                 Text {
                     text: root.renderTex
-                    font.family: "monospace"; font.pixelSize: 13
+                    font.family: "monospace"; font.pixelSize: Interface.strong
                     color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
                     text: "⚠ " + root.errorText
-                    font.pixelSize: 11; color: Theme.danger
+                    font.pixelSize: Interface.small; color: Theme.danger
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
@@ -393,7 +393,7 @@ BlockDelegateBase {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.numbered && root.equationNumber > 0
                 text: "(" + root.equationNumber + ")"
-                color: Theme.textMuted; font.pixelSize: 14
+                color: Theme.textMuted; font.pixelSize: Interface.px(14)
             }
             TapHandler { onTapped: root.focusAtEnd() }
         }
@@ -408,7 +408,7 @@ BlockDelegateBase {
             clip: true
             text: root.content
             font.family: "monospace"
-            font.pixelSize: 14
+            font.pixelSize: Interface.px(14)
             color: Theme.textPrimary
             wrapMode: TextEdit.WrapAnywhere
             selectByMouse: true
@@ -710,14 +710,14 @@ BlockDelegateBase {
             Text {
                 anchors.centerIn: parent
                 visible: root.previewTex.trim().length === 0
-                text: qsTr("Preview"); color: Theme.textFaint; font.pixelSize: 12
+                text: qsTr("Preview"); color: Theme.textFaint; font.pixelSize: Interface.body
             }
             Text {
                 id: previewError
                 anchors.centerIn: parent
                 visible: root.errorText !== "" && root.previewTex.trim().length > 0
                 text: "⚠ " + root.errorText
-                color: Theme.danger; font.pixelSize: 12
+                color: Theme.danger; font.pixelSize: Interface.body
                 wrapMode: Text.Wrap; width: parent.width - 24
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -749,6 +749,12 @@ BlockDelegateBase {
         anchors.fill: parent
         acceptedButtons: Qt.RightButton
         enabled: !root.editing
+        // The area itself is the block menu, reachable from the keyboard as
+        // Menu / Shift+F10; naming it is what puts it in the tree beside the
+        // equation rather than leaving a right-click-only route.
+        Accessible.role: Accessible.ButtonMenu
+        Accessible.name: qsTr("Equation block menu")
+        Accessible.onPressAction: AppActions.requestBlockHandleMenu(root)
         onClicked: {
                 AppActions.requestBlockHandleMenu(root)
         }

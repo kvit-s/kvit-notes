@@ -26,6 +26,12 @@ ProcessServices::~ProcessServices() = default;
 
 void ProcessServices::wire()
 {
+    // What the desktop says about high contrast and reduced motion. Attached
+    // in wire() rather than in openSettings(), because it holds no persisted
+    // state of its own — it reports the platform, and the theme decides what
+    // to do with that from its own settings (accessibility.md Finding 7).
+    m_theme.setSystemAppearance(&m_systemAppearance);
+
     // Every outbound request in the app runs over one fetcher, which asks one
     // policy. Embed previews, the images those previews name, remote images
     // and media in a note, and the update check all pass through here.
@@ -54,11 +60,15 @@ void ProcessServices::openSettings(const QString &settingsPath)
         : settingsPath;
     m_settings.open(path);
 
-    // Theme and typography snapshot the store's values when attached, so they
-    // attach here, after open() — attaching before would read an empty store
-    // and discard the persisted theme.id and type.* values.
+    // Theme, typography and the interface metrics snapshot the store's values
+    // when attached, so they attach here, after open() — attaching before
+    // would read an empty store and discard the persisted theme.id, type.* and
+    // interface.* values.
     m_theme.setSettings(&m_settings);
     m_typography.setSettings(&m_settings);
+    // Same reason, same place: the chrome's own size is persisted
+    // under `interface.` and is read on attach.
+    m_interfaceMetrics.setSettings(&m_settings);
 
     PerfLog &perfLog = PerfLog::instance();
     if (m_options.configureLoggingFromSettings

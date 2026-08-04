@@ -8596,8 +8596,10 @@ Item {
             mouseClick(button, button.width / 2, button.height / 2)
             tryCompare(picker, "visible", true, 1000)
 
-            // Pick "warning" through the popup the way a pointer would
-            var rows = picker.contentItem.children
+            // Pick "warning" through the popup the way a pointer would.
+            // The rows are a ListView's delegates, so they hang off the
+            // view's own content item rather than off the popup's.
+            var rows = picker.contentItem.contentItem.children
             var warningRow = null
             for (var j = 0; j < rows.length; j++) {
                 var label = findChild(rows[j], "calloutTypeLabel")
@@ -8681,13 +8683,14 @@ Item {
                    "and stays within its left and right edges")
 
             // Fully on screen means every kind is reachable, which is the
-            // point: the last row must be inside the window too. The Column
-            // holds the Repeater as well as the rows it built, so pick out
-            // the ones that carry a label.
+            // point: the last row must be inside the window too. The view's
+            // content item holds housekeeping items alongside the delegates,
+            // so pick out the ones that carry a label.
             var rows = []
-            for (var c = 0; c < content.children.length; ++c) {
-                if (findChild(content.children[c], "calloutTypeLabel"))
-                    rows.push(content.children[c])
+            var rowParent = content.contentItem
+            for (var c = 0; c < rowParent.children.length; ++c) {
+                if (findChild(rowParent.children[c], "calloutTypeLabel"))
+                    rows.push(rowParent.children[c])
             }
             compare(rows.length, picker.types.length,
                     "the picker draws a row per kind")
@@ -11991,6 +11994,128 @@ Item {
             }, 1000, "match count announced")
             DocumentSearch.query = ""
             DocumentSearch.active = false
+
+            // Announcements: a mode toggle speaks. Focus mode and typewriter
+            // mode are the two the announcer's mode wrapper covers, and both
+            // are invisible to a reader who cannot see the chrome change.
+            appLoader.item.focusMode = true
+            tryVerify(function() {
+                return A11y.lastMessage === "Focus mode on"
+            }, 1000, "entering focus mode is announced")
+            appLoader.item.focusMode = false
+            tryVerify(function() {
+                return A11y.lastMessage === "Focus mode off"
+            }, 1000, "leaving focus mode is announced, and says which way")
+
+            // A to-do publishes its done state on the block itself, which is
+            // the element a reader lands on while moving through a note; the
+            // checkbox beside it is a control with a name of its own
+            // (accessibility.md Finding 1).
+            DocumentManager.newDocument()
+            BlockModel.insertBlock(0, Block.Todo, "buy milk")
+            wait(200)
+            var todo = findBlockDelegate(0)
+            var todoText = findTextArea(todo)
+            verify(todoText !== null, "the to-do has an editable text area")
+            compare(todoText.Accessible.checkable, true)
+            compare(todoText.Accessible.checked, false)
+            var box = findChild(todo, "todoCheckbox")
+            verify(box !== null, "the to-do draws a checkbox")
+            compare(box.Accessible.role, Accessible.CheckBox)
+            verify(box.Accessible.name.length > 0,
+                   "the checkbox says what it is rather than drawing a tick")
+            BlockModel.setChecked(0, true)
+            tryVerify(function() { return todoText.Accessible.checked },
+                      1000, "ticking the box moves the block's state")
+
+            // A gutter button is a real control with a name, where it used to
+            // be a rectangle with a tap handler and nothing in the tree.
+            var plus = findChild(todo, "plusButton")
+            verify(plus !== null, "the gutter has an insert button")
+            compare(plus.Accessible.role, Accessible.Button)
+            verify(plus.Accessible.name.length > 0,
+                   "the insert button is named rather than read as \"+\"")
+
+            // A find-bar button carries words rather than its glyph.
+            var findBar = findChild(appLoader.item, "findBar")
+            verify(findBar !== null, "the find bar exists")
+            var nextButton = findChild(findBar, "findNextButton")
+            verify(nextButton !== null, "the find bar has a next-match button")
+            compare(nextButton.Accessible.name, "Next match")
+        }
+
+        // Finding 2: a choice popup is usable without a pointer. The
+        // text-colour picker is the model the other pickers follow, so the
+        // claim is pinned here — it takes the keyboard, moves between named
+        // swatches with the arrow keys, and takes one with Return.
+        //
+        // Taking the keyboard is what this costs, and it is the part worth a
+        // test: the block whose words are about to be recoloured loses focus
+        // to the popup, and both its selection and the toolbar's idea of
+        // which block the command acts on have to survive that. Before the
+        // shell's selectionHolders count existed, focusing the picker emptied
+        // the selection and left the toolbar with no target, so the colour
+        // went nowhere.
+        function test_zzn_colorPickerWorksFromTheKeyboard() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.updateContent(0, "colour these words")
+            wait(150)
+
+            var delegate = findBlockDelegate(0)
+            var textArea = findTextArea(delegate)
+            verify(textArea !== null, "the paragraph has an editor")
+            ensureFocus(textArea)
+            textArea.select(0, 6)          // "colour"
+            wait(100)
+
+            var picker = findChild(appLoader.item, "toolbarColorPicker")
+            verify(picker !== null, "the toolbar owns a colour picker")
+
+            picker.open()
+            tryCompare(picker, "opened", true, 1000)
+
+            var grid = findChild(picker, "colorPickerSwatches")
+            verify(grid !== null, "the swatches are a navigable grid")
+            tryVerify(function() { return grid.activeFocus }, 1000,
+                      "opening the picker puts the keyboard on the swatches")
+
+            // A swatch is announced by name rather than by hex value.
+            var firstName = Theme.colorName(picker.swatches[0])
+            verify(firstName.length > 0 && firstName.charAt(0) !== "#",
+                   "a swatch is named, not spelled: " + firstName)
+
+            // The selection the colour is about to land on is still there,
+            // even though the block no longer holds the keyboard.
+            compare(textArea.selectionStart, 0)
+            compare(textArea.selectionEnd, 6)
+
+            // Arrow to the next swatch and take it with Return.
+            grid.currentIndex = 0
+            keyClick(Qt.Key_Right)
+            compare(grid.currentIndex, 1,
+                    "the arrow keys move between swatches")
+            var chosen = picker.swatches[1]
+            keyClick(Qt.Key_Return)
+            tryCompare(picker, "opened", false, 1000)
+            tryVerify(function() {
+                return BlockModel.getContent(0).indexOf(chosen) !== -1
+            }, 1000, "the chosen colour lands on the selected words: "
+                     + BlockModel.getContent(0))
+
+            // Escape closes without choosing, and the second opening starts
+            // from the colour already applied rather than from the first
+            // swatch.
+            picker.open()
+            tryCompare(picker, "opened", true, 1000)
+            var before = BlockModel.getContent(0)
+            keyClick(Qt.Key_Escape)
+            tryCompare(picker, "opened", false, 1000)
+            compare(BlockModel.getContent(0), before,
+                    "Escape leaves the text as it was")
         }
 
         // System integration. Focus-independent — drives the

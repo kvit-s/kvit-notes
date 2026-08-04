@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
+import Kvit 1.0
 
 // Full-window image lightbox (features.md §1.2.8): a dimmed overlay showing
 // the image at natural size (capped to the window), dismissed by Escape, the
@@ -112,7 +113,7 @@ Popup {
             focus: true
             anchors.top: parent.top
             anchors.right: parent.right
-            anchors.margins: 12
+            anchors.margins: Interface.px(12)
             text: qsTr("Close")
             Accessible.role: Accessible.Button
             Accessible.name: qsTr("Close image viewer")

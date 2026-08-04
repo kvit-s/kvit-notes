@@ -51,10 +51,10 @@ Item {
         // follow the sidebar's active scope (bound in main.qml) -----------
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.bottomMargin: 4
-            spacing: 4
+            Layout.leftMargin: Interface.px(8)
+            Layout.rightMargin: Interface.px(8)
+            Layout.bottomMargin: Interface.px(4)
+            spacing: Interface.px(4)
 
             Label {
                 objectName: "searchResultSummary"
@@ -69,7 +69,7 @@ Item {
                         : qsTr("%1 match(es) in %2 note(s)")
                               .arg(CollectionSearch.matchCount)
                               .arg(CollectionSearch.noteCount)
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textMuted
                 elide: Text.ElideRight
                 Layout.fillWidth: true
@@ -77,9 +77,9 @@ Item {
             ComboBox {
                 id: datePresetCombo
                 objectName: "searchDatePresetCombo"
-                implicitHeight: 24
-                implicitWidth: 116
-                font.pixelSize: 11
+                implicitHeight: Interface.px(24)
+                implicitWidth: Interface.px(116)
+                font.pixelSize: Interface.small
                 readonly property var presets:
                     ["any", "today", "week", "month", "year", "custom"]
                 model: [qsTr("Any time"), qsTr("Today"), qsTr("Last 7 days"),
@@ -113,7 +113,7 @@ Item {
             Layout.fillHeight: true
             clip: true
             model: resultsView.groups
-            spacing: 2
+            spacing: Interface.px(2)
 
             delegate: Column {
                 id: groupColumn
@@ -126,18 +126,18 @@ Item {
                 Rectangle {
                     objectName: "searchTitleRow"
                     width: groupColumn.width
-                    height: 26
+                    height: Interface.px(26)
                     color: titleHover.hovered ? Theme.hoverTint : "transparent"
                     HoverHandler { id: titleHover }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 6
+                        anchors.leftMargin: Interface.px(12)
+                        anchors.rightMargin: Interface.px(12)
+                        spacing: Interface.px(6)
                         Label {
                             text: groupColumn.group.title
-                            font.pixelSize: 12
+                            font.pixelSize: Interface.body
                             font.bold: true
                             elide: Text.ElideRight
                             Layout.fillWidth: true
@@ -145,10 +145,16 @@ Item {
                         Label {
                             text: groupColumn.group.matchCount > 0
                                   ? groupColumn.group.matchCount : ""
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: Theme.textFaint
                         }
                     }
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: qsTr("%1, %n match(es)", "",
+                                          groupColumn.group.matchCount)
+                                     .arg(groupColumn.group.title)
+                    Accessible.onPressAction: resultsView.appWindow
+                        .openNoteByPath(groupColumn.group.relPath)
                     MouseArea {
                         anchors.fill: parent
                         onClicked: resultsView.appWindow
@@ -165,21 +171,32 @@ Item {
                         required property var modelData
 
                         width: groupColumn.width
-                        height: 24
+                        height: Interface.px(24)
                         color: matchHover.hovered ? Theme.focusTint : "transparent"
                         HoverHandler { id: matchHover }
 
                         Label {
                             anchors.fill: parent
-                            anchors.leftMargin: 26
-                            anchors.rightMargin: 12
+                            anchors.leftMargin: Interface.px(26)
+                            anchors.rightMargin: Interface.px(12)
                             verticalAlignment: Text.AlignVCenter
                             textFormat: Text.StyledText
                             text: resultsView.styledSnippet(matchRow.modelData)
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: Theme.textSecondary
                             elide: Text.ElideRight
                         }
+                        Accessible.role: Accessible.ListItem
+                        // The visible snippet is styled text with the match
+                        // marked up; the plain line is what should be spoken.
+                        Accessible.name: matchRow.modelData.text !== undefined
+                            ? matchRow.modelData.text
+                            : qsTr("Match in %1").arg(groupColumn.group.title)
+                        Accessible.onPressAction:
+                            resultsView.appWindow.openSearchResult(
+                                groupColumn.group.relPath,
+                                matchRow.modelData.blockIndex,
+                                matchRow.modelData.start)
                         MouseArea {
                             anchors.fill: parent
                             onClicked: resultsView.appWindow.openSearchResult(
@@ -195,10 +212,10 @@ Item {
                     visible: groupColumn.group.moreMatches > 0
                     text: qsTr("… %1 more match(es) — open the note to see "
                                + "them all").arg(groupColumn.group.moreMatches)
-                    font.pixelSize: 10
+                    font.pixelSize: Interface.caption
                     font.italic: true
                     color: Theme.textFaint
-                    leftPadding: 26
+                    leftPadding: Interface.px(26)
                     height: visible ? 18 : 0
                 }
             }

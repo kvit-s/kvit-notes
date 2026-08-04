@@ -146,7 +146,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: 1
+        width: Interface.px(1)
         color: Theme.border
     }
 
@@ -242,17 +242,17 @@ Rectangle {
         parent: noteListPane.appWindow ? noteListPane.appWindow.contentItem : noteListPane
         visible: noteDrag.active
         z: 1000
-        width: 180
-        height: 28
-        radius: 4
+        width: Interface.px(180)
+        height: Interface.px(28)
+        radius: Interface.px(4)
         color: Theme.popupBackground
         border.color: Theme.accent
         opacity: 0.9
         Label {
             anchors.fill: parent
-            anchors.margins: 6
+            anchors.margins: Interface.px(6)
             text: noteDrag.title
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }
@@ -262,15 +262,15 @@ Rectangle {
             anchors.top: parent.top
             anchors.leftMargin: -10
             anchors.topMargin: -8
-            width: 20
-            height: 20
-            radius: 10
+            width: Interface.px(20)
+            height: Interface.px(20)
+            radius: Interface.px(10)
             color: Theme.accent
             Text {
                 anchors.centerIn: parent
                 text: noteDrag.dragPaths.length
                 color: Theme.onAccent
-                font.pixelSize: 10
+                font.pixelSize: Interface.caption
                 font.bold: true
             }
         }
@@ -278,15 +278,15 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.rightMargin: 1
+        anchors.rightMargin: Interface.px(1)
         spacing: 0
 
         // ---- Header -----------------------------------------------------
         RowLayout {
             Layout.fillWidth: true
-            Layout.margins: 8
-            Layout.bottomMargin: 4
-            spacing: 4
+            Layout.margins: Interface.px(8)
+            Layout.bottomMargin: Interface.px(4)
+            spacing: Interface.px(4)
 
             Label {
                 objectName: "noteListScopeLabel"
@@ -302,7 +302,7 @@ Rectangle {
                     }
                     return qsTr("All Notes")
                 }
-                font.pixelSize: 13
+                font.pixelSize: Interface.strong
                 font.bold: true
                 color: Theme.textSecondary
                 elide: Text.ElideRight
@@ -311,10 +311,11 @@ Rectangle {
             ToolButton {
                 objectName: "newNoteButton"
                 text: "+"
-                font.pixelSize: 14
-                implicitHeight: 24
-                implicitWidth: 26
-                ToolTip.visible: hovered
+                Accessible.name: qsTr("New note")
+                font.pixelSize: Interface.px(14)
+                implicitHeight: Interface.px(24)
+                implicitWidth: Interface.px(26)
+                ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("New note (Ctrl+N)")
                 onClicked: noteListPane.appWindow.createNoteInCurrentScope()
             }
@@ -324,17 +325,17 @@ Rectangle {
         RowLayout {
             visible: !noteListPane.searching
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.bottomMargin: 4
-            spacing: 4
+            Layout.leftMargin: Interface.px(8)
+            Layout.rightMargin: Interface.px(8)
+            Layout.bottomMargin: Interface.px(4)
+            spacing: Interface.px(4)
 
             ComboBox {
                 id: sortModeCombo
                 objectName: "sortModeCombo"
                 Layout.fillWidth: true
-                implicitHeight: 24
-                font.pixelSize: 11
+                implicitHeight: Interface.px(24)
+                font.pixelSize: Interface.small
                 // Values parallel to the display strings.
                 readonly property var modes:
                     ["modified", "created", "title", "manual"]
@@ -351,10 +352,10 @@ Rectangle {
             ToolButton {
                 objectName: "sortDirectionButton"
                 text: NoteListModel.ascending ? "↑" : "↓"
-                font.pixelSize: 12
-                implicitHeight: 24
-                implicitWidth: 24
-                ToolTip.visible: hovered
+                font.pixelSize: Interface.body
+                implicitHeight: Interface.px(24)
+                implicitWidth: Interface.px(24)
+                ToolTip.visible: hovered || visualFocus
                 ToolTip.text: NoteListModel.ascending
                               ? qsTr("Ascending") : qsTr("Descending")
                 onClicked: NoteListModel.ascending = !NoteListModel.ascending
@@ -362,10 +363,11 @@ Rectangle {
             ToolButton {
                 objectName: "noteListCollapseButton"
                 text: "«"
-                font.pixelSize: 12
-                implicitHeight: 24
-                implicitWidth: 22
-                ToolTip.visible: hovered
+                Accessible.name: qsTr("Collapse note list")
+                font.pixelSize: Interface.body
+                implicitHeight: Interface.px(24)
+                implicitWidth: Interface.px(22)
+                ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Collapse note list")
                 onClicked: if (noteListPane.appWindow)
                                noteListPane.appWindow.noteListCollapsed = true
@@ -386,8 +388,8 @@ Rectangle {
             ColumnLayout {
                 id: recoveryColumn
                 anchors.fill: parent
-                anchors.margins: 6
-                spacing: 4
+                anchors.margins: Interface.px(6)
+                spacing: Interface.px(4)
 
                 readonly property var entries: {
                     var revision = NoteCollection.revision
@@ -397,7 +399,7 @@ Rectangle {
 
                 Label {
                     text: qsTr("Recovered unsaved changes")
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     font.bold: true
                     color: Theme.bannerText
                 }
@@ -408,13 +410,13 @@ Rectangle {
                         id: recoveryEntry
                         required property var modelData
                         Layout.fillWidth: true
-                        spacing: 2
+                        spacing: Interface.px(2)
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 4
+                            spacing: Interface.px(4)
                             Label {
                                 text: recoveryEntry.modelData.title
-                                font.pixelSize: 11
+                                font.pixelSize: Interface.small
                                 font.bold: true
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
@@ -422,23 +424,23 @@ Rectangle {
                             ToolButton {
                                 objectName: "recoveryRestoreButton"
                                 text: qsTr("Restore")
-                                font.pixelSize: 10
-                                implicitHeight: 22
+                                font.pixelSize: Interface.caption
+                                implicitHeight: Interface.px(22)
                                 onClicked: noteListPane.appWindow
                                     .restoreRecoveredNote(recoveryEntry.modelData.relPath)
                             }
                             ToolButton {
                                 objectName: "recoveryDiscardButton"
                                 text: qsTr("Discard")
-                                font.pixelSize: 10
-                                implicitHeight: 22
+                                font.pixelSize: Interface.caption
+                                implicitHeight: Interface.px(22)
                                 onClicked: NoteCollection.discardRecovery(
                                                recoveryEntry.modelData.relPath)
                             }
                         }
                         Label {
                             text: recoveryEntry.modelData.preview
-                            font.pixelSize: 10
+                            font.pixelSize: Interface.caption
                             color: Theme.bannerText
                             elide: Text.ElideRight
                             Layout.fillWidth: true
@@ -454,28 +456,29 @@ Rectangle {
             Layout.fillWidth: true
             visible: noteListPane.selectedPaths.length > 1
                      && !noteListPane.searching
-            height: visible ? 30 : 0
+            height: visible ? Interface.px(30) : 0
             color: Theme.focusTint
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 4
-                spacing: 2
+                anchors.leftMargin: Interface.px(8)
+                anchors.rightMargin: Interface.px(4)
+                spacing: Interface.px(2)
 
                 Label {
                     objectName: "bulkCountLabel"
                     text: qsTr("%1 selected")
                           .arg(noteListPane.selectedPaths.length)
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     Layout.fillWidth: true
                 }
                 ToolButton {
                     objectName: "bulkPinButton"
                     text: "⚑"
-                    font.pixelSize: 10
-                    implicitHeight: 24
-                    ToolTip.visible: hovered
+                    Accessible.name: qsTr("Pin the selected notes")
+                    font.pixelSize: Interface.caption
+                    implicitHeight: Interface.px(24)
+                    ToolTip.visible: hovered || visualFocus
                     ToolTip.text: qsTr("Pin")
                     onClicked: {
                         var paths = noteListPane.selectedPaths
@@ -486,9 +489,10 @@ Rectangle {
                 ToolButton {
                     objectName: "bulkFavoriteButton"
                     text: "★"
-                    font.pixelSize: 11
-                    implicitHeight: 24
-                    ToolTip.visible: hovered
+                    Accessible.name: qsTr("Favourite the selected notes")
+                    font.pixelSize: Interface.small
+                    implicitHeight: Interface.px(24)
+                    ToolTip.visible: hovered || visualFocus
                     ToolTip.text: qsTr("Favorite")
                     onClicked: {
                         var paths = noteListPane.selectedPaths
@@ -499,9 +503,10 @@ Rectangle {
                 ToolButton {
                     objectName: "bulkTagButton"
                     text: "#"
-                    font.pixelSize: 11
-                    implicitHeight: 24
-                    ToolTip.visible: hovered
+                    Accessible.name: qsTr("Add a tag to the selected notes")
+                    font.pixelSize: Interface.small
+                    implicitHeight: Interface.px(24)
+                    ToolTip.visible: hovered || visualFocus
                     ToolTip.text: qsTr("Add tag")
                     onClicked: bulkTagDialog.openFor(
                                    noteListPane.selectedPaths)
@@ -509,9 +514,10 @@ Rectangle {
                 ToolButton {
                     objectName: "bulkDeleteButton"
                     text: "✖"
-                    font.pixelSize: 10
-                    implicitHeight: 24
-                    ToolTip.visible: hovered
+                    Accessible.name: qsTr("Delete the selected notes")
+                    font.pixelSize: Interface.caption
+                    implicitHeight: Interface.px(24)
+                    ToolTip.visible: hovered || visualFocus
                     ToolTip.text: qsTr("Delete")
                     onClicked: bulkDeleteDialog.openFor(
                                    noteListPane.selectedPaths)
@@ -519,9 +525,10 @@ Rectangle {
                 ToolButton {
                     objectName: "bulkClearButton"
                     text: "✕"
-                    font.pixelSize: 10
-                    implicitHeight: 24
-                    ToolTip.visible: hovered
+                    Accessible.name: qsTr("Clear the selection")
+                    font.pixelSize: Interface.caption
+                    implicitHeight: Interface.px(24)
+                    ToolTip.visible: hovered || visualFocus
                     ToolTip.text: qsTr("Clear selection")
                     onClicked: noteListPane.clearSelection()
                 }
@@ -660,12 +667,12 @@ Rectangle {
                 Rectangle {
                     objectName: "noteRowFocusRing"
                     anchors.fill: parent
-                    anchors.margins: 1
+                    anchors.margins: Interface.px(1)
                     visible: noteRow.isCurrentRow && noteListView.activeFocus
                     color: "transparent"
                     border.width: 2
                     border.color: Theme.focusRing
-                    radius: 3
+                    radius: Interface.px(3)
                 }
 
                 HoverHandler { id: noteRowHover }
@@ -673,31 +680,31 @@ Rectangle {
                 ColumnLayout {
                     id: noteRowContent
                     anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    anchors.topMargin: 7
-                    anchors.bottomMargin: 7
-                    spacing: 2
+                    anchors.leftMargin: Interface.px(12)
+                    anchors.rightMargin: Interface.px(12)
+                    anchors.topMargin: Interface.px(7)
+                    anchors.bottomMargin: Interface.px(7)
+                    spacing: Interface.px(2)
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 4
+                        spacing: Interface.px(4)
                         Label {
                             visible: noteRow.pinned
                             text: "⚑"
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: Theme.accent
                         }
                         Label {
                             visible: noteRow.favorite
                             text: "★"
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: Theme.pinColor
                         }
                         Label {
                             visible: noteListPane.renamingPath !== noteRow.relPath
                             text: noteRow.title
-                            font.pixelSize: 12
+                            font.pixelSize: Interface.body
                             font.bold: true
                             elide: Text.ElideRight
                             Layout.fillWidth: true
@@ -712,8 +719,8 @@ Rectangle {
                             objectName: "noteRenameField"
                             visible: noteListPane.renamingPath === noteRow.relPath
                             Layout.fillWidth: true
-                            font.pixelSize: 12
-                            implicitHeight: 22
+                            font.pixelSize: Interface.body
+                            implicitHeight: Interface.px(22)
 
                             onVisibleChanged: {
                                 if (visible) {
@@ -762,7 +769,7 @@ Rectangle {
                     Label {
                         text: noteRow.snippet !== "" ? noteRow.snippet
                                                    : qsTr("Empty note")
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                         elide: Text.ElideRight
                         Layout.fillWidth: true
@@ -777,8 +784,15 @@ Rectangle {
                                   "MMM d, yyyy hh:mm")
                               + " · " + noteRow.wordCount + " "
                               + qsTr("words")
-                        font.pixelSize: 10
+                        font.pixelSize: Interface.caption
                         color: Theme.textDisabled
+                        // Elides, like the two lines above it. At the default
+                        // interface size the date and the word count fit the
+                        // pane; at a larger one they do not, and without this
+                        // the line was cut off at the pane's edge rather than
+                        // ending in an ellipsis (accessibility.md Finding 4).
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
                     }
                 }
 
@@ -791,19 +805,19 @@ Rectangle {
                     visible: noteRowHover.hovered
                              && noteListPane.renamingPath === ""
                     anchors.top: parent.top
-                    anchors.topMargin: 4
+                    anchors.topMargin: Interface.px(4)
                     anchors.right: parent.right
-                    anchors.rightMargin: 8
-                    spacing: 2
+                    anchors.rightMargin: Interface.px(8)
+                    spacing: Interface.px(2)
 
                     ToolButton {
                         objectName: "notePinButton"
                         text: "⚑"
                         opacity: noteRow.pinned ? 1.0 : 0.4
-                        font.pixelSize: 10
-                        implicitWidth: 22
-                        implicitHeight: 22
-                        ToolTip.visible: hovered
+                        font.pixelSize: Interface.caption
+                        implicitWidth: Interface.px(22)
+                        implicitHeight: Interface.px(22)
+                        ToolTip.visible: hovered || visualFocus
                         ToolTip.text: noteRow.pinned ? qsTr("Unpin")
                                                    : qsTr("Pin to top")
                         onClicked: NoteCollection.setPinned(
@@ -812,10 +826,10 @@ Rectangle {
                     ToolButton {
                         objectName: "noteFavoriteButton"
                         text: noteRow.favorite ? "★" : "☆"
-                        font.pixelSize: 11
-                        implicitWidth: 22
-                        implicitHeight: 22
-                        ToolTip.visible: hovered
+                        font.pixelSize: Interface.small
+                        implicitWidth: Interface.px(22)
+                        implicitHeight: Interface.px(22)
+                        ToolTip.visible: hovered || visualFocus
                         ToolTip.text: noteRow.favorite
                                       ? qsTr("Remove from favorites")
                                       : qsTr("Add to favorites")
@@ -828,7 +842,7 @@ Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: 1
+                    height: Interface.px(1)
                     color: Theme.hoverTint
                 }
 
@@ -908,7 +922,7 @@ Rectangle {
                 visible: noteDrag.active && noteDrag.reorderGap >= 0
                 x: 6
                 width: noteListView.width - 12
-                height: 3
+                height: Interface.px(3)
                 radius: 1.5
                 color: Theme.accent
                 y: {
@@ -1001,13 +1015,13 @@ Rectangle {
         }
     }
 
-    Dialog {
+    KvitDialog {
         id: bulkDeleteDialog
         objectName: "bulkDeleteDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 320
+        width: Interface.px(320)
         title: qsTr("Delete Notes")
 
         property var targets: []
@@ -1028,22 +1042,26 @@ Rectangle {
         contentItem: Label {
             id: bulkDeleteText
             wrapMode: Text.WordWrap
-            leftPadding: 12
-            rightPadding: 12
-            topPadding: 8
-            bottomPadding: 8
+            leftPadding: Interface.px(12)
+            rightPadding: Interface.px(12)
+            topPadding: Interface.px(8)
+            bottomPadding: Interface.px(8)
         }
 
         standardButtons: Dialog.Ok | Dialog.Cancel
     }
 
-    Dialog {
+    KvitDialog {
         id: bulkTagDialog
+        // Opens on the field it is about, so a screen reader
+        // announces something to type into and a keyboard user
+        // does not have to guess how many tabs reach it.
+        initialFocusItem: bulkTagField
         objectName: "bulkTagDialog"
         modal: true
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 300
+        width: Interface.px(300)
         title: qsTr("Add Tag")
 
         property var targets: []

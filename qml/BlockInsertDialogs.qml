@@ -93,13 +93,17 @@ Item {
         embedUrlField.selectAll()
     }
 
-    Dialog {
+    KvitDialog {
         id: embedInsertDialog
+        // Opens on the field it is about, so a screen reader
+        // announces something to type into and a keyboard user
+        // does not have to guess how many tabs reach it.
+        initialFocusItem: embedUrlField
         objectName: "embedInsertDialog"
         title: editing ? qsTr("Edit web embed") : qsTr("Insert web embed")
         modal: true
         anchors.centerIn: parent
-        width: 420
+        width: Interface.px(420)
         standardButtons: Dialog.Ok | Dialog.Cancel
         property int targetIndex: -1
         property string targetContent: ""
@@ -139,7 +143,7 @@ Item {
                 })
         }
         contentItem: Column {
-            spacing: 4
+            spacing: Interface.px(4)
             TextField {
                 id: embedUrlField
                 objectName: "embedUrlField"
@@ -161,7 +165,7 @@ Item {
                     && embedInsertDialog.resolvedUrl !== embedUrlField.text.trim()
                 text: qsTr("Opens %1").arg(embedInsertDialog.resolvedUrl)
                 elide: Text.ElideMiddle
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textFaint
             }
         }
@@ -197,13 +201,17 @@ Item {
     // Insert-image dialog (§4.3): a path/URL field with a file browser. On
     // accept it converts the target block into an Image block whose content
     // is the built markdown expression (one undo step).
-    Dialog {
+    KvitDialog {
         id: imageInsertDialog
+        // Opens on the field it is about, so a screen reader
+        // announces something to type into and a keyboard user
+        // does not have to guess how many tabs reach it.
+        initialFocusItem: imagePathField
         objectName: "imageInsertDialog"
         title: mediaKind ? qsTr("Insert audio or video") : qsTr("Insert image")
         modal: true
         anchors.centerIn: parent
-        width: 420
+        width: Interface.px(420)
         standardButtons: Dialog.Ok | Dialog.Cancel
         property int targetIndex: -1
         property string targetContent: ""
@@ -230,11 +238,11 @@ Item {
         onAccepted: commit()
 
         contentItem: Row {
-            spacing: 6
+            spacing: Interface.px(6)
             TextField {
                 id: imagePathField
                 objectName: "imagePathField"
-                width: 320
+                width: Interface.px(320)
                 placeholderText: imageInsertDialog.mediaKind
                     ? qsTr("Audio or video file path or URL")
                     : qsTr("Image file path or URL")

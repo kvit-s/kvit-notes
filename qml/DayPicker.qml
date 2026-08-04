@@ -23,6 +23,11 @@ import Kvit 1.0
 // The date-range picker in global search (DateRangePicker.qml) is a different
 // thing: two endpoints, applied live to a search as they are chosen. This one
 // answers with a day and closes.
+//
+// It already took focus; what it lacked was anything to say. The popup names
+// itself, each day is announced as its full date rather than a bare number,
+// and the four glyph buttons carry names instead of "‹" and "›"
+// (accessibility.md Finding 2).
 Popup {
     id: picker
     objectName: "dayPicker"
@@ -36,8 +41,8 @@ Popup {
     signal dayPicked(string day)
     signal dayCleared()
 
-    width: 252
-    padding: 10
+    width: Interface.px(252)
+    padding: Interface.px(10)
     modal: true
     dim: false
     focus: true
@@ -45,7 +50,7 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     property date visibleMonth: new Date()
@@ -70,15 +75,31 @@ Popup {
     component NavButton: Rectangle {
         id: navButton
         property string glyph: ""
+        // What the glyph means. The glyph itself is read out as whatever the
+        // screen reader's dictionary calls that character.
+        property string label: ""
         signal activated()
-        width: 22
-        height: 22
-        radius: 4
+        width: Interface.px(22)
+        height: Interface.px(22)
+        radius: Interface.px(4)
         color: navHover.hovered ? Theme.hoverTint : "transparent"
+        border.width: navButton.activeFocus ? 2 : 0
+        border.color: Theme.focusRing
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: navButton.label
+        Accessible.onPressAction: navButton.activated()
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                navButton.activated()
+                event.accepted = true
+            }
+        }
         Text {
             anchors.centerIn: parent
             text: navButton.glyph
-            font.pixelSize: 14
+            font.pixelSize: Interface.px(14)
             color: Theme.textMuted
         }
         HoverHandler { id: navHover; cursorShape: Qt.PointingHandCursor }
@@ -92,17 +113,28 @@ Popup {
         property string label: ""
         signal activated()
         implicitWidth: flatButtonLabel.implicitWidth + 18
-        implicitHeight: 22
-        radius: 4
+        implicitHeight: Interface.px(22)
+        radius: Interface.px(4)
         color: flatHover.hovered ? Theme.hoverTint : "transparent"
-        border.width: 1
-        border.color: Theme.border
+        border.width: flatButton.activeFocus ? 2 : 1
+        border.color: flatButton.activeFocus ? Theme.focusRing : Theme.borderStrong
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: flatButton.label
+        Accessible.onPressAction: flatButton.activated()
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                flatButton.activated()
+                event.accepted = true
+            }
+        }
         Text {
             id: flatButtonLabel
             anchors.centerIn: parent
             text: flatButton.label
             color: flatHover.hovered ? Theme.textPrimary : Theme.textMuted
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
         }
         HoverHandler { id: flatHover; cursorShape: Qt.PointingHandCursor }
         TapHandler {
@@ -112,13 +144,16 @@ Popup {
     }
 
     contentItem: ColumnLayout {
-        spacing: 6
+        spacing: Interface.px(6)
+        Accessible.role: Accessible.Dialog
+        Accessible.name: qsTr("Pick a day")
 
         RowLayout {
             Layout.fillWidth: true
             NavButton {
                 objectName: "dayPickerPrevMonth"
                 glyph: "‹"
+                label: qsTr("Previous month")
                 onActivated: picker.visibleMonth = new Date(
                     picker.visibleMonth.getFullYear(),
                     picker.visibleMonth.getMonth() - 1, 1)
@@ -128,13 +163,14 @@ Popup {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: Qt.formatDate(picker.visibleMonth, "MMMM yyyy")
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
                 font.bold: true
                 color: Theme.textPrimary
             }
             NavButton {
                 objectName: "dayPickerNextMonth"
                 glyph: "›"
+                label: qsTr("Next month")
                 onActivated: picker.visibleMonth = new Date(
                     picker.visibleMonth.getFullYear(),
                     picker.visibleMonth.getMonth() + 1, 1)
@@ -146,7 +182,7 @@ Popup {
             delegate: Text {
                 required property var model
                 text: model.shortName
-                font.pixelSize: 10
+                font.pixelSize: Interface.caption
                 color: Theme.textFaint
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -167,9 +203,9 @@ Popup {
                                   dayCell.model.day)
                 readonly property bool isSelected:
                     dayCell.cellKey === picker.selectedDay
-                implicitWidth: 30
-                implicitHeight: 24
-                radius: 4
+                implicitWidth: Interface.px(30)
+                implicitHeight: Interface.px(24)
+                radius: Interface.px(4)
                 color: dayCell.isSelected ? Theme.accent
                      : dayHover.hovered ? Theme.hoverTint : "transparent"
                 // Today is outlined rather than filled, so it still reads as
@@ -178,10 +214,30 @@ Popup {
                 border.color: Theme.accent
                 opacity: dayCell.model.month === grid.month ? 1 : 0.35
 
+                Accessible.role: Accessible.Button
+                Accessible.name: {
+                    var name = Qt.formatDate(new Date(dayCell.model.year,
+                                                      dayCell.model.month,
+                                                      dayCell.model.day),
+                                             "dddd d MMMM yyyy")
+                    if (dayCell.cellKey === picker.todayKey)
+                        name += qsTr(", today")
+                    return name
+                }
+                Accessible.checkable: true
+                Accessible.checked: dayCell.isSelected
+                Accessible.onPressAction: dayCell.choose()
+
+                function choose() {
+                    picker.selectedDay = dayCell.cellKey
+                    picker.dayPicked(dayCell.cellKey)
+                    picker.close()
+                }
+
                 Text {
                     anchors.centerIn: parent
                     text: dayCell.model.day
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     color: dayCell.isSelected ? Theme.onAccent : Theme.textPrimary
                 }
                 HoverHandler { id: dayHover; cursorShape: Qt.PointingHandCursor }
@@ -191,18 +247,14 @@ Popup {
                 // otherwise put the click through to the card behind it too.
                 TapHandler {
                     gesturePolicy: TapHandler.ReleaseWithinBounds
-                    onTapped: {
-                        picker.selectedDay = dayCell.cellKey
-                        picker.dayPicked(dayCell.cellKey)
-                        picker.close()
-                    }
+                    onTapped: dayCell.choose()
                 }
             }
         }
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 6
+            spacing: Interface.px(6)
             FlatButton {
                 objectName: "dayPickerToday"
                 label: qsTr("Today")

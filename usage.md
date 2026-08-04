@@ -460,11 +460,23 @@ of these can be toggled from the view menu.
 
 ## Accessibility
 
-Kvit supports keyboard-only use: **F6** cycles between panes, dialogs trap and return focus,
-and a visible focus ring marks the focused block. Screen readers receive names and roles on
-controls, note rows, and blocks, image alt text is exposed, and a live region announces save
-state, search counts, and mode changes. A **high-contrast theme** (white on black, strong
-borders) and a **reduced-motion** setting are available for visual accessibility.
+Kvit supports keyboard-only use: **F6** cycles between panes, a dialog opens with the keyboard
+on the control it is about and hands it back to whatever opened it on close, and a visible focus
+ring marks the focused block. The colour and style pickers take the keyboard too: arrow keys
+move between swatches, Return takes one, and Escape closes without changing anything.
+
+Screen readers receive names and roles on controls, note rows, and blocks, along with state
+where a control has one: whether a to-do is done, which row of a list is selected. A button
+labelled with a glyph carries the words for what it does rather than the character it draws.
+Image alt text is exposed, and a live region announces save state, search counts, and mode
+changes.
+
+For visual accessibility there is a **high-contrast theme** (white on black, strong borders),
+which is also what "system" resolves to when the operating system is itself in a high-contrast
+mode; an **interface size** setting on the Appearance tab, which sizes the sidebar, note list,
+toolbar, status bar and dialogs independently of the editor font that sizes your notes; and a
+**motion** setting with three states: reduce it, leave it, or follow what your desktop asks
+for, which is the default.
 
 ## Where your data lives
 

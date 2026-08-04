@@ -56,8 +56,8 @@ Popup {
     focus: false
     closePolicy: Popup.CloseOnPressOutside
     parent: Overlay.overlay
-    padding: 4
-    width: 300
+    padding: Interface.px(4)
+    width: Interface.px(300)
 
     // Deterministic content height (variable row heights would make
     // ListView.contentHeight an estimate): entries 44px, headers 24px,
@@ -231,7 +231,7 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     contentItem: Item {
@@ -247,7 +247,7 @@ Popup {
             anchors.centerIn: parent
             text: qsTr("No matches")
             color: Theme.textFaint
-            font.pixelSize: 13
+            font.pixelSize: Interface.strong
         }
 
         ListView {
@@ -268,17 +268,17 @@ Popup {
                 readonly property bool isEntry: rowItem.modelData.kind === "entry"
 
                 width: menuList.width
-                height: isEntry ? 44 : 24
+                height: isEntry ? Interface.px(44) : Interface.px(24)
 
                 // Group header (§4.3 "grouped by category")
                 Text {
                     visible: !rowItem.isEntry
                     anchors.left: parent.left
-                    anchors.leftMargin: 8
+                    anchors.leftMargin: Interface.px(8)
                     anchors.verticalCenter: parent.verticalCenter
                     text: rowItem.isEntry ? "" : rowItem.modelData.text
                     color: Theme.textFaint
-                    font.pixelSize: 10
+                    font.pixelSize: Interface.caption
                     font.bold: true
                     font.capitalization: Font.AllUppercase
                 }
@@ -286,22 +286,22 @@ Popup {
                 Rectangle {
                     visible: rowItem.isEntry
                     anchors.fill: parent
-                    radius: 4
+                    radius: Interface.px(4)
                     color: rowItem.isEntry && rowItem.index === menu.highlightIndex
                            ? Theme.focusTint : "transparent"
 
                     Row {
                         anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        spacing: 10
+                        anchors.leftMargin: Interface.px(8)
+                        anchors.rightMargin: Interface.px(8)
+                        spacing: Interface.px(10)
 
                         // Icon badge (glyphs until an icon set lands)
                         Rectangle {
-                            width: 28
-                            height: 28
+                            width: Interface.px(28)
+                            height: Interface.px(28)
                             anchors.verticalCenter: parent.verticalCenter
-                            radius: 5
+                            radius: Interface.px(5)
                             color: Theme.chipBackground
                             border.color: Theme.border
                             border.width: 1
@@ -310,28 +310,37 @@ Popup {
                                 anchors.centerIn: parent
                                 text: rowItem.isEntry ? rowItem.modelData.icon : ""
                                 color: Theme.textSecondary
-                                font.pixelSize: 12
+                                font.pixelSize: Interface.body
                                 font.bold: true
                             }
                         }
 
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 1
+                            spacing: Interface.px(1)
 
                             Text {
                                 text: rowItem.isEntry ? rowItem.modelData.name : ""
                                 color: Theme.textPrimary
-                                font.pixelSize: 13
+                                font.pixelSize: Interface.strong
                             }
                             Text {
                                 text: rowItem.isEntry ? rowItem.modelData.description : ""
                                 color: Theme.textFaint
-                                font.pixelSize: 11
+                                font.pixelSize: Interface.small
                             }
                         }
                     }
 
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: rowItem.isEntry ? rowItem.modelData.name : ""
+                    Accessible.description:
+                        rowItem.isEntry ? rowItem.modelData.description : ""
+                    Accessible.selected: menu.highlightIndex === rowItem.index
+                    Accessible.onPressAction: {
+                        if (rowItem.isEntry)
+                            menu.applyRow(rowItem.modelData)
+                    }
                     MouseArea {
                         anchors.fill: parent
                         enabled: rowItem.isEntry

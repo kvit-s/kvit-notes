@@ -467,14 +467,14 @@ BlockDelegateBase {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "🔗"
-                        font.pixelSize: 24
+                        font.pixelSize: Interface.px(24)
                         color: Theme.textFaint
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: qsTr("Remote image not loaded")
                         color: Theme.textMuted
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                     }
                     // A real Button rather than a rectangle with a mouse
                     // handler: granting a remote image consent was reachable
@@ -488,7 +488,7 @@ BlockDelegateBase {
                         visible: EgressPolicy.canRequestConsent(delegate.resolvedSource)
                         activeFocusOnTab: true
                         padding: 4
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         text: qsTr("Load image")
                         Accessible.role: Accessible.Button
                         Accessible.name: qsTr("Load this remote image")
@@ -499,7 +499,7 @@ BlockDelegateBase {
                             border.color: imgLoadButton.visualFocus
                                           ? Theme.focusRing
                                           : (imgLoadButton.hovered ? Theme.accent
-                                                                   : Theme.border)
+                                                                   : Theme.borderStrong)
                         }
                         onClicked: EgressPolicy.allowOrigin(delegate.resolvedSource)
                     }
@@ -520,7 +520,7 @@ BlockDelegateBase {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "▨"
-                        font.pixelSize: 28
+                        font.pixelSize: Interface.px(28)
                         color: Theme.textFaint
                     }
                     Text {
@@ -528,7 +528,7 @@ BlockDelegateBase {
                         text: delegate.img.path === "" ? qsTr("No image")
                               : qsTr("Image not found: ") + delegate.img.path
                         color: Theme.textMuted
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                         elide: Text.ElideMiddle
                         width: Math.min(implicitWidth, imageFrame.width - 16)
                     }
@@ -561,7 +561,9 @@ BlockDelegateBase {
                 visible: opacity > 0
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                Behavior on opacity { NumberAnimation { duration: 120 } }
+                Behavior on opacity {
+                    NumberAnimation { duration: 120 * Theme.motionScale }
+                }
 
                 MouseArea {
                     id: resizeArea
@@ -613,10 +615,12 @@ BlockDelegateBase {
                           || imageEffectsPopover.visible)
                          && delegate.resolvedSource !== "" ? 1 : 0
                 visible: opacity > 0
-                Behavior on opacity { NumberAnimation { duration: 120 } }
+                Behavior on opacity {
+                    NumberAnimation { duration: 120 * Theme.motionScale }
+                }
                 Text {
                     anchors.centerIn: parent
-                    text: "✦"; color: "white"; font.pixelSize: 13
+                    text: "✦"; color: "white"; font.pixelSize: Interface.strong
                 }
                 MouseArea {
                     id: effectsArea
@@ -652,7 +656,7 @@ BlockDelegateBase {
             // the image made it read as a title.
             horizontalAlignment: Text.AlignLeft
             wrapMode: TextArea.Wrap
-            font.pixelSize: 12
+            font.pixelSize: Interface.body
             font.italic: true
             color: Theme.textMuted
             background: null
@@ -706,6 +710,10 @@ BlockDelegateBase {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
+        // Not an element: this covers the whole block so the §3.1
+        // modifier-click gestures work on it, and the block itself is what a
+        // screen reader should find here (accessibility.md Finding 1).
+        Accessible.ignored: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         // Let the image/caption/handle areas above take their clicks; this
         // covers the surrounding block region for selection gestures.

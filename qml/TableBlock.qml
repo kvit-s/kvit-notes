@@ -704,14 +704,28 @@ BlockDelegateBase {
         implicitHeight: 22
         radius: 4
         color: chipHover.hovered ? Theme.hoverTint : "transparent"
-        border.width: 1
-        border.color: Theme.border
+        border.width: chip.activeFocus ? 2 : 1
+        border.color: chip.activeFocus ? Theme.focusRing : Theme.borderStrong
+        // A rectangle with a tap handler is invisible to a screen reader and
+        // unreachable without a pointer; the role, the name and the key
+        // handling are what make it a control (accessibility.md Finding 1).
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: chip.label
+        Accessible.onPressAction: chip.clicked()
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter) {
+                chip.clicked()
+                event.accepted = true
+            }
+        }
         Text {
             id: chipText
             anchors.centerIn: parent
             text: chip.label
             color: Theme.textMuted
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
         }
         HoverHandler { id: chipHover }
         TapHandler { onTapped: chip.clicked() }
@@ -915,6 +929,27 @@ BlockDelegateBase {
                                             readonly property bool isActive:
                                                 root.activeRow === rowGroup.rowIndex
                                                 && root.activeCol === cell.colIndex
+
+                                            // Position first, then contents.
+                                            // Moving through a table by cell,
+                                            // the position is what tells a
+                                            // reader where they are; a bare
+                                            // cell value says nothing about
+                                            // which column it came from.
+                                            Accessible.role: rowGroup.isHeader
+                                                ? Accessible.ColumnHeader : Accessible.Cell
+                                            Accessible.name: rowGroup.isHeader
+                                                ? qsTr("Column %1 header")
+                                                    .arg(cell.colIndex + 1)
+                                                : qsTr("Row %1, column %2")
+                                                    .arg(rowGroup.rowIndex + 1)
+                                                    .arg(cell.colIndex + 1)
+                                            Accessible.description: cellContent.text
+                                            Accessible.selected:
+                                                root.cellSelected(rowGroup.rowIndex,
+                                                                  cell.colIndex)
+                                            Accessible.focused: cell.isActive
+
                                             readonly property int align: {
                                                 var a = root.grid.valid ? root.grid.alignments[cell.colIndex] : "none"
                                                 return a === "center" ? Text.AlignHCenter
@@ -1024,7 +1059,7 @@ BlockDelegateBase {
                                                 anchors.rightMargin: 4
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 text: root._lastSortAsc ? "▲" : "▼"
-                                                font.pixelSize: 8
+                                                font.pixelSize: Interface.px(8)
                                                 color: Theme.textFaint
                                             }
                                         }
@@ -1080,7 +1115,7 @@ BlockDelegateBase {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("%n more row(s) not shown", "", root.hiddenRows)
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textMuted
             }
             TableChipButton {
@@ -1535,9 +1570,48 @@ BlockDelegateBase {
                 x: root.columnLeft(grip.index + 1) - width / 2
                 width: 9
                 height: columnResizeLayer.height
-                color: Theme.accent
-                opacity: grip.live ? 0.45 : 0
-                Behavior on opacity { NumberAnimation { duration: 100 } }
+                // The tint is a child rather than this item's own fill: the
+                // grip is transparent until the pointer reaches it, and an
+                // opacity of zero on the item itself would take the keyboard
+                // focus ring down with it.
+                color: "transparent"
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: Theme.accent
+                    opacity: grip.live ? 0.45 : 0
+                    Behavior on opacity {
+                        NumberAnimation { duration: 100 * Theme.motionScale }
+                    }
+                }
+
+                // Announced as a grip that resizes one column, with the
+                // arrow keys standing in for the drag. Without this the only
+                // way to set a column width is a pointer gesture on a strip
+                // nine pixels wide.
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Grip
+                Accessible.name: qsTr("Width of column %1").arg(grip.index + 1)
+                Accessible.description: qsTr("Left and right arrows resize")
+                Keys.onPressed: function(event) {
+                    var step = (event.modifiers & Qt.ShiftModifier) ? 1 : 8
+                    if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+                        var delta = event.key === Qt.Key_Left ? -step : step
+                        root.commitColumnWidth(
+                            grip.index,
+                            Math.max(root.minColWidth,
+                                     Math.round(root.colWidthAt(grip.index) + delta)))
+                        event.accepted = true
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "transparent"
+                    visible: grip.activeFocus
+                    border.width: 2
+                    border.color: Theme.focusRing
+                }
 
                 MouseArea {
                     id: gripArea

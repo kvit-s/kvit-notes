@@ -32,7 +32,7 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     parent: Overlay.overlay
     width: Math.min(520, parent ? parent.width - 80 : 520)
-    padding: 8
+    padding: Interface.px(8)
     x: parent ? Math.round((parent.width - width) / 2) : 0
     y: parent ? Math.round(parent.height * 0.16) : 0
 
@@ -87,18 +87,18 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 8
+        radius: Interface.px(8)
     }
 
     contentItem: Column {
-        spacing: 6
+        spacing: Interface.px(6)
 
         TextField {
             id: queryField
             objectName: "quickSwitcherField"
             width: parent.width
             placeholderText: qsTr("Find or create a note…")
-            font.pixelSize: 14
+            font.pixelSize: Interface.px(14)
             color: Theme.textPrimary
             placeholderTextColor: Theme.textFaint
             background: Rectangle {
@@ -106,7 +106,7 @@ Popup {
                 border.color: queryField.activeFocus
                               ? Theme.accent : Theme.borderStrong
                 border.width: 1
-                radius: 6
+                radius: Interface.px(6)
             }
             onTextChanged: switcher.refilter()
             Keys.onDownPressed: switcher.highlightStep(1)
@@ -145,24 +145,24 @@ Popup {
                     required property var modelData
                     required property int index
                     width: resultsList.width
-                    height: 44
-                    radius: 6
+                    height: Interface.px(44)
+                    radius: Interface.px(6)
                     color: resultRow.index === switcher.highlightIndex
                            ? Theme.hoverTint : "transparent"
 
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
-                        anchors.leftMargin: 10
+                        anchors.leftMargin: Interface.px(10)
                         anchors.right: parent.right
-                        anchors.rightMargin: 10
-                        spacing: 1
+                        anchors.rightMargin: Interface.px(10)
+                        spacing: Interface.px(1)
 
                         Text {
                             width: parent.width
                             text: resultRow.modelData.title
                             color: Theme.textPrimary
-                            font.pixelSize: 14
+                            font.pixelSize: Interface.px(14)
                             elide: Text.ElideRight
                         }
                         Text {
@@ -170,11 +170,20 @@ Popup {
                             visible: resultRow.modelData.folder !== ""
                             text: resultRow.modelData.folder
                             color: Theme.textFaint
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             elide: Text.ElideRight
                         }
                     }
 
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: resultRow.modelData.title
+                    Accessible.description: resultRow.modelData.folder
+                    Accessible.selected:
+                        switcher.highlightIndex === resultRow.index
+                    Accessible.onPressAction: {
+                        switcher.highlightIndex = resultRow.index
+                        switcher.applyHighlighted()
+                    }
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
@@ -193,9 +202,9 @@ Popup {
                   : qsTr("No matches — Shift+Enter creates “%1”")
                         .arg(queryField.text.trim())
             color: Theme.textFaint
-            font.pixelSize: 12
+            font.pixelSize: Interface.body
             horizontalAlignment: Text.AlignHCenter
-            padding: 10
+            padding: Interface.px(10)
         }
     }
 }

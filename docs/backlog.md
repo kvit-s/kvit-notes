@@ -129,3 +129,49 @@ in its own process and leave the window alone:
 Several names can go on one command line, which keeps it to one window. A case
 that fails in a full run and passes that way is focus loss; a case that fails
 both ways is worth investigating.
+
+## Accessibility: what remains after the 2026-08-04 work
+
+The six phases of [accessibility.md](../accessibility.md) all landed. Every
+control the application draws now carries a role, a name and its state; the
+choice popups take the keyboard; every token pair holds its WCAG floor in all
+four themes; dialogs place and restore focus; the operating system's
+high-contrast and reduce-motion preferences are followed; and the chrome has
+its own size setting. Three things are deliberately not done, and they are
+here so nobody rediscovers them as defects.
+
+**Nobody has heard the application yet.** Every automated check asserts what
+is *supplied* to a screen reader — the role, the name, the state, the live
+announcement — because the development machine's WSL session has no
+accessibility bus, which `tests/test_accessibility.cpp` already notes. What
+Narrator, VoiceOver and Orca actually say is unverified. The three tours in
+[docs/qa-checklist.md](qa-checklist.md) are how that gets closed, and until
+one has been run the honest claim is "the tree is well-formed", not "the
+application reads well".
+
+**Two of the three platforms pick up a preference change late.** Windows
+announces a change to high contrast or animation with `WM_SETTINGCHANGE`, and
+`SystemAppearance` follows it live. macOS and Linux are read on demand
+instead: `defaults read` and `gsettings get` answer the question, but neither
+is subscribed to, so a change made while Kvit is running is picked up the next
+time something calls `refresh()` — which today means opening the Settings
+dialog. Subscribing properly would mean an Objective-C++ source for
+`NSWorkspace`'s notification (the build has no Objective-C++ at all today) and
+a GIO binding or a long-lived `gsettings monitor` process for Linux. Both are
+more machinery than the gap costs, and the gap is one dialog opening wide.
+
+**The macOS block-menu chord is unconfirmed.** The block context menu is bound
+to `Menu` and `Shift+F10`, and Mac keyboards have no `Menu` key. Whether
+`Shift+F10` reaches it on Apple hardware is a checklist item rather than a
+known answer; if it does not, that platform needs a chord that exists on its
+keyboards.
+
+**The Windows text-scale factor does not seed the interface size.** Windows
+has a text-size setting separate from display scaling (Settings →
+Accessibility → Text size), which Qt does not apply to a Qt Quick window.
+Reading it would be a reasonable default for `interface.fontSize` on a first
+run, rather than starting every Windows installation at 12 and making the
+person set it a second time. It is listed in accessibility.md Finding 4 as an
+optional extra and is not implemented, because seeding a setting from a value
+that cannot be read or verified on this machine risks getting the default
+wrong for every Windows user at once.

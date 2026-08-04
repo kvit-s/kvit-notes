@@ -40,7 +40,7 @@ Rectangle {
 
     visible: false
     z: 500
-    radius: 6
+    radius: Interface.px(6)
     color: Theme.popupBackground
     border.color: Theme.borderStrong
     border.width: 1
@@ -257,21 +257,43 @@ Rectangle {
         }
     }
 
+    // Every button on this bar is labelled with a glyph or a two-letter
+    // abbreviation, which Qt hands to a screen reader verbatim: "▲" is read
+    // as whatever the reader's dictionary calls that character, and "Aa" as
+    // two letters. `label` is the spoken name and the tooltip both, and the
+    // tooltip shows on keyboard focus so the explanation is not pointer-only
+    // (accessibility.md Finding 1).
+    component FindButton: ToolButton {
+        id: findButton
+        property string label: ""
+        implicitHeight: Interface.px(28)
+        Accessible.role: findButton.checkable ? Accessible.CheckBox
+                                              : Accessible.Button
+        Accessible.name: findButton.label !== "" ? findButton.label
+                                                 : findButton.text
+        Accessible.checkable: findButton.checkable
+        Accessible.checked: findButton.checked
+        ToolTip.text: findButton.label
+        ToolTip.visible: (findButton.hovered || findButton.activeFocus)
+                         && findButton.label !== ""
+        ToolTip.delay: findButton.activeFocus ? 0 : 500
+    }
+
     ColumnLayout {
         id: barColumn
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.margins: 6
-        spacing: 4
+        anchors.margins: Interface.px(6)
+        spacing: Interface.px(4)
 
         RowLayout {
-            spacing: 3
+            spacing: Interface.px(3)
 
             TextField {
                 id: queryField
                 objectName: "findQueryField"
-                Layout.preferredWidth: 190
-                Layout.preferredHeight: 28
+                Layout.preferredWidth: Interface.px(190)
+                Layout.preferredHeight: Interface.px(28)
                 placeholderText: qsTr("Find")
                 selectByMouse: true
                 color: DocumentSearch.patternError ? Theme.danger : Theme.textPrimary
@@ -286,7 +308,7 @@ Rectangle {
 
             Label {
                 objectName: "findCountLabel"
-                Layout.minimumWidth: 78
+                Layout.minimumWidth: Interface.px(78)
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
                 // matchCount/currentNumber/patternError all notify via
@@ -299,24 +321,24 @@ Rectangle {
                          : (DocumentSearch.query.length > 0
                             ? qsTr("No results") : ""))
                 color: DocumentSearch.patternError ? Theme.danger : Theme.textMuted
-                font.pixelSize: 12
+                font.pixelSize: Interface.body
             }
 
-            ToolButton {
+            FindButton {
                 objectName: "findPrevButton"
                 text: "▲"
-                implicitWidth: 28
-                implicitHeight: 28
-                font.pixelSize: 10
+                label: qsTr("Previous match")
+                implicitWidth: Interface.px(28)
+                font.pixelSize: Interface.caption
                 enabled: DocumentSearch.matchCount > 0
                 onClicked: findBar.stepPrevious()
             }
-            ToolButton {
+            FindButton {
                 objectName: "findNextButton"
                 text: "▼"
-                implicitWidth: 28
-                implicitHeight: 28
-                font.pixelSize: 10
+                label: qsTr("Next match")
+                implicitWidth: Interface.px(28)
+                font.pixelSize: Interface.caption
                 enabled: DocumentSearch.matchCount > 0
                 onClicked: findBar.stepNext()
             }
@@ -327,63 +349,63 @@ Rectangle {
             // through the settings store — inSelectionOnly deliberately
             // not: its domain is armed from the selection present when
             // the bar opens.
-            ToolButton {
+            FindButton {
                 id: caseButton
                 objectName: "findCaseButton"
                 text: "Aa"
+                label: qsTr("Match case")
                 checkable: true
-                implicitWidth: 30
-                implicitHeight: 28
-                font.pixelSize: 12
+                implicitWidth: Interface.px(30)
+                font.pixelSize: Interface.body
                 onToggled: findBar.scrollToCurrent()
                 onCheckedChanged:
                     AppSettings.setValue("find.caseSensitive", checked)
             }
-            ToolButton {
+            FindButton {
                 id: wordButton
                 objectName: "findWordButton"
                 text: "ab"
+                label: qsTr("Whole word only")
                 checkable: true
-                implicitWidth: 30
-                implicitHeight: 28
-                font.pixelSize: 12
+                implicitWidth: Interface.px(30)
+                font.pixelSize: Interface.body
                 font.underline: true
                 onToggled: findBar.scrollToCurrent()
                 onCheckedChanged:
                     AppSettings.setValue("find.wholeWord", checked)
             }
-            ToolButton {
+            FindButton {
                 id: regexButton
                 objectName: "findRegexButton"
                 text: ".*"
+                label: qsTr("Regular expression")
                 checkable: true
-                implicitWidth: 30
-                implicitHeight: 28
-                font.pixelSize: 12
+                implicitWidth: Interface.px(30)
+                font.pixelSize: Interface.body
                 onToggled: findBar.scrollToCurrent()
                 onCheckedChanged:
                     AppSettings.setValue("find.useRegex", checked)
             }
 
-            ToolButton {
+            FindButton {
                 objectName: "findCloseButton"
                 text: "✕"
-                implicitWidth: 28
-                implicitHeight: 28
-                font.pixelSize: 11
+                label: qsTr("Close find bar")
+                implicitWidth: Interface.px(28)
+                font.pixelSize: Interface.small
                 onClicked: findBar.close()
             }
         }
 
         RowLayout {
-            spacing: 3
+            spacing: Interface.px(3)
             visible: findBar.replaceMode
 
             TextField {
                 id: replaceField
                 objectName: "replaceField"
-                Layout.preferredWidth: 190
-                Layout.preferredHeight: 28
+                Layout.preferredWidth: Interface.px(190)
+                Layout.preferredHeight: Interface.px(28)
                 placeholderText: qsTr("Replace")
                 selectByMouse: true
                 Keys.onPressed: function(event) {
@@ -400,30 +422,30 @@ Rectangle {
             Button {
                 objectName: "replaceOneButton"
                 text: qsTr("Replace")
-                implicitHeight: 28
-                font.pixelSize: 12
+                implicitHeight: Interface.px(28)
+                font.pixelSize: Interface.body
                 enabled: DocumentSearch.matchCount > 0
                 onClicked: findBar.replaceOne()
             }
             Button {
                 objectName: "replaceAllButton"
                 text: qsTr("All")
-                implicitHeight: 28
-                font.pixelSize: 12
+                implicitHeight: Interface.px(28)
+                font.pixelSize: Interface.body
                 enabled: DocumentSearch.matchCount > 0
                 onClicked: findBar.requestReplaceAll()
             }
 
             // Preserve case (§7.2): adapt the replacement's casing to
             // each match's.
-            ToolButton {
+            FindButton {
                 id: preserveCaseButton
                 objectName: "preserveCaseButton"
                 text: "AB"
+                label: qsTr("Preserve case")
                 checkable: true
-                implicitWidth: 30
-                implicitHeight: 28
-                font.pixelSize: 12
+                implicitWidth: Interface.px(30)
+                font.pixelSize: Interface.body
                 onCheckedChanged:
                     AppSettings.setValue("find.preserveCase", checked)
             }
@@ -436,8 +458,8 @@ Rectangle {
                 text: qsTr("In selection")
                 checkable: true
                 visible: DocumentSearch.hasDomain
-                implicitHeight: 28
-                font.pixelSize: 11
+                implicitHeight: Interface.px(28)
+                font.pixelSize: Interface.small
             }
         }
     }
@@ -457,8 +479,8 @@ Rectangle {
         parent: findBar
         x: findBar.width - width
         y: findBar.height + 4
-        width: 480
-        padding: 10
+        width: Interface.px(480)
+        padding: Interface.px(10)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         // Qt leaves a popup outside its window unless it is given a
         // margin, and this panel is as tall as the replacement list is long.
@@ -474,7 +496,7 @@ Rectangle {
         }
 
         contentItem: ColumnLayout {
-            spacing: 8
+            spacing: Interface.px(8)
 
             Label {
                 objectName: "previewSummaryLabel"
@@ -487,7 +509,7 @@ Rectangle {
                         .arg(Object.keys(blocks).length)
                 }
                 font.bold: true
-                font.pixelSize: 13
+                font.pixelSize: Interface.strong
             }
 
             ListView {
@@ -495,7 +517,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(260, contentHeight)
                 clip: true
-                spacing: 2
+                spacing: Interface.px(2)
                 model: findBar.previewRows
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
@@ -508,48 +530,48 @@ Rectangle {
                     Label {
                         text: (previewRow.modelData.blockIndex + 1) + ":  "
                         color: Theme.textFaint
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                     }
                     Label {
                         text: previewRow.modelData.prefix
                         color: Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                     }
                     Label {
                         text: previewRow.modelData.matched
                         color: Theme.danger
                         font.strikeout: true
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                     }
                     Label {
                         text: previewRow.modelData.replacement
                         color: Theme.success
                         font.bold: true
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                     }
                     Label {
                         text: previewRow.modelData.suffix
                         color: Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Interface.body
                     }
                 }
             }
 
             RowLayout {
                 Layout.alignment: Qt.AlignRight
-                spacing: 6
+                spacing: Interface.px(6)
                 Button {
                     objectName: "previewCancelButton"
                     text: qsTr("Cancel")
-                    implicitHeight: 28
-                    font.pixelSize: 12
+                    implicitHeight: Interface.px(28)
+                    font.pixelSize: Interface.body
                     onClicked: previewPanel.close()
                 }
                 Button {
                     objectName: "previewConfirmButton"
                     text: qsTr("Replace All")
-                    implicitHeight: 28
-                    font.pixelSize: 12
+                    implicitHeight: Interface.px(28)
+                    font.pixelSize: Interface.body
                     highlighted: true
                     onClicked: findBar.confirmReplaceAll()
                 }

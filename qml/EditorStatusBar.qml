@@ -41,7 +41,7 @@ Rectangle {
     signal writingGoalRequested()
     signal createVaultRequested()
 
-    height: 28
+    height: Interface.px(28)
     color: Theme.footerBackground
 
     // Thousands separators, so a long document reads as 12,480 words rather
@@ -59,15 +59,15 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 1
+        height: Interface.px(1)
         color: Theme.border
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
-        spacing: 16
+        anchors.leftMargin: Interface.px(12)
+        anchors.rightMargin: Interface.px(12)
+        spacing: Interface.px(16)
 
         // Transient note: internal-link resolution
         // feedback etc. Takes no space when empty.
@@ -75,7 +75,7 @@ Rectangle {
             objectName: "transientStatusText"
             visible: statusBar.appWindow && statusBar.appWindow.transientStatus !== ""
             text: statusBar.appWindow ? statusBar.appWindow.transientStatus : ""
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: Theme.accent
         }
 
@@ -88,10 +88,21 @@ Rectangle {
             text: UpdateChecker.updateAvailable
                 ? qsTr("Update available: v%1").arg(UpdateChecker.latestVersion)
                 : ""
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             font.underline: updateNoticeMouse.containsMouse
             color: Theme.accent
 
+            Accessible.role: Accessible.Link
+            Accessible.name: UpdateChecker.updateAvailable
+                ? qsTr("Update available: version %1 — opens the release page")
+                    .arg(UpdateChecker.latestVersion)
+                : ""
+            Accessible.onPressAction: {
+                if (statusBar.appWindow)
+                    statusBar.appWindow.openLink(UpdateChecker.releaseUrl)
+                else
+                    Qt.openUrlExternally(UpdateChecker.releaseUrl)
+            }
             MouseArea {
                 id: updateNoticeMouse
                 anchors.fill: parent
@@ -118,10 +129,13 @@ Rectangle {
             visible: statusBar.appWindow && !statusBar.appWindow.collectionOpen
                      && DocumentManager.hasFile
             text: qsTr("Create vault from this folder…")
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             font.underline: createVaultMouse.containsMouse
             color: Theme.textMuted
 
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Create a vault from this folder")
+            Accessible.onPressAction: statusBar.createVaultRequested()
             MouseArea {
                 id: createVaultMouse
                 anchors.fill: parent
@@ -133,12 +147,12 @@ Rectangle {
 
         // Save state indicator with dot
         Row {
-            spacing: 6
+            spacing: Interface.px(6)
 
             Rectangle {
-                width: 8
-                height: 8
-                radius: 4
+                width: Interface.px(8)
+                height: Interface.px(8)
+                radius: Interface.px(4)
                 anchors.verticalCenter: parent.verticalCenter
                 color: DocumentManager && DocumentManager.isDirty ? Theme.warning : Theme.success
             }
@@ -146,7 +160,7 @@ Rectangle {
             Text {
                 objectName: "saveStateText"
                 text: DocumentManager && DocumentManager.isDirty ? "Unsaved" : "Saved"
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: Theme.textMuted
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -156,7 +170,7 @@ Rectangle {
         Text {
             objectName: "savedTimeText"
             visible: text !== ""
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: Theme.textFaint
 
             // Re-rendered every 30 s so "2 min ago" stays honest.
@@ -190,8 +204,8 @@ Rectangle {
 
         // Separator
         Rectangle {
-            width: 1
-            height: 12
+            width: Interface.px(1)
+            height: Interface.px(12)
             color: Theme.textDisabled
         }
 
@@ -200,7 +214,7 @@ Rectangle {
         Text {
             objectName: "cursorPositionText"
             visible: text !== ""
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: Theme.textMuted
             text: {
                 var target = statusBar.targetBlock
@@ -215,8 +229,8 @@ Rectangle {
 
         // Separator
         Rectangle {
-            width: 1
-            height: 12
+            width: Interface.px(1)
+            height: Interface.px(12)
             color: Theme.textDisabled
         }
 
@@ -261,7 +275,7 @@ Rectangle {
                     default: return "Paragraph"
                 }
             }
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: Theme.textMuted
 
             Connections {
@@ -277,8 +291,8 @@ Rectangle {
 
         // Separator
         Rectangle {
-            width: 1
-            height: 12
+            width: Interface.px(1)
+            height: Interface.px(12)
             color: Theme.textDisabled
         }
 
@@ -291,14 +305,14 @@ Rectangle {
                   ? DocumentManager.currentFilePath : qsTr("Not saved to disk")
             elide: Text.ElideMiddle
             Layout.fillWidth: true
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: Theme.textMuted
         }
 
         // Separator
         Rectangle {
-            width: 1
-            height: 12
+            width: Interface.px(1)
+            height: Interface.px(12)
             color: Theme.textDisabled
         }
 
@@ -307,14 +321,14 @@ Rectangle {
             objectName: "blockCountText"
             text: statusBar.formatCount(BlockModel ? BlockModel.count : 0)
                   + " blocks"
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: Theme.textMuted
         }
 
         // Separator
         Rectangle {
-            width: 1
-            height: 12
+            width: Interface.px(1)
+            height: Interface.px(12)
             color: Theme.textDisabled
         }
 
@@ -453,8 +467,15 @@ Rectangle {
                   + (docCounter.counts.words === 1 ? qsTr(" word")
                                                    : qsTr(" words"))
                   + (docCounter.counts.sel ? qsTr(" selected") : "")
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: docCounter.counts.sel ? Theme.accent : Theme.textMuted
+            Accessible.role: Accessible.Button
+            Accessible.name: wordCountText.text
+            Accessible.description: qsTr("Opens the document statistics")
+            Accessible.onPressAction: {
+                statusBar.statisticsPanel.parent = wordCountText
+                statusBar.statisticsPanel.open()
+            }
             MouseArea {
                 anchors.fill: parent
                 anchors.margins: -4
@@ -475,8 +496,8 @@ Rectangle {
 
         // Separator
         Rectangle {
-            width: 1
-            height: 12
+            width: Interface.px(1)
+            height: Interface.px(12)
             color: Theme.textDisabled
         }
 
@@ -484,7 +505,7 @@ Rectangle {
         Text {
             objectName: "charCountText"
             text: statusBar.formatCount(docCounter.counts.chars) + " chars"
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: docCounter.counts.sel ? Theme.accent : Theme.textMuted
         }
 
@@ -492,11 +513,12 @@ Rectangle {
         // target. Only in collection mode (the goal is front-matter).
         // Clicking sets or clears the goal.
         Item {
+            id: goalRing
             objectName: "goalRing"
             visible: statusBar.appWindow && statusBar.appWindow.collectionOpen
                      && statusBar.appWindow.currentNoteRelPath !== ""
             width: visible ? 60 : 0
-            height: 18
+            height: Interface.px(18)
             Layout.alignment: Qt.AlignVCenter
 
             property int goal: {
@@ -541,15 +563,23 @@ Rectangle {
             }
             Text {
                 anchors.left: ringCanvas.right
-                anchors.leftMargin: 4
+                anchors.leftMargin: Interface.px(4)
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.goal > 0
                     ? (Math.round(parent.fraction * 100) + "%")
                     : qsTr("goal")
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: parent.fraction >= 1 && parent.goal > 0
                     ? Theme.success : Theme.textMuted
             }
+            // The ring is a drawing, and the label beside it is a bare
+            // percentage; neither says what it is a percentage of.
+            Accessible.role: Accessible.Button
+            Accessible.name: goalRing.goal > 0
+                ? qsTr("Writing goal: %1 of %2 words")
+                    .arg(goalRing.words).arg(goalRing.goal)
+                : qsTr("Set a writing goal")
+            Accessible.onPressAction: statusBar.writingGoalRequested()
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor

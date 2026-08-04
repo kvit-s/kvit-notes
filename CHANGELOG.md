@@ -8,6 +8,20 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Colours across all four themes now meet WCAG 2.1 level AA: 4.5:1 for text
+  and 3:1 for the parts of a control that show where it is and what state it
+  is in. Fourteen token pairs were below the line, concentrated in the light
+  and sepia themes — faint text, code comments and strings, warning and
+  success text, the outline of an unchecked to-do box, the bar beside a quote,
+  list bullets. Each moved to the nearest value of the same hue that clears
+  the floor, so the appearance shifts as little as the requirement allows.
+
+- The label drawn on an accent-filled control is now computed from the accent
+  rather than stored as white. A custom accent chosen from Settings therefore
+  gets a label that suits it, where a pale one used to produce white text on a
+  pale fill; the accent picker also warns when the chosen colour is too faint
+  against the page.
+
 - On macOS the File and View menus are in the system menu bar at the top of
   the screen, where a Mac application's menus belong, rather than on buttons
   inside the window; "Settings…" and the quit command appear in the
@@ -33,6 +47,41 @@ uses [Semantic Versioning](https://semver.org/).
   asked.
 
 ### Added
+
+- Every control the application draws itself now reaches a screen reader with
+  a role, a name and its state. The buttons in a block's gutter, the find
+  bar's arrows and toggles, the formatting bar, the task board's card
+  controls, the table's chips and column grips, and the to-do checkbox used to
+  be rectangles with a tap handler on them, which is nothing at all to an
+  assistive technology and unreachable without a pointer. A button labelled
+  with a glyph now says what it does rather than reading out the character it
+  draws, and a to-do announces whether it is done.
+
+- The colour, callout-type, divider-style, image-effects and date pickers take
+  the keyboard. Each one announces itself when it opens, moves between choices
+  with the arrow keys or Tab, names each choice ("Red", "Warning", "Full
+  width") instead of reporting a hex value, takes one with Return, closes on
+  Escape, and hands the keyboard back to whatever opened it. Text colour and
+  callout colour previously had no keyboard route of any kind.
+
+- An **interface size** setting on the Appearance tab, sizing the sidebar,
+  note list, toolbar, status bar, dialogs and block furniture. It is separate
+  from the editor font, which sizes the text of a note: enlarging one no
+  longer means enlarging the other, and operating-system display scaling
+  remains the way to enlarge both at once.
+
+- **Motion** is now a three-way setting — reduce it, leave it, or follow what
+  the desktop asks for, which is the default for a new installation. An
+  installation that had already chosen keeps its choice.
+
+- The operating system's high-contrast mode is followed. With the theme left
+  on "System", turning on High Contrast in Windows, Increase Contrast on
+  macOS, or GNOME's high-contrast setting resolves the application to its own
+  high-contrast theme; an explicit theme choice still wins.
+
+- A dialog now opens with the keyboard on the control it is about, and hands
+  it back to whatever opened it when it closes. A dialog that is a question
+  and a few buttons opens on the one that changes nothing.
 
 - Menu access keys on Windows and Linux. Every command in the File, View and
   Insert menus, and in each of the twelve menus the pointer opens, now has one

@@ -30,7 +30,7 @@ Popup {
     property int hoverCols: defaultCols
     property int hoverRows: defaultRows
 
-    padding: 8
+    padding: Interface.px(8)
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -44,13 +44,34 @@ Popup {
         color: Theme.popupBackground
         border.color: Theme.borderStrong
         border.width: 1
-        radius: 6
+        radius: Interface.px(6)
     }
 
     contentItem: Column {
         id: contentRoot
         focus: true
-        spacing: 6
+        spacing: Interface.px(6)
+
+        // The grid is a picture: 64 identical squares, some tinted. Its name
+        // says what the popup is, and the size under the caret is spoken as
+        // it changes — arrow keys move a tint nobody using a screen reader
+        // can see (accessibility.md Finding 2).
+        Accessible.role: Accessible.Dialog
+        Accessible.name: qsTr("Table size")
+        Accessible.description: qsTr("%1 columns by %2 rows")
+                                .arg(root.hoverCols).arg(root.hoverRows)
+
+        Connections {
+            target: root
+            function onHoverColsChanged() { contentRoot.announceSize() }
+            function onHoverRowsChanged() { contentRoot.announceSize() }
+        }
+        function announceSize() {
+            if (root.opened)
+                A11y.announce(qsTr("%1 columns by %2 rows")
+                              .arg(root.hoverCols).arg(root.hoverRows))
+        }
+
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 root.sizePicked(root.hoverCols, root.hoverRows)
@@ -73,7 +94,7 @@ Popup {
         Grid {
             id: pickerGrid
             columns: root.maxCols
-            spacing: 3
+            spacing: Interface.px(3)
             Repeater {
                 model: root.maxCols * root.maxRows
                 delegate: Rectangle {
@@ -84,7 +105,7 @@ Popup {
                     color: (c < root.hoverCols && r < root.hoverRows)
                         ? Theme.accent : Theme.chipBackground
                     border.width: 1
-                    border.color: Theme.border
+                    border.color: Theme.borderStrong
                     HoverHandler {
                         onHoveredChanged: if (hovered) {
                             root.hoverCols = parent.c + 1
@@ -104,7 +125,7 @@ Popup {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.hoverCols + " × " + root.hoverRows
             color: Theme.textMuted
-            font.pixelSize: 12
+            font.pixelSize: Interface.body
         }
     }
 }

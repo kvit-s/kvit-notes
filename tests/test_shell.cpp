@@ -3,10 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest>
 
+#include <QAccessible>
 #include <QFile>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QQmlContext>
 #include <QRegularExpression>
 #include <QTemporaryDir>
@@ -676,6 +678,49 @@ private slots:
                  QStringLiteral("Not saved to disk"));
     }
 
+    // The accessibility tree the shipped shell actually serves, walked from
+    // its root (accessibility.md, "Tests and gates to add").
+    //
+    // tools/check-accessible-names.py reads the QML and catches a control
+    // that was written without a name. This catches what reading the source
+    // cannot: a name bound to an expression that evaluates to nothing — a
+    // model role that is empty for this row, a `tip` nobody set at the call
+    // site, a translation that came back blank. Both are needed, and neither
+    // subsumes the other.
+    //
+    // Only nodes a person can operate are held to it. A layout item or a
+    // decorative rectangle may legitimately have no name; a button, a
+    // checkbox, a menu button or a link that reports one is a control an
+    // assistive technology can find and cannot describe.
+    void everyOperableNodeInTheAccessibilityTreeHasAName()
+    {
+        QAccessible::setActive(true);
+        QVERIFY(!m_engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(m_engine.rootObjects().first());
+        QVERIFY2(window, "the shell's root is the window");
+        QAccessibleInterface *root =
+            QAccessible::queryAccessibleInterface(window);
+        QVERIFY2(root, "the window publishes an accessibility interface");
+
+        QStringList unnamed;
+        int operable = 0;
+        walkForNames(root, QString(), &unnamed, &operable);
+        // Without this the case passes on an empty tree, which is exactly
+        // what a broken walk or an inactive accessibility layer produces.
+        // The shipped shell shows a toolbar, a status bar and their buttons
+        // before anything is opened; twenty is well under that and well over
+        // nothing.
+        QVERIFY2(operable >= 20,
+                 qPrintable(QStringLiteral("the walk found only %1 operable "
+                                           "node(s); the tree is not being "
+                                           "served").arg(operable)));
+        QVERIFY2(unnamed.isEmpty(),
+                 qPrintable(QStringLiteral(
+                     "%1 operable node(s) in the accessibility tree report no "
+                     "name:\n  %2")
+                     .arg(unnamed.size()).arg(unnamed.join(QStringLiteral("\n  ")))));
+    }
+
     // Declared last on purpose: QtTest runs test functions in declaration
     // order, so this sees everything the cases above provoked.
     //
@@ -697,6 +742,62 @@ private slots:
     }
 
 private:
+    // The roles whose whole purpose is to be operated. A node with one of
+    // these and no name is unusable through an assistive technology: it can
+    // be reached and activated, and there is nothing to say about it first.
+    static bool isOperable(QAccessible::Role role)
+    {
+        switch (role) {
+        case QAccessible::Button:
+        case QAccessible::ButtonMenu:
+        case QAccessible::CheckBox:
+        case QAccessible::RadioButton:
+        case QAccessible::Link:
+        case QAccessible::MenuItem:
+        case QAccessible::Slider:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    // Depth-first from `node`, collecting a description of every operable
+    // node with an empty name. `path` accumulates the named ancestors, so a
+    // failure says where in the window the nameless control is rather than
+    // only that one exists.
+    static void walkForNames(QAccessibleInterface *node, const QString &path,
+                             QStringList *unnamed, int *operable)
+    {
+        if (!node || !node->isValid())
+            return;
+        const QAccessible::State state = node->state();
+        // An invisible node is one the window is not currently showing — a
+        // closed dialog, a pane that is switched off. It will be walked when
+        // whatever shows it does.
+        if (state.invisible)
+            return;
+
+        const QString name = node->text(QAccessible::Name).trimmed();
+        const QString here = name.isEmpty()
+            ? path
+            : (path.isEmpty() ? name : path + QStringLiteral(" > ") + name);
+
+        if (isOperable(node->role()))
+            ++*operable;
+        if (name.isEmpty() && isOperable(node->role())) {
+            unnamed->append(
+                QStringLiteral("%1 (role %2) under \"%3\"")
+                    .arg(node->object() ? node->object()->objectName()
+                                        : QStringLiteral("<no objectName>"))
+                    .arg(int(node->role()))
+                    .arg(path.isEmpty() ? QStringLiteral("the window") : path));
+        }
+
+        const int count = node->childCount();
+        for (int i = 0; i < count; ++i)
+            walkForNames(node->child(i), here, unnamed, operable);
+    }
+
     QTemporaryDir m_dir;
     // The context outlives the engine, as it does in KvitApplication.
     std::unique_ptr<AppContext> m_context;

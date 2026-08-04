@@ -29,7 +29,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: 1
+        width: Interface.px(1)
         color: Theme.border
     }
 
@@ -45,13 +45,13 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 1
+        anchors.leftMargin: Interface.px(1)
         spacing: 0
 
         // Header: title + level-filter menu.
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 32
+            Layout.preferredHeight: Interface.px(32)
             color: Theme.panelBackground
             Rectangle {
                 anchors.bottom: parent.bottom
@@ -59,11 +59,11 @@ Rectangle {
             }
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 4
+                anchors.leftMargin: Interface.px(10)
+                anchors.rightMargin: Interface.px(4)
                 Text {
                     text: qsTr("Outline")
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     font.bold: true
                     color: Theme.textSecondary
                     Layout.fillWidth: true
@@ -71,10 +71,10 @@ Rectangle {
                 ToolButton {
                     objectName: "outlineLevelButton"
                     text: "H…"
-                    font.pixelSize: 11
+                    font.pixelSize: Interface.small
                     focusPolicy: Qt.NoFocus
-                    implicitWidth: 30
-                    ToolTip.visible: hovered
+                    implicitWidth: Interface.px(30)
+                    ToolTip.visible: hovered || visualFocus
                     ToolTip.text: qsTr("Heading levels shown")
                     onClicked: levelMenu.open()
                     Menu {
@@ -105,10 +105,11 @@ Rectangle {
                 ToolButton {
                     objectName: "outlineCloseButton"
                     text: "✕"
-                    font.pixelSize: 11
+                    Accessible.name: qsTr("Hide outline")
+                    font.pixelSize: Interface.small
                     focusPolicy: Qt.NoFocus
-                    implicitWidth: 26
-                    ToolTip.visible: hovered
+                    implicitWidth: Interface.px(26)
+                    ToolTip.visible: hovered || visualFocus
                     ToolTip.text: qsTr("Hide outline")
                     onClicked: if (outline.appWindow) outline.appWindow.outlineVisible = false
                 }
@@ -119,10 +120,10 @@ Rectangle {
         Text {
             visible: !DocumentOutline.hasHeadings
             Layout.fillWidth: true
-            Layout.margins: 12
+            Layout.margins: Interface.px(12)
             text: qsTr("No headings yet. Add a heading to build the outline.")
             wrapMode: Text.WordWrap
-            font.pixelSize: 11
+            font.pixelSize: Interface.small
             color: Theme.textFaint
         }
 
@@ -152,7 +153,7 @@ Rectangle {
                 required property bool hasChildren
                 required property bool isCurrent
                 width: outlineList.width
-                height: 26
+                height: Interface.px(26)
                 color: row.isCurrent ? Theme.selectionTint
                                  : (hover.hovered ? Theme.hoverTint
                                                   : "transparent")
@@ -168,18 +169,18 @@ Rectangle {
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 8 + row.depth * 14
-                    anchors.rightMargin: 6
-                    spacing: 2
+                    anchors.rightMargin: Interface.px(6)
+                    spacing: Interface.px(2)
 
                     // Collapse chevron (only for headings with a subtree).
                     ToolButton {
                         objectName: "outlineChevron"
                         visible: row.hasChildren
-                        implicitWidth: 16
-                        implicitHeight: 16
+                        implicitWidth: Interface.px(16)
+                        implicitHeight: Interface.px(16)
                         focusPolicy: Qt.NoFocus
                         text: row.collapsed ? "▸" : "▾"
-                        font.pixelSize: 10
+                        font.pixelSize: Interface.caption
                         onClicked: DocumentOutline.toggleCollapsed(row.index)
                     }
                     // Indent placeholder when there is no chevron, so text
@@ -199,7 +200,15 @@ Rectangle {
                     }
                 }
 
-                HoverHandler { id: hover }
+                Accessible.role: Accessible.ListItem
+                Accessible.name: qsTr("Heading level %1: %2")
+                                 .arg(row.level).arg(row.text)
+                Accessible.selected: row.isCurrent
+                Accessible.onPressAction: {
+                    if (outline.appWindow)
+                        outline.appWindow.scrollToBlock(row.blockIndex)
+                }
+                HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
                     onTapped: {
                         if (outline.appWindow)

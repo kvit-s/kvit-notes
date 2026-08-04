@@ -45,7 +45,7 @@ Item {
         objectName: "dragProxy"
         visible: layer.dragState.active && layer.dragState.isMulti
         z: 1000
-        width: 300
+        width: Interface.px(300)
         height: proxyColumn.height
         opacity: 0.85
 
@@ -100,7 +100,7 @@ Item {
 
         Column {
             id: proxyColumn
-            spacing: 2
+            spacing: Interface.px(2)
             Repeater {
                 model: proxyImages
                 Image {
@@ -122,15 +122,15 @@ Item {
             anchors.top: proxyColumn.top
             anchors.leftMargin: -12
             anchors.topMargin: -8
-            width: 22
-            height: 22
-            radius: 11
+            width: Interface.px(22)
+            height: Interface.px(22)
+            radius: Interface.px(11)
             color: Theme.accent
             Text {
                 anchors.centerIn: parent
                 text: layer.dragState.dragCount
                 color: Theme.onAccent
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 font.bold: true
             }
         }
@@ -147,7 +147,7 @@ Item {
                  && layer.dragState.indicatorGap >= 0
         x: 40
         width: layer.listView.width - 48
-        height: 3
+        height: Interface.px(3)
         radius: 1.5
         color: Theme.accent
         y: {

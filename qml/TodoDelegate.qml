@@ -57,7 +57,11 @@ EditableBlock {
     leadingChrome: Component {
         Item {
             implicitWidth: Math.max(20, checkbox.width + 4)
-            Rectangle {
+            // Deliberately not `checkable`. An AbstractButton's own
+            // `checked` flips on click, which would break the binding to the
+            // model the first time anyone pressed it; the model stays the one
+            // source of truth and the accessible state is published from it.
+            IconButton {
                 id: checkbox
                 objectName: "todoCheckbox"
                 // Sized from the content font and centred on the first text
@@ -68,21 +72,29 @@ EditableBlock {
                 y: root.contentTextTop
                    + Math.round((root.contentAscent - height) / 2)
                 anchors.horizontalCenter: parent.horizontalCenter
-                radius: 3
-                color: root.checked ? Theme.accent : "transparent"
-                border.color: root.checked ? Theme.accent : Theme.borderStrong
-                border.width: 1.5
-                Text {
-                    anchors.centerIn: parent
+
+                label: qsTr("Done")
+                help: qsTr("Done (Ctrl+Return)")
+                Accessible.role: Accessible.CheckBox
+                Accessible.checkable: true
+                Accessible.checked: root.checked
+                Accessible.onToggleAction: checkbox.clicked()
+                onClicked: BlockModel.setChecked(root.index, !root.checked)
+
+                background: Rectangle {
+                    radius: 3
+                    color: root.checked ? Theme.accent : "transparent"
+                    border.color: checkbox.activeFocus ? Theme.focusRing
+                        : root.checked ? Theme.accent : Theme.borderStrong
+                    border.width: checkbox.activeFocus ? 2 : 1.5
+                }
+                contentItem: Text {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     visible: root.checked
                     text: "✓"; color: Theme.onAccent
                     font.pixelSize: Math.round(checkbox.height * 0.7)
                     font.bold: true
-                }
-                MouseArea {
-                    anchors.fill: parent; anchors.margins: -4
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: BlockModel.setChecked(root.index, !root.checked)
                 }
             }
         }
@@ -115,53 +127,93 @@ EditableBlock {
                         text: root.progress.done + "/" + root.progress.total
                         color: root.progress.done === root.progress.total
                                ? Theme.success : Theme.textMuted
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                     }
                 }
 
-                // Priority flag (click cycles none→low→med→high).
-                Rectangle {
+                // Priority flag (click cycles none→low→med→high). The glyph
+                // is a triangle count, which says nothing out loud, so the
+                // name spells the level out and says what pressing does.
+                IconButton {
+                    id: priorityChip
                     objectName: "todoPriorityChip"
-                    visible: true
-                    height: 18; width: 24; radius: 4
+                    height: 18; width: 24
                     anchors.verticalCenter: parent.verticalCenter
-                    color: root.meta.priority !== 0 ? Qt.alpha(prioColor, 0.18)
-                                                    : Theme.chipBackground
-                    property color prioColor: root.meta.priority === 2 ? Theme.danger
+                    readonly property color prioColor:
+                          root.meta.priority === 2 ? Theme.danger
                         : root.meta.priority === 1 ? Theme.warning
                         : root.meta.priority === -1 ? Theme.accent : Theme.textFaint
-                    Text {
-                        anchors.centerIn: parent
+                    readonly property string levelName:
+                          root.meta.priority === 2 ? qsTr("high")
+                        : root.meta.priority === 1 ? qsTr("medium")
+                        : root.meta.priority === -1 ? qsTr("low") : qsTr("none")
+                    label: qsTr("Priority: %1").arg(levelName)
+                    help: qsTr("Priority: %1 — press to cycle").arg(levelName)
+                    onClicked: root.cyclePriority()
+                    background: Rectangle {
+                        radius: 4
+                        color: root.meta.priority !== 0
+                               ? Qt.alpha(priorityChip.prioColor, 0.18)
+                               : Theme.chipBackground
+                        border.width: priorityChip.activeFocus ? 2 : 0
+                        border.color: Theme.focusRing
+                    }
+                    contentItem: Text {
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                         text: root.meta.priority === 2 ? "▲▲"
                             : root.meta.priority === 1 ? "▲"
                             : root.meta.priority === -1 ? "▼" : "–"
-                        color: parent.prioColor
-                        font.pixelSize: 10
+                        color: priorityChip.prioColor
+                        font.pixelSize: Interface.caption
                     }
-                    TapHandler { onTapped: root.cyclePriority() }
                 }
 
                 // Due-date chip (click opens the picker; red when overdue).
-                Rectangle {
+                IconButton {
+                    id: dueChip
                     objectName: "todoDueChip"
                     height: 18
-                    width: dueText.implicitWidth + 16
-                    radius: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: root.overdue ? Qt.alpha(Theme.danger, 0.18)
-                         : root.meta.due !== "" ? Theme.chipBackground : "transparent"
-                    border.width: root.meta.due === "" ? 1 : 0
-                    border.color: Theme.border
-                    Text {
-                        id: dueText
-                        anchors.centerIn: parent
-                        text: root.meta.due !== ""
-                              ? "◷ " + Qt.formatDate(new Date(root.meta.due), "MMM d")
-                              : "◷ Set date"
-                        color: root.overdue ? Theme.danger : Theme.textMuted
-                        font.pixelSize: 11
+                    // Measured off to the side rather than read back off the
+                    // content item: a control sizes its content item from its
+                    // own width, so taking the width from the content item
+                    // would close the loop.
+                    readonly property string chipText: root.meta.due !== ""
+                        ? "◷ " + Qt.formatDate(new Date(root.meta.due), "MMM d")
+                        : "◷ " + qsTr("Set date")
+                    TextMetrics {
+                        id: dueMetrics
+                        font.pixelSize: Interface.small
+                        text: dueChip.chipText
                     }
-                    TapHandler { onTapped: dueDatePopup.open() }
+                    width: dueMetrics.width + 16
+                    anchors.verticalCenter: parent.verticalCenter
+                    label: root.meta.due !== ""
+                           ? qsTr("Due %1").arg(
+                               Qt.formatDate(new Date(root.meta.due), "MMMM d"))
+                           : qsTr("Set a due date")
+                    help: root.overdue
+                          ? qsTr("Overdue: %1").arg(
+                              Qt.formatDate(new Date(root.meta.due), "MMMM d"))
+                          : dueChip.label
+                    onClicked: dueDatePopup.open()
+                    background: Rectangle {
+                        radius: 4
+                        color: root.overdue ? Qt.alpha(Theme.danger, 0.18)
+                             : root.meta.due !== "" ? Theme.chipBackground
+                                                    : "transparent"
+                        border.width: dueChip.activeFocus ? 2
+                                    : root.meta.due === "" ? 1 : 0
+                        border.color: dueChip.activeFocus ? Theme.focusRing
+                                                          : Theme.borderStrong
+                    }
+                    contentItem: Text {
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: dueChip.chipText
+                        color: root.overdue ? Theme.danger : Theme.textMuted
+                        font.pixelSize: Interface.small
+                    }
                 }
             }
 
@@ -195,7 +247,7 @@ EditableBlock {
                             horizontalAlignment: Text.AlignHCenter
                             anchors.verticalCenter: parent.verticalCenter
                             text: Qt.formatDate(dueDatePopup.shown, "MMMM yyyy")
-                            color: Theme.textPrimary; font.pixelSize: 12
+                            color: Theme.textPrimary; font.pixelSize: Interface.body
                         }
                         Button { text: "›"; flat: true; focusPolicy: Qt.NoFocus
                             onClicked: dueDatePopup.shown = new Date(
@@ -213,7 +265,7 @@ EditableBlock {
                             text: model.day
                             color: model.month === monthGrid.month
                                    ? Theme.textPrimary : Theme.textDisabled
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             opacity: model.month === monthGrid.month ? 1 : 0.5
                         }
                         onClicked: function(date) {
@@ -224,7 +276,7 @@ EditableBlock {
                     Button {
                         text: qsTr("Clear date")
                         focusPolicy: Qt.NoFocus
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         visible: root.meta.due !== ""
                         onClicked: { root.setDue(""); dueDatePopup.close() }
                     }

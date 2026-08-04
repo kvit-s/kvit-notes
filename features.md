@@ -1047,16 +1047,32 @@ Display when cursor moves into "information":
 - Underlined menu access keys on Windows and Linux (§9.6.1)
 
 ### 14.2 Screen Reader Support
-- ARIA labels on interactive elements
-- Semantic HTML structure
+- A role and a name on every interactive element, published through
+  `QAccessible`. Narrator and NVDA read that over UI Automation, VoiceOver over
+  NSAccessibility, and Orca over AT-SPI. A control drawn as a rectangle
+  with a tap handler on it carries them explicitly; `qml/IconButton.qml` is the
+  shared component that supplies them for a glyph-labelled button.
+- State published alongside the name where a control has one: checked on a
+  to-do and on every toggle, selected on a list row, the current value on a
+  slider.
 - Alt text for images
 - Announce dynamic content changes
 
 ### 14.3 Visual Accessibility
-- High contrast theme option
-- Adjustable font sizes
-- Reduced motion option
-- Sufficient color contrast ratios
+- High contrast theme option, followed automatically when the operating system
+  is in a high-contrast mode and no theme has been chosen explicitly
+- Adjustable font sizes: the editor font (§10.2) sizes the document, and a
+  separate interface size sizes the sidebar, note list, toolbar, status bar,
+  dialogs and block furniture
+- Reduced motion: on, off, or following the operating system's own setting
+  (the default)
+- Colour contrast to WCAG 2.1 level AA: 4.5:1 for text, and 3:1 for the parts
+  of a control that show where it is and what state it is in. The contrast
+  floors in `tests/test_theme.cpp` hold both across all four themes.
+
+`accessibility.md` is the full account: what the application supplies, how each
+claim here is verified, and the manual screen-reader checks no automated suite
+in this repository can perform.
 
 ---
 

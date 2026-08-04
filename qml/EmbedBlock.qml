@@ -309,6 +309,10 @@ BlockDelegateBase {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
+        // Not an element: this covers the whole block so the §3.1
+        // modifier-click gestures work on it, and the block itself is what a
+        // screen reader should find here (accessibility.md Finding 1).
+        Accessible.ignored: true
         onClicked: function(mouse) {
             // A sweep over the card ends with the button coming up over this
             // catcher, and a MouseArea's onClicked fires on release however
@@ -401,14 +405,14 @@ BlockDelegateBase {
                     anchors.centerIn: parent
                     width: 30; height: 30; radius: 15
                     color: "#cc000000"
-                    Text { anchors.centerIn: parent; text: "▶"; color: "white"; font.pixelSize: 14 }
+                    Text { anchors.centerIn: parent; text: "▶"; color: "white"; font.pixelSize: Interface.px(14) }
                 }
                 Text {
                     visible: !root.loaded || !root.meta.image
                     anchors.centerIn: parent
                     text: root.isVideo ? "▶" : "🔗"
                     color: Theme.textFaint
-                    font.pixelSize: 22
+                    font.pixelSize: Interface.px(22)
                 }
             }
 
@@ -425,7 +429,7 @@ BlockDelegateBase {
                     elide: Text.ElideRight
                     maximumLineCount: 2
                     wrapMode: Text.WordWrap
-                    font.pixelSize: 14
+                    font.pixelSize: Interface.px(14)
                     font.bold: true
                     color: Theme.textPrimary
                 }
@@ -438,7 +442,7 @@ BlockDelegateBase {
                     elide: Text.ElideRight
                     maximumLineCount: 2
                     wrapMode: Text.WordWrap
-                    font.pixelSize: 12
+                    font.pixelSize: Interface.body
                     color: Theme.textMuted
                 }
                 // The inert card's affordance. Until this is clicked the block
@@ -454,15 +458,19 @@ BlockDelegateBase {
                         radius: 4
                         visible: root.canOfferLoad
                         color: Theme.hoverTint
-                        border.color: loadArea.containsMouse ? Theme.accent : Theme.border
+                        border.color: loadArea.containsMouse ? Theme.accent : Theme.borderStrong
                         Text {
                             id: loadLabel
                             anchors.centerIn: parent
                             text: qsTr("Load preview")
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: loadArea.containsMouse ? Theme.textPrimary
                                                           : Theme.textMuted
                         }
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Load the preview for %1")
+                                         .arg(root.embedUrl)
+                        Accessible.onPressAction: root.loadPreview()
                         MouseArea {
                             id: loadArea
                             anchors.fill: parent
@@ -476,7 +484,7 @@ BlockDelegateBase {
                         text: root.canOfferLoad
                             ? qsTr("· not loaded")
                             : qsTr("· %1").arg(EgressPolicy.refusalReason(root.embedUrl))
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                     }
                 }
@@ -500,13 +508,13 @@ BlockDelegateBase {
                             var m = u.match(/^https?:\/\/([^\/]+)/)
                             return m ? m[1] : u
                         }
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                     }
                     SelectableText {
                         visible: root.failed
                         text: qsTr("· preview unavailable")
-                        font.pixelSize: 11
+                        font.pixelSize: Interface.small
                         color: Theme.textFaint
                     }
                     // The failed card's way back. Without it the only cure for
@@ -523,15 +531,18 @@ BlockDelegateBase {
                                                        : "transparent"
                         border.width: 1
                         border.color: retryArea.containsMouse ? Theme.accent
-                                                              : Theme.border
+                                                              : Theme.borderStrong
                         Text {
                             id: retryLabel
                             anchors.centerIn: parent
                             text: qsTr("Try again")
-                            font.pixelSize: 11
+                            font.pixelSize: Interface.small
                             color: retryArea.containsMouse ? Theme.textPrimary
                                                            : Theme.textMuted
                         }
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Try loading the preview again")
+                        Accessible.onPressAction: root.retryPreview()
                         MouseArea {
                             id: retryArea
                             anchors.fill: parent
@@ -551,6 +562,9 @@ BlockDelegateBase {
         // so sweeping the title would also open the page. A TapHandler does
         // neither, and modifier-clicks still reach the delegate's selection
         // MouseArea underneath.
+        Accessible.role: Accessible.Link
+        Accessible.name: qsTr("Open %1").arg(root.embedUrl)
+        Accessible.onPressAction: root.openEmbed()
         HoverHandler {
             id: cardHover
             cursorShape: Qt.PointingHandCursor
@@ -606,18 +620,23 @@ BlockDelegateBase {
             color: editArea.containsMouse ? Theme.hoverTint
                                           : Theme.panelBackground
             border.width: 1
-            border.color: editArea.containsMouse ? Theme.accent : Theme.border
+            border.color: editArea.containsMouse ? Theme.accent : Theme.borderStrong
             opacity: (root.isHovered || root.isFocused) ? 1 : 0
             visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: 120 } }
+            Behavior on opacity {
+                NumberAnimation { duration: 120 * Theme.motionScale }
+            }
             Text {
                 id: editLabel
                 anchors.centerIn: parent
                 text: qsTr("Edit URL")
-                font.pixelSize: 11
+                font.pixelSize: Interface.small
                 color: editArea.containsMouse ? Theme.textPrimary
                                               : Theme.textMuted
             }
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Edit the embedded address")
+            Accessible.onPressAction: root.editEmbedUrl()
             MouseArea {
                 id: editArea
                 anchors.fill: parent
@@ -639,7 +658,9 @@ BlockDelegateBase {
             anchors.margins: 2
             opacity: (root.isHovered || root.isFocused) ? 0.9 : 0
             visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: 120 } }
+            Behavior on opacity {
+                NumberAnimation { duration: 120 * Theme.motionScale }
+            }
             MouseArea {
                 anchors.fill: parent
                 anchors.margins: -4

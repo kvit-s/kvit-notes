@@ -17,8 +17,8 @@ Window {
 
     signal captured(string relPath)
 
-    width: 460
-    height: 240
+    width: Interface.px(460)
+    height: Interface.px(240)
     minimumWidth: 320
     minimumHeight: 160
     flags: Qt.Dialog
@@ -91,12 +91,12 @@ Window {
 
         Column {
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 10
+            anchors.margins: Interface.px(12)
+            spacing: Interface.px(10)
 
             Label {
                 text: qsTr("Quick capture")
-                font.pixelSize: 15
+                font.pixelSize: Interface.title
                 font.bold: true
                 color: Theme.textPrimary
             }
@@ -114,9 +114,9 @@ Window {
                     background: Rectangle {
                         color: Theme.panelBackground
                         border.color: captureArea.activeFocus ? Theme.focusRing
-                                                              : Theme.border
+                                                              : Theme.borderStrong
                         border.width: captureArea.activeFocus ? 2 : 1
-                        radius: 4
+                        radius: Interface.px(4)
                     }
                     Keys.onPressed: function(event) {
                         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
@@ -143,7 +143,7 @@ Window {
             }
 
             Row {
-                spacing: 8
+                spacing: Interface.px(8)
                 anchors.right: parent.right
                 Button {
                     objectName: "quickCaptureCancel"
