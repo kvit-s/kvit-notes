@@ -18,12 +18,19 @@ class QQmlContext;
 // The names of the UI slots main.qml offers an extension. Each is an empty
 // QML Loader in the shell: the bottom bar sits between the editor and the
 // status bar, the banner strip joins the conflict and oversized-file banners
-// at the top, and the side panel docks beside the outline and backlinks
-// panels.
+// at the top, the side panel docks beside the outline and backlinks panels,
+// and the document header is a strip across the top of the editor column that
+// stays put while the document scrolls under it.
+//
+// The document header is the only one inside the editor pane rather than
+// around it. Anything that has to sit BETWEEN or BESIDE the blocks themselves
+// is not a slot at all: those are registered with DocumentDecorations, which
+// places them per block rather than once per window.
 namespace KvitSlots {
 inline const char *BottomBar = "bottomBar";
 inline const char *Banner = "banner";
 inline const char *SidePanel = "sidePanel";
+inline const char *DocumentHeader = "documentHeader";
 }
 
 // A module linked on top of the core library.

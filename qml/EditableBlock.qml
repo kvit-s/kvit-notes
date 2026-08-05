@@ -27,7 +27,6 @@ BlockDelegateBase {
     readonly property KvitShell shell: Window.window as KvitShell
 
 
-    required property int index
     required property string blockId
     required property int blockType
     required property string content
@@ -165,6 +164,16 @@ BlockDelegateBase {
     // actually sits. The todo checkbox centres on this rather than on the
     // full line box, whose descender space would drag it low.
     readonly property real contentAscent: contentMetrics.ascent
+
+    // Per-line geometry for anything addressed by (block, line) — today the
+    // reserved margin column, see BlockDelegateBase. The text area is one
+    // wrapped document, so its content height divided by its line count is
+    // the exact advance from one visual line to the next, and the first line
+    // starts where the leading chrome already aligns itself to.
+    textLineOrigin: contentArea.y + delegate.contentTextTop
+    textLineHeight: textArea.lineCount > 0
+        ? textArea.contentHeight / textArea.lineCount : 0
+    textLineCount: textArea.lineCount
 
     FontMetrics {
         id: contentMetrics
@@ -470,7 +479,7 @@ BlockDelegateBase {
     property alias editorEngine: editorEngine
     property alias textArea: textArea
 
-    implicitHeight: contentArea.implicitHeight
+    blockContentHeight: contentArea.implicitHeight
         + (trailingLoader.item ? trailingLoader.implicitHeight : 0) + 16
 
     property bool isFocused: textArea.activeFocus

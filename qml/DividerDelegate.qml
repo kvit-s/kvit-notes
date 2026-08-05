@@ -16,7 +16,6 @@ BlockDelegateBase {
     readonly property KvitShell shell: Window.window as KvitShell
 
 
-    required property int index
     required property string blockId
     required property int blockType
     required property string content
@@ -99,7 +98,7 @@ BlockDelegateBase {
         }
     }
 
-    implicitHeight: 28
+    blockContentHeight: 28
 
     // Same pooled-ghost guard as EditableBlock: pooled rows stay
     // visible unless something zeroes their opacity, and the remove

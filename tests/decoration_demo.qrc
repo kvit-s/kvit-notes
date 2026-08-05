@@ -1,0 +1,18 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <!--
+        The QML a demonstration module draws, for the decoration-seam suite
+        and nothing else.
+
+        A module keeps its QML in a resource of its own, exactly like this:
+        the editor never names a module's files, it loads whatever URL the
+        registration handed it. These four stand in for that, so the suite can
+        prove the seam end to end with no module of any kind installed.
+    -->
+    <qresource prefix="/decorations">
+        <file alias="DecorationDemoContainer.qml">DecorationDemoContainer.qml</file>
+        <file alias="DecorationDemoEmpty.qml">DecorationDemoEmpty.qml</file>
+        <file alias="DecorationDemoMargin.qml">DecorationDemoMargin.qml</file>
+        <file alias="DecorationDemoHeader.qml">DecorationDemoHeader.qml</file>
+    </qresource>
+</RCC>

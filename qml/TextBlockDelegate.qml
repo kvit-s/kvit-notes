@@ -29,7 +29,6 @@ BlockDelegateBase {
     readonly property KvitShell shell: Window.window as KvitShell
 
 
-    required property int index
     required property string blockId
     required property int blockType
     required property string content
@@ -170,15 +169,33 @@ BlockDelegateBase {
     }
 
     // Shell geometry while the editor is not latched; editor height after load.
-    implicitHeight: !root.editorLoaderActive
+    blockContentHeight: !root.editorLoaderActive
         ? Math.max(readOnlyText.implicitHeight + 28, 28)
-        : (editable ? editable.implicitHeight
+        : (editable ? editable.blockContentHeight
                     : (root.lastShellHeight > 0 ? root.lastShellHeight
                                                : Math.max(readOnlyText.implicitHeight + 28, 28)))
 
-    onImplicitHeightChanged: {
-        if (!root.editorLoaderActive && implicitHeight > 0)
-            root.lastShellHeight = implicitHeight
+    // Per-line geometry (see BlockDelegateBase): the lightweight Text shell
+    // answers while the row is unlatched, and the editor answers once it is,
+    // so a margin glyph stays beside its line across the promotion.
+    textLineOrigin: root.editorLoaderActive && root.editable
+        ? root.editable.textLineOrigin : readOnlyText.y
+    textLineHeight: {
+        if (root.editorLoaderActive && root.editable)
+            return root.editable.textLineHeight
+        return readOnlyText.lineCount > 0
+            ? readOnlyText.contentHeight / readOnlyText.lineCount : 0
+    }
+    textLineCount: root.editorLoaderActive && root.editable
+        ? root.editable.textLineCount : readOnlyText.lineCount
+
+    // The remembered height is the row's own content, decorations excluded:
+    // it is what the latched editor falls back to before its own document
+    // has a height, and a container's height added into it there would be
+    // counted twice.
+    onBlockContentHeightChanged: {
+        if (!root.editorLoaderActive && root.blockContentHeight > 0)
+            root.lastShellHeight = root.blockContentHeight
     }
 
     function syncEditorLoader() {

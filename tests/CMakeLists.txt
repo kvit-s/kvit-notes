@@ -608,6 +608,29 @@ qt_add_executable(test_extensionregistry test_extensionregistry.cpp)
 target_link_libraries(test_extensionregistry PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME ExtensionRegistryTests COMMAND test_extensionregistry)
 
+# The third seam: what a module may draw inside the document view. This half
+# is the registry — placement, movement, two modules at once, and the geometry
+# questions being forwarded — and needs no window.
+qt_add_executable(test_documentdecorations test_documentdecorations.cpp)
+target_link_libraries(test_documentdecorations PRIVATE kvit-core Qt6::Test Qt6::Gui)
+add_test(NAME DocumentDecorationTests COMMAND test_documentdecorations)
+
+# The other half, driven through the shipped shell with a demonstration module
+# installed: a container drawn between two blocks, a glyph beside one wrapped
+# line, and the pinned header strip filled. It lists resources.qrc for the
+# same reason test_shell does — the shell's own components have to be in the
+# binary or the load hangs rather than failing — plus the demonstration
+# module's own QML, which stands in for a module's private resource.
+qt_add_executable(test_decorationshell
+    test_decorationshell.cpp
+    decoration_demo.qrc
+    ${CMAKE_SOURCE_DIR}/resources.qrc
+)
+target_link_libraries(test_decorationshell PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME DecorationShellTests COMMAND test_decorationshell)
+set_tests_properties(DecorationShellTests PROPERTIES TIMEOUT 300)
+
 # The composed shell (the app/library split): AppContext plus the shipped
 # qml/main.qml resource — the top-level file itself, not the integration
 # suite's mirror of it.
@@ -782,6 +805,7 @@ set(KVIT_SHELL_TESTS
     ShellTests
     MultiVaultTests
     AgentShellTests
+    DecorationShellTests
     # The storyboard scenarios that do not need a focused window. Same
     # binary and same file as VisualTests, but offscreen and blocking; the
     # display entry stays informational under `visual`.

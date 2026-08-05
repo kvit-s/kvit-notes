@@ -18,6 +18,7 @@
 #include "codelanguages.h"
 #include "collectionsearch.h"
 #include "diagrams/diagramcanvas.h"
+#include "documentdecorations.h"
 #include "documentexporter.h"
 #include "documentimporter.h"
 #include "documentmanager.h"
@@ -133,6 +134,7 @@
     X(BlockMenuModel, BlockMenuModel)         \
     X(MathCommandModel, MathCommandModel)     \
     X(DocumentStats, DocumentStats)           \
+    X(DocumentDecorations, DocumentDecorations) \
     X(DocumentExporter, DocumentExporter)     \
     X(DocumentSerializer, DocumentSerializer) \
     X(DocumentImporter, DocumentImporter)     \

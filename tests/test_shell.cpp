@@ -318,7 +318,8 @@ private slots:
         QVERIFY(window);
 
         for (const char *name : {"extensionBanner", "extensionBottomBar",
-                                 "extensionSidePanel"}) {
+                                 "extensionSidePanel",
+                                 "extensionDocumentHeader"}) {
             QObject *slot = window->findChild<QObject *>(name);
             QVERIFY2(slot, name);
             QVERIFY2(slot->property("source").toString().isEmpty(), name);
@@ -332,6 +333,14 @@ private slots:
                      ->property("height").toReal(), 0.0);
         QCOMPARE(window->findChild<QObject *>("extensionSidePanel")
                      ->property("width").toReal(), 0.0);
+        QCOMPARE(window->findChild<QObject *>("extensionDocumentHeader")
+                     ->property("height").toReal(), 0.0);
+
+        // The document-decoration seam is the same story: nothing registered,
+        // so no margin column is reserved and the rows are as wide as the
+        // list, which is what keeps the text where it was.
+        QVERIFY(!m_context->documentDecorations()->isActive());
+        QVERIFY(!m_context->documentDecorations()->marginColumnReserved());
     }
 
     void everyBlockTypeGetsADelegate_data()

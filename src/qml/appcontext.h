@@ -21,6 +21,7 @@
 #include "clipboardhelper.h"
 #include "collectionsearch.h"
 #include "collectionsearchindex.h"
+#include "documentdecorations.h"
 #include "documentexporter.h"
 #include "documentimporter.h"
 #include "documentmanager.h"
@@ -175,6 +176,8 @@ public:
     StartupController *startupController() { return &m_startupController; }
     AppActions *appActions() { return &m_appActions; }
     CollectionSearch *collectionSearch() { return &m_collectionSearch; }
+    // The document-view decoration seam a linked module registers against.
+    DocumentDecorations *documentDecorations() { return &m_documentDecorations; }
     CollectionSearchIndex *searchIndex() { return &m_searchIndex; }
     // Reached by the Qt Quick test harness, which points it at nothing so a
     // click on a link during the suite cannot open a browser on the desk of
@@ -272,6 +275,9 @@ private:
     NavigationHistory m_navigationHistory;
     QuickSwitcherModel m_quickSwitcherModel;
     QueryTools m_queryTools;
+    // Where a linked module may draw inside the document view. Per window,
+    // like the document it decorates.
+    DocumentDecorations m_documentDecorations;
     // Per window rather than per process: it answers a click with a signal,
     // and a shared one would announce a failed link in every open window.
     UrlLauncher m_urlLauncher;

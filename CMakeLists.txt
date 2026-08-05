@@ -425,6 +425,7 @@ target_include_directories(kvit-repository PUBLIC src/repository)
 add_library(kvit-application ${KVIT_LIB_TYPE}
     src/application/blockmenumodel.cpp
     src/application/collectionsearch.cpp
+    src/application/documentdecorations.cpp
     src/application/documentexporter.cpp
     src/application/documentmanager.cpp
     src/application/embedmetadata.cpp

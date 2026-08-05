@@ -34,7 +34,6 @@ BlockDelegateBase {
     readonly property var appTheme: Theme
 
 
-    required property int index
     required property string blockId
     required property int blockType
     required property string content
@@ -99,7 +98,7 @@ BlockDelegateBase {
         previewSource = content
     }
 
-    implicitHeight: contentColumn.implicitHeight + 16
+    blockContentHeight: contentColumn.implicitHeight + 16
 
     ListView.onPooled: {
         if (debounce.running)

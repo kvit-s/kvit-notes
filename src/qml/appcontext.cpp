@@ -461,6 +461,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     // shell loads, because the first binding that touches a singleton
     // resolves it.
     m_services.add(&m_queryTools);
+    m_services.add(&m_documentDecorations);
     m_services.add(&m_urlLauncher);
     m_services.add(m_globals.globalHotkey());
     m_services.add(&m_fileWatcher);

@@ -22,7 +22,6 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
-    required property int index
     required property string blockId
     required property int blockType
     required property string content
@@ -143,7 +142,7 @@ BlockDelegateBase {
         }
     }
 
-    implicitHeight: card.height + 16
+    blockContentHeight: card.height + 16
 
     ListView.onPooled: { isPooled = true; opacity = 0; player.pause() }
     ListView.onReused: { isPooled = false; opacity = 1 }

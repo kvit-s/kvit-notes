@@ -458,6 +458,30 @@ module contributes legible from the core:
   (the `BlockKindsGuard` ctest entry) checks the same completeness without a
   built tree and that every delegate URL a kind names is in `resources.qrc`.
 
+- **Where a module may draw.** Four named UI slots (`KvitSlots` in
+  `src/application/extensionregistry.h`) are empty `Loader`s in `qml/main.qml`
+  that a module fills by returning a QML file from `qmlSlot()`: a banner strip
+  at the top, a bar above the status bar, a panel beside the outline and
+  backlinks panes, and a header pinned across the top of the editor column
+  that the document scrolls under. Each resolves to an empty source in the
+  open build, which leaves its Loader inactive and zero-sized.
+
+  Inside the document there is a second seam, `DocumentDecorations`
+  (`src/application/documentdecorations.h`), because the slots can only put
+  content around the editor and annotations, review markers and comment
+  threads want to sit between and beside the blocks. A module registers a
+  CONTAINER after a block, or a glyph in the reserved column at the right edge
+  addressed by block and by visual text line; both are rendered rather than
+  inserted, so `BlockModel` is untouched, every row index is what it would
+  have been, and nothing drawn there reaches the note's undo stack. The rows
+  themselves do the drawing, in `qml/BlockDelegateBase.qml`: a delegate binds
+  `blockContentHeight` for its own content and the base adds whatever is
+  drawn after it, which is what makes a container occupy space between two
+  blocks. Positions come back through three geometry queries the block list
+  answers, since a module has no way to see a laid-out Qt Quick item. With
+  nothing registered the margin column has no width, each row asks one cheap
+  question and gets an empty answer, and the layout is what it was.
+
 **`KVIT_AGENT=ON` against this checkout stops at configure time with an
 explanation.** The module's sources are deliberately absent here, so the
 option now checks for them and explains that the premium module lives in

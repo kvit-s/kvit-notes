@@ -24,7 +24,6 @@ BlockDelegateBase {
     readonly property KvitShell shell: Window.window as KvitShell
 
 
-    required property int index
     required property string blockId
     required property int blockType
     required property string content
@@ -309,7 +308,7 @@ BlockDelegateBase {
         }
     }
 
-    implicitHeight: gridColumn.implicitHeight + 16
+    blockContentHeight: gridColumn.implicitHeight + 16
 
     ListView.onPooled: {
         isPooled = true; activeRow = -2; opacity = 0

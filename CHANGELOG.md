@@ -46,7 +46,26 @@ uses [Semantic Versioning](https://semver.org/).
   so putting them away for the duration hid the answer to the question being
   asked.
 
+- A newly inserted block no longer fades in. While a list is running that
+  fade it discards any height a row reports, and never revisits it, so a row
+  that acquires its height while the animation runs was drawn over the row
+  below it until the reader next edited something. Diagrams, images and
+  anything else that sizes itself asynchronously are the rows that hit it.
+  Insertions, deletions and reorders still slide the rows below them, under
+  the reduced-motion setting as before.
+
 ### Added
+
+- A linked module can now draw inside the document view rather than only
+  around it. Three things are registered with `DocumentDecorations`: a
+  container drawn after a given block, a glyph in a reserved column at the
+  right edge addressed by block and by visual text line, and a header pinned
+  across the top of the editor column that the document scrolls under. The
+  header is a fourth UI slot beside the existing three. Containers and glyphs
+  are rendered, never inserted: the document model is untouched, so block indices
+  and the note's undo history are exactly what they would have been without
+  them. The editor installs nothing itself, and with nothing registered no
+  column is reserved and the layout is unchanged.
 
 - Every control the application draws itself now reaches a screen reader with
   a role, a name and its state. The buttons in a block's gutter, the find

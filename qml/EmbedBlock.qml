@@ -20,7 +20,6 @@ BlockDelegateBase {
     readonly property KvitShell shell: Window.window as KvitShell
 
 
-    required property int index
     required property string blockId
     required property int blockType
     required property string content
@@ -201,7 +200,7 @@ BlockDelegateBase {
         }
     }
 
-    implicitHeight: card.implicitHeight + 12
+    blockContentHeight: card.implicitHeight + 12
 
     ListView.onPooled: {
         isPooled = true; focusTarget.focus = false; opacity = 0

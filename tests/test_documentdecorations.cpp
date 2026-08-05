@@ -1,0 +1,312 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#include <QtTest>
+
+#include <QRectF>
+#include <QSignalSpy>
+#include <QUrl>
+
+#include <memory>
+
+#include "documentdecorations.h"
+
+namespace {
+
+// A stand-in for the document view. The real one is the block list in
+// qml/main.qml, which answers these three questions out of laid-out Qt Quick
+// items; here they answer out of arithmetic, so the forwarding itself can be
+// checked without a window.
+class FakeDocumentView : public QObject
+{
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE QVariant decorationBlockGeometry(QVariant blockIndex)
+    {
+        askedBlock = blockIndex.toInt();
+        return QVariant::fromValue(QRectF(0, 100.0 * askedBlock, 300, 40));
+    }
+
+    Q_INVOKABLE QVariant decorationLineGeometry(QVariant blockIndex, QVariant line)
+    {
+        askedBlock = blockIndex.toInt();
+        askedLine = line.toInt();
+        return QVariant::fromValue(
+            QRectF(0, 100.0 * askedBlock + 20.0 * askedLine, 300, 20));
+    }
+
+    Q_INVOKABLE QVariant decorationContainerGeometry(QVariant id)
+    {
+        askedId = id.toString();
+        return QVariant::fromValue(QRectF(0, 500, 300, 60));
+    }
+
+    int askedBlock = -1;
+    int askedLine = -1;
+    QString askedId;
+};
+
+QUrl demoSource()
+{
+    return QUrl(QStringLiteral("qrc:/decorations/Demo.qml"));
+}
+
+} // namespace
+
+// Where a linked module may draw inside the document view.
+//
+// The seam's whole premise is that decorations are DRAWN rather than
+// INSERTED: nothing here touches the document, the model or the undo stack,
+// and the suite that proves that end to end is DecorationShellTests, which
+// loads the real shell with a demonstration module installed. What is checked
+// here is the registry itself — placement, movement, ownership between two
+// modules at once, and the geometry questions being forwarded to whatever the
+// view is.
+class TestDocumentDecorations : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    // The open editor, which registers nothing. Every answer is empty and
+    // nothing is reserved, so the document view does no per-row work at all.
+    void anEmptyRegistryDecoratesNothing()
+    {
+        DocumentDecorations decorations;
+
+        QVERIFY(!decorations.isActive());
+        QVERIFY(!decorations.marginColumnReserved());
+        QCOMPARE(decorations.containerCount(), 0);
+        QCOMPARE(decorations.marginItemCount(), 0);
+        QVERIFY(decorations.containersAfter(0).isEmpty());
+        QVERIFY(decorations.marginItemsForBlock(0).isEmpty());
+    }
+
+    void aContainerIsRegisteredAfterItsBlock()
+    {
+        DocumentDecorations decorations;
+        QSignalSpy changed(&decorations, &DocumentDecorations::changed);
+
+        QObject context;
+        context.setObjectName(QStringLiteral("module-state"));
+        const QString id = decorations.addContainer(QStringLiteral("demo"), 3,
+                                                    demoSource(), &context);
+
+        QVERIFY(!id.isEmpty());
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(decorations.isActive());
+        QVERIFY(decorations.containersAfter(2).isEmpty());
+
+        const QVariantList after = decorations.containersAfter(3);
+        QCOMPARE(after.size(), 1);
+        const QVariantMap entry = after.first().toMap();
+        QCOMPARE(entry.value(QStringLiteral("id")).toString(), id);
+        QCOMPARE(entry.value(QStringLiteral("owner")).toString(),
+                 QStringLiteral("demo"));
+        QCOMPARE(entry.value(QStringLiteral("source")).toUrl(), demoSource());
+        QCOMPARE(entry.value(QStringLiteral("block")).toInt(), 3);
+        QCOMPARE(entry.value(QStringLiteral("context")).value<QObject *>(),
+                 &context);
+    }
+
+    // Placement is dynamic: a module re-places its anchors as the user types,
+    // and moving one must not tear the drawn item down and build it again.
+    // Keeping the id across the move is what makes that possible.
+    void aContainerMovesWithoutBeingReRegistered()
+    {
+        DocumentDecorations decorations;
+        const QString id =
+            decorations.addContainer(QStringLiteral("demo"), 1, demoSource());
+        const int before = decorations.revision();
+
+        QVERIFY(decorations.setContainerBlock(id, 4));
+        QVERIFY(decorations.revision() > before);
+        QVERIFY(decorations.containersAfter(1).isEmpty());
+        QCOMPARE(decorations.containersAfter(4).size(), 1);
+        QCOMPARE(decorations.containersAfter(4).first().toMap()
+                     .value(QStringLiteral("id")).toString(), id);
+
+        // Re-placing an entry where it already is changes nothing, so a
+        // module that recomputes every anchor on every keystroke does not
+        // make the view re-render the ones that did not move.
+        const int settled = decorations.revision();
+        QVERIFY(decorations.setContainerBlock(id, 4));
+        QCOMPARE(decorations.revision(), settled);
+
+        QVERIFY(!decorations.setContainerBlock(QStringLiteral("no-such-id"), 2));
+    }
+
+    void anAnchorNamingNoBlockDrawsNothing()
+    {
+        DocumentDecorations decorations;
+        decorations.addContainer(QStringLiteral("demo"), 900, demoSource());
+
+        // The registration stands — the module owns it and will move it — but
+        // no row asks for block 900, so nothing is drawn and nothing costs.
+        QCOMPARE(decorations.containerCount(), 1);
+        QVERIFY(decorations.containersAfter(0).isEmpty());
+    }
+
+    void aMarginItemIsAddressedByBlockAndLine()
+    {
+        DocumentDecorations decorations;
+        const QString id = decorations.addMarginItem(QStringLiteral("demo"), 2, 5,
+                                                     demoSource());
+
+        const QVariantList beside = decorations.marginItemsForBlock(2);
+        QCOMPARE(beside.size(), 1);
+        QCOMPARE(beside.first().toMap().value(QStringLiteral("line")).toInt(), 5);
+
+        QVERIFY(decorations.setMarginItemPosition(id, 7, 0));
+        QVERIFY(decorations.marginItemsForBlock(2).isEmpty());
+        QCOMPARE(decorations.marginItemsForBlock(7).size(), 1);
+
+        // A negative line is a caller's arithmetic having gone below zero;
+        // the first line is the nearest true answer.
+        decorations.addMarginItem(QStringLiteral("demo"), 7, -3, demoSource());
+        QCOMPARE(decorations.marginItemsForBlock(7).last().toMap()
+                     .value(QStringLiteral("line")).toInt(), 0);
+    }
+
+    // Two modules at once. Neither can see the other's entries removed, and
+    // the drawing order is registration order, so a document with two modules
+    // decorating one block looks the same on every run.
+    void twoModulesContributeWithoutColliding()
+    {
+        DocumentDecorations decorations;
+        const QString first =
+            decorations.addContainer(QStringLiteral("first"), 0, demoSource());
+        const QString second =
+            decorations.addContainer(QStringLiteral("second"), 0, demoSource());
+        decorations.addMarginItem(QStringLiteral("second"), 0, 0, demoSource());
+
+        const QVariantList after = decorations.containersAfter(0);
+        QCOMPARE(after.size(), 2);
+        QCOMPARE(after.at(0).toMap().value(QStringLiteral("id")).toString(), first);
+        QCOMPARE(after.at(1).toMap().value(QStringLiteral("id")).toString(), second);
+
+        decorations.removeAll(QStringLiteral("second"));
+        QCOMPARE(decorations.containersAfter(0).size(), 1);
+        QCOMPARE(decorations.containersAfter(0).first().toMap()
+                     .value(QStringLiteral("id")).toString(), first);
+        QVERIFY(decorations.marginItemsForBlock(0).isEmpty());
+    }
+
+    void removingAnEntryTakesItOutOfTheView()
+    {
+        DocumentDecorations decorations;
+        const QString container =
+            decorations.addContainer(QStringLiteral("demo"), 0, demoSource());
+        const QString margin =
+            decorations.addMarginItem(QStringLiteral("demo"), 0, 1, demoSource());
+
+        QVERIFY(decorations.removeContainer(container));
+        QVERIFY(!decorations.removeContainer(container));
+        QVERIFY(decorations.removeMarginItem(margin));
+        QVERIFY(!decorations.isActive());
+    }
+
+    // Ownership of the context objects stays with the module. This holds a
+    // guarded pointer, so a module that destroys its own state before taking
+    // its registration back hands QML a null rather than a dangling pointer.
+    void aContextObjectDestroyedByItsModuleReadsAsNull()
+    {
+        DocumentDecorations decorations;
+        auto context = std::make_unique<QObject>();
+        decorations.addContainer(QStringLiteral("demo"), 0, demoSource(),
+                                 context.get());
+        QCOMPARE(decorations.containersAfter(0).first().toMap()
+                     .value(QStringLiteral("context")).value<QObject *>(),
+                 context.get());
+
+        context.reset();
+        QCOMPARE(decorations.containersAfter(0).first().toMap()
+                     .value(QStringLiteral("context")).value<QObject *>(),
+                 nullptr);
+    }
+
+    void aRegistrationWithNoQmlIsRefused()
+    {
+        DocumentDecorations decorations;
+        QVERIFY(decorations.addContainer(QStringLiteral("demo"), 0, QUrl()).isEmpty());
+        QVERIFY(decorations.addMarginItem(QStringLiteral("demo"), 0, 0,
+                                          QUrl()).isEmpty());
+        QVERIFY(!decorations.isActive());
+    }
+
+    // Reserving the column is a layout change — every row has less width to
+    // set its text in — so it has to reach the view the same way a
+    // registration does.
+    void reservingTheMarginColumnIsAnnouncedOnce()
+    {
+        DocumentDecorations decorations;
+        QSignalSpy reserved(&decorations,
+                            &DocumentDecorations::marginColumnReservedChanged);
+        QSignalSpy changed(&decorations, &DocumentDecorations::changed);
+
+        decorations.setMarginColumnReserved(true);
+        QCOMPARE(reserved.count(), 1);
+        QCOMPARE(changed.count(), 1);
+
+        decorations.setMarginColumnReserved(true);
+        QCOMPARE(reserved.count(), 1);
+        QCOMPARE(changed.count(), 1);
+
+        QVERIFY(decorations.marginColumnEms() > 0);
+    }
+
+    void clearTakesEveryEntryBack()
+    {
+        DocumentDecorations decorations;
+        decorations.addContainer(QStringLiteral("a"), 0, demoSource());
+        decorations.addMarginItem(QStringLiteral("b"), 1, 1, demoSource());
+        decorations.clear();
+
+        QVERIFY(!decorations.isActive());
+        QCOMPARE(decorations.containerCount(), 0);
+        QCOMPARE(decorations.marginItemCount(), 0);
+    }
+
+    // Positions exist only once the view has laid the rows out, so the three
+    // geometry questions are forwarded to it. With no view — a composition
+    // whose shell has not loaded, or a window that has closed — each answers
+    // with a null rectangle rather than with a guess.
+    void geometryQuestionsGoToTheDocumentView()
+    {
+        DocumentDecorations decorations;
+        QVERIFY(decorations.blockGeometry(2).isNull());
+        QVERIFY(decorations.lineGeometry(2, 1).isNull());
+        QVERIFY(decorations.containerGeometry(QStringLiteral("id")).isNull());
+
+        FakeDocumentView view;
+        decorations.setDocumentView(&view);
+
+        QCOMPARE(decorations.blockGeometry(2), QRectF(0, 200, 300, 40));
+        QCOMPARE(view.askedBlock, 2);
+
+        QCOMPARE(decorations.lineGeometry(1, 3), QRectF(0, 160, 300, 20));
+        QCOMPARE(view.askedBlock, 1);
+        QCOMPARE(view.askedLine, 3);
+
+        QCOMPARE(decorations.containerGeometry(QStringLiteral("container-1")),
+                 QRectF(0, 500, 300, 60));
+        QCOMPARE(view.askedId, QStringLiteral("container-1"));
+    }
+
+    // A window closing destroys the view while the module and this object
+    // live on. The next question is answered with a null rectangle, which is
+    // the whole reason the view is held through a guarded pointer.
+    void aClosedViewAnswersNothingRatherThanCrashing()
+    {
+        DocumentDecorations decorations;
+        {
+            FakeDocumentView view;
+            decorations.setDocumentView(&view);
+            QVERIFY(!decorations.blockGeometry(0).isNull());
+        }
+        QVERIFY(decorations.blockGeometry(0).isNull());
+    }
+};
+
+QTEST_MAIN(TestDocumentDecorations)
+#include "test_documentdecorations.moc"

@@ -1898,6 +1898,25 @@ KvitShell {
             onClicked: backupDialog.openForCurrentNote()
         }
 
+        // The document-header slot: a strip across the top of the editor
+        // column that a linked module fills, staying put while the document
+        // scrolls under it. The three older slots sit around the editor; this
+        // one is inside it, which is why it lives here rather than beside
+        // extensionBanner. Empty and zero-height in the open build, and the
+        // scroll area's top margin below reserves exactly its height.
+        Loader {
+            id: extensionDocumentHeader
+            objectName: "extensionDocumentHeader"
+            source: Extensions.slotSource("documentHeader")
+            active: source != ""
+            z: 6
+            anchors.top: parent.top
+            anchors.topMargin: tagStrip.visible ? tagStrip.height + 8 : 0
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: active && item ? (item as Item).implicitHeight : 0
+        }
+
         // External-drag ingestion (§5.4), in EditorDropArea.qml.
         EditorDropArea {
             id: editorDropArea
@@ -1933,7 +1952,8 @@ KvitShell {
             anchors.margins: 20
             anchors.leftMargin: 20 + centeringMargin
             anchors.rightMargin: 20 + centeringMargin
-            anchors.topMargin: tagStrip.visible ? tagStrip.height + 16 : 20
+            anchors.topMargin: (tagStrip.visible ? tagStrip.height + 16 : 20)
+                               + extensionDocumentHeader.height
 
             // A Flickable does not clip unless told to, and rows scrolled just
             // past the top of the viewport stay instantiated (cacheBuffer
@@ -1983,6 +2003,51 @@ KvitShell {
                 }
 
                 model: BlockModel
+
+                // ---- geometry answers for a linked module's decorations ----
+                //
+                // A module that draws between or beside the blocks needs
+                // positions to implement a scroll policy of its own, and a
+                // position only exists once Qt Quick has laid the row out.
+                // DocumentDecorations forwards its three geometry questions
+                // here, to the object that has the laid-out rows; the
+                // rectangles are in this list's content coordinates, which is
+                // the space contentY moves through. A row outside the window
+                // of rows the list keeps alive answers with a null rectangle,
+                // which is the same answer as "no such block".
+                Component.onCompleted: DocumentDecorations.setDocumentView(blockListView)
+
+                function decorationBlockGeometry(blockIndex) {
+                    var row = (blockListView.itemAtIndex(blockIndex)
+                               as BlockDelegateBase)
+                    if (!row)
+                        return Qt.rect(0, 0, 0, 0)
+                    return Qt.rect(row.x, row.y, row.width, row.height)
+                }
+                function decorationLineGeometry(blockIndex, line) {
+                    var row = (blockListView.itemAtIndex(blockIndex)
+                               as BlockDelegateBase)
+                    if (!row)
+                        return Qt.rect(0, 0, 0, 0)
+                    return Qt.rect(row.x, row.y + row.lineTop(line),
+                                   row.width, row.lineHeightAt(line))
+                }
+                function decorationContainerGeometry(id) {
+                    for (var i = 0; i < BlockModel.count; ++i) {
+                        var row = (blockListView.itemAtIndex(i)
+                                   as BlockDelegateBase)
+                        if (!row)
+                            continue
+                        var box = row.decorationContainerRect(id)
+                        // A container is as wide as the row, so a zero width
+                        // is how the row says it is not drawing this one.
+                        if (box.width > 0) {
+                            return Qt.rect(row.x + box.x, row.y + box.y,
+                                           box.width, box.height)
+                        }
+                    }
+                    return Qt.rect(0, 0, 0, 0)
+                }
 
                 // Delegate readiness completes pending focus without polling.
                 // Geometry-driven reveal/focus tracking yields immediately to
@@ -2074,15 +2139,26 @@ KvitShell {
                     }
                 }
 
-                // Add insert animation
-                add: Transition {
-                    NumberAnimation {
-                        property: "opacity"
-                        from: 0
-                        to: 1
-                        duration: 150 * Theme.motionScale
-                    }
-                }
+                // No fade-in for an inserted row, for the same reason there is
+                // no displaced transition above, and it is worth stating
+                // exactly because the animation itself was harmless.
+                //
+                // While a ListView is running one of its own add transitions
+                // it drops any size change a delegate reports, and it never
+                // revisits it: the rows below stay where the shorter delegate
+                // put them, and forceLayout() afterwards does nothing, because
+                // the view has nothing recorded to lay out. The window is only
+                // the 150 ms of the fade, but that is precisely when a row
+                // that acquires its height asynchronously — a Mermaid diagram,
+                // an image, a decoration a module draws as a note opens — is
+                // most likely to grow, and the result is a row drawn over the
+                // one below it until the reader happens to edit something.
+                //
+                // Measured directly (tests/test_decorationshell.cpp): with the
+                // transition present a row that grew during it stayed
+                // overlapped through any number of frames and any number of
+                // forceLayout() calls; without it the view re-placed the rows
+                // below within the frame.
 
                 ScrollBar.vertical: ScrollBar {
                     policy: ScrollBar.AsNeeded
