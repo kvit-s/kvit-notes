@@ -1,7 +1,7 @@
 # Kvit Notes
 
 [![CI](https://github.com/kvit-s/kvit-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/kvit-s/kvit-notes/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/kvit-s/kvit-notes)](https://github.com/kvit-s/kvit-notes/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/kvit-s/kvit-notes?include_prereleases)](https://github.com/kvit-s/kvit-notes/releases/latest)
 [![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue)](LICENSE)
 
 Kvit Notes is a native markdown block editor and notes app: your notes are
@@ -16,7 +16,7 @@ span revealed only while your cursor is inside it.
 |---|---|
 | Linux | [AppImage](https://github.com/kvit-s/kvit-notes/releases/latest) · AUR `kvit-notes-bin` |
 | Windows | [Installer or portable zip](https://github.com/kvit-s/kvit-notes/releases/latest) |
-| macOS | [DMG](https://github.com/kvit-s/kvit-notes/releases/latest) |
+| macOS | [DMG](https://github.com/kvit-s/kvit-notes/releases/latest) (Apple Silicon) |
 
 The Linux download is a self-contained AppImage rather than a system package:
 
@@ -37,6 +37,12 @@ artifacts carry no Authenticode signature, so SmartScreen will warn before
 running them. The macOS DMG is Developer ID-signed, notarized and stapled;
 Gatekeeper verification is a blocking part of both release and manual macOS
 packaging runs.
+
+**The macOS DMG is Apple Silicon only.** Apple sold its last Intel Macs in
+2023 and macOS 26 is the final release supporting them, so the shipped build
+is arm64 rather than a universal binary that would enlarge every download for
+the majority. An Intel Mac can build from source; open an issue if that
+matters to you and a universal build becomes worth the size.
 
 Flathub and the Homebrew tap are likewise not live yet. The Flatpak manifest
 lives at `packaging/flatpak/org.kvit.Notes.yaml` and is submitted by hand;
