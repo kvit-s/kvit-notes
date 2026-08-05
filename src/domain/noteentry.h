@@ -33,6 +33,16 @@ struct NoteEntry {
     // (re)index and persisted in the sidecar so warm startup keeps the
     // backlink graph without reading every note.
     QStringList links;
+    // The realm this file belongs to, or empty for one of the user's notes.
+    //
+    // A non-empty realm means the file lives in a subtree the application
+    // manages and was admitted to the index by a registration (see
+    // reservedsubtrees.h). It is derived from the path, so it is recomputed on
+    // every scan rather than persisted, and it is what keeps the file out of
+    // the note counts, the tag registry, bare-name link resolution, query
+    // results and a vault-wide export while leaving it indexed and
+    // searchable.
+    QString realm;
     // Note bodies and per-block display text are NOT held resident: global
     // search reads them from the SQLite index, and features that need one
     // note's text read that file on demand.

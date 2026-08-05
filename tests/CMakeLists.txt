@@ -608,6 +608,14 @@ qt_add_executable(test_extensionregistry test_extensionregistry.cpp)
 target_link_libraries(test_extensionregistry PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME ExtensionRegistryTests COMMAND test_extensionregistry)
 
+# The reserved-subtree opt-in: a tree the application manages, the few files
+# in it the index is allowed to see, and the realm they form everywhere they
+# meet the user's notes. Drives a real vault on disk plus the view models, the
+# search index and the exporter, so it links the whole core.
+qt_add_executable(test_reservedsubtrees test_reservedsubtrees.cpp)
+target_link_libraries(test_reservedsubtrees PRIVATE kvit-core Qt6::Test Qt6::Gui)
+add_test(NAME ReservedSubtreeTests COMMAND test_reservedsubtrees)
+
 # The third seam: what a module may draw inside the document view. This half
 # is the registry — placement, movement, two modules at once, and the geometry
 # questions being forwarded — and needs no window.

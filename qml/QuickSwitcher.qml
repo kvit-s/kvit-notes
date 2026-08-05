@@ -138,57 +138,99 @@ Popup {
                 interactive: contentHeight > height
                 model: switcher.rows
 
-                delegate: Rectangle {
+                delegate: Item {
                     // Named so the Column and MouseArea inside, each its own
                     // scope, address the row rather than relying on injection.
                     id: resultRow
                     required property var modelData
                     required property int index
                     width: resultsList.width
-                    height: Interface.px(44)
-                    radius: Interface.px(6)
-                    color: resultRow.index === switcher.highlightIndex
-                           ? Theme.hoverTint : "transparent"
+                    height: realmHeading.height + Interface.px(44)
 
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
+                    // Files an application manages are listed after the
+                    // user's notes, under the name of the realm they belong
+                    // to (see reservedsubtrees.h). The heading is drawn by
+                    // the first row of each realm; every other row leaves it
+                    // out and takes no space for it.
+                    readonly property bool startsRealm: {
+                        if (!resultRow.modelData.realm)
+                            return false
+                        if (resultRow.index === 0)
+                            return true
+                        var previous = switcher.rows[resultRow.index - 1]
+                        return !previous || previous.realm !== resultRow.modelData.realm
+                    }
+
+                    Text {
+                        id: realmHeading
+                        objectName: "quickSwitcherRealmHeading"
+                        visible: resultRow.startsRealm
+                        height: visible ? implicitHeight + Interface.px(8) : 0
+                        verticalAlignment: Text.AlignBottom
+                        anchors.top: parent.top
                         anchors.left: parent.left
-                        anchors.leftMargin: Interface.px(10)
                         anchors.right: parent.right
+                        anchors.leftMargin: Interface.px(10)
                         anchors.rightMargin: Interface.px(10)
-                        spacing: Interface.px(1)
-
-                        Text {
-                            width: parent.width
-                            text: resultRow.modelData.title
-                            color: Theme.textPrimary
-                            font.pixelSize: Interface.px(14)
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            width: parent.width
-                            visible: resultRow.modelData.folder !== ""
-                            text: resultRow.modelData.folder
-                            color: Theme.textFaint
-                            font.pixelSize: Interface.small
-                            elide: Text.ElideRight
-                        }
+                        text: resultRow.modelData.realm
+                        color: Theme.textFaint
+                        font.pixelSize: Interface.small
+                        elide: Text.ElideRight
                     }
 
-                    Accessible.role: Accessible.ListItem
-                    Accessible.name: resultRow.modelData.title
-                    Accessible.description: resultRow.modelData.folder
-                    Accessible.selected:
-                        switcher.highlightIndex === resultRow.index
-                    Accessible.onPressAction: {
-                        switcher.highlightIndex = resultRow.index
-                        switcher.applyHighlighted()
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onEntered: switcher.highlightIndex = resultRow.index
-                        onClicked: switcher.applyHighlighted()
+                    Rectangle {
+                        id: resultBody
+                        anchors.top: realmHeading.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: Interface.px(44)
+                        radius: Interface.px(6)
+                        color: resultRow.index === switcher.highlightIndex
+                               ? Theme.hoverTint : "transparent"
+
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: Interface.px(10)
+                            anchors.right: parent.right
+                            anchors.rightMargin: Interface.px(10)
+                            spacing: Interface.px(1)
+
+                            Text {
+                                width: parent.width
+                                text: resultRow.modelData.title
+                                color: Theme.textPrimary
+                                font.pixelSize: Interface.px(14)
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                width: parent.width
+                                visible: resultRow.modelData.folder !== ""
+                                text: resultRow.modelData.folder
+                                color: Theme.textFaint
+                                font.pixelSize: Interface.small
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Accessible.role: Accessible.ListItem
+                        Accessible.name: resultRow.modelData.title
+                        Accessible.description: resultRow.modelData.realm
+                            ? qsTr("%1, in %2").arg(resultRow.modelData.folder)
+                                               .arg(resultRow.modelData.realm)
+                            : resultRow.modelData.folder
+                        Accessible.selected:
+                            switcher.highlightIndex === resultRow.index
+                        Accessible.onPressAction: {
+                            switcher.highlightIndex = resultRow.index
+                            switcher.applyHighlighted()
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: switcher.highlightIndex = resultRow.index
+                            onClicked: switcher.applyHighlighted()
+                        }
                     }
                 }
             }

@@ -439,7 +439,13 @@ void NoteCollection::refreshPaths(const QStringList &absPaths)
             needsFullRefresh = true;
             break;
         }
-        if (relPath.startsWith(QLatin1Char('.'))) {
+        // Dot paths are the application's own: `.kvit`, and whatever else a
+        // person keeps beside their notes. The exception is a subtree an
+        // application reserved, whose nominated files are indexed and so have
+        // to be re-read when they change.
+        if (relPath.startsWith(QLatin1Char('.'))
+            && !m_reserved.isReservedDir(relPath)
+            && !m_reserved.isReservedPath(relPath)) {
             continue;
         }
         const QFileInfo info(absPath);
@@ -724,6 +730,7 @@ void NoteCollection::scanAsync()
     request.indexOk = indexOk;
     request.indexFileExists = indexFileExists;
     request.generation = generation;
+    request.reserved = m_reserved;
     m_scanCancel = makeCancellationToken();
     request.cancel = m_scanCancel;
     m_asyncListingWatcher.setFuture(
@@ -739,23 +746,43 @@ void NoteCollection::scanDirectory(const QString &relDir,
     if (visitedDirs->contains(canonicalDir))
         return;
     visitedDirs->insert(canonicalDir);
+    // The same rule the asynchronous walk follows (VaultScan): inside a
+    // subtree the application manages, directories are not the user's folders
+    // and only the nominated files are indexed.
+    const bool inReserved = m_reserved.isReservedDir(relDir);
     QDir dir(absDir);
     const QFileInfoList entries = dir.entryInfoList(
         QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks,
         QDir::Name);
     for (const QFileInfo &info : entries) {
         const QString name = info.fileName();
+        const QString relPath = joinRelPath(relDir, name);
         if (name.startsWith(QLatin1Char('.'))) // .kvit and other dot entries
             continue;
-        const QString relPath = joinRelPath(relDir, name);
         if (info.isDir()) {
-            FolderEntry folder;
-            folder.relPath = relPath;
-            folder.name = name;
-            m_folders.insert(relPath, folder);
+            if (!inReserved) {
+                FolderEntry folder;
+                folder.relPath = relPath;
+                folder.name = name;
+                m_folders.insert(relPath, folder);
+            }
             scanDirectory(relPath, cachedNotes, visitedDirs);
         } else if (name.endsWith(mdSuffix, Qt::CaseInsensitive)) {
+            if (inReserved && m_reserved.admittedLabel(relPath).isEmpty())
+                continue;
             indexNote(relPath, cachedNotes);
+        }
+    }
+
+    // The subtrees the application manages, reached by name: a dot-directory
+    // is hidden and the listing above deliberately does not ask for hidden
+    // entries. Same reasoning as VaultScan::buildScanListing.
+    if (relDir.isEmpty() && !inReserved) {
+        const QStringList reservedNames = m_reserved.names();
+        for (const QString &reservedName : reservedNames) {
+            const QFileInfo subtree(absolutePath(reservedName));
+            if (subtree.exists() && subtree.isDir() && !subtree.isSymLink())
+                scanDirectory(reservedName, cachedNotes, visitedDirs);
         }
     }
 }
@@ -768,6 +795,15 @@ void NoteCollection::indexNote(const QString &relPath)
 void NoteCollection::indexNote(const QString &relPath,
                                const QHash<QString, NoteEntry> &cachedNotes)
 {
+    // Inside a subtree the application manages, only the files its
+    // registration nominates are indexed. This is the single-file entry point
+    // — a watcher event, a save — so it is where a path nobody admitted is
+    // turned away whatever brought it here.
+    if (m_reserved.isReservedPath(relPath)
+        && m_reserved.admittedLabel(relPath).isEmpty()) {
+        return;
+    }
+
     PerfLog::ScopedTimer perf(QStringLiteral("scan.note"),
                               QVariantMap{{QStringLiteral("note"), relPath}},
                               PerfLog::Verbose);
@@ -788,6 +824,15 @@ void NoteCollection::indexNote(const QString &relPath,
         // Listed but not read: see VaultScan::maxNoteBytes(). The synchronous
         // scan is the one that runs on the GUI thread, so it is the path
         // where reading an enormous file is felt as a freeze.
+        //
+        // Unread means the realm cross-check could not run, and an unchecked
+        // file is not admitted: nothing this large is one of the small
+        // documents an application nominates.
+        if (!m_reserved.requiredTypeFor(relPath).isEmpty()) {
+            perf.addContext(QStringLiteral("ok"), true);
+            perf.addContext(QStringLiteral("oversized"), true);
+            return;
+        }
         ensureFolderEntriesFor(folderOfRelPath(relPath));
         insertNoteEntry(relPath, VaultScan::unparsedEntry(relPath, info));
         perf.addContext(QStringLiteral("ok"), true);
@@ -846,6 +891,15 @@ void NoteCollection::indexNoteFromText(const QString &relPath,
         m_indexParseObserver(relPath);
 
     const NoteEntry entry = VaultScan::entryFromText(relPath, fileText, info);
+    // A file the path admitted to a realm has to say so in its front matter;
+    // one that does not belongs to the application that owns the subtree, and
+    // is not indexed at all.
+    if (!m_reserved.typeSatisfies(
+            relPath, entry.meta.fieldString(QStringLiteral("kvit-type")))) {
+        removeNoteEntry(relPath);
+        markIndexDirty();
+        return;
+    }
     ensureFolderEntriesFor(entry.folder);
     insertNoteEntry(relPath, entry);
     markIndexDirty();
@@ -871,6 +925,11 @@ void NoteCollection::ensureFolderEntriesFor(const QString &folderPath)
 {
     if (folderPath.isEmpty())
         return;
+    // The folders of a reserved subtree are the application's. They are not
+    // in the folder tree, and a realm file arriving through the save or
+    // rename path must not put them there.
+    if (m_reserved.isReservedDir(folderPath))
+        return;
 
     QString accumulated;
     const QStringList parts = folderPath.split(QLatin1Char('/'),
@@ -887,7 +946,7 @@ void NoteCollection::ensureFolderEntriesFor(const QString &folderPath)
 }
 
 void NoteCollection::insertNoteEntry(const QString &relPath,
-                                     const NoteEntry &entry)
+                                     const NoteEntry &stored)
 {
     // A placeholder carries fileSize -1 (VaultScan::placeholderEntry): the
     // note is listed but nothing has read it, so its metadata is unknown
@@ -896,9 +955,23 @@ void NoteCollection::insertNoteEntry(const QString &relPath,
     const bool wasUnknown = previous == m_notes.constEnd()
         || previous->fileSize < 0;
     removeNoteEntry(relPath);
+
+    // The realm is decided here rather than trusted from the entry, because
+    // entries reach this point from four places — the walk, a re-read, the
+    // save path, a rename — and it is derived from the path in all four.
+    NoteEntry entry = stored;
+    entry.realm = m_reserved.admittedLabel(relPath);
+
     m_notes.insert(relPath, entry);
-    adjustFolderNoteCounts(entry.folder, 1);
-    m_folderNotes[entry.folder].insert(relPath);
+    if (entry.realm.isEmpty()) {
+        adjustFolderNoteCounts(entry.folder, 1);
+        m_folderNotes[entry.folder].insert(relPath);
+    } else {
+        // A realm file's folder belongs to the application, so it joins
+        // neither the folder counts nor the per-folder listings; the note
+        // list and the sidebar therefore never see it among the user's.
+        ++m_realmNoteCount;
+    }
     m_tagCountsValid = false;
     m_wikiLinks.noteAdded(relPath);
     // A note now stands where one was renamed away from, so the redirect
@@ -921,12 +994,16 @@ void NoteCollection::removeNoteEntry(const QString &relPath)
     const auto it = m_notes.constFind(relPath);
     if (it == m_notes.constEnd())
         return;
-    adjustFolderNoteCounts(it.value().folder, -1);
-    const auto folderIt = m_folderNotes.find(it.value().folder);
-    if (folderIt != m_folderNotes.end()) {
-        folderIt->remove(relPath);
-        if (folderIt->isEmpty())
-            m_folderNotes.erase(folderIt);
+    if (it.value().realm.isEmpty()) {
+        adjustFolderNoteCounts(it.value().folder, -1);
+        const auto folderIt = m_folderNotes.find(it.value().folder);
+        if (folderIt != m_folderNotes.end()) {
+            folderIt->remove(relPath);
+            if (folderIt->isEmpty())
+                m_folderNotes.erase(folderIt);
+        }
+    } else {
+        --m_realmNoteCount;
     }
     m_tagCountsValid = false;
     m_notes.remove(relPath);
@@ -958,6 +1035,10 @@ void NoteCollection::rebuildDerivedIndexes()
 {
     clearDerivedIndexes();
     for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        if (!it.value().realm.isEmpty()) {
+            ++m_realmNoteCount;
+            continue;
+        }
         adjustFolderNoteCounts(it.value().folder, 1);
         m_folderNotes[it.value().folder].insert(it.key());
     }
@@ -985,6 +1066,10 @@ const QHash<QString, int> &NoteCollection::tagCounts() const
         return m_tagCounts;
     m_tagCounts.clear();
     for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        // A realm file's front matter is the application's, not the user's
+        // filing: its tags do not join the vault's tag registry.
+        if (!it.value().realm.isEmpty())
+            continue;
         for (const QString &tag : it.value().meta.tags)
             m_tagCounts[tag] += 1;
     }
@@ -997,6 +1082,7 @@ void NoteCollection::clearDerivedIndexes()
     m_folderOwnNoteCounts.clear();
     m_folderRecursiveNoteCounts.clear();
     m_folderNotes.clear();
+    m_realmNoteCount = 0;
     m_tagCounts.clear();
     m_tagCountsValid = false;
     // Every site that empties or replaces m_notes wholesale — closing a root,
@@ -1222,6 +1308,20 @@ void NoteCollection::applyAsyncIndexResult(int index)
     const AsyncIndexResult result = m_asyncWatcher.resultAt(index);
     if (result.generation != m_asyncScanGeneration)
         return;
+    if (result.rejected) {
+        // Its path said it was one of the application's nominated files; its
+        // front matter says otherwise. The walk listed it provisionally, so
+        // take it back out — and mark the sidecar dirty, or the next launch
+        // would list it again from the cache.
+        if (m_notes.contains(result.relPath)) {
+            removeNoteEntry(result.relPath);
+            markIndexDirty();
+            ++m_asyncPendingUpdates;
+            if (!m_asyncRevisionTimer.isActive())
+                m_asyncRevisionTimer.start();
+        }
+        return;
+    }
     if (!result.ok)
         return;
 
@@ -1367,6 +1467,7 @@ void NoteCollection::startAsyncDirectoryRefresh(const QStringList &relDirs)
     request.relDirs = relDirs;
     request.currentNotes = m_notes;
     request.generation = ++m_asyncRefreshGeneration;
+    request.reserved = m_reserved;
     m_refreshCancel = makeCancellationToken();
     request.cancel = m_refreshCancel;
     m_asyncRefreshTimer.start();
@@ -2186,11 +2287,72 @@ QVariantList NoteCollection::backlinksTo(const QString &relPath) const
 
 // ----------------------------------------------------------- queries
 
+// The user's notes. A realm file is in the index and in m_notes — that is
+// what makes it searchable and openable — but it is not one of these, so
+// every consumer that means "the notes in this vault" gets the answer it
+// meant without asking about realms: the note list, the quick switcher, query
+// blocks, the statistics, and a vault-wide export.
 QStringList NoteCollection::noteRelPaths() const
 {
-    QStringList paths = m_notes.keys();
+    QStringList paths;
+    paths.reserve(m_notes.size() - m_realmNoteCount);
+    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        if (it.value().realm.isEmpty())
+            paths.append(it.key());
+    }
     paths.sort();
     return paths;
+}
+
+void NoteCollection::reserveSubtree(const ReservedSubtree &subtree)
+{
+    m_reserved.add(subtree);
+}
+
+QString NoteCollection::realmOf(const QString &relPath) const
+{
+    const NoteEntry *entry = note(relPath);
+    return entry ? entry->realm : m_reserved.admittedLabel(relPath);
+}
+
+QStringList NoteCollection::realmNoteRelPaths(const QString &label) const
+{
+    QStringList paths;
+    if (m_realmNoteCount == 0)
+        return paths;
+    paths.reserve(m_realmNoteCount);
+    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        const QString &realm = it.value().realm;
+        if (realm.isEmpty())
+            continue;
+        if (label.isEmpty() || realm == label)
+            paths.append(it.key());
+    }
+    paths.sort();
+    return paths;
+}
+
+QVariantList NoteCollection::realmListing() const
+{
+    QVariantList listing;
+    if (m_realmNoteCount == 0)
+        return listing;
+    QHash<QString, int> counts;
+    for (auto it = m_notes.constBegin(); it != m_notes.constEnd(); ++it) {
+        if (!it.value().realm.isEmpty())
+            counts[it.value().realm] += 1;
+    }
+    // Registration order, so a vault with two realms draws its sections in
+    // the order the application asked for rather than in hash order.
+    const QStringList labels = m_reserved.labels();
+    for (const QString &label : labels) {
+        const int count = counts.value(label);
+        if (count == 0)
+            continue;
+        listing.append(QVariantMap{{QStringLiteral("label"), label},
+                                   {QStringLiteral("count"), count}});
+    }
+    return listing;
 }
 
 QStringList NoteCollection::notesInFolder(const QString &folder) const
@@ -2240,7 +2402,7 @@ QVariantMap NoteCollection::noteInfo(const QString &relPath) const
 int NoteCollection::noteCountInFolder(const QString &folder, bool recursive) const
 {
     if (recursive && folder.isEmpty())
-        return m_notes.size();
+        return noteCount();
 
     return recursive ? m_folderRecursiveNoteCounts.value(folder)
                      : m_folderOwnNoteCounts.value(folder);

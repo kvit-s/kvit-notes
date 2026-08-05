@@ -142,6 +142,18 @@ Item {
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
+                        // Which realm a hit came out of, for the files an
+                        // application manages (reservedsubtrees.h). Searching
+                        // them is the point of admitting them; saying so is
+                        // what keeps one of them from reading as one of the
+                        // reader's own notes.
+                        Label {
+                            objectName: "searchResultRealm"
+                            visible: !!groupColumn.group.realm
+                            text: groupColumn.group.realm || ""
+                            font.pixelSize: Interface.small
+                            color: Theme.textFaint
+                        }
                         Label {
                             text: groupColumn.group.matchCount > 0
                                   ? groupColumn.group.matchCount : ""

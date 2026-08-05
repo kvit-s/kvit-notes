@@ -489,6 +489,44 @@ option now checks for them and explains that the premium module lives in
 option off. It used to fail deep inside `qt_add_executable` with "Cannot find
 source file" for each missing path, which reads like a broken checkout.
 
+## A subtree the application manages, and the few files in it the index sees
+
+The scanner skips every dot-prefixed directory, so a tree an application keeps
+beside a person's notes (`.kvit`, and anything a linked module writes) is
+invisible to the index, to search, to links, to the counts and to export.
+That default is right for working copies, caches and control data. It is
+wrong for the one file in each of those folders that is a document in its own
+right: a report, a summary, a log somebody may want to find again.
+
+`ReservedSubtrees` (`src/domain/reservedsubtrees.h`) is the narrow opt-in.
+A registration names the subtree, a wildcard over the paths inside it that are
+admitted, the label the admitted files are grouped under, and the
+`kvit-type` front-matter value they have to carry. Recognition is by path so
+the walk need not read every file it passes; the front matter is the
+cross-check that stops a file which merely landed in the right place from
+being taken for one of the application's.
+
+Admitted files form a **realm**. A realm file is indexed, full-text
+searchable, and reachable by a folder-qualified `[[link]]`. It is not one of
+the user's notes: `NoteCollection::noteRelPaths()` and `noteCount()` exclude
+it, which is what keeps it out of the note list, the quick switcher's main
+group, the query blocks, the statistics and a vault-wide export without any of
+those having to know realms exist. Three things do know: the walk, which
+admits it; `WikiLinkIndex`, where a bare `[[report]]` never resolves into a
+realm because every folder in the subtree holds a file of that name; and the
+switcher and note list, which draw each realm as a section of its own under
+its label.
+
+Two details worth knowing before changing this. A dot-directory is hidden, and
+the directory listings deliberately do not ask for hidden entries, since that
+would also change what an ordinary folder shows on a platform where "hidden"
+is a file attribute; the reserved subtrees are therefore reached by name after
+the listing, in all three walks. And admission is provisional in the asynchronous
+scan: the walk lists a nominated file before anything has read it, and the
+parse that follows takes back the ones whose front matter refuses. The rules,
+including what happens with nothing registered, are pinned in
+`tests/test_reservedsubtrees.cpp`.
+
 ## One writer per vault
 
 Notes, the JSON sidecar, `collection.json` and the search index are all read

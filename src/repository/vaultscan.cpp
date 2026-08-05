@@ -136,12 +136,17 @@ ScanListing buildScanListing(
     listing.generation = request.generation;
 
     int noteCount = 0;
+    const QStringList reservedNames = request.reserved.names();
     // Canonical directories already walked. Symbolic links are excluded
     // below, but a directory can be re-entered by other means (a bind mount,
     // a junction), and a scan that revisits one never finishes.
     QSet<QString> visitedDirs;
-    std::function<void(const QString &)> scanDir =
-        [&](const QString &currentRelDir) {
+    // `inReserved` says the walk is inside a subtree the application manages
+    // (reservedsubtrees.h): its directories are not the user's folders, and
+    // the only files that enter the index are the ones the registration
+    // nominates.
+    std::function<void(const QString &, bool)> scanDir =
+        [&](const QString &currentRelDir, bool inReserved) {
             // A vault the user has already left should stop being walked.
             // QtConcurrent::run cannot interrupt this, so the check is the
             // only way out before the last directory.
@@ -163,21 +168,35 @@ ScanListing buildScanListing(
                 if (isCancelled(request.cancel))
                     return;
                 const QString name = info.fileName();
+                const QString relPath = joinRelPath(currentRelDir, name);
                 if (name.startsWith(QLatin1Char('.')))
                     continue;
 
-                const QString relPath = joinRelPath(currentRelDir, name);
                 if (info.isDir()) {
-                    FolderEntry folder;
-                    folder.relPath = relPath;
-                    folder.name = name;
-                    listing.folders.append(folder);
-                    scanDir(relPath);
+                    // A folder inside a reserved subtree is the
+                    // application's, not the user's, so it joins neither the
+                    // folder tree nor the note counts.
+                    if (!inReserved) {
+                        FolderEntry folder;
+                        folder.relPath = relPath;
+                        folder.name = name;
+                        listing.folders.append(folder);
+                    }
+                    scanDir(relPath, inReserved);
                     continue;
                 }
 
                 if (!name.endsWith(mdSuffix, Qt::CaseInsensitive))
                     continue;
+
+                // Inside a reserved subtree only the nominated files enter,
+                // and each carries the realm it was admitted to.
+                QString realm;
+                if (inReserved) {
+                    realm = request.reserved.admittedLabel(relPath);
+                    if (realm.isEmpty())
+                        continue;
+                }
 
                 ++noteCount;
                 const auto cachedIt = request.cachedNotes.constFind(relPath);
@@ -185,16 +204,19 @@ ScanListing buildScanListing(
                     && cachedIt->fileSize == info.size()
                     && dateTimeMs(cachedIt->modified)
                         == dateTimeMs(info.lastModified())) {
-                    listing.entries.append(
-                        cachedEntryForPath(relPath, cachedIt.value(), info));
+                    NoteEntry entry =
+                        cachedEntryForPath(relPath, cachedIt.value(), info);
+                    entry.realm = realm;
+                    listing.entries.append(entry);
                     continue;
                 }
 
-                if (cachedIt == request.cachedNotes.constEnd())
-                    listing.entries.append(placeholderEntry(relPath, info));
-                else
-                    listing.entries.append(
-                        cachedEntryForPath(relPath, cachedIt.value(), info));
+                NoteEntry entry =
+                    cachedIt == request.cachedNotes.constEnd()
+                        ? placeholderEntry(relPath, info)
+                        : cachedEntryForPath(relPath, cachedIt.value(), info);
+                entry.realm = realm;
+                listing.entries.append(entry);
 
                 IndexTask task;
                 task.relPath = relPath;
@@ -203,12 +225,31 @@ ScanListing buildScanListing(
                 task.modified = info.lastModified();
                 task.fileSize = info.size();
                 task.generation = request.generation;
+                task.realm = realm;
+                task.requiredType = request.reserved.requiredTypeFor(relPath);
                 listing.tasks.append(task);
                 listing.indexDirty = true;
             }
+
+            // The subtrees the application manages, reached by name rather
+            // than through the listing above. A dot-directory is hidden, and
+            // the listing deliberately does not ask for hidden entries:
+            // asking would also change what an ordinary folder of the user's
+            // shows, on a platform where "hidden" is a file attribute rather
+            // than a leading dot.
+            if (currentRelDir.isEmpty() && !inReserved) {
+                for (const QString &reservedName : reservedNames) {
+                    const QFileInfo subtree(request.rootPath + QLatin1Char('/')
+                                            + reservedName);
+                    if (subtree.exists() && subtree.isDir()
+                        && !subtree.isSymLink()) {
+                        scanDir(reservedName, true);
+                    }
+                }
+            }
         };
 
-    scanDir(QString());
+    scanDir(QString(), false);
 
     if ((!request.indexOk && noteCount > 0)
         || request.cachedNotes.size() != noteCount) {
@@ -228,7 +269,13 @@ IndexResult parseIndexTask(
     QFileInfo info(task.absPath);
     if (maxNoteBytes() > 0 && info.size() > maxNoteBytes()) {
         result.entry = unparsedEntry(task.relPath, info);
-        result.ok = true;
+        result.entry.realm = task.realm;
+        // Nothing read the file, so the front-matter cross-check could not
+        // run. A file too large to parse is not one of the application's
+        // small nominated documents, so it leaves the realm rather than
+        // being admitted on its path alone.
+        result.rejected = !task.requiredType.isEmpty();
+        result.ok = !result.rejected;
         return result;
     }
 
@@ -238,6 +285,16 @@ IndexResult parseIndexTask(
         return result;
 
     result.entry = entryFromText(task.relPath, fileText, info);
+    result.entry.realm = task.realm;
+    // The path said this file is the application's; its front matter is what
+    // confirms it. A file that merely landed in the right place with the
+    // right name is not admitted.
+    if (!task.requiredType.isEmpty()
+        && result.entry.meta.fieldString(QStringLiteral("kvit-type"))
+               .compare(task.requiredType, Qt::CaseInsensitive) != 0) {
+        result.rejected = true;
+        return result;
+    }
     result.ok = true;
     return result;
 }
@@ -251,8 +308,9 @@ RefreshResult buildRefreshResult(
     result.generation = request.generation;
 
     QSet<QString> visitedDirs;
-    std::function<void(const QString &)> scanDir =
-        [&](const QString &currentRelDir) {
+    const QStringList reservedNames = request.reserved.names();
+    std::function<void(const QString &, bool)> scanDir =
+        [&](const QString &currentRelDir, bool inReserved) {
             // Between directories, and again between notes below: this walk
             // reads and parses every changed body, so an abandoned refresh
             // that ran to the end would hold a pool thread against work whose
@@ -274,44 +332,90 @@ RefreshResult buildRefreshResult(
                 if (isCancelled(request.cancel))
                     return;
                 const QString name = info.fileName();
+                const QString relPath = joinRelPath(currentRelDir, name);
                 if (name.startsWith(QLatin1Char('.')))
                     continue;
 
-                const QString relPath = joinRelPath(currentRelDir, name);
                 if (info.isDir()) {
-                    FolderEntry folder;
-                    folder.relPath = relPath;
-                    folder.name = name;
-                    result.folders.append(folder);
-                    result.seenFolders.insert(relPath);
-                    scanDir(relPath);
+                    if (!inReserved) {
+                        FolderEntry folder;
+                        folder.relPath = relPath;
+                        folder.name = name;
+                        result.folders.append(folder);
+                        result.seenFolders.insert(relPath);
+                    }
+                    scanDir(relPath, inReserved);
                     continue;
                 }
 
                 if (!name.endsWith(mdSuffix, Qt::CaseInsensitive))
                     continue;
 
-                result.seenNotes.insert(relPath);
+                QString realm;
+                if (inReserved) {
+                    realm = request.reserved.admittedLabel(relPath);
+                    // Not nominated: it stays out of the index, and out of
+                    // `seenNotes`, so a file that has just stopped being
+                    // nominated is removed rather than left behind.
+                    if (realm.isEmpty())
+                        continue;
+                }
+
+                const QString requiredType =
+                    request.reserved.requiredTypeFor(relPath);
+
                 const auto current = request.currentNotes.constFind(relPath);
                 if (current != request.currentNotes.constEnd()
                     && current->fileSize == info.size()
                     && dateTimeMs(current->modified)
                         == dateTimeMs(info.lastModified())) {
+                    result.seenNotes.insert(relPath);
                     continue;
                 }
 
                 if (maxNoteBytes() > 0 && info.size() > maxNoteBytes()) {
+                    // As in parseIndexTask: unread means unconfirmed, and an
+                    // unconfirmed file is not admitted to a realm.
+                    if (!requiredType.isEmpty())
+                        continue;
+                    result.seenNotes.insert(relPath);
                     result.entries.append(unparsedEntry(relPath, info));
                     continue;
                 }
 
                 bool ok = false;
                 const QString fileText = readTextFile(info.absoluteFilePath(), &ok);
-                if (!ok)
+                if (!ok) {
+                    // Unreadable now, but it exists: leaving it in `seenNotes`
+                    // keeps the entry it already has rather than dropping a
+                    // note because one read failed.
+                    result.seenNotes.insert(relPath);
                     continue;
+                }
 
-                result.entries.append(
-                    entryFromText(relPath, fileText, QFileInfo(info.absoluteFilePath())));
+                NoteEntry entry = entryFromText(
+                    relPath, fileText, QFileInfo(info.absoluteFilePath()));
+                entry.realm = realm;
+                if (!requiredType.isEmpty()
+                    && entry.meta.fieldString(QStringLiteral("kvit-type"))
+                           .compare(requiredType, Qt::CaseInsensitive) != 0) {
+                    continue;
+                }
+                result.seenNotes.insert(relPath);
+                result.entries.append(entry);
+            }
+
+            // The reserved subtrees, by name: see the note in
+            // buildScanListing on why they are not in the listing above.
+            if (currentRelDir.isEmpty() && !inReserved) {
+                for (const QString &reservedName : reservedNames) {
+                    const QFileInfo subtree(request.rootPath + QLatin1Char('/')
+                                            + reservedName);
+                    if (subtree.exists() && subtree.isDir()
+                        && !subtree.isSymLink()) {
+                        scanDir(reservedName, true);
+                    }
+                }
             }
         };
 
@@ -323,14 +427,18 @@ RefreshResult buildRefreshResult(
             continue;
         }
 
-        if (!relDir.isEmpty()) {
+        // A re-read can start anywhere the watcher reported a change,
+        // including inside a reserved subtree, so which rules apply is asked
+        // of the path rather than assumed from the walk.
+        const bool inReserved = request.reserved.isReservedDir(relDir);
+        if (!relDir.isEmpty() && !inReserved) {
             FolderEntry folder;
             folder.relPath = relDir;
             folder.name = nameOfRelPath(relDir);
             result.folders.append(folder);
             result.seenFolders.insert(relDir);
         }
-        scanDir(relDir);
+        scanDir(relDir, inReserved);
     }
 
     result.cancelled = isCancelled(request.cancel);

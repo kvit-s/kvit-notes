@@ -44,7 +44,12 @@ public:
         WordCountRole,
         PinnedRole,
         FavoriteRole,
-        TagsRole
+        TagsRole,
+        // The realm an application-managed file belongs to, or "" for one of
+        // the user's notes (see reservedsubtrees.h). The list draws its extra
+        // section from it; a vault with nothing registered has no row where
+        // it is anything but empty.
+        RealmRole
     };
 
     explicit NoteListModel(QObject *parent = nullptr);

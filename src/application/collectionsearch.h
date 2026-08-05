@@ -93,9 +93,13 @@ public:
     Q_INVOKABLE bool rebuildIndex();
 
     // One entry per matching note, in relPath order:
-    //   { relPath, title, titleMatched, matchCount, moreMatches,
+    //   { relPath, title, titleMatched, matchCount, moreMatches, realm,
     //     matches: [ { blockIndex, start, length,
     //                  snippet, snippetStart, snippetLength } ] }
+    //
+    // `realm` is empty for one of the user's notes and names the realm for a
+    // file an application manages (reservedsubtrees.h), which is what keeps
+    // the two distinguishable in a result list that searches both.
     Q_INVOKABLE QVariantList results() const { return m_groups; }
 
     // Run the current query immediately, bypassing the debounce — the

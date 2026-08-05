@@ -177,6 +177,32 @@ public:
     // Test seam: whether the background rewrite still has notes to visit.
     bool linkRewriteInProgressForTesting() const { return m_redirectTimer.isActive(); }
 
+    // --- Reserved subtrees -------------------------------------------------
+    //
+    // A subtree the application manages, and the files inside it the index is
+    // allowed to see. Registered before the root is opened — a module does it
+    // from its own startup — and read by the walk, the link index and the
+    // view models; reservedsubtrees.h holds the rules and the reasoning.
+    //
+    // Admitted files are a REALM: indexed, searchable and reachable by a
+    // folder-qualified [[link]], and everywhere else kept apart from the
+    // user's notes. Every query below that says "notes" means the user's
+    // notes, realm files excluded; note() and the search feed take a path at
+    // face value, because opening and searching one is the point of admitting
+    // it at all.
+    void reserveSubtree(const ReservedSubtree &subtree);
+    const ReservedSubtrees &reservedSubtrees() const { return m_reserved; }
+    // The realm a path belongs to, or "" for one of the user's notes.
+    Q_INVOKABLE QString realmOf(const QString &relPath) const;
+    // The realms holding at least one admitted file:
+    // [{label, count}], in registration order. What the switcher and the note
+    // list draw their extra section from.
+    Q_INVOKABLE QVariantList realmListing() const;
+    // Admitted files, sorted; every realm's when `label` is empty.
+    Q_INVOKABLE QStringList realmNoteRelPaths(
+        const QString &label = QString()) const;
+    int realmNoteCount() const { return m_realmNoteCount; }
+
     // --- Index queries ---------------------------------------------------
     Q_INVOKABLE QStringList noteRelPaths() const;           // sorted
     Q_INVOKABLE QStringList notesInFolder(const QString &folder) const; // manual order
@@ -185,7 +211,7 @@ public:
     const FolderEntry *folder(const QString &relPath) const;
     // QML/testing view of one index entry (empty map when absent).
     Q_INVOKABLE QVariantMap noteInfo(const QString &relPath) const;
-    int noteCount() const { return m_notes.size(); }
+    int noteCount() const { return m_notes.size() - m_realmNoteCount; }
     Q_INVOKABLE int noteCountInFolder(const QString &folder,
                                       bool recursive) const;
 
@@ -602,6 +628,12 @@ private:
 
     QHash<QString, NoteEntry> m_notes;    // by relPath
     QMap<QString, FolderEntry> m_folders; // by relPath, sorted
+    // The subtrees the application manages. Empty in the open editor, where
+    // every query about them answers as it did before they existed.
+    ReservedSubtrees m_reserved;
+    // How many of m_notes are realm files rather than the user's notes, kept
+    // as a running total so noteCount() stays a constant-time answer.
+    int m_realmNoteCount = 0;
 
     // Rename-safe links (§3.3). The graph itself — resolution, referrers,
     // backlinks — lives in WikiLinkIndex; what stays here is the two-phase

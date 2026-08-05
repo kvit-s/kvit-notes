@@ -172,6 +172,19 @@ QStringList NoteListModel::projectedRows() const
             (entry && entry->meta.pinned ? pinned : rest).append(relPath);
         }
         rows = pinned + rest;
+
+        // Then each realm, as a section of its own after the user's notes
+        // (see reservedsubtrees.h). Only in the unfiltered "all" scope: a
+        // folder scope names one of the user's folders, favorites and tags
+        // are things a person applies to their own notes, and a file an
+        // application manages is none of those.
+        if (m_scope == QLatin1String("all") && m_tagFilter.isEmpty()) {
+            const QVariantList realms = m_collection->realmListing();
+            for (const QVariant &realm : realms) {
+                rows += m_collection->realmNoteRelPaths(
+                    realm.toMap().value(QStringLiteral("label")).toString());
+            }
+        }
     }
 
     return rows;
@@ -181,7 +194,8 @@ void NoteListModel::applyRows(const QStringList &rows)
 {
     const QList<int> roles = {
         RelPathRole, TitleRole, SnippetRole, ModifiedRole,
-        CreatedRole, WordCountRole, PinnedRole, FavoriteRole, TagsRole
+        CreatedRole, WordCountRole, PinnedRole, FavoriteRole, TagsRole,
+        RealmRole
     };
     auto emitAllRowsChanged = [this, &roles]() {
         if (!m_rows.isEmpty())
@@ -290,6 +304,8 @@ QVariant NoteListModel::data(const QModelIndex &index, int role) const
         return entry->meta.favorite;
     case TagsRole:
         return entry->meta.tags;
+    case RealmRole:
+        return entry->realm;
     }
     return QVariant();
 }
@@ -306,6 +322,7 @@ QHash<int, QByteArray> NoteListModel::roleNames() const
         {PinnedRole, "pinned"},
         {FavoriteRole, "favorite"},
         {TagsRole, "tags"},
+        {RealmRole, "realm"},
     };
 }
 

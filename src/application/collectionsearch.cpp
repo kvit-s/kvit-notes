@@ -16,9 +16,16 @@
 #include <QFile>
 #include <QVariantMap>
 
+#include <functional>
+
 namespace {
 
-QVariantList groupsToVariant(const SearchResults &results)
+// `realmOf` answers with the realm a hit belongs to, or "" for one of the
+// user's notes. Files an application manages are searchable, since being able
+// to find them again is the point of admitting them at all; a result list that
+// did not say which was which would read as though the vault held them alike.
+QVariantList groupsToVariant(const SearchResults &results,
+                             const std::function<QString(const QString &)> &realmOf)
 {
     QVariantList groups;
     groups.reserve(results.groups.size());
@@ -41,6 +48,7 @@ QVariantList groupsToVariant(const SearchResults &results)
             {QStringLiteral("titleMatched"), group.titleMatched},
             {QStringLiteral("matchCount"), group.matchCount},
             {QStringLiteral("moreMatches"), group.moreMatches},
+            {QStringLiteral("realm"), realmOf(group.relPath)},
             {QStringLiteral("matches"), matches},
         });
     }
@@ -277,7 +285,10 @@ void CollectionSearch::applyResults(const SearchResults &results, bool complete)
     const int beforeMatchCount = m_matchCount;
     const bool beforeComplete = m_complete;
 
-    m_groups = groupsToVariant(results);
+    NoteCollection *collection = m_collection;
+    m_groups = groupsToVariant(results, [collection](const QString &relPath) {
+        return collection ? collection->realmOf(relPath) : QString();
+    });
     m_matchCount = results.matchCount;
     m_complete = complete;
 

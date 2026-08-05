@@ -13,6 +13,7 @@
 
 #include "cancellationtoken.h"
 #include "noteentry.h"
+#include "reservedsubtrees.h"
 
 // What a worker thread computes about a vault.
 //
@@ -42,6 +43,12 @@ struct IndexTask {
     QDateTime modified;
     qint64 fileSize = -1;
     quint64 generation = 0;
+    // Filled in for a file the walk admitted out of a reserved subtree: the
+    // realm it belongs to, and the `kvit-type` its front matter has to carry
+    // to stay admitted. The walk decides both from the path, so the parse
+    // needs no registry of its own.
+    QString realm;
+    QString requiredType;
 };
 
 struct IndexResult {
@@ -49,6 +56,12 @@ struct IndexResult {
     NoteEntry entry;
     bool ok = false;
     quint64 generation = 0;
+    // The file is where an admitted file goes but is not one: it lies in a
+    // reserved subtree, its path matched the registration's rule, and its
+    // front matter does not carry the type that registration asked for. It
+    // belongs to the application that owns the subtree, so it leaves the
+    // index rather than being listed as a note.
+    bool rejected = false;
 };
 
 struct ScanRequest {
@@ -57,6 +70,9 @@ struct ScanRequest {
     bool indexOk = false;
     bool indexFileExists = false;
     quint64 generation = 0;
+    // The subtrees the application manages, and what each admits. Empty in
+    // the open editor, which is the walk exactly as it was.
+    ReservedSubtrees reserved;
     // Checked between directories. QtConcurrent::run cannot interrupt
     // this walk, so without it a vault the user has already left goes on
     // being listed to the end.
@@ -83,6 +99,7 @@ struct RefreshRequest {
     QStringList relDirs;
     QHash<QString, NoteEntry> currentNotes;
     quint64 generation = 0;
+    ReservedSubtrees reserved;
     // Checked between notes. This worker reads and parses every changed
     // body inline, so it is the one whose abandoned run costs the most.
     CancellationTokenPtr cancel;

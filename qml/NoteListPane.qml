@@ -553,6 +553,31 @@ Rectangle {
             clip: true
             model: NoteListModel
 
+            // Files an application manages are listed after the user's notes,
+            // under the name of the realm they belong to (see
+            // reservedsubtrees.h). One of the user's notes has no realm, so
+            // its heading is empty and takes no height: with nothing
+            // registered — the open editor — the list is drawn exactly as it
+            // was.
+            section.property: "realm"
+            section.criteria: ViewSection.FullString
+            section.delegate: Text {
+                id: realmHeading
+                objectName: "noteListRealmHeading"
+                required property string section
+                width: noteListView.width
+                visible: realmHeading.section !== ""
+                height: visible ? implicitHeight + Interface.px(12) : 0
+                verticalAlignment: Text.AlignBottom
+                leftPadding: Interface.px(12)
+                rightPadding: Interface.px(12)
+                text: realmHeading.section
+                color: Theme.textFaint
+                font.pixelSize: Interface.small
+                font.capitalization: Font.AllUppercase
+                elide: Text.ElideRight
+            }
+
             // Keyboard operation (§14.1). Up/Down move the current row, which
             // is drawn as such, and Return/Enter/Space open it; the
             // context-menu key reaches the same menu as the right button.

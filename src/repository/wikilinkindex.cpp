@@ -156,11 +156,30 @@ QVariantMap WikiLinkIndex::resolution(const QString &target,
     const int slash = lowered.lastIndexOf(QLatin1Char('/'));
     const QString base = slash >= 0 ? lowered.mid(slash + 1) : lowered;
 
+    // A bare name never reaches a realm file.
+    //
+    // Files an application nominates out of a subtree it manages are indexed
+    // under names it chose, and it typically chooses one name for all of
+    // them: one `report.md` in every folder of `.reports/`. Under the
+    // ordinary suffix rule a note containing `[[report]]` would resolve into
+    // whichever of those sorted first, or report an ambiguity between
+    // hundreds of files the person writing the link has never seen. So a
+    // realm file answers only a target that names at least one folder of its
+    // own path, which makes `[[.reports/march/report]]` work while
+    // `[[report]]` means the user's note of that name, or nothing.
+    const bool qualified = lowered.contains(QLatin1Char('/'));
+
     QStringList matches;
     const QStringList candidates = m_basenames.value(base);
     for (const QString &relPath : candidates) {
-        if (pathMatchesTarget(relPath, lowered))
-            matches.append(relPath);
+        if (!pathMatchesTarget(relPath, lowered))
+            continue;
+        if (!qualified) {
+            const auto entry = m_notes->constFind(relPath);
+            if (entry != m_notes->constEnd() && !entry->realm.isEmpty())
+                continue;
+        }
+        matches.append(relPath);
     }
     matches.sort(Qt::CaseInsensitive);
 

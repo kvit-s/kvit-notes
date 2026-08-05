@@ -56,6 +56,18 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- An application can now reserve a subtree of the vault and nominate the few
+  files in it the note index should see. The scanner has always skipped
+  dot-prefixed directories, which is right for working copies and control data
+  and wrong for the one document in each folder that somebody may want to find
+  again. A nominated file is indexed, full-text searchable and reachable by a
+  folder-qualified `[[link]]`, and it is grouped under a label of its own in
+  the note list and the quick switcher. It is not one of the user's notes: it
+  never resolves from a bare `[[name]]`, and it stays out of the note counts,
+  the tag registry, query-block results and a vault-wide export. Nothing is
+  reserved unless something registers it, and with nothing registered the
+  vault behaves exactly as before.
+
 - A linked module can now draw inside the document view rather than only
   around it. Three things are registered with `DocumentDecorations`: a
   container drawn after a given block, a glyph in a reserved column at the

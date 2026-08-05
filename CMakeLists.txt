@@ -329,6 +329,7 @@ add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/perflog.cpp
     src/domain/persistencepool.cpp
     src/domain/removeblockcommand.cpp
+    src/domain/reservedsubtrees.cpp
     src/domain/setblockattributescommand.cpp
     src/domain/setcheckedcommand.cpp
     src/domain/splitblockcommand.cpp
