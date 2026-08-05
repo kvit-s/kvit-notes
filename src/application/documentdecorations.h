@@ -4,6 +4,7 @@
 #ifndef DOCUMENTDECORATIONS_H
 #define DOCUMENTDECORATIONS_H
 
+#include <QColor>
 #include <QObject>
 #include <QPointer>
 #include <QRectF>
@@ -20,11 +21,12 @@
 // The three UI slots in ExtensionRegistry put module content above, below or
 // beside the editor. Annotations, review markers, comment threads and inline
 // panels all want to draw BETWEEN and BESIDE a note's blocks instead, and
-// there was no way to reach that area at all. This is that seam, and it is
-// deliberately narrow: a module says where it wants something drawn and which
-// QML draws it, and the document view honours that at render time.
+// there was no way to reach that area at all, nor to reach the characters
+// themselves. This is that seam, and it is deliberately narrow: a module says
+// where it wants something drawn and either which QML draws it or which
+// colors to draw it in, and the document view honours that at render time.
 //
-// Two kinds of entry:
+// Three kinds of entry:
 //
 //   - A CONTAINER is drawn after a block, full column width, sized to its own
 //     content. It is rendered, never inserted. Nothing reaches BlockModel, so
@@ -42,10 +44,19 @@
 //     the first glyph, since the text would otherwise shift horizontally
 //     under the reader the moment anything was drawn.
 //
+//   - A SPAN marks a run of characters inside one block, and the editor
+//     paints it as a background wash, as a border outline, or as both. It
+//     addresses the text the way a search hit does — {block, start, length}
+//     in DISPLAY coordinates, the text with hidden markers taken out — so a
+//     consumer that already stores anchors that way stores nothing new for
+//     it. The document is untouched here as well: no block state, no
+//     serialization, no undo entry, no effect on any row index.
+//
 // Placement is dynamic. A module computes where its entries sit as the
 // document changes and moves them with setContainerBlock() /
-// setMarginItemPosition(); each entry keeps its id across a move, so nothing
-// is torn down and rebuilt to shift an anchor by one block.
+// setMarginItemPosition() / setSpanRange(); each entry keeps its id across a
+// move, so nothing is torn down and rebuilt to shift an anchor by one block
+// or by one character.
 //
 // Every entry carries an `owner`, which is the module's name. Two modules can
 // contribute at once without seeing each other's entries, and removeAll()
@@ -55,7 +66,8 @@
 //
 // The open editor registers nothing, and with nothing registered the view asks
 // this object one cheap question per row and gets an empty answer, the margin
-// column has zero width, and the layout is what it was before this existed.
+// column has zero width, every block renders on the path it rendered on
+// before, and the layout is what it was before this existed.
 class DocumentDecorations : public QObject
 {
     Q_OBJECT
@@ -76,13 +88,36 @@ class DocumentDecorations : public QObject
     // False while nothing is registered at all, which is the state the open
     // build stays in. The view checks it before doing any per-row work.
     Q_PROPERTY(bool active READ isActive NOTIFY changed)
+    // The same gate for spans alone. A text delegate reads it before asking
+    // for a block's spans and, because a marked block cannot use the
+    // lightweight read-only path, before deciding which path to render on —
+    // which is a question every row asks whether or not any module is
+    // installed, so it has to be one bool rather than a list lookup.
+    Q_PROPERTY(bool hasSpans READ hasSpans NOTIFY changed)
 
 public:
+    // How a span is painted. The two channels compose, because a background
+    // and a border are separate visual channels: a persistent categorical
+    // mark and a transient "this is the current one" mark routinely fall on
+    // the same words, and one has to remain readable under the other.
+    //
+    // One entry carries one color for whichever channels it names. Two
+    // colors on the same characters is two entries, which is the same case
+    // as any other overlap and draws the same way.
+    enum SpanStyle {
+        NoStyle = 0x0,
+        Wash    = 0x1,  // background behind the characters
+        Outline = 0x2,  // border around them, one box per visual line
+    };
+    Q_DECLARE_FLAGS(SpanStyles, SpanStyle)
+    Q_FLAG(SpanStyles)
+
     explicit DocumentDecorations(QObject *parent = nullptr);
     ~DocumentDecorations() override;
 
     int revision() const { return m_revision; }
     bool isActive() const;
+    bool hasSpans() const { return !m_spans.empty(); }
 
     bool marginColumnReserved() const { return m_marginColumnReserved; }
     void setMarginColumnReserved(bool reserved);
@@ -113,6 +148,28 @@ public:
     bool setMarginItemPosition(const QString &id, int block, int line);
     bool removeMarginItem(const QString &id);
 
+    // Mark [start, start + length) of block `block`, in the block's DISPLAY
+    // text, and paint it in `color` through the channels `style` names. A
+    // span registers no QML and has no context object: the editor draws it
+    // out of the text it has already laid out, which is what lets it follow
+    // the characters as they move.
+    //
+    // The core draws what it is handed. A range running past the end of the
+    // block's text clamps to the text, a block with no text of its own draws
+    // nothing, and a span whose block index the document does not have costs
+    // nothing until the module re-places it. An empty style or an invalid
+    // color registers nothing and returns an empty id, since there would be
+    // no channel to draw it through.
+    QString addSpan(const QString &owner, int block, int start, int length,
+                    SpanStyles style, const QColor &color);
+    // A move may take the length to zero, where registering one at zero is
+    // refused: an entry that never marked anything is a caller's mistake,
+    // while a mark whose text the user has just deleted is an ordinary state
+    // for a module to keep an id through until it re-places it.
+    bool setSpanRange(const QString &id, int block, int start, int length);
+    bool setSpanStyle(const QString &id, SpanStyles style, const QColor &color);
+    bool removeSpan(const QString &id);
+
     // Everything one module registered. A module calls this when it is done,
     // and a test calls it to isolate a case.
     void removeAll(const QString &owner);
@@ -120,6 +177,7 @@ public:
 
     int containerCount() const { return static_cast<int>(m_containers.size()); }
     int marginItemCount() const { return static_cast<int>(m_marginItems.size()); }
+    int spanCount() const { return static_cast<int>(m_spans.size()); }
 
     // ---- what the view reads -------------------------------------------
     //
@@ -133,6 +191,14 @@ public:
     // that declares neither alone.
     Q_INVOKABLE QVariantList containersAfter(int blockIndex) const;
     Q_INVOKABLE QVariantList marginItemsForBlock(int blockIndex) const;
+
+    // The spans marking text in one block, in registration order, which is
+    // the order they paint in and therefore which of two washes on the same
+    // characters is the one underneath. Each element is
+    // { id, owner, block, start, length, wash, outline }, where `wash` and
+    // `outline` are color strings and an empty one means the entry does not
+    // use that channel.
+    Q_INVOKABLE QVariantList spansForBlock(int blockIndex) const;
 
     // ---- geometry ------------------------------------------------------
     //
@@ -155,6 +221,13 @@ public:
     // The vertical extent of visual line `line` of block `blockIndex`, which
     // is what places a glyph beside one line of a wrapped paragraph.
     Q_INVOKABLE QRectF lineGeometry(int blockIndex, int line) const;
+    // Where a span is painted: one rectangle per visual line it crosses,
+    // in the same content coordinates as the three queries above. Consumers
+    // anchor transient surfaces to marked text — a popup beside the phrase a
+    // comment is on — and a marked phrase that wraps occupies more than one
+    // rectangle. Empty for an unknown id, for a block the list has not built,
+    // and for a span that currently lands on no text.
+    Q_INVOKABLE QVariantList spanRects(const QString &id) const;
 
 signals:
     void changed();
@@ -169,19 +242,30 @@ private:
         QPointer<QObject> context;
         // A container reads `block` as the block it follows; a margin item
         // reads it as the block it sits beside, and `line` as the visual line
-        // within that block. `line` is unused for containers.
+        // within that block; a span reads it as the block whose text it
+        // marks, and `start`/`length` as the run of display characters.
+        // Each kind leaves the fields it has no use for at their defaults.
         int block = 0;
         int line = 0;
+        int start = 0;
+        int length = 0;
+        SpanStyles style = NoStyle;
+        QColor color;
     };
+
+    enum class Kind { Container, MarginItem, Span };
 
     QString nextId(const QString &prefix);
     static Entry *find(std::vector<Entry> &entries, const QString &id);
-    QVariantMap describe(const Entry &entry, bool withLine) const;
+    QVariantMap describe(const Entry &entry, Kind kind) const;
     QRectF askView(const char *method, const QVariantList &arguments) const;
+    QVariantList askViewList(const char *method,
+                             const QVariantList &arguments) const;
     void bump();
 
     std::vector<Entry> m_containers;
     std::vector<Entry> m_marginItems;
+    std::vector<Entry> m_spans;
     // A QPointer because the view is a QML item in a window that can close
     // while this object lives on: a raw pointer would be answered with a
     // crash the first time a module asked for geometry afterwards.
@@ -190,5 +274,7 @@ private:
     int m_nextId = 1;
     bool m_marginColumnReserved = false;
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(DocumentDecorations::SpanStyles)
 
 #endif // DOCUMENTDECORATIONS_H

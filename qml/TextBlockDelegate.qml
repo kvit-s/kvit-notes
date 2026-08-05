@@ -112,10 +112,21 @@ BlockDelegateBase {
         var portion = DocumentSelection.portionForBlock(root.index)
         return !!(portion && portion.selected)
     }
+    // A block a module has marked promotes to the editor, the same way a
+    // block with a search match does: the wash is painted by the editing
+    // engine's highlighter, which the lightweight shell below does not have.
+    // The gate is one bool in the open build, where nothing is registered.
+    readonly property bool hasDecorationSpans: {
+        if (!DocumentDecorations.hasSpans)
+            return false
+        var revision = DocumentDecorations.revision
+        return DocumentDecorations.spansForBlock(root.index).length > 0
+    }
     readonly property bool useReadOnlyShell:
         !root.editorRequested
         && !root.inTextSelectionRange
         && !root.hasSearchMatches
+        && !root.hasDecorationSpans
         && !root.hasDropCap
         && root.displayText === root.content
 
@@ -276,6 +287,13 @@ BlockDelegateBase {
                                         readOnlyText.positionAt(p.x, p.y)))
         // qmllint enable missing-property
         return p.x < readOnlyText.width / 2 ? 0 : root.content.length
+    }
+    // The marked runs live in the editor's laid-out text, so this row can
+    // only answer once it is latched — which a marked block always is, since
+    // carrying a span is what disqualifies it from the shell above.
+    function decorationSpanRects(id) {
+        var item = editableItem()
+        return item ? item.decorationSpanRects(id) : []
     }
     function pointInText(sceneX, sceneY) {
         var item = editableItem()

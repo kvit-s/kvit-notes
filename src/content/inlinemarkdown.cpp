@@ -565,33 +565,46 @@ QList<HighlightRange> searchHighlightRanges(const QString &markdown,
     if (displayMatches.isEmpty())
         return out;
 
-    // Display length bounds stale matches: a keystroke can shorten the
-    // text before the queued search recompute delivers fresh ranges.
+    for (const HighlightRange &match : displayMatches) {
+        const HighlightRange mapped =
+            mapDisplayRange(markdown, revealedSpans, match, verbatim);
+        if (mapped.length > 0)
+            out.append(mapped);
+    }
+    return out;
+}
+
+HighlightRange mapDisplayRange(const QString &markdown,
+                               const QList<int> &revealedSpans,
+                               const HighlightRange &displayRange,
+                               bool verbatim)
+{
+    // Display length bounds a stale range: a keystroke can shorten the text
+    // before the queued search recompute delivers fresh matches, and a
+    // module re-places its spans a turn after the edit that moved them.
     const int displayLength = verbatim
         ? static_cast<int>(markdown.length())
         : static_cast<int>(documentText(markdown, QList<int>()).length());
 
-    for (const HighlightRange &match : displayMatches) {
-        const int start = qBound(0, match.start, displayLength);
-        const int end = qBound(0, match.start + match.length, displayLength);
-        if (end <= start)
-            continue;
-        if (verbatim) {
-            out.append({start, end - start, match.current});
-            continue;
-        }
-        // Per matched character: display → markdown (no reveals) →
-        // document (current reveals). The last character maps as a
-        // position-of-char so the range covers exactly the matched
-        // characters — plus any markers a reveal put between them.
-        const int mdStart = documentToMarkdown(markdown, QList<int>(), start);
-        const int mdLast = documentToMarkdown(markdown, QList<int>(), end - 1);
-        const int docStart = markdownToDocument(markdown, revealedSpans, mdStart);
-        const int docEnd = markdownToDocument(markdown, revealedSpans, mdLast) + 1;
-        if (docEnd > docStart)
-            out.append({docStart, docEnd - docStart, match.current});
-    }
-    return out;
+    const int start = qBound(0, displayRange.start, displayLength);
+    const int end = qBound(0, displayRange.start + displayRange.length,
+                           displayLength);
+    if (end <= start)
+        return {};
+    if (verbatim)
+        return {start, end - start, displayRange.current};
+
+    // Per matched character: display → markdown (no reveals) → document
+    // (current reveals). The last character maps as a position-of-char so
+    // the range covers exactly the matched characters — plus any markers a
+    // reveal put between them.
+    const int mdStart = documentToMarkdown(markdown, QList<int>(), start);
+    const int mdLast = documentToMarkdown(markdown, QList<int>(), end - 1);
+    const int docStart = markdownToDocument(markdown, revealedSpans, mdStart);
+    const int docEnd = markdownToDocument(markdown, revealedSpans, mdLast) + 1;
+    if (docEnd <= docStart)
+        return {};
+    return {docStart, docEnd - docStart, displayRange.current};
 }
 
 QVariantMap mathSpanRangeIn(const QString &markdown, int mdPos)

@@ -129,12 +129,51 @@ BlockDelegateBase {
         return DocumentSearch.matchesForBlock(delegate.index)
     }
     readonly property bool hasSearchMatches: blockSearchMatches.length > 0
+
+    // ---- text a linked module has marked ----
+    //
+    // The spans registered against this block (DocumentDecorations), in the
+    // same display coordinates as the search matches above. The gate is read
+    // first and is one bool, so a build with no module installed asks
+    // nothing further.
+    readonly property var blockDecorationSpans: {
+        var revision = DocumentDecorations.revision // dependency only
+        if (!DocumentDecorations.hasSpans)
+            return []
+        return DocumentDecorations.spansForBlock(delegate.index)
+    }
+    readonly property bool hasDecorationSpans:
+        delegate.blockDecorationSpans.length > 0
+    // Bumped whenever the text relayouts, which moves every box a span
+    // occupies without changing the list of them. Same arrangement as
+    // mathTick, and for the same reason.
+    property int spanTick: 0
+    // The boxes the outline layer draws, one per visual line a span crosses.
+    // Read off the ENGINE's span list rather than the delegate's, so this
+    // cannot run on spans the engine has not taken yet: the two bindings are
+    // fed from the same source and nothing orders them against each other.
+    readonly property var decorationSpanBoxes: {
+        var spans = editorEngine.decorationSpans
+        var dep = textArea.text     // reveal transitions and edits
+        var dep2 = delegate.spanTick // relayout
+        if (!delegate.editorActive || spans.length === 0)
+            return []
+        return editorEngine.decorationSpanBoxes()
+    }
+
+    // A block carrying a marked span renders on the editor path, exactly as
+    // a block carrying a search match does, and for the same reason: the
+    // wash is painted by the highlighter, which is part of the editing
+    // engine and does not exist on the lightweight read-only path. Painting
+    // it there instead would mean a second implementation of the wash and of
+    // the display-to-document mapping under it, kept in step by hand.
     readonly property bool useReadOnlyText:
         enableLightweightReadOnly
         && !delegate.editorRequested
         && !textArea.activeFocus
         && !DocumentSelection.hasTextSelection
         && !delegate.hasSearchMatches
+        && !delegate.hasDecorationSpans
         && !delegate.hasDropCap
         && delegate.displayText === delegate.editableMarkdown
     readonly property bool editorActive: !delegate.useReadOnlyText
@@ -611,6 +650,25 @@ BlockDelegateBase {
 
     function markdownPositionAt(sceneX, sceneY) {
         return crossBlockSelection.markdownPositionAt(sceneX, sceneY)
+    }
+
+    // Where span `id` is drawn in this row, one rectangle per visual line it
+    // crosses. A module cannot see a laid-out Qt Quick item, and it anchors
+    // surfaces of its own to marked text — a popup beside the phrase a
+    // comment is on — so the position has to come back through a query. The
+    // shell maps these into the block list's content coordinates, the space
+    // the other three geometry answers are already in.
+    function decorationSpanRects(id) {
+        var out = []
+        var boxes = delegate.decorationSpanBoxes
+        for (var i = 0; i < boxes.length; ++i) {
+            if (boxes[i].id !== id)
+                continue
+            var caret = textArea.positionToRectangle(boxes[i].docStart)
+            var origin = textArea.mapToItem(delegate, caret.x, caret.y)
+            out.push(Qt.rect(origin.x, origin.y, boxes[i].width, caret.height))
+        }
+        return out
     }
     // Paint this block's share of a cross-block range that a mouse drag has
     // just finished. Deferred, because the release that ends the drag also
@@ -1700,6 +1758,11 @@ BlockDelegateBase {
                 // this is an empty list and costs nothing.
                 searchMatches: delegate.editorActive
                     ? delegate.blockSearchMatches : []
+                // The second source of marked ranges: what a linked module
+                // registered against this block. Empty in the open editor,
+                // where nothing registers.
+                decorationSpans: delegate.editorActive
+                    ? delegate.blockDecorationSpans : []
 
                 onMarkdownEdited: function(md) {
                     if (delegate.isPooled) return
@@ -2196,8 +2259,14 @@ BlockDelegateBase {
                 // A relayout does move the rectangles without changing a
                 // character, so these do still tick — but only where there is
                 // something to reposition.
-                onContentHeightChanged: if (delegate.hasInlineMath) delegate.mathTick++
-                onContentWidthChanged: if (delegate.hasInlineMath) delegate.mathTick++
+                onContentHeightChanged: {
+                    if (delegate.hasInlineMath) delegate.mathTick++
+                    if (delegate.hasDecorationSpans) delegate.spanTick++
+                }
+                onContentWidthChanged: {
+                    if (delegate.hasInlineMath) delegate.mathTick++
+                    if (delegate.hasDecorationSpans) delegate.spanTick++
+                }
 
                 // Cross-block portions must stay visible on unfocused
                 // blocks; the focus-loss deselect in
@@ -2872,6 +2941,28 @@ BlockDelegateBase {
                 active: delegate.inlineMathBoxes.length > 0
                 anchors.fill: parent
                 sourceComponent: inlineMathOverlayComponent
+            }
+
+            // The borders around text a module has marked. Nothing is built
+            // for a block no module marked, which is every block in the open
+            // editor.
+            Loader {
+                id: spanOverlayLoader
+                active: delegate.decorationSpanBoxes.length > 0
+                anchors.fill: parent
+                sourceComponent: spanDecorationOverlayComponent
+            }
+            Component {
+                id: spanDecorationOverlayComponent
+                SpanDecorationOverlay {
+                    anchors.fill: parent
+                    // A folded callout hides its text, so an outline left
+                    // over its collapsed header would mark nothing.
+                    visible: !delegate.calloutFolded
+                    editor: textArea
+                    boxes: delegate.decorationSpanBoxes
+                    tick: delegate.spanTick
+                }
             }
             Component {
                 id: inlineMathOverlayComponent

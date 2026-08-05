@@ -470,17 +470,33 @@ module contributes legible from the core:
   (`src/application/documentdecorations.h`), because the slots can only put
   content around the editor and annotations, review markers and comment
   threads want to sit between and beside the blocks. A module registers a
-  CONTAINER after a block, or a glyph in the reserved column at the right edge
-  addressed by block and by visual text line; both are rendered rather than
-  inserted, so `BlockModel` is untouched, every row index is what it would
-  have been, and nothing drawn there reaches the note's undo stack. The rows
-  themselves do the drawing, in `qml/BlockDelegateBase.qml`: a delegate binds
+  CONTAINER after a block, a glyph in the reserved column at the right edge
+  addressed by block and by visual text line, or a SPAN marking a run of
+  characters inside one block; all three are rendered rather than inserted, so
+  `BlockModel` is untouched, every row index is what it would have been, and
+  nothing drawn there reaches the note's undo stack. The rows themselves do
+  the drawing, in `qml/BlockDelegateBase.qml`: a delegate binds
   `blockContentHeight` for its own content and the base adds whatever is
   drawn after it, which is what makes a container occupy space between two
-  blocks. Positions come back through three geometry queries the block list
+  blocks. Positions come back through four geometry queries the block list
   answers, since a module has no way to see a laid-out Qt Quick item. With
   nothing registered the margin column has no width, each row asks one cheap
   question and gets an empty answer, and the layout is what it was.
+
+  A span is addressed the way a search hit is: `{block, start, length}` in the
+  block's DISPLAY text, which `InlineMarkdown::mapDisplayRange` turns into the
+  document coordinates of the current reveal state, so the mark follows the
+  characters as markers appear and disappear under the caret. It has two
+  visual channels, which compose. The wash is a background, painted by
+  `BlockEditorEngine`'s highlight pass beside the search tint (and under it,
+  since a background can only be one color per character). The outline is a
+  border, which no character format can express, so it is drawn as items over
+  the text by `qml/SpanDecorationOverlay.qml`, one box per visual line the
+  span crosses. Because the wash lives in the highlighter, a marked block
+  renders through the editing engine rather than through the lightweight
+  read-only text path, exactly as a block with a search match does; that is
+  the reason `hasDecorationSpans` appears in `useReadOnlyText` and
+  `useReadOnlyShell`.
 
 **`KVIT_AGENT=ON` against this checkout stops at configure time with an
 explanation.** The module's sources are deliberately absent here, so the

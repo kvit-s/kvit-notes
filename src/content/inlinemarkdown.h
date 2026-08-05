@@ -167,6 +167,21 @@ QList<HighlightRange> searchHighlightRanges(const QString &markdown,
                                             const QList<int> &revealedSpans,
                                             const QList<HighlightRange> &displayMatches,
                                             bool verbatim);
+// One display-coordinate range in the document coordinates of the given
+// reveal state, by the rule searchHighlightRanges applies to each of its
+// matches: every matched character maps display → markdown (no reveals) →
+// document (current reveals), and the result runs from the first matched
+// character to the last. A range reaching past the text clamps to it; one
+// that lands on nothing comes back with a length of zero, which is how a
+// caller tells "nothing to paint" from a real range.
+//
+// Search matches are one producer of such ranges; a linked module's marked
+// spans are another, and both need the same mapping from the coordinates a
+// consumer stores to the coordinates the document currently has.
+HighlightRange mapDisplayRange(const QString &markdown,
+                               const QList<int> &revealedSpans,
+                               const HighlightRange &displayRange,
+                               bool verbatim);
 // The inline math span containing a markdown position, both content
 // edges inclusive — the backslash command-menu trigger gate. Returns
 // {"found": bool, "mdStart"/"mdEnd": the span's markdown range including

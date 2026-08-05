@@ -5,7 +5,12 @@
 
 #include <QQmlApplicationEngine>
 #include <QQuickItem>
+#include <QQuickTextDocument>
 #include <QTemporaryDir>
+#include <QTextBlock>
+#include <QTextCharFormat>
+#include <QTextDocument>
+#include <QTextLayout>
 #include <QUrl>
 
 #include <memory>
@@ -86,6 +91,23 @@ QString wrappingParagraph()
     return text.trimmed();
 }
 
+// A paragraph whose display text and markdown differ, so a span addressed in
+// display coordinates lands somewhere the markdown offset would not:
+// "This is **bold** text" renders as "This is bold text", putting "bold" at
+// display 8 and at markdown 10.
+const QString kMarkedParagraph = QStringLiteral("This is **bold** text");
+constexpr int kMarkedStart = 8;   // "bold" in the DISPLAY text
+constexpr int kMarkedLength = 4;
+
+QColor washColor()
+{
+    return QColor(QStringLiteral("#5533aa"));
+}
+QColor outlineColor()
+{
+    return QColor(QStringLiteral("#cc4400"));
+}
+
 } // namespace
 
 // What a linked module may draw inside the document view, driven through the
@@ -146,6 +168,14 @@ private slots:
         model->insertBlock(2, Block::Paragraph, QStringLiteral("third block"));
         undo()->clear();
         QCoreApplication::processEvents();
+
+        // And from a note the view has finished laying out. A case that
+        // leaves a long wrapping paragraph in block 0 is followed by a row
+        // that still reports the old height for a turn or two, and a case
+        // that measures a row before decorating it measures that stale
+        // number. It shows on a real display rather than offscreen, where
+        // the first process events happen to be enough.
+        QTRY_COMPARE(row(0) ? row(0)->property("textLineCount").toInt() : -1, 1);
     }
 
     void theShellLoadsWithTheModuleInstalled()
@@ -415,6 +445,224 @@ private slots:
         QTRY_COMPARE(childItems(row(0), QStringLiteral("demoDecorationBox")).size(), 1);
     }
 
+    // C3. A marked range inside a block: the editor paints a wash behind the
+    // characters the module named, addressed the way a search hit is —
+    // display coordinates, the text with the hidden markers taken out. This
+    // paragraph's display text and markdown differ by two characters at the
+    // marked word, so an implementation that took the offset for a markdown
+    // one would paint "ld t" instead of "bold".
+    void aWashLandsOnTheCharactersItNames()
+    {
+        BlockModel *model = blocks();
+        model->updateContent(0, kMarkedParagraph);
+        decorations()->addSpan(QStringLiteral("demo"), 0, kMarkedStart,
+                               kMarkedLength, DocumentDecorations::Wash,
+                               washColor());
+
+        QTRY_COMPARE(editorText(0), QStringLiteral("This is bold text"));
+        QTRY_COMPARE(backgroundAt(0, kMarkedStart), washColor());
+
+        // Exactly those characters: the space before the word and the one
+        // after it are untinted, and the tinted run reads "bold".
+        QCOMPARE(backgroundAt(0, kMarkedStart + kMarkedLength - 1), washColor());
+        QVERIFY(!backgroundAt(0, kMarkedStart - 1).isValid());
+        QVERIFY(!backgroundAt(0, kMarkedStart + kMarkedLength).isValid());
+        QCOMPARE(editorText(0).mid(kMarkedStart, kMarkedLength),
+                 QStringLiteral("bold"));
+
+        // And the markdown offset the same characters have is a different
+        // number, which is what the case is about.
+        QCOMPARE(model->getContent(0).indexOf(QStringLiteral("bold")), 10);
+    }
+
+    // The two channels compose on one range: the wash is a background and the
+    // outline a border, so a categorical mark and a "this is the current one"
+    // mark can sit on the same words without either hiding the other.
+    void aWashAndAnOutlineCoverTheSameCharacters()
+    {
+        blocks()->updateContent(0, kMarkedParagraph);
+        decorations()->addSpan(QStringLiteral("demo"), 0, kMarkedStart,
+                               kMarkedLength, DocumentDecorations::Wash,
+                               washColor());
+        decorations()->addSpan(QStringLiteral("demo"), 0, kMarkedStart,
+                               kMarkedLength, DocumentDecorations::Outline,
+                               outlineColor());
+
+        QTRY_COMPARE(backgroundAt(0, kMarkedStart), washColor());
+
+        QList<QQuickItem *> outlines;
+        QTRY_VERIFY((outlines = visibleOutlines(0)).size() == 1);
+        QCOMPARE(outlines.first()->property("border")
+                     .value<QObject *>()->property("color").value<QColor>(),
+                 outlineColor());
+        QVERIFY(outlines.first()->width() > 0);
+        QVERIFY(outlines.first()->height() > 0);
+    }
+
+    // Overlap and nesting are ordinary. Both outlines are drawn, one box
+    // inside the other, rather than one replacing the other.
+    void overlappingSpansAreBothDrawn()
+    {
+        blocks()->updateContent(0, kMarkedParagraph);
+        decorations()->addSpan(QStringLiteral("demo"), 0, 0, 12,
+                               DocumentDecorations::Outline, outlineColor());
+        decorations()->addSpan(QStringLiteral("demo"), 0, kMarkedStart,
+                               kMarkedLength, DocumentDecorations::Outline,
+                               washColor());
+
+        QList<QQuickItem *> outlines;
+        QTRY_VERIFY((outlines = visibleOutlines(0)).size() == 2);
+        // The nested one is inside the wider one, which is what "both drawn"
+        // has to mean for a reader looking at the block.
+        QVERIFY(outlines.at(1)->width() < outlines.at(0)->width());
+        QVERIFY(outlines.at(1)->x() > outlines.at(0)->x());
+    }
+
+    // Placement is dynamic: the module recomputes its anchors after an edit
+    // and moves a span by its id, without tearing it down.
+    void aSpanMovedAfterAnEditLandsOnItsNewPosition()
+    {
+        blocks()->updateContent(0, kMarkedParagraph);
+        const QString id = decorations()->addSpan(
+            QStringLiteral("demo"), 0, kMarkedStart, kMarkedLength,
+            DocumentDecorations::Wash, washColor());
+
+        QTRY_COMPARE(backgroundAt(0, kMarkedStart), washColor());
+
+        // Six characters go in ahead of the marked word; the module works
+        // out where its anchor is now and says so.
+        blocks()->updateContent(0, QStringLiteral("Well, ") + kMarkedParagraph);
+        QVERIFY(decorations()->setSpanRange(id, 0, kMarkedStart + 6,
+                                            kMarkedLength));
+
+        QTRY_COMPARE(backgroundAt(0, kMarkedStart + 6), washColor());
+        QVERIFY(!backgroundAt(0, kMarkedStart).isValid());
+        QCOMPARE(editorText(0).mid(kMarkedStart + 6, kMarkedLength),
+                 QStringLiteral("bold"));
+    }
+
+    // Nothing enters the document. A note carrying spans round-trips byte for
+    // byte, and the undo stack is the depth it would have been.
+    void spansNeitherRecordNorDeepenAnUndoStep()
+    {
+        BlockModel *model = blocks();
+        DocumentSerializer serializer;
+        model->updateContent(0, kMarkedParagraph);
+        undo()->clear();
+        const QString before = serializer.serialize(model);
+        const int countBefore = model->count();
+
+        const QString id = decorations()->addSpan(
+            QStringLiteral("demo"), 0, kMarkedStart, kMarkedLength,
+            DocumentDecorations::Wash | DocumentDecorations::Outline,
+            washColor());
+        QTRY_VERIFY(editorDocument(0));
+        QTRY_COMPARE(visibleOutlines(0).size(), 1);
+
+        QCOMPARE(undo()->count(), 0);
+        QCOMPARE(model->count(), countBefore);
+        QCOMPARE(serializer.serialize(model), before);
+
+        // An edit made with the span drawn, then undone: one step, and the
+        // note is what it was down to the byte.
+        model->updateContent(1, QStringLiteral("second block, edited"));
+        QCOMPARE(undo()->count(), 1);
+        undo()->undo();
+        QCOMPARE(serializer.serialize(model), before);
+        QCOMPARE(undo()->count(), 1);
+
+        decorations()->setSpanRange(id, 0, 0, 4);
+        decorations()->removeSpan(id);
+        QCOMPARE(undo()->count(), 1);
+        QCOMPARE(serializer.serialize(model), before);
+    }
+
+    // The core draws what it is handed. A block with no text of its own has
+    // no characters to mark, and says so rather than guessing at a position.
+    void aSpanOnABlockWithNoTextDrawsNothing()
+    {
+        BlockModel *model = blocks();
+        model->insertBlock(3, Block::Divider, QString());
+        QTRY_VERIFY(row(3));
+
+        const QString id = decorations()->addSpan(
+            QStringLiteral("demo"), 3, 0, 5,
+            DocumentDecorations::Wash | DocumentDecorations::Outline,
+            washColor());
+        QCoreApplication::processEvents();
+
+        QVERIFY(visibleOutlines(3).isEmpty());
+        QVERIFY(decorations()->spanRects(id).isEmpty());
+        QCOMPARE(model->count(), 4);
+    }
+
+    // Where a span was drawn, through the query a module actually uses: it
+    // cannot see a Qt Quick item, and it anchors surfaces of its own to
+    // marked text. The answer is in the block list's content coordinates,
+    // the same space the other three geometry answers are in.
+    void aModuleCanLearnWhereItsSpanLanded()
+    {
+        blocks()->updateContent(0, kMarkedParagraph);
+        const QString id = decorations()->addSpan(
+            QStringLiteral("demo"), 0, kMarkedStart, kMarkedLength,
+            DocumentDecorations::Outline, outlineColor());
+
+        QList<QQuickItem *> outlines;
+        QTRY_VERIFY((outlines = visibleOutlines(0)).size() == 1);
+
+        QVariantList rects;
+        QTRY_VERIFY(!(rects = decorations()->spanRects(id)).isEmpty());
+        QCOMPARE(rects.size(), 1);
+        const QRectF marked = rects.first().toRectF();
+        const QRectF block = decorations()->blockGeometry(0);
+        QVERIFY(!block.isNull());
+
+        // The same rectangle the outline was drawn at, lifted out of the row
+        // into the list's coordinates.
+        const QPointF drawn = outlines.first()->mapToItem(row(0), QPointF(0, 0));
+        QCOMPARE(marked.left(), row(0)->x() + drawn.x());
+        QCOMPARE(marked.top(), row(0)->y() + drawn.y());
+        QCOMPARE(marked.width(), outlines.first()->width());
+        // Inside the block it marks, and to the right of where the line
+        // starts, since it marks the third word rather than the first.
+        QVERIFY(block.contains(marked.center()));
+        QVERIFY(marked.left() > block.left());
+
+        // An id nobody registered is nothing, rather than a guess.
+        QVERIFY(decorations()->spanRects(QStringLiteral("nope")).isEmpty());
+    }
+
+    // A marked block renders through the editing engine rather than through
+    // the lightweight read-only shell, because the wash is painted by the
+    // engine's highlighter and that is the one place it is implemented. The
+    // row goes back to the shell when the module takes its span away, so a
+    // note nobody marked pays nothing for the capability.
+    void aMarkedBlockRendersThroughTheEditorAndGoesBackAfterwards()
+    {
+        // A block nothing has touched yet, because a row that has already
+        // been edited or clicked in keeps its editor for reasons of its own
+        // and would say nothing about spans.
+        BlockModel *model = blocks();
+        const int index = model->count();
+        model->insertBlock(index, Block::Paragraph,
+                           QStringLiteral("an untouched paragraph"));
+        QVERIFY(waitForRow(index));
+        QTRY_VERIFY(row(index)->property("useReadOnlyShell").toBool());
+        QVERIFY(!row(index)->property("hasDecorationSpans").toBool());
+
+        const QString id = decorations()->addSpan(
+            QStringLiteral("demo"), index, 0, 2, DocumentDecorations::Wash,
+            washColor());
+        QTRY_VERIFY(row(index)->property("hasDecorationSpans").toBool());
+        QTRY_VERIFY(!row(index)->property("useReadOnlyShell").toBool());
+        QTRY_VERIFY(row(index)->property("editorLoaderActive").toBool());
+        QTRY_COMPARE(backgroundAt(index, 0), washColor());
+
+        decorations()->removeSpan(id);
+        QTRY_VERIFY(!row(index)->property("hasDecorationSpans").toBool());
+        QTRY_VERIFY(row(index)->property("useReadOnlyShell").toBool());
+    }
+
     void noWarningsAppearedWhileDecorating()
     {
         if (g_warnings.size() > m_warningsAfterLoad) {
@@ -462,6 +710,62 @@ private:
                 QTest::qWait(10);
         }
         return result;
+    }
+
+    // The QTextDocument the row's editor laid out, or null while the row is
+    // still on the lightweight shell. A marked block always latches, so this
+    // is what every span case waits on.
+    QTextDocument *editorDocument(int index)
+    {
+        QQuickItem *area = childItem(row(index), QStringLiteral("blockTextArea"));
+        if (!area)
+            return nullptr;
+        auto *handle = qvariant_cast<QQuickTextDocument *>(
+            area->property("textDocument"));
+        return handle ? handle->textDocument() : nullptr;
+    }
+
+    // The text one row's editor is showing, empty while it has none.
+    QString editorText(int index)
+    {
+        QTextDocument *doc = editorDocument(index);
+        return doc ? doc->toPlainText() : QString();
+    }
+
+    // The background the layout actually renders at a position, or an
+    // invalid color where it renders none.
+    //
+    // The document is looked up on every call rather than held: a row that
+    // takes an edit rebuilds its editor, and a QTextDocument captured before
+    // that is freed memory by the time the next attempt of a QTRY_ loop runs.
+    QColor backgroundAt(int index, int pos)
+    {
+        QTextDocument *doc = editorDocument(index);
+        if (!doc || !doc->firstBlock().layout())
+            return QColor();
+        const auto formats = doc->firstBlock().layout()->formats();
+        for (const auto &range : formats) {
+            if (pos < range.start || pos >= range.start + range.length)
+                continue;
+            if (range.format.background().style() != Qt::NoBrush)
+                return range.format.background().color();
+        }
+        return QColor();
+    }
+
+    // The outline boxes drawn over one row's text. The layer carries an item
+    // per marked run and hides the ones that are wash-only, so the visible
+    // ones are what a reader sees.
+    QList<QQuickItem *> visibleOutlines(int index)
+    {
+        QList<QQuickItem *> visible;
+        const QList<QQuickItem *> drawn =
+            childItems(row(index), QStringLiteral("decorationSpanOutline"));
+        for (QQuickItem *item : drawn) {
+            if (item->isVisible())
+                visible.append(item);
+        }
+        return visible;
     }
 
     // Geometry of a row that may not exist yet, for the QTRY_ macros: a

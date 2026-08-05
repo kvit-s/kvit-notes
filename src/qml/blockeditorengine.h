@@ -4,6 +4,7 @@
 #ifndef BLOCKEDITORENGINE_H
 #define BLOCKEDITORENGINE_H
 
+#include <QColor>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -94,6 +95,18 @@ class BlockEditorEngine : public QObject, public QQmlParserStatus
     // tint with the text. Verbatim engines paint them too (code blocks skip
     // span styling only).
     Q_PROPERTY(QVariantList searchMatches READ searchMatches WRITE setSearchMatches NOTIFY searchMatchesChanged)
+    // The second source of marked ranges: the spans a linked module
+    // registered against this block (DocumentDecorations). Same display
+    // coordinates and the same mapping as the search matches above, and a
+    // different appearance — each entry carries its own colors, in
+    // {"id", "start", "length", "wash", "outline"}, where an empty color
+    // string means the entry does not use that channel. The wash is painted
+    // here, in the highlight pass; the outline is a border, which no
+    // character format can express, so it is drawn over the text from
+    // decorationSpanBoxes(). Empty in the open editor, where no module is
+    // installed and nothing registers.
+    Q_PROPERTY(QVariantList decorationSpans READ decorationSpans
+                   WRITE setDecorationSpans NOTIFY decorationSpansChanged)
     // Theme tokens for the highlighter. Optional: with no theme set the
     // engine styles with its built-in (light) constants, which keeps every
     // theme-unaware test running unchanged. A theme change rehighlights the
@@ -165,6 +178,21 @@ public:
 
     QVariantList searchMatches() const;
     void setSearchMatches(const QVariantList &matches);
+
+    QVariantList decorationSpans() const;
+    void setDecorationSpans(const QVariantList &spans);
+
+    // Where the registered spans are drawn: one entry per visual line each
+    // one crosses, as {"id", "wash", "outline", "docStart", "width"}. The
+    // caller turns docStart into a position by asking the text item for its
+    // caret rectangle there — the one query that answers in the item's own
+    // coordinates — and takes the width from here, because the width of a
+    // run of characters is not a caret position and the two ends of a
+    // wrapped line are not on the same line to subtract.
+    //
+    // Empty until the document has been laid out, which is the state a
+    // pooled or freshly bound delegate is in for a turn.
+    Q_INVOKABLE QVariantList decorationSpanBoxes() const;
 
     Theme *theme() const { return m_theme; }
     void setTheme(Theme *theme);
@@ -270,6 +298,7 @@ signals:
     void verbatimChanged();
     void codeLanguageChanged();
     void searchMatchesChanged();
+    void decorationSpansChanged();
     void themeChanged();
     void linkResolverChanged();
     void wikiResolverChanged();
@@ -327,6 +356,25 @@ private:
     bool m_hadVerticalFormats = false;
     QVariantList m_searchMatchesVariant;
     QList<HighlightRange> m_searchMatches;
+
+    // One module-registered span: the marked range in display coordinates,
+    // and the color of each channel it uses (an invalid color is a channel
+    // it does not).
+    struct DecorationSpan
+    {
+        QString id;
+        HighlightRange range;
+        QColor wash;
+        QColor outline;
+
+        bool operator==(const DecorationSpan &other) const
+        {
+            return id == other.id && range == other.range
+                   && wash == other.wash && outline == other.outline;
+        }
+    };
+    QVariantList m_decorationSpansVariant;
+    QList<DecorationSpan> m_decorationSpans;
     // Rendered-equation metrics, keyed by TeX and size. Bounded, because
     // every intermediate string typed while editing a formula is a distinct
     // key: "$x", "$x^", "$x^2" and so on all measure, and the cache used to

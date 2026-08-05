@@ -2032,6 +2032,30 @@ KvitShell {
                     return Qt.rect(row.x, row.y + row.lineTop(line),
                                    row.width, row.lineHeightAt(line))
                 }
+                // Where a marked run of characters is drawn: one rectangle
+                // per visual line it crosses, since a marked phrase that
+                // wraps is in two places. The row that holds the span works
+                // them out in its own coordinates and this lifts them into
+                // the list's content coordinates, as with a container.
+                function decorationSpanRects(id) {
+                    for (var i = 0; i < BlockModel.count; ++i) {
+                        var spanRow = (blockListView.itemAtIndex(i)
+                                       as BlockDelegateBase)
+                        if (!spanRow)
+                            continue
+                        var rects = spanRow.decorationSpanRects(id)
+                        if (rects.length === 0)
+                            continue
+                        var out = []
+                        for (var j = 0; j < rects.length; ++j) {
+                            out.push(Qt.rect(spanRow.x + rects[j].x,
+                                             spanRow.y + rects[j].y,
+                                             rects[j].width, rects[j].height))
+                        }
+                        return out
+                    }
+                    return []
+                }
                 function decorationContainerGeometry(id) {
                     for (var i = 0; i < BlockModel.count; ++i) {
                         var row = (blockListView.itemAtIndex(i)

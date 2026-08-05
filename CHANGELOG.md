@@ -56,6 +56,19 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A linked module can now mark a run of characters inside a block and have
+  the editor draw it, as a background wash, as a border outline, or as both
+  in colors it chooses. The editor has painted marked ranges for years for
+  its own search hits, with one producer and one appearance; this is a second
+  producer, so anything holding a pointer into a paragraph, such as an
+  annotation over a phrase or a comment's quoted span, can show where it
+  points. A span is addressed the way a search hit is, by block and by offset
+  into the block's displayed text, and it is drawn rather than inserted: the
+  note round-trips byte for byte and its undo history is what it would have
+  been.
+  Overlapping and nested marks are all drawn, and a module can ask where one
+  landed, which is one rectangle per line a marked phrase wraps onto.
+
 - An application can now reserve a subtree of the vault and nominate the few
   files in it the note index should see. The scanner has always skipped
   dot-prefixed directories, which is right for working copies and control data

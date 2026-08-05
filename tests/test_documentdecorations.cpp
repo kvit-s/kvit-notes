@@ -42,6 +42,17 @@ public:
         return QVariant::fromValue(QRectF(0, 500, 300, 60));
     }
 
+    // A marked phrase that wraps occupies one rectangle per visual line, so
+    // this answer is a list where the three above are single rectangles.
+    Q_INVOKABLE QVariant decorationSpanRects(QVariant id)
+    {
+        askedId = id.toString();
+        return QVariant::fromValue(QVariantList{
+            QVariant::fromValue(QRectF(10, 200, 80, 20)),
+            QVariant::fromValue(QRectF(0, 220, 40, 20)),
+        });
+    }
+
     int askedBlock = -1;
     int askedLine = -1;
     QString askedId;
@@ -80,6 +91,9 @@ private slots:
         QCOMPARE(decorations.marginItemCount(), 0);
         QVERIFY(decorations.containersAfter(0).isEmpty());
         QVERIFY(decorations.marginItemsForBlock(0).isEmpty());
+        QVERIFY(!decorations.hasSpans());
+        QCOMPARE(decorations.spanCount(), 0);
+        QVERIFY(decorations.spansForBlock(0).isEmpty());
     }
 
     void aContainerIsRegisteredAfterItsBlock()
@@ -168,6 +182,141 @@ private slots:
                      .value(QStringLiteral("line")).toInt(), 0);
     }
 
+    // ---- marked spans ----
+
+    // A span names a run of display characters in one block and the colors
+    // to paint it in. The two channels compose, so an entry may carry both.
+    void aSpanMarksARunOfCharactersInOneBlock()
+    {
+        DocumentDecorations decorations;
+        QSignalSpy changed(&decorations, &DocumentDecorations::changed);
+
+        const QString id = decorations.addSpan(
+            QStringLiteral("demo"), 2, 6, 5,
+            DocumentDecorations::Wash | DocumentDecorations::Outline,
+            QColor(QStringLiteral("#5533aa")));
+
+        QVERIFY(!id.isEmpty());
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(decorations.hasSpans());
+        QVERIFY(decorations.isActive());
+        QVERIFY(decorations.spansForBlock(1).isEmpty());
+
+        const QVariantList marked = decorations.spansForBlock(2);
+        QCOMPARE(marked.size(), 1);
+        const QVariantMap entry = marked.first().toMap();
+        QCOMPARE(entry.value(QStringLiteral("id")).toString(), id);
+        QCOMPARE(entry.value(QStringLiteral("owner")).toString(),
+                 QStringLiteral("demo"));
+        QCOMPARE(entry.value(QStringLiteral("start")).toInt(), 6);
+        QCOMPARE(entry.value(QStringLiteral("length")).toInt(), 5);
+        // One color per channel the entry uses, as a string the drawing end
+        // reads directly.
+        QCOMPARE(QColor(entry.value(QStringLiteral("wash")).toString()),
+                 QColor(QStringLiteral("#5533aa")));
+        QCOMPARE(QColor(entry.value(QStringLiteral("outline")).toString()),
+                 QColor(QStringLiteral("#5533aa")));
+    }
+
+    // One channel at a time is the ordinary case: a wash marks the phrase, an
+    // outline says which one is current, and the two are separate entries
+    // precisely so they can be different colors on the same characters.
+    void aSpanUsesOnlyTheChannelsItNames()
+    {
+        DocumentDecorations decorations;
+        decorations.addSpan(QStringLiteral("demo"), 0, 0, 4,
+                            DocumentDecorations::Wash,
+                            QColor(QStringLiteral("#5533aa")));
+        decorations.addSpan(QStringLiteral("demo"), 0, 2, 4,
+                            DocumentDecorations::Outline,
+                            QColor(QStringLiteral("#cc4400")));
+
+        const QVariantList marked = decorations.spansForBlock(0);
+        QCOMPARE(marked.size(), 2);
+        QVERIFY(marked.at(0).toMap().value(QStringLiteral("outline"))
+                    .toString().isEmpty());
+        QVERIFY(!marked.at(0).toMap().value(QStringLiteral("wash"))
+                     .toString().isEmpty());
+        QVERIFY(marked.at(1).toMap().value(QStringLiteral("wash"))
+                    .toString().isEmpty());
+        QVERIFY(!marked.at(1).toMap().value(QStringLiteral("outline"))
+                     .toString().isEmpty());
+        // Overlapping and nesting are ordinary: both entries stand, in
+        // registration order, which is the order they paint in.
+        QCOMPARE(marked.at(0).toMap().value(QStringLiteral("start")).toInt(), 0);
+        QCOMPARE(marked.at(1).toMap().value(QStringLiteral("start")).toInt(), 2);
+    }
+
+    // Placement is dynamic here too: as the user types, a module recomputes
+    // where its anchors landed and moves each span by its id.
+    void aSpanMovesByItsIdRatherThanBeingRebuilt()
+    {
+        DocumentDecorations decorations;
+        const QString id = decorations.addSpan(
+            QStringLiteral("demo"), 0, 4, 3, DocumentDecorations::Wash,
+            QColor(QStringLiteral("#5533aa")));
+        const int before = decorations.revision();
+
+        QVERIFY(decorations.setSpanRange(id, 1, 10, 6));
+        QVERIFY(decorations.revision() > before);
+        QVERIFY(decorations.spansForBlock(0).isEmpty());
+        const QVariantMap moved = decorations.spansForBlock(1).first().toMap();
+        QCOMPARE(moved.value(QStringLiteral("id")).toString(), id);
+        QCOMPARE(moved.value(QStringLiteral("start")).toInt(), 10);
+        QCOMPARE(moved.value(QStringLiteral("length")).toInt(), 6);
+
+        // Re-placing a span where it already is costs no re-render, which is
+        // what lets a module recompute every anchor on every keystroke.
+        const int settled = decorations.revision();
+        QVERIFY(decorations.setSpanRange(id, 1, 10, 6));
+        QCOMPARE(decorations.revision(), settled);
+
+        // Recoloring is the same story: the id stands, the appearance moves.
+        QVERIFY(decorations.setSpanStyle(id, DocumentDecorations::Outline,
+                                         QColor(QStringLiteral("#cc4400"))));
+        const QVariantMap restyled = decorations.spansForBlock(1).first().toMap();
+        QVERIFY(restyled.value(QStringLiteral("wash")).toString().isEmpty());
+        QCOMPARE(QColor(restyled.value(QStringLiteral("outline")).toString()),
+                 QColor(QStringLiteral("#cc4400")));
+
+        QVERIFY(!decorations.setSpanRange(QStringLiteral("no-such-id"), 0, 0, 1));
+        QVERIFY(!decorations.setSpanStyle(QStringLiteral("no-such-id"),
+                                          DocumentDecorations::Wash, QColor()));
+    }
+
+    // An entry with no channel to draw through, or no color to draw in, is
+    // refused rather than carried and never painted.
+    void aSpanWithNothingToDrawIsRefused()
+    {
+        DocumentDecorations decorations;
+        QVERIFY(decorations.addSpan(QStringLiteral("demo"), 0, 0, 4,
+                                    DocumentDecorations::NoStyle,
+                                    QColor(QStringLiteral("#5533aa")))
+                    .isEmpty());
+        QVERIFY(decorations.addSpan(QStringLiteral("demo"), 0, 0, 4,
+                                    DocumentDecorations::Wash, QColor())
+                    .isEmpty());
+        QVERIFY(decorations.addSpan(QStringLiteral("demo"), 0, 0, 0,
+                                    DocumentDecorations::Wash,
+                                    QColor(QStringLiteral("#5533aa")))
+                    .isEmpty());
+        QVERIFY(!decorations.hasSpans());
+        QVERIFY(!decorations.isActive());
+    }
+
+    void removingASpanTakesItOutOfTheView()
+    {
+        DocumentDecorations decorations;
+        const QString id = decorations.addSpan(
+            QStringLiteral("demo"), 0, 0, 4, DocumentDecorations::Wash,
+            QColor(QStringLiteral("#5533aa")));
+
+        QVERIFY(decorations.removeSpan(id));
+        QVERIFY(!decorations.removeSpan(id));
+        QVERIFY(!decorations.hasSpans());
+        QVERIFY(!decorations.isActive());
+    }
+
     // Two modules at once. Neither can see the other's entries removed, and
     // the drawing order is registration order, so a document with two modules
     // decorating one block looks the same on every run.
@@ -179,6 +328,9 @@ private slots:
         const QString second =
             decorations.addContainer(QStringLiteral("second"), 0, demoSource());
         decorations.addMarginItem(QStringLiteral("second"), 0, 0, demoSource());
+        decorations.addSpan(QStringLiteral("second"), 0, 0, 3,
+                            DocumentDecorations::Wash,
+                            QColor(QStringLiteral("#5533aa")));
 
         const QVariantList after = decorations.containersAfter(0);
         QCOMPARE(after.size(), 2);
@@ -190,6 +342,7 @@ private slots:
         QCOMPARE(decorations.containersAfter(0).first().toMap()
                      .value(QStringLiteral("id")).toString(), first);
         QVERIFY(decorations.marginItemsForBlock(0).isEmpty());
+        QVERIFY(decorations.spansForBlock(0).isEmpty());
     }
 
     void removingAnEntryTakesItOutOfTheView()
@@ -260,11 +413,15 @@ private slots:
         DocumentDecorations decorations;
         decorations.addContainer(QStringLiteral("a"), 0, demoSource());
         decorations.addMarginItem(QStringLiteral("b"), 1, 1, demoSource());
+        decorations.addSpan(QStringLiteral("c"), 1, 0, 4,
+                            DocumentDecorations::Wash,
+                            QColor(QStringLiteral("#5533aa")));
         decorations.clear();
 
         QVERIFY(!decorations.isActive());
         QCOMPARE(decorations.containerCount(), 0);
         QCOMPARE(decorations.marginItemCount(), 0);
+        QCOMPARE(decorations.spanCount(), 0);
     }
 
     // Positions exist only once the view has laid the rows out, so the three
@@ -277,6 +434,7 @@ private slots:
         QVERIFY(decorations.blockGeometry(2).isNull());
         QVERIFY(decorations.lineGeometry(2, 1).isNull());
         QVERIFY(decorations.containerGeometry(QStringLiteral("id")).isNull());
+        QVERIFY(decorations.spanRects(QStringLiteral("id")).isEmpty());
 
         FakeDocumentView view;
         decorations.setDocumentView(&view);
@@ -291,6 +449,14 @@ private slots:
         QCOMPARE(decorations.containerGeometry(QStringLiteral("container-1")),
                  QRectF(0, 500, 300, 60));
         QCOMPARE(view.askedId, QStringLiteral("container-1"));
+
+        // A span's answer is one rectangle per visual line it crosses, and a
+        // consumer reads them as rectangles rather than as a list of numbers.
+        const QVariantList rects = decorations.spanRects(QStringLiteral("span-1"));
+        QCOMPARE(view.askedId, QStringLiteral("span-1"));
+        QCOMPARE(rects.size(), 2);
+        QCOMPARE(rects.at(0).toRectF(), QRectF(10, 200, 80, 20));
+        QCOMPARE(rects.at(1).toRectF(), QRectF(0, 220, 40, 20));
     }
 
     // A window closing destroys the view while the module and this object

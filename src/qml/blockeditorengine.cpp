@@ -112,6 +112,10 @@ protected:
             applyCodeFormats(text);
         else
             applySpanFormats(text, blockPos);
+        // A module's washes go under the search tint rather than over it:
+        // the search hit is what the reader is looking at right now, and a
+        // background can only be one color per character.
+        applyDecorationWash(text, blockPos);
         applySearchOverlay(text, blockPos);
     }
 
@@ -358,6 +362,39 @@ private:
         }
     }
 
+    // The wash half of a module's marked spans, merged character by
+    // character for the same reason the search overlay is: a whole-range
+    // setFormat would replace the bold, link and code styling underneath the
+    // tint. Registration order decides which of two washes on the same
+    // characters the reader sees, which is the rule the registry documents.
+    //
+    // The outline half is not here. A border is not a character format at
+    // all, so it is drawn as items over the text from decorationSpanBoxes(),
+    // and a span that carries both channels gets its background from this
+    // pass and its box from that one.
+    void applyDecorationWash(const QString &text, int blockPos)
+    {
+        if (m_engine->m_decorationSpans.isEmpty())
+            return;
+        for (const auto &span : m_engine->m_decorationSpans) {
+            if (!span.wash.isValid())
+                continue;
+            const auto range = InlineMarkdown::mapDisplayRange(
+                m_engine->m_markdown, m_engine->m_revealedSpans, span.range,
+                m_engine->m_verbatim);
+            if (range.length <= 0)
+                continue;
+            const int localStart = qMax(0, range.start - blockPos);
+            const int localEnd = qMin<int>(text.length(),
+                                           range.start + range.length - blockPos);
+            for (int i = localStart; i < localEnd; ++i) {
+                QTextCharFormat merged = format(i);
+                merged.setBackground(span.wash);
+                setFormat(i, 1, merged);
+            }
+        }
+    }
+
     BlockEditorEngine *m_engine;
 };
 
@@ -516,6 +553,93 @@ void BlockEditorEngine::setSearchMatches(const QVariantList &matches)
     m_searchMatches = parsed;
     emit searchMatchesChanged();
     requestRehighlight();
+}
+
+QVariantList BlockEditorEngine::decorationSpans() const
+{
+    return m_decorationSpansVariant;
+}
+
+void BlockEditorEngine::setDecorationSpans(const QVariantList &spans)
+{
+    QList<DecorationSpan> parsed;
+    for (const QVariant &v : spans) {
+        const QVariantMap map = v.toMap();
+        DecorationSpan span;
+        span.id = map.value(QStringLiteral("id")).toString();
+        span.range.start = map.value(QStringLiteral("start")).toInt();
+        span.range.length = map.value(QStringLiteral("length")).toInt();
+        // Colors arrive as strings, one per channel, and an entry that does
+        // not use a channel sends an empty one — which QColor reads as
+        // invalid, which is exactly what the drawing end tests for.
+        span.wash = QColor(map.value(QStringLiteral("wash")).toString());
+        span.outline = QColor(map.value(QStringLiteral("outline")).toString());
+        if (span.range.length > 0
+            && (span.wash.isValid() || span.outline.isValid())) {
+            parsed.append(span);
+        }
+    }
+    m_decorationSpansVariant = spans;
+    if (parsed == m_decorationSpans)
+        return;
+    m_decorationSpans = parsed;
+    emit decorationSpansChanged();
+    requestRehighlight();
+}
+
+// The rectangles are worked out from the laid-out text rather than from the
+// characters, because a marked phrase that wraps occupies one box per visual
+// line and only the layout knows where it broke.
+QVariantList BlockEditorEngine::decorationSpanBoxes() const
+{
+    QVariantList boxes;
+    if (!m_doc || m_decorationSpans.isEmpty())
+        return boxes;
+
+    for (const DecorationSpan &span : m_decorationSpans) {
+        const auto range = InlineMarkdown::mapDisplayRange(
+            m_markdown, m_revealedSpans, span.range, m_verbatim);
+        if (range.length <= 0)
+            continue;
+        const int docStart = range.start;
+        const int docEnd = range.start + range.length;
+
+        for (QTextBlock block = m_doc->findBlock(docStart);
+             block.isValid() && block.position() < docEnd;
+             block = block.next()) {
+            QTextLayout *layout = block.layout();
+            if (!layout)
+                continue;
+            const int blockPos = block.position();
+            for (int i = 0; i < layout->lineCount(); ++i) {
+                const QTextLine line = layout->lineAt(i);
+                const int lineStart = blockPos + line.textStart();
+                const int lineEnd = lineStart + line.textLength();
+                const int from = qMax(docStart, lineStart);
+                const int to = qMin(docEnd, lineEnd);
+                if (to <= from)
+                    continue;
+                // Both edges as x positions within the same line, so their
+                // difference is the width of the run whatever the line's
+                // own origin and alignment are.
+                const qreal left = line.cursorToX(from - blockPos);
+                const qreal right = line.cursorToX(to - blockPos);
+
+                QVariantMap box;
+                box.insert(QStringLiteral("id"), span.id);
+                box.insert(QStringLiteral("wash"),
+                           span.wash.isValid()
+                               ? span.wash.name(QColor::HexArgb) : QString());
+                box.insert(QStringLiteral("outline"),
+                           span.outline.isValid()
+                               ? span.outline.name(QColor::HexArgb) : QString());
+                box.insert(QStringLiteral("docStart"), from);
+                box.insert(QStringLiteral("width"), qAbs(right - left));
+                boxes.append(box);
+            }
+        }
+    }
+    return boxes;
 }
 
 void BlockEditorEngine::setTheme(Theme *theme)

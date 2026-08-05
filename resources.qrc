@@ -12,6 +12,7 @@
         <file>qml/CalloutBlockChrome.qml</file>
         <file>qml/CodeBlockChrome.qml</file>
         <file>qml/InlineMathOverlay.qml</file>
+        <file>qml/SpanDecorationOverlay.qml</file>
         <file>qml/TextBlockDelegate.qml</file>
         <file>qml/BulletListDelegate.qml</file>
         <file>qml/NumberedListDelegate.qml</file>

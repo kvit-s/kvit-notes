@@ -204,6 +204,12 @@ Item {
         return Qt.rect(0, 0, 0, 0)
     }
 
+    // Where a module's marked span is drawn inside this row, one rectangle
+    // per visual line it crosses. A row with no text of its own has no
+    // characters to mark and answers with nothing, which is also the answer
+    // for a span belonging to some other row.
+    function decorationSpanRects(id) { return [] }
+
     // The containers drawn after this row, stacked in registration order so
     // two modules contributing after the same block get a stable order rather
     // than one hiding the other.

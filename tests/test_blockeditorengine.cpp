@@ -190,6 +190,12 @@ private slots:
     void testSearchMatchesPaintAndMergeFormats();
     void testSearchHighlightFollowsRevealTransition();
 
+    // --- marked spans a linked module registered ---
+    void testDecorationWashLandsOnDisplayCoordinates();
+    void testDecorationWashAndSearchTintCoexist();
+    void testDecorationSpansOnNoTextDrawNothing();
+    void testDecorationSpanBoxesSplitPerVisualLine();
+
     // --- Sup/sub rendering, caret format flags ---
     void testSupSubVerticalAlignment();
     void testFormatFlagsAtDocumentPosition();
@@ -1684,6 +1690,143 @@ void TestBlockEditorEngine::testSearchHighlightFollowsRevealTransition()
     QCOMPARE(doc.toPlainText(), QString("Hello world"));
     QVERIFY(layoutFormatAt(doc, 6).background().style() != Qt::NoBrush);
     QCOMPARE(layoutFormatAt(doc, 11).background().style(), Qt::NoBrush);
+}
+
+// ---- marked spans a linked module registered ----
+
+// The addressing is the search hit's: display coordinates, the text with
+// hidden markers taken out. The distinction is the whole point of this case —
+// "world" is at display 6 and at markdown 8, so a span that landed on the
+// markdown offset would paint two characters to the right of the word.
+void TestBlockEditorEngine::testDecorationWashLandsOnDisplayCoordinates()
+{
+    QTextDocument doc;
+    BlockEditorEngine engine;
+    engine.attachDocument(&doc);
+    engine.setMarkdown("Hello **world**");
+    settle();
+    QCOMPARE(doc.toPlainText(), QString("Hello world"));
+
+    engine.setDecorationSpans({
+        QVariantMap{{"id", "span-1"}, {"start", 6}, {"length", 5},
+                    {"wash", "#5533aaff"}, {"outline", QString()}},
+    });
+
+    QCOMPARE(layoutFormatAt(doc, 6).background().color(), QColor("#5533aaff"));
+    QCOMPARE(layoutFormatAt(doc, 10).background().color(), QColor("#5533aaff"));
+    // Not the space before the word, and the bold under the wash survives:
+    // the background is merged into the format rather than replacing it.
+    QCOMPARE(layoutFormatAt(doc, 5).background().style(), Qt::NoBrush);
+    QCOMPARE(layoutFormatAt(doc, 8).fontWeight(), int(QFont::Bold));
+
+    // The module takes its span back and the block renders as it did.
+    engine.setDecorationSpans({});
+    QCOMPARE(layoutFormatAt(doc, 6).background().style(), Qt::NoBrush);
+    QCOMPARE(layoutFormatAt(doc, 8).fontWeight(), int(QFont::Bold));
+}
+
+// Two producers on one block. A background can only be one color per
+// character, so where a search hit falls on marked text the search tint is
+// the one the reader sees — it is what they are looking at right now.
+void TestBlockEditorEngine::testDecorationWashAndSearchTintCoexist()
+{
+    QTextDocument doc;
+    BlockEditorEngine engine;
+    engine.attachDocument(&doc);
+    engine.setMarkdown("marked and searched");
+    settle();
+
+    engine.setDecorationSpans({
+        QVariantMap{{"id", "span-1"}, {"start", 0}, {"length", 6},
+                    {"wash", "#5533aaff"}, {"outline", QString()}},
+    });
+    engine.setSearchMatches({
+        QVariantMap{{"start", 11}, {"length", 8}, {"current", true}},
+    });
+
+    QCOMPARE(layoutFormatAt(doc, 0).background().color(), QColor("#5533aaff"));
+    const QColor searched = layoutFormatAt(doc, 12).background().color();
+    QVERIFY(searched.isValid());
+    QVERIFY(searched != QColor("#5533aaff"));
+
+    // Overlapping the two: the search tint wins the background, and the span
+    // is still registered, so taking the search away brings its wash back.
+    engine.setSearchMatches({
+        QVariantMap{{"start", 0}, {"length", 6}, {"current", false}},
+    });
+    QVERIFY(layoutFormatAt(doc, 0).background().color() != QColor("#5533aaff"));
+    engine.setSearchMatches({});
+    QCOMPARE(layoutFormatAt(doc, 0).background().color(), QColor("#5533aaff"));
+}
+
+// The core draws what it is handed, and a range with nothing under it draws
+// nothing: an empty block, and a range reaching past the end of the text,
+// are the two shapes a module's stale anchor takes between an edit and its
+// next recompute.
+void TestBlockEditorEngine::testDecorationSpansOnNoTextDrawNothing()
+{
+    QTextDocument doc;
+    BlockEditorEngine engine;
+    engine.attachDocument(&doc);
+    engine.setMarkdown("");
+    settle();
+
+    engine.setDecorationSpans({
+        QVariantMap{{"id", "span-1"}, {"start", 0}, {"length", 4},
+                    {"wash", "#5533aaff"}, {"outline", "#ff0000ff"}},
+    });
+    QCOMPARE(layoutFormatAt(doc, 0).background().style(), Qt::NoBrush);
+    QVERIFY(engine.decorationSpanBoxes().isEmpty());
+
+    // Text arrives shorter than the span: the range clamps to what is there
+    // rather than being dropped or painting past the end.
+    engine.setMarkdown("ab");
+    settle();
+    QCOMPARE(layoutFormatAt(doc, 0).background().color(), QColor("#5533aaff"));
+    QCOMPARE(layoutFormatAt(doc, 1).background().color(), QColor("#5533aaff"));
+    const QVariantList boxes = engine.decorationSpanBoxes();
+    QCOMPARE(boxes.size(), 1);
+    QCOMPARE(boxes.first().toMap().value("docStart").toInt(), 0);
+}
+
+// A marked phrase that wraps is in two places, so it is two boxes: the
+// outline layer draws one border per visual line and a consumer anchoring a
+// popup gets the rectangle of the line it cares about.
+void TestBlockEditorEngine::testDecorationSpanBoxesSplitPerVisualLine()
+{
+    QTextDocument doc;
+    doc.setTextWidth(60);
+    BlockEditorEngine engine;
+    engine.attachDocument(&doc);
+    engine.setMarkdown("one two three four five six seven eight");
+    settle();
+    QVERIFY(doc.firstBlock().layout()->lineCount() > 1);
+
+    engine.setDecorationSpans({
+        QVariantMap{{"id", "span-1"}, {"start", 0}, {"length", 39},
+                    {"wash", QString()}, {"outline", "#ff0000ff"}},
+    });
+
+    const QVariantList boxes = engine.decorationSpanBoxes();
+    QCOMPARE(boxes.size(), doc.firstBlock().layout()->lineCount());
+    for (const QVariant &v : boxes) {
+        const QVariantMap box = v.toMap();
+        QCOMPARE(box.value("id").toString(), QString("span-1"));
+        // An outline-only span carries no wash color, so the drawing end
+        // knows not to ask the highlighter for one.
+        QCOMPARE(box.value("outline").toString(), QString("#ff0000ff"));
+        QVERIFY(box.value("wash").toString().isEmpty());
+        QVERIFY(box.value("width").toReal() > 0);
+    }
+    // Each box starts where its own line does, in order.
+    QCOMPARE(boxes.first().toMap().value("docStart").toInt(), 0);
+    QVERIFY(boxes.at(1).toMap().value("docStart").toInt() > 0);
+
+    // Nothing was written to the document by any of it.
+    QCOMPARE(doc.toPlainText(),
+             QString("one two three four five six seven eight"));
+    QCOMPARE(engine.markdown(),
+             QString("one two three four five six seven eight"));
 }
 
 // Sup/sub render through QTextCharFormat vertical alignment; Qt derives
