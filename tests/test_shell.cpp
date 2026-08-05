@@ -25,6 +25,7 @@
 #include "extensionregistry.h"
 #include "menuaccesskeys.h"
 #include "perflog.h"
+#include "theme.h"
 #include "qmlservices.h"
 
 #include <QQmlContext>
@@ -648,9 +649,21 @@ private slots:
         QVERIFY(!importItem->property("enabled").toBool());
         QVERIFY(!quickCapture->property("enabled").toBool());
         QVERIFY(!sidebar->property("enabled").toBool());
-        QVERIFY(importItem->property("opacity").toDouble() < 0.5);
-        QVERIFY(quickCapture->property("opacity").toDouble() < 0.5);
-        QVERIFY(sidebar->property("opacity").toDouble() < 0.5);
+        // Disabled means drawn in the theme's disabled text color. Fusion
+        // paints a menu label with palette.text whatever the entry's state,
+        // so without DiscoverableMenuItem doing this per entry the three
+        // rows below carry the same color as Save above them.
+        const QColor disabledText = m_context->theme()->textDisabled();
+        const QColor liveText = m_context->theme()->textPrimary();
+        const auto labelColor = [](QObject *item) {
+            QObject *label = item->property("contentItem").value<QObject *>();
+            return label ? label->property("color").value<QColor>() : QColor();
+        };
+        QVERIFY(disabledText != liveText);
+        QCOMPARE(labelColor(save), liveText);
+        QCOMPARE(labelColor(importItem), disabledText);
+        QCOMPARE(labelColor(quickCapture), disabledText);
+        QCOMPARE(labelColor(sidebar), disabledText);
 
         // Submenus are represented by generated MenuItems, so the parent
         // menu's delegate (rather than the Menu popup object) supplies their
@@ -676,8 +689,8 @@ private slots:
         QVERIFY(fromTemplate);
         QVERIFY(!recent->isEnabled());
         QVERIFY(!fromTemplate->isEnabled());
-        QVERIFY(recent->opacity() < 0.5);
-        QVERIFY(fromTemplate->opacity() < 0.5);
+        QCOMPARE(labelColor(recent), disabledText);
+        QCOMPARE(labelColor(fromTemplate), disabledText);
         QVERIFY(QMetaObject::invokeMethod(fileMenu, "close"));
 
         QObject *path = root->findChild<QObject *>(

@@ -750,7 +750,7 @@ Rectangle {
     Menu {
         id: trashMenu
         objectName: "trashMenu"
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "emptyTrashItem"
             text: MenuText.label(qsTr("&Empty trash…"))
             enabled: NoteCollection.isOpen
@@ -801,7 +801,7 @@ Rectangle {
             popup()
         }
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxFolderNewNote"
             text: MenuText.label(qsTr("&New note"))
             onTriggered: {
@@ -811,19 +811,19 @@ Rectangle {
                     sidebar.appWindow.openNoteByPath(created)
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("New &subfolder…"))
             onTriggered: folderDialog.openForCreate(folderContextMenu.relPath)
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxFolderRename"
             text: MenuText.label(qsTr("&Rename / color…"))
             onTriggered: folderDialog.openForRename(
                 folderContextMenu.relPath, folderContextMenu.folderName,
                 folderContextMenu.folderColor)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxFolderDelete"
             text: MenuText.label(qsTr("&Delete…"))
             onTriggered: deleteFolderDialog.openFor(
@@ -847,13 +847,13 @@ Rectangle {
             popup()
         }
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxTagRename"
             text: MenuText.label(qsTr("&Rename / color…"))
             onTriggered: tagDialog.openFor(tagContextMenu.tagName,
                                            tagContextMenu.tagColor)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxTagDelete"
             text: MenuText.label(qsTr("&Delete…"))
             onTriggered: deleteTagDialog.openFor(tagContextMenu.tagName,

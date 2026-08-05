@@ -976,6 +976,7 @@ Rectangle {
     Menu {
         id: noteContextMenu
         objectName: "noteContextMenu"
+        delegate: DiscoverableMenuItem {}
         property string relPath: ""
         property bool notePinned: false
         property bool noteFavorite: false
@@ -987,25 +988,25 @@ Rectangle {
             popup()
         }
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxNoteOpen"
             text: MenuText.label(qsTr("&Open"))
             onTriggered: noteListPane.appWindow.openNoteByPath(noteContextMenu.relPath)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxNoteRename"
             text: MenuText.label(qsTr("&Rename"))
             onTriggered: noteListPane.startRename(noteContextMenu.relPath)
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxNotePin"
             text: MenuText.label(noteContextMenu.notePinned
                                  ? qsTr("&Unpin") : qsTr("&Pin"))
             onTriggered: NoteCollection.setPinned(
                 noteContextMenu.relPath, !noteContextMenu.notePinned)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxNoteFavorite"
             text: MenuText.label(noteContextMenu.noteFavorite
                 ? qsTr("Remove from &favorites")
@@ -1016,7 +1017,7 @@ Rectangle {
         Menu {
             objectName: "ctxNoteMoveMenu"
             title: MenuText.label(qsTr("&Move to"))
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&Notes root"))
                 onTriggered: noteListPane.appWindow.requestNoteMove(
                     noteContextMenu.relPath, "")
@@ -1024,7 +1025,7 @@ Rectangle {
             Repeater {
                 model: noteContextMenu.visible
                     ? NoteCollection.folderRelPaths() : []
-                MenuItem {
+                DiscoverableMenuItem {
                     required property string modelData
                     text: MenuText.plain(modelData)
                     onTriggered: noteListPane.appWindow.requestNoteMove(
@@ -1033,7 +1034,7 @@ Rectangle {
             }
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxNoteDelete"
             text: MenuText.label(qsTr("&Delete…"))
             onTriggered: bulkDeleteDialog.openFor([noteContextMenu.relPath])

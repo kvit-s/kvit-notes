@@ -82,7 +82,7 @@ Rectangle {
                         y: parent.height
                         Repeater {
                             model: 4
-                            MenuItem {
+                            DiscoverableMenuItem {
                                 required property int index
                                 text: MenuText.label(qsTr("Heading &%1").arg(index + 1))
                                 checkable: true

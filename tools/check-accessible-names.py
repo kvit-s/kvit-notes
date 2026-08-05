@@ -4,14 +4,15 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Check the QML in qml/ for the mistakes that fail silently at runtime.
 
-Four are checked. They share a property with the menu access keys the sibling
+Five are checked. They share a property with the menu access keys the sibling
 script guards: each leaves QML that reads correctly in the source, passes
 qmllint, and photographs correctly. Nothing goes wrong until somebody uses the
 application without a pointer, or with a screen reader, or with the system's
 reduce-motion setting on — and by then the control has been in the tree for
 months. The first three are accessibility.md's, which explains each at length;
 the fourth is the trap that arrived with the shared dialog base, described in
-qml/KvitDialog.qml.
+qml/KvitDialog.qml, and the fifth is the one described in
+qml/DiscoverableMenuItem.qml.
 
   * A `MouseArea` or `TapHandler` with an activation handler, inside an item
     that declares no `Accessible.name`. A rectangle with a tap handler on it
@@ -32,6 +33,13 @@ qml/KvitDialog.qml.
     created and the derived file then replaced, so it holds an item that is in
     no window, and `Popup.open()` on such a popup does nothing and says
     nothing. The dialog simply never appears.
+
+  * A bare `MenuItem`, or a menu holding a submenu without
+    `delegate: DiscoverableMenuItem {}` for the row that submenu gets. Both
+    leave a disabled command drawn in the same color as a live one, so the
+    only sign that it cannot be run is that it refuses to highlight under the
+    pointer — which is no sign at all to somebody reading the menu rather
+    than sweeping it with the mouse.
 
 Each check has a named exemption list, so an exception is a decision somebody
 made and wrote down rather than a check nobody notices is off.
@@ -86,6 +94,12 @@ BARE_DURATION = re.compile(r"^\s*duration\s*:\s*[0-9.]+\s*(?://.*)?$")
 POPUP_TYPES = ("KvitDialog", "Dialog", "Popup", "Menu")
 CONTENT_ITEM = re.compile(r"^\s*contentItem\s*:")
 PARENT_ASSIGN = re.compile(r"^\s*parent\s*:")
+
+# `delegate: DiscoverableMenuItem {}` — what a menu builds a submenu's own row
+# from. The row is Qt's, not the file's, so this line is the only way to reach
+# it.
+MENU_DELEGATE = re.compile(
+    r"^\s*delegate\s*:\s*DiscoverableMenuItem\s*\{\s*\}\s*$")
 
 # ------------------------------------------------------------- exemptions
 
@@ -300,6 +314,33 @@ def check_file(path, problems):
                 "contentItem must set `parent` explicitly, or it opens into "
                 "no window and never appears (see qml/KvitDialog.qml)"
                 % (name, start + 1, type_name))
+
+    # 5. A menu entry that cannot show its own disabled state.
+    if name != "DiscoverableMenuItem.qml":
+        for start, type_name, body in all_scopes:
+            if type_name == "MenuItem":
+                found.append(
+                    "%s:%d: a bare MenuItem draws a disabled command in the "
+                    "same color as a live one; use DiscoverableMenuItem"
+                    % (name, start + 1))
+                continue
+            if type_name != "Menu":
+                continue
+            # A submenu is a Menu opening inside this one. Qt builds its row
+            # in this menu from this menu's delegate, so a menu that has one
+            # has to say what that row is made of.
+            has_submenu = any(
+                other_type == "Menu" and other_start != start
+                and other_start in body
+                for other_start, other_type, _b in all_scopes)
+            if not has_submenu:
+                continue
+            if any(MENU_DELEGATE.match(lines[i]) for i in own[start]):
+                continue
+            found.append(
+                "%s:%d: this menu holds a submenu, whose row Qt builds from "
+                "the menu's delegate; add `delegate: DiscoverableMenuItem {}` "
+                "so a disabled submenu greys out" % (name, start + 1))
 
     # One report per problem: the scope walk visits an item once per scope it
     # sits inside, so the same line can be reached several times.

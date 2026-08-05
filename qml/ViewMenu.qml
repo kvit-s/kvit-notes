@@ -28,6 +28,8 @@ Menu {
     // The editor window these commands act on (main.qml's root).
     property var appWindow
 
+    // The Theme submenu's own row is built from this; see
+    // DiscoverableMenuItem.qml.
     delegate: DiscoverableMenuItem {}
 
     DiscoverableMenuItem {

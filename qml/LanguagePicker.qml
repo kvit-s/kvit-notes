@@ -41,14 +41,14 @@ Menu {
         "bash": "Bash", "json": "JSON", "xml": "XML", "markdown": "Markdown"
     })
 
-    MenuItem {
+    DiscoverableMenuItem {
         text: (root.currentLanguage === "" ? "✓  " : "     ") + "Plain text"
         onTriggered: root.languageChosen("")
     }
     // The `plain` opt-out: unhighlighted code that the diagram classifier
     // never re-examines. Distinct from "Plain text" (empty language), which
     // stays eligible for auto-detection on the next ingest.
-    MenuItem {
+    DiscoverableMenuItem {
         text: (root.currentLanguage === "plain" ? "✓  " : "     ") + "Plain code"
         onTriggered: root.languageChosen("plain")
     }
@@ -56,18 +56,18 @@ Menu {
     // Diagram families: convert this fence to a text diagram or a Mermaid
     // diagram. Selecting one reroutes the block to its diagram delegate as one
     // undo step through the convertBlock(language) path.
-    MenuItem {
+    DiscoverableMenuItem {
         text: (root.currentLanguage === "mermaid" ? "✓  " : "     ") + "Mermaid"
         onTriggered: root.languageChosen("mermaid")
     }
-    MenuItem {
+    DiscoverableMenuItem {
         text: (root.currentLanguage === "diagram" ? "✓  " : "     ") + "Text diagram"
         onTriggered: root.languageChosen("diagram")
     }
     MenuSeparator {}
     Repeater {
         model: CodeLanguages.supported
-        MenuItem {
+        DiscoverableMenuItem {
             required property var modelData
             text: (root.currentLanguage === modelData ? "✓  " : "     ")
                   + (root.displayNames[modelData] !== undefined

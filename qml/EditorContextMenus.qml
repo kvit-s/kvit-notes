@@ -134,29 +134,30 @@ Item {
     Menu {
         id: textContextMenu
         objectName: "textContextMenu"
+        delegate: DiscoverableMenuItem {}
         property var target: null
         readonly property bool hasSel: target
             && target.selectionEndDoc > target.selectionStartDoc
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxCut"
             text: MenuText.label(qsTr("Cu&t"))
             enabled: textContextMenu.hasSel
             onTriggered: textContextMenu.target.cutSelection()
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxCopy"
             text: MenuText.label(qsTr("&Copy"))
             enabled: textContextMenu.hasSel
             onTriggered: textContextMenu.target.copySelection()
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxPaste"
             text: MenuText.label(qsTr("&Paste"))
             enabled: Clipboard.hasText
             onTriggered: textContextMenu.target.pasteClipboard(false)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxPastePlain"
             text: MenuText.label(qsTr("Paste as plain te&xt"))
             enabled: Clipboard.hasText
@@ -178,7 +179,7 @@ Item {
                     { name: qsTr("Su&perscript"), type: "superscript" },
                     { name: qsTr("Subsc&ript"), type: "subscript" },
                     { name: qsTr("Inline &math"), type: "math" }]
-                MenuItem {
+                DiscoverableMenuItem {
                     id: spanTypeItem
                     required property var modelData
                     text: MenuText.label(spanTypeItem.modelData.name)
@@ -199,7 +200,7 @@ Item {
                     { name: qsTr("&Blue"), value: "#4a90d9" },
                     { name: qsTr("&Purple"), value: "#9068c8" },
                     { name: qsTr("Pin&k"), value: "#d06ca8" }]
-                MenuItem {
+                DiscoverableMenuItem {
                     id: colorItem
                     required property var modelData
                     text: MenuText.label(colorItem.modelData.name)
@@ -216,28 +217,28 @@ Item {
                 }
             }
             MenuSeparator {}
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&Custom…"))
                 onTriggered: {
                     textColorDialog.target = textContextMenu.target
                     textColorDialog.open()
                 }
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("Re&move color"))
                 enabled: textContextMenu.target
                          && textContextMenu.target.currentColor !== ""
                 onTriggered: textContextMenu.target.removeColor()
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Lin&k…"))
             enabled: textContextMenu.target
                      && !textContextMenu.target.verbatimEditing
             onTriggered: textContextMenu.target.openLinkDialog()
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Select all"))
             onTriggered: textContextMenu.target.selectAllText()
         }
@@ -263,17 +264,17 @@ Item {
         objectName: "linkContextMenu"
         property var target: null
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxOpenLink"
             text: MenuText.label(qsTr("&Open link"))
             onTriggered: linkContextMenu.target.openLinkUnderCursor()
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxEditLink"
             text: MenuText.label(qsTr("&Edit link…"))
             onTriggered: linkContextMenu.target.openLinkDialog()
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxRemoveLink"
             text: MenuText.label(qsTr("&Remove link"))
             onTriggered: linkContextMenu.target.removeLinkAtCursor()
@@ -283,9 +284,10 @@ Item {
     Menu {
         id: blockContextMenu
         objectName: "blockContextMenu"
+        delegate: DiscoverableMenuItem {}
         property var target: null
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxBlockCopy"
             text: MenuText.label(qsTr("&Copy"))
             onTriggered: menus.copyIndexes([blockContextMenu.target.index])
@@ -293,26 +295,26 @@ Item {
         Menu {
             objectName: "ctxBlockCopyAs"
             title: MenuText.label(qsTr("Copy &as…"))
-            MenuItem {
+            DiscoverableMenuItem {
                 objectName: "ctxBlockCopyAsMarkdown"
                 text: MenuText.label(qsTr("&Markdown"))
                 onTriggered: menus.copyIndexesAs(
                     [blockContextMenu.target.index], "markdown")
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 objectName: "ctxBlockCopyAsText"
                 text: MenuText.label(qsTr("&Plain text"))
                 onTriggered: menus.copyIndexesAs(
                     [blockContextMenu.target.index], "text")
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 objectName: "ctxBlockCopyAsHtml"
                 text: MenuText.label(qsTr("&HTML"))
                 onTriggered: menus.copyIndexesAs(
                     [blockContextMenu.target.index], "html")
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxBlockExport"
             text: MenuText.label(qsTr("&Export…"))
             onTriggered: menus.exportIndexes([blockContextMenu.target.index])
@@ -322,7 +324,7 @@ Item {
             title: MenuText.label(qsTr("&Turn into"))
             Repeater {
                 model: menus.toolbar.typeNames
-                MenuItem {
+                DiscoverableMenuItem {
                     required property int index
                     required property string modelData
                     text: MenuText.plain(modelData)
@@ -338,15 +340,15 @@ Item {
             enabled: blockContextMenu.target
                 && blockContextMenu.target.setBlockAlignment !== undefined
                 && blockContextMenu.target.isAlignable === true
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&Left"))
                 onTriggered: blockContextMenu.target.setBlockAlignment("left")
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&Center"))
                 onTriggered: blockContextMenu.target.setBlockAlignment("center")
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&Right"))
                 onTriggered: blockContextMenu.target.setBlockAlignment("right")
             }
@@ -358,19 +360,19 @@ Item {
             enabled: blockContextMenu.target
                 && blockContextMenu.target.setDropCap !== undefined
                 && blockContextMenu.target.blockType === 0   // Paragraph
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&None"))
                 onTriggered: blockContextMenu.target.setDropCap(0)
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&2 lines"))
                 onTriggered: blockContextMenu.target.setDropCap(2)
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&3 lines"))
                 onTriggered: blockContextMenu.target.setDropCap(3)
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&5 lines"))
                 onTriggered: blockContextMenu.target.setDropCap(5)
             }
@@ -378,7 +380,7 @@ Item {
         // Fold this block's line breaks into spaces. The model owns which
         // blocks that applies to, so the entry greys itself out on a block
         // with no break and on the types whose newlines are content.
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxRemoveLineBreaks"
             text: MenuText.label(qsTr("Remove &line breaks"))
             enabled: blockContextMenu.target
@@ -387,39 +389,39 @@ Item {
                 [blockContextMenu.target.index])
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxBlockDuplicate"
             text: MenuText.label(qsTr("D&uplicate"))
             onTriggered: BlockModel.duplicateBlocks(
                 [blockContextMenu.target.index])
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxBlockDelete"
             text: MenuText.label(qsTr("&Delete"))
             onTriggered: BlockModel.removeBlocks(
                 [blockContextMenu.target.index])
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Move up"))
             enabled: blockContextMenu.target
                      && blockContextMenu.target.index > 0
             onTriggered: BlockModel.moveBlocksBy(
                 [blockContextMenu.target.index], -1)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Move dow&n"))
             enabled: blockContextMenu.target
                      && blockContextMenu.target.index < BlockModel.count - 1
             onTriggered: BlockModel.moveBlocksBy(
                 [blockContextMenu.target.index], 1)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Indent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 [blockContextMenu.target.index], 1)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Outdent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 [blockContextMenu.target.index], -1)
@@ -429,9 +431,10 @@ Item {
     Menu {
         id: selectionContextMenu
         objectName: "selectionContextMenu"
+        delegate: DiscoverableMenuItem {}
         property var target: null
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxSelCopy"
             text: MenuText.label(qsTr("&Copy"))
             onTriggered: menus.selectionKeys.copyBlocksToClipboard()
@@ -439,40 +442,40 @@ Item {
         Menu {
             objectName: "ctxSelCopyAs"
             title: MenuText.label(qsTr("Copy &as…"))
-            MenuItem {
+            DiscoverableMenuItem {
                 objectName: "ctxSelCopyAsMarkdown"
                 text: MenuText.label(qsTr("&Markdown"))
                 onTriggered: menus.copyIndexesAs(
                     DocumentSelection.selectedIndexes(), "markdown")
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 objectName: "ctxSelCopyAsText"
                 text: MenuText.label(qsTr("&Plain text"))
                 onTriggered: menus.copyIndexesAs(
                     DocumentSelection.selectedIndexes(), "text")
             }
-            MenuItem {
+            DiscoverableMenuItem {
                 objectName: "ctxSelCopyAsHtml"
                 text: MenuText.label(qsTr("&HTML"))
                 onTriggered: menus.copyIndexesAs(
                     DocumentSelection.selectedIndexes(), "html")
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxSelExport"
             text: MenuText.label(qsTr("&Export…"))
             onTriggered: menus.exportIndexes(
                 DocumentSelection.selectedIndexes())
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Cu&t"))
             onTriggered: {
                 menus.selectionKeys.copyBlocksToClipboard()
                 menus.selectionKeys.removeSelectedBlocks()
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxSelDuplicate"
             text: MenuText.label(qsTr("D&uplicate"))
             onTriggered: {
@@ -484,7 +487,7 @@ Item {
                         Number(clones[clones.length - 1]))
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxSelDelete"
             text: MenuText.label(qsTr("&Delete"))
             onTriggered: menus.selectionKeys.removeSelectedBlocks()
@@ -492,7 +495,7 @@ Item {
         // The same fold across the whole selection, as one undo step: what
         // unwraps a hard-wrapped note in one go. The revision read
         // re-evaluates the enabled state as the selection changes.
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "ctxSelRemoveLineBreaks"
             text: MenuText.label(qsTr("Remove &line breaks"))
             enabled: {
@@ -504,7 +507,7 @@ Item {
                 DocumentSelection.selectedIndexes())
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Move up"))
             onTriggered: {
                 BlockModel.moveBlocksBy(
@@ -512,7 +515,7 @@ Item {
                 menus.selectionKeys.revealSelectionEdge()
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Move dow&n"))
             onTriggered: {
                 BlockModel.moveBlocksBy(
@@ -520,12 +523,12 @@ Item {
                 menus.selectionKeys.revealSelectionEdge()
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Indent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 DocumentSelection.selectedIndexes(), 1)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Outdent"))
             onTriggered: BlockModel.changeIndentForBlocks(
                 DocumentSelection.selectedIndexes(), -1)

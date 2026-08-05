@@ -21,6 +21,13 @@ the accessibility tree and unreachable without a pointer. Use
 what catches the omission, along with a glyph label with no name beside it and
 an animation `duration:` that does not multiply by `Theme.motionScale`.
 
+A menu entry is a `qml/DiscoverableMenuItem.qml`, never a bare `MenuItem`, and
+a menu holding a submenu adds `delegate: DiscoverableMenuItem {}` for the row
+Qt builds for that submenu. Fusion draws every menu label with `palette.text`
+whatever the entry's state, so either omission leaves a disabled command
+looking exactly like a live one. Setting a disabled color on the window
+palette instead does not work, for the reason that file gives.
+
 ## Where a new file goes
 
 `src/` is seven libraries (`content`, `domain`, `search`, `platform`,

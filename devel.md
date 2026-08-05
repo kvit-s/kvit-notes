@@ -11,7 +11,8 @@ for what a screen reader, a keyboard and a contrast floor get, and
 **multi-vault.md** for the window and vault composition. Accessibility is the
 one of those with a check that fails a build: `AccessibleNameGuard` refuses a
 control with no accessible name, a glyph label with nothing spoken beside it,
-and an animation that ignores the reduce-motion setting.
+an animation that ignores the reduce-motion setting, and a menu entry that
+cannot draw its own disabled state (`qml/DiscoverableMenuItem.qml`).
 
 ## Building and running
 

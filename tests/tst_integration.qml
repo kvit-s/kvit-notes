@@ -10579,6 +10579,68 @@ Item {
             DocumentSelection.clearBlockSelection()
         }
 
+        // A command the menu keeps but cannot run has to read as unavailable
+        // before the pointer gets near it. Fusion draws every menu label and
+        // every submenu arrow with palette.text whatever the entry's state,
+        // so "Align", "Drop cap" and "Remove line breaks" used to look
+        // exactly like the live commands and the refusal to highlight under
+        // the pointer was the only clue. Every entry is a
+        // DiscoverableMenuItem, which colors itself from its own enabled
+        // state; this holds that, for a declared entry and for the row Qt
+        // builds for a submenu.
+        //
+        // No display needed: the entries exist from construction, and with no
+        // target set the target-dependent ones are already disabled.
+        function test_zo2b_disabledMenuEntriesAreDrawnDisabled() {
+            // The context menus are built on the first right-click, so ask
+            // the window for them rather than waiting for one.
+            appLoader.item.contextMenus()
+            var menu = findChild(appLoader.item, "blockContextMenu")
+            verify(menu !== null, "the block context menu exists")
+            // An earlier case may have left the block it acted on here; the
+            // menu is closed, so dropping it just returns the entries whose
+            // availability depends on a target to their unavailable state.
+            menu.target = null
+
+            var live = findChild(appLoader.item, "ctxBlockCopy")
+            var greyed = findChild(appLoader.item, "ctxRemoveLineBreaks")
+            compare(live.enabled, true, "Copy is always available")
+            compare(greyed.enabled, false, "the join needs a target block")
+            verify(Qt.colorEqual(live.contentItem.color, Theme.textPrimary),
+                   "a live entry carries the primary text color")
+            verify(Qt.colorEqual(greyed.contentItem.color, Theme.textDisabled),
+                   "a disabled entry carries the disabled text color, not "
+                   + greyed.contentItem.color)
+
+            // A submenu's own row is not declared in the file at all: Qt
+            // builds it from the menu's delegate. It has to grey out with
+            // everything else.
+            var alignRow = null
+            for (var i = 0; i < menu.count; i++) {
+                var row = menu.itemAt(i)
+                if (row && row.subMenu
+                    && row.subMenu.objectName === "ctxAlignMenu") {
+                    alignRow = row
+                    break
+                }
+            }
+            verify(alignRow !== null, "the Align submenu has a row in the menu")
+            compare(alignRow.enabled, false, "alignment needs a target block")
+            verify(Qt.colorEqual(alignRow.contentItem.color,
+                                 Theme.textDisabled),
+                   "a disabled submenu title greys out with everything else")
+
+            // The colors are theme tokens, so switching theme moves both.
+            var wasTheme = Theme.themeId
+            Theme.themeId = wasTheme === "dark" ? "light" : "dark"
+            verify(Qt.colorEqual(greyed.contentItem.color, Theme.textDisabled),
+                   "the disabled color follows the theme")
+            verify(!Qt.colorEqual(greyed.contentItem.color,
+                                  live.contentItem.color),
+                   "and stays distinguishable from a live entry")
+            Theme.themeId = wasTheme
+        }
+
         // The block menu answers a right-click anywhere in the gutter strip,
         // not only on the handle: the strip runs the height of the row, an
         // indented block's runs wider, and the row still routes a selected

@@ -37,6 +37,9 @@ Menu {
     // declares only what block delegates read, not the window's own API.
     property var appWindow
 
+    // What a submenu's own row in this menu is built from: Qt creates that
+    // row itself, from the delegate, so it is the one entry the declarations
+    // below cannot cover. See DiscoverableMenuItem.qml.
     delegate: DiscoverableMenuItem {}
 
     // The template list below is built from what is on disk, so the built-ins

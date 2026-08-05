@@ -1034,14 +1034,17 @@ BlockDelegateBase {
         id: contextMenu
         objectName: "diagramContextMenu"
 
-        MenuItem {
+        // A submenu's own row is built from this; see DiscoverableMenuItem.qml.
+        delegate: DiscoverableMenuItem {}
+
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Rename id…"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
             enabled: readCanvas.selectedNodeId !== ""
             onTriggered: labelEditor.openFor(true)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Edit &label…"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
@@ -1049,7 +1052,7 @@ BlockDelegateBase {
             onTriggered: labelEditor.openFor(false)
         }
         // Sequence diagrams reorder by statement order.
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Move message &up"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
@@ -1057,7 +1060,7 @@ BlockDelegateBase {
             onTriggered: root.applyGesture(
                 readCanvas.moveSelectedMessageSource(-1), qsTr("Moved up"))
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Move message dow&n"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
@@ -1065,7 +1068,7 @@ BlockDelegateBase {
             onTriggered: root.applyGesture(
                 readCanvas.moveSelectedMessageSource(1), qsTr("Moved down"))
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Move participant le&ft"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
@@ -1073,7 +1076,7 @@ BlockDelegateBase {
             onTriggered: root.applyGesture(
                 readCanvas.moveSelectedParticipantSource(-1), qsTr("Moved left"))
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Move participant ri&ght"))
             visible: readCanvas.supportsSequenceReorder
             height: visible ? implicitHeight : 0
@@ -1104,7 +1107,7 @@ BlockDelegateBase {
                     { name: "parallelogram", label: qsTr("&Parallelogram") },
                     { name: "trapezoid", label: qsTr("&Trapezoid") },
                 ]
-                MenuItem {
+                DiscoverableMenuItem {
                     required property var modelData
                     text: MenuText.label(modelData.label)
                     onTriggered: root.applyGesture(
@@ -1118,11 +1121,11 @@ BlockDelegateBase {
             title: MenuText.label(qsTr("Edge st&yle"))
             enabled: readCanvas.selectedEdgeIndex >= 0
                      && readCanvas.supportsArrangement
-            MenuItem { text: MenuText.label(qsTr("&Solid")); onTriggered: root.applyGesture(
+            DiscoverableMenuItem { text: MenuText.label(qsTr("&Solid")); onTriggered: root.applyGesture(
                 readCanvas.edgeStyleSelectionSource("solid"), qsTr("Edge restyled")) }
-            MenuItem { text: MenuText.label(qsTr("&Dotted")); onTriggered: root.applyGesture(
+            DiscoverableMenuItem { text: MenuText.label(qsTr("&Dotted")); onTriggered: root.applyGesture(
                 readCanvas.edgeStyleSelectionSource("dotted"), qsTr("Edge restyled")) }
-            MenuItem { text: MenuText.label(qsTr("&Thick")); onTriggered: root.applyGesture(
+            DiscoverableMenuItem { text: MenuText.label(qsTr("&Thick")); onTriggered: root.applyGesture(
                 readCanvas.edgeStyleSelectionSource("thick"), qsTr("Edge restyled")) }
         }
         Menu {
@@ -1140,7 +1143,7 @@ BlockDelegateBase {
                     { label: qsTr("&Purple"), fill: "#e9d5ff", stroke: "#9333ea" },
                     { label: qsTr("Gr&ay"), fill: "#e5e7eb", stroke: "#4b5563" },
                 ]
-                MenuItem {
+                DiscoverableMenuItem {
                     required property var modelData
                     text: MenuText.label(modelData.label)
                     onTriggered: root.applyGesture(
@@ -1150,7 +1153,7 @@ BlockDelegateBase {
                 }
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Add connected node"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
@@ -1159,7 +1162,7 @@ BlockDelegateBase {
                 readCanvas.quickAddSelectionSource(),
                 qsTr("Added a connected node"))
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Delete"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
@@ -1168,7 +1171,7 @@ BlockDelegateBase {
                 readCanvas.deleteSelectionSource(), qsTr("Deleted"))
         }
         MenuSeparator { }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("Reset layou&t"))
             visible: readCanvas.supportsArrangement
             height: visible ? implicitHeight : 0
@@ -1179,7 +1182,7 @@ BlockDelegateBase {
                     BlockModel.updateContent(root.index, s)
             }
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Edit source"))
             onTriggered: root.editSelectionSource()
         }

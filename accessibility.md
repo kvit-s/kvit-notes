@@ -24,7 +24,7 @@ being rediscovered by a person:
 
 | Check | Where | What it refuses |
 |---|---|---|
-| `AccessibleNameGuard` | `tools/check-accessible-names.py` | a tap target with no accessible name, a glyph label with nothing spoken beside it, an animation duration that ignores `Theme.motionScale`, and a popup nested in a dialog that would open into no window |
+| `AccessibleNameGuard` | `tools/check-accessible-names.py` | a tap target with no accessible name, a glyph label with nothing spoken beside it, an animation duration that ignores `Theme.motionScale`, a popup nested in a dialog that would open into no window, and a menu entry that cannot show its own disabled state |
 | Contrast floors | `testEveryTokenPairMeetsItsFloor` in `tests/test_theme.cpp` | any token pair below 4.5:1 for text or 3:1 for a control boundary, in any of the four themes |
 | Runtime tree walk | `everyOperableNodeInTheAccessibilityTreeHasAName` in `tests/test_shell.cpp` | a button, checkbox, menu button, link or slider that the shipped shell serves with an empty name |
 | Announcements | `test_zzl_screenReaderNamesRolesAndAnnouncements` in `tests/tst_integration.qml` | a conversion, search count or mode toggle that stops reaching the announcer |
@@ -295,6 +295,19 @@ are light / dark / sepia / high-contrast, and `*` marks a value below the floor.
 `textDisabled` also falls short, at 2.32–2.61:1, but WCAG exempts disabled
 controls and the greyed-out appearance is itself the signal, so no change is
 proposed.
+
+That signal has to be drawn for it to exist. Fusion paints a menu label, and
+the arrow on a submenu's row, with `palette.text` whatever the entry's state,
+so an unavailable command came out in the same color as a live one and the
+only way to tell was that it refused to highlight under the pointer. Every
+menu entry in `qml/` is therefore a `DiscoverableMenuItem`, which binds its
+label color to its own `enabled` state, and every menu holding a submenu names
+that type as its `delegate`, since Qt builds a submenu's row itself. The
+window palette is the wrong place for it: writing one color into a palette's
+active group writes it into all three, so a disabled color set beside
+`text: Theme.textPrimary` is overwritten there and again on every inherited
+palette at the next theme change. `qml/DiscoverableMenuItem.qml` carries the
+detail; `AccessibleNameGuard` refuses a bare `MenuItem`.
 
 Two entries need more than a new value.
 

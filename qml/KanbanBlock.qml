@@ -2373,6 +2373,7 @@ BlockDelegateBase {
     Menu {
         id: cardMenu
         objectName: "kanbanCardMenu"
+        delegate: DiscoverableMenuItem {}
         property int col: -1
         property int idx: -1
         readonly property bool cardDone: {
@@ -2388,17 +2389,17 @@ BlockDelegateBase {
             cardMenu.popup()
         }
 
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "kanbanCardEditText"
             text: MenuText.label(qsTr("Edit card &text"))
             onTriggered: root.beginEdit(cardMenu.col, cardMenu.idx, "title")
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "kanbanCardEditDescription"
             text: MenuText.label(qsTr("Edit &description"))
             onTriggered: root.beginEdit(cardMenu.col, cardMenu.idx, "description")
         }
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "kanbanCardToggleDone"
             text: MenuText.label(cardMenu.cardDone
                                  ? qsTr("&Mark as not done")
@@ -2406,7 +2407,7 @@ BlockDelegateBase {
             onTriggered: root.toggleCardDone(cardMenu.col, cardMenu.idx)
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "kanbanCardDetails"
             text: MenuText.label(qsTr("&Labels and due date…"))
             onTriggered: cardDetails.openFor(cardMenu.col, cardMenu.idx)
@@ -2417,7 +2418,7 @@ BlockDelegateBase {
             title: MenuText.label(qsTr("Move to &column"))
             Repeater {
                 model: root.columns.length
-                delegate: MenuItem {
+                delegate: DiscoverableMenuItem {
                     id: moveToItem
                     required property int index
                     objectName: "kanbanMoveToItem"
@@ -2429,7 +2430,7 @@ BlockDelegateBase {
             }
         }
         MenuSeparator {}
-        MenuItem {
+        DiscoverableMenuItem {
             objectName: "kanbanCardDelete"
             text: MenuText.label(qsTr("Delete c&ard"))
             onTriggered: root.removeCardAt(cardMenu.col, cardMenu.idx)

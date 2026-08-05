@@ -502,7 +502,7 @@ Rectangle {
 
                     Repeater {
                         model: toolbar.typeNames
-                        MenuItem {
+                        DiscoverableMenuItem {
                             required property int index
                             required property string modelData
                             text: MenuText.plain(modelData)
@@ -514,23 +514,23 @@ Rectangle {
                     // §4.2 parity). Each routes to the same flow the slash menu
                     // uses.
                     MenuSeparator {}
-                    MenuItem {
+                    DiscoverableMenuItem {
                         text: MenuText.label(qsTr("&Table"))
                         onTriggered: toolbar.insertSpecialBelow("table")
                     }
-                    MenuItem {
+                    DiscoverableMenuItem {
                         text: MenuText.label(qsTr("Tas&k Board"))
                         onTriggered: toolbar.insertSpecialBelow("kanban")
                     }
-                    MenuItem {
+                    DiscoverableMenuItem {
                         text: MenuText.label(qsTr("&Math Block"))
                         onTriggered: toolbar.insertBlockOfType(13)   // Block.MathBlock
                     }
-                    MenuItem {
+                    DiscoverableMenuItem {
                         text: MenuText.label(qsTr("&Image"))
                         onTriggered: toolbar.insertSpecialBelow("image")
                     }
-                    MenuItem {
+                    DiscoverableMenuItem {
                         text: MenuText.label(qsTr("&Audio / Video"))
                         onTriggered: toolbar.insertSpecialBelow("media")
                     }
@@ -584,28 +584,28 @@ Rectangle {
     Menu {
         id: customizeMenu
         objectName: "toolbarCustomizeMenu"
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Block type"))
             checkable: true
             checked: toolbar.showBlockGroup
             onTriggered: toolbar.setGroupVisible(
                 "toolbar.showBlockType", "showBlockGroup", checked)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Formatting"))
             checkable: true
             checked: toolbar.showFormatGroup
             onTriggered: toolbar.setGroupVisible(
                 "toolbar.showFormatting", "showFormatGroup", checked)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&Insert"))
             checkable: true
             checked: toolbar.showInsertGroup
             onTriggered: toolbar.setGroupVisible(
                 "toolbar.showInsert", "showInsertGroup", checked)
         }
-        MenuItem {
+        DiscoverableMenuItem {
             text: MenuText.label(qsTr("&View"))
             checkable: true
             checked: toolbar.showViewGroup
