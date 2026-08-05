@@ -2,7 +2,7 @@
 
 Run per platform, per release candidate. Real Windows
 and macOS hardware runs this for **every** RC, not only the first; Linux
-runs it on one X11 and one Wayland desktop session (non-WSL). Record each
+runs it on one Wayland desktop session (non-WSL). Record each
 pass as `docs/qa-runs/<version>-<platform>.md` with a checked copy of this
 list, the artifact checksum, and any deviations.
 
@@ -241,18 +241,28 @@ pass.
        the integrated GPU, force real-GPU rendering with an HDMI dummy
        plug or a streaming session before judging any rendering item.
 
-2. [ ] **Both session types.** Run the full pass once on Wayland and once
-       on X11, from the same machine's login screen.
+2. [ ] **A native Wayland session.** Run the full pass once on a Wayland
+       desktop session, which is what current Ubuntu logs into by default.
 
-       *Expect:* no difference in behavior. Note the distribution version
-       in the run record, because the AppImage baseline claim in the
-       README is only as good as the oldest distribution actually tested.
+       *Expect:* no surprises against the rest of this list. Note the
+       distribution version in the run record, because the AppImage
+       baseline claim in the README is only as good as the oldest
+       distribution actually tested.
 
-       *Confirm the backend:* for the Wayland pass, launch once with
+       *Confirm the backend:* launch once with
        `QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=wayland` and confirm the output
-       loads `libqwayland.so` from inside the AppImage. For the X11 pass, use
-       `QT_QPA_PLATFORM=xcb`. A Wayland login running the XCB plugin is an
-       XWayland pass, not a native Wayland pass.
+       loads `libqwayland.so` from inside the AppImage. A Wayland login
+       running the XCB plugin is an XWayland pass rather than a native
+       Wayland one.
+
+       *X11 is not separately verified*, by decision (2026-08-04). An X11
+       login runs the same build through Qt's XCB plugin, which is the
+       older and more heavily exercised of the two paths, and an X11
+       desktop session costs a second full pass to cover it. What that
+       leaves untested on real hardware is the tray in an X11 status area,
+       window activation under a traditional window manager, and
+       fractional scaling on Xorg. Revisit if X11 users report any of
+       those.
 
 3. [ ] **Tray on GNOME.** Check tray behavior with no extension
        installed.
@@ -721,5 +731,7 @@ Run against the installed artifact, never a build tree.
 |---|---|---|---|---|
 | Windows | | | | |
 | macOS | | | | |
-| Linux X11 | | | | |
-| Linux Wayland | | | | |
+| Linux (Wayland) | | | | |
+
+Completed runs live in [qa-runs/](qa-runs/), one file per platform per
+release candidate.

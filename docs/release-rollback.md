@@ -13,8 +13,11 @@ re-tagged or force-moved.
    - zero open P0 (crash, data loss) and P1 (core feature broken) issues
      against the RC;
    - the docs/qa-checklist.md pass (features + distribution) green on
-     Windows, macOS, one X11 Linux, one Wayland Linux;
-   - the export gates (tools/export-gates.sh) green against the public tree.
+     Windows, macOS and one Wayland Linux desktop, each recorded under
+     docs/qa-runs/ against the artifact that ships;
+   - the repository's own CI green on all three platforms for the tagged
+     commit, including the license-header, notices-freshness, secrets and
+     screenshot-leak checks.
 3. The stable tag publishes days before any announcement, never the morning
    of. Testers install the same artifact launch visitors get.
 
