@@ -25,7 +25,7 @@ param(
     # take; the others are recorded separately, which is what makes each one
     # re-shootable and gives the README its short loops.
     [ValidateSet("tour-all", "tour-mermaid", "tour-livepreview", "tour-math",
-                 "tour-repair", "tour-query")]
+                 "tour-astext", "tour-query")]
     [string]$Segment,
 
     [string]$Title = "",

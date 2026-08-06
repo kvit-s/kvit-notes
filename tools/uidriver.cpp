@@ -148,6 +148,27 @@ QQuickItem *namedItem(QQuickWindow *window, const char *name)
     return window->findChild<QQuickItem *>(wanted);
 }
 
+// The same search, scoped to one delegate's subtree. A block's editor is
+// called `blockTextArea` in every delegate, so searching the window finds
+// whichever one happens to come first rather than the one being driven.
+QQuickItem *namedItemIn(QQuickItem *root, const char *name)
+{
+    const QString wanted = QLatin1String(name);
+    std::function<QQuickItem *(QQuickItem *)> walk =
+        [&](QQuickItem *item) -> QQuickItem * {
+        if (!item)
+            return nullptr;
+        if (item->objectName() == wanted)
+            return item;
+        for (QQuickItem *child : item->childItems()) {
+            if (QQuickItem *hit = walk(child))
+                return hit;
+        }
+        return nullptr;
+    };
+    return walk(root);
+}
+
 QPoint centerOf(QQuickItem *item)
 {
     return item->mapToScene(QPointF(item->width() / 2, item->height() / 2))
@@ -449,19 +470,46 @@ bool tourLivePreview(QQuickWindow *window, AppContext *ctx, const QString &vault
     }
     clickAt(window, centerOf(para), 700);
 
-    // Walk the caret across the line. Each span reveals its own
-    // syntax as the caret enters it and closes up again on the way
-    // out, which is the whole point of the hybrid engine and is
-    // invisible in a still.
-    QTest::keyClick(window, Qt::Key_Home, Qt::NoModifier, 60);
-    settle(600);
-    for (int i = 0; i < 80; ++i)
-        QTest::keyClick(window, Qt::Key_Right, Qt::NoModifier, 52);
-    settle(800);
+    // Visit the four spans that reveal something, rather than sweeping the
+    // caret along the whole line.
+    //
+    // Sweeping was the first attempt and it does not read: eighty key presses
+    // at fifty milliseconds is over in four seconds, the caret is a thin bar
+    // moving continuously, and the syntax opening and closing behind it is
+    // gone before a viewer can look at it. Each span here gets three beats
+    // instead — the caret arrives just before it, steps into it, and rests
+    // inside while the markers are showing.
+    auto *editor = namedItemIn(para, "blockTextArea");
+    if (!editor) {
+        qWarning("uidriver: no blockTextArea in the intro paragraph");
+        return false;
+    }
+    const QString source = model->getContent(idx);
+    const char *spans[] = {"**Kvit**", "*native*", "`.md`", "$e^"};
+
+    for (const char *span : spans) {
+        const int at = source.indexOf(QLatin1String(span));
+        if (at < 0) {
+            qWarning("uidriver: %s is not in the intro paragraph", span);
+            continue;
+        }
+        // Land on the span's opening marker, then step in. Starting a few
+        // characters earlier was the first attempt and two of the four spans
+        // ended up one short of their own start, because the caret does not
+        // rest on a hidden marker and gets nudged; from the marker itself,
+        // four steps land inside the word every time.
+        editor->setProperty("cursorPosition", at);
+        settle(900);
+        for (int i = 0; i < 4; ++i)
+            QTest::keyClick(window, Qt::Key_Right, Qt::NoModifier, 200);
+        qInfo("uidriver: caret at %d for %s (asked %d)",
+              editor->property("cursorPosition").toInt(), span, at);
+        settle(1700);   // rest inside, markers showing
+    }
 
     // Focus away, and the whole line renders again.
     if (QQuickItem *heading = delegateAt(window, 0))
-        clickAt(window, centerOf(heading), 1800);
+        clickAt(window, centerOf(heading), 2200);
     return true;
 }
 
@@ -501,31 +549,50 @@ bool tourMath(QQuickWindow *window, AppContext *ctx, const QString &vault)
     return true;
 }
 
-bool tourRepair(QQuickWindow *window, AppContext *ctx, const QString &vault)
+bool tourAsText(QQuickWindow *window, AppContext *ctx, const QString &vault)
 {
     auto *model = ctx->blockModel();
     if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
         return false;
     }
-    // Box art of the kind a language model emits, with the columns
-    // not quite meeting. It arrives fenced, because that is the shape
-    // a model's answer actually has and it is the paste path that
-    // produces a block rather than a run of paragraphs.
-    QGuiApplication::clipboard()->setText(QStringLiteral(
-        "```\n"
-        "+--------+       +---------+\n"
-        "| Commit |------>|  CI run |\n"
-        "+--------+       +---------+\n"
-        "     |                 |\n"
-        "     v                 v\n"
-        "  +---------+    +----------+\n"
-        "  | Package |    | Release |\n"
-        "  +---------+    +----------+\n"
-        "```\n"));
-    settle(400);
 
-    model->insertBlock(model->count(), Block::Paragraph, QString());
-    settle(500);
+    // This segment used to show the ingest repair straightening pasted box
+    // art, and that does not film. DiagramRepair is deliberately conservative
+    // — every fix is a zero-shift edit, a wall bar swapping with a space or a
+    // corner extending through fill, with label text never touched — so the
+    // before and the after differ by a character or two, and character art
+    // stays text rather than becoming a drawn diagram. The inverse gesture is
+    // the one with something to watch: a diagram the application drew, turned
+    // into box-drawing text that can be pasted into a commit message or a
+    // terminal.
+    // The chips are hover controls: the row holding them sits at zero opacity
+    // until the pointer is over the block, so it has to be moved there before
+    // the chip is on screen to be clicked. Resting on the diagram first also
+    // gives the viewer the drawing to hold in mind before its text version
+    // appears underneath it.
+    auto *canvas = namedItem(window, "diagramReadCanvas");
+    if (!canvas) {
+        qWarning("uidriver: no rendered diagram in this note");
+        return false;
+    }
+    glide(window, centerOf(canvas));
+    settle(1800);
+
+    auto *chip = namedItem(window, "diagramCopyTextChip");
+    if (!chip || !chip->isVisible() || chip->width() <= 0) {
+        qWarning("uidriver: copy-as-text chip did not appear on hover");
+        return false;
+    }
+    clickAt(window, centerOf(chip), 1200);
+    qInfo("uidriver: copied diagram as text (%d chars)",
+          int(QGuiApplication::clipboard()->text().size()));
+
+    // Paste into a code block rather than into a paragraph. Multi-line plain
+    // text pasted at a paragraph becomes one paragraph per line, which is
+    // right for prose and wrong for a drawing; a code block keeps the lines
+    // together, and monospaced is what box-drawing characters need anyway.
+    model->insertBlock(model->count(), Block::CodeBlock, QString());
+    settle(600);
     const int target = model->count() - 1;
     if (QQuickItem *d = delegateAt(window, target))
         clickAt(window, centerOf(d), 400);
@@ -533,26 +600,26 @@ bool tourRepair(QQuickWindow *window, AppContext *ctx, const QString &vault)
         clickEditorBlock(window, target);
     settle(400);
     QTest::keyClick(window, Qt::Key_V, Qt::ControlModifier, 80);
-    settle(2200);
-    qInfo("uidriver: pasted block: [%s]",
-          qPrintable(model->getContent(model->count() - 1)));
+    settle(2000);
+    qInfo("uidriver: pasted text diagram (%d blocks total, attrs [%s]):\n%s",
+          model->count(), qPrintable(model->getAttributes(target)),
+          qPrintable(model->getContent(target)));
 
-    // The pasted block holds focus, so it shows its source. Focus
-    // away and the straightened art renders as a diagram, which is
-    // the half of this that a viewer is here for.
+    // Known weakness of this segment, left as it is rather than papered over:
+    // box-drawing characters are how a diagram fence is recognised, so the
+    // pasted text is classified as a diagram and drawn again. The viewer
+    // therefore sees a second drawing rather than the characters, and the
+    // "as text" half of the claim is the half that does not appear on screen.
+    // setBlockAttributes("text") does not override it; the fence language is
+    // not what that field holds.
+
+    // Focus away so the pair stands together: the drawing above, the same
+    // shape as characters below.
     if (QQuickItem *heading = delegateAt(window, 0))
         clickAt(window, centerOf(heading), 1800);
-
-    // The inverse gesture, on the note's own flowchart: copy a
-    // rendered diagram back out as text.
-    if (auto *chip = namedItem(window, "diagramCopyTextChip")) {
-        if (chip->isVisible() && chip->width() > 0)
-            clickAt(window, centerOf(chip), 1600);
-    }
-    settle(1600);
+    settle(3200);
     return true;
 }
-
 bool tourQuery(QQuickWindow *window, AppContext *ctx, const QString &vault)
 {
     auto *model = ctx->blockModel();
@@ -972,8 +1039,8 @@ int main(int argc, char *argv[])
                  "Markdown syntax reveals itself around the caret",
                  tourLivePreview},
                 {"tour-math", "TeX math, rendered as you type", tourMath},
-                {"tour-repair",
-                 "Crooked box art in, a straight diagram out", tourRepair},
+                {"tour-astext",
+                 "Copy any diagram out as text", tourAsText},
                 {"tour-query",
                  "A live table built from front matter across the vault",
                  tourQuery},
@@ -995,9 +1062,11 @@ int main(int argc, char *argv[])
                     settle(1200);   // a breath between features
                 }
             } else {
+                bool matched = false;
                 for (const Segment &segment : kSegments) {
                     if (scenario != QLatin1String(segment.name))
                         continue;
+                    matched = true;
                     // A segment run on its own gets its own caption when the
                     // command line did not supply one.
                     if (title.isEmpty())
@@ -1005,7 +1074,10 @@ int main(int argc, char *argv[])
                     ok = segment.run(window, ctx, vault);
                     break;
                 }
-                if (!ok)
+                // A segment that ran and failed says so itself; this is only
+                // for a name that matches nothing, which would otherwise
+                // report as a failure of whatever ran last.
+                if (!matched)
                     qWarning("uidriver: no such tour segment: %s",
                              qPrintable(scenario));
             }

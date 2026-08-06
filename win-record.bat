@@ -28,7 +28,7 @@ if "%~1"=="" (
     echo   tour-mermaid       drag a node, the fence rewrites itself
     echo   tour-livepreview   syntax reveals itself around the caret
     echo   tour-math          an equation typed a character at a time
-    echo   tour-repair        crooked box art pasted, rendered straight
+    echo   tour-astext        copy a rendered diagram out as text
     echo   tour-query         a table gaining a row when a note changes
     exit /b 2
 )
