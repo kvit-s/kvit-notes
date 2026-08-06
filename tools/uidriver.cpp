@@ -16,6 +16,7 @@
 #include <QClipboard>
 #include <QCursor>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QKeyEvent>
 #include <QMimeData>
@@ -692,6 +693,8 @@ int main(int argc, char *argv[])
     QString note;       // absolute .md path opened after startup (still shots)
     QString shotName = QStringLiteral("still");
     QString title;      // caption band text, for the tour recordings
+    QString recordDir;  // when set, frames are grabbed while the scenario runs
+    int fps = 10;
     int winW = 0, winH = 0;
     int winX = INT_MIN, winY = INT_MIN;
     for (int i = 1; i < argc; ++i) {
@@ -708,6 +711,14 @@ int main(int argc, char *argv[])
             shotName = arg.section(QLatin1Char('='), 1);
         else if (arg.startsWith(QStringLiteral("--title=")))
             title = arg.section(QLatin1Char('='), 1);
+        // Grab frames while the scenario plays, for assembling into a GIF.
+        // No screen recorder and nobody at the keyboard: the frames come from
+        // the window itself, so this runs unattended and identically on any
+        // machine.
+        else if (arg.startsWith(QStringLiteral("--record=")))
+            recordDir = arg.section(QLatin1Char('='), 1);
+        else if (arg.startsWith(QStringLiteral("--fps=")))
+            fps = qBound(4, arg.section(QLatin1Char('='), 1).toInt(), 30);
         else if (arg.startsWith(QStringLiteral("--size=")))
             (void)sscanf(qPrintable(arg.section(QLatin1Char('='), 1)),
                          "%dx%d", &winW, &winH);
@@ -756,6 +767,34 @@ int main(int argc, char *argv[])
         // The caption, when one was asked for, goes up before the scenario
         // starts so a recording opens on the feature's name.
         showTitle(window, title);
+
+        // Frame capture, when asked for. Each frame is named with the
+        // milliseconds elapsed since capture began, because grabbing is not
+        // free and the interval between frames is therefore not the interval
+        // asked for: the assembler reads those numbers and gives each frame
+        // the duration it actually occupied, so the result plays at the speed
+        // the scenario ran at rather than at a nominal frame rate.
+        QElapsedTimer clock;
+        QTimer frameTimer;
+        int frameCount = 0;
+        if (!recordDir.isEmpty()) {
+            QDir().mkpath(recordDir);
+            clock.start();
+            QObject::connect(&frameTimer, &QTimer::timeout, window,
+                             [&, window]() {
+                                 const QImage frame = window->grabWindow();
+                                 if (frame.isNull())
+                                     return;
+                                 const QString path =
+                                     QStringLiteral("%1/f_%2.png")
+                                         .arg(recordDir)
+                                         .arg(clock.elapsed(), 8, 10,
+                                              QLatin1Char('0'));
+                                 if (frame.save(path))
+                                     ++frameCount;
+                             });
+            frameTimer.start(1000 / fps);
+        }
 
         if (scenario == QStringLiteral("still")) {
             // One staged frame of the real shell: open the requested note in
@@ -1094,6 +1133,12 @@ int main(int argc, char *argv[])
             settle(1200);
             grab(window, outDir + QStringLiteral("/") + scenario
                              + QStringLiteral("-final.png"));
+        }
+
+        if (frameTimer.isActive()) {
+            frameTimer.stop();
+            qInfo("uidriver: captured %d frames over %lld ms into %s",
+                  frameCount, clock.elapsed(), qPrintable(recordDir));
         }
 
         app.quit();
