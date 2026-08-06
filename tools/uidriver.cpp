@@ -241,10 +241,17 @@ void typeSlowly(QQuickWindow *window, const QString &text, int msPerChar = 55)
 // build, so nothing a user runs can grow a caption. Keeping it inside the
 // capture rather than adding it in an editor means it re-renders identically
 // on every release and no post-production step can forget it.
+QQuickItem *g_caption = nullptr;   // the band currently on screen, if any
+
 void showTitle(QQuickWindow *window, const QString &text, int holdMs = 2400)
 {
     if (text.isEmpty())
         return;
+    // The full tour captions each feature in turn, so the band a previous
+    // segment left has to go rather than accumulating invisibly at zero
+    // opacity behind the new one.
+    delete g_caption;
+    g_caption = nullptr;
     QQmlEngine *engine = qmlEngine(window->contentItem());
     if (!engine) {
         qWarning("uidriver: no QML engine for the caption overlay");
@@ -304,6 +311,7 @@ Rectangle {
     band->setX(40);
     band->setY(window->height() - 104);
     component->completeCreate();
+    g_caption = band;
 }
 
 bool openNote(AppContext *ctx, const QString &vault, const QString &relPath,
@@ -348,6 +356,256 @@ QQuickItem *delegateAt(QQuickWindow *window, int index)
                               Q_RETURN_ARG(QQuickItem *, item),
                               Q_ARG(int, index));
     return item;
+}
+
+bool tourMermaid(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Release pipeline.md"))) {
+        return false;
+    }
+    auto *canvas = namedItem(window, "diagramReadCanvas");
+    if (!canvas) {
+        qWarning("uidriver: no diagramReadCanvas in this note");
+        return false;
+    }
+    const int fence = blockContaining(model,
+                                      QStringLiteral("flowchart"));
+    if (fence >= 0)
+        qInfo("uidriver: source before:\n%s",
+              qPrintable(model->getContent(fence)));
+
+    // Show the markdown first. Without it the drag reads as a box
+    // sliding for no reason: the fence is what changes, and a viewer
+    // has to have seen it before to notice that it did. A diagram
+    // shows either its source or its render and never both, so this
+    // is three beats — the fence, the drag, the fence again — rather
+    // than one with a side panel.
+    auto *flick = namedItem(window, "diagramReadFlick");
+    if (flick) {
+        const QPoint edge =
+            flick->mapToScene(QPointF(flick->width() - 24,
+                                      flick->height() / 2))
+                .toPoint();
+        clickAt(window, edge, 600);
+        settle(3000);           // long enough to read eight lines
+        if (QQuickItem *heading = delegateAt(window, 0))
+            clickAt(window, centerOf(heading), 1100);
+    }
+
+    // Ask the canvas which node to aim at rather than guessing at
+    // pixels: cycleNode selects one and selectionRect reports its box
+    // in item coordinates, so this survives a layout change.
+    QString nodeId;
+    QMetaObject::invokeMethod(canvas, "cycleNode", Qt::DirectConnection,
+                              Q_RETURN_ARG(QString, nodeId),
+                              Q_ARG(int, 1));
+    QRectF box;
+    QMetaObject::invokeMethod(canvas, "selectionRect",
+                              Qt::DirectConnection,
+                              Q_RETURN_ARG(QRectF, box));
+    if (nodeId.isEmpty() || box.isEmpty()) {
+        qWarning("uidriver: no node to drag (id=%s, box empty=%d)",
+                 qPrintable(nodeId), int(box.isEmpty()));
+        return false;
+    }
+    settle(900);
+
+    const QPoint from = canvas->mapToScene(box.center()).toPoint();
+    const QPoint to = from + QPoint(170, 96);
+    qInfo("uidriver: dragging node %s from (%d,%d) to (%d,%d)",
+          qPrintable(nodeId), from.x(), from.y(), to.x(), to.y());
+    dragFromTo(window, from, to);
+    settle(1400);
+    if (fence >= 0)
+        qInfo("uidriver: source after:\n%s",
+              qPrintable(model->getContent(fence)));
+
+    // Then the same fence again, now with the position line the drag
+    // wrote at the end of it. This is the payoff, so it holds longest.
+    if (QQuickItem *again = namedItem(window, "diagramReadFlick")) {
+        const QPoint edge =
+            again->mapToScene(QPointF(again->width() - 24,
+                                      again->height() / 2))
+                .toPoint();
+        clickAt(window, edge, 800);
+    }
+    settle(3600);
+    return true;
+}
+
+bool tourLivePreview(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
+        return false;
+    }
+    const int idx = blockContaining(model, QStringLiteral("native"));
+    QQuickItem *para = idx >= 0 ? delegateAt(window, idx) : nullptr;
+    if (!para) {
+        qWarning("uidriver: intro paragraph not on screen (idx=%d)",
+                 idx);
+        return false;
+    }
+    clickAt(window, centerOf(para), 700);
+
+    // Walk the caret across the line. Each span reveals its own
+    // syntax as the caret enters it and closes up again on the way
+    // out, which is the whole point of the hybrid engine and is
+    // invisible in a still.
+    QTest::keyClick(window, Qt::Key_Home, Qt::NoModifier, 60);
+    settle(600);
+    for (int i = 0; i < 80; ++i)
+        QTest::keyClick(window, Qt::Key_Right, Qt::NoModifier, 52);
+    settle(800);
+
+    // Focus away, and the whole line renders again.
+    if (QQuickItem *heading = delegateAt(window, 0))
+        clickAt(window, centerOf(heading), 1800);
+    return true;
+}
+
+bool tourMath(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Calculus.md"))) {
+        return false;
+    }
+    model->insertBlock(model->count(), Block::Paragraph, QString());
+    settle(600);
+    const int target = model->count() - 1;
+    if (QQuickItem *d = delegateAt(window, target))
+        clickAt(window, centerOf(d), 400);
+    else
+        clickEditorBlock(window, target);
+    settle(400);
+
+    typeSlowly(window,
+               QStringLiteral("Euler's identity, $e^{i\\pi} + 1 = 0"),
+               62);
+    settle(500);
+    // The editor auto-pairs an opening dollar, so the closing one is
+    // typed only when it is missing; either way the line ends closed.
+    if (!model->getContent(target).trimmed().endsWith(QLatin1Char('$')))
+        typeSlowly(window, QStringLiteral("$"), 80);
+    settle(700);
+    QTest::keyClick(window, Qt::Key_End, Qt::NoModifier, 60);
+    typeSlowly(window, QStringLiteral(", which never gets old."), 55);
+    settle(600);
+    qInfo("uidriver: typed line: [%s]",
+          qPrintable(model->getContent(target)));
+
+    // Focus away so the formula renders in its display state.
+    if (QQuickItem *heading = delegateAt(window, 0))
+        clickAt(window, centerOf(heading), 2000);
+    return true;
+}
+
+bool tourRepair(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
+        return false;
+    }
+    // Box art of the kind a language model emits, with the columns
+    // not quite meeting. It arrives fenced, because that is the shape
+    // a model's answer actually has and it is the paste path that
+    // produces a block rather than a run of paragraphs.
+    QGuiApplication::clipboard()->setText(QStringLiteral(
+        "```\n"
+        "+--------+       +---------+\n"
+        "| Commit |------>|  CI run |\n"
+        "+--------+       +---------+\n"
+        "     |                 |\n"
+        "     v                 v\n"
+        "  +---------+    +----------+\n"
+        "  | Package |    | Release |\n"
+        "  +---------+    +----------+\n"
+        "```\n"));
+    settle(400);
+
+    model->insertBlock(model->count(), Block::Paragraph, QString());
+    settle(500);
+    const int target = model->count() - 1;
+    if (QQuickItem *d = delegateAt(window, target))
+        clickAt(window, centerOf(d), 400);
+    else
+        clickEditorBlock(window, target);
+    settle(400);
+    QTest::keyClick(window, Qt::Key_V, Qt::ControlModifier, 80);
+    settle(2200);
+    qInfo("uidriver: pasted block: [%s]",
+          qPrintable(model->getContent(model->count() - 1)));
+
+    // The pasted block holds focus, so it shows its source. Focus
+    // away and the straightened art renders as a diagram, which is
+    // the half of this that a viewer is here for.
+    if (QQuickItem *heading = delegateAt(window, 0))
+        clickAt(window, centerOf(heading), 1800);
+
+    // The inverse gesture, on the note's own flowchart: copy a
+    // rendered diagram back out as text.
+    if (auto *chip = namedItem(window, "diagramCopyTextChip")) {
+        if (chip->isVisible() && chip->width() > 0)
+            clickAt(window, centerOf(chip), 1600);
+    }
+    settle(1600);
+    return true;
+}
+
+bool tourQuery(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Project board.md"),
+                  3200)) {
+        return false;
+    }
+    // Long enough for the vault scan behind the first evaluation to
+    // finish. A change written while that is still in flight is not
+    // picked up, and the table then sits on its first answer.
+    settle(5000);
+
+    // Change a project's front matter on disk. Gamma is `done`, so it
+    // sits outside the query until this makes it active, and then a
+    // row appears without the editor being touched.
+    //
+    // The write has to come from another process. The application
+    // ignores changes it made itself, which is what stops a save from
+    // being re-read as an outside edit, and a write from this driver
+    // is a write from the application: doing it in-process here left
+    // the table on its first answer, measured, however long the wait.
+    const QString gamma =
+        QDir(vault).filePath(QStringLiteral("projects/Gamma.md"));
+    if (!QFile::exists(gamma)) {
+        qWarning("uidriver: no %s", qPrintable(gamma));
+    } else {
+#ifdef Q_OS_WIN
+        const QString program = QStringLiteral("powershell");
+        const QStringList args{
+            QStringLiteral("-NoProfile"), QStringLiteral("-Command"),
+            QStringLiteral("(Get-Content -Raw '%1') -replace "
+                           "'status: done','status: active' | "
+                           "Set-Content -NoNewline '%1'")
+                .arg(gamma)};
+#else
+        const QString program = QStringLiteral("sh");
+        const QStringList args{
+            QStringLiteral("-c"),
+            QStringLiteral("sed -i 's/status: done/status: active/' "
+                           "'%1'")
+                .arg(gamma)};
+#endif
+        const int rc = QProcess::execute(program, args);
+        if (rc == 0)
+            qInfo("uidriver: set Gamma active from another process");
+        else
+            qWarning("uidriver: outside write failed (%s exited %d)",
+                     qPrintable(program), rc);
+    }
+    // Long enough for the watcher to notice, the collection to
+    // rescan, and the query's own debounce to expire on top of that.
+    settle(7000);
+    return true;
 }
 
 } // namespace
@@ -696,239 +954,65 @@ int main(int argc, char *argv[])
         // enough to be watched, and leaves the window up for a beat at the
         // end so a capture does not lose the last frame.
         // -------------------------------------------------------------
-        } else if (scenario == QStringLiteral("tour-mermaid")) {
-            if (!openNote(ctx, vault, QStringLiteral("Release pipeline.md"))) {
-                app.exit(3);
-                return;
-            }
-            auto *canvas = namedItem(window, "diagramReadCanvas");
-            if (!canvas) {
-                qWarning("uidriver: no diagramReadCanvas in this note");
-                app.exit(3);
-                return;
-            }
-            const int fence = blockContaining(model,
-                                              QStringLiteral("flowchart"));
-            if (fence >= 0)
-                qInfo("uidriver: source before:\n%s",
-                      qPrintable(model->getContent(fence)));
+        } else if (scenario.startsWith(QStringLiteral("tour-"))) {
+            // The five feature segments, and `tour-all`, which plays them in
+            // order in one window. Recording them separately is what makes
+            // each one re-shootable and gives the README its short loops;
+            // tour-all is for a single continuous take, where a window
+            // closing and reopening between features would show.
+            struct Segment {
+                const char *name;
+                const char *caption;
+                bool (*run)(QQuickWindow *, AppContext *, const QString &);
+            };
+            static const Segment kSegments[] = {
+                {"tour-mermaid",
+                 "Drag a node, and the markdown rewrites itself", tourMermaid},
+                {"tour-livepreview",
+                 "Markdown syntax reveals itself around the caret",
+                 tourLivePreview},
+                {"tour-math", "TeX math, rendered as you type", tourMath},
+                {"tour-repair",
+                 "Crooked box art in, a straight diagram out", tourRepair},
+                {"tour-query",
+                 "A live table built from front matter across the vault",
+                 tourQuery},
+            };
 
-            // Show the markdown first. Without it the drag reads as a box
-            // sliding for no reason: the fence is what changes, and a viewer
-            // has to have seen it before to notice that it did. A diagram
-            // shows either its source or its render and never both, so this
-            // is three beats — the fence, the drag, the fence again — rather
-            // than one with a side panel.
-            auto *flick = namedItem(window, "diagramReadFlick");
-            if (flick) {
-                const QPoint edge =
-                    flick->mapToScene(QPointF(flick->width() - 24,
-                                              flick->height() / 2))
-                        .toPoint();
-                clickAt(window, edge, 600);
-                settle(3000);           // long enough to read eight lines
-                if (QQuickItem *heading = delegateAt(window, 0))
-                    clickAt(window, centerOf(heading), 1100);
-            }
-
-            // Ask the canvas which node to aim at rather than guessing at
-            // pixels: cycleNode selects one and selectionRect reports its box
-            // in item coordinates, so this survives a layout change.
-            QString nodeId;
-            QMetaObject::invokeMethod(canvas, "cycleNode", Qt::DirectConnection,
-                                      Q_RETURN_ARG(QString, nodeId),
-                                      Q_ARG(int, 1));
-            QRectF box;
-            QMetaObject::invokeMethod(canvas, "selectionRect",
-                                      Qt::DirectConnection,
-                                      Q_RETURN_ARG(QRectF, box));
-            if (nodeId.isEmpty() || box.isEmpty()) {
-                qWarning("uidriver: no node to drag (id=%s, box empty=%d)",
-                         qPrintable(nodeId), int(box.isEmpty()));
-                app.exit(3);
-                return;
-            }
-            settle(900);
-
-            const QPoint from = canvas->mapToScene(box.center()).toPoint();
-            const QPoint to = from + QPoint(170, 96);
-            qInfo("uidriver: dragging node %s from (%d,%d) to (%d,%d)",
-                  qPrintable(nodeId), from.x(), from.y(), to.x(), to.y());
-            dragFromTo(window, from, to);
-            settle(1400);
-            if (fence >= 0)
-                qInfo("uidriver: source after:\n%s",
-                      qPrintable(model->getContent(fence)));
-
-            // Then the same fence again, now with the position line the drag
-            // wrote at the end of it. This is the payoff, so it holds longest.
-            if (QQuickItem *again = namedItem(window, "diagramReadFlick")) {
-                const QPoint edge =
-                    again->mapToScene(QPointF(again->width() - 24,
-                                              again->height() / 2))
-                        .toPoint();
-                clickAt(window, edge, 800);
-            }
-            settle(3600);
-        } else if (scenario == QStringLiteral("tour-livepreview")) {
-            if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
-                app.exit(3);
-                return;
-            }
-            const int idx = blockContaining(model, QStringLiteral("native"));
-            QQuickItem *para = idx >= 0 ? delegateAt(window, idx) : nullptr;
-            if (!para) {
-                qWarning("uidriver: intro paragraph not on screen (idx=%d)",
-                         idx);
-                app.exit(3);
-                return;
-            }
-            clickAt(window, centerOf(para), 700);
-
-            // Walk the caret across the line. Each span reveals its own
-            // syntax as the caret enters it and closes up again on the way
-            // out, which is the whole point of the hybrid engine and is
-            // invisible in a still.
-            QTest::keyClick(window, Qt::Key_Home, Qt::NoModifier, 60);
-            settle(600);
-            for (int i = 0; i < 80; ++i)
-                QTest::keyClick(window, Qt::Key_Right, Qt::NoModifier, 52);
-            settle(800);
-
-            // Focus away, and the whole line renders again.
-            if (QQuickItem *heading = delegateAt(window, 0))
-                clickAt(window, centerOf(heading), 1800);
-        } else if (scenario == QStringLiteral("tour-math")) {
-            if (!openNote(ctx, vault, QStringLiteral("Calculus.md"))) {
-                app.exit(3);
-                return;
-            }
-            model->insertBlock(model->count(), Block::Paragraph, QString());
-            settle(600);
-            const int target = model->count() - 1;
-            if (QQuickItem *d = delegateAt(window, target))
-                clickAt(window, centerOf(d), 400);
-            else
-                clickEditorBlock(window, target);
-            settle(400);
-
-            typeSlowly(window,
-                       QStringLiteral("Euler's identity, $e^{i\\pi} + 1 = 0"),
-                       62);
-            settle(500);
-            // The editor auto-pairs an opening dollar, so the closing one is
-            // typed only when it is missing; either way the line ends closed.
-            if (!model->getContent(target).trimmed().endsWith(QLatin1Char('$')))
-                typeSlowly(window, QStringLiteral("$"), 80);
-            settle(700);
-            QTest::keyClick(window, Qt::Key_End, Qt::NoModifier, 60);
-            typeSlowly(window, QStringLiteral(", which never gets old."), 55);
-            settle(600);
-            qInfo("uidriver: typed line: [%s]",
-                  qPrintable(model->getContent(target)));
-
-            // Focus away so the formula renders in its display state.
-            if (QQuickItem *heading = delegateAt(window, 0))
-                clickAt(window, centerOf(heading), 2000);
-        } else if (scenario == QStringLiteral("tour-repair")) {
-            if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
-                app.exit(3);
-                return;
-            }
-            // Box art of the kind a language model emits, with the columns
-            // not quite meeting. It arrives fenced, because that is the shape
-            // a model's answer actually has and it is the paste path that
-            // produces a block rather than a run of paragraphs.
-            QGuiApplication::clipboard()->setText(QStringLiteral(
-                "```\n"
-                "+--------+       +---------+\n"
-                "| Commit |------>|  CI run |\n"
-                "+--------+       +---------+\n"
-                "     |                 |\n"
-                "     v                 v\n"
-                "  +---------+    +----------+\n"
-                "  | Package |    | Release |\n"
-                "  +---------+    +----------+\n"
-                "```\n"));
-            settle(400);
-
-            model->insertBlock(model->count(), Block::Paragraph, QString());
-            settle(500);
-            const int target = model->count() - 1;
-            if (QQuickItem *d = delegateAt(window, target))
-                clickAt(window, centerOf(d), 400);
-            else
-                clickEditorBlock(window, target);
-            settle(400);
-            QTest::keyClick(window, Qt::Key_V, Qt::ControlModifier, 80);
-            settle(2200);
-            qInfo("uidriver: pasted block: [%s]",
-                  qPrintable(model->getContent(model->count() - 1)));
-
-            // The pasted block holds focus, so it shows its source. Focus
-            // away and the straightened art renders as a diagram, which is
-            // the half of this that a viewer is here for.
-            if (QQuickItem *heading = delegateAt(window, 0))
-                clickAt(window, centerOf(heading), 1800);
-
-            // The inverse gesture, on the note's own flowchart: copy a
-            // rendered diagram back out as text.
-            if (auto *chip = namedItem(window, "diagramCopyTextChip")) {
-                if (chip->isVisible() && chip->width() > 0)
-                    clickAt(window, centerOf(chip), 1600);
-            }
-            settle(1600);
-        } else if (scenario == QStringLiteral("tour-query")) {
-            if (!openNote(ctx, vault, QStringLiteral("Project board.md"),
-                          3200)) {
-                app.exit(3);
-                return;
-            }
-            // Long enough for the vault scan behind the first evaluation to
-            // finish. A change written while that is still in flight is not
-            // picked up, and the table then sits on its first answer.
-            settle(5000);
-
-            // Change a project's front matter on disk. Gamma is `done`, so it
-            // sits outside the query until this makes it active, and then a
-            // row appears without the editor being touched.
-            //
-            // The write has to come from another process. The application
-            // ignores changes it made itself, which is what stops a save from
-            // being re-read as an outside edit, and a write from this driver
-            // is a write from the application: doing it in-process here left
-            // the table on its first answer, measured, however long the wait.
-            const QString gamma =
-                QDir(vault).filePath(QStringLiteral("projects/Gamma.md"));
-            if (!QFile::exists(gamma)) {
-                qWarning("uidriver: no %s", qPrintable(gamma));
+            bool ok = false;
+            if (scenario == QStringLiteral("tour-all")) {
+                ok = true;
+                for (const Segment &segment : kSegments) {
+                    // Each feature announces itself, replacing the caption
+                    // the one before it left.
+                    showTitle(window, QString::fromUtf8(segment.caption));
+                    if (!segment.run(window, ctx, vault)) {
+                        qWarning("uidriver: %s failed; stopping the tour",
+                                 segment.name);
+                        ok = false;
+                        break;
+                    }
+                    settle(1200);   // a breath between features
+                }
             } else {
-#ifdef Q_OS_WIN
-                const QString program = QStringLiteral("powershell");
-                const QStringList args{
-                    QStringLiteral("-NoProfile"), QStringLiteral("-Command"),
-                    QStringLiteral("(Get-Content -Raw '%1') -replace "
-                                   "'status: done','status: active' | "
-                                   "Set-Content -NoNewline '%1'")
-                        .arg(gamma)};
-#else
-                const QString program = QStringLiteral("sh");
-                const QStringList args{
-                    QStringLiteral("-c"),
-                    QStringLiteral("sed -i 's/status: done/status: active/' "
-                                   "'%1'")
-                        .arg(gamma)};
-#endif
-                const int rc = QProcess::execute(program, args);
-                if (rc == 0)
-                    qInfo("uidriver: set Gamma active from another process");
-                else
-                    qWarning("uidriver: outside write failed (%s exited %d)",
-                             qPrintable(program), rc);
+                for (const Segment &segment : kSegments) {
+                    if (scenario != QLatin1String(segment.name))
+                        continue;
+                    // A segment run on its own gets its own caption when the
+                    // command line did not supply one.
+                    if (title.isEmpty())
+                        showTitle(window, QString::fromUtf8(segment.caption));
+                    ok = segment.run(window, ctx, vault);
+                    break;
+                }
+                if (!ok)
+                    qWarning("uidriver: no such tour segment: %s",
+                             qPrintable(scenario));
             }
-            // Long enough for the watcher to notice, the collection to
-            // rescan, and the query's own debounce to expire on top of that.
-            settle(7000);
+            if (!ok) {
+                app.exit(3);
+                return;
+            }
         }
 
         // A closing beat, so a screen recorder stopped by hand does not lose

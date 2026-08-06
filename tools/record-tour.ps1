@@ -21,7 +21,10 @@
 
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("tour-mermaid", "tour-livepreview", "tour-math",
+    # tour-all plays the five in order in one window, for a single continuous
+    # take; the others are recorded separately, which is what makes each one
+    # re-shootable and gives the README its short loops.
+    [ValidateSet("tour-all", "tour-mermaid", "tour-livepreview", "tour-math",
                  "tour-repair", "tour-query")]
     [string]$Segment,
 
@@ -67,7 +70,10 @@ $env:PATH = "$qt\bin;$env:PATH"
 $out = Join-Path $env:USERPROFILE "Videos\kvit-tour"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
+$runtime = if ($Segment -eq "tour-all") { "about 75 seconds" } else { "15 to 25 seconds" }
+
 Write-Host ""
+Write-Host "  runs for: $runtime"
 Write-Host "  segment : $Segment"
 Write-Host "  caption : $(if ($Title) { $Title } else { '(none)' })"
 Write-Host "  window  : ${Width}x${Height} at ${X},${Y}"
