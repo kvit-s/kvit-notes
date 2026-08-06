@@ -196,18 +196,28 @@ void clickAt(QQuickWindow *window, const QPoint &scenePos, int settleMs = 400)
     settle(settleMs);
 }
 
+// Drag slowly enough to be followed, with a beat on each end.
+//
+// A drag that a test would do in a few hundred milliseconds reads on video as
+// the object teleporting: the viewer sees the result without seeing the grab,
+// the travel, or the release. The pauses are what separate those three, and
+// the easing keeps the start and the stop from looking mechanical.
 void dragFromTo(QQuickWindow *window, const QPoint &from, const QPoint &to,
-                int steps = 18, int msPerStep = 24)
+                int steps = 45, int msPerStep = 40)
 {
     glide(window, from);
-    settle(300);
+    settle(700);   // rest on the target, so it shows itself as grabbable
     QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, from, 60);
+    settle(600);   // the grab, before anything moves
     for (int i = 1; i <= steps; ++i) {
-        const QPoint p(from.x() + (to.x() - from.x()) * i / steps,
-                       from.y() + (to.y() - from.y()) * i / steps);
+        const qreal t = qreal(i) / steps;
+        const qreal eased = t * t * (3.0 - 2.0 * t);   // smooth both ends
+        const QPoint p(qRound(from.x() + (to.x() - from.x()) * eased),
+                       qRound(from.y() + (to.y() - from.y()) * eased));
         QCursor::setPos(window->mapToGlobal(p));
         QTest::mouseMove(window, p, msPerStep);
     }
+    settle(700);   // arrived, still held
     QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, to, 80);
 }
 
@@ -703,6 +713,24 @@ int main(int argc, char *argv[])
                 qInfo("uidriver: source before:\n%s",
                       qPrintable(model->getContent(fence)));
 
+            // Show the markdown first. Without it the drag reads as a box
+            // sliding for no reason: the fence is what changes, and a viewer
+            // has to have seen it before to notice that it did. A diagram
+            // shows either its source or its render and never both, so this
+            // is three beats — the fence, the drag, the fence again — rather
+            // than one with a side panel.
+            auto *flick = namedItem(window, "diagramReadFlick");
+            if (flick) {
+                const QPoint edge =
+                    flick->mapToScene(QPointF(flick->width() - 24,
+                                              flick->height() / 2))
+                        .toPoint();
+                clickAt(window, edge, 600);
+                settle(3000);           // long enough to read eight lines
+                if (QQuickItem *heading = delegateAt(window, 0))
+                    clickAt(window, centerOf(heading), 1100);
+            }
+
             // Ask the canvas which node to aim at rather than guessing at
             // pixels: cycleNode selects one and selectionRect reports its box
             // in item coordinates, so this survives a layout change.
@@ -732,16 +760,16 @@ int main(int argc, char *argv[])
                 qInfo("uidriver: source after:\n%s",
                       qPrintable(model->getContent(fence)));
 
-            // Then show the markdown the drag wrote. Clicking the whitespace
-            // beside the diagram is the gesture that opens the source editor.
-            if (auto *flick = namedItem(window, "diagramReadFlick")) {
+            // Then the same fence again, now with the position line the drag
+            // wrote at the end of it. This is the payoff, so it holds longest.
+            if (QQuickItem *again = namedItem(window, "diagramReadFlick")) {
                 const QPoint edge =
-                    flick->mapToScene(QPointF(flick->width() - 24,
-                                              flick->height() / 2))
+                    again->mapToScene(QPointF(again->width() - 24,
+                                              again->height() / 2))
                         .toPoint();
                 clickAt(window, edge, 800);
             }
-            settle(2600);
+            settle(3600);
         } else if (scenario == QStringLiteral("tour-livepreview")) {
             if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
                 app.exit(3);
