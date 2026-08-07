@@ -333,6 +333,48 @@ private:
     // The markdown-derived half of inlineMathBoxes(), which is what the
     // cache below holds.
     QVariantList buildInlineMathSegments() const;
+    // The cache above, brought up to date with the current markdown and
+    // reveal state.
+    void ensureMathSegments() const;
+    // The TeX of the hidden span whose content starts at this document
+    // position, or an empty string when no hidden span starts there. The
+    // highlighter needs it because the laid-out text no longer holds it —
+    // see layoutText() for why.
+    QString hiddenMathTexAt(int docStart) const;
+
+    // The text the document is laid out with: the display text, with the
+    // content of every hidden `$…$` span replaced character for character by
+    // figure spaces (U+2007).
+    //
+    // A hidden formula is drawn by qml/InlineMathOverlay.qml as an image over
+    // the run the engine reserves for it, and what that run has to do is
+    // occupy the right width and raise the line to the right height. Laying
+    // the TeX source out there, transparent and squeezed to the image's width
+    // with letter spacing, went wrong twice over. `\int_0^\infty e^x dx`
+    // holds spaces, so the line breaker could split a formula between two
+    // lines, and the overlay — which has one image per span and places it at
+    // the span's first caret rectangle — then drew the whole picture off the
+    // end of the first line. And a selection repaints the text it covers in
+    // the selected-text colour, which overrides the transparent foreground,
+    // so sweeping across an equation showed its raw TeX on top of the image.
+    //
+    // A figure space has neither problem: it is `GL` (non-breaking glue) in
+    // the line-breaking algorithm, so no break falls inside the run and a
+    // formula that does not fit moves to the next line whole, and it has no
+    // ink for a selection to repaint. One character per source character
+    // keeps every document position mapping to the markdown position it
+    // mapped to before.
+    //
+    // U+2007 rather than the more obvious U+00A0, which is also non-breaking:
+    // QTextDocument::toPlainText() rewrites U+00A0 to an ordinary space on
+    // the way out, so the engine could never compare what it had asked the
+    // document to hold against what the document reports holding, and every
+    // such comparison would have called for a repair that changed nothing.
+    static QString layoutText(const QString &markdown,
+                              const QList<int> &revealedSpans);
+    // Overwrite the characters of any span whose hidden/revealed state has
+    // just changed, leaving every position in the block where it was.
+    void syncHiddenMathText();
 
     QPointer<QQuickTextDocument> m_quickDocument;
     QPointer<QTextDocument> m_doc;

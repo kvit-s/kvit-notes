@@ -46,6 +46,10 @@ const QColor kCodeString("#50a14f");
 const QColor kCodeComment("#a0a1a7");
 const QColor kCodeNumber("#986801");
 
+// The character a hidden `$…$` span's content is laid out as, one per source
+// character. See BlockEditorEngine::layoutText for why it is this one.
+constexpr char16_t kMathReservationChar = 0x2007; // FIGURE SPACE
+
 QList<int> singleSpanList(int revealedSpan)
 {
     if (revealedSpan < 0)
@@ -246,15 +250,15 @@ private:
                 if (c.isValid())
                     format.setForeground(c);
             }
-            // Hidden inline math: render the TeX content
-            // transparently and stretch/compress it to the renderer-owned
-            // logical width. The delegate overlays the rendered equation at
-            // that box. A revealed math span has had its Math flag stripped in
-            // formatRangesForState, so its source stays visible/editable.
-            if (range.kind & BlockEditorEngine::FormatRange::Math) {
-                format.setForeground(Qt::transparent);
+            // Hidden inline math: the run is laid out as figure spaces
+            // (BlockEditorEngine::layoutText), and this stretches or
+            // compresses them to the renderer-owned logical width and raises
+            // the line to the rendered height. The delegate overlays the
+            // rendered equation at that box. A revealed math span has had its
+            // Math flag stripped in formatRangesForState, so its source stays
+            // visible/editable.
+            if (range.kind & BlockEditorEngine::FormatRange::Math)
                 applyMathReservation(format, range, text, localStart);
-            }
             // Raised/lowered smaller text (§2.1). The vertical SHIFT
             // comes from the character formats the engine applies in
             // applyVerticalAlignmentFormats() — Qt Quick's glyph
@@ -284,9 +288,13 @@ private:
     {
         if (localStart < 0 || localStart + range.length > text.length())
             return;
-        const QString tex = text.mid(localStart, range.length);
+        // The TeX comes from the engine rather than from the text under the
+        // range: what is laid out there is the figure-space run this
+        // reserves the box in, not the source it renders.
+        const QString tex = m_engine->hiddenMathTexAt(range.start);
         if (tex.trimmed().isEmpty())
             return;
+        const QString reserved = text.mid(localStart, range.length);
 
         const int textSizePx = m_engine->mathFontPixelSize();
         const qreal renderedWidth = cachedMathWidth(tex, textSizePx);
@@ -303,12 +311,12 @@ private:
             reservation.value(QStringLiteral("reservationFontPixelSize"))
                 .toInt());
         const QFontMetricsF sourceMetrics(reservationFont);
-        const qreal sourceWidth = sourceMetrics.horizontalAdvance(tex);
+        const qreal sourceWidth = sourceMetrics.horizontalAdvance(reserved);
         if (sourceWidth <= 0)
             return;
 
-        // Widen or narrow the transparent source text to exactly the width
-        // of the rendered image, using an additive per-character advance.
+        // Widen or narrow the reserved run to exactly the width of the
+        // rendered image, using an additive per-character advance.
         //
         // QFont::setStretch() looks like the natural tool and was used here
         // originally, but Qt documents it as either matching a condensed or
@@ -323,7 +331,7 @@ private:
         //
         // The spacing lands after every character including the last, so the
         // total advance is sourceWidth + count * delta; solve for delta.
-        const int count = tex.size();
+        const int count = reserved.size();
         if (count <= 0)
             return;
         reservationFont.setLetterSpacing(QFont::AbsoluteSpacing,
@@ -863,9 +871,23 @@ void BlockEditorEngine::applyLineHeight()
     m_internalEdit = false;
 }
 
+QString BlockEditorEngine::layoutText(const QString &markdown,
+                                      const QList<int> &revealedSpans)
+{
+    QString text = InlineMarkdown::documentText(markdown, revealedSpans);
+    for (const InlineMarkdown::MathSegment &seg :
+         InlineMarkdown::hiddenMathSegments(markdown, revealedSpans)) {
+        const int from = qBound(0, seg.docStart, text.size());
+        const int to = qBound(from, seg.docEnd, text.size());
+        for (int i = from; i < to; ++i)
+            text[i] = QChar(kMathReservationChar);
+    }
+    return text;
+}
+
 QString BlockEditorEngine::stateText() const
 {
-    return m_verbatim ? m_markdown : InlineMarkdown::documentText(m_markdown, m_revealedSpans);
+    return m_verbatim ? m_markdown : layoutText(m_markdown, m_revealedSpans);
 }
 
 void BlockEditorEngine::requestRebuild()
@@ -1058,25 +1080,42 @@ bool BlockEditorEngine::shouldAutoPairDollar(int docPos,
     return InlineMarkdown::shouldAutoPairDollarIn(m_markdown, mdPos, ignoreFollowing);
 }
 
+void BlockEditorEngine::ensureMathSegments() const
+{
+    // Everything except the line positions depends only on the markdown and
+    // the reveal state. The overlay asks for this list again on every
+    // relayout and every caret move, so re-scanning the markdown and
+    // re-merging the metric maps each time was the bulk of the cost of
+    // having math in a paragraph at all.
+    if (m_mathSegmentsValid && m_mathSegmentsMarkdown == m_markdown
+        && m_mathSegmentsRevealed == m_revealedSpans)
+        return;
+    m_mathSegmentsCache = buildInlineMathSegments();
+    m_mathSegmentsMarkdown = m_markdown;
+    m_mathSegmentsRevealed = m_revealedSpans;
+    m_mathSegmentsValid = true;
+}
+
+QString BlockEditorEngine::hiddenMathTexAt(int docStart) const
+{
+    if (m_verbatim)
+        return QString();
+    ensureMathSegments();
+    for (const QVariant &entry : std::as_const(m_mathSegmentsCache)) {
+        const QVariantMap box = entry.toMap();
+        if (box.value(QStringLiteral("docStart")).toInt() == docStart)
+            return box.value(QStringLiteral("tex")).toString();
+    }
+    return QString();
+}
+
 QVariantList BlockEditorEngine::inlineMathBoxes() const
 {
     QVariantList out;
     if (m_verbatim)
         return out;
 
-    // Everything except the line positions depends only on the markdown and
-    // the reveal state. The overlay asks for this list again on every
-    // relayout and every caret move, so re-scanning the markdown and
-    // re-merging the metric maps each time was the bulk of the cost of
-    // having math in a paragraph at all.
-    if (!m_mathSegmentsValid || m_mathSegmentsMarkdown != m_markdown
-        || m_mathSegmentsRevealed != m_revealedSpans) {
-        m_mathSegmentsCache = buildInlineMathSegments();
-        m_mathSegmentsMarkdown = m_markdown;
-        m_mathSegmentsRevealed = m_revealedSpans;
-        m_mathSegmentsValid = true;
-    }
-
+    ensureMathSegments();
     out = m_mathSegmentsCache;
     if (!m_doc)
         return out;
@@ -1295,8 +1334,47 @@ void BlockEditorEngine::transitionTo(const QList<int> &revealedSpans)
     }
 
     m_revealedSpans = current;
+    // A hidden `$…$` span is laid out as figure spaces and a revealed one
+    // as its TeX source (layoutText), so a span that just changed state needs
+    // its content swapped as well as its markers inserted or removed. The two
+    // spellings are the same length, so this overwrites the characters that
+    // differ and every other position in the block stays where it was.
+    syncHiddenMathText();
     m_internalEdit = false;
     rehighlight();
+}
+
+void BlockEditorEngine::syncHiddenMathText()
+{
+    if (!m_doc || m_verbatim)
+        return;
+    const QString wanted = layoutText(m_markdown, m_revealedSpans);
+    const QString actual = m_doc->toPlainText();
+    if (wanted.length() != actual.length() || wanted == actual)
+        return;
+
+    // One character at a time, and each one inserted BEFORE its predecessor
+    // is removed rather than written over it.
+    //
+    // Qt moves a cursor that sits exactly at an insertion point along with
+    // the text, so replacing a run outright leaves any caret inside it at the
+    // end of the run: clicking into the middle of an equation would reveal
+    // the source and then jump to its last character. Inserting the new
+    // character one position along and removing the old one afterwards leaves
+    // every position in the document, the caret and its anchor included,
+    // exactly where it was.
+    QTextCursor tc(m_doc);
+    tc.beginEditBlock();
+    for (int i = 0; i < wanted.length(); ++i) {
+        if (wanted.at(i) == actual.at(i))
+            continue;
+        tc.setPosition(i + 1);
+        tc.insertText(QString(wanted.at(i)));
+        tc.setPosition(i);
+        tc.setPosition(i + 1, QTextCursor::KeepAnchor);
+        tc.removeSelectedText();
+    }
+    tc.endEditBlock();
 }
 
 void BlockEditorEngine::rehighlight()
@@ -1403,7 +1481,7 @@ void BlockEditorEngine::onContentsChange(int position, int charsRemoved, int cha
 
     bool adopted = false;
     for (const auto &candidate : candidates) {
-        if (InlineMarkdown::documentText(m_markdown, candidate) == actual) {
+        if (layoutText(m_markdown, candidate) == actual) {
             m_revealedSpans = candidate;
             adopted = true;
             break;
@@ -1416,7 +1494,7 @@ void BlockEditorEngine::onContentsChange(int position, int charsRemoved, int cha
         // state with a minimal diff; the scheduled evaluation then
         // re-reveals per cursor/selection.
         m_revealedSpans.clear();
-        applyMinimalDiff(InlineMarkdown::documentText(m_markdown, m_revealedSpans));
+        applyMinimalDiff(layoutText(m_markdown, m_revealedSpans));
     }
     rehighlight();
 

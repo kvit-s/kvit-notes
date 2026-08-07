@@ -11573,6 +11573,14 @@ Item {
             tryVerify(function() { return para.inlineMathBoxes.length === 0 },
                       2000, "the equation overlay drops while revealed")
 
+            // And the caret is still between the characters it was put
+            // between, one along for the opening `$` that has just appeared in
+            // front of it. Revealing a formula swaps its content as well as
+            // its markers — the hidden spelling is a run of figure spaces —
+            // and a swap that moved the caret would send a click into the
+            // middle of an equation somewhere else.
+            compare(ta.cursorPosition, 16)
+
             // Move the caret out: the box returns.
             ta.cursorPosition = 0
             tryVerify(function() { return para.inlineMathBoxes.length === 1 },

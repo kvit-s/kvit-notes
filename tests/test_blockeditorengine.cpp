@@ -175,6 +175,8 @@ private slots:
     void testInlineMathReserveAndReveal();
     void testInlineMathReservationUsesRenderedWidth();
     void testInlineMathTallFormulaReservesLineHeight();
+    void testInlineMathStaysOnOneLine();
+    void testInlineMathSourceReturnsOnReveal();
 
     // --- Verbatim mode (code blocks) ---
     void testVerbatimDocumentIsMarkdown();
@@ -1437,7 +1439,10 @@ void TestBlockEditorEngine::testInlineMathReservationUsesRenderedWidth()
     const QVariantMap box = boxes.first().toMap();
     const int start = box.value("docStart").toInt();
     const int end = box.value("docEnd").toInt();
-    QCOMPARE(doc.toPlainText().mid(start, end - start), QString("x^2"));
+    // The span is laid out as figure spaces, one per source character, not
+    // as the TeX itself: see BlockEditorEngine::layoutText.
+    QCOMPARE(doc.toPlainText().mid(start, end - start),
+             QString(3, QChar(0x2007)));
 
     const QTextLine line = doc.firstBlock().layout()->lineForTextPosition(start);
     QVERIFY(line.isValid());
@@ -1473,7 +1478,8 @@ void TestBlockEditorEngine::testInlineMathTallFormulaReservesLineHeight()
     QVERIFY(box.value(QStringLiteral("reservationValid")).toBool());
     const int start = box.value(QStringLiteral("docStart")).toInt();
     const int end = box.value(QStringLiteral("docEnd")).toInt();
-    QCOMPARE(doc.toPlainText().mid(start, end - start), tex);
+    QCOMPARE(doc.toPlainText().mid(start, end - start),
+             QString(tex.size(), QChar(0x2007)));
 
     const int mathSize = engine.mathFontPixelSize();
     const MathRenderer::Metrics metrics = MathRenderer::measure(tex, mathSize);
@@ -1503,6 +1509,74 @@ void TestBlockEditorEngine::testInlineMathTallFormulaReservesLineHeight()
              qPrintable(QStringLiteral("reserved=%1 rendered=%2")
                             .arg(reservedWidth, 0, 'f', 2)
                             .arg(metrics.width, 0, 'f', 2)));
+}
+
+// A formula whose TeX holds spaces is still one unbreakable run, so the
+// overlay — which draws one image at the span's first caret rectangle — can
+// never end up painting a picture off the end of a line. The measure here is
+// narrow enough that the paragraph wraps twice, and the span begins at a line
+// start rather than straddling one.
+void TestBlockEditorEngine::testInlineMathStaysOnOneLine()
+{
+    QTextDocument doc;
+    doc.setTextWidth(220);
+    QFont font = doc.defaultFont();
+    font.setPixelSize(15);
+    doc.setDefaultFont(font);
+
+    BlockEditorEngine engine;
+    engine.attachDocument(&doc);
+    engine.setContentFontPixelSize(15);
+    engine.setMarkdown(QStringLiteral(
+        "Some words before the formula $\\int_0^\\infty e^x dx$ and several "
+        "words after it."));
+    settle();
+
+    const auto boxes = engine.inlineMathBoxes();
+    QCOMPARE(boxes.size(), 1);
+    const QVariantMap box = boxes.first().toMap();
+    const int start = box.value(QStringLiteral("docStart")).toInt();
+    const int end = box.value(QStringLiteral("docEnd")).toInt();
+
+    const QTextBlock block = doc.findBlock(start);
+    QVERIFY(block.isValid());
+    QTextLayout *layout = block.layout();
+    QVERIFY(layout);
+    QVERIFY2(layout->lineCount() > 1, "the paragraph did not wrap at all");
+    const QTextLine first = layout->lineForTextPosition(start - block.position());
+    const QTextLine last = layout->lineForTextPosition(end - block.position() - 1);
+    QVERIFY(first.isValid() && last.isValid());
+    QCOMPARE(first.lineNumber(), last.lineNumber());
+}
+
+// The caret entering a formula puts its source back, and leaving it takes the
+// source away again — the content swap that goes with the `$` markers.
+void TestBlockEditorEngine::testInlineMathSourceReturnsOnReveal()
+{
+    const QString tex = QStringLiteral("x^2 + 1");
+    QTextDocument doc;
+    BlockEditorEngine engine;
+    engine.attachDocument(&doc);
+    engine.setMarkdown(QStringLiteral("see $%1$ here").arg(tex));
+    engine.setCursorActive(true);
+    engine.setCursorPosition(0);
+    settle();
+
+    const QString blanked = QString(tex.size(), QChar(0x2007));
+    QCOMPARE(doc.toPlainText(), QStringLiteral("see %1 here").arg(blanked));
+
+    // Into the formula: markers back, source back.
+    engine.setCursorPosition(6);
+    settle();
+    QCOMPARE(engine.revealedSpan(), 0);
+    QCOMPARE(doc.toPlainText(), QStringLiteral("see $%1$ here").arg(tex));
+
+    // Back out of it: blanked again, and the markdown never moved.
+    engine.setCursorPosition(0);
+    settle();
+    QCOMPARE(engine.revealedSpan(), -1);
+    QCOMPARE(doc.toPlainText(), QStringLiteral("see %1 here").arg(blanked));
+    QCOMPARE(engine.markdown(), QStringLiteral("see $%1$ here").arg(tex));
 }
 
 // ============================================================================
