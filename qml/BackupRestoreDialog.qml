@@ -16,8 +16,9 @@ import Kvit 1.0
 // lists those copies with their timestamps above a rendered preview of the
 // version under the cursor. The preview is a ReadOnlyDocument
 // (selection.md "A document drawn read-only"): the stored markdown drawn as
-// blocks, with its inline markers hidden, which the reader can sweep across
-// and copy out as markdown without restoring anything. It is there because a
+// blocks, with its inline markers hidden and its pictures drawn as pictures,
+// which the reader can sweep across and copy out as markdown, and whose links
+// open what they name, all without restoring anything. It is there because a
 // timestamp and a fragment of a first line do not tell two edits of the same
 // afternoon apart, and because wanting one paragraph out of an old version is
 // commoner than wanting the whole of it back.
@@ -190,6 +191,11 @@ KvitDialog {
                     blockSpacing: Math.max(4, Math.round(
                         Typography.paragraphSpacing * 0.6))
                     markdown: backupDialog.selectedBody
+                    // `baseDir` is left at the surface's default, the open
+                    // note's directory, which is the right answer here and
+                    // not the obvious one: the stored copy sits under
+                    // .kvit/backups, while the picture paths inside it are
+                    // still written against the folder the note itself is in.
                 }
             }
         }

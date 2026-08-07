@@ -45,6 +45,9 @@ Item {
     // through qml/CrossBlockTextSelection.qml, and the range itself is held
     // in markdown coordinates by the DocumentSelection this points at.
     required property DocumentBlockSelection selection
+    // The directory a relative path in this block is written against, which
+    // is the surface's rather than the open note's. Only a picture uses it.
+    property string baseDir: ""
 
     // ---- the row's data, as values ----
     required property int blockType
@@ -62,6 +65,16 @@ Item {
     // nothing to select inside it; it is drawn as a rule and takes part in a
     // range that crosses it as a whole block.
     readonly property bool isDivider: block.blockType === Block.Divider
+    // An image or a media block holds a markdown expression rather than
+    // running text — ![alt|width](path "caption") — so it is drawn as the
+    // thing the expression names rather than as the characters of it. Like a
+    // divider it holds nothing a range can address inside, so it joins a
+    // range that crosses it as a whole block.
+    readonly property bool isPicture: block.blockType === Block.Image
+        || block.blockType === Block.Media
+    // The blocks whose row is laid-out text, which are the only ones with a
+    // position to resolve, a portion to paint or a link to follow.
+    readonly property bool textual: !block.isDivider && !block.isPicture
     // Verbatim blocks are the ones whose content IS their text: a code fence
     // (including every fence kind built on one — kanban, toc, mermaid, query,
     // and whatever a linked module registered), a `$$` math fence, and a
@@ -121,20 +134,45 @@ Item {
     readonly property int textLeft: block.indentLevel * block.indentStep
                                     + block.leadingWidth
 
-    implicitHeight: block.isDivider ? 17 : body.implicitHeight
+    implicitHeight: block.isDivider ? 17
+                  : block.isPicture ? pictureLoader.implicitHeight
+                  : body.implicitHeight
 
     // ---- position mapping, the one question a sweep asks a row ----
 
     // The markdown offset under a scene point, clamped into this block. A
-    // divider holds no text, so every point in one is offset zero and the
-    // range covers it whole.
+    // divider and a picture hold no text a range can point into, so every
+    // point in one is offset zero and a range that crosses it covers it
+    // whole. This is the answer the editor's own divider and image delegates
+    // give for the same question.
     function markdownPositionAt(sceneX, sceneY) {
-        if (block.isDivider)
+        if (!block.textual)
             return 0
         var p = body.mapFromItem(null, sceneX, sceneY)
         var cx = Math.max(0, Math.min(p.x, Math.max(1, body.width) - 1))
         var cy = Math.max(0, Math.min(p.y, Math.max(1, body.height) - 1))
         return engine.toMarkdownPosition(body.positionAt(cx, cy))
+    }
+
+    // Whether a scene point falls inside this row's laid-out text. The
+    // surface's pointer handling covers the whole of it, gaps and indents
+    // included, so a question about a character has to be refused for a point
+    // that is not on one.
+    function pointInText(sceneX, sceneY) {
+        if (!block.textual)
+            return false
+        var p = body.mapFromItem(null, sceneX, sceneY)
+        return p.x >= 0 && p.x <= body.width && p.y >= 0 && p.y <= body.height
+    }
+
+    // The link under a scene point, or "" when there is none. A fence is
+    // verbatim, so its text is source rather than markup and nothing in it is
+    // a link.
+    function linkAt(sceneX, sceneY) {
+        if (block.verbatim || !block.pointInText(sceneX, sceneY))
+            return ""
+        var p = body.mapFromItem(null, sceneX, sceneY)
+        return engine.linkAtDocumentPosition(body.positionAt(p.x, p.y))
     }
 
     // ---- painting this block's share of the range ----
@@ -155,7 +193,7 @@ Item {
     onPortionChanged: block.applyTextPortion()
 
     function applyTextPortion() {
-        if (block.isDivider)
+        if (!block.textual)
             return
         var p = block.portion
         if (p && p.selected === true && p.end > p.start) {
@@ -179,7 +217,7 @@ Item {
         y: 0
         width: block.leadingWidth
         height: block.height
-        active: block.leadingWidth > 0 && !block.isDivider
+        active: block.leadingWidth > 0 && block.textual
         sourceComponent: {
             switch (block.blockType) {
                 case Block.BulletList: return bulletGlyph
@@ -303,14 +341,33 @@ Item {
         color: Theme.border
     }
 
+    // ---- the picture ----
+    //
+    // An image or media block's content is a markdown expression, so it is
+    // the one non-verbatim kind that must not go through the text engine. It
+    // is loaded rather than declared inline because a document of prose pays
+    // nothing for it: a surface with no pictures in it creates none of this.
+    Loader {
+        id: pictureLoader
+        x: block.textLeft
+        width: Math.max(1, block.width - block.textLeft)
+        active: block.isPicture
+        sourceComponent: ReadOnlyPicture {
+            content: block.content
+            baseDir: block.baseDir
+            media: block.blockType === Block.Media
+        }
+    }
+
     // ---- the selection band behind a block with no text of its own ----
     //
-    // A divider inside a range has no characters to highlight, so the row
-    // itself is tinted; DocumentSelection reports it as a full portion for
-    // exactly this reason.
+    // A divider or a picture inside a range has no characters to highlight,
+    // so the row itself is tinted; DocumentSelection reports a block whose
+    // range covers it end to end as a full portion, which is what a sweep
+    // crossing one produces.
     Rectangle {
         objectName: "readOnlySelectionBand"
-        visible: block.isDivider && block.wholeBlockSelected
+        visible: !block.textual && block.wholeBlockSelected
         anchors.fill: parent
         color: Theme.selectionActiveTint
         z: -1
@@ -334,7 +391,7 @@ Item {
         id: body
         objectName: "readOnlyBlockText"
 
-        visible: !block.isDivider
+        visible: block.textual
         x: block.textLeft
         width: Math.max(1, block.width - block.textLeft)
 
@@ -370,6 +427,9 @@ Item {
         // A screen reader reads this as static text, which is what it is. The
         // editor's blocks report themselves as editable text fields, and a
         // switched-off editor would otherwise be announced as a disabled one.
+        // A picture's row leaves this empty and draws its own named graphic,
+        // so the empty editor behind it is kept out of the tree entirely.
+        Accessible.ignored: !block.textual
         Accessible.role: Accessible.StaticText
         Accessible.name: {
             if (block.blockType === Block.Todo) {
@@ -414,7 +474,9 @@ Item {
     BlockEditorEngine {
         id: engine
         document: body.textDocument
-        markdown: block.content
+        // A picture's expression is drawn as the picture, so the editor
+        // behind it holds nothing and lays nothing out.
+        markdown: block.textual ? block.content : ""
         // Never active: nothing here has a caret, so no span ever reveals its
         // markers and the display text is what the reader gets.
         cursorActive: false

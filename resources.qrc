@@ -82,6 +82,7 @@
         <file>qml/ReadOnlyDocument.qml</file>
         <file>qml/ReadOnlyDocumentDrag.qml</file>
         <file>qml/ReadOnlyBlock.qml</file>
+        <file>qml/ReadOnlyPicture.qml</file>
         <file>qml/BlockDragController.qml</file>
         <file>qml/BlockDragLayer.qml</file>
         <file>qml/BlockSelectionKeys.qml</file>

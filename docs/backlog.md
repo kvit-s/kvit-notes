@@ -185,7 +185,8 @@ in the application put a note's text on screen without being the editor, and
 one of them uses it.
 
 **The backup dialog does.** Choosing which stored version to restore now shows
-the version under the cursor drawn rather than one elided plain line.
+the version under the cursor drawn rather than one elided plain line, with the
+pictures in it drawn as pictures and the links in it followable.
 
 **The backlinks pane does not.** `qml/BacklinksPanel.qml` still draws each
 referring note's context lines as plain `Text`, so a `**bold**` phrase in a

@@ -247,7 +247,9 @@ A surface takes a markdown string and holds three things:
   wiki-links against the open collection and reserves a box for each `$…$`
   span that `qml/InlineMathOverlay.qml` paints the equation into. A code fence
   goes through the same object in verbatim mode and is highlighted by
-  language.
+  language. An image or media block is the exception: its content is a
+  markdown expression rather than running text, so it goes to
+  `qml/ReadOnlyPicture.qml` instead (see "Pictures" below).
 
 Neither the model nor the selection is a singleton, which is the point: the
 editor's `BlockModel` and `DocumentSelection` are the open note, one per
@@ -310,6 +312,64 @@ a surface from the block-private rendered selection above: a query's rows come
 from other notes and have no markdown, whereas a stored version, a referring
 note's context and a search snippet all do.
 
+### Pictures
+
+An image block keeps its markdown expression as its content, the way the table
+and kanban types keep theirs. A surface that sent every non-verbatim block
+through the text engine therefore drew the characters
+`![Retention|180](charts/retention.png "Weekly retention")` where the picture
+belongs.
+`qml/ReadOnlyPicture.qml` is the read-only counterpart of `qml/ImageBlock.qml`:
+the same `ImageAssets` parse, the same path resolution and the same remote
+consent gate, without the resize handle, the effects popover, the editable
+caption and the lightbox, none of which a surface has any way to act on. The
+caption is drawn as text and the stored width is honoured, capped at the
+pane's width so a picture sized for the editor is not cut off in a preview.
+A media block draws a tile naming the file rather than a player, since a
+surface cannot play anything.
+
+Resolving a relative path needs to know where the document being drawn lives,
+and that is not the open note's directory whenever the document came from
+somewhere else: a stored version sits in the backup tree while its pictures
+are still written against the note's own folder, and a caller may build a
+surface from a string with no file behind it at all. So `baseDir` is a
+property of the surface, defaulting to the open note's directory, handed down
+to each row.
+
+A remote image is not fetched because a preview drew it. A note is untrusted
+input (docs/adr/0003-network-egress-policy.md) and a preview of one is no
+different, so the source goes through `EgressPolicy::imageSourceFor` exactly
+as the editor's does: empty until the reader approves the origin, with the
+same consent tile offering to load it. That tile carries the one control a
+surface's rows hold, which is why the rows stack above the sweep area rather
+than below it — everything else in a row is inert, so every other press falls
+straight through to the sweep. Approving an origin changes the reader's policy
+rather than the document, so it leaves the surface as read-only as it was, and
+the picture appears in place without the pane around it being rebuilt.
+
+A picture holds no characters, so it takes part in a range the way a divider
+does: `markdownPositionAt` answers 0, `DocumentSelection` reports a full
+portion for a block the range covers end to end, the row itself is tinted, and
+`rangeMarkdown()` contributes the expression. A sweep that crosses a picture
+does not stop at it.
+
+### Following a link
+
+Every link on a surface was inert: the rows are switched off and the sweep's
+`MouseArea` takes the press. A release that ended no selection is now treated
+as a click, so the row under it is asked for
+`BlockEditorEngine::linkAtDocumentPosition` and a non-empty answer goes to
+`AppActions.requestOpenLink`, which is the editor's own route. Wiki-links come
+back resolved against the open collection, which is the same resolver that
+styled them.
+
+The gesture rule is the one `qml/SelectableText.qml` and the editor's blocks
+settled on: a press that turned into a selection activates nothing. A sweep
+ends over whatever it ends over and very often ends over a link, so
+`ReadOnlyDocumentDrag` records whether the gesture left a selection behind and
+the surface asks that before following anything. A double or triple click
+selects on the press, so those activate nothing either.
+
 ### How it interacts with the note's own selection
 
 A sweep on a surface clears whatever `DocumentSelection` the note held, and a
@@ -330,7 +390,12 @@ is drawn as its source on a panel rather than as the live thing the editor
 draws, since the live thing is interactive and a surface is not. Internal
 links (`[text](#slug)`) render as ordinary links rather than being checked
 against the outline, because the outline belongs to the open note and this
-document is not it.
+document is not it, and a click on one opens it as the link it appears to be.
+
+A picture is drawn without the editor's image effects. Rounded corners, the
+drop shadow, the border and the stretch override are block attributes rather
+than part of the expression, and a surface draws a document rather than a
+note's presentation of one.
 
 There is also no way for a caller to set a run of blocks apart with a band or
 a glyph, which a diff view would want in order to show which part of a stored
@@ -348,9 +413,12 @@ for it yet.
   a board narrow enough not to overflow work normally.
 - **Keyboard extension of a rendered selection.** There are no Shift+Arrows
   over one. Ctrl+A is the only way to make one without the pointer.
-- **Media blocks.** An audio or video block's path, state and timecodes are
-  still plain `Text` and still cannot be selected; there is no reason it could
-  not use the same mechanism, only that it has not been asked for.
+- **Media blocks in the editor.** An audio or video block's path, state and
+  timecodes are still plain `Text` in the editor's own delegate and still
+  cannot be selected; there is no reason it could not use the same mechanism,
+  only that it has not been asked for. On a surface a media block is a tile
+  naming the file, which is all a surface can offer for something it cannot
+  play.
 
 - **The backlinks pane and search results.** Both still draw their text as
   plain `Text`, so a `**bold**` phrase in a referring sentence still appears

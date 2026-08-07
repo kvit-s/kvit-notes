@@ -37,6 +37,13 @@ QtObject {
     // so the surface can take the keyboard for Ctrl+C and Escape.
     signal sweepStarted()
 
+    // The gesture that just finished left a selection behind. The surface
+    // asks this before treating a release as a click, because a MouseArea
+    // reports one however far the pointer travelled in between, and a sweep
+    // that ends on a link must not also follow it. This is the same
+    // `suppressClick` the rendered selection keeps for the same reason.
+    property bool selectedInGesture: false
+
     property int pressIndex: -1
     property int pressMd: 0
     property bool engaged: false
@@ -48,6 +55,7 @@ QtObject {
     function beginPress(sceneX, sceneY) {
         if (!drag.selection)
             return
+        drag.selectedInGesture = false
         // Click multiplicity sets the drag granularity, as in the editor
         // (features.md §21.3): 1 character, 2 word, 3 whole-block.
         var now = Date.now()
@@ -99,6 +107,8 @@ QtObject {
     function endPress() {
         drag.pressIndex = -1
         drag.engaged = false
+        drag.selectedInGesture =
+            !!drag.selection && drag.selection.hasTextSelection
     }
 
     function engage() {
@@ -114,6 +124,24 @@ QtObject {
         drag.selection.beginTextSelection(drag.pressIndex, drag.pressMd,
             drag.clickCount >= 3 ? 2 : drag.clickCount === 2 ? 1 : 0)
         drag.sweepStarted()
+    }
+
+    // The row a scene point falls on, or null for a point in the blank
+    // rhythm between two of them or outside the document altogether. A sweep
+    // wants the nearest row and gets it from blockPositionAt below; a click
+    // wants the row it is actually on and nothing when it is on none.
+    function rowAt(sceneX, sceneY) {
+        if (!drag.blocks || !drag.content || !drag.rows)
+            return null
+        var pos = drag.content.mapFromItem(null, sceneX, sceneY)
+        for (var i = 0; i < drag.blocks.count; ++i) {
+            var row = (drag.rows.itemAt(i) as ReadOnlyBlock)
+            if (!row)
+                continue
+            if (pos.y >= row.y && pos.y <= row.y + row.height)
+                return row
+        }
+        return null
     }
 
     // Map a scene point to {index, mdPos} on the surface. Points above,

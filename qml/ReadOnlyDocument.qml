@@ -31,10 +31,17 @@ import Kvit 1.0
 // here addresses a singleton document, which is what lets one window hold
 // several surfaces at once.
 //
+// An image block is the one kind whose content is not running text, so it is
+// drawn as the picture the expression names rather than as the characters of
+// it, resolved against the surface's own base directory and gated by the
+// egress policy exactly as one in a note is. A link is followable: a release
+// that ended no selection is a click, and a click on a link opens it.
+//
 // Read-only is enforced rather than declared. No path from the view writes to
 // the model, no undo stack is attached to it, and a surface over a file never
 // opens that file for writing. A caller that wants the document edited opens
-// it as a note.
+// it as a note. Approving a remote image's origin is a change to the reader's
+// own policy rather than to the document, so it does not breach that.
 //
 // Sizing is by content: the rows are a Column, not a ListView, so a surface
 // can sit inside a scrolling area it does not own. Every block is
@@ -51,6 +58,21 @@ Item {
     // The blank-line rhythm between blocks. The editor's own spacing by
     // default; a pane that wants a denser preview turns it down.
     property int blockSpacing: Typography.paragraphSpacing
+    // The directory a relative path inside the document is written against —
+    // an image block's `![alt](charts/retention.png)`.
+    //
+    // A drawn document is often not the open note, and the file it came out
+    // of is often not where its paths are anchored either: a stored version
+    // of a note sits in the backup tree while its pictures are still written
+    // against the note's own folder, and a surface may be built from a string
+    // with no file behind it at all. So this is a property rather than
+    // something the surface works out, defaulting to the open note's
+    // directory, which is the right answer for a preview of that note's past.
+    property string baseDir: {
+        var path = DocumentManager.currentFilePath
+        var cut = path.lastIndexOf("/")
+        return cut >= 0 ? path.substring(0, cut) : ""
+    }
 
     // ---- out ----
 
@@ -140,6 +162,35 @@ Item {
     function updateSweepAt(sceneX, sceneY) { sweep.update(sceneX, sceneY) }
     function endSweep() { sweep.endPress() }
 
+    // ---- following a link ----
+
+    // The link under a scene point, or "" when there is none. Wiki-links come
+    // back resolved against the open collection, which is the same resolver
+    // that styled them.
+    function linkAt(sceneX, sceneY) {
+        column.forceLayout()
+        var row = sweep.rowAt(sceneX, sceneY)
+        return row ? row.linkAt(sceneX, sceneY) : ""
+    }
+
+    // Open the link under a scene point through the window's link opener, the
+    // one route the editor's own blocks use. False when there was nothing
+    // there to open.
+    //
+    // The gesture rule is the one the rendered selection and the editor's
+    // blocks settled on: a press that turned into a selection activates
+    // nothing, and a plain click on a link activates it. A sweep ends over
+    // whatever it ends over, and it very often ends over a link.
+    function activateLinkAt(sceneX, sceneY) {
+        if (sweep.selectedInGesture)
+            return false
+        var url = surface.linkAt(sceneX, sceneY)
+        if (url === "")
+            return false
+        AppActions.requestOpenLink(url)
+        return true
+    }
+
     // ---- the document, the selection, and the rows ----
 
     // Height follows the document; width comes from the container, since a
@@ -180,6 +231,12 @@ Item {
         objectName: "readOnlyDocumentColumn"
         width: surface.width
         spacing: surface.blockSpacing
+        // Above the sweep area below, so that the one control a row can hold
+        // — the button on an unloaded remote image that offers to load it —
+        // receives its press. Everything else in a row is inert (the text
+        // editors are switched off, the pictures carry no handlers), so every
+        // other press falls straight through to the sweep.
+        z: 1
 
         Repeater {
             id: blockRows
@@ -189,6 +246,7 @@ Item {
                 width: column.width
                 blockIndex: index
                 selection: docSelection
+                baseDir: surface.baseDir
             }
         }
     }
@@ -212,12 +270,13 @@ Item {
         radius: 3
         border.width: 1
         border.color: Theme.focusRing
-        z: 1
+        z: 2
     }
 
-    // The sweep's pointer input. Declared after the rows so it is above them;
-    // the rows are switched off anyway, which is belt and braces on the same
-    // decision.
+    // The sweep's pointer input, under the rows for the reason the column
+    // gives. It reaches every part of the surface, the blank rhythm between
+    // two blocks and the indent beside a nested one included, so a sweep that
+    // strays off the text never loses its grip on the document.
     MouseArea {
         id: sweepArea
         anchors.fill: parent
@@ -240,7 +299,13 @@ Item {
             var p = sweepArea.mapToItem(null, mouse.x, mouse.y)
             surface.updateSweepAt(p.x, p.y)
         }
-        onReleased: surface.endSweep()
+        onReleased: function(mouse) {
+            surface.endSweep()
+            var p = sweepArea.mapToItem(null, mouse.x, mouse.y)
+            surface.activateLinkAt(p.x, p.y)
+        }
+        // A cancelled press is a grab lost rather than a click, so it opens
+        // nothing.
         onCanceled: surface.endSweep()
         // A surface is not a control and activates nothing; the text it draws
         // carries its own name, row by row.

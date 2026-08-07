@@ -7,8 +7,10 @@
 #include <QDateTime>
 #include <QDir>
 #include <QGuiApplication>
+#include <QImage>
 #include <QKeyEvent>
 #include <QQuickWindow>
+#include <QSignalSpy>
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QQmlApplicationEngine>
@@ -24,11 +26,13 @@
 
 #include <memory>
 
+#include "appactions.h"
 #include "appcontext.h"
 #include "block.h"
 #include "blockmodel.h"
 #include "documentselection.h"
 #include "documentserializer.h"
+#include "egresspolicy.h"
 #include "notecollection.h"
 #include "qmlservices.h"
 #include "theme.h"
@@ -178,6 +182,10 @@ private slots:
         noteSelection()->clear();
         m_context->undoStack()->clear();
         m_surfaces.clear();
+        // No origin is approved at the start of a case: the remote-image
+        // cases below turn on "nothing has been fetched yet", and an approval
+        // one case granted would still be in force in the next.
+        m_context->egressPolicy()->forgetAllOrigins();
         QCoreApplication::processEvents();
     }
 
@@ -554,6 +562,303 @@ private slots:
             QStringLiteral("backupPreviewDocument")));
     }
 
+    // ---- pictures ----
+    //
+    // An image block's content is its markdown expression, so a surface that
+    // sent every non-verbatim block through the text engine drew the
+    // characters `![Retention|180](assets/chart.png)` where the picture
+    // belongs. These cases are that gap closed.
+
+    void anImageBlockDrawsItsPictureAtTheStoredWidth()
+    {
+        writeImageFile(QStringLiteral("assets/chart.png"), 400, 200);
+        QQuickItem *surface = makeSurface(
+            QStringLiteral("Above the picture.\n\n"
+                           "![Retention|180](assets/chart.png "
+                           "\"Weekly retention\")\n\n"
+                           "Below the picture.\n"),
+            m_vaultRoot);
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 3);
+
+        QQuickItem *row = rowItem(surface, 1);
+        QVERIFY(row);
+        QVERIFY2(row->property("isPicture").toBool(),
+                 "the image block was not recognised as a picture");
+        // The expression is drawn as the thing it names rather than as its
+        // own characters, so the row's text editor holds nothing at all.
+        QVERIFY2(rowText(surface, 1).isEmpty(),
+                 qPrintable(rowText(surface, 1)));
+
+        QQuickItem *image = childItem(row,
+                                      QStringLiteral("readOnlyPictureImage"));
+        QVERIFY(image);
+        QTRY_COMPARE(image->property("status").toInt(), 1 /* Image.Ready */);
+        QVERIFY(image->isVisible());
+
+        // The stored width is honoured, and the height follows the file's own
+        // aspect ratio rather than the tile height a placeholder would take.
+        QQuickItem *frame = childItem(row,
+                                      QStringLiteral("readOnlyPictureFrame"));
+        QVERIFY(frame);
+        QCOMPARE(qRound(frame->width()), 180);
+        QTRY_COMPARE(qRound(frame->height()), 90);
+
+        // The caption travels with the expression and is drawn as text, since
+        // the editor's editable caption field would be a way to write to a
+        // document the reader is only looking at.
+        QQuickItem *caption =
+            childItem(row, QStringLiteral("readOnlyPictureCaption"));
+        QVERIFY(caption);
+        QCOMPARE(caption->property("text").toString(),
+                 QStringLiteral("Weekly retention"));
+    }
+
+    // A relative path is written against the directory of the file the
+    // expression lives in, which is not the open note's directory whenever
+    // the drawn document came from somewhere else.
+    void aRelativePathResolvesAgainstTheSurfacesBaseDirectory()
+    {
+        writeImageFile(QStringLiteral("chapters/figures/plot.png"), 200, 100);
+        QQuickItem *surface = makeSurface(
+            QStringLiteral("![Plot](figures/plot.png)\n"),
+            m_vaultRoot + QStringLiteral("/chapters"));
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 1);
+
+        QQuickItem *row = rowItem(surface, 0);
+        QQuickItem *image = childItem(row,
+                                      QStringLiteral("readOnlyPictureImage"));
+        QVERIFY(image);
+        QTRY_COMPARE(image->property("status").toInt(), 1 /* Image.Ready */);
+
+        // Pointed at the wrong directory the same expression resolves to
+        // nothing and the row shows the broken-path tile, which is what says
+        // the base directory is what did the resolving.
+        surface->setProperty("baseDir", m_vaultRoot);
+        QQuickItem *tile =
+            childItem(row, QStringLiteral("readOnlyPicturePlaceholder"));
+        QVERIFY(tile);
+        QTRY_VERIFY(tile->isVisible());
+        QVERIFY(!image->isVisible());
+    }
+
+    // A note is untrusted input and a preview of one is no different: drawing
+    // a stored version must not turn the URLs in it into requests.
+    void aRemoteImageIsNotFetchedUntilTheOriginIsApproved()
+    {
+        const QString url =
+            QStringLiteral("https://pictures.invalid/chart.png");
+        QQuickItem *surface = makeSurface(
+            QStringLiteral("![Remote](") + url + QStringLiteral(")\n"),
+            m_vaultRoot);
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 1);
+        QQuickItem *row = rowItem(surface, 0);
+        QVERIFY(row->property("isPicture").toBool());
+
+        QVERIFY(!m_context->egressPolicy()->isAllowed(url));
+        QQuickItem *consent =
+            childItem(row, QStringLiteral("readOnlyPictureConsent"));
+        QVERIFY(consent);
+        QVERIFY2(consent->isVisible(),
+                 "an unapproved remote image showed no consent tile");
+        // Nothing has been asked for: an Image with an empty source issues no
+        // request, which is the whole of the guarantee.
+        QQuickItem *image = childItem(row,
+                                      QStringLiteral("readOnlyPictureImage"));
+        QVERIFY(image);
+        QCOMPARE(image->property("source").toUrl(), QUrl());
+        QVERIFY(!image->isVisible());
+        // And the tile is not a picture of a button: approving an origin is a
+        // real control, with a name and a tab stop.
+        QQuickItem *button =
+            childItem(row, QStringLiteral("readOnlyPictureLoadButton"));
+        QVERIFY(button);
+        QVERIFY(button->isVisible());
+
+        // Nor is it a control the pointer cannot reach. The surface's sweep
+        // covers every pixel of it, so the rows have to stack above the sweep
+        // for this press to land on the button rather than starting a
+        // selection; this is the assertion that says they do.
+        const QPointF centre = button->mapToScene(
+            QPointF(button->width() / 2, button->height() / 2));
+        QTest::mouseClick(shellWindow(), Qt::LeftButton, Qt::NoModifier,
+                          centre.toPoint());
+        QTRY_VERIFY(m_context->egressPolicy()->isOriginAllowed(url));
+        QVERIFY2(!surface->property("hasSelection").toBool(),
+                 "the press on the button also started a sweep");
+
+        // Approving the origin reaches the drawn document in place: the tile
+        // goes and the source becomes the in-process provider that fetches
+        // over the egress policy. Whether those bytes then arrive is
+        // EgressFetcher's business and is tested with it; what matters here
+        // is that the surface asked for them only after consent, and without
+        // the pane around it being rebuilt.
+        QTRY_VERIFY(!consent->isVisible());
+        QTRY_VERIFY(image->property("source").toUrl().toString().startsWith(
+            QStringLiteral("image://remote/")));
+    }
+
+    // A media block is drawn as a tile naming the file rather than as a
+    // player, because a surface has nothing to play it with, and it takes
+    // part in a range exactly as a picture does.
+    void aMediaBlockDrawsATileRatherThanAPlayer()
+    {
+        QQuickItem *surface = makeSurface(
+            QStringLiteral("![Interview](audio/interview.mp3)\n"), m_vaultRoot);
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 1);
+        QQuickItem *row = rowItem(surface, 0);
+        QVERIFY(row->property("isPicture").toBool());
+
+        QQuickItem *tile =
+            childItem(row, QStringLiteral("readOnlyPicturePlaceholder"));
+        QVERIFY(tile);
+        QVERIFY(tile->isVisible());
+        QQuickItem *image = childItem(row,
+                                      QStringLiteral("readOnlyPictureImage"));
+        QVERIFY(image);
+        QCOMPARE(image->property("source").toUrl(), QUrl());
+    }
+
+    // A picture holds no characters, so a range that crosses one takes it
+    // whole the way it takes a divider whole, and the copy has the expression
+    // in the middle of the markdown.
+    void aSweepAcrossAPictureTakesItWhole()
+    {
+        writeImageFile(QStringLiteral("assets/chart.png"), 400, 200);
+        const QString expression =
+            QStringLiteral("![Retention|180](assets/chart.png)");
+        QQuickItem *surface = makeSurface(
+            QStringLiteral("Above the picture.\n\n") + expression
+                + QStringLiteral("\n\nBelow the picture.\n"),
+            m_vaultRoot);
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 3);
+
+        sweep(surface, nearStartOf(surface, 0), nearEndOf(surface, 2));
+        QVERIFY(surface->property("hasSelection").toBool());
+        const QVariantMap range = invoke(surface, "selectedRange").toMap();
+        QCOMPARE(range.value(QStringLiteral("startIndex")).toInt(), 0);
+        QCOMPARE(range.value(QStringLiteral("endIndex")).toInt(), 2);
+
+        // The picture row has no characters to highlight, so the row itself
+        // is tinted.
+        QQuickItem *band = childItem(rowItem(surface, 1),
+                                     QStringLiteral("readOnlySelectionBand"));
+        QVERIFY(band);
+        QVERIFY2(band->isVisible(), "the picture was not shown as selected");
+
+        const QString copied = invoke(surface, "selectedMarkdown").toString();
+        QVERIFY2(copied.startsWith(QStringLiteral("Above the picture.")),
+                 qPrintable(copied));
+        QVERIFY2(copied.contains(expression), qPrintable(copied));
+        QVERIFY2(copied.trimmed().endsWith(QStringLiteral("Below the picture.")),
+                 qPrintable(copied));
+    }
+
+    // ---- links ----
+
+    // The gesture rule the rendered selection and the editor's blocks already
+    // settled on: a plain click on a link follows it, and a press that turned
+    // into a selection activates nothing.
+    void aClickOnALinkOpensItAndASweepDoesNot()
+    {
+        QQuickItem *surface =
+            makeSurface(QStringLiteral("See [[Target]] for the rest.\n"));
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 1);
+        QSignalSpy opened(m_context->appActions(),
+                          &AppActions::openLinkRequested);
+
+        click(surface, onDisplayWord(surface, 0, QStringLiteral("Target")));
+        QCOMPARE(opened.count(), 1);
+        QCOMPARE(opened.takeFirst().value(0).toString(),
+                 QStringLiteral("kvit-note:Target"));
+
+        // A click that is not on a link opens nothing.
+        click(surface, onDisplayWord(surface, 0, QStringLiteral("rest")));
+        QCOMPARE(opened.count(), 0);
+
+        // And a sweep that happens to end on the link opens nothing either,
+        // because a sweep ends over whatever it ends over.
+        press(surface, nearStartOf(surface, 0));
+        moveTo(surface, onDisplayWord(surface, 0, QStringLiteral("Target")));
+        releaseAsClick(surface,
+                       onDisplayWord(surface, 0, QStringLiteral("Target")));
+        QVERIFY(surface->property("hasSelection").toBool());
+        QCOMPARE(opened.count(), 0);
+    }
+
+    // ---- the consumer ----
+
+    // The backup dialog's preview of a stored version: the two things this
+    // task exists for, seen where the surface actually ships.
+    void theBackupPreviewDrawsPicturesAndGatesRemoteOnes()
+    {
+        writeImageFile(QStringLiteral("assets/figure.png"), 300, 300);
+        const QString relPath = QStringLiteral("Illustrated.md");
+        const QString absPath = m_vaultRoot + QLatin1Char('/') + relPath;
+        const QString remote =
+            QStringLiteral("https://pictures.invalid/banner.png");
+        writeNote(relPath,
+                  QStringLiteral("A version with pictures.\n\n"
+                                 "![Figure|120](assets/figure.png)\n\n")
+                      + QStringLiteral("![Banner](") + remote
+                      + QStringLiteral(")\n"));
+        m_context->noteCollection()->backupBeforeOverwrite(absPath);
+        QTRY_VERIFY(!m_context->noteCollection()->backupsFor(relPath).isEmpty());
+
+        QObject *window = m_engine.rootObjects().value(0);
+        QVERIFY(window);
+        QVariant opened;
+        QVERIFY(QMetaObject::invokeMethod(window, "openNoteByPath",
+                                          Q_RETURN_ARG(QVariant, opened),
+                                          Q_ARG(QVariant, relPath)));
+        QTRY_COMPARE(window->property("currentNoteRelPath").toString(), relPath);
+
+        QObject *dialog =
+            window->findChild<QObject *>(QStringLiteral("backupDialog"));
+        QVERIFY(dialog);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "openForCurrentNote"));
+        QQuickItem *preview = window->findChild<QQuickItem *>(
+            QStringLiteral("backupPreviewDocument"));
+        QVERIFY(preview);
+        QTRY_COMPARE(preview->property("blockCount").toInt(), 3);
+        QMetaObject::invokeMethod(preview, "forceLayout");
+
+        // The stored version sits in the backup tree, and its relative paths
+        // are still written against the note's own folder, which is what the
+        // surface's default base directory is.
+        QCOMPARE(preview->property("baseDir").toString(), m_vaultRoot);
+
+        QQuickItem *localRow = rowItem(preview, 1);
+        QVERIFY(localRow);
+        QQuickItem *localImage =
+            childItem(localRow, QStringLiteral("readOnlyPictureImage"));
+        QVERIFY(localImage);
+        QTRY_COMPARE(localImage->property("status").toInt(), 1);
+        QCOMPARE(qRound(childItem(localRow,
+                                  QStringLiteral("readOnlyPictureFrame"))
+                            ->width()),
+                 120);
+
+        // The remote one is gated, and ungating it reaches the open dialog
+        // rather than waiting for it to be reopened.
+        QQuickItem *remoteRow = rowItem(preview, 2);
+        QQuickItem *consent =
+            childItem(remoteRow, QStringLiteral("readOnlyPictureConsent"));
+        QVERIFY(consent);
+        QVERIFY(consent->isVisible());
+        QQuickItem *remoteImage =
+            childItem(remoteRow, QStringLiteral("readOnlyPictureImage"));
+        QCOMPARE(remoteImage->property("source").toUrl(), QUrl());
+
+        m_context->egressPolicy()->allowOrigin(remote);
+        QTRY_VERIFY(!consent->isVisible());
+        QTRY_VERIFY(remoteImage->property("source").toUrl().toString()
+                        .startsWith(QStringLiteral("image://remote/")));
+
+        QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+        QTRY_VERIFY(!window->findChild<QQuickItem *>(
+            QStringLiteral("backupPreviewDocument")));
+    }
+
     void theSuiteProducedNoWarnings()
     {
         if (g_warnings.size() > m_warningsAfterLoad) {
@@ -574,6 +879,11 @@ private:
             m_context->services()->lookup(&DocumentSelection::staticMetaObject));
     }
 
+    QQuickWindow *shellWindow()
+    {
+        return qobject_cast<QQuickWindow *>(m_engine.rootObjects().value(0));
+    }
+
     void writeNote(const QString &relPath, const QString &text)
     {
         QFile file(m_vaultRoot + QLatin1Char('/') + relPath);
@@ -582,9 +892,24 @@ private:
         file.close();
     }
 
+    // A picture on disk for an image block to resolve to. The size is what
+    // the aspect-ratio assertions read back, so it is chosen rather than
+    // incidental.
+    void writeImageFile(const QString &relPath, int width, int height)
+    {
+        const QString absPath = m_vaultRoot + QLatin1Char('/') + relPath;
+        QVERIFY(QDir().mkpath(QFileInfo(absPath).absolutePath()));
+        QImage image(width, height, QImage::Format_RGB32);
+        image.fill(Qt::darkCyan);
+        QVERIFY(image.save(absPath, "PNG"));
+    }
+
     // A surface, created in the shell's own engine and parented into its
-    // window, exactly as a consumer's QML would create one.
-    QQuickItem *makeSurface(const QString &markdown)
+    // window, exactly as a consumer's QML would create one. `baseDir` is what
+    // a relative path inside the document resolves against; left empty, the
+    // surface keeps its own default, which is the open note's directory.
+    QQuickItem *makeSurface(const QString &markdown,
+                            const QString &baseDir = QString())
     {
         QObject *window = m_engine.rootObjects().value(0);
         auto *content = window ? window->property("contentItem")
@@ -601,6 +926,8 @@ private:
         m_surfaces.push_back(std::unique_ptr<QQuickItem>(surface));
         surface->setParentItem(content);
         surface->setWidth(600);
+        if (!baseDir.isEmpty())
+            surface->setProperty("baseDir", baseDir);
         surface->setProperty("markdown", markdown);
         // A Repeater builds its items on a clean stack and a Column places
         // them on the next polish, so a surface is not measurable in the turn
@@ -740,9 +1067,11 @@ private:
 
     // ---- driving the pointer ----
     //
-    // The three calls the surface's MouseArea makes, with scene coordinates
-    // worked out from a row's rectangle. The MouseArea forwards its events
-    // and does nothing else, so this drives the gesture the reader drives.
+    // The calls the surface's MouseArea makes, with scene coordinates worked
+    // out from a row's rectangle. The MouseArea forwards its events and does
+    // nothing else, so this drives the gesture the reader drives: a press, a
+    // move and a release, with the release also asking the surface to follow
+    // a link when the gesture left no selection behind.
 
     QPointF scenePoint(QQuickItem *surface, int index, qreal dx, qreal fy)
     {
@@ -773,6 +1102,25 @@ private:
             QPointF(rect.right() - 1, rect.y() + rect.height() * 0.5));
     }
 
+    // A point inside a word of a row's DISPLAY text, which is several
+    // characters left of where the same word sits in the markdown whenever
+    // the block has markers hidden in front of it. Taken from the layout
+    // rather than estimated, so it lands on the word at any font size.
+    QPointF onDisplayWord(QQuickItem *surface, int index, const QString &word)
+    {
+        QQuickItem *editor = rowEditor(surface, index);
+        if (!editor)
+            return QPointF();
+        const int at = rowText(surface, index).indexOf(word);
+        if (at < 0)
+            return QPointF();
+        QRectF box;
+        QMetaObject::invokeMethod(editor, "positionToRectangle",
+                                  Q_RETURN_ARG(QRectF, box), Q_ARG(int, at + 1));
+        return editor->mapToScene(
+            QPointF(box.x() + 1, box.y() + box.height() * 0.5));
+    }
+
     void press(QQuickItem *surface, const QPointF &at)
     {
         QMetaObject::invokeMethod(surface, "beginSweepAt",
@@ -788,6 +1136,23 @@ private:
     void release(QQuickItem *surface)
     {
         QMetaObject::invokeMethod(surface, "endSweep");
+    }
+    // The release as the MouseArea makes it: the sweep ends, and then the
+    // surface is asked whether the point the button came up on is a link it
+    // should follow.
+    void releaseAsClick(QQuickItem *surface, const QPointF &at)
+    {
+        release(surface);
+        QMetaObject::invokeMethod(surface, "activateLinkAt",
+                                  Q_ARG(QVariant, at.x()),
+                                  Q_ARG(QVariant, at.y()));
+        QCoreApplication::processEvents();
+    }
+    // A press and a release at one point, with no travel between them.
+    void click(QQuickItem *surface, const QPointF &at)
+    {
+        press(surface, at);
+        releaseAsClick(surface, at);
     }
 
     // A key, delivered to the window rather than posted through the platform:
