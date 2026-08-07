@@ -42,6 +42,7 @@ void DocumentSelection::setModel(BlockModel *model)
     }
     m_pendingRemovedIds.clear();
     clear();
+    emit modelChanged();
 }
 
 void DocumentSelection::onModelDestroyed()

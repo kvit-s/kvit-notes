@@ -39,6 +39,12 @@ class DocumentSelection : public QObject
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
     Q_PROPERTY(bool hasBlockSelection READ hasBlockSelection NOTIFY revisionChanged)
     Q_PROPERTY(bool hasTextSelection READ hasTextSelection NOTIFY revisionChanged)
+    // Which document this selection addresses, as a property so a selection a
+    // QML component owns can be pointed at a model that component owns too.
+    // The window's own selection is wired from C++ by AppContext; a read-only
+    // document surface holds a second document and a second selection over
+    // it, and this is how the two are joined.
+    Q_PROPERTY(BlockModel *model READ model WRITE setModel NOTIFY modelChanged)
 
 public:
     // Mouse-press multiplicity maps to selection granularity (§21.3:
@@ -115,6 +121,7 @@ signals:
     // Bumped on every observable selection change; delegates depend on it
     // to re-evaluate their bindings.
     void revisionChanged();
+    void modelChanged();
 
 private:
     struct Endpoint {

@@ -278,4 +278,34 @@ struct SettingsStoreForeign
     QML_NAMED_ELEMENT(SettingsStore)
 };
 
+// A second document, and a selection over it.
+//
+// The `BlockModel` and `DocumentSelection` singletons above are the open
+// note: one per window, wired to the undo stack, the document manager and the
+// file on disk. A window may also DRAW a markdown document that is not the
+// open note — a stored version of it, a referring note's context, a search
+// snippet — and a drawn document is a second BlockModel with a selection of
+// its own, which is what qml/ReadOnlyDocument.qml instantiates through these
+// two names. Same C++ classes, and the same pair of registrations
+// SettingsStore already has above: a singleton wrapper for the composition's
+// own instance, and a creatable wrapper under a different name for anything
+// that needs one of its own.
+//
+// Nothing constructed this way is attached to an undo stack or to a file. The
+// surface never writes to its model, and a caller that wants a document
+// edited opens it as a note.
+struct DocumentBlocksForeign
+{
+    Q_GADGET
+    QML_FOREIGN(BlockModel)
+    QML_NAMED_ELEMENT(DocumentBlocks)
+};
+
+struct DocumentBlockSelectionForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DocumentSelection)
+    QML_NAMED_ELEMENT(DocumentBlockSelection)
+};
+
 #endif // QMLSINGLETONS_H

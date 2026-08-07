@@ -37,6 +37,13 @@ class BlockModel : public QAbstractListModel
     // either. TodoProgressRole and MathNumberRole carry the same information
     // to model-level consumers, with dataChanged naming the affected rows.
     Q_PROPERTY(int derivedRevision READ derivedRevision NOTIFY derivedRevisionChanged)
+    // The fence registry this model resolves kinds against, as a property so
+    // a model a QML component owns can be pointed at the shared one. The
+    // window's own model is wired from C++ by AppContext and never reads
+    // this; a read-only document surface, which builds a second model of its
+    // own, has no other way to say which kinds exist.
+    Q_PROPERTY(BlockKindRegistry *blockKindRegistry READ blockKindRegistry WRITE
+                   setBlockKindRegistry NOTIFY blockKindRegistryChanged)
 
 public:
     enum BlockRoles {
@@ -326,6 +333,7 @@ signals:
     void documentCountsChanged();
     void tocBlockIndexesChanged();
     void derivedRevisionChanged();
+    void blockKindRegistryChanged();
 
 private:
     // Blocks are handed out through blockAt() and BlockObjectRole, so a

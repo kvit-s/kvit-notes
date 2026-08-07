@@ -602,6 +602,19 @@ Run against the installed artifact with a fresh user profile.
         A chooser that will not fit below its button is moved up rather than
         cut off at the window edge, so it may overlap the block it belongs
         to.
+24. [ ] Edit a note with a heading, a bold phrase, a wiki-link, an inline
+        formula, a list and a code fence in it; save, wait past the backup
+        rotation floor, edit again and save. Then File → Restore from
+        Backup and pick each stored version in turn.
+        *Expect:* the pane below the list draws the chosen version as
+        rendered blocks — heading at heading size, the bold phrase bold
+        with no asterisks, the wiki-link in the link colour, the formula
+        rendered, bullets beside the list items, the fence on a panel with
+        its language coloured. Press inside a paragraph and drag down into
+        the list: the sweep highlights every block it crosses. Ctrl+C, then
+        paste into the note: what arrives is markdown, with the asterisks
+        and the fence back. Ctrl+A takes the whole version; Escape drops
+        the selection; Cancel leaves the note untouched.
 
 ## Screen readers
 

@@ -79,6 +79,9 @@
         <file>qml/CrossBlockTextSelection.qml</file>
         <file>qml/RenderedTextSelection.qml</file>
         <file>qml/SelectableText.qml</file>
+        <file>qml/ReadOnlyDocument.qml</file>
+        <file>qml/ReadOnlyDocumentDrag.qml</file>
+        <file>qml/ReadOnlyBlock.qml</file>
         <file>qml/BlockDragController.qml</file>
         <file>qml/BlockDragLayer.qml</file>
         <file>qml/BlockSelectionKeys.qml</file>

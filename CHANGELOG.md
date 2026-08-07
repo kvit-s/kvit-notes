@@ -56,6 +56,19 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A markdown document can now be drawn read-only outside the editor pane,
+  rendered as blocks, swept across with the pointer as one piece of text and
+  copied out as markdown. Choosing which stored version to restore is the
+  first place it is used: the backup dialog draws the version under the cursor
+  instead of offering one elided plain line per version, so two edits made the
+  same afternoon can be told apart, and any part of an old version can be
+  copied without restoring it. Inside such a document the inline markers are
+  hidden, wiki-links resolve against the open collection, equations render,
+  and a code fence is highlighted by language — the same rendering the editor
+  gives, with no caret, no menus and no way to write. Nothing it draws is part
+  of the open note: the note's blocks, their order and its undo history are
+  untouched, and no file is opened for writing.
+
 - A linked module can now mark a run of characters inside a block and have
   the editor draw it, as a background wash, as a border outline, or as both
   in colors it chooses. The editor has painted marked ranges for years for

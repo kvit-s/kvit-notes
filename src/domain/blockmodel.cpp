@@ -64,13 +64,17 @@ QString sanitizedLanguage(const QString &language)
 
 void BlockModel::setBlockKindRegistry(BlockKindRegistry *registry)
 {
-    m_blockKinds = registry ? registry : &m_ownedBlockKinds;
+    BlockKindRegistry *resolved = registry ? registry : &m_ownedBlockKinds;
+    if (resolved == m_blockKinds)
+        return;
+    m_blockKinds = resolved;
     // Blocks already in the document re-resolve. Wiring normally happens
     // before a document is loaded, but a test builds the model first and
     // hands it a registry afterwards, and a block that kept the old one would
     // answer from the wrong table for the rest of its life.
     for (Block *block : std::as_const(m_blocks))
         block->setKindRegistry(m_blockKinds);
+    emit blockKindRegistryChanged();
 }
 
 int BlockModel::delegateKindForBlock(Block::BlockType type,

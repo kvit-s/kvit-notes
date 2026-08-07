@@ -175,3 +175,29 @@ person set it a second time. It is listed in accessibility.md Finding 4 as an
 optional extra and is not implemented, because seeding a setting from a value
 that cannot be read or verified on this machine risks getting the default
 wrong for every Windows user at once.
+
+## Text drawn outside the editor that is still a picture
+
+`qml/ReadOnlyDocument.qml` draws a markdown document read-only: rendered as
+blocks, swept across with the pointer, copied out as markdown
+([selection.md](../selection.md), "A document drawn read-only"). Three places
+in the application put a note's text on screen without being the editor, and
+one of them uses it.
+
+**The backup dialog does.** Choosing which stored version to restore now shows
+the version under the cursor drawn rather than one elided plain line.
+
+**The backlinks pane does not.** `qml/BacklinksPanel.qml` still draws each
+referring note's context lines as plain `Text`, so a `**bold**` phrase in a
+referring sentence appears with its asterisks and none of it can be copied.
+A context line is one line rather than a document, so the conversion is a
+surface per line, and whether a window holding a dozen of them is worth the
+objects has not been measured.
+
+**Search results do not.** `qml/SearchResultsView.qml` draws snippets as
+`Text.StyledText` with the matched span bolded. That bolding is the one thing
+`ReadOnlyDocument` has no equivalent for today: the marked range a search hit
+draws in the editor comes from `DocumentSearch`, which addresses the open
+note, and a surface has no second producer of marked ranges. Converting the
+snippets means giving a surface the same span channel a linked module has
+inside the editor.

@@ -966,7 +966,10 @@ Display when cursor moves into "information":
 ### 12.4 Backup & Recovery
 - Automatic backup creation
 - Backup rotation (keep last N backups)
-- Recover from backup
+- Recover from backup — the restore dialog draws the version under the cursor
+  as rendered blocks beside the list of timestamps, and that preview can be
+  swept with the pointer and copied out as markdown without restoring
+  anything (see selection.md, "A document drawn read-only")
 - Crash recovery (restore unsaved changes)
 
 ### 12.5 Export Options

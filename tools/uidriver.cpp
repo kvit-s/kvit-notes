@@ -34,7 +34,9 @@
 #include "appcontext.h"
 #include "blockmodel.h"
 #include "extensionregistry.h"
+#include "documentmanager.h"
 #include "kvitapplication.h"
+#include "notecollection.h"
 #include "vaultwindow.h"
 #include "windowregistry.h"
 
@@ -1052,6 +1054,56 @@ int main(int argc, char *argv[])
                       QStringLiteral("application/x-kvit-markdown"))),
                   qPrintable(QGuiApplication::clipboard()->text()));
             grab(window, outDir + QStringLiteral("/roundtrip_after.png"));
+        } else if (scenario == QStringLiteral("backuppreview")) {
+            // The restore dialog with a stored version drawn in it: the one
+            // place a ReadOnlyDocument is on screen, and the only way to see
+            // what a document rendered outside the editor pane looks like.
+            // Needs --vault and --note, since a version has to be stored
+            // against a real file.
+            if (!note.isEmpty())
+                ctx->documentManager()->open(QUrl::fromLocalFile(note));
+            settle(800);
+
+            // Two saves ten minutes apart. The first consumes the rotation
+            // window; the second stores the document as the note opened, and
+            // that stored copy is what the dialog then draws.
+            NoteCollection *collection = ctx->noteCollection();
+            ctx->documentManager()->save();
+            settle(600);
+            collection->setClockOffsetForTesting(11 * 60);
+            model->updateContent(0, QStringLiteral("Release notes, revised"));
+            ctx->documentManager()->save();
+            collection->setClockOffsetForTesting(0);
+            settle(1500);
+
+            QObject *dialog =
+                window->findChild<QObject *>(QStringLiteral("backupDialog"));
+            if (!dialog) {
+                qWarning("uidriver: no backup dialog");
+                app.exit(3);
+                return;
+            }
+            QMetaObject::invokeMethod(dialog, "openForCurrentNote");
+            settle(1500);
+            grab(window, outDir + QStringLiteral("/backup_preview.png"));
+
+            // The foot of the same version, so the kinds that sit below the
+            // fold — a divider and a code fence — are in a frame too.
+            if (QQuickItem *scroll = namedItem(window,
+                                               "backupPreviewDocument")) {
+                QQuickItem *flick = scroll->parentItem();
+                while (flick && !flick->inherits("QQuickFlickable"))
+                    flick = flick->parentItem();
+                if (flick) {
+                    flick->setProperty(
+                        "contentY",
+                        qMax(0.0, flick->property("contentHeight").toDouble()
+                                      - flick->height()));
+                    settle(500);
+                    grab(window, outDir
+                                     + QStringLiteral("/backup_preview_foot.png"));
+                }
+            }
 
         // -------------------------------------------------------------
         // Tour scenarios: one per feature, for the demo recordings. Each

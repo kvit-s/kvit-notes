@@ -639,6 +639,20 @@ target_link_libraries(test_decorationshell PRIVATE
 add_test(NAME DecorationShellTests COMMAND test_decorationshell)
 set_tests_properties(DecorationShellTests PROPERTIES TIMEOUT 300)
 
+# The read-only document surface: a markdown document drawn somewhere other
+# than the editor pane, swept across and copied as markdown. Creates its
+# surfaces inside the shipped shell, so it lists resources.qrc for the same
+# reason test_shell does — the shell's own components have to be in the binary
+# or the load hangs rather than failing.
+qt_add_executable(test_readonlydocument
+    test_readonlydocument.cpp
+    ${CMAKE_SOURCE_DIR}/resources.qrc
+)
+target_link_libraries(test_readonlydocument PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME ReadOnlyDocumentTests COMMAND test_readonlydocument)
+set_tests_properties(ReadOnlyDocumentTests PROPERTIES TIMEOUT 300)
+
 # The composed shell (the app/library split): AppContext plus the shipped
 # qml/main.qml resource — the top-level file itself, not the integration
 # suite's mirror of it.
@@ -814,6 +828,7 @@ set(KVIT_SHELL_TESTS
     MultiVaultTests
     AgentShellTests
     DecorationShellTests
+    ReadOnlyDocumentTests
     # The storyboard scenarios that do not need a focused window. Same
     # binary and same file as VisualTests, but offscreen and blocking; the
     # display entry stays informational under `visual`.

@@ -9,10 +9,11 @@ The points below are the ones that repeatedly cost time.
 
 Where the documentation is: **features.md** specifies behaviour,
 **devel.md** covers building and visual verification, **block-arch.md** the
-per-kind block design, **selection.md** selection across rendered blocks,
-**accessibility.md** what a screen reader, a keyboard and a contrast floor
-get, **multi-vault.md** the window/vault composition, **docs/adr/** the eight
-decisions that constrain new work, **docs/backlog.md** the known gaps.
+per-kind block design, **selection.md** selection over text that is drawn
+rather than edited, **accessibility.md** what a screen reader, a keyboard and
+a contrast floor get, **multi-vault.md** the window/vault composition,
+**docs/adr/** the eight decisions that constrain new work, **docs/backlog.md**
+the known gaps.
 
 A new control drawn as a `Rectangle` with a `MouseArea` on it is invisible to
 the accessibility tree and unreachable without a pointer. Use

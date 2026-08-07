@@ -1,4 +1,4 @@
-# Selecting text in blocks that render rather than edit
+# Selecting text that is drawn rather than edited
 
 ## What this document is about
 
@@ -10,13 +10,16 @@ Others draw the block instead. A web embed draws a card, a collection query
 draws the rows its spec matched, a table of contents draws the note's headings
 as a list.
 
-Those three blocks used to be pictures of text as far as the pointer was
-concerned: nothing on them could be swept, and no part of them could be
-copied. They can now be selected character by character and copied, through a
+Those three blocks are selected character by character and copied through a
 mechanism of their own that sits alongside the two selections the document
-already had. This describes what selection does, block by block, how the third
+already had. This describes what selection does, block by block, how that
 mechanism works and what it copies, and what happens when a selection runs
 across one of these blocks from the paragraphs around it.
+
+The last section is about a different case with the same shape: a markdown
+document drawn somewhere other than the editor pane, such as a stored version
+of the open note or a referring note's context, which is a second document
+with a selection of its own rather than a block of this one.
 
 ## The three document selections, and the block-private fourth
 
@@ -56,6 +59,11 @@ other notes and have no position in this note's markdown at all.
 All four are mutually exclusive. Starting a document-level selection of either
 kind clears the block-private one, and starting a sweep in a block clears
 whatever `DocumentSelection` held.
+
+A fifth arrangement exists outside the editor pane entirely, described under
+"A document drawn read-only" below: a second markdown document, drawn as
+blocks with a `DocumentSelection` of its own over it. It is the cross-block
+mechanism above, pointed at a document that is not the open note.
 
 ## Where the text lives, block by block
 
@@ -206,6 +214,129 @@ this block rendered", would have to be answered by every block that a range
 covers rather than by these three alone, and would still not give the range
 anything to serialize.
 
+## A document drawn read-only
+
+Everything above is about the note the editor has open. Three places in the
+application put a *different* note's text on screen: the backup dialog offers
+the stored versions of the open note, the backlinks pane shows the lines a
+referring note mentions this one on, and search results show snippets.
+`qml/ReadOnlyDocument.qml` is the component that draws such a document the way
+the editor draws one and lets the pointer sweep across it. The backup dialog's
+preview of the version under the cursor uses it; the other two draw plain
+`Text`, with the markdown showing as asterisks and nothing in them selectable,
+and are listed under "What is not covered" below.
+
+### What it is made of
+
+A surface takes a markdown string and holds three things:
+
+- **Its own `BlockModel`**, filled by `DocumentSerializer::loadIntoModel`.
+  `parse` is a pure function of its argument, so the one shared serializer
+  serves every surface. No undo stack is attached to this model and no path
+  from the view writes to it; a caller that wants a document edited opens it
+  as a note.
+- **Its own `DocumentSelection`**, pointed at that model through
+  `setModel()`. This is the same object the editor uses for a cross-block
+  range, so `portionForBlock` tells each row what share of the range to paint
+  and `rangeMarkdown()` is what a copy produces: whole blocks serialized with
+  their prefixes, fences and ordinals, and a self-contained inline fragment at
+  each partially covered end.
+- **A row per block** (`qml/ReadOnlyBlock.qml`), whose running text goes
+  through `BlockEditorEngine` with `cursorActive` false. That is what hides
+  the inline markers, styles the spans from the theme's tokens, resolves
+  wiki-links against the open collection and reserves a box for each `$…$`
+  span that `qml/InlineMathOverlay.qml` paints the equation into. A code fence
+  goes through the same object in verbatim mode and is highlighted by
+  language.
+
+Neither the model nor the selection is a singleton, which is the point: the
+editor's `BlockModel` and `DocumentSelection` are the open note, one per
+window, and a surface has to be able to exist several times over in the same
+window. They reach QML as the creatable types `DocumentBlocks` and
+`DocumentBlockSelection` (`src/qml/qmlsingletons.h`), the same
+singleton-plus-creatable pair `SettingsStore` already has.
+
+The rows are a `Column` rather than a `ListView`, so a surface sizes to its
+content and can sit inside a scrolling area it does not own. Every block is
+instantiated, which is acceptable at the sizes these callers have — one stored
+version of one note, a handful of context lines. A `Column` places a row it
+has just been given at its next polish, which is a frame away, so the surface
+calls `forceLayout()` before it answers a geometry question or resolves a
+press; without it a surface built and measured in the same turn reports every
+row at the top.
+
+### Why the rows are switched off
+
+Each row's text sits in a `TextArea` with `enabled: false`. That is the same
+decision `SelectableText.qml` makes and for the same reason: a `TextArea`
+accepts the left mouse button whatever it intends to do with it, and an
+accepted press is never offered to the handlers behind it, so an enabled one
+would swallow every sweep that began on it. Disabling takes the item out of
+event delivery and changes nothing about how it draws. The one thing it does
+change is the palette a disabled `Control` draws from, where the selection
+colour is close enough to the background to be invisible, so the row sets
+`selectionColor` and `selectedTextColor` explicitly.
+
+### The gesture, the keyboard, and what a copy contains
+
+`qml/ReadOnlyDocumentDrag.qml` is `CrossBlockTextDrag.qml` for a surface, and
+the two differ in one structural way. In the editor each block hosts a real
+`TextArea`, so a drag inside one block is Qt's own in-block selection and the
+document-level range only takes over once the pointer crosses into another
+block. On a surface nothing is editable and no block selects anything by
+itself, so the surface's own `DocumentSelection` holds every range from the
+first pixel of travel, including one that never leaves the block it started
+in. Everything else follows the gestures already in the tree: the five-pixel
+travel gate the block drag and the cross-block drag both use, and press
+multiplicity for word and whole-block granularity.
+
+A surface usually sits inside a `Flickable` it does not own, and a `Flickable`
+takes the grab away from its children once a drag has enough travel, which is
+the same conflict the editor resolves by stopping the block list flicking
+while a sweep runs. Here the sweep keeps the grab outright
+(`preventStealing`), so dragging inside a surface always selects and the pane
+around it is scrolled with the wheel or its scrollbar.
+
+The keyboard lands on the surface itself, since every row is switched off and
+nothing inside one can hold focus. Ctrl+C copies the selection in every
+clipboard flavour, Escape drops it, and Ctrl+A takes the whole surface — a
+second Ctrl+A with all of it already selected falls through, which is the two
+stages Ctrl+A has inside a paragraph and over a rendered block. A surface is
+also a tab stop and draws a focus ring when it holds the keyboard, since a tab
+stop that shows nothing when it is reached cannot be used.
+
+A copy is markdown, because there is markdown to copy. This is what separates
+a surface from the block-private rendered selection above: a query's rows come
+from other notes and have no markdown, whereas a stored version, a referring
+note's context and a search snippet all do.
+
+### How it interacts with the note's own selection
+
+A sweep on a surface clears whatever `DocumentSelection` the note held, and a
+document selection starting anywhere clears every surface's. That is the rule
+the other mechanisms already follow, applied across the two documents. Two
+*surfaces* are not mutually exclusive: a window may hold several, each with a
+selection of its own, and nothing in one watches another.
+
+### What a surface does not draw
+
+A divider is a rule, whatever style the block stores, and it joins a range
+that crosses it as a whole block the way an embed does. Code fences wrap
+rather than scrolling sideways, because a preview pane is narrow and a line
+scrolled out of view is a line the reader cannot see. Every other block kind
+whose content is verbatim — a `$$` math fence, a pipe table, and the fence
+kinds built on a code block such as `kanban`, `toc`, `mermaid` and `query` —
+is drawn as its source on a panel rather than as the live thing the editor
+draws, since the live thing is interactive and a surface is not. Internal
+links (`[text](#slug)`) render as ordinary links rather than being checked
+against the outline, because the outline belongs to the open note and this
+document is not it.
+
+There is also no way for a caller to set a run of blocks apart with a band or
+a glyph, which a diff view would want in order to show which part of a stored
+version changed. The backup dialog does not offer a diff, so nothing has asked
+for it yet.
+
 ## What is not covered
 
 - **Selecting from a paragraph into a card and out again.** A sweep is
@@ -220,3 +351,9 @@ anything to serialize.
 - **Media blocks.** An audio or video block's path, state and timecodes are
   still plain `Text` and still cannot be selected; there is no reason it could
   not use the same mechanism, only that it has not been asked for.
+
+- **The backlinks pane and search results.** Both still draw their text as
+  plain `Text`, so a `**bold**` phrase in a referring sentence still appears
+  with its asterisks and none of it can be copied. `ReadOnlyDocument` is what
+  they need and neither has been converted; the backup dialog is the only
+  place using it so far.

@@ -6,8 +6,8 @@ this file covers only what a developer needs to run the app and trust what
 they see on screen.
 
 The neighbouring documents: **block-arch.md** for the per-kind block design,
-**selection.md** for selection across rendered blocks, **accessibility.md**
-for what a screen reader, a keyboard and a contrast floor get, and
+**selection.md** for selection over text that is drawn rather than edited,
+**accessibility.md** for what a screen reader, a keyboard and a contrast floor get, and
 **multi-vault.md** for the window and vault composition. Accessibility is the
 one of those with a check that fails a build: `AccessibleNameGuard` refuses a
 control with no accessible name, a glyph label with nothing spoken beside it,
