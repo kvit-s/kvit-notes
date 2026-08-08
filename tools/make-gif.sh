@@ -5,7 +5,12 @@
 #
 # Assemble the frames kvit-uidriver --record wrote into a GIF.
 #
-#   tools/make-gif.sh FRAME_DIR OUTPUT.gif [WIDTH]
+#   tools/make-gif.sh FRAME_DIR OUTPUT.gif [WIDTH] [SPEED]
+#
+# SPEED divides every frame's duration, so 2 plays the clip at twice the speed
+# it was captured at. Pacing that reads well while watching the application
+# work reads as slow in a short loop beside a paragraph of prose, and speeding
+# up at assembly time avoids retuning the scenario for it.
 #
 # The driver names each frame with the milliseconds elapsed since capture
 # began, because grabbing a frame is not free and the interval between frames
@@ -21,13 +26,14 @@
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
-    echo "usage: $0 FRAME_DIR OUTPUT.gif [WIDTH]" >&2
+    echo "usage: $0 FRAME_DIR OUTPUT.gif [WIDTH] [SPEED]" >&2
     exit 2
 fi
 
 frames=$1
 out=$2
 width=${3:-900}
+speed=${4:-1}
 
 command -v ffmpeg >/dev/null || { echo "make-gif: ffmpeg is not installed" >&2; exit 1; }
 [[ -d $frames ]] || { echo "make-gif: no such directory: $frames" >&2; exit 1; }
@@ -42,9 +48,10 @@ fi
 concat=$(mktemp)
 trap 'rm -f "$concat"' EXIT
 
-python3 - "$frames" "$concat" <<'PY'
+python3 - "$frames" "$concat" "$speed" <<'PY'
 import os, re, sys
 frames, concat = sys.argv[1], sys.argv[2]
+speed = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
 names = sorted(f for f in os.listdir(frames) if re.fullmatch(r'f_\d+\.png', f))
 stamps = [int(re.findall(r'f_(\d+)\.png', f)[0]) for f in names]
 lines = []
@@ -53,10 +60,12 @@ for i, (name, at) in enumerate(zip(names, stamps)):
     # A floor keeps a frame pair captured back to back from asking for a
     # zero-length display, which some GIF viewers render as a stall.
     lines.append("file '%s'" % os.path.join(frames, name))
-    lines.append("duration %.3f" % max(0.02, (nxt - at) / 1000.0))
+    lines.append("duration %.3f" % max(0.02, (nxt - at) / 1000.0 / speed))
 lines.append("file '%s'" % os.path.join(frames, names[-1]))
 open(concat, "w").write("\n".join(lines) + "\n")
-print("make-gif: %d frames spanning %.1f s" % (len(names), (stamps[-1] - stamps[0]) / 1000.0))
+span = (stamps[-1] - stamps[0]) / 1000.0
+print("make-gif: %d frames spanning %.1f s, played at %gx (%.1f s)"
+      % (len(names), span, speed, span / speed))
 PY
 
 # One palette for the whole clip rather than per frame: a per-frame palette

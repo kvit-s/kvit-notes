@@ -594,9 +594,24 @@ bool tourAsText(QQuickWindow *window, AppContext *ctx, const QString &vault)
     // text pasted at a paragraph becomes one paragraph per line, which is
     // right for prose and wrong for a drawing; a code block keeps the lines
     // together, and monospaced is what box-drawing characters need anyway.
-    model->insertBlock(model->count(), Block::CodeBlock, QString());
+    //
+    // Put it directly under the diagram rather than at the end of the note.
+    // Appending was the first attempt and the target landed below the
+    // viewport, so the recording showed a copy happening and then nothing:
+    // the whole point is the pair, and the pair has to be in frame together.
+    const int fence = blockContaining(model, QStringLiteral("flowchart"));
+    const int target = fence >= 0 ? fence + 1 : model->count();
+    model->insertBlock(target, Block::CodeBlock, QString());
     settle(600);
-    const int target = model->count() - 1;
+
+    // Bring it into view explicitly. A newly inserted block is not scrolled
+    // to on its own, and the list virtualises, so an off-screen index has no
+    // delegate to click at all.
+    if (auto *list = namedItem(window, "blockListView")) {
+        QMetaObject::invokeMethod(list, "positionViewAtIndex",
+                                  Q_ARG(int, target), Q_ARG(int, 1));
+        settle(900);
+    }
     if (QQuickItem *d = delegateAt(window, target))
         clickAt(window, centerOf(d), 400);
     else
@@ -630,10 +645,35 @@ bool tourQuery(QQuickWindow *window, AppContext *ctx, const QString &vault)
                   3200)) {
         return false;
     }
+    // Show the question before the answer. A rendered query block is a table,
+    // and a table on its own says nothing about where its rows came from —
+    // the first version of this segment showed only the result and read as an
+    // ordinary table. Clicking the block opens its spec above the results, so
+    // the `from:`, `where:` and `sort:` lines are on screen together with the
+    // rows they produced.
+    const int spec = blockContaining(model, QStringLiteral("from:"));
+    if (spec >= 0) {
+        // Aim at the block's header strip rather than its middle. The rows of
+        // a query result are links: clicking the centre opened one of the
+        // notes and the segment sailed off to another page entirely.
+        if (QQuickItem *d = delegateAt(window, spec)) {
+            const QPoint header =
+                d->mapToScene(QPointF(90, 14)).toPoint();
+            clickAt(window, header, 800);
+        }
+        settle(3600);       // long enough to read six lines of query
+        // Focus away so the block goes back to being just its answer, which
+        // is the state the row is about to appear in.
+        if (QQuickItem *heading = delegateAt(window, 0))
+            clickAt(window, centerOf(heading), 1200);
+    } else {
+        qWarning("uidriver: no query spec block in this note");
+    }
+
     // Long enough for the vault scan behind the first evaluation to
     // finish. A change written while that is still in flight is not
     // picked up, and the table then sits on its first answer.
-    settle(5000);
+    settle(3000);
 
     // Change a project's front matter on disk. Gamma is `done`, so it
     // sits outside the query until this makes it active, and then a
