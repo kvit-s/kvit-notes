@@ -196,6 +196,16 @@ void TextCanvas::drawBox(int top, int left, int bottom, int right,
     }
 }
 
+void TextCanvas::drawStub(int row, int col, Direction dir)
+{
+    switch (dir) {
+    case Up:    mergeArms(row, col, ArmUp); break;
+    case Down:  mergeArms(row, col, ArmDown); break;
+    case Left:  mergeArms(row, col, ArmLeft); break;
+    case Right: mergeArms(row, col, ArmRight); break;
+    }
+}
+
 void TextCanvas::drawArrowhead(int row, int col, Direction dir)
 {
     switch (dir) {

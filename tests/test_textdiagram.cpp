@@ -39,12 +39,97 @@ class TestTextDiagram : public QObject
         QVERIFY2(DiagramClassifier::looksLikeDiagram(output),
                  qPrintable(QStringLiteral("classifier rejects:\n") + output));
         QCOMPARE(DiagramRepair::repair(output), output);
+        verifyNoDanglingArms(output);
     }
+
+    // The arms a box-drawing glyph reaches out with, as U|D|L|R bits.
+    static int armsOf(QChar c)
+    {
+        switch (c.unicode()) {
+        case u'─': return Left | Right;
+        case u'│': case u'║': return Up | Down;
+        case u'┌': return Down | Right;
+        case u'┐': return Down | Left;
+        case u'└': return Up | Right;
+        case u'┘': return Up | Left;
+        case u'├': return Up | Down | Right;
+        case u'┤': return Up | Down | Left;
+        case u'┬': return Down | Left | Right;
+        case u'┴': return Up | Left | Right;
+        case u'┼': return Up | Down | Left | Right;
+        default:   return 0;
+        }
+    }
+
+    // A glyph that legitimately ends a line: an arrowhead, one of the
+    // deliberately degraded UML/ER markers, or a label character (a label
+    // is allowed to displace the line it rides on).
+    static bool terminates(QChar c)
+    {
+        static const QString markers = QStringLiteral("▲▼◄►△◇~");
+        return !c.isNull() && c != QLatin1Char(' ')
+            && (markers.contains(c) || c.isLetterOrNumber()
+                || c.isPunct() || c.isSymbol());
+    }
+
+    // Structural invariant across every fixture: no line arm points at
+    // nothing. Each arm must meet a neighbour that continues the line or
+    // one that terminates it. A route that stops in mid-air — the stray
+    // dash a collapsed Z route used to leave behind, a self-loop that
+    // never comes back, a detour drawn across a box — is a dangling arm,
+    // and reads as a diagram whose edges do not connect.
+    void verifyNoDanglingArms(const QString &output)
+    {
+        const QStringList lines = output.split(QLatin1Char('\n'));
+        const auto at = [&](int row, int col) -> QChar {
+            if (row < 0 || row >= lines.size())
+                return QChar();
+            const QString &line = lines.at(row);
+            if (col < 0 || col >= line.size())
+                return QChar();
+            return line.at(col);
+        };
+        struct Step { int arm; int dRow; int dCol; int back; };
+        static const Step steps[] = {
+            {Up, -1, 0, Down}, {Down, 1, 0, Up},
+            {Left, 0, -1, Right}, {Right, 0, 1, Left},
+        };
+        for (int row = 0; row < lines.size(); ++row) {
+            for (int col = 0; col < lines.at(row).size(); ++col) {
+                const int arms = armsOf(at(row, col));
+                for (const Step &step : steps) {
+                    if (!(arms & step.arm))
+                        continue;
+                    const QChar next = at(row + step.dRow, col + step.dCol);
+                    if (armsOf(next) & step.back)
+                        continue;
+                    if (terminates(next))
+                        continue;
+                    // A label the line runs into keeps its padding: a
+                    // subgraph's title sits in the frame as `┌─ Name ─┐`,
+                    // and an edge label displaces the line it rides on
+                    // with a space either side.
+                    if (next == QLatin1Char(' ')
+                        && terminates(at(row + 2 * step.dRow,
+                                         col + 2 * step.dCol)))
+                        continue;
+                    QFAIL(qPrintable(
+                        QStringLiteral("dangling arm at row %1 col %2:\n%3")
+                            .arg(row).arg(col).arg(output)));
+                }
+            }
+        }
+    }
+
+    enum Arm { Up = 1, Down = 2, Left = 4, Right = 8 };
 
 private slots:
     void testEmptyScene();
     void testFlowchartFixture();
     void testFlowchartBackEdgeAvoidsBoxes();
+    void testFlowchartFanOutReachesEveryTarget();
+    void testFlowchartFanInReachesTheTarget();
+    void testFlowchartSelfLoopReturns();
     void testFlowchartSubgraph();
     void testSequenceFixture();
     void testClassFixture();
@@ -101,6 +186,74 @@ void TestTextDiagram::testFlowchartBackEdgeAvoidsBoxes()
     QVERIFY(out.contains("│ Retry │"));
 }
 
+// One node fanning out to three is the shape the gallery's own diagram
+// has, and it is the shape the channel bookkeeping used to get wrong. A
+// three-row box has one usable cell on each wall, so all three edges leave
+// through the same one; treating the first edge's stub as occupied
+// territory made the other two give up on a direct route and detour below
+// the whole drawing, where they arrived at the wrong boxes from
+// underneath. The branches share the stub and split at one spine instead.
+void TestTextDiagram::testFlowchartFanOutReachesEveryTarget()
+{
+    const QString out = renderSource(
+        "flowchart LR\n"
+        "  A[Write markdown] --> B{Rendered live}\n"
+        "  B --> C[Math]\n"
+        "  B --> D[Diagrams]\n"
+        "  B --> E[Tables]\n");
+    verifyClosure(out);
+
+    // Every edge arrives at its own target's left wall.
+    QVERIFY2(out.contains(QStringLiteral("►│ < Rendered live > │")),
+             qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("►│ Math │")), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("►│ Diagrams │")), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("►│ Tables │")), qPrintable(out));
+    // Four edges, four arrowheads, all of them pointing right: nothing
+    // took the detour below the diagram, which arrives pointing up.
+    QCOMPARE(out.count(QChar(u'►')), 4);
+    QCOMPARE(out.count(QChar(u'▲')), 0);
+    QCOMPARE(out.count(QChar(u'▼')), 0);
+}
+
+// The mirror case: three edges converging on one wall cell.
+void TestTextDiagram::testFlowchartFanInReachesTheTarget()
+{
+    const QString out = renderSource(
+        "flowchart LR\n"
+        "  A[One] --> D[Sink]\n"
+        "  B[Two] --> D\n"
+        "  C[Three] --> D\n");
+    verifyClosure(out);
+
+    QVERIFY2(out.contains(QStringLiteral("►│ Sink │")), qPrintable(out));
+    // Each source has a line leaving its right wall.
+    QVERIFY2(out.contains(QStringLiteral("│ One │─")), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("│ Two │─")), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("│ Three │─")), qPrintable(out));
+    QCOMPARE(out.count(QChar(u'▲')), 0);
+}
+
+// A three-row box has a single interior row, so a self-loop cannot leave
+// and return through the same wall. It leaves the side, drops past the box
+// and comes back up into the floor; returning along the row it left on
+// drew a stub that went nowhere.
+void TestTextDiagram::testFlowchartSelfLoopReturns()
+{
+    const QString out = renderSource(
+        "flowchart TD\n"
+        "  A[Loop] --> A\n"
+        "  A --> B[Next]\n");
+    verifyClosure(out);
+
+    QVERIFY2(out.contains(QStringLiteral("│ Loop │─")), qPrintable(out));
+    // The loop comes back into the box's floor, and the forward edge still
+    // drops into Next.
+    QVERIFY2(out.contains(QChar(u'▲')), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("│ Next │")), qPrintable(out));
+    QCOMPARE(out.count(QChar(u'▼')), 1);
+}
+
 void TestTextDiagram::testFlowchartSubgraph()
 {
     const QString out = renderSource(
@@ -153,6 +306,14 @@ void TestTextDiagram::testClassFixture()
     QVERIFY(out.contains("Dog"));
     // The UML extension head degrades to the open triangle, deliberately.
     QVERIFY(out.contains(QChar(u'△')));
+    // A compartment separator is a line across the box with no endpoints
+    // of its own. Routing it as though it were an edge hung a stub loop
+    // off the box's flank; the box's rows now end at their right wall.
+    for (const QString &line : out.split(QLatin1Char('\n'))) {
+        if (line.contains(QStringLiteral("Animal"))
+            || line.contains(QStringLiteral("+name")))
+            QVERIFY2(line.endsWith(QChar(u'│')), qPrintable(line));
+    }
 }
 
 void TestTextDiagram::testStateFixture()

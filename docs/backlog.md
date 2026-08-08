@@ -202,3 +202,26 @@ draws in the editor comes from `DocumentSearch`, which addresses the open
 note, and a surface has no second producer of marked ranges. Converting the
 snippets means giving a surface the same span channel a linked module has
 inside the editor.
+
+## What "Copy as text" still leaves out
+
+`Diagram::renderText` (src/content/diagrams/textdiagram.cpp) redraws a laid-out
+diagram on a character grid, which is what the Copy-as-text chip on a diagram
+block puts on the clipboard. Flowcharts and sequence diagrams come out
+connected: every edge reaches the box it belongs to, branches leaving one wall
+share a spine, and self-loops leave and return. Two things the pixel drawing
+has do not survive the conversion.
+
+**A class diagram loses its compartment rules.** The horizontal lines that
+separate a UML box's title from its attributes from its methods reach the
+exporter as paths with no endpoints of their own, and the router skips them —
+drawing one as though it were an edge used to hang a stub loop off the box's
+flank. Drawing them properly needs two more rows inside the box than the grid
+allocates it, since a node's height today is its label count plus its two
+walls. The compartments still read in order; they are just not ruled off.
+
+**A subgraph's title blocks an edge crossing its frame.** `drawGroups` writes
+the title into the frame's top line before any edge is routed, and a line never
+overwrites text, so an edge entering the subgraph from above stops at the
+title's row and only its arrowhead appears inside. Either the title moves off
+the crossing point or the frame gains a row for it.

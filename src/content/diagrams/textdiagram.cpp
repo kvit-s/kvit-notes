@@ -86,32 +86,84 @@ QChar markerGlyph(Marker marker, TextCanvas::Direction dir)
     return QChar();
 }
 
-// Occupied-segment bookkeeping so parallel edges get distinct channels: a
-// horizontal segment is (row, colA, colB), a vertical one (col, rowA, rowB).
-struct Channels {
-    QHash<int, QList<QPair<int, int>>> horizontal; // row -> spans
-    QHash<int, QList<QPair<int, int>>> vertical;   // col -> spans
+// The two border-adjacent cells an edge leaves from and arrives at. Edges
+// that share one are the branches of a fan-out (or the merging arms of a
+// fan-in): a node three edges leave has one usable cell on that wall, so
+// their first segments necessarily coincide, and the junction glyphs draw
+// that overlap as one trunk splitting rather than as a collision. Two
+// edges sharing neither anchor must keep out of each other's way.
+struct Ends {
+    QPoint from = QPoint(-1, -1);
+    QPoint to = QPoint(-1, -1);
 
-    static bool overlaps(const QList<QPair<int, int>> &spans, int a, int b)
+    static bool known(QPoint cell) { return cell.x() >= 0; }
+    bool shares(const Ends &other) const
+    {
+        return (known(from) && (from == other.from || from == other.to))
+            || (known(to) && (to == other.from || to == other.to));
+    }
+};
+
+// Occupied-segment bookkeeping so unrelated edges get distinct channels: a
+// horizontal segment is (row, colA, colB), a vertical one (col, rowA, rowB).
+// Each span remembers the edge's anchors, so a sibling branch reads a
+// shared trunk as passable while everything else reads it as taken.
+struct Channels {
+    struct Span {
+        int lo = 0;
+        int hi = 0;
+        Ends ends;
+    };
+    QHash<int, QList<Span>> horizontal; // row -> spans
+    QHash<int, QList<Span>> vertical;   // col -> spans
+
+    static bool overlaps(const QList<Span> &spans, int a, int b,
+                         const Ends &ends)
     {
         const int lo = std::min(a, b), hi = std::max(a, b);
-        for (const auto &span : spans) {
-            if (lo <= span.second && span.first <= hi)
-                return true;
+        for (const Span &span : spans) {
+            if (hi < span.lo || span.hi < lo)
+                continue;
+            if (span.ends.shares(ends))
+                continue;
+            return true;
         }
         return false;
     }
-    bool hFree(int row, int a, int b) const
-    { return !overlaps(horizontal.value(row), a, b); }
-    bool vFree(int col, int a, int b) const
-    { return !overlaps(vertical.value(col), a, b); }
-    void takeH(int row, int a, int b)
-    { horizontal[row].append({std::min(a, b), std::max(a, b)}); }
-    void takeV(int col, int a, int b)
-    { vertical[col].append({std::min(a, b), std::max(a, b)}); }
+    bool hFree(int row, int a, int b, const Ends &ends = {}) const
+    { return !overlaps(horizontal.value(row), a, b, ends); }
+    bool vFree(int col, int a, int b, const Ends &ends = {}) const
+    { return !overlaps(vertical.value(col), a, b, ends); }
+    void takeH(int row, int a, int b, const Ends &ends = {})
+    { horizontal[row].append({std::min(a, b), std::max(a, b), ends}); }
+    void takeV(int col, int a, int b, const Ends &ends = {})
+    { vertical[col].append({std::min(a, b), std::max(a, b), ends}); }
+    // The coordinates a sibling branch already runs along. Reusing one
+    // turns a fan-out's several turn columns into a single spine.
+    static QList<int> shared(const QHash<int, QList<Span>> &lanes,
+                             const Ends &ends)
+    {
+        QList<int> result;
+        for (auto it = lanes.constBegin(); it != lanes.constEnd(); ++it) {
+            for (const Span &span : it.value()) {
+                if (span.ends.shares(ends)) {
+                    result.append(it.key());
+                    break;
+                }
+            }
+        }
+        std::sort(result.begin(), result.end());
+        return result;
+    }
+    QList<int> sharedRows(const Ends &ends) const
+    { return shared(horizontal, ends); }
+    QList<int> sharedCols(const Ends &ends) const
+    { return shared(vertical, ends); }
+
     // Node boxes block both orientations so no channel ever runs through
     // a box; drawn edges only block their own orientation (a crossing
-    // renders as ┼, an overlap would be ambiguous).
+    // renders as ┼, an overlap would be ambiguous). A box carries no
+    // anchors, so no edge is ever allowed through it.
     void blockRect(int top, int left, int bottom, int right)
     {
         for (int row = top; row <= bottom; ++row)
@@ -241,12 +293,20 @@ struct Builder {
                 for (int j = i + 1; j < nodes.size(); ++j) {
                     Node &a = nodes[i];
                     Node &b = nodes[j];
+                    // A cell is about twice as tall as it is wide, so the
+                    // two axes need different clearances. Side by side,
+                    // two boxes need a blank column between them or their
+                    // walls sit in adjacent cells and read as one thick
+                    // wall; stacked, `└──┘` directly above `┌────┐` reads
+                    // as two boxes already, and demanding a blank row
+                    // there pushes a whole rank out of line with the
+                    // pixel layout it came from.
                     const int overlapW =
                         std::min(a.right(), b.right())
                         - std::max(a.col, b.col) + 2; // +1 gap each side
                     const int overlapH =
                         std::min(a.bottom(), b.bottom())
-                        - std::max(a.row, b.row) + 2;
+                        - std::max(a.row, b.row) + 1;
                     if (overlapW <= 0 || overlapH <= 0)
                         continue;
                     const QPointF ca = a.shape->rect.center();
@@ -384,6 +444,18 @@ struct Builder {
     {
         for (const Path &path : scene.paths) {
             m_currentDraw = PathDraw();
+            m_currentEnds = Ends();
+            // A path with no endpoints of its own is box decoration, not an
+            // edge: a class diagram's compartment separators are lines
+            // across the box that leave startPoint and endPoint at the
+            // scene origin. Routing one produced a self-loop hanging off
+            // the box's flank. The grid has no spare row inside a node to
+            // draw the rule on, so it goes undrawn; a real self-loop has
+            // two distinct perimeter points and still routes.
+            if (path.startPoint == path.endPoint) {
+                pathDraws.append(m_currentDraw);
+                continue;
+            }
             const Node *from = nodeAt(path.startPoint);
             const Node *to = nodeAt(path.endPoint);
             if (from && to && from != to)
@@ -399,6 +471,9 @@ struct Builder {
     // Filled by drawPolyline as it draws the current path's segments.
     PathDraw m_currentDraw;
     int m_currentAnchorLength = 0;
+    // The anchors of the edge being routed, so the channel spans it claims
+    // stay passable to its siblings on the same wall cell.
+    Ends m_currentEnds;
 
     void routeNodeEdge(const Path &path, const Node &from, const Node &to)
     {
@@ -418,13 +493,15 @@ struct Builder {
         // The end anchor sits outside the border the edge crosses, i.e.
         // on the side the edge travels FROM: opposite `in`.
         const Anchor t = anchorFor(to, path.endPoint, opposite(in));
+        m_currentEnds = {QPoint(s.col, s.row), QPoint(t.col, t.row)};
+        const Ends &ends = m_currentEnds;
 
         QList<QPoint> waypoints; // (col,row) polyline through cell space
         waypoints.append(QPoint(s.col, s.row));
         if (isVertical(out) && isVertical(in)) {
             if (s.col == t.col && std::abs(t.row - s.row) > 1
                 && !channels.vFree(s.col, std::min(s.row, t.row) + 1,
-                                   std::max(s.row, t.row) - 1)) {
+                                   std::max(s.row, t.row) - 1, ends)) {
                 // Aligned but the column is blocked (a chain layout puts
                 // other ranks' boxes between): detour instead of
                 // clipping straight through them.
@@ -437,11 +514,12 @@ struct Builder {
                 // straight through the rank between).
                 bool found = false;
                 const int midRow = zChannel(
-                    s.row, t.row, (s.row + t.row) / 2, &found,
+                    s.row, t.row, (s.row + t.row) / 2,
+                    channels.sharedRows(ends), &found,
                     [&](int row) {
-                        return channels.hFree(row, s.col, t.col)
-                            && channels.vFree(s.col, s.row, row)
-                            && channels.vFree(t.col, row, t.row);
+                        return channels.hFree(row, s.col, t.col, ends)
+                            && channels.vFree(s.col, s.row, row, ends)
+                            && channels.vFree(t.col, row, t.row, ends);
                     });
                 if (!found) {
                     // Go around via an outer vertical lane and enter
@@ -455,18 +533,19 @@ struct Builder {
         } else if (!isVertical(out) && !isVertical(in)) {
             if (s.row == t.row && std::abs(t.col - s.col) > 1
                 && !channels.hFree(s.row, std::min(s.col, t.col) + 1,
-                                   std::max(s.col, t.col) - 1)) {
+                                   std::max(s.col, t.col) - 1, ends)) {
                 routeOuterLane(path, from, to, false);
                 return;
             }
             if (s.row != t.row) {
                 bool found = false;
                 const int midCol = zChannel(
-                    s.col, t.col, (s.col + t.col) / 2, &found,
+                    s.col, t.col, (s.col + t.col) / 2,
+                    channels.sharedCols(ends), &found,
                     [&](int col) {
-                        return channels.vFree(col, s.row, t.row)
-                            && channels.hFree(s.row, s.col, col)
-                            && channels.hFree(t.row, col, t.col);
+                        return channels.vFree(col, s.row, t.row, ends)
+                            && channels.hFree(s.row, s.col, col, ends)
+                            && channels.hFree(t.row, col, t.col, ends);
                     });
                 if (!found) {
                     routeOuterLane(path, from, to, false);
@@ -483,6 +562,12 @@ struct Builder {
         waypoints.append(QPoint(t.col, t.row));
 
         drawPolyline(waypoints);
+        // Tie each anchor to the wall it sits against. Wherever the route
+        // already leaves the anchor along that axis this adds an arm the
+        // cell has, and where a collapsed stub left the anchor turning
+        // sideways it supplies the arm that makes it a corner.
+        canvas.drawStub(s.row, s.col, opposite(out));
+        canvas.drawStub(t.row, t.col, in);
         placeMarker(path.endMarker, t.row, t.col, in);
         placeMarker(path.startMarker, s.row, s.col, opposite(out));
     }
@@ -503,10 +588,12 @@ struct Builder {
                                         from.row + 1, from.bottom() - 1);
             const int tRow = std::clamp(rowOf(path.endPoint.y()),
                                         to.row + 1, to.bottom() - 1);
+            m_currentEnds = {QPoint(from.right() + 1, sRow),
+                             QPoint(to.right() + 1, tRow)};
             int lane = flank + 3;
             for (int extra = 0; extra < 6; ++extra) {
                 if (channels.vFree(lane, std::min(sRow, tRow),
-                                   std::max(sRow, tRow)))
+                                   std::max(sRow, tRow), m_currentEnds))
                     break;
                 ++lane;
             }
@@ -524,10 +611,12 @@ struct Builder {
                                         from.col + 1, from.right() - 1);
             const int tCol = std::clamp(colOf(path.endPoint.x()),
                                         to.col + 1, to.right() - 1);
+            m_currentEnds = {QPoint(sCol, from.bottom() + 1),
+                             QPoint(tCol, to.bottom() + 1)};
             int lane = flank + 2;
             for (int extra = 0; extra < 6; ++extra) {
                 if (channels.hFree(lane, std::min(sCol, tCol),
-                                   std::max(sCol, tCol)))
+                                   std::max(sCol, tCol), m_currentEnds))
                     break;
                 ++lane;
             }
@@ -548,11 +637,26 @@ struct Builder {
         int rowB = std::clamp(rowOf(path.endPoint.y()),
                               node.row + 1, node.bottom() - 1);
         if (rowB == rowA)
-            rowB = std::min(rowA + 1, node.bottom() - 1);
+            ++rowB;
         const int wall = node.right();
         const int lane = wall + 3;
+        if (rowB > node.bottom() - 1) {
+            // A three-row box has one interior row, so the side wall
+            // cannot hold both ends: the loop leaves the side, drops past
+            // the box and comes back up into its floor. Returning along
+            // the row it left on would draw a stub that goes nowhere.
+            const int below = node.bottom() + 1;
+            const int back = std::clamp(node.right() - 2,
+                                        node.col + 1, node.right() - 1);
+            drawPolyline({QPoint(wall + 1, rowA), QPoint(lane, rowA),
+                          QPoint(lane, below), QPoint(back, below)});
+            canvas.drawStub(rowA, wall + 1, TextCanvas::Left);
+            placeMarker(path.endMarker, below, back, TextCanvas::Up);
+            return;
+        }
         drawPolyline({QPoint(wall + 1, rowA), QPoint(lane, rowA),
                       QPoint(lane, rowB), QPoint(wall + 1, rowB)});
+        canvas.drawStub(rowA, wall + 1, TextCanvas::Left);
         placeMarker(path.endMarker, rowB, wall + 1, TextCanvas::Left);
     }
 
@@ -618,7 +722,7 @@ struct Builder {
                     if (to < hi && cellState(to + 1, col) == BorderCell)
                         ++to;
                     canvas.drawVLine(col, from, to);
-                    channels.takeV(col, from, to);
+                    channels.takeV(col, from, to, m_currentEnds);
                 }
                 run = -1;
             }
@@ -640,7 +744,7 @@ struct Builder {
                 if (to < hi && cellState(row, to + 1) == BorderCell)
                     ++to;
                 canvas.drawHLine(row, from, to);
-                channels.takeH(row, from, to);
+                channels.takeH(row, from, to, m_currentEnds);
                 run = -1;
             }
         }
@@ -657,14 +761,25 @@ struct Builder {
         return d;
     }
 
-    // Z-route channel search: try the preferred crossbar coordinate first,
-    // then spiral outward within the endpoints' span (±2 slack), taking
-    // the first coordinate the whole-route predicate accepts.
+    // Z-route channel search: reuse a coordinate a sibling branch already
+    // turns on if one lies inside the endpoints' span, else try the
+    // preferred crossbar coordinate and spiral outward within that span
+    // (±2 slack), taking the first coordinate the whole-route predicate
+    // accepts.
     template <typename Valid>
-    int zChannel(int a, int b, int preferred, bool *found, Valid valid)
+    int zChannel(int a, int b, int preferred, const QList<int> &spine,
+                 bool *found, Valid valid)
     {
         const int lo = std::min(a, b) - 2;
         const int hi = std::max(a, b) + 2;
+        for (const int candidate : spine) {
+            if (candidate < lo || candidate > hi)
+                continue;
+            if (valid(candidate)) {
+                *found = true;
+                return candidate;
+            }
+        }
         for (int delta = 0; delta <= hi - lo; ++delta) {
             for (const int candidate :
                  {preferred + delta, preferred - delta}) {
@@ -692,6 +807,11 @@ struct Builder {
         for (int i = 1; i < waypoints.size(); ++i) {
             const QPoint a = waypoints.at(i - 1);
             const QPoint b = waypoints.at(i);
+            // A Z route whose crossbar lands on one endpoint's own row (or
+            // column) collapses that stub to nothing. Drawing it anyway
+            // would lay a one-cell dash pointing at neither neighbour.
+            if (a == b)
+                continue;
             if (a.y() == b.y())
                 drawClippedHLine(a.y(), a.x(), b.x());
             else

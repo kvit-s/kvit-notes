@@ -49,6 +49,13 @@ public:
     void drawBox(int top, int left, int bottom, int right,
                  bool doubleWalls = false);
 
+    // A single line arm merged into one cell — the half-cell tie between a
+    // route's end and the wall it leaves from. Unlike a one-cell drawHLine
+    // or drawVLine, which would add both of that axis's arms, this adds
+    // only the one, so the cell resolves to the corner the route turns
+    // through rather than to a dash pointing at nothing.
+    void drawStub(int row, int col, Direction dir);
+
     // Arrowhead pointing along `dir`, e.g. Down = ▼. Overwrites the cell.
     void drawArrowhead(int row, int col, Direction dir);
 
