@@ -47,9 +47,19 @@ struct Metrics {
 // `horizontalPaddingPx` does the same left and right — see
 // sideBearingPaddingPx for why a formula needs it at all. A caller that places
 // the image against a reserved box must shift it left by the same amount.
+//
+// `displayStyle` picks between the two sizes TeX sets a formula at. Display
+// style is the one a `$$…$$` block wants: limits stacked over and under a
+// large operator, full-size fractions. Text style is the one a `$…$` span in
+// running prose wants, and is what LaTeX itself uses there — the limits move
+// beside the operator and the whole formula shrinks to something a line of
+// text can hold. `\int_0^\infty e^x dx` beside 15px prose measures 46 pixels
+// tall in display style and 27 in text style, 18 of which sit below the
+// baseline against 8.
 QImage render(const QString &tex, int textSizePx, const QColor &fg,
               qreal dpr = 1.0, QString *error = nullptr,
-              int verticalPaddingPx = 0, int horizontalPaddingPx = 0);
+              int verticalPaddingPx = 0, int horizontalPaddingPx = 0,
+              bool displayStyle = true);
 
 // Transparent margin, in logical pixels, that keeps a formula's glyphs from
 // being cut off at the left and right edges of its own raster.
@@ -146,8 +156,11 @@ public:
     Q_INVOKABLE int opticalMathPixelSize(const QString &family,
                                          int pixelSize) const;
 
-    // MicroTeX layout metrics for inline placement experiments.
-    Q_INVOKABLE QVariantMap measure(const QString &tex, int textSizePx) const;
+    // MicroTeX layout metrics. `displayStyle` false asks for the text style
+    // an inline `$…$` span is set in; the default is the display style a
+    // `$$…$$` block is set in.
+    Q_INVOKABLE QVariantMap measure(const QString &tex, int textSizePx,
+                                    bool displayStyle = true) const;
 
     // Transparent side margin the rendered image needs so glyphs that
     // overhang their advance box are not cut off

@@ -279,7 +279,7 @@ int sideBearingPaddingPx(int textSizePx)
 
 QImage render(const QString &tex, int textSizePx, const QColor &fg,
               qreal dpr, QString *error, int verticalPaddingPx,
-              int horizontalPaddingPx)
+              int horizontalPaddingPx, bool displayStyle)
 {
     if (error)
         error->clear();
@@ -303,7 +303,7 @@ QImage render(const QString &tex, int textSizePx, const QColor &fg,
 
     const float size = static_cast<float>(
         qBound(1, textSizePx > 0 ? textSizePx : 20, Diagram::kMaxTextSizePx));
-    const auto render = createRender(trimmed, size, fg, true, error);
+    const auto render = createRender(trimmed, size, fg, displayStyle, error);
     if (!render)
         return QImage();
 
@@ -559,9 +559,11 @@ QStringList MathTools::availableCommands() const
     return MathRenderer::availableCommands();
 }
 
-QVariantMap MathTools::measure(const QString &tex, int textSizePx) const
+QVariantMap MathTools::measure(const QString &tex, int textSizePx,
+                               bool displayStyle) const
 {
-    const MathRenderer::Metrics m = MathRenderer::measure(tex, textSizePx);
+    const MathRenderer::Metrics m =
+        MathRenderer::measure(tex, textSizePx, displayStyle);
     return QVariantMap{
         {QStringLiteral("width"), m.width},
         {QStringLiteral("height"), m.height},
@@ -622,10 +624,16 @@ QImage MathImageProvider::requestImage(const QString &id, QSize *size,
         if (pad > 0)
             horizontalPadding = qMin(pad, textSize);
     }
+    // `style=i` asks for text style, which is what a `$…$` span in prose
+    // wants; everything else, this parameter absent included, gets the
+    // display style a `$$…$$` block is set in.
+    const bool displayStyle =
+        params.queryItemValue(QStringLiteral("style")) != QLatin1String("i");
     Q_UNUSED(requestedSize);
 
     QImage image = MathRenderer::render(tex, textSize, fg, dpr, nullptr,
-                                        verticalPadding, horizontalPadding);
+                                        verticalPadding, horizontalPadding,
+                                        displayStyle);
     if (image.isNull()) {
         // Keep the provider contract (a valid image) even on parse failure;
         // the delegate detects the error via errorFor and shows the source.

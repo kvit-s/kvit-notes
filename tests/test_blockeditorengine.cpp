@@ -1409,8 +1409,10 @@ void TestBlockEditorEngine::testInlineMathReserveAndReveal()
     QCOMPARE(box.value("tex").toString(), QString("E=mc^2"));
     QVERIFY(box.value("docEnd").toInt() > box.value("docStart").toInt());
     QVERIFY(box.value("valid").toBool());
-    const MathRenderer::Metrics liveMetrics =
-        MathRenderer::measure("E=mc^2", engine.mathFontPixelSize());
+    // Text style: an inline span is measured and drawn the way LaTeX sets
+    // one in running prose, not the way a `$$…$$` block is set.
+    const MathRenderer::Metrics liveMetrics = MathRenderer::measure(
+        "E=mc^2", engine.mathFontPixelSize(), /*displayStyle=*/false);
     QVERIFY(liveMetrics.valid);
     QVERIFY(qAbs(box.value("width").toReal() - liveMetrics.width) <= 1.0);
     QVERIFY(qAbs(box.value("height").toReal() - liveMetrics.height) <= 1.0);
@@ -1482,14 +1484,13 @@ void TestBlockEditorEngine::testInlineMathTallFormulaReservesLineHeight()
              QString(tex.size(), QChar(0x2007)));
 
     const int mathSize = engine.mathFontPixelSize();
-    const MathRenderer::Metrics metrics = MathRenderer::measure(tex, mathSize);
+    const MathRenderer::Metrics metrics =
+        MathRenderer::measure(tex, mathSize, /*displayStyle=*/false);
     QVERIFY2(metrics.valid, qPrintable(metrics.error));
-    const qreal targetHeight =
-        metrics.height + 2 * qMax(2, qCeil(mathSize * 0.12));
     const QFontMetricsF baseMetrics(font);
-    QVERIFY2(targetHeight > baseMetrics.height(),
-             qPrintable(QStringLiteral("target=%1 base=%2")
-                            .arg(targetHeight, 0, 'f', 2)
+    QVERIFY2(metrics.height > baseMetrics.height(),
+             qPrintable(QStringLiteral("formula=%1 base=%2")
+                            .arg(metrics.height, 0, 'f', 2)
                             .arg(baseMetrics.height(), 0, 'f', 2)));
 
     const QTextBlock block = doc.findBlock(start);
@@ -1498,10 +1499,22 @@ void TestBlockEditorEngine::testInlineMathTallFormulaReservesLineHeight()
     const int relEnd = end - block.position();
     const QTextLine line = block.layout()->lineForTextPosition(relStart);
     QVERIFY(line.isValid());
-    QVERIFY2(line.height() + 1.0 >= targetHeight,
-             qPrintable(QStringLiteral("line=%1 target=%2")
-                            .arg(line.height(), 0, 'f', 2)
-                            .arg(targetHeight, 0, 'f', 2)));
+
+    // The line holds the formula on BOTH sides of the baseline the overlay
+    // draws it on. Total height is not the test: a font tall enough overall
+    // still puts four fifths of itself above the baseline, and a deep formula
+    // then hangs into the line below and paints over its text.
+    QVERIFY2(line.ascent() + 1.0 >= metrics.baseline,
+             qPrintable(QStringLiteral("line ascent=%1 formula ascent=%2")
+                            .arg(line.ascent(), 0, 'f', 2)
+                            .arg(metrics.baseline, 0, 'f', 2)));
+    const qreal depth = metrics.height - metrics.baseline;
+    QVERIFY2(depth > baseMetrics.descent(),
+             "the sample formula has no depth to speak of");
+    QVERIFY2(line.descent() + 1.0 >= depth,
+             qPrintable(QStringLiteral("line descent=%1 formula depth=%2")
+                            .arg(line.descent(), 0, 'f', 2)
+                            .arg(depth, 0, 'f', 2)));
 
     const qreal reservedWidth =
         line.cursorToX(relEnd) - line.cursorToX(relStart);

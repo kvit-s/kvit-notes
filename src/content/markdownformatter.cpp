@@ -973,7 +973,10 @@ QString MarkdownFormatter::mathImageTag(const QString &tex,
     if (trimmed.isEmpty())
         return QString();
     const int size = opt.pixelSize > 0 ? opt.pixelSize : 15;
-    const MathRenderer::Metrics m = MathRenderer::measure(trimmed, size);
+    // Text style, matching what the editor draws for a `$…$` span: this
+    // renders inline spans alone (a `$$…$$` block takes another path).
+    const MathRenderer::Metrics m =
+        MathRenderer::measure(trimmed, size, /*displayStyle=*/false);
     if (!m.valid || m.width <= 0 || m.height <= 0)
         return QString();
 
@@ -989,7 +992,7 @@ QString MarkdownFormatter::mathImageTag(const QString &tex,
         QStringLiteral("image://math/")
         + QString::fromLatin1(trimmed.toUtf8().toBase64(
               QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))
-        + QStringLiteral("?fg=%1&size=%2&dpr=%3&vpad=%4&hpad=%5")
+        + QStringLiteral("?fg=%1&size=%2&dpr=%3&vpad=%4&hpad=%5&style=i")
               .arg(QString::number(fg.rgba(), 16), QString::number(size),
                    QString::number(dpr, 'f', 2), QString::number(vpad),
                    QString::number(hpad));

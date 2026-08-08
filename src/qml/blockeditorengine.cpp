@@ -81,13 +81,35 @@ int inlineMathVerticalPaddingPx(int textSizePx)
     return qMax(2, qCeil(qMax(1, textSizePx) * 0.12));
 }
 
-int fontPixelSizeForLineHeight(const QFont &baseFont, int basePixelSize,
-                               qreal targetHeight)
+// The pixel size at which this font reserves at least `ascent` above the
+// baseline and `descent` below it.
+//
+// Both halves, rather than the total: a line's ascent and descent are the
+// largest any of its runs asks for, taken separately, and a formula's own
+// split is nothing like a font's. `\int_0^\infty e^x dx` beside 15px prose
+// puts 21 pixels above the baseline and 10 below, where the font that is tall
+// enough overall puts 25 above and 6 below — so the picture, drawn on the
+// line's baseline, hung four pixels into the line underneath and painted over
+// its text.
+//
+// Qt offers no way to ask for the two independently: no character format
+// property moves a line's ascent/descent split (measured: neither
+// TextBaselineOffset nor any TextVerticalAlignment value changes it), and
+// block line height adds its space above the line rather than below. So the
+// font grows until its own descent is enough, which for a deep formula
+// reserves more room above it than the formula uses. That is the visible cost
+// of this, and it is bounded: inline spans render in text style, where a deep
+// formula is about half the height it is in display style.
+int fontPixelSizeForBaselineSplit(const QFont &baseFont, int basePixelSize,
+                                  qreal ascent, qreal descent)
 {
     int pixelSize = qMax(1, basePixelSize);
     QFont probe(baseFont);
     probe.setPixelSize(pixelSize);
-    while (QFontMetricsF(probe).height() < targetHeight && pixelSize < 256) {
+    while (pixelSize < 256) {
+        const QFontMetricsF metrics(probe);
+        if (metrics.ascent() >= ascent && metrics.descent() >= descent)
+            break;
         probe.setPixelSize(++pixelSize);
     }
     return pixelSize;
@@ -771,8 +793,12 @@ QVariantMap BlockEditorEngine::cachedMathMetrics(const QString &tex,
     if (it != m_mathMetricsCache.constEnd())
         return it.value();
 
-    const QVariantMap metrics =
-        mathMetricsMap(MathRenderer::measure(tex, size));
+    // Text style: this cache serves the inline `$…$` spans alone, and the
+    // overlay renders them the same way (InlineMathOverlay's `style=i`). A
+    // measurement in the other style would reserve a box the picture does not
+    // fill.
+    const QVariantMap metrics = mathMetricsMap(
+        MathRenderer::measure(tex, size, /*displayStyle=*/false));
     m_mathMetricsCache.insert(key, metrics);
     m_mathMetricsOrder.append(key);
     while (m_mathMetricsOrder.size() > MaxMathMetricsEntries) {
@@ -831,11 +857,26 @@ QVariantMap BlockEditorEngine::mathReservationMetrics(const QString &tex,
     QFont baseFont = contentFontForFlags(flags);
     const QFontMetricsF baseMetrics(baseFont);
     const int verticalPadding = inlineMathVerticalPaddingPx(mathSizePx);
-    const qreal targetHeight =
-        metrics.value(QStringLiteral("height")).toReal() + 2 * verticalPadding;
+    // The picture is drawn with its own baseline on the line's, so the line
+    // has to hold what the formula puts on each side of that baseline rather
+    // than only what it measures overall.
+    //
+    // Measured from the ink rather than from the bitmap: the padding above
+    // and below it is transparent, so a margin that reaches into the line
+    // above or below shows nothing, and counting it would buy that invisible
+    // room at nearly four times its own size in space above the formula.
+    const qreal renderedHeight =
+        metrics.value(QStringLiteral("height")).toReal();
+    const qreal renderedBaseline =
+        metrics.value(QStringLiteral("baseline")).toReal();
+    const qreal targetAscent = renderedBaseline;
+    const qreal targetDescent = renderedHeight - renderedBaseline;
+    const qreal targetHeight = renderedHeight + 2 * verticalPadding;
     const int reservationPixelSize =
-        targetHeight > baseMetrics.height()
-            ? fontPixelSizeForLineHeight(baseFont, textSizePx, targetHeight)
+        (targetAscent > baseMetrics.ascent()
+         || targetDescent > baseMetrics.descent())
+            ? fontPixelSizeForBaselineSplit(baseFont, textSizePx, targetAscent,
+                                            targetDescent)
             : textSizePx;
 
     QFont reservationFont(baseFont);

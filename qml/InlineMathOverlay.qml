@@ -76,6 +76,10 @@ Item {
              + "&dpr=" + root.renderDpr.toFixed(2)
              + "&vpad=" + root.verticalPadding
              + "&hpad=" + root.horizontalPadding
+             // Text style, the size TeX sets a formula in running prose at.
+             // A display-style `\int_0^\infty` stacks its limits and stands
+             // three lines tall, which no line of prose can hold.
+             + "&style=i"
     }
 
     // Where this layer sits in the scene, so a coordinate inside it can be

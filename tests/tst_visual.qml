@@ -3438,7 +3438,9 @@ Item {
             var box = para.inlineMathBoxes[0]
             var r1 = ta.positionToRectangle(box.docStart)
             var r2 = ta.positionToRectangle(box.docEnd)
-            var metrics = MathRenderer.measure(box.tex, para.inlineMathPixelSize)
+            // Text style: what an inline span is measured and drawn in.
+            var metrics = MathRenderer.measure(box.tex, para.inlineMathPixelSize,
+                                               false)
             var reservedWidth = Math.abs(r2.x - r1.x)
             verify(Math.abs(reservedWidth - metrics.width) <= 3,
                    "inline math reservation should match renderer width: "
