@@ -172,6 +172,54 @@ QQuickItem *namedItemIn(QQuickItem *root, const char *name)
     return walk(root);
 }
 
+// Every item under `root` with this objectName, in visual-tree order. A board
+// has three columns and four cards all called `kanbanCard`, and the tour has
+// to aim at one of them in particular rather than at whichever the search
+// happens to reach first.
+QList<QQuickItem *> namedItemsIn(QQuickItem *root, const char *name)
+{
+    const QString wanted = QLatin1String(name);
+    QList<QQuickItem *> found;
+    std::function<void(QQuickItem *)> walk = [&](QQuickItem *item) {
+        if (!item)
+            return;
+        if (item->objectName() == wanted && item->isVisible()
+            && item->width() > 0)
+            found.append(item);
+        for (QQuickItem *child : item->childItems())
+            walk(child);
+    };
+    walk(root);
+    return found;
+}
+
+// A menu row named by the words on it. Menu entries are not given object
+// names — several are built by a Repeater from the theme list, and a submenu's
+// own row is built by Qt — so the label is the only handle. The `&` that marks
+// the access key is written into the text on the platforms that show one, and
+// is dropped here so a caller can ask for "Theme".
+QQuickItem *itemWithLabel(QQuickWindow *window, const QString &label)
+{
+    std::function<QQuickItem *(QQuickItem *)> walk =
+        [&](QQuickItem *item) -> QQuickItem * {
+        if (!item)
+            return nullptr;
+        const QVariant text = item->property("text");
+        if (text.isValid() && item->isVisible() && item->width() > 0) {
+            const QString plain =
+                text.toString().remove(QLatin1Char('&')).trimmed();
+            if (plain == label)
+                return item;
+        }
+        for (QQuickItem *child : item->childItems()) {
+            if (QQuickItem *hit = walk(child))
+                return hit;
+        }
+        return nullptr;
+    };
+    return walk(window->contentItem());
+}
+
 QPoint centerOf(QQuickItem *item)
 {
     return item->mapToScene(QPointF(item->width() / 2, item->height() / 2))
@@ -380,6 +428,30 @@ QQuickItem *delegateAt(QQuickWindow *window, int index)
                               Q_RETURN_ARG(QQuickItem *, item),
                               Q_ARG(int, index));
     return item;
+}
+
+// Bring a block into the viewport and hand back its delegate. A list that
+// virtualises has no item at all for an off-screen index, so a click aimed at
+// one goes nowhere; positionViewAtIndex is what makes the delegate exist.
+QQuickItem *showBlock(QQuickWindow *window, int index, int settleMs = 800)
+{
+    if (auto *list = namedItem(window, "blockListView")) {
+        QMetaObject::invokeMethod(list, "positionViewAtIndex",
+                                  Q_ARG(int, index), Q_ARG(int, 1));
+        settle(settleMs);
+    }
+    return delegateAt(window, index);
+}
+
+// Put the caret in a block, whichever way works: the delegate when the list
+// has realised it, the index when it has not.
+void focusBlock(QQuickWindow *window, int index, int settleMs = 500)
+{
+    if (QQuickItem *d = delegateAt(window, index))
+        clickAt(window, centerOf(d), settleMs);
+    else
+        clickEditorBlock(window, index);
+    settle(300);
 }
 
 bool tourMermaid(QQuickWindow *window, AppContext *ctx, const QString &vault)
@@ -623,19 +695,13 @@ bool tourAsText(QQuickWindow *window, AppContext *ctx, const QString &vault)
           model->count(), qPrintable(model->getAttributes(target)),
           qPrintable(model->getContent(target)));
 
-    // Known weakness of this segment, left as it is rather than papered over:
-    // box-drawing characters are how a diagram fence is recognised, so the
-    // pasted text is classified as a diagram and drawn again. The viewer
-    // therefore sees a second drawing rather than the characters, and the
-    // "as text" half of the claim is the half that does not appear on screen.
-    // setBlockAttributes("text") does not override it; the fence language is
-    // not what that field holds.
-
-    // Focus away so the pair stands together: the drawing above, the same
-    // shape as characters below.
-    if (QQuickItem *heading = delegateAt(window, 0))
-        clickAt(window, centerOf(heading), 1800);
-    settle(3200);
+    // The caret stays in the pasted block, and that is deliberate. Box-drawing
+    // characters are how a diagram fence is recognised, so this block renders
+    // as a second drawing the moment it stops being edited — which is exactly
+    // the half of "as text" the segment exists to show. Held open, it shows
+    // the characters themselves in a monospaced block, with the drawing they
+    // came from above. Clicking away here would end the clip on two pictures.
+    settle(4200);
     return true;
 }
 bool tourQuery(QQuickWindow *window, AppContext *ctx, const QString &vault)
@@ -715,6 +781,483 @@ bool tourQuery(QQuickWindow *window, AppContext *ctx, const QString &vault)
     // Long enough for the watcher to notice, the collection to
     // rescan, and the query's own debounce to expire on top of that.
     settle(7000);
+    return true;
+}
+
+// The block palette: type "/" on an empty block and pick what it becomes.
+bool tourPalette(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
+        return false;
+    }
+    // Open the menu on a block in the middle of the note rather than at its
+    // end. The menu is drawn beside the caret, so a caret below the fold gets
+    // a menu against the bottom edge with the document it belongs to off
+    // screen.
+    const int table = blockContaining(model, QStringLiteral("| Feature |"));
+    const int target = table >= 0 ? table + 1 : model->count();
+    model->insertBlock(target, Block::Paragraph, QString());
+    settle(500);
+    showBlock(window, target);
+    focusBlock(window, target);
+
+    typeSlowly(window, QStringLiteral("/"), 90);
+    settle(2400);       // the whole catalogue, grouped by kind
+    typeSlowly(window, QStringLiteral("to"), 260);
+    settle(2000);       // narrowed to what "to" matches
+    QTest::keyClick(window, Qt::Key_Return, Qt::NoModifier, 90);
+    settle(1000);
+    qInfo("uidriver: block %d is now type %d", target,
+          int(model->blockAt(target)->blockType()));
+
+    typeSlowly(window, QStringLiteral("Ship the 1.0 release"), 55);
+    settle(700);
+    // Tick it, so the block that was just made gets used rather than only
+    // made: the checkbox is the whole point of the kind that was chosen.
+    if (QQuickItem *d = delegateAt(window, target)) {
+        if (QQuickItem *box = namedItemIn(d, "todoCheckbox"))
+            clickAt(window, centerOf(box), 1400);
+    }
+    // Back to the top of the note to finish, which both takes the caret out of
+    // the block that was made and puts the whole note in the last frame.
+    if (QQuickItem *heading = showBlock(window, 0, 600))
+        clickAt(window, centerOf(heading), 2000);
+    return true;
+}
+
+// A markdown table edited like a grid: the caret moves cell to cell and a row
+// is added from the chip under it.
+bool tourTables(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
+        return false;
+    }
+    const int table = blockContaining(model, QStringLiteral("| Feature |"));
+    if (table < 0) {
+        qWarning("uidriver: no feature table in this note");
+        return false;
+    }
+    QQuickItem *delegate = showBlock(window, table);
+    if (!delegate) {
+        qWarning("uidriver: the table has no delegate on screen");
+        return false;
+    }
+    QQuickItem *frame = namedItemIn(delegate, "tableFrame");
+    if (!frame) {
+        qWarning("uidriver: no tableFrame in the table delegate");
+        return false;
+    }
+
+    // Aim at a cell by its row and column rather than by a pixel offset: the
+    // grid sizes its columns to their content, so a fixed offset lands in a
+    // different cell as soon as the demo note changes. Row 0 is the header.
+    // Measured against the frame rather than the column around it, which grows
+    // by the height of the add-row chips as soon as a cell is being edited.
+    const auto cellPoint = [&](QQuickItem *f, int row, int rows, int col,
+                               int cols) {
+        return f->mapToScene(QPointF(f->width() * (col + 0.5) / cols,
+                                     f->height() * (row + 0.5) / rows))
+            .toPoint();
+    };
+    clickAt(window, cellPoint(frame, 1, 4, 1, 2), 900);   // "shipped"
+    settle(900);        // the add-row and add-column chips arrive with it
+
+    // Tab across the grid. Three presses walk the caret to the end of one row
+    // and on to the start of the next, which is the behaviour worth showing:
+    // the block is a markdown table and it still moves like a spreadsheet.
+    for (int i = 0; i < 3; ++i) {
+        QTest::keyClick(window, Qt::Key_Tab, Qt::NoModifier, 220);
+        settle(700);
+    }
+
+    QQuickItem *addRow = namedItemIn(delegate, "tableAddRow");
+    if (!addRow || !addRow->isVisible()) {
+        qWarning("uidriver: the + Row chip is not on screen");
+        return false;
+    }
+    clickAt(window, centerOf(addRow), 1000);
+    settle(600);
+
+    // Fill the row that just appeared. Five rows now, so the new one is the
+    // last of them.
+    QQuickItem *grown = namedItemIn(delegate, "tableFrame");
+    if (grown) {
+        clickAt(window, cellPoint(grown, 4, 5, 0, 2), 800);
+        typeSlowly(window, QStringLiteral("Kanban boards"), 60);
+        settle(500);
+        QTest::keyClick(window, Qt::Key_Tab, Qt::NoModifier, 200);
+        settle(400);
+        typeSlowly(window, QStringLiteral("shipped"), 60);
+        settle(700);
+    }
+    qInfo("uidriver: table is now:\n%s",
+          qPrintable(model->getContent(table)));
+
+    if (QQuickItem *heading = delegateAt(window, 0))
+        clickAt(window, centerOf(heading), 2200);
+    return true;
+}
+
+// A kanban board: a card carried into another column, and a card finished.
+bool tourKanban(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Team board.md"))) {
+        return false;
+    }
+    const int board = blockContaining(model, QStringLiteral("## In progress"));
+    if (board < 0) {
+        qWarning("uidriver: no kanban fence in this note");
+        return false;
+    }
+    // Fold the note list away first. Three columns of cards are wider than a
+    // document that shares the window with two side panes, and the right-hand
+    // column was running off the edge of the frame.
+    if (QQuickItem *collapse = namedItem(window, "noteListCollapseButton"))
+        clickAt(window, centerOf(collapse), 900);
+
+    QQuickItem *delegate = showBlock(window, board);
+    if (!delegate) {
+        qWarning("uidriver: the board has no delegate on screen");
+        return false;
+    }
+    settle(1400);       // a beat to read the three columns before anything moves
+
+    // Which card to carry, and where to. Both are found through the column
+    // headers rather than through the card list's order: a card belongs to the
+    // column it sits under, and that is a horizontal position on screen.
+    const QList<QQuickItem *> headers = namedItemsIn(delegate, "kanbanColName");
+    const QList<QQuickItem *> cards = namedItemsIn(delegate, "kanbanCard");
+    if (headers.size() < 3 || cards.isEmpty()) {
+        qWarning("uidriver: board has %lld columns and %lld cards",
+                 qint64(headers.size()), qint64(cards.size()));
+        return false;
+    }
+    const int middleX = centerOf(headers.at(1)).x();
+    const int rightX = centerOf(headers.at(2)).x();
+    QQuickItem *carried = nullptr;
+    int best = INT_MAX;
+    for (QQuickItem *card : cards) {
+        const int dx = qAbs(centerOf(card).x() - middleX);
+        if (dx < best) {
+            best = dx;
+            carried = card;
+        }
+    }
+    if (!carried) {
+        qWarning("uidriver: no card under the middle column");
+        return false;
+    }
+
+    // Grab near the card's top edge, which is its own drag handle rather than
+    // the text editor that opens on a click in the middle of it.
+    const QPoint from =
+        carried->mapToScene(QPointF(carried->width() / 2, 12)).toPoint();
+    const QPoint to(rightX, from.y() + 8);
+    qInfo("uidriver: carrying a card from (%d,%d) to (%d,%d)", from.x(),
+          from.y(), to.x(), to.y());
+    dragFromTo(window, from, to);
+    settle(1600);
+    qInfo("uidriver: board after the drag:\n%s",
+          qPrintable(model->getContent(board)));
+
+    // Then finish a card where it stands, so the board is used and not only
+    // rearranged. The delegate is asked for again: the rewrite the drag made
+    // goes through the model, and the row it comes back on is not necessarily
+    // the item this function was holding.
+    QQuickItem *again = delegateAt(window, board);
+    for (QQuickItem *card : namedItemsIn(again ? again : delegate,
+                                         "kanbanCard")) {
+        if (centerOf(card).x() > middleX)
+            continue;
+        if (QQuickItem *box = namedItemIn(card, "kanbanCardCheckbox")) {
+            clickAt(window, centerOf(box), 1600);
+            break;
+        }
+    }
+    settle(1200);
+    qInfo("uidriver: board at the end:\n%s",
+          qPrintable(model->getContent(board)));
+    // Off the card, so the last frame is the board rather than one card in
+    // its selected state with an empty description prompt on it.
+    if (QQuickItem *heading = delegateAt(window, 0))
+        clickAt(window, centerOf(heading), 2000);
+    settle(1200);
+    return true;
+}
+
+// Wiki-links: completed as they are typed, followed with a click, and shown
+// from the other end in the backlinks pane.
+bool tourWikiLinks(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("projects/Alpha.md"))) {
+        return false;
+    }
+    const int para = blockContaining(model, QStringLiteral("Work notes"));
+    if (para < 0) {
+        qWarning("uidriver: no prose paragraph in Alpha");
+        return false;
+    }
+    focusBlock(window, para, 700);
+    QTest::keyClick(window, Qt::Key_End, Qt::NoModifier, 60);
+    settle(400);
+
+    typeSlowly(window, QStringLiteral(" Blocked by [[Bet"), 70);
+    settle(2000);       // the picker, narrowed to one note
+    QTest::keyClick(window, Qt::Key_Return, Qt::NoModifier, 100);
+    settle(1400);
+    qInfo("uidriver: paragraph is now [%s]",
+          qPrintable(model->getContent(para)));
+
+    // Save, because the link only becomes a backlink once the collection has
+    // read it from the file.
+    QTest::keyClick(window, Qt::Key_S, Qt::ControlModifier, 90);
+    settle(1600);
+    if (QQuickItem *heading = delegateAt(window, 0))
+        clickAt(window, centerOf(heading), 1200);
+    settle(800);
+
+    // Follow it with a click on the link itself. Where the link sits is asked
+    // of the rendered text rather than guessed: linkAt walks the layout, so
+    // this survives a font change or a rewording of the sentence.
+    QQuickItem *delegate = delegateAt(window, para);
+    if (!delegate) {
+        qWarning("uidriver: the paragraph left the viewport");
+        return false;
+    }
+    // The link's position is asked of the layout rather than guessed at in
+    // pixels. What the block draws is not what the file holds — the brackets
+    // are hidden while the caret is elsewhere — so the word is looked up in
+    // the displayed text and the editor is asked where that character sits.
+    QQuickItem *editor = namedItemIn(delegate, "blockTextArea");
+    if (!editor) {
+        qWarning("uidriver: no blockTextArea in the paragraph");
+        return false;
+    }
+    const QString shown = editor->property("text").toString();
+    const int at = shown.lastIndexOf(QStringLiteral("Beta"));
+    if (at < 0) {
+        qWarning("uidriver: the paragraph reads [%s] with no link in it",
+                 qPrintable(shown));
+        return false;
+    }
+    QRectF caret;
+    QMetaObject::invokeMethod(editor, "positionToRectangle",
+                              Qt::DirectConnection,
+                              Q_RETURN_ARG(QRectF, caret),
+                              Q_ARG(int, at + 2));
+    const QPoint hit =
+        editor->mapToScene(caret.center() + QPointF(0, 0)).toPoint();
+    qInfo("uidriver: following the link at (%d,%d) in [%s]", hit.x(), hit.y(),
+          qPrintable(shown));
+    clickAt(window, hit, 2400);
+
+    // Now the other direction: what points at the note that just opened.
+    if (QQuickItem *viewButton = namedItem(window, "toolbarViewButton")) {
+        clickAt(window, centerOf(viewButton), 900);
+        if (QQuickItem *entry = itemWithLabel(window, QStringLiteral("Backlinks")))
+            clickAt(window, centerOf(entry), 1200);
+        else
+            qWarning("uidriver: no Backlinks entry in the View menu");
+    }
+    settle(2600);
+    if (QQuickItem *list = namedItem(window, "backlinksList"))
+        qInfo("uidriver: backlinks pane holds %d rows",
+              list->property("count").toInt());
+    return true;
+}
+
+// Search: the find bar over the open note, then the whole collection from the
+// sidebar.
+bool tourSearch(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
+        return false;
+    }
+    QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier, 90);
+    settle(1000);
+    if (!namedItem(window, "findQueryField")) {
+        qWarning("uidriver: Ctrl+F did not open the find bar");
+        return false;
+    }
+    typeSlowly(window, QStringLiteral("markdown"), 130);
+    settle(2000);       // every match tinted, with the count beside the field
+    for (int i = 0; i < 2; ++i) {
+        if (QQuickItem *next = namedItem(window, "findNextButton"))
+            clickAt(window, centerOf(next), 1100);
+    }
+    settle(800);
+    QTest::keyClick(window, Qt::Key_Escape, Qt::NoModifier, 90);
+    settle(900);
+
+    // The same question asked of every note instead of this one.
+    QQuickItem *field = namedItem(window, "globalSearchField");
+    if (!field) {
+        qWarning("uidriver: no global search field (is a vault open?)");
+        return false;
+    }
+    clickAt(window, centerOf(field), 600);
+    typeSlowly(window, QStringLiteral("status"), 130);
+    settle(3000);       // the collection index answers, grouped by note
+    if (QQuickItem *results = namedItem(window, "searchResultsList")) {
+        qInfo("uidriver: %d search rows", results->property("count").toInt());
+        QQuickItem *row = nullptr;
+        QMetaObject::invokeMethod(results, "itemAtIndex", Qt::DirectConnection,
+                                  Q_RETURN_ARG(QQuickItem *, row),
+                                  Q_ARG(int, 0));
+        if (row)
+            clickAt(window, centerOf(row), 2600);
+    }
+    settle(1600);
+    return true;
+}
+
+// Themes: chosen from the View menu, applied to the whole window at once.
+bool tourTheme(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
+        return false;
+    }
+    const auto pick = [&](const QString &name, int holdMs) {
+        QQuickItem *viewButton = namedItem(window, "toolbarViewButton");
+        if (!viewButton) {
+            qWarning("uidriver: no View button on the toolbar");
+            return false;
+        }
+        clickAt(window, centerOf(viewButton), 800);
+        QQuickItem *themeRow = itemWithLabel(window, QStringLiteral("Theme"));
+        if (!themeRow) {
+            qWarning("uidriver: no Theme row in the View menu");
+            return false;
+        }
+        clickAt(window, centerOf(themeRow), 900);
+        QQuickItem *entry = itemWithLabel(window, name);
+        if (!entry) {
+            qWarning("uidriver: no %s theme entry", qPrintable(name));
+            return false;
+        }
+        clickAt(window, centerOf(entry), holdMs);
+        return true;
+    };
+    // Dark and sepia, then back to the theme the clip started in, so the
+    // gallery's other clips are not preceded by one that leaves the
+    // application looking different.
+    if (!pick(QStringLiteral("Dark"), 2600))
+        return false;
+    if (!pick(QStringLiteral("Sepia"), 2600))
+        return false;
+    if (!pick(QStringLiteral("Light"), 2000))
+        return false;
+    return true;
+}
+
+// Export: a format and a scope chosen in the dialog, then a real file written
+// and named in the status bar.
+bool tourExport(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    if (!openNote(ctx, vault, QStringLiteral("Welcome.md"))) {
+        return false;
+    }
+    QQuickItem *fileButton = namedItem(window, "toolbarFileButton");
+    if (!fileButton) {
+        qWarning("uidriver: no File button on the toolbar");
+        return false;
+    }
+    clickAt(window, centerOf(fileButton), 900);
+    QQuickItem *entry = itemWithLabel(window, QStringLiteral("Export…"));
+    if (!entry)
+        entry = itemWithLabel(window, QStringLiteral("Export..."));
+    if (!entry) {
+        qWarning("uidriver: no Export entry in the File menu");
+        return false;
+    }
+    clickAt(window, centerOf(entry), 1600);
+
+    QQuickItem *combo = namedItem(window, "exportFormatCombo");
+    if (!combo) {
+        qWarning("uidriver: the export dialog did not open");
+        return false;
+    }
+    clickAt(window, centerOf(combo), 1200);     // the four formats
+    QQuickItem *pdf = itemWithLabel(window, QStringLiteral("PDF (.pdf)"));
+    if (!pdf) {
+        qWarning("uidriver: no PDF entry in the format list");
+        return false;
+    }
+    clickAt(window, centerOf(pdf), 1600);
+
+    QQuickItem *run = namedItem(window, "exportRunButton");
+    if (!run) {
+        qWarning("uidriver: no destination button");
+        return false;
+    }
+    clickAt(window, centerOf(run), 1800);
+    // The destination chooser. Qt draws its own inside the window wherever the
+    // platform has no file chooser to offer, which is the case here, and its
+    // name field is the one part of it this has to reach.
+    QQuickItem *nameField = namedItem(window, "fileNameTextField");
+    if (!nameField) {
+        qWarning("uidriver: no destination chooser inside the window; this "
+                 "platform put up one of its own, which cannot be filmed");
+        return false;
+    }
+    settle(1400);       // the chooser, long enough to see what it is
+    clickAt(window, centerOf(nameField), 500);
+    typeSlowly(window, QStringLiteral("Welcome"), 90);
+    settle(700);
+    // Save is clicked rather than pressed: Return in the name field does not
+    // accept this dialog, and the button is what a viewer expects to see used
+    // anyway.
+    QQuickItem *save = itemWithLabel(window, QStringLiteral("Save"));
+    if (!save) {
+        qWarning("uidriver: no Save button in the destination chooser");
+        return false;
+    }
+    clickAt(window, centerOf(save), 700);
+    // Off the document before the last frames: the pointer landed on the
+    // diagram when the dialog closed, and a hovered diagram puts its whole row
+    // of chips into the shot. The message the status bar ends on lasts three
+    // and a half seconds, so what follows the write is kept short enough that
+    // the closing frame still has it.
+    glide(window, QPoint(int(window->width() / 2), 60));
+    settle(700);
+    if (QQuickItem *status = namedItem(window, "transientStatusText"))
+        qInfo("uidriver: status bar reads [%s]",
+              qPrintable(status->property("text").toString()));
+    return true;
+}
+
+// Single-file mode: one .md opened on its own, with no vault around it. The
+// startup argument is the file, so this scenario opens nothing itself.
+bool tourSingleFile(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!vault.endsWith(QStringLiteral(".md"))) {
+        qWarning("uidriver: tour-singlefile wants a .md file as its startup "
+                 "target, not the vault %s", qPrintable(vault));
+        return false;
+    }
+    settle(2600);       // the window as it opens: the note, and nothing else
+
+    const int para = blockContaining(model, QStringLiteral("Welcome to"));
+    if (para < 0) {
+        qWarning("uidriver: the file did not load");
+        return false;
+    }
+    focusBlock(window, para, 700);
+    QTest::keyClick(window, Qt::Key_End, Qt::NoModifier, 60);
+    settle(500);
+    typeSlowly(window, QStringLiteral(" Opened straight from the filesystem."),
+               58);
+    settle(900);
+    QTest::keyClick(window, Qt::Key_S, Qt::ControlModifier, 90);
+    settle(1200);
+    if (QQuickItem *heading = delegateAt(window, 0))
+        clickAt(window, centerOf(heading), 2400);
+    settle(1600);       // the status bar: the file's own path, saved
     return true;
 }
 
@@ -1153,34 +1696,67 @@ int main(int argc, char *argv[])
         // end so a capture does not lose the last frame.
         // -------------------------------------------------------------
         } else if (scenario.startsWith(QStringLiteral("tour-"))) {
-            // The five feature segments, and `tour-all`, which plays them in
-            // order in one window. Recording them separately is what makes
-            // each one re-shootable and gives the README its short loops;
-            // tour-all is for a single continuous take, where a window
+            // One segment per feature, and `tour-all`, which plays a chosen
+            // few of them in order in one window. Recording them separately is
+            // what makes each one re-shootable and gives the gallery its short
+            // loops; tour-all is for a single continuous take, where a window
             // closing and reopening between features would show.
+            //
+            // `continuous` marks the ones tour-all plays. Most segments are
+            // left out of it on purpose: a take that ran every feature would
+            // be minutes long, and tour-singlefile could not be in it at all,
+            // since it needs the process started on a file rather than on a
+            // vault.
             struct Segment {
                 const char *name;
                 const char *caption;
                 bool (*run)(QQuickWindow *, AppContext *, const QString &);
+                bool continuous;
             };
             static const Segment kSegments[] = {
                 {"tour-mermaid",
-                 "Drag a node, and the markdown rewrites itself", tourMermaid},
+                 "Drag a node, and the markdown rewrites itself", tourMermaid,
+                 true},
                 {"tour-livepreview",
                  "Markdown syntax reveals itself around the caret",
-                 tourLivePreview},
-                {"tour-math", "TeX math, rendered as you type", tourMath},
+                 tourLivePreview, true},
+                {"tour-math", "TeX math, rendered as you type", tourMath,
+                 true},
                 {"tour-astext",
-                 "Copy any diagram out as text", tourAsText},
+                 "Copy any diagram out as text", tourAsText, true},
                 {"tour-query",
                  "A live table built from front matter across the vault",
-                 tourQuery},
+                 tourQuery, true},
+                {"tour-palette",
+                 "Type / and choose what the block becomes", tourPalette,
+                 false},
+                {"tour-tables",
+                 "A markdown table, edited like a grid", tourTables, false},
+                {"tour-kanban",
+                 "A board whose cards are list items in the file", tourKanban,
+                 false},
+                {"tour-wikilinks",
+                 "Link notes by name, and see what links back",
+                 tourWikiLinks, false},
+                {"tour-search",
+                 "Find in the note, then across every note", tourSearch,
+                 false},
+                {"tour-theme",
+                 "One choice repaints the whole window", tourTheme, false},
+                {"tour-export",
+                 "Export a note to PDF, HTML, markdown or text", tourExport,
+                 false},
+                {"tour-singlefile",
+                 "Open a single file with no vault around it",
+                 tourSingleFile, false},
             };
 
             bool ok = false;
             if (scenario == QStringLiteral("tour-all")) {
                 ok = true;
                 for (const Segment &segment : kSegments) {
+                    if (!segment.continuous)
+                        continue;
                     // Each feature announces itself, replacing the caption
                     // the one before it left.
                     showTitle(window, QString::fromUtf8(segment.caption));

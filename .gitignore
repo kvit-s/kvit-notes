@@ -59,9 +59,14 @@ Thumbs.db
 # exception: curated, committed capture assets referenced by the README
 # and the AppStream metadata, and screenshots/demo-vault/, the checked-in
 # vault those stills are captured from (tools/capture-press-stills.sh).
+# screenshots/gallery/ holds the feature-gallery clips gallery.md shows, with
+# screenshots/demo-vault-gallery/ the few extra notes those clips need
+# (tools/record-gallery.sh); both are likewise committed.
 /screenshots/*
 !/screenshots/press/
 !/screenshots/demo-vault/
+!/screenshots/demo-vault-gallery/
+!/screenshots/gallery/
 /tests/screenshots/
 # Packaging outputs
 dist/

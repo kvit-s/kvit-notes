@@ -838,6 +838,11 @@ BlockDelegateBase {
 
         Item {
             id: tableFrame
+            // The rows alone, without the notice and the add controls the
+            // column below holds: anything aiming at a cell measures against
+            // this, since the enclosing column grows when a cell is being
+            // edited and the chips appear.
+            objectName: "tableFrame"
             width: root.gridWidth
             implicitHeight: rowsColumn.implicitHeight
             height: implicitHeight
