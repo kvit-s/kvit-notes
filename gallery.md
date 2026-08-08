@@ -1,19 +1,15 @@
 # Kvit Notes: a feature gallery
 
-Kvit Notes is a markdown block editor written in C++ and Qt. Your notes are
-ordinary `.md` files in an ordinary folder; the application renders them as
-you write and puts the result back on disk as markdown a person can read.
+Kvit Notes is a markdown block editor. Your notes are ordinary `.md` files in
+an ordinary folder; the application renders them as you write and puts the
+result back on disk as markdown a person can read.
 
-Every clip below is the real application, recorded unattended by a scripted
-launcher that composes the shipped window and drives it with real key and
-pointer events (`tools/uidriver.cpp`, `tools/record-gallery.sh`). Nothing is
-mocked up and nothing is edited afterwards; each clip plays at twice the
-speed it was captured at, which is the only change made at assembly time.
+Every clip below is the application itself, unedited, playing at twice the
+speed it was recorded at. Each section says what is happening well enough to
+read without the picture.
 
-Each section explains what is happening well enough to stand without the
-picture. If you want the specification rather than the tour, read
-[features.md](features.md); if you want to know how to drive it, read
-[usage.md](usage.md).
+[Download](README.md#download) · [How to use it](usage.md) ·
+[What it is specified to do](features.md)
 
 ---
 
@@ -21,8 +17,8 @@ picture. If you want the specification rather than the tour, read
 
 ![A Mermaid flowchart: the fence source is opened and read, a node is dragged to a new position, and the fence reopens with a position comment written at the end of it](screenshots/gallery/mermaid.gif)
 
-A ` ```mermaid ` fence is parsed and laid out in C++, with no browser engine
-and no image export step, and the drawing it produces is editable. The clip
+A ` ```mermaid ` fence is drawn by Kvit itself, with no browser engine behind
+it and no image to export, and the drawing it produces is editable. The clip
 opens the fence to show the eight lines of Mermaid source, closes it, drags the
 `Commit` node to a new place, and opens the fence again: a
 `%% mermaid-flow:pos` comment now sits at the end of it, holding the
@@ -47,11 +43,11 @@ toggle.
 ![A sentence being typed into a note; as the closing dollar of an inline formula is typed, the TeX becomes a set formula, and typing continues after it](screenshots/gallery/math.gif)
 
 `$e^{i\pi} + 1 = 0$` is typed into a paragraph and set as a formula as soon as
-it closes. Math is rendered by a vendored MicroTeX with the NewTX and XCharter
-faces, in the same process as everything else, so a formula appears at typing
-speed rather than after a round trip to a server. Inline formulas sit on the
-text's own baseline at the size of the prose around them; `$$…$$` on its own
-lines makes a centred display equation instead.
+it closes. The TeX engine and its NewTX and XCharter faces are built into the
+application, so a formula appears at typing speed rather than after a round
+trip to a server, and nothing you write leaves your machine. An inline formula
+sits on the text's own baseline at the size of the prose around it; `$$…$$` on
+its own lines makes a centred display equation instead.
 
 ## Type `/` and choose what the block becomes
 
@@ -93,10 +89,10 @@ finishes another.
 A ` ```query ` fence is a saved question about the vault's front matter: which
 folder to read, which notes to keep, which fields to show, how to sort them.
 The clip opens the block to show that specification above the table it
-produced. A separate process then edits one project's `status:` from `done` to
-`active` on disk, which is exactly what an edit from a script or another
-editor looks like, and the row appears without anything being clicked. Query
-blocks can render as a table, or as a board grouped by one of the fields.
+produced. Another program then changes one project's `status:` from `done` to
+`active` on disk, the way a script or another editor would, and the row
+appears without anything being clicked. A query block can render as a table,
+or as a board grouped by one of the fields.
 
 ## Link notes by name, and see what links back
 
@@ -118,18 +114,18 @@ with case, whole-word and regular-expression switches beside the field. The
 sidebar's search field asks the same question of the whole collection: results
 come back grouped by note with the matching line under each, and choosing one
 opens that note scrolled to the match, with the find bar already holding the
-query. The collection index is built in-process; there is no external search
-service.
+query. The index is built and kept inside the application: nothing is
+uploaded and there is no service to sign up for.
 
 ## One choice repaints the whole window
 
 ![The View menu's Theme submenu; choosing Dark repaints the toolbar, both side panes, the note and its diagram, then Sepia does the same, then back to Light](screenshots/gallery/theme.gif)
 
 Light, dark, sepia and a high-contrast theme, plus one that follows the
-desktop. A theme is not a stylesheet over the document alone: the toolbar, the
-folder tree, the note list, the status bar, the syntax highlighting in code
-blocks and the colours a diagram is drawn with all change together, which is
-what the clip is showing as it cycles through three of them.
+desktop. A theme reaches further than the page you are writing on: the
+toolbar, the folder tree, the note list, the status bar, the colours code is
+highlighted in and the colours a diagram is drawn with all change together,
+which is what the clip shows as it cycles through three of them.
 
 ## Copy any diagram out as text
 
@@ -141,12 +137,10 @@ go. The clip hovers the rendered flowchart, clicks **Copy as text**, and pastes
 the result into a code block directly underneath, so the drawing and its text
 version are on screen together.
 
-The caret is deliberately left in that code block. Box-drawing characters are
-also how Kvit recognises a diagram, so the pasted block renders as a second
-drawing as soon as it stops being edited, and holding it open is what keeps
-the characters themselves visible. What the text export still leaves out is
-listed in [docs/backlog.md](docs/backlog.md) under "What Copy as text still
-leaves out".
+The block stays open in the clip because box-drawing characters are also how
+Kvit recognises a diagram: leave that block and it renders as a drawing again,
+which is the same behaviour that turns box art you paste in from somewhere
+else into a diagram you can edit.
 
 ## Export a note to PDF, HTML, markdown or text
 
@@ -171,39 +165,17 @@ folder if you decide you want one.
 
 ---
 
-## Recording these yourself
+## The rest of it
 
-```bash
-cmake -S . -B build -DKVIT_UI_DRIVER=ON
-cmake --build build --target kvit-uidriver -j 8
-tools/record-gallery.sh              # every clip, into screenshots/gallery/
-tools/record-gallery.sh kanban       # or just one
-```
+Thirteen clips are not the whole application, and some of what is missing is
+hard to show in a few seconds. Notes live in folders and have tags; there is a
+quick switcher, an outline pane, pinning and favourites, templates, import,
+word-count goals, focus and typewriter modes, note history you can restore
+from, and the whole editor is operable from the keyboard alone. Pasted ASCII
+box art is straightened as it comes in, conservatively enough that the fix is
+usually a single character.
 
-The clips are captured at 1280×800 and published 900 pixels wide, from the
-demo vault checked in at `screenshots/demo-vault/` plus the extra notes in
-`screenshots/demo-vault-gallery/`. The vault is staged at a fixed path under
-`/tmp` for every run, because the status bar renders the open note's absolute
-path and a capture made from a home directory would put a username into its
-pixels; `tools/check-image-leaks.sh` reads sampled frames of every committed
-clip as a backstop against exactly that.
-
-## What is not here
-
-Two things were tried and left out rather than shipped as something
-confusing to watch.
-
-**Diagram repair on paste.** Pasted ASCII box art is straightened as it is
-ingested, but the repair is deliberately conservative. Every fix is a
-zero-shift edit, such as a wall character swapped for a space or a corner
-extended through fill; label text is never touched, and anything the rules
-cannot fix cleanly is left exactly as written. Against three kinds of ragged input it
-padded one line by a single space, declined to touch the second, and could not
-fix the third. There is no before-and-after that a viewer could see at this
-size. The feature is real and is specified in
-[features.md](features.md); it just does not film.
-
-**Anything requiring a second application.** The export clip ends at the
-status bar rather than in a PDF viewer, and the single-file clip shows the
-file's path rather than a file manager, because the recording runs in a
-headless session with nothing else installed in it.
+[usage.md](usage.md) walks through using it and lists the keyboard shortcuts.
+[features.md](features.md) is the specification, feature by feature.
+[accessibility.md](accessibility.md) covers screen readers, keyboard
+operation and the contrast floor.

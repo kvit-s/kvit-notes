@@ -357,6 +357,20 @@ scratch-directory path rendered into its status bar.
   platform plugin, and assembles each frame directory with
   `tools/make-gif.sh` at 900 pixels wide and twice the captured speed.
 
+```bash
+cmake -S . -B build -DKVIT_UI_DRIVER=ON
+cmake --build build --target kvit-uidriver -j 8
+tools/capture-press-stills.sh        # the four stills
+tools/record-gallery.sh              # all thirteen clips, ~15 minutes
+tools/record-gallery.sh kanban       # or just one
+```
+
+Captures are made at 1280x800 and the clips published at 900 pixels wide;
+larger frames make larger GIFs without making the interface more legible. Both
+scripts stage the vault under `/tmp` rather than in place, because the status
+bar renders the open note's absolute path and a capture made from a home
+directory puts a username into its pixels.
+
 A gallery clip is a `tour-*` scenario in the driver's segment table, which
 holds each segment's name, its caption, its function, and whether `tour-all`
 plays it. Adding a feature means writing one function and one table row. The
