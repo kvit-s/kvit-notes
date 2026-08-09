@@ -73,8 +73,8 @@ class WindowRouter;
 // properties.
 //
 // This used to be the body of main(). It lives in the core library so that a
-// binary other than the stock editor — a build that links the core plus a
-// premium module and supplies its own main() — composes the same editor
+// binary other than the stock editor — a build that links the core plus the
+// agent module and supplies its own main() — composes the same editor
 // without copying the wiring. The stock launcher is then only
 // KvitApplication plus a nine-line main().
 //
@@ -168,7 +168,7 @@ public:
     void setWindowRouter(WindowRouter *router) { m_router = router; }
 
     // Accessors for the launcher's startup instrumentation and for a superset
-    // build that wires premium objects against the core's.
+    // build that wires its own objects against the core's.
     BlockModel *blockModel() { return &m_blockModel; }
     UndoStack *undoStack() { return &m_undoStack; }
     DocumentManager *documentManager() { return &m_documentManager; }
@@ -185,7 +185,7 @@ public:
     UrlLauncher *urlLauncher() { return &m_urlLauncher; }
     // The process-global services, forwarded from the shared ProcessServices
     // this context is wired against. Same surface as before the split, so the
-    // launcher and any premium main() compile unchanged.
+    // launcher and any downstream main() compile unchanged.
     ProcessServices *processServices() { return &m_globals; }
     SettingsStore *settings() { return m_globals.settings(); }
     SystemTray *systemTray() { return m_globals.systemTray(); }

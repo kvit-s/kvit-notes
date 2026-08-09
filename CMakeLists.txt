@@ -53,13 +53,13 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTes
 # registered from C++ (see the NO_PLUGIN note on qt_add_qml_module below).
 qt_policy(SET QTP0001 NEW)
 
-# The premium agent module. OFF is the open editor: nothing under
+# The agent module. OFF is the open editor: nothing under
 # src/agent/ or qml/agent/ is compiled, no KVIT_AGENT define is set, and the
 # two guarded fragments in src/main.cpp vanish with the preprocessor. Exporting
 # the public repo is then the deletion of those paths, not an exclusion list.
-option(KVIT_AGENT "Build the premium agent module (src/agent, qml/agent)" OFF)
+option(KVIT_AGENT "Build the agent module (src/agent, qml/agent)" OFF)
 
-# The premium module is a separate product, not an optional part of this one.
+# The agent module is a separate product, not an optional part of this one.
 # It lives in the private kvit-notes-pro repository, which links this
 # repository in as a submodule and configures the build from there; this
 # checkout deliberately contains none of its sources. Turning the option on
@@ -81,15 +81,15 @@ if(KVIT_AGENT)
     if(_kvit_agent_missing)
         string(REPLACE ";" "\n    " _kvit_agent_missing_lines "${_kvit_agent_missing}")
         message(FATAL_ERROR
-            "KVIT_AGENT=ON, but the premium agent module is not present in this "
+            "KVIT_AGENT=ON, but the agent module is not present in this "
             "source tree.\n"
             "Missing:\n    ${_kvit_agent_missing_lines}\n\n"
             "This repository is the open core of Kvit Notes and ships without the "
-            "premium module by design. The module lives in the private "
+            "agent module by design. The module lives in the private "
             "kvit-notes-pro repository, which includes this one as a submodule and "
             "configures the build from there.\n\n"
             "To build the open editor, configure with -DKVIT_AGENT=OFF (the "
-            "default). To build the premium editor, configure kvit-notes-pro "
+            "default). To build that editor, configure kvit-notes-pro "
             "rather than this directory.")
     endif()
     unset(_kvit_agent_expected)
@@ -622,14 +622,14 @@ endforeach()
 # ── kvit-core — "the editor", as one name.
 #
 # The stock executable below is a thin main() linking it; a superset build
-# that adds a premium module links the same thing and supplies its own main();
+# that adds the agent module links the same thing and supplies its own main();
 # the test suite links it rather than naming the module a given test happens
 # to exercise. It is an interface target, so it contributes no objects of its
 # own — it is the seven modules under one label.
 add_library(kvit-core INTERFACE)
 target_link_libraries(kvit-core INTERFACE kvit-qml)
 
-# The premium module, built as its own library so the open build never
+# The agent module, built as its own library so the open build never
 # compiles a line of it. It links the core and is linked BY the executable —
 # the core knows nothing about it, and it reaches the app only through
 # ExtensionRegistry.

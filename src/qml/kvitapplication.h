@@ -25,7 +25,7 @@ class WindowRegistry;
 //
 // Each editor window is a VaultWindow the registry owns — its own AppContext
 // bound to its own QQmlEngine — so this class no longer owns a single context
-// or engine. A superset build that adds a premium module installs its
+// or engine. A superset build that adds the agent module installs its
 // extensions into ProcessServices before calling start(), and otherwise reuses
 // this class unchanged.
 class KvitApplication : public QObject
@@ -72,7 +72,7 @@ public:
     void setShellUrl(const QUrl &url) { m_shellUrl = url; }
     QUrl shellUrl() const { return m_shellUrl; }
 
-    // The process-global composition, shared by every window. A premium main()
+    // The process-global composition, shared by every window. A downstream main()
     // installs its module here before start().
     ProcessServices &processServices() { return m_processServices; }
     WindowRegistry *registry() { return m_registry.get(); }

@@ -117,9 +117,8 @@ Discussions thread before building anything sizable.
 
 Some directions are deliberately declined, so that the loudest week-one
 requests do not set the roadmap. Please do not open PRs for: mobile apps, a
-sync service, an arbitrary CSS/theming engine, a general plugin API
-(revisited after the premium tier ships), vim mode, real-time collaboration,
-or an embedded web/PDF viewer.
+sync service, an arbitrary CSS/theming engine, a general plugin API, vim
+mode, real-time collaboration, or an embedded web/PDF viewer.
 
 ## Licensing of contributions
 

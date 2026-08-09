@@ -518,11 +518,11 @@ private slots:
         AppContext clean(options);
         clean.openSettings(dir.filePath(QStringLiteral("settings2.json")));
         clean.extensions()->install(
-            std::make_unique<NameGrabbingExtension>(QStringLiteral("premium")));
+            std::make_unique<NameGrabbingExtension>(QStringLiteral("agent")));
         QQmlEngine cleanEngine;
         clean.installContextProperties(&cleanEngine);
         QCOMPARE(clean.extensions()->publishedNamespaces(),
-                 QStringList{QStringLiteral("premium")});
+                 QStringList{QStringLiteral("agent")});
     }
 
     // Every kind the registry knows must have a delegate that loads.

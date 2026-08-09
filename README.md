@@ -92,6 +92,18 @@ intended behavior, design constraints and unfinished work apart.
 | [docs/backlog.md](docs/backlog.md) | What is known to be missing or unfinished? |
 | [devel.md](devel.md) | How do I build, debug and test it? |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How do I send a change? |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, and in which version? |
+
+Five further documents go deeper on one area each, and are written for someone
+about to change that area rather than for a first read:
+
+| Document | Area |
+|---|---|
+| [block-arch.md](block-arch.md) | How the twenty-one block kinds are defined, and why each one is a class rather than a switch case |
+| [selection.md](selection.md) | Selecting and copying text in blocks the editor draws rather than edits |
+| [accessibility.md](accessibility.md) | Screen reader, keyboard-only use, contrast floors, reduced motion, and the checks that enforce them |
+| [multi-vault.md](multi-vault.md) | Several vaults open at once, in separate windows of one process |
+| [diagram-math.md](diagram-math.md) | LaTeX typeset inside Mermaid diagram labels |
 
 ## Why Kvit
 

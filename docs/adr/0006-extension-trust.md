@@ -11,7 +11,7 @@ than silently shadowing what was there.
 ## Context
 
 Kvit Notes is built as an open core with an extension seam. The open editor ships
-no extensions of its own; the interface exists so that a premium build can add
+no extensions of its own; the interface exists so that a separate build can add
 block kinds, QML objects and panels without that code, or any conditional
 referring to it, living in the core. An extension is a module linked on top of
 the core library, installed into `ExtensionRegistry` from `main()` before the

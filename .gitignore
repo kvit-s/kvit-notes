@@ -78,3 +78,10 @@ packaging/linux/.tools/
 # entry is the only thing keeping it out of a public commit. Do not add
 # exceptions under it.
 /planning/
+
+# Coding-assistant instructions for this checkout. Private for the same
+# reason as the entries above: it records this machine's environment and the
+# two-repository layout, neither of which a reader of the public repository
+# needs. Contributor-facing build and test guidance belongs in devel.md and
+# CONTRIBUTING.md, which are published.
+/CLAUDE.md

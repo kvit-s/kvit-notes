@@ -35,8 +35,8 @@ inline const char *DocumentHeader = "documentHeader";
 
 // A module linked on top of the core library.
 //
-// The open editor has no extensions of its own; the interface exists so the
-// premium build can add its block kinds, its QML objects and its panels
+// The open editor has no extensions of its own; the interface exists so a
+// linked module can add its block kinds, its QML objects and its panels
 // without any of that code — or any conditional referring to it — living in
 // the core. An extension is installed into ExtensionRegistry from main()
 // before the shell loads, and the core calls back into it at three points:

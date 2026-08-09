@@ -4,55 +4,20 @@ All notable changes to Kvit Notes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+Entries accumulate under the heading of the version they will ship in. That
+heading gains its release date and a link to its tag when the version is
+published; until then it is marked unreleased.
 
-### Changed
+## 1.0.0 — unreleased
 
-- Colours across all four themes now meet WCAG 2.1 level AA: 4.5:1 for text
-  and 3:1 for the parts of a control that show where it is and what state it
-  is in. Fourteen token pairs were below the line, concentrated in the light
-  and sepia themes — faint text, code comments and strings, warning and
-  success text, the outline of an unchecked to-do box, the bar beside a quote,
-  list bullets. Each moved to the nearest value of the same hue that clears
-  the floor, so the appearance shifts as little as the requirement allows.
-
-- The label drawn on an accent-filled control is now computed from the accent
-  rather than stored as white. A custom accent chosen from Settings therefore
-  gets a label that suits it, where a pale one used to produce white text on a
-  pale fill; the accent picker also warns when the chosen colour is too faint
-  against the page.
-
-- On macOS the File and View menus are in the system menu bar at the top of
-  the screen, where a Mac application's menus belong, rather than on buttons
-  inside the window; "Settings…" and the quit command appear in the
-  application menu the way macOS places them. The toolbar keeps its File and
-  View buttons on Windows and Linux, and both places show the same commands
-  because they are the same two menu definitions.
-
-- macOS packages from release tags and manual `main` packaging runs are now
-  Developer ID-signed, notarized and stapled. The packaging job fails instead
-  of uploading an ad-hoc artifact when credentials, signing, notarization or
-  Gatekeeper verification fails.
-- The default gap between editor blocks is now 4 px instead of 8 px. It can
-  still be adjusted from 0–40 px under Settings → Typography → Block spacing;
-  previously saved choices are left unchanged.
-- The caret in the space between blocks now accepts Ctrl+V / Cmd+V. Plain
-  lines become paragraphs at that exact seam, structured Clipboard content
-  keeps its block types, and paste-as-plain drops formatting; the caret then
-  continues at the end of the pasted blocks.
-- A collection query's spec editor now opens above its results instead of in
-  place of them, the way a diagram and an equation keep their preview while
-  their source is being written. The results are the only preview a query has,
-  so putting them away for the duration hid the answer to the question being
-  asked.
-
-- A newly inserted block no longer fades in. While a list is running that
-  fade it discards any height a row reports, and never revisits it, so a row
-  that acquires its height while the animation runs was drawn over the row
-  below it until the reader next edited something. Diagrams, images and
-  anything else that sizes itself asynchronously are the rows that hit it.
-  Insertions, deletions and reorders still slide the rows below them, under
-  the reduced-motion setting as before.
+The first public release: the full block editor (hybrid live-preview
+markdown, the complete block palette, tables and kanban, callouts, toggles,
+embeds, drop caps), a notes collection with folders, tags, global search,
+wiki-links with backlinks and a quick switcher, LaTeX math with the NewTX
+default face, five natively rendered Mermaid diagram families with
+on-diagram editing, ASCII-diagram repair, import/export (Markdown, HTML,
+PDF, plain text), themes and typography settings, autosave with backups and
+crash recovery, and War-and-Peace-scale performance.
 
 ### Added
 
@@ -235,6 +200,52 @@ uses [Semantic Versioning](https://semver.org/).
 - Application icon.
 
 ### Changed
+
+- Colours across all four themes now meet WCAG 2.1 level AA: 4.5:1 for text
+  and 3:1 for the parts of a control that show where it is and what state it
+  is in. Fourteen token pairs were below the line, concentrated in the light
+  and sepia themes — faint text, code comments and strings, warning and
+  success text, the outline of an unchecked to-do box, the bar beside a quote,
+  list bullets. Each moved to the nearest value of the same hue that clears
+  the floor, so the appearance shifts as little as the requirement allows.
+
+- The label drawn on an accent-filled control is now computed from the accent
+  rather than stored as white. A custom accent chosen from Settings therefore
+  gets a label that suits it, where a pale one used to produce white text on a
+  pale fill; the accent picker also warns when the chosen colour is too faint
+  against the page.
+
+- On macOS the File and View menus are in the system menu bar at the top of
+  the screen, where a Mac application's menus belong, rather than on buttons
+  inside the window; "Settings…" and the quit command appear in the
+  application menu the way macOS places them. The toolbar keeps its File and
+  View buttons on Windows and Linux, and both places show the same commands
+  because they are the same two menu definitions.
+
+- macOS packages from release tags and manual `main` packaging runs are now
+  Developer ID-signed, notarized and stapled. The packaging job fails instead
+  of uploading an ad-hoc artifact when credentials, signing, notarization or
+  Gatekeeper verification fails.
+- The default gap between editor blocks is now 4 px instead of 8 px. It can
+  still be adjusted from 0–40 px under Settings → Typography → Block spacing;
+  previously saved choices are left unchanged.
+- The caret in the space between blocks now accepts Ctrl+V / Cmd+V. Plain
+  lines become paragraphs at that exact seam, structured Clipboard content
+  keeps its block types, and paste-as-plain drops formatting; the caret then
+  continues at the end of the pasted blocks.
+- A collection query's spec editor now opens above its results instead of in
+  place of them, the way a diagram and an equation keep their preview while
+  their source is being written. The results are the only preview a query has,
+  so putting them away for the duration hid the answer to the question being
+  asked.
+
+- A newly inserted block no longer fades in. While a list is running that
+  fade it discards any height a row reports, and never revisits it, so a row
+  that acquires its height while the animation runs was drawn over the row
+  below it until the reader next edited something. Diagrams, images and
+  anything else that sizes itself asynchronously are the rows that hit it.
+  Insertions, deletions and reorders still slide the rows below them, under
+  the reduced-motion setting as before.
 
 - Enter in a table cell moves down the column, the way it does in a
   spreadsheet and the way Down now does. It ended the edit and left the caret
@@ -455,14 +466,3 @@ uses [Semantic Versioning](https://semver.org/).
   which filtered them across neighbouring pixels. The renderer now leaves a
   transparent side margin, and the overlay places each image on a whole
   device pixel at its bitmap's own size.
-
-## [1.0.0] - unreleased
-
-The first public release: the full block editor (hybrid live-preview
-markdown, the complete block palette, tables and kanban, callouts, toggles,
-embeds, drop caps), a notes collection with folders, tags, global search,
-wiki-links with backlinks and a quick switcher, LaTeX math with the NewTX
-default face, five natively rendered Mermaid diagram families with
-on-diagram editing, ASCII-diagram repair, import/export (Markdown, HTML,
-PDF, plain text), themes and typography settings, autosave with backups and
-crash recovery, and War-and-Peace-scale performance.

@@ -3,14 +3,13 @@
 Kvit Notes is a block editor for Markdown notes built on Qt 6 and QML, shipping
 on Windows, macOS and Linux. This document records what the application does
 today for people who use a screen reader, work without a pointing device, need
-larger text or stronger colour contrast, or are affected by animation, and it
-sets out the work needed to close the gaps found in the review of 2026-08-04.
+larger text or stronger colour contrast, or are affected by animation.
 
-It is the specification for that work. `features.md` §14 states the intent in
-one screen; this document is where the intent meets the actual code, names the
-files to change, and says how each change is verified. Where a claim here was
-measured rather than reasoned about, the measurement is described so it can be
-repeated.
+`features.md` §14 states the intent in one screen; this document is where that
+intent meets the actual code. It names the file each behaviour lives in, the
+check that stops it regressing, and the review of 2026-08-04 that closed the
+gaps between the two. Where a claim here was measured rather than reasoned
+about, the measurement is described so it can be repeated.
 
 ## Status
 

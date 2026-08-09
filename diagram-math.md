@@ -12,10 +12,15 @@ Separately, the application renders LaTeX through a vendored MicroTeX engine,
 reached only through the `MathRenderer` seam in `src/content/mathrenderer.h`.
 Inline `$…$` spans in prose and `$$` display blocks both go through it.
 
-These two capabilities do not currently meet. A label such as
-`A["$$\frac{a}{b}$$"]` inside a flowchart draws the literal characters
-`$$\frac{a}{b}$$` inside the node box. This document specifies making that
-label typeset.
+The two meet in one place. A label that is entirely a `$$…$$` span is typeset
+through MicroTeX rather than drawn as its own source, so `A["$$\frac{a}{b}$$"]`
+inside a flowchart shows the fraction, on screen and in every export that goes
+through the native renderer.
+
+This document describes how that works: the syntax accepted and why it matches
+Mermaid's, how a formula is measured and given room in a layout built for text,
+what happens when a formula fails to compile, and where the current rule stops.
+"What is implemented" near the end names the files.
 
 The reader is assumed to know the codebase layout but not this corner of it;
 every file and line referenced below is named.
@@ -42,19 +47,18 @@ ordinary text in a diagram label, where currency amounts and shell variables
 appear routinely. Requiring the doubled form keeps every existing diagram
 rendering exactly as it does today.
 
-## What already works, and what does not
+## Which output path typesets, and which delegates
 
-HTML export needed no change, and this was confirmed before any code was
-written. The browser branch at `src/application/documentexporter.cpp:615` emits
-`<pre class="mermaid">` around the original source, so `$$…$$` reaches
-Mermaid.js unaltered. The pinned version is 11.16.0
-(`src/application/documentexporter.cpp:89`), well past the 10.9.0 release that
-added math, and Mermaid renders expressions as MathML by default, which needs
-no additional stylesheet.
+HTML export typesets nothing itself. The browser branch at
+`src/application/documentexporter.cpp:615` emits `<pre class="mermaid">` around
+the original source, so `$$…$$` reaches Mermaid.js unaltered; the pinned version
+is 11.16.0 (`src/application/documentexporter.cpp:89`), well past the 10.9.0
+release that added math, and Mermaid renders expressions as MathML by default,
+which needs no additional stylesheet.
 
-The gap was the native renderer: the on-screen diagram, and the raster that PDF
-export embeds. Both consume a `Diagram::Scene` and both paint it through the
-same function, so they were one problem rather than two.
+The native renderer does the typesetting: the on-screen diagram, and the raster
+that PDF and PNG export embed. Both consume a `Diagram::Scene` and both paint it
+through the same function, so they are one path rather than two.
 
 ## Design
 
@@ -299,7 +303,6 @@ tall. Changing this means selecting the style by role in both `mathLabelSize`
 and the painter, which is a one-line change in each since both already have the
 role in hand.
 
-The first line of the earlier draft's risk list, that moving text measurement
-into a shared helper could resize existing diagrams, was removed rather than
-mitigated: the helper never took over text measurement. See the measurement
-section for why.
+A diagram with no math label measures and renders exactly as it did before any
+of this existed, because the shared helper never took over plain-text
+measurement. The measurement section explains why it was left alone.

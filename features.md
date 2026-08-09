@@ -1,10 +1,24 @@
-# Block Editor Features Specification
+# Kvit Notes — feature specification
 
-A comprehensive features document for a Qt-based block editor inspired by Daino Notes and similar modern note-taking applications.
+This is the behaviour specification for Kvit Notes, a native block editor for
+Markdown notes built on Qt 6 and QML. A note is stored as an ordinary `.md` file
+and shown fully rendered, with the raw markdown of a span revealed only while the
+cursor is inside it. The sections below state, feature by feature, what the
+application is specified to do: the block system and the twenty-one block kinds,
+text editing and formatting, the notes collection, the user interface, and the
+platform integration around them.
 
-The collection query block, Mermaid text export, and linked-note navigation additions were
-audited against the implementation on 2026-07-12. Their entries below describe the behavior
-currently present in the repository; remaining hardening work is recorded in §21.9.
+Four documents divide this ground up, because they answer different questions and
+go stale at different rates:
+
+- **This document** states intended behaviour.
+- **[usage.md](usage.md)** explains how to use the application, and is the better
+  starting point for a reader who has not run it yet.
+- **[docs/backlog.md](docs/backlog.md)** records the known differences between this
+  specification and what the code does today, so that no paragraph here has to
+  hedge about whether it is already shipped.
+- **[docs/adr/](docs/adr/)** holds the decisions the code is constrained by, and
+  **[devel.md](devel.md)** covers building, debugging and testing.
 
 ---
 
@@ -942,6 +956,19 @@ Display when cursor moves into "information":
 - Efficient undo/redo operations
 - Background save operations
 
+### 11.4 Targets
+- Load time: under 1 second for documents up to 500,000 words
+- Typing latency: imperceptible, meaning under 16 ms so a 60 fps frame is never missed
+- Scrolling: 60 fps through delegate virtualization, at any document size
+- Memory: scales linearly with document size
+
+Two of these are asserted by the test suite rather than left as intentions: the
+500-note collection open and the 500-note search query each run against a budget
+on every merge. Both are measured in process CPU time rather than wall-clock,
+because wall-clock on a shared machine measures the neighbouring processes; the
+reasoning and the measurements behind the thresholds are in `tests/timingbudget.h`
+and summarized in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ---
 
 ## 12. Data Storage & Persistence
@@ -1177,25 +1204,51 @@ in this repository can perform.
 
 ---
 
-## 20. Sync & Collaboration (Future Consideration)
+## 20. Sync and collaboration are out of scope
 
-### 20.1 Cloud Sync
-- Sync notes across devices
-- Conflict resolution
-- Offline support with sync when online
-- Selective folder sync
+Kvit Notes does not synchronize notes between devices and does not support
+several people editing one note at the same time. Neither is planned, so neither
+appears in [docs/backlog.md](docs/backlog.md): this is a boundary of the product
+rather than unfinished work inside it, and [CONTRIBUTING.md](CONTRIBUTING.md)
+lists both among the directions the project declines.
 
-### 20.2 Real-time Collaboration
-- Multiple users editing same document
-- Presence indicators showing other cursors
-- User attribution for changes
-- Comment/annotation system
+### 20.1 Why sync is left to the filesystem
+
+A vault is an ordinary folder of `.md` files, so any general-purpose file sync
+already running on the machine moves notes between devices without the editor
+participating: Syncthing, Dropbox, iCloud Drive, or a git remote all work, and
+each of them handles the offline case and the selective-folder case better than
+an editor-specific implementation would.
+
+What the editor does have to handle is a file changing underneath an open note,
+and it does. An external write to the open file surfaces as a keep-mine or
+load-theirs banner rather than being silently overwritten or silently discarded
+(§12), which is the point where sync and the editor actually meet.
+
+### 20.2 Why real-time collaboration is a different decision
+
+Concurrent editing is not a feature that could be added later behind a setting.
+It needs a server, a persistent identity per editor, and a conflict-resolution
+model such as operational transformation or a conflict-free replicated data type
+living in the document core. That last requirement contradicts the decision the
+rest of the design rests on, which is that the file on disk is the single
+authoritative copy of a note and everything else is rebuildable from it
+([docs/adr/0001](docs/adr/0001-files-on-disk-are-authoritative.md)). Comments and
+annotations are declined for the same reason: markdown has no notation for them,
+so storing them means either a sidecar database or a syntax that other editors
+would render as stray text.
 
 ---
 
-## 21. Implementation Considerations
+## 21. Implementation notes
 
-This section documents key technical challenges and solutions discovered in existing block editor implementations, particularly from Daino Notes.
+The techniques below are the non-obvious ones the editor rests on. Each solves a
+problem that is easy to hit and hard to diagnose when building a block editor on
+Qt Quick: a cursor whose position must be read against three different
+representations of the same text, delegates the view is entitled to destroy while
+a drag is in flight, an undo stack that has to merge keystrokes the way a person
+expects. They are recorded beside the behaviour they produce so that a later
+reader can tell an arbitrary-looking choice from a considered one.
 
 ### 21.1 Cursor Position Detection in Hybrid Markdown Mode
 
@@ -1322,71 +1375,10 @@ Complex blocks like Kanban boards need a syntax that remains human-readable in p
 - Content degrades gracefully in plain text editors
 - Nested content uses familiar Markdown syntax
 
-### 21.7 Performance Benchmarks
+### 21.9 Known gaps
 
-Reference benchmarks from Daino Notes testing with "War and Peace" (561,693 words):
-
-| Application | Load Time | Notes |
-|-------------|-----------|-------|
-| Daino Notes | 0.33s | Qt/QML with virtualization |
-| AppFlowy | 2.20s | Crashes on large documents |
-| MarkText | 19.90s | Electron-based |
-| Notion | N/A | Too slow to measure |
-
-**Performance targets**:
-- Load time: < 1 second for documents up to 500,000 words
-- Typing latency: imperceptible (< 16ms for 60fps)
-- Scroll performance: smooth 60fps with virtualization
-- Memory: scale linearly with document size
-
-**Known bottlenecks to address**:
-- Bulk block deletion can block UI (runs on main thread)
-- Saving entire document on each change vs. incremental saves
-- Memory pooling for delegate reuse optimization
-
-### 21.8 Qt-Specific Considerations
-
-**Known limitations**:
-- ListView scrolling may not match native platform feel exactly
-- RichText span styling (border, border-radius) not natively supported
-- Blurred/translucent window backgrounds require platform-specific handling
-
-**Useful libraries**:
-- QWindowKit: frameless windows with native controls (macOS, Windows, Linux)
-- QSimpleUpdater: cross-platform application updates
-- Custom HTML exporter: normalize Qt's non-standard HTML output
-
-**Licensing note**:
-- Qt LGPL permits static linking when providing object files and relinking capability
-- Dynamic linking is not the only option for LGPL compliance
-
-### 21.9 Pre-Launch Implementation Follow-ups
-
-Moved to [docs/backlog.md](docs/backlog.md). Known gaps between shipped
-behavior and this specification are tracked there rather than inside the
-specification itself, so that a reader can tell which of the two a given
-paragraph describes.
-
----
-
-## References
-
-### Primary Sources
-
-- **Daino Notes Block Editor Article**: [Developing a Beautiful and Performant Block Editor in Qt C++ and QML](https://rubymamistvalove.com/block-editor) - Comprehensive technical deep-dive into building a block editor with Qt
-
-- **Daino Notes GitHub**: [github.com/nuttyartist/daino-notes-public](https://github.com/nuttyartist/daino-notes-public) - Open source Qt/QML note-taking application
-
-- **Daino Notes Website**: [get-notes.com](https://www.get-notes.com/) - Official product page
-
-### Related Block Editor Implementations
-
-- **BlockNote**: [blocknotejs.org](https://www.blocknotejs.org/) - React-based block editor built on Prosemirror and Tiptap
-
-- **BlockNote GitHub**: [github.com/TypeCellOS/BlockNote](https://github.com/TypeCellOS/BlockNote) - Open source Notion-style editor
-
-### Comparison and Alternatives
-
-- **AlternativeTo - Daino Notes**: [alternativeto.net/software/plume-notes](https://alternativeto.net/software/plume-notes/) - List of similar note-taking applications
-
-- **Best Block-Based Editors**: [makeuseof.com/best-block-based-editors-note-taking](https://www.makeuseof.com/best-block-based-editors-note-taking/) - Comparison of Notion, Workflowy, RemNote, and others
+Differences between shipped behavior and this specification are tracked in
+[docs/backlog.md](docs/backlog.md) rather than inside the specification itself,
+so that a reader can tell which of the two a given paragraph describes. The
+follow-ups this subsection once listed are recorded there under their original
+heading, with where each one ended up.

@@ -5,7 +5,7 @@
 # :(exclude) entries carve private code out of included trees.
 #
 # Deliberately absent, kept in the private planning tree: the product and
-# milestone planning documents, the premium agent module (src/agent,
+# milestone planning documents, the agent module (src/agent,
 # qml/agent, tests/agent, agent_resources.qrc), and the tracked perf log
 # with machine-local paths (tests/perf/live).
 CMakeLists.txt

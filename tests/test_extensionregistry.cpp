@@ -14,7 +14,7 @@
 
 namespace {
 
-// A stand-in for a linked module: it does what the premium agent module does —
+// A stand-in for a linked module: it does what the agent module does —
 // claims a fence language, publishes a QML object, and fills one UI slot —
 // without the test depending on that module being compiled in.
 class FakeExtension : public KvitExtension
@@ -59,7 +59,7 @@ private:
 
 } // namespace
 
-// The extension seam: the one place premium code attaches to the open
+// The extension seam: the one place a linked module attaches to the open
 // core. The core installs nothing itself, so the cases below are
 // also the record of what the open build does — namely nothing, with every
 // slot resolving empty and the shell laying out as if the seam were absent.

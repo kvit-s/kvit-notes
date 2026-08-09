@@ -23,8 +23,9 @@ cannot draw its own disabled state (`qml/DiscoverableMenuItem.qml`).
 ./build/kvit-notes   # launch directly
 ```
 
-Optional CMake flags: `-DKVIT_AGENT=ON` (premium agent module),
-`-DKVIT_UI_DRIVER=ON` (the scriptable UI driver below).
+Optional CMake flags: `-DKVIT_AGENT=ON` (the agent module, whose sources are
+not in this repository), `-DKVIT_UI_DRIVER=ON` (the scriptable UI driver
+below).
 
 ## Where a new file goes
 
@@ -445,8 +446,8 @@ refusals, redirect re-checks, streaming caps, and local-only media handoff.
 ## Extensions are first-party code, and that is the decision
 
 Kvit Notes is the open core of a two-repository product. The private
-`kvit-notes-pro` repository links this one in as a submodule and adds a
-premium module on top, behind the `KVIT_AGENT` option. `KvitExtension` and
+`kvit-notes-pro` repository links this one in as a submodule and adds an agent
+module on top, behind the `KVIT_AGENT` option. `KvitExtension` and
 `ExtensionRegistry` exist so that module can attach without this tree
 carrying any conditional that refers to it.
 
@@ -547,7 +548,7 @@ module contributes legible from the core:
 
 **`KVIT_AGENT=ON` against this checkout stops at configure time with an
 explanation.** The module's sources are deliberately absent here, so the
-option now checks for them and explains that the premium module lives in
+option now checks for them and explains that the agent module lives in
 `kvit-notes-pro` and that this repository builds the open editor with the
 option off. It used to fail deep inside `qt_add_executable` with "Cannot find
 source file" for each missing path, which reads like a broken checkout.

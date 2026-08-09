@@ -3,10 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The open editor's launcher. Everything it used to do now lives in the core
 // library — AppContext composes the editor, KvitApplication owns the QML
-// engine — so that a superset binary built from the core plus a premium
+// engine — so that a superset binary built from the core plus the agent
 // module supplies its own main() without copying any of that wiring.
 //
-// The premium module is compiled only with -DKVIT_AGENT=ON and lives entirely
+// The agent module is compiled only with -DKVIT_AGENT=ON and lives entirely
 // under src/agent/, so splitting the tree into a public repo and a private one
 // is a file move plus the deletion of the two guarded fragments below.
 
