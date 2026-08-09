@@ -349,7 +349,7 @@ scratch-directory path rendered into its status bar.
 
 - **`screenshots/press/`**: four stills the README and the AppStream metadata
   use. `tools/capture-press-stills.sh` remakes them.
-- **`screenshots/gallery/`**: the thirteen clips [gallery.md](gallery.md)
+- **`screenshots/gallery/`**: the fourteen clips [gallery.md](gallery.md)
   shows, one per feature. `tools/record-gallery.sh` remakes them, with an
   optional list of clip names to redo only some. It stages the vault at
   `/tmp/kvit-notes-demo/vault` afresh for every clip, adds the extra notes
@@ -361,7 +361,7 @@ scratch-directory path rendered into its status bar.
 cmake -S . -B build -DKVIT_UI_DRIVER=ON
 cmake --build build --target kvit-uidriver -j 8
 tools/capture-press-stills.sh        # the four stills
-tools/record-gallery.sh              # all thirteen clips, ~15 minutes
+tools/record-gallery.sh              # all fourteen clips, ~15 minutes
 tools/record-gallery.sh kanban       # or just one
 ```
 

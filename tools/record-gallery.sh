@@ -17,6 +17,11 @@
 # gives a real windowing surface with working focus that never touches the
 # display, which is what the integration gate uses for the same reason.
 #
+# --no-caption, because a gallery clip sits under a heading and a paragraph
+# that name the feature better than a band across the frame does. The band is
+# for the continuous video tour, where nothing else on screen says what is
+# being shown.
+#
 # Requires a build with -DKVIT_UI_DRIVER=ON (build/kvit-uidriver) and ffmpeg.
 set -euo pipefail
 
@@ -42,8 +47,8 @@ SCRATCH=/tmp/kvit-gallery
 WIDTH=900
 SPEED=2
 
-ALL=(mermaid livepreview math astext query palette tables kanban wikilinks
-     search theme export singlefile)
+ALL=(mermaid livepreview math astext asciipaste query palette tables kanban
+     wikilinks search theme export singlefile)
 
 if [ ! -x "$DRIVER" ]; then
     echo "error: $DRIVER not found; configure with -DKVIT_UI_DRIVER=ON and" \
@@ -91,7 +96,7 @@ record() { # <scenario-suffix>
       XDG_CACHE_HOME="$home/.cache" XDG_DATA_HOME="$home/.local/share" \
       QT_QPA_PLATFORM=vnc \
         "$DRIVER" --scenario="tour-$name" --vault="$target" \
-                  --size=1280x800 --out="$SCRATCH" \
+                  --size=1280x800 --out="$SCRATCH" --no-caption \
                   --record="$frames" --fps=10 )
 
     "$ROOT/tools/make-gif.sh" "$frames" "$OUT/$name.gif" "$WIDTH" "$SPEED"

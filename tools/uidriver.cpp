@@ -1230,6 +1230,64 @@ bool tourExport(QQuickWindow *window, AppContext *ctx, const QString &vault)
     return true;
 }
 
+// Crooked box art pasted in, straightened as it arrives.
+//
+// The before has to be on screen for the after to mean anything, and a paste
+// is repaired at the moment it lands: by the time the pasted block draws, its
+// edges already line up. So the source sits in the note in a fence the ingest
+// pass does not touch — the eligible info strings are the empty one, `text`,
+// `plaintext` and `ascii`, and this one is `txt` — and the clip copies from
+// there into a block of its own, which leaves the crooked original above the
+// straightened copy.
+bool tourAsciiPaste(QQuickWindow *window, AppContext *ctx, const QString &vault)
+{
+    auto *model = ctx->blockModel();
+    if (!openNote(ctx, vault, QStringLiteral("Pasted diagram.md"))) {
+        return false;
+    }
+    const int source = blockContaining(model, QStringLiteral("Model output"));
+    if (source < 0) {
+        qWarning("uidriver: no box art in this note");
+        return false;
+    }
+    QQuickItem *delegate = showBlock(window, source);
+    if (!delegate) {
+        qWarning("uidriver: the art has no delegate on screen");
+        return false;
+    }
+    qInfo("uidriver: source art:\n%s", qPrintable(model->getContent(source)));
+
+    // Rest on the block first: the Copy button is a hover control, and the
+    // pause is also what gives a viewer time to see that the edges are ragged
+    // before anything happens to them.
+    glide(window, centerOf(delegate));
+    settle(2600);
+    QQuickItem *copy = namedItemIn(delegate, "codeCopyButton");
+    if (!copy || !copy->isVisible()) {
+        qWarning("uidriver: the code block's Copy button did not appear");
+        return false;
+    }
+    clickAt(window, centerOf(copy), 1200);
+
+    const int target = source + 1;
+    model->insertBlock(target, Block::CodeBlock, QString());
+    settle(600);
+    showBlock(window, target, 900);
+    focusBlock(window, target);
+    QTest::keyClick(window, Qt::Key_V, Qt::ControlModifier, 80);
+    settle(2400);
+    qInfo("uidriver: pasted as [%s]:\n%s",
+          qPrintable(model->getAttributes(target)),
+          qPrintable(model->getContent(target)));
+
+    // Both blocks in one frame, the crooked one above the straight one, with
+    // the caret out of the way so neither is drawn in its editing state.
+    if (QQuickItem *heading = showBlock(window, 0, 700))
+        clickAt(window, centerOf(heading), 1200);
+    settle(3600);
+    return true;
+}
+
 // Single-file mode: one .md opened on its own, with no vault around it. The
 // startup argument is the file, so this scenario opens nothing itself.
 bool tourSingleFile(QQuickWindow *window, AppContext *ctx, const QString &vault)
@@ -1278,6 +1336,11 @@ int main(int argc, char *argv[])
     QString note;       // absolute .md path opened after startup (still shots)
     QString shotName = QStringLiteral("still");
     QString title;      // caption band text, for the tour recordings
+    // The caption band is for a continuous video tour, where nothing else on
+    // screen says which feature is being shown. A gallery clip sits under a
+    // heading and a paragraph that say it better, so a band there only
+    // repeats them and costs the clip its first three seconds.
+    bool caption = true;
     QString recordDir;  // when set, frames are grabbed while the scenario runs
     int fps = 10;
     int winW = 0, winH = 0;
@@ -1296,6 +1359,8 @@ int main(int argc, char *argv[])
             shotName = arg.section(QLatin1Char('='), 1);
         else if (arg.startsWith(QStringLiteral("--title=")))
             title = arg.section(QLatin1Char('='), 1);
+        else if (arg == QStringLiteral("--no-caption"))
+            caption = false;
         // Grab frames while the scenario plays, for assembling into a GIF.
         // No screen recorder and nobody at the keyboard: the frames come from
         // the window itself, so this runs unattended and identically on any
@@ -1351,7 +1416,8 @@ int main(int argc, char *argv[])
 
         // The caption, when one was asked for, goes up before the scenario
         // starts so a recording opens on the feature's name.
-        showTitle(window, title);
+        if (caption)
+            showTitle(window, title);
 
         // Frame capture, when asked for. Each frame is named with the
         // milliseconds elapsed since capture began, because grabbing is not
@@ -1746,6 +1812,9 @@ int main(int argc, char *argv[])
                 {"tour-export",
                  "Export a note to PDF, HTML, markdown or text", tourExport,
                  false},
+                {"tour-asciipaste",
+                 "Paste crooked box art, get a straightened diagram",
+                 tourAsciiPaste, false},
                 {"tour-singlefile",
                  "Open a single file with no vault around it",
                  tourSingleFile, false},
@@ -1759,7 +1828,8 @@ int main(int argc, char *argv[])
                         continue;
                     // Each feature announces itself, replacing the caption
                     // the one before it left.
-                    showTitle(window, QString::fromUtf8(segment.caption));
+                    if (caption)
+                        showTitle(window, QString::fromUtf8(segment.caption));
                     if (!segment.run(window, ctx, vault)) {
                         qWarning("uidriver: %s failed; stopping the tour",
                                  segment.name);
@@ -1776,7 +1846,7 @@ int main(int argc, char *argv[])
                     matched = true;
                     // A segment run on its own gets its own caption when the
                     // command line did not supply one.
-                    if (title.isEmpty())
+                    if (caption && title.isEmpty())
                         showTitle(window, QString::fromUtf8(segment.caption));
                     ok = segment.run(window, ctx, vault);
                     break;

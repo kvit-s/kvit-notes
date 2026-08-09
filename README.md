@@ -10,7 +10,7 @@ span revealed only while your cursor is inside it.
 
 ![The three-pane shell: live-preview editing with inline math, a callout, a table, and a natively rendered Mermaid flowchart](screenshots/press/hero-shell.png)
 
-**[See it working](gallery.md)**: thirteen short clips of the real
+**[See it working](gallery.md)**: fourteen short clips of the real
 application, one per feature, with a paragraph on each.
 
 ## Download

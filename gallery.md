@@ -127,6 +127,22 @@ toolbar, the folder tree, the note list, the status bar, the colours code is
 highlighted in and the colours a diagram is drawn with all change together,
 which is what the clip shows as it cycles through three of them.
 
+## Box art from a chat window, straightened on the way in
+
+![A block of crooked box-drawing characters, with a box whose top edge stops short of its sides and a connector offset from the arrow below it; the block is copied and pasted into a block of its own, and the pasted copy has square boxes and a connector in one column](screenshots/gallery/asciipaste.gif)
+
+Diagrams that come out of a language model are usually a column or two out of
+true: a box's top edge stops short of its sides, a connector jogs sideways
+between rows. Kvit recognises box-drawing characters as a diagram when they
+arrive and squares them up as it stores them. The clip copies a crooked
+diagram out of one block and pastes it into another, leaving the original
+above the straightened copy so the two can be compared.
+
+Every fix slides a wall or a corner through blank space, so nothing to the
+right of it moves and no label text is ever touched. Anything the rules cannot
+square up cleanly is stored exactly as it arrived, on the principle that a
+diagram left alone is better than one silently mangled.
+
 ## Copy any diagram out as text
 
 ![A rendered flowchart is hovered, its Copy as text chip is clicked, and the same shape is pasted into a code block below it as box-drawing characters](screenshots/gallery/astext.gif)
@@ -167,13 +183,11 @@ folder if you decide you want one.
 
 ## The rest of it
 
-Thirteen clips are not the whole application, and some of what is missing is
+Fourteen clips are not the whole application, and some of what is missing is
 hard to show in a few seconds. Notes live in folders and have tags; there is a
 quick switcher, an outline pane, pinning and favourites, templates, import,
 word-count goals, focus and typewriter modes, note history you can restore
-from, and the whole editor is operable from the keyboard alone. Pasted ASCII
-box art is straightened as it comes in, conservatively enough that the fix is
-usually a single character.
+from, and the whole editor is operable from the keyboard alone.
 
 [usage.md](usage.md) walks through using it and lists the keyboard shortcuts.
 [features.md](features.md) is the specification, feature by feature.
