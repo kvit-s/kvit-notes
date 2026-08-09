@@ -78,9 +78,20 @@ Item {
     // range that crosses it as a whole block.
     readonly property bool isPicture: block.blockType === Block.Image
         || block.blockType === Block.Media
+    // A `$$ … $$` block holds TeX rather than running text, and a reader of a
+    // drawn document is in the same position as a reader of the note with the
+    // caret somewhere else: what they want is the equation, not its source.
+    // The editor shows the source only while the block has focus, and nothing
+    // in a drawn document can take focus, so this is that state permanently.
+    // Like a picture it holds nothing a range can address inside, so it joins
+    // a range that crosses it as a whole block — and a copy still yields the
+    // `$$` fence, since a range is serialized from the model rather than from
+    // what was drawn.
+    readonly property bool isEquation: block.blockType === Block.MathBlock
     // The blocks whose row is laid-out text, which are the only ones with a
     // position to resolve, a portion to paint or a link to follow.
     readonly property bool textual: !block.isDivider && !block.isPicture
+        && !block.isEquation
     // Verbatim blocks are the ones whose content IS their text: a code fence
     // (including every fence kind built on one — kanban, toc, mermaid, query,
     // and whatever a linked module registered), a `$$` math fence, and a
@@ -90,7 +101,10 @@ Item {
         || block.blockType === Block.MathBlock
         || block.blockType === Block.Table
     // A block drawn on a panel: the code-style background behind the text.
-    readonly property bool panelled: block.verbatim
+    // An equation is verbatim in the engine's sense and still not panelled:
+    // what is drawn is the rendered formula, which stands in the page like a
+    // paragraph rather than sitting in a code well.
+    readonly property bool panelled: block.verbatim && !block.isEquation
 
     readonly property int contentFontSize: {
         // sizeForRole() is invokable C++; read baseSize too so the binding
@@ -142,6 +156,7 @@ Item {
 
     implicitHeight: block.isDivider ? 17
                   : block.isPicture ? pictureLoader.implicitHeight
+                  : block.isEquation ? equationLoader.implicitHeight
                   : body.implicitHeight
 
     // ---- position mapping, the one question a sweep asks a row ----
@@ -412,6 +427,26 @@ Item {
             content: block.content
             baseDir: block.baseDir
             media: block.blockType === Block.Media
+        }
+    }
+
+    // ---- the equation ----
+    //
+    // Centred in the column, at the prose size, through the same image
+    // provider the editor's own math block draws from: the same TeX at the
+    // same size and colour on the same screen is the same cached bitmap
+    // either way. Loaded rather than declared inline for the reason the
+    // picture gives — a document with no equations in it creates none of it.
+    Loader {
+        id: equationLoader
+        x: block.textLeft
+        width: Math.max(1, block.width - block.textLeft)
+        active: block.isEquation
+        sourceComponent: ReadOnlyEquation {
+            tex: block.content
+            textColor: block.contentColor
+            textPixelSize: block.contentFontSize
+            devicePixelRatio: block.screenDevicePixelRatio
         }
     }
 

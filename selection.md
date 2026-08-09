@@ -361,6 +361,29 @@ portion for a block the range covers end to end, the row itself is tinted, and
 `rangeMarkdown()` contributes the expression. A sweep that crosses a picture
 does not stop at it.
 
+### Equations
+
+A `$$ … $$` block keeps its TeX as its content, and the same gap opened for
+the same reason: a surface that sent every verbatim block through the text
+engine drew `\int_0^\infty e^x dx` in a code well where the note itself shows
+the integral. The editor shows a math block's source only while that block has
+focus, and nothing in a drawn document can take focus, so a surface is in that
+unfocused state permanently.
+
+`qml/ReadOnlyEquation.qml` is the read-only counterpart of the unfocused half
+of `qml/MathBlock.qml`: the same `image://math/` provider, the same optical
+sizing of the formula against the prose x-height, display style rather than
+the text style an inline `$…$` span is set in, and the same rule that TeX
+which does not parse shows its source with the renderer's named message under
+it rather than nothing. What it leaves out is everything belonging to editing
+— the source area, the debounced live preview, the equation number, the drag
+proxy. The equation is not drawn on the code panel a verbatim block sits on:
+what stands in the page is the formula, which belongs to the prose around it.
+
+An equation takes part in a range exactly as a picture does, and a copy yields
+the `$$` fence, since `rangeMarkdown()` serializes the block from the model
+rather than from what was drawn.
+
 ### Following a link
 
 Every link on a surface was inert: the rows are switched off and the sweep's

@@ -455,6 +455,68 @@ private slots:
                  "the divider is missing from the copy");
     }
 
+    // A `$$` block is drawn as the equation, not as its TeX. The editor
+    // shows the source only while the block has focus and nothing in a drawn
+    // document can take focus, so a surface that sent it through the text
+    // engine drew `\int_0^\infty e^x dx` in a code well where the note shows
+    // the integral.
+    void aMathBlockDrawsTheEquationRatherThanItsSource()
+    {
+        QQuickItem *surface = makeSurface(
+            QStringLiteral("Before the equation.\n\n"
+                           "$$\n\\int_0^\\infty e^x dx\n$$\n\n"
+                           "After the equation.\n"));
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 3);
+
+        QQuickItem *row = rowItem(surface, 1);
+        QVERIFY(row);
+        QVERIFY2(row->property("isEquation").toBool(),
+                 "the math block was not recognised as an equation");
+        // Nothing of the TeX is drawn as text, and the code well a verbatim
+        // block would sit in is not drawn either.
+        QVERIFY2(rowText(surface, 1).isEmpty(), qPrintable(rowText(surface, 1)));
+        QVERIFY(!row->property("panelled").toBool());
+
+        QQuickItem *image = childItem(row,
+                                      QStringLiteral("readOnlyEquationImage"));
+        QVERIFY2(image, "the equation was not drawn");
+        QTRY_COMPARE(image->property("status").toInt(), 1 /* Image.Ready */);
+        QVERIFY(image->isVisible());
+        QVERIFY(image->width() > 0 && image->height() > 0);
+
+        // It joins a range as a whole block, as a picture and a divider do,
+        // and what comes out of the copy is the fence rather than the
+        // picture of it.
+        sweep(surface, nearStartOf(surface, 0), nearEndOf(surface, 2));
+        QVERIFY(surface->property("hasSelection").toBool());
+        const QString copied = invoke(surface, "selectedMarkdown").toString();
+        QVERIFY2(copied.contains(QStringLiteral("\\int_0^\\infty")),
+                 qPrintable(copied));
+        QVERIFY2(copied.contains(QStringLiteral("$$")), qPrintable(copied));
+    }
+
+    // TeX that does not parse keeps its source and gains the renderer's own
+    // message: a blank row would lose the block altogether, and the reader
+    // would have no way to tell an empty equation from a broken one.
+    void anEquationThatDoesNotParseShowsItsSourceAndWhyNot()
+    {
+        QQuickItem *surface = makeSurface(
+            QStringLiteral("$$\na & b\n$$\n"));
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 1);
+
+        QQuickItem *row = rowItem(surface, 0);
+        QVERIFY(row);
+        QVERIFY(row->property("isEquation").toBool());
+        QQuickItem *source = childItem(row,
+                                       QStringLiteral("readOnlyEquationSource"));
+        QVERIFY2(source, "the unparsable equation drew nothing");
+        QVERIFY(source->isVisible());
+        QQuickItem *image = childItem(row,
+                                      QStringLiteral("readOnlyEquationImage"));
+        QVERIFY(image);
+        QVERIFY(!image->isVisible());
+    }
+
     // The keyboard reaches the surface: Ctrl+A takes all of it, Ctrl+C puts
     // the markdown on the clipboard, and Escape drops the selection.
     void theKeyboardSelectsCopiesAndDrops()

@@ -25,6 +25,18 @@ published; until then it is marked unreleased.
   whole session. Every change is refused when it is made rather than
   attempted and failed one note at a time.
 
+- A `$$ … $$` block is now drawn as the equation in a document rendered
+  outside the editor pane — a stored version in the backup dialog, a context
+  line in the backlinks pane, a search snippet, or a surface a linked module
+  draws. Such a surface sent every verbatim block through the text engine, so
+  a note whose equations render in the editor showed `\int_0^\infty e^x dx`
+  in a code well when the same note was drawn anywhere else. It goes through
+  the same image provider the editor's math block draws from, at the same
+  optical size against the prose x-height, and TeX that does not parse keeps
+  its source with the renderer's message under it rather than leaving the
+  block blank. A copy still yields the fence, since a range is serialized
+  from the model rather than from what was drawn.
+
 ## [1.0.0](https://github.com/kvit-s/kvit-notes/releases/tag/v1.0.0) — 2026-08-14
 
 The first public release: the full block editor (hybrid live-preview
@@ -409,6 +421,7 @@ crash recovery, and War-and-Peace-scale performance.
   part of the note has been built: a drag resolves to a block rather than to a
   scroll offset, whose zero moves under the reader as the view builds and
   discards rows.
+
 - An inline equation now stands on the same baseline as the words around it.
   `$x$` sat about a pixel lower than the `x` beside it, because the math
   engine reports a formula's height as a whole number of pixels while drawing
