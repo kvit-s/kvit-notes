@@ -123,6 +123,34 @@ class TestTextDiagram : public QObject
 
     enum Arm { Up = 1, Down = 2, Left = 4, Right = 8 };
 
+    // An edge leaves this box through its right wall, and the cell beyond
+    // that wall is connected to it.
+    //
+    // Which glyph sits there is not fixed, and asserting one of them made
+    // this suite platform-dependent. The Scene is a pixel layout — box
+    // widths come from measuring the label text — so a platform whose
+    // default sans face is a little wider puts the shared trunk one column
+    // further left, hard against the wall, and the cell holds the junction
+    // itself rather than a dash leading to one. Both are connected; a blank
+    // or a glyph with no left arm is not, and that is the thing worth
+    // asserting.
+    void verifyEdgeLeavesRightWall(const QString &out, const QString &label)
+    {
+        const QString wall = QStringLiteral("│ %1 │").arg(label);
+        const int at = out.indexOf(wall);
+        QVERIFY2(at >= 0, qPrintable(QStringLiteral("no %1 box:\n").arg(label)
+                                     + out));
+        const int beyond = at + wall.size();
+        QVERIFY2(beyond < out.size(),
+                 qPrintable(QStringLiteral("%1's wall ends the drawing:\n")
+                                .arg(label) + out));
+        const QChar next = out.at(beyond);
+        QVERIFY2(armsOf(next) & Left,
+                 qPrintable(QStringLiteral("nothing leaves %1's right wall "
+                                           "(found '%2'):\n")
+                                .arg(label).arg(next) + out));
+    }
+
 private slots:
     void testEmptyScene();
     void testFlowchartFixture();
@@ -228,9 +256,9 @@ void TestTextDiagram::testFlowchartFanInReachesTheTarget()
 
     QVERIFY2(out.contains(QStringLiteral("►│ Sink │")), qPrintable(out));
     // Each source has a line leaving its right wall.
-    QVERIFY2(out.contains(QStringLiteral("│ One │─")), qPrintable(out));
-    QVERIFY2(out.contains(QStringLiteral("│ Two │─")), qPrintable(out));
-    QVERIFY2(out.contains(QStringLiteral("│ Three │─")), qPrintable(out));
+    verifyEdgeLeavesRightWall(out, QStringLiteral("One"));
+    verifyEdgeLeavesRightWall(out, QStringLiteral("Two"));
+    verifyEdgeLeavesRightWall(out, QStringLiteral("Three"));
     QCOMPARE(out.count(QChar(u'▲')), 0);
 }
 

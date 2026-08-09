@@ -1470,7 +1470,16 @@ void TestBlockEditorEngine::testInlineMathTallFormulaReservesLineHeight()
     BlockEditorEngine engine;
     engine.attachDocument(&doc);
     engine.setContentFontPixelSize(15);
-    const QString tex = QStringLiteral("\\frac{a}{b}");
+    // A nested fraction, because the formula has to be taller than the line
+    // on every platform for the rest of this test to mean anything, and a
+    // single fraction is not. Two things move against it away from this
+    // machine: the math size is chosen so the math x-height matches the text
+    // font's, so a face with a smaller x-height ratio (Segoe UI, against
+    // DejaVu Sans here) renders the formula smaller, and that same face has a
+    // taller line box. Measured on Windows, a single `\frac{a}{b}` came out
+    // 17 pixels tall inside a 20-pixel line and the precondition failed. Three
+    // stacked rows clear it with room to spare on both.
+    const QString tex = QStringLiteral("\\frac{\\frac{a}{b}}{c}");
     engine.setMarkdown(QStringLiteral("Text before $%1$ text after").arg(tex));
     settle();
 
