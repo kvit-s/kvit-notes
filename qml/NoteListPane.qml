@@ -291,16 +291,27 @@ Rectangle {
             Label {
                 objectName: "noteListScopeLabel"
                 text: {
-                    if (NoteListModel.scope === "favorites")
-                        return qsTr("Favorites")
-                    if (NoteListModel.scope === "folder") {
+                    var scope = qsTr("All Notes")
+                    if (NoteListModel.scope === "favorites") {
+                        scope = qsTr("Favorites")
+                    } else if (NoteListModel.scope === "folder") {
                         var path = NoteListModel.folderPath
-                        if (path === "")
-                            return qsTr("Notes") // the collection root
-                        var slash = path.lastIndexOf("/")
-                        return slash < 0 ? path : path.substring(slash + 1)
+                        if (path === "") {
+                            scope = qsTr("Notes") // the collection root
+                        } else {
+                            var slash = path.lastIndexOf("/")
+                            scope = slash < 0 ? path : path.substring(slash + 1)
+                        }
                     }
-                    return qsTr("All Notes")
+                    // A tag narrows whatever scope is set, and the tags view
+                    // is a column of tags with no other sign of which one the
+                    // list is answering to.
+                    if (NoteListModel.tagFilter !== "") {
+                        return NoteListModel.scope === "all"
+                            ? "#" + NoteListModel.tagFilter
+                            : scope + "  ·  #" + NoteListModel.tagFilter
+                    }
+                    return scope
                 }
                 font.pixelSize: Interface.strong
                 font.bold: true

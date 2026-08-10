@@ -3468,5 +3468,61 @@ Item {
             Theme.themeId = "light"
             wait(100)
         }
+
+        // Storyboard: the four ways into one collection. Each names itself
+        // in the pane's heading, each fills the pane with what it is for,
+        // and each keeps the note list beside it — the tag list answering
+        // with the notes carrying the chosen tag, the search field with its
+        // matches grouped under their notes.
+        //
+        // Nothing here needs a focused window, so it runs headless too: this
+        // is the frame that shows the three views that used to draw their
+        // contents scattered down an otherwise empty column.
+        function test_63_sidebar_views() {
+            var root = testCollectionDir + "/visual-sidebar-views"
+            verify(NoteCollection.openRoot(root))
+            verify(NoteCollection.createFolder("", "Ideas") !== "")
+            verify(NoteCollection.createFolder("Ideas", "Projects") !== "")
+            verify(NoteCollection.createNote("", "Welcome") !== "")
+            verify(NoteCollection.createNote("Ideas", "Reading list") !== "")
+            verify(NoteCollection.createNote("Ideas/Projects", "Kvit") !== "")
+            verify(NoteCollection.addTag("Welcome.md", "work"))
+            verify(NoteCollection.addTag("Ideas/Reading list.md", "work"))
+            verify(NoteCollection.addTag("Ideas/Reading list.md", "books"))
+            verify(NoteCollection.addTag("Ideas/Projects/Kvit.md", "someday"))
+            NoteListModel.scope = "all"
+
+            verify(appLoader.item.openNoteByPath("Welcome.md"))
+            DocumentSerializer.loadIntoModel(BlockModel,
+                "# Welcome to Kvit\n\nA fox walks through these notes.\n")
+            verify(DocumentManager.save())
+
+            var win = appLoader.item
+            win.sidebarView = "notes"
+            wait(250)
+            saveScreenshot("visual_63_sidebar_01_notes.png")
+
+            win.sidebarView = "folders"
+            wait(250)
+            saveScreenshot("visual_63_sidebar_02_folders.png")
+
+            win.sidebarView = "tags"
+            NoteListModel.tagFilter = "work"
+            wait(250)
+            saveScreenshot("visual_63_sidebar_03_tags.png")
+            NoteListModel.tagFilter = ""
+
+            win.sidebarView = "search"
+            CollectionSearch.query = "fox"
+            tryVerify(function() { return CollectionSearch.matchCount > 0 },
+                      2000, "the seeded note is indexed")
+            wait(250)
+            saveScreenshot("visual_63_sidebar_04_search.png")
+            CollectionSearch.query = ""
+            win.sidebarView = "notes"
+
+            NoteCollection.closeRoot()
+            wait(100)
+        }
     }
 }

@@ -53,6 +53,14 @@ KvitShell {
     // The note navigator remains the default. Files is an independent, lazy
     // projection over the same root; neither view mutates the other.
     property string sidebarView: "notes"
+    // Notes, Folders, Tags and Search are four ways into the same collection:
+    // each narrows the note list rather than replacing it. The list column
+    // therefore belongs to all four. Showing it for "notes" alone left the
+    // other three choosing a folder, a tag or a query whose result had
+    // nowhere to appear — the search view in particular typed into a field
+    // whose matches were drawn in a hidden pane.
+    readonly property bool notesFamilyView:
+        ["notes", "folders", "tags", "search"].indexOf(sidebarView) >= 0
     // Exactly one document surface is active: the editable note, a read-only
     // source file, or the shared image/media viewer.
     property string contentView: "document"
@@ -466,7 +474,7 @@ KvitShell {
         root.focusedPane = p
         if (p === 0 && !root.sidebarCollapsed && root.collectionOpen)
             sidebar.focusPane()
-        else if (p === 1 && root.sidebarView === "notes"
+        else if (p === 1 && root.notesFamilyView
                  && !root.noteListCollapsed && root.collectionOpen)
             noteListPane.focusPane()
         else if (p === 3 && appToolbar.visible)
@@ -482,7 +490,7 @@ KvitShell {
         var order = []
         if (navigationRails.visible) order.push(5)
         if (root.collectionOpen && !root.sidebarCollapsed) order.push(0)
-        if (root.collectionOpen && root.sidebarView === "notes"
+        if (root.collectionOpen && root.notesFamilyView
                 && !root.noteListCollapsed) order.push(1)
         order.push(2)  // the editor is always present
         if (bottomDock.visible) order.push(4)
@@ -1841,7 +1849,7 @@ KvitShell {
         width: visible
             ? (root.sidebarCollapsed
                    ? stripWidth : root.sidebarWidth + seamWidth)
-              + (root.sidebarView === "notes"
+              + (root.notesFamilyView
                  ? (root.noteListCollapsed
                         ? stripWidth : root.noteListWidth + seamWidth)
                  : 0)
@@ -1902,7 +1910,7 @@ KvitShell {
 
         Rectangle {
             objectName: "noteListStrip"
-            visible: root.sidebarView === "notes" && root.noteListCollapsed
+            visible: root.notesFamilyView && root.noteListCollapsed
             width: visible ? sidePanels.stripWidth : 0
             height: parent.height
             color: Theme.listBackground
@@ -1927,7 +1935,7 @@ KvitShell {
         }
         NoteListPane {
             id: noteListPane
-            visible: root.sidebarView === "notes" && !root.noteListCollapsed
+            visible: root.notesFamilyView && !root.noteListCollapsed
             width: visible ? root.noteListWidth : 0
             height: parent.height
             appWindow: root
@@ -1941,7 +1949,7 @@ KvitShell {
         PanelSeam {
             id: noteListSeam
             objectName: "noteListSeam"
-            visible: root.sidebarView === "notes" && !root.noteListCollapsed
+            visible: root.notesFamilyView && !root.noteListCollapsed
             width: visible ? sidePanels.seamWidth : 0
             height: parent.height
             minWidth: 180

@@ -52,8 +52,10 @@ Item {
             w.outlineVisible = false
             w.focusMode = false
             w.typewriterMode = false
+            w.sidebarView = "notes"
             NoteListModel.scope = "all"
             NoteListModel.folderPath = ""
+            NoteListModel.tagFilter = ""
         }
 
         function findBlockDelegate(index) {
@@ -7529,6 +7531,107 @@ Item {
             tryCompare(CollectionSearch, "matchCount", 2, 1000)
 
             CollectionSearch.query = ""
+            closeTestCollection()
+        }
+
+        // ============================================================
+        // The sidebar's four views
+        // ============================================================
+
+        // Notes, Folders, Tags and Search are four ways into one collection,
+        // and each of them narrows the same note list. The list column was
+        // drawn for the notes view alone, so the other three chose a folder,
+        // a tag or a query whose result appeared nowhere: the search view in
+        // particular typed into a field whose matches were rendered inside a
+        // hidden pane.
+        function test_wv1_everyNotesViewNamesItselfAndKeepsTheList() {
+            openTestCollection()
+            var win = appLoader.item
+            var title = findChild(win, "sidebarViewTitle")
+            var list = findChild(win, "noteListPane")
+            verify(list !== null, "the shell has a note list")
+
+            var views = ["notes", "folders", "tags", "search"]
+            var names = ["Notes", "Folders", "Tags", "Search"]
+            for (var i = 0; i < views.length; ++i) {
+                win.sidebarView = views[i]
+                wait(20)
+                verify(list.visible,
+                       "the note list stands beside the " + views[i] + " view")
+                verify(list.width > 0,
+                       "the note list has width in the " + views[i] + " view")
+                verify(title !== null, "the sidebar has a heading")
+                compare(title.text, names[i],
+                        "the " + views[i] + " view names itself")
+            }
+
+            win.sidebarView = "notes"
+            closeTestCollection()
+        }
+
+        // The tags view is the tag list, so the list takes the pane the way
+        // the folder tree does in the notes view. Capped at the height it has
+        // under the folder tree, it drew a short band of tags with empty pane
+        // above and below it.
+        function test_wv2_theTagsViewFillsThePaneWithItsTags() {
+            openTestCollection()
+            verify(NoteCollection.addTag("Welcome.md", "work"))
+            verify(NoteCollection.addTag("Ideas/Reading.md", "reading"))
+
+            var win = appLoader.item
+            win.sidebarView = "tags"
+            var sidebarItem = findChild(win, "sidebar")
+            var tags = findChild(win, "tagListView")
+            tryVerify(function() { return tags.count === 2 }, 2000)
+            waitForRendering(sidebarItem)
+
+            var top = tags.mapToItem(sidebarItem, 0, 0).y
+            verify(top < sidebarItem.height * 0.25,
+                   "the tag list starts under the heading, at " + top
+                   + " of " + sidebarItem.height)
+            verify(tags.height > sidebarItem.height * 0.6,
+                   "the tag list fills the pane: " + tags.height
+                   + " of " + sidebarItem.height)
+
+            // And choosing a tag shows in the list beside it, which is where
+            // the notes carrying that tag now are.
+            NoteListModel.tagFilter = "work"
+            var scopeLabel = findChild(win, "noteListScopeLabel")
+            tryCompare(scopeLabel, "text", "#work", 1000)
+            compare(NoteListModel.count, 1)
+
+            NoteListModel.tagFilter = ""
+            win.sidebarView = "notes"
+            closeTestCollection()
+        }
+
+        // The search view holds a field and whatever was searched before, and
+        // its matches are drawn in the list beside it. Its own two items stay
+        // at the top of the pane: with nothing in the layout allowed to grow,
+        // the slack was spread between the rows and the field, the heading
+        // and the tag list floated apart down the pane.
+        function test_wv3_theSearchViewKeepsItsFieldUnderTheHeading() {
+            seedSearchContent()
+            var win = appLoader.item
+            win.sidebarView = "search"
+            var sidebarItem = findChild(win, "sidebar")
+            var field = findChild(win, "globalSearchField")
+            waitForRendering(sidebarItem)
+            verify(field.visible, "the search view draws its field")
+            var top = field.mapToItem(sidebarItem, 0, 0).y
+            verify(top < sidebarItem.height * 0.25,
+                   "the field sits under the heading, at " + top
+                   + " of " + sidebarItem.height)
+
+            CollectionSearch.query = "fox"
+            var results = findChild(win, "searchResultsView")
+            // An item inside a hidden pane reads as hidden itself, so this
+            // is also the note list being on screen at all.
+            tryCompare(results, "visible", true, 1000)
+            tryCompare(CollectionSearch, "matchCount", 3, 1000)
+
+            CollectionSearch.query = ""
+            win.sidebarView = "notes"
             closeTestCollection()
         }
 

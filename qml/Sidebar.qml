@@ -27,6 +27,17 @@ Rectangle {
         appWindow ? appWindow.sidebarView : "notes"
     readonly property bool notesFamily:
         ["notes", "folders", "tags", "search"].indexOf(activeView) >= 0
+    // What the pane calls itself, which is whichever of the four the rail
+    // has chosen.
+    readonly property string viewTitle: {
+        if (activeView === "folders")
+            return qsTr("Folders")
+        if (activeView === "tags")
+            return qsTr("Tags")
+        if (activeView === "search")
+            return qsTr("Search")
+        return qsTr("Notes")
+    }
 
     // Highlight target while a note row is dragged over a folder.
     property string dropTargetFolder: ""
@@ -164,6 +175,64 @@ Rectangle {
         spacing: 0
         visible: sidebar.notesFamily
 
+        // ---- Header ----------------------------------------------------
+        // One header for all four views, named after the view the rail
+        // chose. It sits above the search field so that every view opens
+        // with its own name on the first line; with the field above it, the
+        // search view read as a stray box over a pane titled "Notes".
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.margins: Interface.px(8)
+            spacing: Interface.px(4)
+
+            Label {
+                objectName: "sidebarViewTitle"
+                text: sidebar.viewTitle
+                font.pixelSize: Interface.strong
+                font.bold: true
+                color: Theme.textSecondary
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
+            ToolButton {
+                objectName: "showFilesTreeButton"
+                text: qsTr("Files")
+                Accessible.name: qsTr("Show files sidebar")
+                font.pixelSize: Interface.small
+                implicitHeight: Interface.px(24)
+                // Everything this button and the next one do is about the
+                // folder tree, which only two of the four views draw.
+                visible: sidebar.activeView === "notes"
+                         || sidebar.activeView === "folders"
+                onClicked: if (sidebar.appWindow)
+                               sidebar.appWindow.sidebarView = "files"
+            }
+            ToolButton {
+                objectName: "newFolderButton"
+                text: "+▤"
+                Accessible.name: qsTr("New folder")
+                font.pixelSize: Interface.small
+                implicitHeight: Interface.px(24)
+                visible: sidebar.activeView === "notes"
+                         || sidebar.activeView === "folders"
+                ToolTip.visible: hovered || visualFocus
+                ToolTip.text: qsTr("New folder")
+                onClicked: folderDialog.openForCreate("")
+            }
+            ToolButton {
+                objectName: "sidebarCollapseButton"
+                text: "«"
+                Accessible.name: qsTr("Collapse sidebar")
+                font.pixelSize: Interface.body
+                implicitWidth: Interface.px(22)
+                implicitHeight: Interface.px(24)
+                ToolTip.visible: hovered || visualFocus
+                ToolTip.text: qsTr("Collapse sidebar")
+                onClicked: if (sidebar.appWindow)
+                               sidebar.appWindow.sidebarCollapsed = true
+            }
+        }
+
         // ---- Global search (§8.4; Ctrl+Shift+F) --------------------------
         TextField {
             id: globalSearchField
@@ -197,9 +266,13 @@ Rectangle {
             Layout.leftMargin: Interface.px(8)
             Layout.rightMargin: Interface.px(8)
             spacing: 0
-            visible: globalSearchField.activeFocus
+            // In the notes view this is a drop-down under a focused field.
+            // The search view is the field, so the list of what was searched
+            // before stands there on its own, focused or not.
+            visible: sidebar.recentSearches.length > 0
                      && globalSearchField.text === ""
-                     && sidebar.recentSearches.length > 0
+                     && (globalSearchField.activeFocus
+                         || sidebar.activeView === "search")
 
             Repeater {
                 model: sidebar.recentSearches
@@ -234,52 +307,6 @@ Rectangle {
                         }
                     }
                 }
-            }
-        }
-
-        // ---- Header ----------------------------------------------------
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.margins: Interface.px(8)
-            spacing: Interface.px(4)
-
-            Label {
-                text: qsTr("Notes")
-                font.pixelSize: Interface.strong
-                font.bold: true
-                color: Theme.textSecondary
-                Layout.fillWidth: true
-            }
-            ToolButton {
-                objectName: "showFilesTreeButton"
-                text: qsTr("Files")
-                Accessible.name: qsTr("Show files sidebar")
-                font.pixelSize: Interface.small
-                implicitHeight: Interface.px(24)
-                onClicked: if (sidebar.appWindow)
-                               sidebar.appWindow.sidebarView = "files"
-            }
-            ToolButton {
-                objectName: "newFolderButton"
-                text: "+▤"
-                Accessible.name: qsTr("New folder")
-                font.pixelSize: Interface.small
-                implicitHeight: Interface.px(24)
-                ToolTip.visible: hovered || visualFocus
-                ToolTip.text: qsTr("New folder")
-                onClicked: folderDialog.openForCreate("")
-            }
-            ToolButton {
-                objectName: "sidebarCollapseButton"
-                text: "«"
-                Accessible.name: qsTr("Collapse sidebar")
-                font.pixelSize: Interface.body
-                implicitWidth: Interface.px(22)
-                implicitHeight: Interface.px(24)
-                ToolTip.visible: hovered || visualFocus
-                ToolTip.text: qsTr("Collapse sidebar")
-                onClicked: if (sidebar.appWindow)
-                               sidebar.appWindow.sidebarCollapsed = true
             }
         }
 
@@ -600,6 +627,8 @@ Rectangle {
         }
 
         // ---- Tags (§8.2: sidebar with counts; click filters) -----------
+        // Only where the pane is not already headed "Tags": under the folder
+        // tree in the notes view this line says which list is which.
         Label {
             text: qsTr("Tags")
             font.pixelSize: Interface.caption
@@ -608,21 +637,36 @@ Rectangle {
             Layout.leftMargin: Interface.px(12)
             Layout.topMargin: Interface.px(6)
             Layout.bottomMargin: Interface.px(2)
-            visible: tagListView.count > 0
-                     && (sidebar.activeView === "notes"
-                         || sidebar.activeView === "tags")
+            visible: tagListView.count > 0 && sidebar.activeView === "notes"
+        }
+
+        Label {
+            objectName: "tagsEmptyHint"
+            visible: sidebar.activeView === "tags" && tagListView.count === 0
+            text: qsTr("No tags yet. Tags come from a note's own #tags and "
+                       + "from its front matter.")
+            wrapMode: Text.Wrap
+            font.pixelSize: Interface.small
+            color: Theme.textMuted
+            Layout.fillWidth: true
+            Layout.leftMargin: Interface.px(12)
+            Layout.rightMargin: Interface.px(12)
         }
 
         ListView {
             id: tagListView
             objectName: "tagListView"
             Layout.fillWidth: true
-            // Fixed-height rows: computable before any delegate exists
-            // (the folder tree above takes the leftover height). The row
-            // height and the cap both follow the interface size, so the list
-            // still shows the same number of tags at any of them.
-            Layout.preferredHeight: Math.min(count * Interface.px(24),
-                                             Interface.px(170))
+            // The tags view is the tag list, so there it takes the pane's
+            // leftover height the way the folder tree does in the notes
+            // view. Beneath the folder tree it is capped instead: fixed-
+            // height rows, computable before any delegate exists, with the
+            // row height and the cap both following the interface size so
+            // the list still shows the same number of tags at any of them.
+            readonly property bool ownsThePane: sidebar.activeView === "tags"
+            Layout.fillHeight: ownsThePane
+            Layout.preferredHeight: ownsThePane
+                ? -1 : Math.min(count * Interface.px(24), Interface.px(170))
             Layout.bottomMargin: Interface.px(4)
             clip: true
             visible: sidebar.activeView === "notes"
@@ -756,6 +800,37 @@ Rectangle {
                     }
                 }
             }
+        }
+
+        // What the search view says while there is nothing to say: its
+        // matches are drawn in the note list beside this pane, so an empty
+        // field would otherwise leave a box and a blank column.
+        Label {
+            objectName: "searchViewHint"
+            visible: sidebar.activeView === "search"
+                     && globalSearchField.text === ""
+                     && sidebar.recentSearches.length === 0
+            text: qsTr("Search every note in this vault. Matches appear in "
+                       + "the list beside this pane, grouped by note.")
+            wrapMode: Text.Wrap
+            font.pixelSize: Interface.small
+            color: Theme.textMuted
+            Layout.fillWidth: true
+            Layout.leftMargin: Interface.px(12)
+            Layout.rightMargin: Interface.px(12)
+            Layout.topMargin: Interface.px(4)
+        }
+
+        // Somewhere for the pane's leftover height to go in the search view,
+        // whose own contents are two short items at the top. Without a filler
+        // the layout has nothing that may grow and spreads the slack between
+        // the rows instead, which is what left the search field, the header
+        // and the tag list floating apart down the pane.
+        Item {
+            objectName: "sidebarFiller"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: sidebar.activeView === "search"
         }
 
         // ---- Trash: item count and the empty action, behind a
