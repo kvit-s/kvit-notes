@@ -49,12 +49,13 @@ private:
 
 private slots:
     // ---- Registry and aliases ----
-    void supportedSetIsTheEleven()
+    void supportedSetIncludesSourceFileLanguages()
     {
         const QStringList langs = CodeLanguages::supportedLanguages();
-        QCOMPARE(langs.size(), 11);
+        QCOMPARE(langs.size(), 16);
         for (const char *l : {"python", "javascript", "cpp", "java", "html",
-                              "css", "sql", "bash", "json", "xml", "markdown"})
+                              "css", "sql", "bash", "json", "xml", "markdown",
+                              "go", "rust", "typescript", "csharp", "qml"})
             QVERIFY2(langs.contains(QLatin1String(l)), l);
     }
 
@@ -74,6 +75,12 @@ private slots:
         QTest::newRow("md") << "md" << "markdown";
         QTest::newRow("postgres") << "postgres" << "sql";
         QTest::newRow("svg->xml") << "svg" << "xml";
+        QTest::newRow("ts") << "ts" << "typescript";
+        QTest::newRow("tsx") << "tsx" << "typescript";
+        QTest::newRow("rs") << "rs" << "rust";
+        QTest::newRow("golang") << "golang" << "go";
+        QTest::newRow("cs") << "cs" << "csharp";
+        QTest::newRow("c#") << "c#" << "csharp";
         QTest::newRow("whitespace") << "  Python  " << "python";
     }
     void aliasesResolve()
@@ -169,6 +176,62 @@ private slots:
         QVERIFY(covers(s, src, "final", Token::Keyword));
         QVERIFY(covers(s, src, "int", Token::Type));
         QVERIFY(covers(s, src, "5", Token::Number));
+    }
+
+    void goRuleTableCoversAllTokenClasses()
+    {
+        const QString src = "func main() { var n int = 42; println(\"go\") } // note";
+        const auto s = hl("go", src);
+        QVERIFY(covers(s, src, "func", Token::Keyword));
+        QVERIFY(covers(s, src, "int", Token::Type));
+        QVERIFY(covers(s, src, "\"go\"", Token::String));
+        QVERIFY(covers(s, src, "// note", Token::Comment));
+        QVERIFY(covers(s, src, "42", Token::Number));
+    }
+
+    void rustRuleTableCoversAllTokenClasses()
+    {
+        const QString src = "fn main() { let n: i32 = 42; println(\"rust\"); } // note";
+        const auto s = hl("rust", src);
+        QVERIFY(covers(s, src, "fn", Token::Keyword));
+        QVERIFY(covers(s, src, "i32", Token::Type));
+        QVERIFY(covers(s, src, "\"rust\"", Token::String));
+        QVERIFY(covers(s, src, "// note", Token::Comment));
+        QVERIFY(covers(s, src, "42", Token::Number));
+    }
+
+    void typescriptRuleTableCoversAllTokenClasses()
+    {
+        const QString src = "interface Row { value: string } const n = 42; // note\n"
+                            "const s = \"ts\";";
+        const auto s = hl("ts", src);
+        QVERIFY(covers(s, src, "interface", Token::Keyword));
+        QVERIFY(covers(s, src, "string", Token::Type));
+        QVERIFY(covers(s, src, "\"ts\"", Token::String));
+        QVERIFY(covers(s, src, "// note", Token::Comment));
+        QVERIFY(covers(s, src, "42", Token::Number));
+    }
+
+    void csharpRuleTableCoversAllTokenClasses()
+    {
+        const QString src = "public class App { string s = \"cs\"; int n = 42; } // note";
+        const auto s = hl("cs", src);
+        QVERIFY(covers(s, src, "public", Token::Keyword));
+        QVERIFY(covers(s, src, "string", Token::Type));
+        QVERIFY(covers(s, src, "\"cs\"", Token::String));
+        QVERIFY(covers(s, src, "// note", Token::Comment));
+        QVERIFY(covers(s, src, "42", Token::Number));
+    }
+
+    void qmlRuleTableCoversAllTokenClasses()
+    {
+        const QString src = "Rectangle { property string label: \"qml\"; width: 42 } // note";
+        const auto s = hl("qml", src);
+        QVERIFY(covers(s, src, "property", Token::Keyword));
+        QVERIFY(covers(s, src, "Rectangle", Token::Type));
+        QVERIFY(covers(s, src, "\"qml\"", Token::String));
+        QVERIFY(covers(s, src, "// note", Token::Comment));
+        QVERIFY(covers(s, src, "42", Token::Number));
     }
 
     // ---- SQL (case-insensitive) ----

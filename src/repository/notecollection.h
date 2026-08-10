@@ -36,6 +36,7 @@
 
 class QFileInfo;
 class CollectionSearchIndex;
+class IgnoreRules;
 class OpenDocumentSession;
 
 // The notes-collection object: one GUI-free
@@ -84,6 +85,9 @@ public:
     // OpenDocumentSession interface (opendocumentsession.h), so the
     // repository does not depend on the class that implements it.
     void setOpenDocument(OpenDocumentSession *session);
+    // Shared with FileWatcher by AppContext. Worker scans receive an immutable
+    // snapshot so both walks apply one policy without cross-thread mutation.
+    void setIgnoreRules(IgnoreRules *rules);
 
     // Open the next root for reading only. A read-only collection takes no
     // vault lock — it cannot lose anybody's update because it writes
@@ -474,6 +478,7 @@ private:
     // directory reachable twice (a bind mount, a junction) is entered once.
     void scanDirectory(const QString &relDir,
                        const QHash<QString, NoteEntry> &cachedNotes,
+                       const IgnoreRules::Snapshot &ignoreRules,
                        QSet<QString> *visitedDirs);
     void scanAsync();
     // A full rescan that does not block the GUI thread, used by the external
@@ -605,6 +610,7 @@ private:
     SearchIndexFeed m_searchFeed;
     CollectionStateStore m_collectionState;
     OpenDocumentSession *m_openDocument = nullptr;
+    IgnoreRules *m_ignoreRules = nullptr;
     OperationJournal m_operations;
     QString m_activeOperationPlan;
     QList<OperationJournal::Plan> m_pendingOperations;

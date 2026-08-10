@@ -66,6 +66,11 @@ Item {
         unsavedChangesBeforeOpenDialog.open()
     }
 
+    function confirmVaultSwitch(path) {
+        vaultSwitchDialog.rootPath = path
+        vaultSwitchDialog.open()
+    }
+
     function chooseOpenOrImport() { openOrImportChoiceDialog.open() }
 
     KvitDialog {
@@ -225,6 +230,8 @@ Item {
             // dialog is cancelled or the write fails, stay open.
             if (DocumentManager.saveFileDialog())
                 dialogs.appWindow.close()
+            else
+                dialogs.appWindow.forceActualClose = false
         }
         // Discard is the user deciding to lose it, which is their call to make.
         onDiscarded: {
@@ -232,6 +239,7 @@ Item {
             dialogs.appWindow.close()
         }
         // Cancel: nothing happens, the window stays open.
+        onRejected: dialogs.appWindow.forceActualClose = false
     }
 
     // Unsaved changes dialog before opening a new file
@@ -276,6 +284,33 @@ Item {
         }
 
         // Cancel - do nothing
+    }
+
+    KvitDialog {
+        id: vaultSwitchDialog
+        objectName: "vaultSwitchDialog"
+        title: qsTr("Unsaved Changes")
+        modal: true
+        anchors.centerIn: parent
+        property string rootPath: ""
+
+        contentItem: Label {
+            width: Interface.px(360)
+            padding: Interface.px(20)
+            wrapMode: Text.WordWrap
+            text: qsTr("This note has unsaved changes. Save them before switching folders?")
+        }
+        standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
+        onAccepted: {
+            var saved = DocumentManager.hasFile
+                ? DocumentManager.save() : DocumentManager.saveFileDialog()
+            if (saved)
+                AppActions.confirmOpenVault(rootPath)
+        }
+        onDiscarded: {
+            DocumentManager.newDocument()
+            AppActions.confirmOpenVault(rootPath)
+        }
     }
 
     // Unsaved changes dialog before creating new document

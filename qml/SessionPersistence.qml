@@ -21,16 +21,13 @@ import Kvit 1.0
 // one-line writes the window makes when its own state changes stay beside the
 // properties they persist, where a reader of that property can see them.
 //
-// Multi-window note: these keys are process-global (one settings store shared
-// by every window), so with several windows open the geometry and panel-layout
-// keys are last-writer-wins rather than per-vault. Panel widths and view
-// toggles read naturally as shared preferences; window geometry does not, and
-// per-vault geometry is a deliberate follow-up. It cannot use a context
-// property (the shell reaches C++ only through `Kvit` singletons, so qmllint
-// can check it; see everyPublishedContextPropertyIsAccountedFor in
-// tests/test_shell.cpp), so it would key off NoteCollection.rootPath and
-// re-apply once the vault opens — display-dependent behaviour left for a pass
-// that can verify it on a real window.
+// Multi-window note: the settings store is process-global, so window geometry
+// remains last-writer-wins. The state that belongs to what a reader was doing
+// in a vault (open note and position, sidebar view, panel widths and note sort)
+// is stored in root.viewState keyed by NoteCollection.rootPath below. Two
+// windows showing the same root cannot exist because the vault lock and window
+// registry prevent that; switching away therefore leaves one unambiguous last
+// state for the return trip. Per-vault window geometry remains a follow-up.
 Item {
     id: persistence
 
@@ -41,6 +38,54 @@ Item {
     property var findBar
     // Named apart from its id so the wiring cannot resolve to this property.
     property var sidebarPanel
+    property string currentRootPath: ""
+    property string currentDocumentRelPath: ""
+    property real pendingScrollY: 0
+
+    function rootStates() {
+        return AppSettings.value("root.viewState", {})
+    }
+    function saveRootState(rootPath) {
+        if (rootPath === "")
+            return
+        var states = rootStates()
+        states[rootPath] = {
+            sidebarView: persistence.appWindow.sidebarView,
+            sidebarWidth: persistence.appWindow.sidebarWidth,
+            noteListWidth: persistence.appWindow.noteListWidth,
+            sortMode: NoteListModel.sortMode,
+            sortAscending: NoteListModel.ascending,
+            openFile: persistence.currentDocumentRelPath,
+            scrollY: persistence.appWindow.editorContentY()
+        }
+        AppSettings.setValue("root.viewState", states)
+    }
+    function restoreRootState(rootPath) {
+        if (rootPath === "")
+            return
+        var state = rootStates()[rootPath]
+        if (!state)
+            return
+        persistence.appWindow.sidebarView = state.sidebarView || "notes"
+        persistence.appWindow.sidebarWidth = Number(state.sidebarWidth || 200)
+        persistence.appWindow.noteListWidth = Number(state.noteListWidth || 260)
+        NoteListModel.sortMode = state.sortMode || "modified"
+        NoteListModel.ascending = state.sortAscending === true
+        persistence.currentDocumentRelPath = state.openFile || ""
+        if (persistence.currentDocumentRelPath !== ""
+                && NoteCollection.noteInfo(
+                    persistence.currentDocumentRelPath).relPath !== undefined)
+            NoteCollection.setLastOpenNote(persistence.currentDocumentRelPath)
+        persistence.pendingScrollY = Number(state.scrollY || 0)
+        persistence.applyPendingScroll()
+    }
+    function applyPendingScroll() {
+        if (!StartupController.finished)
+            return
+        Qt.callLater(function() {
+            persistence.appWindow.setEditorContentY(persistence.pendingScrollY)
+        })
+    }
 
     // Moving or resizing fires per event, so the write is debounced, and only
     // the ordinary windowed geometry is recorded: a maximized session should
@@ -90,6 +135,8 @@ Item {
     function restore() {
         persistence.appWindow.panelsVisible =
             AppSettings.value("panels.visible", true)
+        persistence.appWindow.navigationRailsVisible =
+            AppSettings.value("view.navigationRails", false)
         BlockMenuModel.setRecentTypes(
             AppSettings.value("blockMenu.recent", []))
         MathCommandModel.setRecentCommands(
@@ -111,8 +158,16 @@ Item {
             AppSettings.value("panels.sidebarCollapsed", false)
         persistence.appWindow.noteListCollapsed =
             AppSettings.value("panels.noteListCollapsed", false)
+        var rootPath = NoteCollection.isOpen ? NoteCollection.rootPath : ""
+        var sidebarViews = AppSettings.value("sidebar.viewByRoot", {})
+        persistence.appWindow.sidebarView = rootPath !== ""
+            ? (sidebarViews[rootPath] || "notes") : "notes"
         persistence.appWindow.statusBarVisible =
             AppSettings.value("view.statusBar", true)
+        persistence.appWindow.bottomDockHeight = Math.max(
+            110, Number(AppSettings.value("dock.height", 220)))
+        persistence.appWindow.bottomDockCollapsed =
+            AppSettings.value("dock.collapsed", false)
         persistence.appWindow.outlineVisible =
             AppSettings.value("view.outline", false)
         persistence.appWindow.backlinksVisible =
@@ -149,6 +204,14 @@ Item {
         if (AppSettings.value("window.maximized", false))
             persistence.appWindow.visibility = Window.Maximized
         persistence.appWindow.geometryRestored = true
+        persistence.currentRootPath = NoteCollection.isOpen
+            ? NoteCollection.rootPath : ""
+        if (persistence.currentRootPath !== "") {
+            var currentAbs = DocumentManager.currentFilePath
+            persistence.currentDocumentRelPath = currentAbs !== ""
+                ? NoteCollection.relativePath(currentAbs) : ""
+            persistence.restoreRootState(persistence.currentRootPath)
+        }
     }
 
     Connections {
@@ -184,6 +247,37 @@ Item {
         function onProjectionChanged() {
             AppSettings.setValue("noteList.sortMode", NoteListModel.sortMode)
             AppSettings.setValue("noteList.ascending", NoteListModel.ascending)
+        }
+    }
+
+    Connections {
+        target: NoteCollection
+        function onRootChanged() {
+            persistence.saveRootState(persistence.currentRootPath)
+            persistence.currentRootPath = NoteCollection.isOpen
+                ? NoteCollection.rootPath : ""
+            persistence.currentDocumentRelPath = ""
+            persistence.pendingScrollY = 0
+            persistence.restoreRootState(persistence.currentRootPath)
+        }
+    }
+
+    Connections {
+        target: DocumentManager
+        function onCurrentFilePathChanged() {
+            if (!NoteCollection.isOpen || DocumentManager.currentFilePath === "")
+                return
+            var rel = NoteCollection.relativePath(DocumentManager.currentFilePath)
+            if (rel !== "")
+                persistence.currentDocumentRelPath = rel
+        }
+    }
+
+    Connections {
+        target: StartupController
+        function onFinishedChanged() {
+            if (StartupController.finished)
+                persistence.applyPendingScroll()
         }
     }
 }

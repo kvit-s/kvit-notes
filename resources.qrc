@@ -47,6 +47,13 @@
         <file>qml/MathCommandMenu.qml</file>
         <file>qml/FindBar.qml</file>
         <file>qml/Sidebar.qml</file>
+        <file>qml/FileTreePane.qml</file>
+        <file>qml/ReadOnlyTextFile.qml</file>
+        <file>qml/ImageViewerSurface.qml</file>
+        <file>qml/MediaPlayerCard.qml</file>
+        <file>qml/StandaloneFileView.qml</file>
+        <file>qml/BottomDock.qml</file>
+        <file>qml/NavigationRails.qml</file>
         <file>qml/NoteListPane.qml</file>
         <file>qml/TagStrip.qml</file>
         <file>qml/SearchResultsView.qml</file>

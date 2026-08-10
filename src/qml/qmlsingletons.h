@@ -31,6 +31,7 @@
 #include "embedmetadata.h"
 #include "extensionregistry.h"
 #include "filewatcher.h"
+#include "filesystemtreemodel.h"
 #include "foldertreemodel.h"
 #include "globalhotkey.h"
 #include "imageassets.h"
@@ -51,9 +52,11 @@
 #include "remotemediacache.h"
 #include "settingsstore.h"
 #include "shortcutcatalog.h"
+#include "startupcontroller.h"
 #include "systemappearance.h"
 #include "systemtray.h"
 #include "tabledata.h"
+#include "textfileviewmodel.h"
 #include "theme.h"
 #include "todometa.h"
 #include "typography.h"
@@ -129,6 +132,9 @@
     X(ShortcutCatalog, ShortcutCatalog)       \
     X(MenuAccessKeys, MenuText)               \
     X(QuickSwitcherModel, QuickSwitcherModel) \
+    X(StartupController, StartupController)   \
+    X(FileSystemTreeModel, FileTreeModel)     \
+    X(TextFileViewModel, TextFileViewModel)  \
     X(FolderTreeModel, FolderTreeModel)       \
     X(MarkdownFormatter, MarkdownFormatter)   \
     X(BlockMenuModel, BlockMenuModel)         \

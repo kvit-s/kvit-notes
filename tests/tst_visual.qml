@@ -111,7 +111,10 @@ Item {
             for (var i = 0; i < listView.count; i++) {
                 var item = listView.itemAtIndex(i)
                 if (item) {
-                    var ta = findTextArea(item)
+                    // A read-only block cannot own active editor focus.  Do
+                    // not promote every visible (or transitioning) delegate
+                    // just to discover that fact during screenshot cleanup.
+                    var ta = findTextAreaRaw(item)
                     if (ta && ta.activeFocus) {
                         ta.focus = false
                         tryCompare(ta, "activeFocus", false, 1000)

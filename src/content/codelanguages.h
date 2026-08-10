@@ -66,8 +66,8 @@ struct LineResult {
     int endState = 0;
 };
 
-// Canonical language ids the code-block language picker offers (the eleven of
-// §1.2.7). `mermaid` is recognized by the functions below but is not on this
+// Canonical language ids the code-block language picker offers. `mermaid` is
+// recognized by the functions below but is not on this
 // list: a `mermaid` fence renders as a diagram, not as a code block, and its
 // highlighting serves the diagram block's source editor.
 QStringList supportedLanguages();

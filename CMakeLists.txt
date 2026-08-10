@@ -373,6 +373,7 @@ add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/egresspolicy.cpp
     src/platform/filewatcher.cpp
     src/platform/globalhotkey.cpp
+    src/platform/ignorerules.cpp
     src/platform/interfacemetrics.cpp
     src/platform/localimageprovider.cpp
     src/platform/menuaccesskeys.cpp
@@ -418,7 +419,7 @@ add_library(kvit-repository ${KVIT_LIB_TYPE}
     src/repository/linkredirects.h
     src/repository/operationjournal.h
 )
-target_link_libraries(kvit-repository PUBLIC kvit-domain kvit-search)
+target_link_libraries(kvit-repository PUBLIC kvit-domain kvit-search kvit-platform)
 target_link_libraries(kvit-repository PRIVATE Qt6::Concurrent)
 target_include_directories(kvit-repository PUBLIC src/repository)
 
@@ -431,6 +432,7 @@ add_library(kvit-application ${KVIT_LIB_TYPE}
     src/application/documentmanager.cpp
     src/application/embedmetadata.cpp
     src/application/extensionregistry.cpp
+    src/application/filesystemtreemodel.cpp
     src/application/foldertreemodel.cpp
     src/application/navigationhistory.cpp
     src/application/notelistmodel.cpp
@@ -438,6 +440,7 @@ add_library(kvit-application ${KVIT_LIB_TYPE}
     src/application/querytools.cpp
     src/application/quickswitchermodel.cpp
     src/application/startupcontroller.cpp
+    src/application/textfileviewmodel.cpp
     src/application/appactions.h
 )
 target_link_libraries(kvit-application PUBLIC kvit-repository kvit-platform)

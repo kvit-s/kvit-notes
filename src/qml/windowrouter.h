@@ -33,6 +33,10 @@ public:
     // Open a loose file `path` in its own single-file window, raising an
     // existing one if that file is already open.
     virtual void openFileInNewWindow(const QString &path) = 0;
+
+    // Ask the window holding `path` to close through its ordinary close
+    // settlement. No-op when the path is only a remembered, closed root.
+    virtual void closeVault(const QString &path) = 0;
 };
 
 #endif // WINDOWROUTER_H

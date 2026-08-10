@@ -1,13 +1,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-// The play-button Repeater's delegate is its own scope and reads the
-// hover handler declared outside it.
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls
-import QtMultimedia
 import Kvit 1.0
 
 // Local media block (features.md §1.2.14). The block shares the image
@@ -94,23 +90,13 @@ BlockDelegateBase {
     // three show the fallback card rather than a dead control bar; the card
     // itself distinguishes the consent case.
     readonly property bool hasError:
-        resolvedSource === "" || awaitingConsent || awaitingDownload
-        || downloadFailed
-        || player.error !== MediaPlayer.NoError
+        sharedCard.hasError
     readonly property int maxWidth: Math.max(120, root.width - 96)
     readonly property int videoWidth:
         Math.min(media.width > 0 ? media.width : 480, maxWidth)
     // Exposed for tests (which do not import QtMultimedia) and for chrome.
     readonly property bool isPlaying:
-        player.playbackState === MediaPlayer.PlayingState
-
-    function fmtTime(ms) {
-        if (ms <= 0) return "0:00"
-        var total = Math.floor(ms / 1000)
-        var m = Math.floor(total / 60)
-        var s = total % 60
-        return m + ":" + (s < 10 ? "0" + s : s)
-    }
+        sharedCard.isPlaying
 
     readonly property bool blockSelected: {
         var revision = DocumentSelection.revision // dependency only
@@ -142,9 +128,9 @@ BlockDelegateBase {
         }
     }
 
-    blockContentHeight: card.height + 16
+    blockContentHeight: sharedCard.height + 16
 
-    ListView.onPooled: { isPooled = true; opacity = 0; player.pause() }
+    ListView.onPooled: { isPooled = true; opacity = 0; sharedCard.stop() }
     ListView.onReused: { isPooled = false; opacity = 1 }
 
     function focusAtStart() { focusTarget.forceActiveFocus() }
@@ -187,17 +173,33 @@ BlockDelegateBase {
         })
     }
 
-    MediaPlayer {
-        id: player
-        objectName: "mediaPlayer"
-        // Dropped while pooled. Pausing stopped playback but left the
-        // player holding its source — a decoder, its buffers and an open
-        // file — for a row nobody is looking at, so scrolling past a run of
-        // media blocks accumulated them. The binding restores the source
-        // when the delegate is reused.
+    MediaPlayerCard {
+        id: sharedCard
+        objectName: "mediaBlockCard"
+        x: 52
+        y: 8
+        width: root.isVideo && !root.hasError ? root.videoWidth
+              : Math.min(Interface.px(520), root.maxWidth)
         source: root.isPooled ? "" : root.playbackSource
-        audioOutput: AudioOutput { id: audioOut; volume: 0.8 }
-        videoOutput: root.isVideo ? videoFrame : null
+        displayName: root.media.path
+        title: root.media.alt !== "" ? root.media.alt : root.media.path
+        audioHint: root.isAudio
+        videoHint: root.isVideo
+        forcedErrorMessage: root.awaitingConsent
+            ? qsTr("Remote media not loaded")
+            : root.awaitingDownload ? qsTr("Loading remote media…")
+            : root.downloadFailed ? qsTr("Remote media download failed")
+            : root.resolvedSource === "" ? qsTr("File not found") : ""
+        showDesktopAction: !root.isRemote && root.resolvedSource !== ""
+        desktopUrl: !root.isRemote ? root.resolvedSource : ""
+        fallbackActionText: root.awaitingConsent
+             && EgressPolicy.canRequestConsent(root.resolvedSource)
+            ? qsTr("Load media") : ""
+        onFallbackActionRequested: {
+            EgressPolicy.allowOrigin(root.resolvedSource)
+            root.requestRemoteMedia()
+        }
+        opacity: root.isDragSource ? 0.35 : 1
     }
 
     Item {
@@ -237,8 +239,7 @@ BlockDelegateBase {
     }
 
     function togglePlay() {
-        if (player.playbackState === MediaPlayer.PlayingState) player.pause()
-        else player.play()
+        sharedCard.togglePlay()
     }
 
     Rectangle {
@@ -251,214 +252,6 @@ BlockDelegateBase {
              : (root.isHovered ? Theme.blockHoverTint : "transparent")
         border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
-    }
-
-    // The media card: video frame or audio bar, or the fallback.
-    Rectangle {
-        id: card
-        // Past the gutter and onto the text column: the same left edge a
-        // code panel or a callout card gets from EditableBlock's content
-        // area, so a document's blocks share one left margin.
-        x: 52; y: 8
-        width: root.isVideo && !root.hasError ? root.videoWidth : Math.min(420, root.maxWidth)
-        height: contentCol.implicitHeight + 16
-        radius: 6
-        color: Theme.panelBackground
-        border.color: Theme.border; border.width: 1
-        opacity: root.isDragSource ? 0.35 : 1
-
-        Column {
-            id: contentCol
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 8
-            spacing: 6
-
-            // ---- Fallback card (missing file / rejected codec) ----
-            Column {
-                width: parent.width
-                spacing: 3
-                visible: root.hasError
-                Text {
-                    text: (root.isAudio ? "♪  " : "▷  ") + qsTr("Media unavailable")
-                    color: Theme.textPrimary; font.bold: true; font.pixelSize: Interface.strong
-                }
-                Text {
-                    width: parent.width
-                    text: root.media.path
-                    color: Theme.textMuted; font.pixelSize: Interface.small; elide: Text.ElideMiddle
-                }
-                Text {
-                    visible: !root.awaitingConsent && !root.awaitingDownload
-                    text: root.downloadFailed
-                          ? qsTr("Remote media download failed")
-                          : root.resolvedSource === ""
-                          ? qsTr("File not found")
-                          : qsTr("Cannot play this file: ") + player.errorString
-                    color: Theme.danger; font.pixelSize: Interface.small
-                    width: parent.width; wrapMode: Text.Wrap
-                }
-                Row {
-                    visible: root.awaitingConsent
-                    spacing: 8
-                    Rectangle {
-                        objectName: "mediaLoadButton"
-                        width: mediaLoadLabel.implicitWidth + 16
-                        height: mediaLoadLabel.implicitHeight + 8
-                        radius: 4
-                        visible: EgressPolicy.canRequestConsent(root.resolvedSource)
-                        color: Theme.hoverTint
-                        border.color: mediaLoadArea.containsMouse ? Theme.accent
-                                                                  : Theme.borderStrong
-                        Text {
-                            id: mediaLoadLabel
-                            anchors.centerIn: parent
-                            text: qsTr("Load media")
-                            font.pixelSize: Interface.small
-                            color: mediaLoadArea.containsMouse ? Theme.textPrimary
-                                                               : Theme.textMuted
-                        }
-                        Accessible.role: Accessible.Button
-                        Accessible.name: qsTr("Load this remote media")
-                        Accessible.onPressAction: {
-                            EgressPolicy.allowOrigin(root.resolvedSource)
-                            root.requestRemoteMedia()
-                        }
-                        MouseArea {
-                            id: mediaLoadArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                EgressPolicy.allowOrigin(root.resolvedSource)
-                                root.requestRemoteMedia()
-                            }
-                        }
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("Remote media not loaded")
-                        color: Theme.textMuted; font.pixelSize: Interface.small
-                    }
-                }
-            }
-
-            // ---- Video frame ----
-            VideoOutput {
-                id: videoFrame
-                visible: root.isVideo && !root.hasError
-                width: parent.width
-                height: visible ? width * 9 / 16 : 0
-                fillMode: VideoOutput.PreserveAspectFit
-            }
-
-            // ---- Audio label ----
-                Row {
-                width: parent.width
-                spacing: 8
-                visible: root.isAudio && !root.hasError
-                Text {
-                    text: "♪"; font.pixelSize: Interface.px(18); color: Theme.textMuted
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 30
-                    text: root.media.alt !== "" ? root.media.alt : root.media.path
-                    color: Theme.textPrimary; font.pixelSize: Interface.body; elide: Text.ElideMiddle
-                }
-            }
-
-            // ---- Transport controls (audio + video) ----
-            Row {
-                width: parent.width
-                spacing: 8
-                visible: !root.hasError
-
-                // Play / pause.
-                Rectangle {
-                    objectName: "mediaPlayButton"
-                    width: 30; height: 30; radius: 15
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: playHover.containsMouse ? Theme.accent : Theme.chipBackground
-                    // Play triangle (▶ renders reliably); pause is drawn as two
-                    // bars, since the ⏸ glyph is missing from the base font.
-                    Text {
-                        anchors.centerIn: parent
-                        visible: !root.isPlaying
-                        text: "▶"
-                        color: playHover.containsMouse ? Theme.labelOn(Theme.accent)
-                                                       : Theme.textPrimary
-                        font.pixelSize: Interface.strong
-                    }
-                    Row {
-                        anchors.centerIn: parent
-                        visible: root.isPlaying
-                        spacing: 3
-                        Repeater { model: 2
-                            Rectangle { width: 3; height: 12; radius: 1
-                                color: playHover.containsMouse
-                                    ? Theme.labelOn(Theme.accent)
-                                    : Theme.textPrimary } }
-                    }
-                    Accessible.role: Accessible.Button
-                    Accessible.name: root.isPlaying ? qsTr("Pause") : qsTr("Play")
-                    Accessible.onPressAction: root.togglePlay()
-                    MouseArea {
-                        id: playHover; anchors.fill: parent; hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.togglePlay()
-                    }
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.fmtTime(player.position)
-                    color: Theme.textMuted; font.pixelSize: Interface.small
-                    width: 34; horizontalAlignment: Text.AlignRight
-                }
-
-                // Seek bar.
-                Slider {
-                    id: seek
-                    objectName: "mediaSeek"
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 30 - 34 - 34 - 24 - 60 - 5 * 8
-                    from: 0; to: Math.max(1, player.duration)
-                    value: player.position
-                    onMoved: player.position = value
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.fmtTime(player.duration)
-                    color: Theme.textMuted; font.pixelSize: Interface.small
-                    width: 34
-                }
-
-                // Volume (a drawn speaker — the 🔊 glyph is missing from the
-                // base font). ◀ is the cone; the arcs are the sound, dropped
-                // when muted.
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: audioOut.volume <= 0 ? "◀" : "◀))"
-                    color: Theme.textMuted
-                    font.pixelSize: Interface.body
-                }
-                Slider {
-                    objectName: "mediaVolume"
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 60
-                    from: 0; to: 1; value: audioOut.volume
-                    onMoved: audioOut.volume = value
-                    }
-                }
-                Text {
-                    visible: root.awaitingDownload
-                    text: qsTr("Loading remote media…")
-                    color: Theme.textMuted; font.pixelSize: Interface.small
-                }
-            }
     }
 
     MouseArea {

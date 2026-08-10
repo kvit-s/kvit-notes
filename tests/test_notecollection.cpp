@@ -59,6 +59,7 @@ private slots:
     void testRefreshPathsDirectoryScopesToSubtree();
     void testRefreshPathsDeletedDirectoryRemovesSubtree();
     void testAsyncOpenRootReturnsBeforeBodyParse();
+    void testAsyncWarmOpenPublishesCacheBeforeRevalidation();
     void testCreatedPrefersFrontMatter();
     void testInitializeIfEmpty();
 
@@ -288,7 +289,8 @@ void TestNoteCollection::testScanNeverWrites()
     QCOMPARE(readNote("Plain.md"), QStringLiteral("No metadata at all\n"));
     // Opening may write only the performance index sidecar; user collection
     // state and note files remain untouched until state changes.
-    QVERIFY(QFileInfo::exists(abs(".kvit/cache/index.json")));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        QFileInfo::exists(abs(".kvit/cache/index.json")), 5000);
     QVERIFY(!QFileInfo::exists(abs(".kvit/collection.json")));
 }
 
@@ -739,7 +741,34 @@ void TestNoteCollection::testAsyncOpenRootReturnsBeforeBodyParse()
     const NoteCollection::NoteEntry *indexed = collection.note("Huge.md");
     QVERIFY(indexed);
     QVERIFY(indexed->wordCount > 0);
-    QVERIFY(QFileInfo::exists(abs(".kvit/cache/index.json")));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        QFileInfo::exists(abs(".kvit/cache/index.json")), 5000);
+}
+
+void TestNoteCollection::testAsyncWarmOpenPublishesCacheBeforeRevalidation()
+{
+    writeNote("A.md", "one two\n");
+    writeNote("Folder/B.md", "three four\n");
+    NoteCollection cold;
+    QVERIFY(cold.openRoot(m_dir->path()));
+    cold.closeRoot();
+
+    // Change disk behind the sidecar. The old projection is allowed for the
+    // first paint, but the background pass must correct both removal and add.
+    QVERIFY(QFile::remove(abs("A.md")));
+    writeNote("C.md", "five six seven\n");
+
+    NoteCollection warm;
+    QSignalSpy finished(&warm, &NoteCollection::scanFinished);
+    QVERIFY(warm.openRootAsync(m_dir->path()));
+    QVERIFY2(warm.note("A.md"), "the warm cache was not published on open");
+    QVERIFY(warm.note("Folder/B.md"));
+    QVERIFY(!warm.note("C.md"));
+
+    QTRY_VERIFY_WITH_TIMEOUT(finished.count() > 0, 5000);
+    QVERIFY(!warm.note("A.md"));
+    QVERIFY(warm.note("C.md"));
+    QCOMPARE(warm.note("C.md")->wordCount, 3);
 }
 
 void TestNoteCollection::testCreatedPrefersFrontMatter()
@@ -2892,6 +2921,9 @@ void TestNoteCollection::testPlaceholderMetadataIsDistinguishableAndAnnounced()
     QVERIFY(m_collection->openRoot(m_dir->path()));
     m_collection->setLastOpenNote("A.md");
     m_collection->closeRoot();
+    // This case is about the cold placeholder. A valid persisted index now
+    // carries known front matter into the warm first paint, as it should.
+    QVERIFY(QFile::remove(abs(".kvit/cache/index.json")));
 
     NoteCollection async;
     QSignalSpy ready(&async, &NoteCollection::noteMetadataReady);

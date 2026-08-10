@@ -115,6 +115,22 @@ void WindowRegistry::openFileInNewWindow(const QString &path)
     openVaultInNewWindow(path);
 }
 
+void WindowRegistry::closeVault(const QString &path)
+{
+    VaultWindow *target = m_byKey.value(keyForTarget(path));
+    if (!target || !target->window())
+        return;
+
+    // Use the same event path as process shutdown. The shell settles dirty
+    // work and only emits windowClosing after it accepts; removeWindow is
+    // queued from that signal, so this call never deletes its own stack.
+    target->window()->setProperty("forceActualClose", true);
+    QCloseEvent closing;
+    QCoreApplication::sendEvent(target->window(), &closing);
+    if (!closing.isAccepted())
+        target->raiseWindow();
+}
+
 void WindowRegistry::openVaultInWindow(AppContext *requester, const QString &path)
 {
     const QString key = keyForTarget(path);

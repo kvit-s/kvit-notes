@@ -5,6 +5,7 @@
 
 #include <QAccessible>
 #include <QFile>
+#include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQuickItem>
@@ -25,6 +26,8 @@
 #include "extensionregistry.h"
 #include "menuaccesskeys.h"
 #include "perflog.h"
+#include "documentmanager.h"
+#include "textfileviewmodel.h"
 #include "theme.h"
 #include "qmlservices.h"
 
@@ -336,12 +339,76 @@ private slots:
                      ->property("width").toReal(), 0.0);
         QCOMPARE(window->findChild<QObject *>("extensionDocumentHeader")
                      ->property("height").toReal(), 0.0);
+        QObject *dock = window->findChild<QObject *>("bottomDock");
+        QVERIFY(dock);
+        QVERIFY(!dock->property("visible").toBool());
+        QCOMPARE(dock->property("height").toReal(), 0.0);
 
         // The document-decoration seam is the same story: nothing registered,
         // so no margin column is reserved and the rows are as wide as the
         // list, which is what keeps the text where it was.
         QVERIFY(!m_context->documentDecorations()->isActive());
         QVERIFY(!m_context->documentDecorations()->marginColumnReserved());
+    }
+
+    // Unit tests cover classification and loading in isolation. This case
+    // pins the final composition seam: an activation from the shipped Files
+    // pane must select the matching production surface, not merely emit a
+    // correctly classified signal that nobody consumes.
+    void fileTreeActivationsReachTheShippedViewingSurfaces()
+    {
+        QObject *window = m_engine.rootObjects().value(0);
+        QVERIFY(window);
+
+        const QString sourcePath = m_dir.filePath(QStringLiteral("route.rs"));
+        QFile source(sourcePath);
+        QVERIFY(source.open(QIODevice::WriteOnly));
+        QVERIFY(source.write(
+            "fn main() {\r\n    println!(\"hello\");\r\n}\r\n") > 0);
+        source.close();
+
+        QVariant result;
+        QVERIFY(QMetaObject::invokeMethod(
+            window, "openFileTreeEntry", Q_RETURN_ARG(QVariant, result),
+            Q_ARG(QVariant, sourcePath), Q_ARG(QVariant, QStringLiteral("text")),
+            Q_ARG(QVariant, QStringLiteral("route.rs"))));
+        QVERIFY(result.toBool());
+        QCOMPARE(window->property("contentView").toString(), QStringLiteral("text"));
+        QCOMPARE(m_context->textFileViewModel()->state(), QStringLiteral("ready"));
+        QCOMPARE(m_context->textFileViewModel()->language(), QStringLiteral("rust"));
+        QVERIFY(m_context->textFileViewModel()->text().contains(
+            QStringLiteral("println!")));
+        QVERIFY(window->findChild<QObject *>("readOnlyTextFile")
+                    ->property("visible").toBool());
+
+        const QString imagePath = m_dir.filePath(QStringLiteral("route.png"));
+        QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::magenta);
+        QVERIFY(image.save(imagePath));
+
+        result.clear();
+        QVERIFY(QMetaObject::invokeMethod(
+            window, "openFileTreeEntry", Q_RETURN_ARG(QVariant, result),
+            Q_ARG(QVariant, imagePath), Q_ARG(QVariant, QStringLiteral("image")),
+            Q_ARG(QVariant, QStringLiteral("route.png"))));
+        QVERIFY(result.toBool());
+        QCOMPARE(window->property("contentView").toString(), QStringLiteral("media"));
+        QObject *standalone = window->findChild<QObject *>("standaloneFileView");
+        QVERIFY(standalone);
+        QCOMPARE(standalone->property("path").toString(), imagePath);
+        QCOMPARE(standalone->property("kind").toString(), QStringLiteral("image"));
+        QObject *imageSurface = standalone->findChild<QObject *>(
+            "standaloneImageSurface");
+        QVERIFY(imageSurface);
+        QTRY_VERIFY(imageSurface->property("ready").toBool());
+        QVERIFY(imageSurface->property("source").toString().startsWith(
+            QStringLiteral("image://local/")));
+
+        // Leave the shared shell in its ordinary document state for the
+        // remaining delegate and accessibility cases.
+        m_context->textFileViewModel()->close();
+        m_context->documentManager()->newDocument();
+        window->setProperty("contentView", QStringLiteral("document"));
     }
 
     void everyBlockTypeGetsADelegate_data()

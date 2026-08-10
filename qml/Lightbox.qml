@@ -77,31 +77,14 @@ Popup {
         Accessible.name: lightbox.altText !== "" ? lightbox.altText
                                                  : qsTr("Image viewer")
 
-        Image {
+        ImageViewerSurface {
             id: fullImage
             objectName: "lightboxImage"
-            anchors.centerIn: parent
+            anchors.fill: parent
+            anchors.margins: Interface.px(40)
             source: lightbox.source
-            asynchronous: true
-            fillMode: Image.PreserveAspectFit
-            // Nothing here can show more than the window, so nothing here
-            // needs to decode more than the window. This is a ceiling: an
-            // image smaller than the viewport still loads at its own size,
-            // which is what the Math.min sizing below expects.
-            sourceSize.width: Math.max(1, lightbox.width - 80)
-            sourceSize.height: Math.max(1, lightbox.height - 80)
-            width: Math.min(implicitWidth, lightbox.width - 80)
-            height: Math.min(implicitHeight, lightbox.height - 80)
-            // The image is what this dialog is about, so it is what a screen
-            // reader should read: its alt text, or a plain fallback.
-            Accessible.role: Accessible.Graphic
-            Accessible.name: lightbox.altText !== "" ? lightbox.altText
-                                                     : qsTr("Image")
-            // A click on the image itself also closes (Obsidian behavior).
-            MouseArea {
-                anchors.fill: parent
-                onClicked: lightbox.close()
-            }
+            accessibleName: lightbox.altText !== "" ? lightbox.altText
+                                                      : qsTr("Image")
         }
 
         // A named, keyboard-reachable way out, for anyone who cannot reach

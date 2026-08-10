@@ -53,6 +53,7 @@ public:
     void openVaultInWindow(AppContext *requester, const QString &path) override;
     void openVaultInNewWindow(const QString &path) override;
     void openFileInNewWindow(const QString &path) override;
+    void closeVault(const QString &path) override;
 
     int windowCount() const { return int(m_windows.size()); }
 

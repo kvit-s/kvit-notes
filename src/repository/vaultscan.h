@@ -12,6 +12,7 @@
 #include <QStringList>
 
 #include "cancellationtoken.h"
+#include "ignorerules.h"
 #include "noteentry.h"
 #include "reservedsubtrees.h"
 
@@ -73,6 +74,7 @@ struct ScanRequest {
     // The subtrees the application manages, and what each admits. Empty in
     // the open editor, which is the walk exactly as it was.
     ReservedSubtrees reserved;
+    IgnoreRules::Snapshot ignores;
     // Checked between directories. QtConcurrent::run cannot interrupt
     // this walk, so without it a vault the user has already left goes on
     // being listed to the end.
@@ -100,6 +102,7 @@ struct RefreshRequest {
     QHash<QString, NoteEntry> currentNotes;
     quint64 generation = 0;
     ReservedSubtrees reserved;
+    IgnoreRules::Snapshot ignores;
     // Checked between notes. This worker reads and parses every changed
     // body inline, so it is the one whose abandoned run costs the most.
     CancellationTokenPtr cancel;

@@ -42,7 +42,7 @@ DEPENDS = {
     "domain": {"content"},
     "search": {"domain", "content"},
     "platform": {"domain", "content"},
-    "repository": {"domain", "search", "content"},
+    "repository": {"domain", "search", "platform", "content"},
     "application": {"repository", "platform", "search", "domain", "content"},
     "qml": {"application", "repository", "platform", "search", "domain", "content"},
 }

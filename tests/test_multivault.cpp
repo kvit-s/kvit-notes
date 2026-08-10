@@ -11,6 +11,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QQuickWindow>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QUrl>
 
@@ -19,6 +21,10 @@
 #include "block.h"
 #include "blockmodel.h"
 #include "documentmanager.h"
+#include "filesystemtreemodel.h"
+#include "filewatcher.h"
+#include "notecollection.h"
+#include "notelistmodel.h"
 #include "processservices.h"
 #include "vaultwindow.h"
 #include "windowregistry.h"
@@ -117,6 +123,11 @@ private slots:
         // the one already open rather than adding a third.
         registry.openVaultInNewWindow(vault1.path());
         QCOMPARE(registry.windowCount(), 2);
+
+        // The root rail's close action reaches the owning window even when
+        // it was requested from the other one.
+        first->context()->appActions()->requestCloseVault(vault2.path());
+        QTRY_COMPARE(registry.windowCount(), 1);
     }
 
     // A bare cold launch reopens the vaults that were open at the last quit.
@@ -187,6 +198,145 @@ private slots:
                  "the editor kept a note open in the vault it had just left");
         QCOMPARE(context.noteCollection()->rootPath(),
                  QDir(vault2.path()).absolutePath());
+    }
+
+    // The complete in-place path through the production shell: dirty work
+    // stops at the existing document dialog; a completed switch replaces all
+    // watch registrations; and returning restores the per-root file, scroll,
+    // sidebar, panel and sort state recorded by SessionPersistence.qml.
+    void inPlaceSwitchSettlesDirtyWorkAndRestoresPerRootState()
+    {
+        QTemporaryDir settingsDir;
+        QTemporaryDir vault1;
+        QTemporaryDir vault2;
+        ProcessServices globals(headlessOptions());
+        globals.openSettings(settingsDir.filePath(QStringLiteral("settings.json")));
+
+        QByteArray longNote;
+        for (int i = 0; i < 80; ++i) {
+            longNote += QByteArray("## Section ") + QByteArray::number(i)
+                      + QByteArray("\n\nA paragraph long enough to occupy its "
+                                   "own visible editor row.\n\n");
+        }
+        const QString note1 = vault1.filePath(QStringLiteral("a.md"));
+        const QString note2 = vault2.filePath(QStringLiteral("b.md"));
+        for (const auto &[path, bytes] : {
+                 std::pair<QString, QByteArray>{note1, longNote},
+                 std::pair<QString, QByteArray>{note2, QByteArray("# Other\n")}}) {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QCOMPARE(file.write(bytes), bytes.size());
+        }
+
+        WindowRegistry registry(globals,
+                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+        QVERIFY(registry.openStartup(vault1.path()));
+        VaultWindow *vaultWindow = registry.activeWindow();
+        QVERIFY(vaultWindow);
+        AppContext *context = vaultWindow->context();
+        QQuickWindow *window = vaultWindow->window();
+        QVERIFY(window);
+
+        const QString root1 = QDir(vault1.path()).absolutePath();
+        const QString root2 = QDir(vault2.path()).absolutePath();
+        QTRY_COMPARE(context->noteCollection()->rootPath(), root1);
+        QTRY_VERIFY(context->startupController()->finished());
+        QTRY_COMPARE(context->documentManager()->currentFilePath(), note1);
+
+        NoteCollection *const oneCollection = context->noteCollection();
+        FileWatcher *const oneWatcher = context->fileWatcher();
+        FileSystemTreeModel *const oneFileTree = context->fileSystemTreeModel();
+        QTRY_VERIFY(!oneWatcher->discoveryPending());
+        QCOMPARE(oneWatcher->watchedDirectoriesForTests().size(), 1);
+        QCOMPARE(oneFileTree->watchedDirectoryCountForTests(), 1);
+
+        window->setProperty("sidebarView", QStringLiteral("files"));
+        window->setProperty("sidebarWidth", 231);
+        window->setProperty("noteListWidth", 321);
+        context->noteListModel()->setSortMode(QStringLiteral("title"));
+        context->noteListModel()->setAscending(true);
+
+        // Wait for the long note to lay out before choosing a non-zero place.
+        QVariant scroll;
+        QTRY_VERIFY(QMetaObject::invokeMethod(
+                        window, "setEditorContentY", Q_ARG(QVariant, 180.0))
+                    && QMetaObject::invokeMethod(
+                        window, "editorContentY", Q_RETURN_ARG(QVariant, scroll))
+                    && scroll.toReal() > 100.0);
+        const qreal savedScroll = scroll.toReal();
+
+        context->blockModel()->updateContent(
+            0, context->blockModel()->getContent(0) + QStringLiteral(" edited"));
+        QVERIFY(context->documentManager()->isDirty());
+        context->appActions()->requestOpenVault(root2);
+
+        // The request has not crossed roots; the shell has put the same
+        // save/discard/cancel settlement used by other document transitions
+        // in front of it.
+        QCOMPARE(context->noteCollection()->rootPath(), root1);
+        QObject *switchDialog = nullptr;
+        QTRY_VERIFY((switchDialog =
+                         window->findChild<QObject *>("vaultSwitchDialog")));
+        QTRY_VERIFY(switchDialog->property("visible").toBool());
+        QVERIFY(QMetaObject::invokeMethod(switchDialog, "close"));
+        QCOMPARE(context->noteCollection()->rootPath(), root1);
+
+        QVERIFY(context->documentManager()->save());
+        context->appActions()->requestOpenVault(root2);
+        QTRY_COMPARE(context->noteCollection()->rootPath(), root2);
+        QTRY_VERIFY(context->startupController()->finished());
+
+        // The old registrations are gone, not accumulated beside the new
+        // ones, and the per-vault service graph itself still has one instance
+        // of each owner rather than retaining a departed composition.
+        QCOMPARE(context->noteCollection(), oneCollection);
+        QCOMPARE(context->fileWatcher(), oneWatcher);
+        QCOMPARE(context->fileSystemTreeModel(), oneFileTree);
+        QTRY_VERIFY(!oneWatcher->discoveryPending());
+        QCOMPARE(oneWatcher->watchedDirectoriesForTests(), QStringList{root2});
+        QCOMPARE(oneFileTree->watchedDirectoryCountForTests(), 1);
+
+        const QVariantMap states =
+            globals.settings()->value(QStringLiteral("root.viewState")).toMap();
+        const QVariantMap leftState = states.value(root1).toMap();
+        QCOMPARE(leftState.value("sidebarView").toString(),
+                 QStringLiteral("files"));
+        QCOMPARE(leftState.value("sidebarWidth").toInt(), 231);
+        QCOMPARE(leftState.value("noteListWidth").toInt(), 321);
+        QCOMPARE(leftState.value("sortMode").toString(), QStringLiteral("title"));
+        QCOMPARE(leftState.value("sortAscending").toBool(), true);
+        QCOMPARE(leftState.value("openFile").toString(), QStringLiteral("a.md"));
+        QVERIFY(qAbs(leftState.value("scrollY").toReal() - savedScroll) < 2.0);
+
+        // The lock travels with the live root: the one just left can be
+        // opened by another collection, while the current one cannot.
+        NoteCollection lockProbe;
+        QVERIFY(lockProbe.openRoot(root1));
+        QVERIFY(!lockProbe.openRoot(root2));
+        lockProbe.closeRoot();
+
+        window->setProperty("sidebarView", QStringLiteral("notes"));
+        window->setProperty("sidebarWidth", 190);
+        window->setProperty("noteListWidth", 250);
+        context->noteListModel()->setSortMode(QStringLiteral("modified"));
+        context->noteListModel()->setAscending(false);
+        context->appActions()->requestOpenVault(root1);
+
+        QTRY_COMPARE(context->noteCollection()->rootPath(), root1);
+        QTRY_VERIFY(context->startupController()->finished());
+        QTRY_COMPARE(context->documentManager()->currentFilePath(), note1);
+        QCOMPARE(window->property("sidebarView").toString(),
+                 QStringLiteral("files"));
+        QCOMPARE(window->property("sidebarWidth").toInt(), 231);
+        QCOMPARE(window->property("noteListWidth").toInt(), 321);
+        QCOMPARE(context->noteListModel()->sortMode(), QStringLiteral("title"));
+        QCOMPARE(context->noteListModel()->ascending(), true);
+        QTRY_VERIFY(QMetaObject::invokeMethod(
+                        window, "editorContentY", Q_RETURN_ARG(QVariant, scroll))
+                    && qAbs(scroll.toReal() - savedScroll) < 2.0);
+        QTRY_VERIFY(!oneWatcher->discoveryPending());
+        QCOMPARE(oneWatcher->watchedDirectoriesForTests(), QStringList{root1});
+        QCOMPARE(oneFileTree->watchedDirectoryCountForTests(), 1);
     }
 
     // Quitting from the tray is a close of every window, and a close is where

@@ -81,6 +81,10 @@ public:
     // its worker threads, so reaching it while the old vault's reconcile or
     // query is still running parks the GUI thread behind that work.
     Q_INVOKABLE void requestOpenVault(const QString &path) { emit openVaultRequested(path); }
+    Q_INVOKABLE void confirmOpenVault(const QString &path)
+    {
+        emit openVaultConfirmed(path);
+    }
     // Open a folder as a vault in a NEW window, or a loose file in its own
     // single-file window. Unlike requestOpenVault (which switches this window
     // in place), these add a window — the window registry raises an existing
@@ -93,6 +97,13 @@ public:
     Q_INVOKABLE void requestOpenFileInNewWindow(const QString &path)
     {
         emit openFileInNewWindowRequested(path);
+    }
+    // Close the window currently owning a vault, if it is open. The root rail
+    // uses this for a non-current entry; a closed remembered root simply has
+    // no registry target and the request is inert.
+    Q_INVOKABLE void requestCloseVault(const QString &path)
+    {
+        emit closeVaultRequested(path);
     }
     // This window is closing for good (not hiding to the tray): the registry
     // tears down its vault so the kernel lock is released. QML's onClosing
@@ -171,8 +182,11 @@ signals:
     void revealItemRequested(QObject *item);
     void openNoteByPathRequested(const QString &relPath);
     void openVaultRequested(const QString &path);
+    void vaultSwitchConfirmationRequested(const QString &path);
+    void openVaultConfirmed(const QString &path);
     void openVaultInNewWindowRequested(const QString &path);
     void openFileInNewWindowRequested(const QString &path);
+    void closeVaultRequested(const QString &path);
     void windowClosing();
     void centerCaretLineRequested(QObject *item);
     void textContextMenuRequested(QObject *target);

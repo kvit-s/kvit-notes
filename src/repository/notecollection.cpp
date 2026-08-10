@@ -165,6 +165,21 @@ void NoteCollection::setOpenDocument(OpenDocumentSession *session)
     m_openDocument = session;
 }
 
+void NoteCollection::setIgnoreRules(IgnoreRules *rules)
+{
+    if (m_ignoreRules == rules)
+        return;
+    if (m_ignoreRules)
+        disconnect(m_ignoreRules, nullptr, this, nullptr);
+    m_ignoreRules = rules;
+    if (!m_ignoreRules)
+        return;
+    connect(m_ignoreRules, &IgnoreRules::rulesChanged, this, [this]() {
+        if (isOpen())
+            refreshPaths(QStringList());
+    });
+}
+
 // --------------------------------------------------------------- root
 
 bool NoteCollection::openRoot(const QString &path)
@@ -263,6 +278,8 @@ void NoteCollection::closeRoot()
     cancelAsyncIndexSave();
     m_rootPath.clear();
     m_canonicalRoot.clear();
+    if (m_ignoreRules)
+        m_ignoreRules->setRootPath(QString(), false);
     attachStoresToRoot();
     m_notes.clear();
     m_folders.clear();
@@ -352,6 +369,8 @@ bool NoteCollection::prepareRootPath(const QString &path)
 
     m_rootPath = absolute;
     m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
+    if (m_ignoreRules)
+        m_ignoreRules->setRootPath(m_rootPath, false);
     attachStoresToRoot();
     // Fail-open is a deliberate choice, but it was only ever written to the
     // log, where nobody sees it: the vault is open with nothing stopping a
@@ -685,7 +704,9 @@ void NoteCollection::scan()
     m_indexDirty = !indexOk && QFileInfo::exists(m_indexFile.path());
 
     QSet<QString> visitedDirs;
-    scanDirectory(QString(), cachedNotes, &visitedDirs);
+    const IgnoreRules::Snapshot ignoreRules = m_ignoreRules
+        ? m_ignoreRules->snapshot() : IgnoreRules::Snapshot();
+    scanDirectory(QString(), cachedNotes, ignoreRules, &visitedDirs);
     loadCollectionFile();
 
     if (!indexOk || cachedNotes.size() != m_notes.size())
@@ -716,6 +737,29 @@ void NoteCollection::scanAsync()
     m_folderRecursiveNoteCounts.reserve(cachedNotes.size());
     m_indexDirty = !indexOk && indexFileExists;
 
+    // A valid sidecar is the warm first paint, not merely an accelerator for
+    // the background walk. Publish its entries now; the listing below still
+    // revalidates every path, mtime and size and replaces this projection in
+    // one ordinary revision. Current ignore and reserved-subtree policy is
+    // applied before publication so a policy change cannot briefly expose a
+    // path this session has already excluded.
+    const IgnoreRules::Snapshot ignoreSnapshot = m_ignoreRules
+        ? m_ignoreRules->snapshot() : IgnoreRules::Snapshot();
+    if (indexOk) {
+        for (auto it = cachedNotes.cbegin(); it != cachedNotes.cend(); ++it) {
+            NoteEntry entry = it.value();
+            if (ignoreSnapshot.isExcluded(entry.relPath, false))
+                continue;
+            if (m_reserved.isReservedPath(entry.relPath)) {
+                entry.realm = m_reserved.admittedLabel(entry.relPath);
+                if (entry.realm.isEmpty())
+                    continue;
+            }
+            ensureFolderEntriesFor(entry.folder);
+            insertNoteEntry(entry.relPath, entry);
+        }
+    }
+
     // Load workspace state now so startup can open a remembered note from
     // disk before the background directory listing has caught up. Folder
     // visual state is applied again after the listing publishes folders.
@@ -731,6 +775,8 @@ void NoteCollection::scanAsync()
     request.indexFileExists = indexFileExists;
     request.generation = generation;
     request.reserved = m_reserved;
+    request.ignores = m_ignoreRules
+        ? m_ignoreRules->snapshot() : IgnoreRules::Snapshot();
     m_scanCancel = makeCancellationToken();
     request.cancel = m_scanCancel;
     m_asyncListingWatcher.setFuture(
@@ -739,6 +785,7 @@ void NoteCollection::scanAsync()
 
 void NoteCollection::scanDirectory(const QString &relDir,
                                    const QHash<QString, NoteEntry> &cachedNotes,
+                                   const IgnoreRules::Snapshot &ignoreRules,
                                    QSet<QString> *visitedDirs)
 {
     const QString absDir = relDir.isEmpty() ? m_rootPath : absolutePath(relDir);
@@ -759,6 +806,8 @@ void NoteCollection::scanDirectory(const QString &relDir,
         const QString relPath = joinRelPath(relDir, name);
         if (name.startsWith(QLatin1Char('.'))) // .kvit and other dot entries
             continue;
+        if (ignoreRules.isExcluded(relPath, info.isDir()))
+            continue;
         if (info.isDir()) {
             if (!inReserved) {
                 FolderEntry folder;
@@ -766,7 +815,8 @@ void NoteCollection::scanDirectory(const QString &relDir,
                 folder.name = name;
                 m_folders.insert(relPath, folder);
             }
-            scanDirectory(relPath, cachedNotes, visitedDirs);
+            scanDirectory(relPath, cachedNotes,
+                          ignoreRules.withDirectory(relPath), visitedDirs);
         } else if (name.endsWith(mdSuffix, Qt::CaseInsensitive)) {
             if (inReserved && m_reserved.admittedLabel(relPath).isEmpty())
                 continue;
@@ -781,8 +831,12 @@ void NoteCollection::scanDirectory(const QString &relDir,
         const QStringList reservedNames = m_reserved.names();
         for (const QString &reservedName : reservedNames) {
             const QFileInfo subtree(absolutePath(reservedName));
-            if (subtree.exists() && subtree.isDir() && !subtree.isSymLink())
-                scanDirectory(reservedName, cachedNotes, visitedDirs);
+            if (subtree.exists() && subtree.isDir() && !subtree.isSymLink()
+                && !ignoreRules.isExcluded(reservedName, true)) {
+                scanDirectory(reservedName, cachedNotes,
+                              ignoreRules.withDirectory(reservedName),
+                              visitedDirs);
+            }
         }
     }
 }
@@ -795,6 +849,8 @@ void NoteCollection::indexNote(const QString &relPath)
 void NoteCollection::indexNote(const QString &relPath,
                                const QHash<QString, NoteEntry> &cachedNotes)
 {
+    if (m_ignoreRules && m_ignoreRules->isExcluded(relPath, false))
+        return;
     // Inside a subtree the application manages, only the files its
     // registration nominates are indexed. This is the single-file entry point
     // — a watcher event, a save — so it is where a path nobody admitted is
@@ -1283,7 +1339,9 @@ void NoteCollection::applyAsyncScanListing()
     bump();
 
     if (listing.tasks.isEmpty()) {
-        saveIndexFileIfDirty();
+        // The sidecar is an accelerator, never part of completing the open.
+        // Serialize and write its settled snapshot off the GUI thread.
+        saveIndexFileIfDirtyAsync();
         setScanInProgress(false);
         PerfLog::instance().record(
             QStringLiteral("startup.scan"),
@@ -1356,12 +1414,8 @@ void NoteCollection::finishAsyncScan()
     // background scan has caught up.
     resumePendingOperations();
     scheduleRedirectRewrite();
-    if (m_asyncSavedNotePendingFlush) {
-        saveIndexFileIfDirtyAsync();
-        m_asyncSavedNotePendingFlush = false;
-    } else {
-        saveIndexFileIfDirty();
-    }
+    saveIndexFileIfDirtyAsync();
+    m_asyncSavedNotePendingFlush = false;
     PerfLog::instance().record(
         QStringLiteral("startup.scan"),
         m_asyncScanTimer.isValid() ? m_asyncScanTimer.elapsed() : 0,
@@ -1383,24 +1437,16 @@ void NoteCollection::flushAsyncIndexUpdates()
     // once after the background parse is complete.
     if (m_asyncPendingUpdates <= 0) {
         if (!m_scanInProgress) {
-            if (m_asyncSavedNotePendingFlush) {
-                saveIndexFileIfDirtyAsync();
-                m_asyncSavedNotePendingFlush = false;
-            } else {
-                saveIndexFileIfDirty();
-            }
+            saveIndexFileIfDirtyAsync();
+            m_asyncSavedNotePendingFlush = false;
         }
         return;
     }
 
     m_asyncPendingUpdates = 0;
     if (!m_scanInProgress) {
-        if (m_asyncSavedNotePendingFlush) {
-            saveIndexFileIfDirtyAsync();
-            m_asyncSavedNotePendingFlush = false;
-        } else {
-            saveIndexFileIfDirty();
-        }
+        saveIndexFileIfDirtyAsync();
+        m_asyncSavedNotePendingFlush = false;
     }
     bump();
 }
@@ -1468,6 +1514,8 @@ void NoteCollection::startAsyncDirectoryRefresh(const QStringList &relDirs)
     request.currentNotes = m_notes;
     request.generation = ++m_asyncRefreshGeneration;
     request.reserved = m_reserved;
+    request.ignores = m_ignoreRules
+        ? m_ignoreRules->snapshot() : IgnoreRules::Snapshot();
     m_refreshCancel = makeCancellationToken();
     request.cancel = m_refreshCancel;
     m_asyncRefreshTimer.start();

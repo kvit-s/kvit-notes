@@ -51,6 +51,22 @@ Menu {
             = !viewMenu.appWindow.noteListCollapsed
     }
     DiscoverableMenuItem {
+        objectName: "viewMenuFileTree"
+        text: MenuText.label(qsTr("&Files tree"))
+        checkable: true
+        enabled: viewMenu.appWindow.collectionOpen
+        checked: viewMenu.appWindow.sidebarView === "files"
+        onTriggered: viewMenu.appWindow.sidebarView = checked ? "files" : "notes"
+    }
+    DiscoverableMenuItem {
+        objectName: "viewMenuNavigationRails"
+        text: MenuText.label(qsTr("Navigation r&ails"))
+        checkable: true
+        enabled: viewMenu.appWindow.collectionOpen
+        checked: viewMenu.appWindow.navigationRailsVisible
+        onTriggered: viewMenu.appWindow.navigationRailsVisible = checked
+    }
+    DiscoverableMenuItem {
         objectName: "viewMenuOutline"
         text: MenuText.label(qsTr("&Outline"))
         checkable: true
@@ -67,10 +83,18 @@ Menu {
         onTriggered: viewMenu.appWindow.backlinksVisible
             = !viewMenu.appWindow.backlinksVisible
     }
+    DiscoverableMenuItem {
+        objectName: "viewMenuBottomDock"
+        text: MenuText.label(qsTr("Bottom doc&k"))
+        checkable: true
+        enabled: Extensions.bottomDockTabs().length > 0
+        checked: enabled && !viewMenu.appWindow.bottomDockCollapsed
+        onTriggered: viewMenu.appWindow.bottomDockCollapsed = !checked
+    }
     MenuSeparator {}
     DiscoverableMenuItem {
         objectName: "viewMenuFocusMode"
-        text: MenuText.label(qsTr("&Focus mode"))
+        text: MenuText.label(qsTr("Foc&us mode"))
         checkable: true
         checked: viewMenu.appWindow.focusMode
         onTriggered: viewMenu.appWindow.focusMode

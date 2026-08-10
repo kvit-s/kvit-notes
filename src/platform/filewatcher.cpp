@@ -4,7 +4,6 @@
 #include "filewatcher.h"
 
 #include <QDir>
-#include <QDirIterator>
 #include <QFileInfo>
 #include <QDateTime>
 #include <QElapsedTimer>
@@ -42,6 +41,26 @@ FileWatcher::FileWatcher(QObject *parent)
 }
 
 FileWatcher::~FileWatcher() = default;
+
+void FileWatcher::setIgnoreRules(IgnoreRules *rules)
+{
+    if (m_ignoreRules == rules)
+        return;
+    if (m_ignoreRules)
+        disconnect(m_ignoreRules, nullptr, this, nullptr);
+    m_ignoreRules = rules;
+    if (!m_ignoreRules)
+        return;
+    connect(m_ignoreRules, &IgnoreRules::rulesChanged, this, [this]() {
+        if (!m_root.isEmpty()) {
+            // watchRoot() begins with stop(), which clears m_root. Passing the
+            // member itself by const reference would therefore clear the
+            // argument before it is assigned back.
+            const QString root = m_root;
+            watchRoot(root);
+        }
+    });
+}
 
 void FileWatcher::watchRoot(const QString &root)
 {
@@ -96,7 +115,10 @@ void FileWatcher::clearRegistrations()
     m_watchedFiles.clear();
     m_watchedDirs.clear();
     m_discoveredDirs.clear();
-    m_discovery.reset();
+    m_ruleFiles.clear();
+    m_discoveredRuleFiles.clear();
+    m_discoveryQueue.clear();
+    m_discoveryActive = false;
     m_discoverySlice.stop();
 }
 
@@ -114,6 +136,7 @@ void FileWatcher::addTreeWatches(const QString &root)
         return;
     ++m_treeWatchRefreshCount;
     m_discoveredDirs.clear();
+    m_discoveredRuleFiles.clear();
     m_discoveredDirs.insert(root);
     addPathChecked(root, true);
     // Watch every folder so an add/rename/delete anywhere in the tree fires a
@@ -124,8 +147,14 @@ void FileWatcher::addTreeWatches(const QString &root)
     // under it, so nothing in the vault was watched and external changes went
     // unnoticed for the whole session.
     m_controlDir = QDir::cleanPath(root) + QStringLiteral("/.kvit");
-    m_discovery = std::make_unique<QDirIterator>(
-        root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    IgnoreRules::Snapshot rules = m_ignoreRules
+        ? m_ignoreRules->snapshot() : IgnoreRules::Snapshot();
+    const QString infoExclude = rules.gitInfoExcludePath();
+    if (!infoExclude.isEmpty() && QFileInfo::exists(infoExclude))
+        addRuleFileWatch(infoExclude);
+    m_discoveryQueue.clear();
+    m_discoveryQueue.enqueue(DiscoveryDir{root, QString(), rules});
+    m_discoveryActive = true;
     continueDiscovery();
 }
 
@@ -136,18 +165,33 @@ void FileWatcher::addTreeWatches(const QString &root)
 // themselves must stay on this thread, since QFileSystemWatcher belongs to it.
 void FileWatcher::continueDiscovery()
 {
-    if (!m_discovery)
+    if (!m_discoveryActive)
         return;
     int budget = DiscoverySliceEntries;
-    while (m_discovery->hasNext()) {
-        const QString dir = m_discovery->next();
-        if (dir == m_controlDir
-            || dir.startsWith(m_controlDir + QLatin1Char('/'))) {
-            continue;
+    while (!m_discoveryQueue.isEmpty()) {
+        const DiscoveryDir current = m_discoveryQueue.dequeue();
+        const QString ignoreFile =
+            current.rules.ignoreFileForDirectory(current.relativePath);
+        if (!ignoreFile.isEmpty() && QFileInfo::exists(ignoreFile))
+            addRuleFileWatch(ignoreFile);
+
+        const QFileInfoList children = QDir(current.absolutePath).entryInfoList(
+            QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::Name);
+        for (const QFileInfo &info : children) {
+            const QString name = info.fileName();
+            if (name.startsWith(QLatin1Char('.')))
+                continue;
+            const QString relPath = current.relativePath.isEmpty()
+                ? name : current.relativePath + QLatin1Char('/') + name;
+            if (current.rules.isExcluded(relPath, true))
+                continue;
+            const QString dir = info.absoluteFilePath();
+            m_discoveredDirs.insert(dir);
+            addPathChecked(dir, true);
+            m_discoveryQueue.enqueue(DiscoveryDir{
+                dir, relPath, current.rules.withDirectory(relPath)});
         }
-        m_discoveredDirs.insert(dir);
-        addPathChecked(dir, true);
-        if (--budget <= 0) {
+        if (--budget <= 0 && !m_discoveryQueue.isEmpty()) {
             m_discoverySlice.start();
             return;
         }
@@ -157,7 +201,8 @@ void FileWatcher::continueDiscovery()
 
 void FileWatcher::finishDiscovery()
 {
-    m_discovery.reset();
+    m_discoveryQueue.clear();
+    m_discoveryActive = false;
     m_discoverySlice.stop();
     // Reconcile rather than rebuild: a directory that has gone away leaves a
     // dead registration behind, and re-adding every surviving one on each
@@ -166,11 +211,27 @@ void FileWatcher::finishDiscovery()
     for (const QString &dir : stale)
         forgetPath(dir);
     m_discoveredDirs.clear();
+    const QSet<QString> staleRules = m_ruleFiles - m_discoveredRuleFiles;
+    for (const QString &path : staleRules) {
+        forgetPath(path);
+        m_ruleFiles.remove(path);
+    }
+    m_discoveredRuleFiles.clear();
     // The open note lives inside the tree and is watched as a file in its own
     // right; a tree refresh is a good moment to confirm that registration is
     // still alive.
-    if (!m_currentFile.isEmpty())
+    if (!m_currentFile.isEmpty()
+        && !isIgnoredPath(m_currentFile, false))
         addPathChecked(m_currentFile, false);
+}
+
+void FileWatcher::addRuleFileWatch(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+    m_discoveredRuleFiles.insert(path);
+    if (addPathChecked(path, false))
+        m_ruleFiles.insert(path);
 }
 
 void FileWatcher::watchFile(const QString &absPath)
@@ -189,6 +250,8 @@ void FileWatcher::watchFile(const QString &absPath)
 
     m_currentFile = absPath;
     if (absPath.isEmpty())
+        return;
+    if (isIgnoredPath(absPath, false))
         return;
     if (!QFileInfo::exists(absPath)) {
         setWatchDegraded(true);
@@ -391,6 +454,16 @@ bool FileWatcher::isOwnChange(const QString &path, bool isFile)
 
 void FileWatcher::feedChange(const QString &path, bool isFile)
 {
+    if (m_ignoreRules
+        && (m_ruleFiles.contains(path) || m_ignoreRules->isRulesFile(path))) {
+        m_ignoreRules->reload();
+        return;
+    }
+    // A stale registration can report once after a rule starts excluding its
+    // directory. Do not put that event into the debounce or make a busy build
+    // tree pay for a collection refresh while registrations are reconciling.
+    if (isIgnoredPath(path, !isFile))
+        return;
     if (isOwnChange(path, isFile)) {
         // The app's own write is not an external change, but it is exactly what
         // destroys the watch: saves go through QSaveFile, which renames a temp
@@ -413,6 +486,19 @@ void FileWatcher::feedChange(const QString &path, bool isFile)
     // (a git checkout, a folder copy) coalesces into one re-scan. Re-add watches
     // in the debounced handler, not per raw event.
     m_debounce.start();
+}
+
+bool FileWatcher::isIgnoredPath(const QString &absolutePath,
+                                bool isDirectory) const
+{
+    if (!m_ignoreRules || m_root.isEmpty() || absolutePath.isEmpty())
+        return false;
+    const QString relative = QDir(m_root).relativeFilePath(absolutePath);
+    if (relative == QLatin1String(".") || relative == QLatin1String("..")
+        || relative.startsWith(QStringLiteral("../"))) {
+        return false;
+    }
+    return m_ignoreRules->isExcluded(relative, isDirectory);
 }
 
 void FileWatcher::emitDebouncedExternalChange()

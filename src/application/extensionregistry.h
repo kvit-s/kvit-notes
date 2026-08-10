@@ -4,12 +4,15 @@
 #ifndef EXTENSIONREGISTRY_H
 #define EXTENSIONREGISTRY_H
 
+#include <QHash>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
+#include <QVariantList>
 
 #include <memory>
+#include <functional>
 #include <vector>
 
 class BlockKindRegistry;
@@ -31,6 +34,7 @@ inline const char *BottomBar = "bottomBar";
 inline const char *Banner = "banner";
 inline const char *SidePanel = "sidePanel";
 inline const char *DocumentHeader = "documentHeader";
+inline const char *BottomDock = "bottomDock";
 }
 
 // A module linked on top of the core library.
@@ -97,6 +101,12 @@ public:
     // The QML file that fills a named UI slot (see KvitSlots), or an empty
     // string for slots this module leaves alone.
     virtual QString qmlSlot(const QString &slot) const;
+
+    // Named, independently selectable panes for the resizable bottom dock and
+    // the sidebar view rail. Each map has id, title and source keys. Unlike a
+    // one-owner slot, these contributions aggregate across modules.
+    virtual QVariantList bottomDockTabs() const;
+    virtual QVariantList sidebarViews() const;
 };
 
 // The installed extensions, in installation order.
@@ -129,6 +139,20 @@ public:
     // fills it — which leaves the shell's Loader inactive and zero-sized. The
     // first module claiming a slot keeps it.
     Q_INVOKABLE QString slotSource(const QString &slot) const;
+    Q_INVOKABLE QVariantList bottomDockTabs() const;
+    Q_INVOKABLE QVariantList sidebarViews() const;
+    Q_INVOKABLE QString sidebarViewSource(const QString &id) const;
+
+    // A module may report background state for any root, including one that
+    // is not current. The root rail observes revision and asks for the mark.
+    Q_PROPERTY(int rootStatusRevision READ rootStatusRevision
+                   NOTIFY rootStatusChanged)
+    int rootStatusRevision() const { return m_rootStatusRevision; }
+    Q_INVOKABLE QVariantMap rootStatus(const QString &rootPath) const;
+    Q_INVOKABLE void setRootStatus(const QString &rootPath,
+                                   const QString &color,
+                                   const QString &tooltip);
+    Q_INVOKABLE void clearRootStatus(const QString &rootPath);
 
     // Fan-out of the two setup callbacks, in installation order.
     void registerBlockKinds(BlockKindRegistry &registry);
@@ -155,10 +179,13 @@ signals:
     // Emitted when the installed set changes, so shell Loaders bound to
     // slotSource() re-resolve. In practice this fires only during startup.
     void extensionsChanged();
+    void rootStatusChanged();
 
 private:
     std::vector<std::unique_ptr<KvitExtension>> m_extensions;
     QStringList m_publishedNamespaces;
+    QHash<QString, QVariantMap> m_rootStatuses;
+    int m_rootStatusRevision = 0;
 };
 
 #endif // EXTENSIONREGISTRY_H

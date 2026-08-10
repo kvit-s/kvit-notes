@@ -3,9 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "extensionregistry.h"
 
+#include <QDir>
 #include <QLoggingCategory>
 #include <QQmlContext>
 #include <QRegularExpression>
+#include <QSet>
 
 #include <algorithm>
 
@@ -27,6 +29,16 @@ QString KvitExtension::qmlSlot(const QString &slot) const
 {
     Q_UNUSED(slot);
     return QString();
+}
+
+QVariantList KvitExtension::bottomDockTabs() const
+{
+    return {};
+}
+
+QVariantList KvitExtension::sidebarViews() const
+{
+    return {};
 }
 
 ExtensionRegistry::ExtensionRegistry(QObject *parent)
@@ -66,6 +78,85 @@ QString ExtensionRegistry::slotSource(const QString &slot) const
             return source;
     }
     return QString();
+}
+
+namespace {
+QVariantList aggregateViews(
+    const std::vector<std::unique_ptr<KvitExtension>> &extensions,
+    const std::function<QVariantList(const KvitExtension *)> &read)
+{
+    QVariantList result;
+    QSet<QString> ids;
+    for (const auto &extension : extensions) {
+        for (const QVariant &value : read(extension.get())) {
+            QVariantMap item = value.toMap();
+            const QString id = item.value(QStringLiteral("id")).toString();
+            const QString title = item.value(QStringLiteral("title")).toString();
+            const QString source = item.value(QStringLiteral("source")).toString();
+            if (id.isEmpty() || title.isEmpty() || source.isEmpty()
+                || ids.contains(id)) {
+                continue;
+            }
+            ids.insert(id);
+            item.insert(QStringLiteral("module"), extension->name());
+            result.append(item);
+        }
+    }
+    return result;
+}
+}
+
+QVariantList ExtensionRegistry::bottomDockTabs() const
+{
+    return aggregateViews(m_extensions, [](const KvitExtension *extension) {
+        return extension->bottomDockTabs();
+    });
+}
+
+QVariantList ExtensionRegistry::sidebarViews() const
+{
+    return aggregateViews(m_extensions, [](const KvitExtension *extension) {
+        return extension->sidebarViews();
+    });
+}
+
+QString ExtensionRegistry::sidebarViewSource(const QString &id) const
+{
+    for (const QVariant &value : sidebarViews()) {
+        const QVariantMap item = value.toMap();
+        if (item.value(QStringLiteral("id")).toString() == id)
+            return item.value(QStringLiteral("source")).toString();
+    }
+    return {};
+}
+
+QVariantMap ExtensionRegistry::rootStatus(const QString &rootPath) const
+{
+    return m_rootStatuses.value(QDir::cleanPath(rootPath));
+}
+
+void ExtensionRegistry::setRootStatus(const QString &rootPath,
+                                      const QString &color,
+                                      const QString &tooltip)
+{
+    const QString key = QDir::cleanPath(rootPath);
+    if (key.isEmpty())
+        return;
+    const QVariantMap next{{QStringLiteral("color"), color},
+                           {QStringLiteral("tooltip"), tooltip}};
+    if (m_rootStatuses.value(key) == next)
+        return;
+    m_rootStatuses.insert(key, next);
+    ++m_rootStatusRevision;
+    emit rootStatusChanged();
+}
+
+void ExtensionRegistry::clearRootStatus(const QString &rootPath)
+{
+    if (m_rootStatuses.remove(QDir::cleanPath(rootPath)) == 0)
+        return;
+    ++m_rootStatusRevision;
+    emit rootStatusChanged();
 }
 
 void ExtensionRegistry::registerBlockKinds(BlockKindRegistry &registry)
@@ -144,5 +235,8 @@ void ExtensionRegistry::clear()
     if (m_extensions.empty())
         return;
     m_extensions.clear();
+    m_rootStatuses.clear();
+    ++m_rootStatusRevision;
     emit extensionsChanged();
+    emit rootStatusChanged();
 }

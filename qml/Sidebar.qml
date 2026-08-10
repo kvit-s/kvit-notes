@@ -23,6 +23,10 @@ Rectangle {
 
     // Wired by main.qml (the collapse control writes layout state).
     property var appWindow
+    readonly property string activeView:
+        appWindow ? appWindow.sidebarView : "notes"
+    readonly property bool notesFamily:
+        ["notes", "folders", "tags", "search"].indexOf(activeView) >= 0
 
     // Highlight target while a note row is dragged over a folder.
     property string dropTargetFolder: ""
@@ -31,6 +35,10 @@ Rectangle {
     // Map a scene point to the folder row under it; "" when none.
     // Used by NoteListPane's drag coordinator.
     function folderDropTargetAt(sceneX, sceneY) {
+        if (!sidebar.notesFamily
+                || (sidebar.activeView !== "notes"
+                    && sidebar.activeView !== "folders"))
+            return ""
         var pos = folderTreeView.mapFromItem(null, sceneX, sceneY)
         if (pos.x < 0 || pos.x >= folderTreeView.width
             || pos.y < 0 || pos.y >= folderTreeView.height)
@@ -86,6 +94,25 @@ Rectangle {
     // current row set. Focusing a list whose current index is still -1 left
     // the arrows moving nothing visible and Enter with nothing to choose.
     function focusPane() {
+        if (sidebar.appWindow && sidebar.appWindow.sidebarView === "files") {
+            if (filePane.item)
+                (filePane.item as FileTreePane).focusPane()
+            return
+        }
+        if (!sidebar.notesFamily) {
+            modulePane.forceActiveFocus(Qt.TabFocusReason)
+            return
+        }
+        if (sidebar.activeView === "search") {
+            sidebar.focusSearch()
+            return
+        }
+        if (sidebar.activeView === "tags" && tagListView.count > 0) {
+            if (tagListView.currentIndex < 0)
+                tagListView.currentIndex = 0
+            tagListView.forceActiveFocus(Qt.TabFocusReason)
+            return
+        }
         if (folderTreeView.currentIndex < 0
             || folderTreeView.currentIndex >= folderTreeView.count)
             folderTreeView.currentIndex = folderTreeView.count > 0 ? 0 : -1
@@ -98,6 +125,10 @@ Rectangle {
     // Enter/Space on the focused folder row: scope the note list to it, which
     // is what clicking the row does.
     function activateCurrentFolder() {
+        if (!sidebar.notesFamily
+                || (sidebar.activeView !== "notes"
+                    && sidebar.activeView !== "folders"))
+            return false
         if (folderTreeView.currentIndex < 0)
             return false
         NoteListModel.folderPath =
@@ -127,9 +158,11 @@ Rectangle {
     }
 
     ColumnLayout {
+        id: notesPane
         anchors.fill: parent
         anchors.rightMargin: Interface.px(1)
         spacing: 0
+        visible: sidebar.notesFamily
 
         // ---- Global search (§8.4; Ctrl+Shift+F) --------------------------
         TextField {
@@ -141,6 +174,8 @@ Rectangle {
             implicitHeight: Interface.px(26)
             font.pixelSize: Interface.small
             placeholderText: qsTr("Search all notes")
+            visible: sidebar.activeView === "notes"
+                     || sidebar.activeView === "search"
             onTextEdited: CollectionSearch.query = text
             onAccepted: {
                 // Enter runs the current query immediately, bypassing the
@@ -216,6 +251,15 @@ Rectangle {
                 Layout.fillWidth: true
             }
             ToolButton {
+                objectName: "showFilesTreeButton"
+                text: qsTr("Files")
+                Accessible.name: qsTr("Show files sidebar")
+                font.pixelSize: Interface.small
+                implicitHeight: Interface.px(24)
+                onClicked: if (sidebar.appWindow)
+                               sidebar.appWindow.sidebarView = "files"
+            }
+            ToolButton {
                 objectName: "newFolderButton"
                 text: "+▤"
                 Accessible.name: qsTr("New folder")
@@ -245,6 +289,7 @@ Rectangle {
             objectName: "allNotesRow"
             Layout.fillWidth: true
             height: Interface.px(28)
+            visible: sidebar.activeView === "notes"
             color: NoteListModel.scope === "all" ? Theme.selectionTint : "transparent"
 
             RowLayout {
@@ -278,6 +323,7 @@ Rectangle {
             objectName: "favoritesRow"
             Layout.fillWidth: true
             height: Interface.px(28)
+            visible: sidebar.activeView === "notes"
             color: NoteListModel.scope === "favorites" ? Theme.selectionTint : "transparent"
 
             RowLayout {
@@ -303,6 +349,8 @@ Rectangle {
         // ---- Folder tree -----------------------------------------------
         Label {
             text: qsTr("Folders")
+            visible: sidebar.activeView === "notes"
+                     || sidebar.activeView === "folders"
             font.pixelSize: Interface.caption
             font.bold: true
             color: Theme.textFaint
@@ -318,6 +366,8 @@ Rectangle {
             Layout.fillHeight: true
             clip: true
             model: FolderTreeModel
+            visible: sidebar.activeView === "notes"
+                     || sidebar.activeView === "folders"
 
             // Keyboard operation (§14.1): Up/Down walk the tree, Right/Left
             // expand and collapse it, Enter/Space scope the note list to the
@@ -559,6 +609,8 @@ Rectangle {
             Layout.topMargin: Interface.px(6)
             Layout.bottomMargin: Interface.px(2)
             visible: tagListView.count > 0
+                     && (sidebar.activeView === "notes"
+                         || sidebar.activeView === "tags")
         }
 
         ListView {
@@ -573,6 +625,8 @@ Rectangle {
                                              Interface.px(170))
             Layout.bottomMargin: Interface.px(4)
             clip: true
+            visible: sidebar.activeView === "notes"
+                     || sidebar.activeView === "tags"
 
             // Array-of-maps model, live under the collection revision.
             model: {
@@ -711,6 +765,7 @@ Rectangle {
             objectName: "trashRow"
             Layout.fillWidth: true
             height: Interface.px(26)
+            visible: sidebar.activeView === "notes"
             color: trashHover.hovered ? Theme.hoverTint : "transparent"
 
             readonly property int trashCount: {
@@ -745,6 +800,27 @@ Rectangle {
                 onTapped: trashMenu.popup()
             }
         }
+    }
+
+    Loader {
+        id: filePane
+        anchors.fill: parent
+        anchors.rightMargin: Interface.px(1)
+        active: sidebar.appWindow && sidebar.appWindow.sidebarView === "files"
+        visible: active
+        sourceComponent: FileTreePane {
+            appWindow: sidebar.appWindow
+        }
+    }
+
+    Loader {
+        id: modulePane
+        objectName: "moduleSidebarView"
+        anchors.fill: parent
+        anchors.rightMargin: Interface.px(1)
+        active: !sidebar.notesFamily && sidebar.activeView !== "files"
+        activeFocusOnTab: true
+        source: active ? Extensions.sidebarViewSource(sidebar.activeView) : ""
     }
 
     Menu {

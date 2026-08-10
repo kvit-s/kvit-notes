@@ -145,8 +145,10 @@ ScanListing buildScanListing(
     // (reservedsubtrees.h): its directories are not the user's folders, and
     // the only files that enter the index are the ones the registration
     // nominates.
-    std::function<void(const QString &, bool)> scanDir =
-        [&](const QString &currentRelDir, bool inReserved) {
+    std::function<void(const QString &, bool,
+                       const IgnoreRules::Snapshot &)> scanDir =
+        [&](const QString &currentRelDir, bool inReserved,
+            const IgnoreRules::Snapshot &ignoreRules) {
             // A vault the user has already left should stop being walked.
             // QtConcurrent::run cannot interrupt this, so the check is the
             // only way out before the last directory.
@@ -171,6 +173,8 @@ ScanListing buildScanListing(
                 const QString relPath = joinRelPath(currentRelDir, name);
                 if (name.startsWith(QLatin1Char('.')))
                     continue;
+                if (ignoreRules.isExcluded(relPath, info.isDir()))
+                    continue;
 
                 if (info.isDir()) {
                     // A folder inside a reserved subtree is the
@@ -182,7 +186,8 @@ ScanListing buildScanListing(
                         folder.name = name;
                         listing.folders.append(folder);
                     }
-                    scanDir(relPath, inReserved);
+                    scanDir(relPath, inReserved,
+                            ignoreRules.withDirectory(relPath));
                     continue;
                 }
 
@@ -242,14 +247,16 @@ ScanListing buildScanListing(
                     const QFileInfo subtree(request.rootPath + QLatin1Char('/')
                                             + reservedName);
                     if (subtree.exists() && subtree.isDir()
-                        && !subtree.isSymLink()) {
-                        scanDir(reservedName, true);
+                        && !subtree.isSymLink()
+                        && !ignoreRules.isExcluded(reservedName, true)) {
+                        scanDir(reservedName, true,
+                                ignoreRules.withDirectory(reservedName));
                     }
                 }
             }
         };
 
-    scanDir(QString(), false);
+    scanDir(QString(), false, request.ignores);
 
     if ((!request.indexOk && noteCount > 0)
         || request.cachedNotes.size() != noteCount) {
@@ -309,8 +316,10 @@ RefreshResult buildRefreshResult(
 
     QSet<QString> visitedDirs;
     const QStringList reservedNames = request.reserved.names();
-    std::function<void(const QString &, bool)> scanDir =
-        [&](const QString &currentRelDir, bool inReserved) {
+    std::function<void(const QString &, bool,
+                       const IgnoreRules::Snapshot &)> scanDir =
+        [&](const QString &currentRelDir, bool inReserved,
+            const IgnoreRules::Snapshot &ignoreRules) {
             // Between directories, and again between notes below: this walk
             // reads and parses every changed body, so an abandoned refresh
             // that ran to the end would hold a pool thread against work whose
@@ -335,6 +344,8 @@ RefreshResult buildRefreshResult(
                 const QString relPath = joinRelPath(currentRelDir, name);
                 if (name.startsWith(QLatin1Char('.')))
                     continue;
+                if (ignoreRules.isExcluded(relPath, info.isDir()))
+                    continue;
 
                 if (info.isDir()) {
                     if (!inReserved) {
@@ -344,7 +355,8 @@ RefreshResult buildRefreshResult(
                         result.folders.append(folder);
                         result.seenFolders.insert(relPath);
                     }
-                    scanDir(relPath, inReserved);
+                    scanDir(relPath, inReserved,
+                            ignoreRules.withDirectory(relPath));
                     continue;
                 }
 
@@ -412,8 +424,10 @@ RefreshResult buildRefreshResult(
                     const QFileInfo subtree(request.rootPath + QLatin1Char('/')
                                             + reservedName);
                     if (subtree.exists() && subtree.isDir()
-                        && !subtree.isSymLink()) {
-                        scanDir(reservedName, true);
+                        && !subtree.isSymLink()
+                        && !ignoreRules.isExcluded(reservedName, true)) {
+                        scanDir(reservedName, true,
+                                ignoreRules.withDirectory(reservedName));
                     }
                 }
             }
@@ -438,7 +452,11 @@ RefreshResult buildRefreshResult(
             result.folders.append(folder);
             result.seenFolders.insert(relDir);
         }
-        scanDir(relDir, inReserved);
+        const IgnoreRules::Snapshot ignoreRules =
+            request.ignores.throughDirectory(relDir);
+        if (!relDir.isEmpty() && ignoreRules.isExcluded(relDir, true))
+            continue;
+        scanDir(relDir, inReserved, ignoreRules);
     }
 
     result.cancelled = isCancelled(request.cancel);

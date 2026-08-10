@@ -14,5 +14,7 @@
         <file alias="DecorationDemoEmpty.qml">DecorationDemoEmpty.qml</file>
         <file alias="DecorationDemoMargin.qml">DecorationDemoMargin.qml</file>
         <file alias="DecorationDemoHeader.qml">DecorationDemoHeader.qml</file>
+        <file alias="DecorationDemoOutput.qml">DecorationDemoOutput.qml</file>
+        <file alias="DecorationDemoProblems.qml">DecorationDemoProblems.qml</file>
     </qresource>
 </RCC>

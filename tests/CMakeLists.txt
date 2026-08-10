@@ -50,6 +50,12 @@ qt_add_executable(test_filewatcher test_filewatcher.cpp)
 target_link_libraries(test_filewatcher PRIVATE kvit-core Qt6::Test)
 add_test(NAME FileWatcherTests COMMAND test_filewatcher)
 
+# One root exclusion policy shared by the note scan and filesystem watcher:
+# git pattern parsing, root-specific settings, pruning and live invalidation.
+qt_add_executable(test_ignorerules test_ignorerules.cpp)
+target_link_libraries(test_ignorerules PRIVATE kvit-core Qt6::Test)
+add_test(NAME IgnoreRulesTests COMMAND test_ignorerules)
+
 # Update checker tests: version ordering, payload parsing, opt-out +
 # once-per-day gating through a fake fetcher.
 qt_add_executable(test_updatechecker test_updatechecker.cpp)
@@ -413,6 +419,18 @@ add_test(NAME NoteListModelTests COMMAND test_notelistmodel)
 qt_add_executable(test_foldertreemodel test_foldertreemodel.cpp)
 target_link_libraries(test_foldertreemodel PRIVATE kvit-core Qt6::Test)
 add_test(NAME FolderTreeModelTests COMMAND test_foldertreemodel)
+
+# Lazy filesystem tree: per-expanded-folder reads/watches, ignore policy and
+# routing classification without admitting arbitrary files to the note index.
+qt_add_executable(test_filesystemtreemodel test_filesystemtreemodel.cpp)
+target_link_libraries(test_filesystemtreemodel PRIVATE kvit-core Qt6::Test)
+add_test(NAME FileSystemTreeModelTests COMMAND test_filesystemtreemodel)
+
+# Non-note text loading: UTF-8/BOM/line-ending handling, language routing,
+# addressable lines, binary refusal and the large-file desktop fallback.
+qt_add_executable(test_textfileviewmodel test_textfileviewmodel.cpp)
+target_link_libraries(test_textfileviewmodel PRIVATE kvit-core Qt6::Test)
+add_test(NAME TextFileViewModelTests COMMAND test_textfileviewmodel)
 
 # CollectionSearch tests (global search)
 # Qt6::Sql because this suite opens a QSqlDatabase of its own to check the

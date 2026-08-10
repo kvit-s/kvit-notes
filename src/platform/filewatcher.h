@@ -11,10 +11,10 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QQueue>
 
-#include <memory>
+#include "ignorerules.h"
 
-class QDirIterator;
 
 // External-file watcher (§12.1). Wraps QFileSystemWatcher over the notes root and
 // feeds NoteCollection a debounced re-scan when notes or folders change on disk
@@ -38,6 +38,10 @@ public:
     explicit FileWatcher(QObject *parent = nullptr);
     // Out of line: the discovery iterator is only forward-declared here.
     ~FileWatcher() override;
+
+    // The collection and watcher receive the same object from AppContext.
+    // Changing its settings rebuilds the registrations with the new policy.
+    void setIgnoreRules(IgnoreRules *rules);
 
     bool watching() const { return !m_root.isEmpty(); }
     bool watchDegraded() const { return m_watchDegraded; }
@@ -95,7 +99,7 @@ public:
     // True while tree discovery is still walking. Discovery yields to the
     // event loop every DiscoverySliceEntries directories, so a large vault
     // does not freeze the GUI thread for the length of the walk.
-    bool discoveryPending() const { return m_discovery != nullptr; }
+    bool discoveryPending() const { return m_discoveryActive; }
     int watchedDirectoryCountForTests() const { return m_watchedDirs.size(); }
     static constexpr int DiscoverySliceEntries = 256;
 
@@ -112,6 +116,8 @@ public:
     // Test seam: what the watcher believes it has registered, so a test can
     // assert the absence of an accumulated watch rather than inferring it.
     QStringList watchedFilesForTests() const { return m_watcher.files(); }
+    QStringList watchedDirectoriesForTests() const
+    { return m_watcher.directories(); }
 
 private:
     bool isOwnChange(const QString &path, bool isFile);
@@ -137,6 +143,14 @@ private:
     void forgetPath(const QString &path);
     void clearRegistrations();
     void setWatchDegraded(bool degraded);
+    bool isIgnoredPath(const QString &absolutePath, bool isDirectory) const;
+    void addRuleFileWatch(const QString &path);
+
+    struct DiscoveryDir {
+        QString absolutePath;
+        QString relativePath;
+        IgnoreRules::Snapshot rules;
+    };
 
     // A file guard, which has to recognize the app's own write across as many
     // notifications as the platform chooses to send for it. `stamped` records
@@ -172,8 +186,12 @@ private:
     // Directories this discovery pass has seen, so registrations for
     // directories that have since disappeared can be dropped when it ends.
     QSet<QString> m_discoveredDirs;
-    std::unique_ptr<QDirIterator> m_discovery;
+    QSet<QString> m_ruleFiles;
+    QSet<QString> m_discoveredRuleFiles;
+    QQueue<DiscoveryDir> m_discoveryQueue;
+    bool m_discoveryActive = false;
     QTimer m_discoverySlice;
+    IgnoreRules *m_ignoreRules = nullptr;
     QString m_root;
     // <root>/.kvit, resolved when the walk starts. The repository owns that
     // subtree and its own writes must not read as external changes.

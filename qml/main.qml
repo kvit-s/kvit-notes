@@ -25,7 +25,11 @@ KvitShell {
                      ? Screen.desktopAvailableHeight - 60 : 720)
     visible: true
     title: {
-        var name = DocumentManager ? DocumentManager.currentFileName : "Kvit Notes"
+        var name = root.contentView === "text"
+            ? TextFileViewModel.path.split("/").pop()
+            : root.contentView === "media"
+              ? standaloneFilePane.requestedPath.split("/").pop()
+              : DocumentManager ? DocumentManager.currentFileName : "Kvit Notes"
         // Collection mode: the note title is the file name without ".md".
         if (currentNoteRelPath !== "" && name.toLowerCase().endsWith(".md"))
             name = name.substring(0, name.length - 3)
@@ -45,6 +49,30 @@ KvitShell {
     // the pre-Phase-8 editor-only geometry.
     readonly property bool collectionOpen: NoteCollection && NoteCollection.isOpen
     property bool panelsVisible: true
+    property bool navigationRailsVisible: false
+    // The note navigator remains the default. Files is an independent, lazy
+    // projection over the same root; neither view mutates the other.
+    property string sidebarView: "notes"
+    // Exactly one document surface is active: the editable note, a read-only
+    // source file, or the shared image/media viewer.
+    property string contentView: "document"
+    // Set only by WindowRegistry for an explicit root-rail Close. That action
+    // means release the root even when ordinary title-bar closes are configured
+    // to hide into the tray. It remains true across an unsaved-new-document
+    // question and is cleared by either the accepted close or Cancel.
+    property bool forceActualClose: false
+
+    onSidebarViewChanged: {
+        var rootPath = NoteCollection && NoteCollection.isOpen
+            ? NoteCollection.rootPath : ""
+        if (rootPath === "")
+            return
+        var views = AppSettings.value("sidebar.viewByRoot", {})
+        views[rootPath] = sidebarView
+        AppSettings.setValue("sidebar.viewByRoot", views)
+    }
+    onNavigationRailsVisibleChanged:
+        AppSettings.setValue("view.navigationRails", navigationRailsVisible)
 
     // Layout state (features.md §9.1): per-panel widths set by the seam
     // handles, and independent collapse; all persisted.
@@ -84,13 +112,20 @@ KvitShell {
 
     // §9.7 status-bar visibility (view menu), persisted.
     property bool statusBarVisible: true
+    property int bottomDockHeight: 220
+    property bool bottomDockCollapsed: false
     // What every bottom-anchored region has to clear: the status bar plus an
     // extension bottom bar when a module fills that slot (zero otherwise).
     readonly property int bottomChromeHeight:
         (statusBar.visible ? statusBar.height : 0)
         + (extensionBottomBar.visible ? extensionBottomBar.height : 0)
+        + (bottomDock.visible ? bottomDock.height : 0)
     onStatusBarVisibleChanged:
         AppSettings.setValue("view.statusBar", statusBarVisible)
+    onBottomDockHeightChanged:
+        AppSettings.setValue("dock.height", bottomDockHeight)
+    onBottomDockCollapsedChanged:
+        AppSettings.setValue("dock.collapsed", bottomDockCollapsed)
 
     // features.md §17.1 document outline pane: a right-side dock listing
     // the document's headings, toggled from the view menu (Ctrl+Shift+O),
@@ -156,6 +191,13 @@ KvitShell {
         var target = yInContent - blockListView.height / 2 + rect.height / 2
         var maxY = Math.max(0, blockListView.contentHeight - blockListView.height)
         blockListView.contentY = Math.max(0, Math.min(target, maxY))
+    }
+    function editorContentY() { return blockListView.contentY }
+    function setEditorContentY(value) {
+        var maxY = Math.max(0, blockListView.contentHeight
+                               + blockListView.bottomMargin
+                               - blockListView.height)
+        blockListView.contentY = Math.max(0, Math.min(Number(value), maxY))
     }
 
     // ---- Completion-driven block geometry -------------------------------
@@ -415,7 +457,7 @@ KvitShell {
         root.focusBlockAtIndex(root.lastFocusedBlock)
     }
     // Which major pane last took focus (0 sidebar, 1 note list, 2 editor,
-    // 3 toolbar), so F6 can cycle to the next visible one — the standard
+    // 3 toolbar, 4 bottom dock, 5 navigation rails), so F6 can cycle to the next visible one — the standard
     // desktop region key. The toolbar is in the cycle because Insert,
     // Templates, View and the customization menu have no other shortcut, so
     // leaving it out left those actions with no keyboard route at all.
@@ -424,18 +466,26 @@ KvitShell {
         root.focusedPane = p
         if (p === 0 && !root.sidebarCollapsed && root.collectionOpen)
             sidebar.focusPane()
-        else if (p === 1 && !root.noteListCollapsed && root.collectionOpen)
+        else if (p === 1 && root.sidebarView === "notes"
+                 && !root.noteListCollapsed && root.collectionOpen)
             noteListPane.focusPane()
         else if (p === 3 && appToolbar.visible)
             appToolbar.focusPane()
+        else if (p === 4 && bottomDock.visible)
+            bottomDock.focusPane()
+        else if (p === 5 && navigationRails.visible)
+            navigationRails.focusPane()
         else
             focusEditor()
     }
     function cyclePane() {
         var order = []
+        if (navigationRails.visible) order.push(5)
         if (root.collectionOpen && !root.sidebarCollapsed) order.push(0)
-        if (root.collectionOpen && !root.noteListCollapsed) order.push(1)
+        if (root.collectionOpen && root.sidebarView === "notes"
+                && !root.noteListCollapsed) order.push(1)
         order.push(2)  // the editor is always present
+        if (bottomDock.visible) order.push(4)
         if (appToolbar.visible) order.push(3)
         var cur = order.indexOf(root.focusedPane)
         focusPane(order[(cur + 1) % order.length])
@@ -446,12 +496,30 @@ KvitShell {
     Connections {
         target: DocumentManager
         function onCurrentFilePathChanged() {
+            if (DocumentManager.currentFilePath !== "")
+                root.contentView = "document"
             Qt.callLater(root.refreshSessionBaseline)
         }
 
         function onIsDirtyChanged() {
             if (!DocumentManager.isDirty)
                 A11y.announceSaveState(false)
+        }
+    }
+    Connections {
+        target: FileTreeModel
+        function onFileActivated(absolutePath, kind, relativePath) {
+            root.openFileTreeEntry(absolutePath, kind, relativePath)
+        }
+    }
+    Connections {
+        target: NoteCollection
+        function onRootChanged() {
+            if (!NoteCollection.isOpen)
+                return
+            var views = AppSettings.value("sidebar.viewByRoot", {})
+            root.sidebarView = views[NoteCollection.rootPath] || "notes"
+            root.contentView = "document"
         }
     }
     Connections {
@@ -498,6 +566,9 @@ KvitShell {
         target: AppActions
         function onScrollToBlockRequested(index) { root.scrollToBlock(index) }
         function onOpenNoteByPathRequested(relPath) { root.openNoteByPath(relPath) }
+        function onVaultSwitchConfirmationRequested(path) {
+            root.documentDialogs().confirmVaultSwitch(path)
+        }
         function onCenterCaretLineRequested(item) { root.centerCaretLine(item) }
         function onRevealItemRequested(item) { root.revealItem(item) }
         function onTextContextMenuRequested(target) { root.openTextContextMenu(target) }
@@ -623,7 +694,32 @@ KvitShell {
         editorDropArea.insertBlocksAt(afterIndex, typedBlocks)
     }
 
-    function openNoteByPath(relPath) { return noteSession.openNoteByPath(relPath) }
+    function openNoteByPath(relPath) {
+        root.contentView = "document"
+        return noteSession.openNoteByPath(relPath)
+    }
+    function openFileTreeEntry(absolutePath, kind, relativePath) {
+        if (kind === "markdown") {
+            root.contentView = "document"
+            var info = NoteCollection.noteInfo(relativePath)
+            if (info && info.relPath !== undefined)
+                return noteSession.openNoteByPath(relativePath)
+            return DocumentManager.open(
+                DocumentManager.toLocalFileUrl(absolutePath))
+        }
+        if (kind === "text") {
+            TextFileViewModel.open(absolutePath, 1)
+            root.contentView = "text"
+            return true
+        }
+        if (kind === "image" || kind === "media") {
+            standaloneFilePane.openFile(absolutePath, kind)
+            root.contentView = "media"
+            return true
+        }
+        return UrlLauncher.open(
+            DocumentManager.toLocalFileUrl(absolutePath).toString())
+    }
     function navigateBack() { noteSession.navigateBack() }
     function navigateForward() { noteSession.navigateForward() }
     function followWikiLink(spec) { noteSession.followWikiLink(spec) }
@@ -1476,9 +1572,12 @@ KvitShell {
         // The close is going through. If close-to-tray keeps the app resident
         // the window only hides, so this vault stays open; otherwise the window
         // is really going away, so tell the registry to release its vault.
-        if (!(typeof SystemTray !== "undefined" && SystemTray.available
-              && SystemTray.closeToTray))
+        if (root.forceActualClose
+            || !(typeof SystemTray !== "undefined" && SystemTray.available
+                 && SystemTray.closeToTray)) {
             AppActions.notifyWindowClosing()
+            root.forceActualClose = false
+        }
     }
 
     // Settings that cannot reach disk (read-only location, full disk).
@@ -1715,6 +1814,17 @@ KvitShell {
         z: 50
     }
 
+    NavigationRails {
+        id: navigationRails
+        appWindow: root
+        visible: root.navigationRailsVisible && root.collectionOpen
+                 && !root.focusMode
+        width: visible ? railWidth * 2 : 0
+        anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.bottomChromeHeight
+    }
+
     Row {
         id: sidePanels
         objectName: "sidePanels"
@@ -1722,6 +1832,7 @@ KvitShell {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.bottomChromeHeight
         visible: root.collectionOpen && root.panelsVisible && !root.focusMode
+        x: navigationRails.width
 
         // Explicit sum (not implicitWidth): the editor pane's
         // leftMargin binds here, and a hidden Row must reserve nothing.
@@ -1730,8 +1841,10 @@ KvitShell {
         width: visible
             ? (root.sidebarCollapsed
                    ? stripWidth : root.sidebarWidth + seamWidth)
-              + (root.noteListCollapsed
-                     ? stripWidth : root.noteListWidth + seamWidth)
+              + (root.sidebarView === "notes"
+                 ? (root.noteListCollapsed
+                        ? stripWidth : root.noteListWidth + seamWidth)
+                 : 0)
             : 0
 
         // Collapsed sidebar: a slim strip holding the expand chevron.
@@ -1789,7 +1902,7 @@ KvitShell {
 
         Rectangle {
             objectName: "noteListStrip"
-            visible: root.noteListCollapsed
+            visible: root.sidebarView === "notes" && root.noteListCollapsed
             width: visible ? sidePanels.stripWidth : 0
             height: parent.height
             color: Theme.listBackground
@@ -1814,7 +1927,7 @@ KvitShell {
         }
         NoteListPane {
             id: noteListPane
-            visible: !root.noteListCollapsed
+            visible: root.sidebarView === "notes" && !root.noteListCollapsed
             width: visible ? root.noteListWidth : 0
             height: parent.height
             appWindow: root
@@ -1828,7 +1941,7 @@ KvitShell {
         PanelSeam {
             id: noteListSeam
             objectName: "noteListSeam"
-            visible: !root.noteListCollapsed
+            visible: root.sidebarView === "notes" && !root.noteListCollapsed
             width: visible ? sidePanels.seamWidth : 0
             height: parent.height
             minWidth: 180
@@ -1839,8 +1952,11 @@ KvitShell {
     }
 
     Rectangle {
+        id: documentPane
+        objectName: "documentPane"
+        visible: root.contentView === "document"
         anchors.fill: parent
-        anchors.leftMargin: sidePanels.width
+        anchors.leftMargin: sidePanels.width + navigationRails.width
         anchors.topMargin: appToolbar.visible ? appToolbar.height : 0
         anchors.bottomMargin: root.bottomChromeHeight
         anchors.rightMargin: (outlinePanel.visible ? root.outlineWidth : 0)
@@ -2211,6 +2327,40 @@ KvitShell {
         }
     }
 
+    Loader {
+        id: textFilePane
+        anchors.fill: parent
+        anchors.leftMargin: sidePanels.width + navigationRails.width
+        anchors.topMargin: appToolbar.visible ? appToolbar.height : 0
+        anchors.bottomMargin: root.bottomChromeHeight
+        anchors.rightMargin: extensionSidePanel.width
+        active: root.contentView === "text"
+        visible: active
+        sourceComponent: ReadOnlyTextFile { }
+    }
+
+    Loader {
+        id: standaloneFilePane
+        property string requestedPath: ""
+        property string requestedKind: ""
+        function openFile(path, kind) {
+            requestedPath = path
+            requestedKind = kind
+            if (item)
+                (item as StandaloneFileView).openFile(path, kind)
+        }
+        onLoaded: (item as StandaloneFileView).openFile(
+                      requestedPath, requestedKind)
+        anchors.fill: parent
+        anchors.leftMargin: sidePanels.width + navigationRails.width
+        anchors.topMargin: appToolbar.visible ? appToolbar.height : 0
+        anchors.bottomMargin: root.bottomChromeHeight
+        anchors.rightMargin: extensionSidePanel.width
+        active: root.contentView === "media"
+        visible: active
+        sourceComponent: StandaloneFileView { }
+    }
+
     // features.md §17.1 document outline dock: a right-side pane over the
     // editor, toggled from the view menu. Placed after the editor Rectangle so
     // it sits above it; the editor's right margin reserves its width.
@@ -2218,7 +2368,8 @@ KvitShell {
         id: outlinePanel
         objectName: "outlinePanel"
         appWindow: root
-        visible: root.outlineVisible && !root.focusMode
+        visible: root.contentView === "document"
+                 && root.outlineVisible && !root.focusMode
         width: visible ? root.outlineWidth : 0
         anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
         anchors.right: parent.right
@@ -2232,7 +2383,8 @@ KvitShell {
         id: backlinksPanel
         objectName: "backlinksPanel"
         appWindow: root
-        visible: root.backlinksVisible && root.collectionOpen
+        visible: root.contentView === "document"
+                 && root.backlinksVisible && root.collectionOpen
                  && !root.focusMode
         width: visible ? root.backlinksWidth : 0
         anchors.top: appToolbar.visible ? appToolbar.bottom : parent.top
@@ -2253,6 +2405,16 @@ KvitShell {
         height: active && item ? (item as Item).implicitHeight : 0
         // Focus mode hides the chrome (§16.1); an extension bar is chrome.
         visible: !root.focusMode
+    }
+
+    BottomDock {
+        id: bottomDock
+        appWindow: root
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: extensionBottomBar.visible
+            ? extensionBottomBar.top
+            : statusBar.visible ? statusBar.top : parent.bottom
     }
 
     Loader {

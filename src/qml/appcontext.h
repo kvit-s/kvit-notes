@@ -35,9 +35,11 @@
 #include "embedmetadata.h"
 #include "extensionregistry.h"
 #include "filewatcher.h"
+#include "filesystemtreemodel.h"
 #include "foldertreemodel.h"
 #include "globalhotkey.h"
 #include "imageassets.h"
+#include "ignorerules.h"
 #include "kanbandata.h"
 #include "markdownformatter.h"
 #include "mathcommandmodel.h"
@@ -57,6 +59,7 @@
 #include "startupcontroller.h"
 #include "systemtray.h"
 #include "tabledata.h"
+#include "textfileviewmodel.h"
 #include "theme.h"
 #include "todometa.h"
 #include "typography.h"
@@ -209,6 +212,10 @@ public:
     EgressPolicy *egressPolicy() { return m_globals.egressPolicy(); }
     RemoteMediaCache *remoteMediaCache() { return m_globals.remoteMediaCache(); }
     FileWatcher *fileWatcher() { return &m_fileWatcher; }
+    FileSystemTreeModel *fileSystemTreeModel() { return &m_fileSystemTreeModel; }
+    TextFileViewModel *textFileViewModel() { return &m_textFileViewModel; }
+    IgnoreRules *ignoreRules() { return &m_ignoreRules; }
+    NoteListModel *noteListModel() { return &m_noteListModel; }
 
 private:
     void wire();
@@ -248,8 +255,13 @@ private:
     DocumentStats m_documentStats;
     DocumentExporter m_documentExporter;
     DocumentSerializer m_documentSerializer;
+    // One policy object per root, shared by the collection scan, watcher and
+    // filesystem tree. It precedes those borrowers in declaration order.
+    IgnoreRules m_ignoreRules;
     NoteCollection m_noteCollection;
     CollectionSearchIndex m_searchIndex;
+    FileSystemTreeModel m_fileSystemTreeModel;
+    TextFileViewModel m_textFileViewModel;
     FolderTreeModel m_folderTreeModel;
     NoteListModel m_noteListModel;
     CollectionSearch m_collectionSearch;

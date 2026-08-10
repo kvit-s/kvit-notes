@@ -48,6 +48,22 @@ public:
         return QString();
     }
 
+    QVariantList bottomDockTabs() const override
+    {
+        return {QVariantMap{
+            {QStringLiteral("id"), m_name + QStringLiteral(".output")},
+            {QStringLiteral("title"), QStringLiteral("Output")},
+            {QStringLiteral("source"), QStringLiteral("qrc:/fake/Output.qml")}}};
+    }
+
+    QVariantList sidebarViews() const override
+    {
+        return {QVariantMap{
+            {QStringLiteral("id"), m_name + QStringLiteral(".view")},
+            {QStringLiteral("title"), QStringLiteral("Module view")},
+            {QStringLiteral("source"), QStringLiteral("qrc:/fake/View.qml")}}};
+    }
+
     int kind = 0;
 
 private:
@@ -108,6 +124,43 @@ private slots:
         BlockKindRegistry kinds;
         registry.registerBlockKinds(kinds);
         QCOMPARE(kinds.kindForLanguage("other-fence"), 0);
+    }
+
+    void namedDockTabsAndSidebarViewsAggregate()
+    {
+        ExtensionRegistry registry;
+        registry.install(std::make_unique<FakeExtension>("first", "fence-a"));
+        registry.install(std::make_unique<FakeExtension>("second", "fence-b"));
+
+        const QVariantList tabs = registry.bottomDockTabs();
+        QCOMPARE(tabs.size(), 2);
+        QCOMPARE(tabs.at(0).toMap().value("id").toString(),
+                 QStringLiteral("first.output"));
+        QCOMPARE(tabs.at(1).toMap().value("module").toString(),
+                 QStringLiteral("second"));
+
+        const QVariantList views = registry.sidebarViews();
+        QCOMPARE(views.size(), 2);
+        QCOMPARE(registry.sidebarViewSource(QStringLiteral("second.view")),
+                 QStringLiteral("qrc:/fake/View.qml"));
+        QVERIFY(registry.sidebarViewSource(QStringLiteral("missing")).isEmpty());
+    }
+
+    void modulesCanMarkAnyRoot()
+    {
+        ExtensionRegistry registry;
+        QSignalSpy changed(&registry, &ExtensionRegistry::rootStatusChanged);
+        registry.setRootStatus(QStringLiteral("/tmp/one"),
+                               QStringLiteral("#55aaee"),
+                               QStringLiteral("Running"));
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(registry.rootStatus(QStringLiteral("/tmp/one"))
+                     .value("tooltip").toString(), QStringLiteral("Running"));
+        QCOMPARE(registry.rootStatusRevision(), 1);
+
+        registry.clearRootStatus(QStringLiteral("/tmp/one"));
+        QCOMPARE(changed.count(), 2);
+        QVERIFY(registry.rootStatus(QStringLiteral("/tmp/one")).isEmpty());
     }
 
     void theFirstModuleClaimingASlotKeepsIt()

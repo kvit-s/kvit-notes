@@ -135,6 +135,11 @@ void AppContext::wire()
     }
     m_noteCollection.setSearchIndex(&m_searchIndex);
     m_noteCollection.setOpenDocument(&m_documentManager);
+    m_ignoreRules.setSettings(m_globals.settings());
+    m_noteCollection.setIgnoreRules(&m_ignoreRules);
+    m_fileWatcher.setIgnoreRules(&m_ignoreRules);
+    m_fileSystemTreeModel.setCollection(&m_noteCollection);
+    m_fileSystemTreeModel.setIgnoreRules(&m_ignoreRules);
     m_folderTreeModel.setCollection(&m_noteCollection);
     m_noteListModel.setCollection(&m_noteCollection);
     m_collectionSearch.setSearchIndex(&m_searchIndex);
@@ -286,6 +291,19 @@ void AppContext::wire()
     // in-place behaviour this context had before the multi-window split.
     connect(&m_appActions, &AppActions::openVaultRequested, this,
             [this](const QString &path) {
+                if (m_documentManager.isDirty()) {
+                    emit m_appActions.vaultSwitchConfirmationRequested(path);
+                    return;
+                }
+                if (m_router)
+                    m_router->openVaultInWindow(this, path);
+                else
+                    openVaultRoot(path);
+            });
+    connect(&m_appActions, &AppActions::openVaultConfirmed, this,
+            [this](const QString &path) {
+                if (m_documentManager.isDirty())
+                    return;
                 if (m_router)
                     m_router->openVaultInWindow(this, path);
                 else
@@ -304,6 +322,11 @@ void AppContext::wire()
                     m_router->openFileInNewWindow(path);
                 else
                     m_documentManager.open(QUrl::fromLocalFile(path));
+            });
+    connect(&m_appActions, &AppActions::closeVaultRequested, this,
+            [this](const QString &path) {
+                if (m_router)
+                    m_router->closeVault(path);
             });
 
     // Repository conditions that the user has to hear about. Each was raised
@@ -468,6 +491,8 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_shortcutCatalog);
     m_services.add(&m_menuAccessKeys);
     m_services.add(&m_quickSwitcherModel);
+    m_services.add(&m_fileSystemTreeModel);
+    m_services.add(&m_textFileViewModel);
     m_services.add(&m_folderTreeModel);
     m_services.add(&m_markdownFormatter);
     m_services.add(&m_blockMenuModel);
@@ -479,6 +504,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_embedMetadata);
     m_services.add(m_globals.systemTray());
     m_services.add(&m_navigationHistory);
+    m_services.add(&m_startupController);
     m_services.add(m_globals.updateChecker());
     m_services.add(&m_tableTools);
     m_services.add(&m_kanbanTools);

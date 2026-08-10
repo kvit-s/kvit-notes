@@ -841,6 +841,115 @@ const QHash<QString, Rules> &registry()
             r.atDecorator = true;  // Java annotations @Override read like decorators
             t.insert("java", r);
         }
+        // Go.
+        {
+            Rules r = makeGeneric(
+                {"break","default","func","interface","select","case",
+                 "defer","go","map","struct","chan","else","goto",
+                 "package","switch","const","fallthrough","if","range",
+                 "type","continue","for","import","return","var"},
+                {"bool","byte","complex64","complex128","error","float32",
+                 "float64","int","int8","int16","int32","int64","rune",
+                 "string","uint","uint8","uint16","uint32","uint64",
+                 "uintptr","true","false","nil","append","cap","close",
+                 "copy","delete","len","make","new","panic","print",
+                 "println","recover"});
+            r.lineComment = "//";
+            r.blockStart = "/*";
+            r.blockEnd = "*/";
+            r.stringDelims = "\"'";
+            r.backtickString = true;
+            t.insert("go", r);
+        }
+        // Rust.
+        {
+            Rules r = makeGeneric(
+                {"as","async","await","break","const","continue","crate",
+                 "dyn","else","enum","extern","false","fn","for","if",
+                 "impl","in","let","loop","match","mod","move","mut",
+                 "pub","ref","return","self","Self","static","struct",
+                 "super","trait","true","type","unsafe","use","where",
+                 "while","yield"},
+                {"bool","char","str","String","i8","i16","i32","i64",
+                 "i128","isize","u8","u16","u32","u64","u128","usize",
+                 "f32","f64","Option","Result","Vec","Box","Some",
+                 "None","Ok","Err"});
+            r.lineComment = "//";
+            r.blockStart = "/*";
+            r.blockEnd = "*/";
+            r.stringDelims = "\"'";
+            t.insert("rust", r);
+        }
+        // TypeScript. Its scanner is the JavaScript scanner with the type
+        // system's declarations and built-ins added as data.
+        {
+            Rules r = makeGeneric(
+                {"abstract","as","async","await","break","case","catch",
+                 "class","const","constructor","continue","declare",
+                 "default","delete","do","else","enum","export","extends",
+                 "finally","for","from","function","get","if","implements",
+                 "import","in","infer","instanceof","interface","keyof",
+                 "let","namespace","new","of","private","protected",
+                 "public","readonly","return","satisfies","set","static",
+                 "super","switch","this","throw","try","type","typeof",
+                 "var","void","while","with","yield"},
+                {"any","bigint","boolean","never","number","object",
+                 "string","symbol","unknown","undefined","null","Array",
+                 "Date","Error","Map","Promise","Record","Set","Partial",
+                 "Required","Readonly","Pick","Omit"});
+            r.lineComment = "//";
+            r.blockStart = "/*";
+            r.blockEnd = "*/";
+            r.stringDelims = "\"'";
+            r.backtickString = true;
+            t.insert("typescript", r);
+        }
+        // C#.
+        {
+            Rules r = makeGeneric(
+                {"abstract","as","async","await","base","break","case",
+                 "catch","checked","class","const","continue","default",
+                 "delegate","do","else","enum","event","explicit","extern",
+                 "finally","fixed","for","foreach","goto","if","implicit",
+                 "in","interface","internal","is","lock","namespace","new",
+                 "operator","out","override","params","private","protected",
+                 "public","readonly","record","ref","return","sealed",
+                 "sizeof","stackalloc","static","struct","switch","this",
+                 "throw","try","typeof","unchecked","unsafe","using",
+                 "virtual","volatile","while","yield"},
+                {"bool","byte","char","decimal","double","float","int",
+                 "long","object","sbyte","short","string","uint","ulong",
+                 "ushort","void","dynamic","var","true","false","null",
+                 "String","Object","Task","List","Dictionary","IEnumerable"});
+            r.lineComment = "//";
+            r.blockStart = "/*";
+            r.blockEnd = "*/";
+            r.stringDelims = "\"'";
+            r.hashPreproc = true;
+            t.insert("csharp", r);
+        }
+        // QML. JavaScript expressions share the scanner, while object and
+        // property declarations are additional keywords/types.
+        {
+            Rules r = makeGeneric(
+                {"as","break","case","catch","const","continue","default",
+                 "delete","do","else","enum","export","extends","finally",
+                 "for","function","if","import","in","instanceof","let",
+                 "new","of","pragma","property","readonly","required",
+                 "return","signal","switch","this","throw","try","typeof",
+                 "var","void","while","with","yield","on","id"},
+                {"bool","color","date","double","font","int","list",
+                 "matrix4x4","point","quaternion","real","rect","size",
+                 "string","url","variant","var","Item","Rectangle","Text",
+                 "MouseArea","Component","QtObject","ApplicationWindow",
+                 "true","false","null","undefined","Qt"});
+            r.lineComment = "//";
+            r.blockStart = "/*";
+            r.blockEnd = "*/";
+            r.stringDelims = "\"'";
+            r.backtickString = true;
+            t.insert("qml", r);
+        }
         // SQL (case-insensitive keywords).
         {
             Rules r = makeGeneric(
@@ -911,6 +1020,12 @@ const QHash<QString, QString> &aliasMap()
         {"cpp", "cpp"}, {"c++", "cpp"}, {"cxx", "cpp"}, {"cc", "cpp"},
         {"c", "cpp"}, {"h", "cpp"}, {"hpp", "cpp"},
         {"java", "java"},
+        {"go", "go"}, {"golang", "go"},
+        {"rust", "rust"}, {"rs", "rust"},
+        {"typescript", "typescript"}, {"ts", "typescript"},
+        {"tsx", "typescript"},
+        {"csharp", "csharp"}, {"cs", "csharp"}, {"c#", "csharp"},
+        {"qml", "qml"},
         {"html", "html"}, {"htm", "html"}, {"xhtml", "html"},
         {"css", "css"},
         {"sql", "sql"}, {"mysql", "sql"}, {"postgres", "sql"}, {"postgresql", "sql"},
@@ -929,8 +1044,9 @@ namespace CodeLanguages {
 
 QStringList supportedLanguages()
 {
-    return {"python", "javascript", "cpp", "java", "html", "css",
-            "sql", "bash", "json", "xml", "markdown"};
+    return {"python", "javascript", "typescript", "cpp", "csharp", "java",
+            "go", "rust", "qml", "html", "css", "sql", "bash", "json",
+            "xml", "markdown"};
 }
 
 QString canonicalLanguage(const QString &nameOrAlias)

@@ -5,6 +5,7 @@
 
 #include <QQmlApplicationEngine>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QQuickTextDocument>
 #include <QTemporaryDir>
 #include <QTextBlock>
@@ -44,6 +45,20 @@ public:
         if (slot == QLatin1String(KvitSlots::DocumentHeader))
             return QStringLiteral("qrc:/decorations/DecorationDemoHeader.qml");
         return QString();
+    }
+
+    QVariantList bottomDockTabs() const override
+    {
+        return {
+            QVariantMap{{QStringLiteral("id"), QStringLiteral("demo.output")},
+                        {QStringLiteral("title"), QStringLiteral("Output")},
+                        {QStringLiteral("source"),
+                         QStringLiteral("qrc:/decorations/DecorationDemoOutput.qml")}},
+            QVariantMap{{QStringLiteral("id"), QStringLiteral("demo.problems")},
+                        {QStringLiteral("title"), QStringLiteral("Problems")},
+                        {QStringLiteral("source"),
+                         QStringLiteral("qrc:/decorations/DecorationDemoProblems.qml")}}
+        };
     }
 };
 
@@ -207,6 +222,40 @@ private slots:
         QQuickItem *scroll = item("editorScrollView");
         QVERIFY(scroll);
         QVERIFY(scroll->y() >= header->y() + header->height());
+    }
+
+    void theBottomDockAggregatesTabsAndPersistsItsState()
+    {
+        QQuickItem *dock = item("bottomDock");
+        QVERIFY(dock);
+        QVERIFY(dock->isVisible());
+        QCOMPARE(dock->property("tabs").toList().size(), 2);
+        QVERIFY(item("demoDockOutput"));
+
+        QObject *tabBar = dock->findChild<QObject *>("bottomDockTabBar");
+        QVERIFY(tabBar);
+        dock->setProperty("currentIndex", 1);
+        QCoreApplication::processEvents();
+        QCOMPARE(m_context->settings()->value("dock.activeTab").toString(),
+                 QStringLiteral("demo.problems"));
+        QVERIFY(item("demoDockProblems"));
+
+        QObject *window = m_engine.rootObjects().value(0);
+        QVERIFY(window);
+        window->setProperty("bottomDockHeight", 278);
+        window->setProperty("bottomDockCollapsed", true);
+        QCoreApplication::processEvents();
+        QCOMPARE(m_context->settings()->value("dock.height").toInt(), 278);
+        QCOMPARE(m_context->settings()->value("dock.collapsed").toBool(), true);
+        window->setProperty("bottomDockCollapsed", false);
+
+        QQuickWindow *quickWindow = qobject_cast<QQuickWindow *>(window);
+        QVERIFY(quickWindow);
+        quickWindow->requestActivate();
+        QTest::keyClick(quickWindow, Qt::Key_J, Qt::ControlModifier);
+        QTRY_VERIFY(window->property("bottomDockCollapsed").toBool());
+        QTest::keyClick(quickWindow, Qt::Key_J, Qt::ControlModifier);
+        QTRY_VERIFY(!window->property("bottomDockCollapsed").toBool());
     }
 
     // C1a. The container is drawn after its block and sized by its content.
