@@ -13,10 +13,12 @@ class SettingsStore;
 // Typography settings (features.md §10.2):
 // editor font family, base size, line-height multiplier, paragraph
 // spacing, maximum content width, and the monospace family for code.
-// Heading and code sizes derive from the base by the ratios frozen
-// from the pre-Phase-9 defaults — H1 32/15, H2 24/15, H3 20/15,
-// H4 17/15, code 13/15 — so the default rendering is pixel-identical
-// and one setting scales the whole document coherently.
+// Heading and code sizes derive from the base by fixed ratios — H1
+// 32/15, H2 24/15, H3 20/15, H4 17/15, code 13/15 — so one setting
+// scales the whole document coherently. The ratios are written against
+// 15 because that is the base they were measured at; the base itself is
+// a default like any other and setting it to 15 reproduces the original
+// pixel sizes exactly.
 //
 // All properties notify through one typographyChanged signal, and all
 // setters clamp, so a hand-edited settings file cannot produce an
@@ -57,6 +59,13 @@ public:
     // enough that a corrupt settings value cannot break the layout.
     static constexpr int MinBaseSize = 10, MaxBaseSize = 28;
     static constexpr qreal MinLineHeight = 1.0, MaxLineHeight = 2.0;
+    // What a reader who has never opened the settings dialog gets. Named
+    // rather than written twice, because the member initialisers below and
+    // resetToDefaults() must agree: they did not have to before, and a
+    // "Reset typography" that restored something other than the starting
+    // state is the failure that costs the most to notice.
+    static constexpr int DefaultBaseSize = 14;
+    static constexpr qreal DefaultLineHeight = 1.3;
     static constexpr int DefaultParagraphSpacing = 4;
     static constexpr int MinParagraphSpacing = 0, MaxParagraphSpacing = 40;
     static constexpr int MinContentWidth = 300;  // when non-zero
@@ -107,8 +116,8 @@ private:
     SettingsStore *m_settings = nullptr;
     bool m_loading = false;
     QString m_fontFamily;
-    int m_baseSize = 15;
-    qreal m_lineHeight = 1.0;
+    int m_baseSize = DefaultBaseSize;
+    qreal m_lineHeight = DefaultLineHeight;
     int m_paragraphSpacing = DefaultParagraphSpacing;
     int m_maxContentWidth = 0;
     QString m_monoFamily = QStringLiteral("monospace");

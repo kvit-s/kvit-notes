@@ -28,6 +28,20 @@ Item {
         // Detect headless mode (offscreen platform)
         readonly property bool isHeadless: Qt.platform.pluginName === "offscreen"
 
+        // FontRole (src/domain/blockkind.h) as QML sees it. The enum is not
+        // registered with the engine, so the cases below name the roles here
+        // and ask Typography what size each one renders at rather than
+        // repeating pixel values: what they are about is a heading delegate
+        // being sized by the type scale, and the scale itself — including
+        // the numbers the default base produces — is asserted in
+        // test_typography.cpp, where changing a default is one edit.
+        readonly property int roleBody: 0
+        readonly property int roleHeading1: 1
+        readonly property int roleHeading2: 2
+        readonly property int roleHeading3: 3
+        readonly property int roleHeading4: 4
+        readonly property int roleMono: 5
+
         // Every function in this file runs against one engine, one window and
         // one application graph, so without this each one inherits whatever
         // the last one left in the model, the collection and the open
@@ -374,15 +388,19 @@ Item {
         function test_07_headingStylesApplied() {
             // First block should be Heading1 (large, bold)
             var h1Delegate = findBlockDelegate(0)
-            verify(h1Delegate.contentFontSize === 32,
-                   "Heading1 should have pixelSize 32")
+            compare(h1Delegate.contentFontSize,
+                    Typography.sizeForRole(testCase.roleHeading1),
+                    "Heading1 renders at the heading-1 size")
             verify(h1Delegate.contentFontWeight === Font.Bold,
                    "Heading1 should be bold")
 
             // Third block should be Heading2
             var h2Delegate = findBlockDelegate(2)
-            verify(h2Delegate.contentFontSize === 24,
-                   "Heading2 should have pixelSize 24")
+            compare(h2Delegate.contentFontSize,
+                    Typography.sizeForRole(testCase.roleHeading2),
+                    "Heading2 renders at the heading-2 size")
+            verify(h1Delegate.contentFontSize > h2Delegate.contentFontSize,
+                   "and the two are not the same size")
         }
 
         function test_08_paragraphHasPlaceholder() {
@@ -1084,13 +1102,15 @@ Item {
 
         // Step 4a: Enhanced Heading Rendering Tests
         function test_24_heading1FontSize() {
-            // First block should be Heading1 with 32px font
+            // First block should be Heading1, sized by the type scale
             var h1Delegate = findBlockDelegate(0)
             var h1TextArea = findTextArea(h1Delegate)
             BlockModel.updateType(0, 1)  // Ensure it's Heading1
             wait(50)
 
-            compare(h1TextArea.font.pixelSize, 32, "Heading1 should have 32px font")
+            compare(h1TextArea.font.pixelSize,
+                    Typography.sizeForRole(testCase.roleHeading1),
+                    "Heading1 renders at the heading-1 size")
         }
 
         function test_25_heading2FontSize() {
@@ -1099,7 +1119,9 @@ Item {
             BlockModel.updateType(1, 2)  // Set to Heading2
             wait(50)
 
-            compare(textArea.font.pixelSize, 24, "Heading2 should have 24px font")
+            compare(textArea.font.pixelSize,
+                    Typography.sizeForRole(testCase.roleHeading2),
+                    "Heading2 renders at the heading-2 size")
         }
 
         function test_26_heading3FontSize() {
@@ -1108,7 +1130,9 @@ Item {
             BlockModel.updateType(1, 3)  // Set to Heading3
             wait(50)
 
-            compare(textArea.font.pixelSize, 20, "Heading3 should have 20px font")
+            compare(textArea.font.pixelSize,
+                    Typography.sizeForRole(testCase.roleHeading3),
+                    "Heading3 renders at the heading-3 size")
         }
 
         function test_26b_heading4FontSize() {
@@ -1117,7 +1141,9 @@ Item {
             BlockModel.updateType(1, 10)  // Set to Heading4
             wait(50)
 
-            compare(textArea.font.pixelSize, 17, "Heading4 should have 17px font")
+            compare(textArea.font.pixelSize,
+                    Typography.sizeForRole(testCase.roleHeading4),
+                    "Heading4 renders at the heading-4 size")
         }
 
         function test_27_paragraphFontSize() {
@@ -1126,7 +1152,9 @@ Item {
             BlockModel.updateType(1, 0)  // Set to Paragraph
             wait(50)
 
-            compare(textArea.font.pixelSize, 15, "Paragraph should have 15px font")
+            compare(textArea.font.pixelSize,
+                    Typography.sizeForRole(testCase.roleBody),
+                    "a paragraph renders at the body size")
         }
 
         function test_28_headingFontWeights() {
@@ -1174,8 +1202,15 @@ Item {
             var plainDelegate = findBlockDelegate(0)
             var formattedDelegate = findBlockDelegate(1)
 
-            compare(formattedDelegate.height, plainDelegate.height,
-                    "One-line formatted block must be as tall as a one-line plain block")
+            // Within a pixel rather than exactly equal: what a phantom gap
+            // is, is a whole line of height reserved for text that is not
+            // there. A line height other than 1.0 multiplies the two rows'
+            // heights through different arithmetic and leaves them a
+            // hundredth of a pixel apart, which is not a gap anybody sees.
+            verify(Math.abs(formattedDelegate.height - plainDelegate.height) < 1,
+                   "One-line formatted block must be as tall as a one-line "
+                   + "plain block: " + formattedDelegate.height + " against "
+                   + plainDelegate.height)
         }
 
         // Step 4b: Type Conversion Shortcuts Tests
@@ -5138,10 +5173,17 @@ Item {
             mouseMove(fromTa, r1.x + 8, r1.y + r1.height / 2)
             var toTa = findTextArea(findBlockDelegate(toIdx))
             var r2 = toTa.positionToRectangle(toMd)
+            // Two moves so the drag is a drag, then land on the boundary
+            // itself. The moves used to end two pixels past it, which is
+            // inside the next character once the font is small enough for
+            // two pixels to reach its midpoint: the drag then selected one
+            // character more than the case asked for, and which font size
+            // that starts at is not something these cases are about.
             mouseMove(toTa, r2.x + 1, r2.y + r2.height / 2)
             mouseMove(toTa, r2.x + 2, r2.y + r2.height / 2)
+            mouseMove(toTa, r2.x, r2.y + r2.height / 2)
             if (release !== false)
-                mouseRelease(toTa, r2.x + 2, r2.y + r2.height / 2)
+                mouseRelease(toTa, r2.x, r2.y + r2.height / 2)
         }
 
         function test_pt_dragSelectsAcrossBlocks() {
@@ -8045,15 +8087,19 @@ Item {
 
             var body = findBlockDelegate(0)
             var heading = findBlockDelegate(1)
-            compare(body.contentFontSize, 15)
-            compare(heading.contentFontSize, 32)
+            var startingBase = Typography.baseSize
+            compare(body.contentFontSize, Typography.sizeForRole(testCase.roleBody))
+            compare(heading.contentFontSize,
+                    Typography.sizeForRole(testCase.roleHeading1))
 
+            // The point of the case: a delegate already on screen follows the
+            // setting, rather than keeping the size it was built at.
             Typography.baseSize = 20
             compare(body.contentFontSize, 20)
             compare(heading.contentFontSize, 43)  // qRound(20 * 32/15)
             compare(AppSettings.value("typography.fontSize", 0), 20)
 
-            Typography.baseSize = 15
+            Typography.baseSize = startingBase
         }
 
         function test_z9_maxContentWidthCentersColumn() {

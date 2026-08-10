@@ -141,8 +141,11 @@ void Typography::setMonoFamily(const QString &family)
 
 int Typography::sizeForRole(int fontRole) const
 {
-    // The frozen ratios, expressed against the historical 15 px base so
-    // the defaults reproduce the original values exactly.
+    // The type scale, expressed as ratios against a 15 px base because that
+    // is the base the sizes were originally measured at. It is the shape of
+    // the scale that is fixed here, not the base: at the default of 14 the
+    // headings come out 30/22/19/16 with code at 12, and at 15 they are the
+    // original 32/24/20/17 and 13 exactly.
     //
     // No default label, and -Werror=switch is on: a font role added without
     // a size here stops the build rather than quietly rendering at the body
@@ -186,8 +189,8 @@ QStringList Typography::monospaceFamilies() const
 void Typography::resetToDefaults()
 {
     setFontFamily(QString());
-    setBaseSize(15);
-    setLineHeight(1.0);
+    setBaseSize(DefaultBaseSize);
+    setLineHeight(DefaultLineHeight);
     setParagraphSpacing(DefaultParagraphSpacing);
     setMaxContentWidth(0);
     setMonoFamily(QStringLiteral("monospace"));
