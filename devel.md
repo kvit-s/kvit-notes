@@ -205,8 +205,10 @@ were achieved on it.
 platform plugin initializes EGL immediately, so this is the last moment the
 driver choice can be influenced) and, when /proc/version says the kernel is
 WSL, sets `GALLIUM_DRIVER=llvmpipe`, overriding anything inherited from the
-shell. Both entry points call it (src/main.cpp, tools/uidriver.cpp). It is a
-no-op outside WSL.
+shell. It also sets `LIBGL_ALWAYS_SOFTWARE=1`: this keeps Mesa from probing a
+missing DRM render node and printing `failed to get driver name for fd -1`
+before it reaches the same software renderer. Both entry points call it
+(src/main.cpp, tools/uidriver.cpp). It is a no-op outside WSL.
 
 **Escape hatches.**
 

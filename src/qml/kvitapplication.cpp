@@ -37,6 +37,11 @@ void KvitApplication::applyPlatformWorkarounds()
     if (!kernel.contains("microsoft") && !kernel.contains("wsl"))
         return;
     qputenv("GALLIUM_DRIVER", "llvmpipe");
+    // WSL installations without a DRM render node otherwise make Mesa's EGL
+    // loader probe fd -1 before it falls back to llvmpipe, producing a burst
+    // of harmless warnings on every launch. This selects the same software
+    // path without the failed device probe.
+    qputenv("LIBGL_ALWAYS_SOFTWARE", "1");
 }
 
 KvitApplication::KvitApplication(QApplication &app, QObject *parent)

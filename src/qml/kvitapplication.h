@@ -38,9 +38,10 @@ public:
     // driver selection from the environment at that moment. Under WSL, GPU
     // GL through the d3d12 Gallium driver corrupts Qt Quick glyph rendering
     // (text loses color channels or alpha), so GL is pinned to llvmpipe
-    // there — including over an inherited GALLIUM_DRIVER=d3d12. Set
-    // KVIT_ALLOW_GPU_GL=1 to opt back into whatever the environment says.
-    // A no-op outside WSL.
+    // there — including over an inherited GALLIUM_DRIVER=d3d12 — and Mesa is
+    // told not to probe a DRM device that WSL may not provide. Set
+    // KVIT_ALLOW_GPU_GL=1 to opt back into whatever the environment says. A
+    // no-op outside WSL.
     static void applyPlatformWorkarounds();
 
     // Sets the organization and application names and starts the startup
