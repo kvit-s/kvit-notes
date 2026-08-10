@@ -93,6 +93,8 @@ private:
     std::vector<std::unique_ptr<VaultWindow>> m_windows;
     QHash<QString, VaultWindow *> m_byKey;
     VaultWindow *m_active = nullptr;
+    // A quit is under way: see requestCloseAll() and persistOpenVaults().
+    bool m_closingAll = false;
 };
 
 #endif // WINDOWREGISTRY_H

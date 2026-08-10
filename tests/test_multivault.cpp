@@ -45,6 +45,19 @@ class TestMultiVault : public QObject
 {
     Q_OBJECT
 
+    // The one vault a bare launch would reopen. Compared as directories
+    // rather than as strings: what is written down is canonicalized, and the
+    // temporary directory a case makes is often reached through a symlink.
+    static void expectRemembered(ProcessServices &globals, const QString &vault)
+    {
+        const QStringList remembered =
+            globals.settings()->value(QStringLiteral("session.openVaults"))
+                .toStringList();
+        QCOMPARE(remembered.size(), 1);
+        QCOMPARE(QFileInfo(remembered.first()).canonicalFilePath(),
+                 QFileInfo(vault).canonicalFilePath());
+    }
+
 private slots:
     void initTestCase()
     {
@@ -159,6 +172,87 @@ private slots:
                                     QUrl(QStringLiteral("qrc:/qml/main.qml")));
             QVERIFY(registry.openSession());
             QCOMPARE(registry.windowCount(), 2);
+        }
+    }
+
+    // The same, through the door a reader actually leaves by.
+    //
+    // The case above lets the registry fall out of scope, which never runs
+    // the close path at all. Quitting does: every window is asked to close,
+    // each accepted close hands its window back to the registry, and the
+    // record of what was open is rewritten as each one goes. The last window
+    // to go therefore wrote down an empty set, and the next launch, finding
+    // nothing to reopen, fell back to the default vault — so the vault the
+    // reader had been working in was never the one they came back to.
+    void quittingLeavesTheVaultsToComeBackTo()
+    {
+        QTemporaryDir settingsDir;
+        QTemporaryDir vault1;
+        QTemporaryDir vault2;
+        const QString settingsPath =
+            settingsDir.filePath(QStringLiteral("settings.json"));
+
+        {
+            ProcessServices globals(headlessOptions());
+            globals.openSettings(settingsPath);
+            WindowRegistry registry(globals,
+                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+            QVERIFY(registry.openStartup(vault1.path()));
+            registry.openVaultInNewWindow(vault2.path());
+            QCOMPARE(registry.windowCount(), 2);
+
+            // Quit. The teardown of each window is queued behind the close
+            // that caused it, so the event loop has to run for the registry
+            // to be left holding nothing.
+            QVERIFY(registry.requestCloseAll());
+            QTRY_COMPARE(registry.windowCount(), 0);
+            globals.settings()->flush();
+        }
+
+        {
+            ProcessServices globals(headlessOptions());
+            globals.openSettings(settingsPath);
+            WindowRegistry registry(globals,
+                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+            QVERIFY(registry.openSession());
+            QCOMPARE(registry.windowCount(), 2);
+        }
+    }
+
+    // The other door out, and the one most people use: closing the window.
+    // With one vault open that is also the end of the session, and the record
+    // of what was open was rewritten as the window went — to nothing — so
+    // the next launch opened the default vault instead of the one that had
+    // just been closed. What is written down now is the last set that had
+    // anything in it, since "nowhere" is not an answer to where a bare
+    // launch should start.
+    void closingTheLastWindowLeavesTheVaultToComeBackTo()
+    {
+        QTemporaryDir settingsDir;
+        QTemporaryDir vault;
+        const QString settingsPath =
+            settingsDir.filePath(QStringLiteral("settings.json"));
+
+        {
+            ProcessServices globals(headlessOptions());
+            globals.openSettings(settingsPath);
+            WindowRegistry registry(globals,
+                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+            QVERIFY(registry.openStartup(vault.path()));
+            registry.closeVault(vault.path());
+            QTRY_COMPARE(registry.windowCount(), 0);
+            expectRemembered(globals, vault.path());
+            globals.settings()->flush();
+        }
+
+        {
+            ProcessServices globals(headlessOptions());
+            globals.openSettings(settingsPath);
+            WindowRegistry registry(globals,
+                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+            QVERIFY(registry.openSession());
+            QCOMPARE(registry.windowCount(), 1);
+            expectRemembered(globals, vault.path());
         }
     }
 

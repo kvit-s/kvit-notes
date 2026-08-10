@@ -214,6 +214,13 @@ VaultWindow *WindowRegistry::createWindow(const QString &target,
 
 bool WindowRegistry::requestCloseAll()
 {
+    // From here on the record of what was open is left alone. Each accepted
+    // close hands its window back, and handing a window back is ordinarily
+    // how the record is kept current — but a quit hands back every window,
+    // so keeping it current through a quit would reduce it to the last
+    // window standing and then to nothing. What has to survive is the set as
+    // it was when the quit began, which is what is already written down.
+    m_closingAll = true;
     // Snapshot the windows: an accepted close tells the registry to release
     // that window, which erases from m_windows. That teardown is queued, so it
     // cannot fire inside this loop (nothing here runs an event loop), but the
@@ -239,6 +246,11 @@ bool WindowRegistry::requestCloseAll()
         QCloseEvent closing;
         QCoreApplication::sendEvent(win, &closing);
         if (!closing.isAccepted()) {
+            // Not a quit after all: a window refused, the application goes
+            // on running, and what is open has to be tracked again. Windows
+            // closed before this one are handed back on the queue behind
+            // this call and will write down what is left, which is right.
+            m_closingAll = false;
             w->raiseWindow();   // put what is in the way in front of the user
             return false;
         }
@@ -295,11 +307,26 @@ void WindowRegistry::persistOpenVaults()
     // vault" was tried and is worse: a second process refused the same vault
     // would then rewrite this setting to an empty list and erase the running
     // session's own record of where it was.
+    if (m_closingAll)
+        return;
+
     QStringList vaults;
     for (const auto &w : m_windows) {
         if (w->isVault() && !w->key().isEmpty())
             vaults << w->key();
     }
+    // Never the empty set. This is called as each window is handed back, and
+    // quitting hands back every one of them, so the last window to go would
+    // otherwise erase the record of the whole session on its way out — and
+    // the next launch, finding nothing to reopen, would fall back to the
+    // default vault rather than to where the reader had been working.
+    //
+    // Nothing is lost by keeping the previous set. What this records is
+    // where to start a bare launch, and "nowhere" is not an answer to that:
+    // an untouched installation has no setting at all, which is the case
+    // openSession() reads as first run.
+    if (vaults.isEmpty())
+        return;
     m_globals.settings()->setValue(QStringLiteral("session.openVaults"), vaults);
 }
 
