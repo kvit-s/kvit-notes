@@ -15,13 +15,16 @@ namespace {
 
 #if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 
+using FileForm = UrlLauncher::FileForm;
+
 // Add `program` to `openers` if it is on PATH.
 void addIfPresent(QList<UrlLauncher::Opener> &openers, const QString &program,
-                  const QStringList &args = {}, bool exitCodeIsAVerdict = true)
+                  const QStringList &args = {}, bool exitCodeIsAVerdict = true,
+                  FileForm fileForm = FileForm::Url)
 {
     const QString path = QStandardPaths::findExecutable(program);
     if (!path.isEmpty())
-        openers.append({path, args, exitCodeIsAVerdict});
+        openers.append({path, args, exitCodeIsAVerdict, fileForm});
 }
 
 // A WSL session has no browser of its own but reaches the one on the Windows
@@ -70,15 +73,52 @@ QList<UrlLauncher::Opener> UrlLauncher::desktopOpeners()
     addIfPresent(openers, QStringLiteral("kde-open5"));
     addIfPresent(openers, QStringLiteral("kde-open"));
     addIfPresent(openers, QStringLiteral("gnome-open"));
-    addIfPresent(openers, QStringLiteral("wslview"));
+    addIfPresent(openers, QStringLiteral("wslview"), {},
+                 /*exitCodeIsAVerdict=*/true, FileForm::LocalPath);
     addIfPresent(openers, QStringLiteral("x-www-browser"));
     addIfPresent(openers, QStringLiteral("sensible-browser"));
     if (runningUnderWsl()) {
         addIfPresent(openers, QStringLiteral("explorer.exe"), {},
-                     /*exitCodeIsAVerdict=*/false);
+                     /*exitCodeIsAVerdict=*/false, FileForm::WindowsPath);
     }
 #endif
     return openers;
+}
+
+QString UrlLauncher::windowsPathFor(const QString &localPath)
+{
+    if (localPath.isEmpty())
+        return {};
+    const QString wslpath = QStandardPaths::findExecutable(
+        QStringLiteral("wslpath"));
+    if (wslpath.isEmpty())
+        return {};
+    QProcess convert;
+    convert.start(wslpath, {QStringLiteral("-w"), localPath});
+    // A path conversion is a few milliseconds of string work with no I/O
+    // beyond reading the mount table, so waiting for it inside the click is
+    // cheaper than the machinery to do it asynchronously. The timeout is
+    // there for the case where interoperability is switched off and the
+    // process never returns at all.
+    if (!convert.waitForFinished(2000)
+        || convert.exitStatus() != QProcess::NormalExit
+        || convert.exitCode() != 0) {
+        return {};
+    }
+    return QString::fromLocal8Bit(convert.readAllStandardOutput()).trimmed();
+}
+
+QString UrlLauncher::argumentFor(const Opener &opener, const QString &url)
+{
+    const QUrl parsed(url);
+    if (opener.fileForm == FileForm::Url || !parsed.isLocalFile())
+        return url;
+    const QString localPath = parsed.toLocalFile();
+    if (localPath.isEmpty())
+        return {};
+    if (opener.fileForm == FileForm::LocalPath)
+        return localPath;
+    return windowsPathFor(localPath);
 }
 
 void UrlLauncher::setOpenersForTests(const QList<Opener> &openers)
@@ -136,6 +176,15 @@ void UrlLauncher::tryOpener(const QString &url, int index)
     }
     const Opener opener = m_openers.at(index);
 
+    // Nothing this opener could be handed names the file. Running it anyway
+    // is how a Windows-side opener ends up showing an unrelated folder and
+    // reporting success, so it is skipped exactly like a refusal.
+    const QString argument = argumentFor(opener, url);
+    if (argument.isEmpty()) {
+        tryOpener(url, index + 1);
+        return;
+    }
+
     // The process outlives this call: a browser started in the foreground
     // runs for as long as the reader reads. It is parented to this launcher
     // so a window closing takes its watchers with it, and deletes itself when
@@ -178,5 +227,5 @@ void UrlLauncher::tryOpener(const QString &url, int index)
         emit opened(url);
     });
 
-    process->start(opener.program, opener.args + QStringList{url});
+    process->start(opener.program, opener.args + QStringList{argument});
 }

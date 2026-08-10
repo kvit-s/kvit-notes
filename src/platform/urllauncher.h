@@ -45,6 +45,22 @@ class UrlLauncher : public QObject
 public:
     explicit UrlLauncher(QObject *parent = nullptr);
 
+    // How a `file:` URL has to be spelled for one particular opener. Every
+    // other scheme is handed over exactly as it arrived, whichever form is
+    // named here.
+    enum class FileForm {
+        // The URL itself, which is what a Linux desktop opener wants.
+        Url,
+        // The path alone, without the scheme: wslview's documented input,
+        // and what it converts for the Windows side itself.
+        LocalPath,
+        // A path the Windows shell can resolve, from `wslpath -w`. A program
+        // running on the Windows side cannot follow a Linux path: handed
+        // file:///home/sk/notes.md, explorer.exe silently opens the user's
+        // Documents folder instead, which is the bug this form exists to fix.
+        WindowsPath,
+    };
+
     // One program that can be asked to open a URL.
     struct Opener {
         QString program;        // absolute path
@@ -53,6 +69,7 @@ public:
         // URL opened. Windows' explorer.exe, which is how a WSL session
         // reaches the browser on the Windows side, exits 1 on success.
         bool exitCodeIsAVerdict = true;
+        FileForm fileForm = FileForm::Url;
     };
 
     // Hand a URL to the desktop. The answer arrives as opened(), failed() or
@@ -77,6 +94,17 @@ public:
     // The openers this desktop offers, most specific first. Empty when
     // nothing on this machine can open a URL.
     static QList<Opener> desktopOpeners();
+
+    // What this opener is actually handed for this URL (see FileForm).
+    // Empty when the URL cannot be spelled the way the opener needs it —
+    // a file outside anything `wslpath -w` can name, for instance — and the
+    // caller then moves on to the next candidate rather than running a
+    // program with an argument it will misread.
+    static QString argumentFor(const Opener &opener, const QString &url);
+
+    // A Linux path as the Windows shell spells it, via `wslpath -w`. Empty
+    // when the conversion is unavailable or fails.
+    static QString windowsPathFor(const QString &localPath);
 
     // ---- Test seams ----
     // Programs whose behaviour the test controls (/bin/false to refuse,

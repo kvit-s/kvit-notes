@@ -122,6 +122,92 @@ private slots:
         QCOMPARE(failed.count(), 0);
     }
 
+    // ---- Which spelling of a file each opener is handed ----------------
+    //
+    // The reader clicked a file in this Linux session and the program that
+    // will open it runs on the Windows side. It cannot follow a Linux path:
+    // handed file:///home/sk/tools/check.py, explorer.exe opens the reader's
+    // Documents folder, and because its exit code is no verdict the click
+    // reports success. That is what "Open with desktop" did under WSL, and
+    // converting the path first is the fix.
+    void aWindowsSideOpenerIsHandedAWindowsPath()
+    {
+        if (QStandardPaths::findExecutable(QStringLiteral("wslpath")).isEmpty())
+            QSKIP("wslpath is a WSL tool; nothing here can do the conversion");
+        const UrlLauncher::Opener explorer{
+            QStringLiteral("/mnt/c/WINDOWS/explorer.exe"), {},
+            /*exitCodeIsAVerdict=*/false, UrlLauncher::FileForm::WindowsPath};
+        // A directory every WSL distribution has, so the case rests on the
+        // conversion rather than on the fixture.
+        const QString argument =
+            UrlLauncher::argumentFor(explorer, QStringLiteral("file:///home"));
+        QVERIFY2(!argument.isEmpty(), "wslpath converted nothing");
+        QVERIFY2(argument.contains(QLatin1Char('\\')), qPrintable(argument));
+        QVERIFY2(!argument.startsWith(QLatin1String("file:")),
+                 qPrintable(argument));
+    }
+
+    // wslview converts the path itself on the way through, and a path is
+    // what its documented interface takes.
+    void wslviewIsHandedThePathWithoutTheScheme()
+    {
+        const UrlLauncher::Opener wslview{
+            QStringLiteral("/usr/bin/wslview"), {}, true,
+            UrlLauncher::FileForm::LocalPath};
+        QCOMPARE(UrlLauncher::argumentFor(
+                     wslview, QStringLiteral("file:///home/reader/report.pdf")),
+                 QStringLiteral("/home/reader/report.pdf"));
+    }
+
+    // Only files are rewritten. There is no path in a web address for any of
+    // this to apply to, and the Windows shell opens one perfectly well.
+    void aWebUrlReachesEveryOpenerUnchanged()
+    {
+        const QString url = QStringLiteral("https://example.com/a?b=c#d");
+        for (const UrlLauncher::FileForm form :
+             {UrlLauncher::FileForm::Url, UrlLauncher::FileForm::LocalPath,
+              UrlLauncher::FileForm::WindowsPath}) {
+            const UrlLauncher::Opener opener{QStringLiteral("/bin/true"), {},
+                                             true, form};
+            QCOMPARE(UrlLauncher::argumentFor(opener, url), url);
+        }
+    }
+
+    // A file URL naming no path cannot be spelled for a Windows-side opener.
+    // Running it anyway is how an unrelated folder opens over a click that
+    // then says it worked, so the candidate is skipped exactly like a
+    // refusal -- and with nothing behind it the click fails honestly.
+    void anOpenerThatCannotSpellTheFileIsSkipped()
+    {
+        UrlLauncher launcher;
+        launcher.setOpenersForTests({{QStringLiteral("/bin/true"), {},
+                                      /*exitCodeIsAVerdict=*/false,
+                                      UrlLauncher::FileForm::WindowsPath}});
+        QSignalSpy opened(&launcher, &UrlLauncher::opened);
+        QSignalSpy failed(&launcher, &UrlLauncher::failed);
+        launcher.open(QStringLiteral("file:"));
+        QTRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 5000);
+        QCOMPARE(opened.count(), 0);
+    }
+
+    // The wiring on whichever machine this is running on: where the Windows
+    // shell is the last resort, it has to be the one asking for a Windows
+    // path, or the conversion above never happens in the application.
+    void theWindowsShellFallbackAsksForAWindowsPath()
+    {
+        bool found = false;
+        const QList<UrlLauncher::Opener> openers = UrlLauncher::desktopOpeners();
+        for (const UrlLauncher::Opener &opener : openers) {
+            if (!opener.program.endsWith(QLatin1String("explorer.exe")))
+                continue;
+            found = true;
+            QVERIFY(opener.fileForm == UrlLauncher::FileForm::WindowsPath);
+            QVERIFY(!opener.exitCodeIsAVerdict);
+        }
+        if (!found)
+            QSKIP("not a WSL session: no Windows shell among the openers");
+    }
+
     // A program that is not there at all is a refusal, not a crash: a
     // candidate list is built from what was on PATH when the window opened,
     // and PATH outlives that.
