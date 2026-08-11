@@ -41,6 +41,11 @@ QVariantList KvitExtension::sidebarViews() const
     return {};
 }
 
+QVariantList KvitExtension::settingsPages() const
+{
+    return {};
+}
+
 QString KvitExtension::exportAppendix(const QString &noteRelPath) const
 {
     Q_UNUSED(noteRelPath);
@@ -133,6 +138,13 @@ QVariantList ExtensionRegistry::sidebarViews() const
 {
     return aggregateViews(m_extensions, [](const KvitExtension *extension) {
         return extension->sidebarViews();
+    });
+}
+
+QVariantList ExtensionRegistry::settingsPages() const
+{
+    return aggregateViews(m_extensions, [](const KvitExtension *extension) {
+        return extension->settingsPages();
     });
 }
 

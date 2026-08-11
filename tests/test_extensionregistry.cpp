@@ -64,6 +64,15 @@ public:
             {QStringLiteral("source"), QStringLiteral("qrc:/fake/View.qml")}}};
     }
 
+    QVariantList settingsPages() const override
+    {
+        return {QVariantMap{
+            {QStringLiteral("id"), m_name + QStringLiteral(".settings")},
+            {QStringLiteral("title"), QStringLiteral("Module")},
+            {QStringLiteral("source"),
+             QStringLiteral("qrc:/fake/Settings.qml")}}};
+    }
+
     int kind = 0;
 
 private:
@@ -177,6 +186,26 @@ private slots:
         QCOMPARE(registry.sidebarViewSource(QStringLiteral("second.view")),
                  QStringLiteral("qrc:/fake/View.qml"));
         QVERIFY(registry.sidebarViewSource(QStringLiteral("missing")).isEmpty());
+
+        // A settings page aggregates the same way, so two modules get a tab
+        // each rather than the first one keeping the dialog to itself.
+        const QVariantList pages = registry.settingsPages();
+        QCOMPARE(pages.size(), 2);
+        QCOMPARE(pages.at(0).toMap().value("title").toString(),
+                 QStringLiteral("Module"));
+        QCOMPARE(pages.at(1).toMap().value("id").toString(),
+                 QStringLiteral("second.settings"));
+        QCOMPARE(pages.at(1).toMap().value("module").toString(),
+                 QStringLiteral("second"));
+    }
+
+    void anOpenBuildAddsNoSettingsPages()
+    {
+        // The dialog's tab bar is built from this list, so an empty answer is
+        // what keeps the open editor's settings exactly the three pages it
+        // has always had.
+        ExtensionRegistry registry;
+        QVERIFY(registry.settingsPages().isEmpty());
     }
 
     void modulesCanMarkAnyRoot()

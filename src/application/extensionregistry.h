@@ -108,6 +108,13 @@ public:
     virtual QVariantList bottomDockTabs() const;
     virtual QVariantList sidebarViews() const;
 
+    // Pages added to the settings dialog, after the editor's own and in the
+    // same shape: id, title and source. A page is a QML file the dialog loads
+    // into a tab it names from `title`, so the open editor never has to know
+    // what a module's settings are about. With no module installed the dialog
+    // is exactly the pages it has always had.
+    virtual QVariantList settingsPages() const;
+
     // ---- what this module adds to a note's export --------------------------
     //
     // A module that draws content BESIDE a note rather than inside it — through
@@ -182,6 +189,7 @@ public:
     Q_INVOKABLE QVariantList bottomDockTabs() const;
     Q_INVOKABLE QVariantList sidebarViews() const;
     Q_INVOKABLE QString sidebarViewSource(const QString &id) const;
+    Q_INVOKABLE QVariantList settingsPages() const;
 
     // A module may report background state for any root, including one that
     // is not current. The root rail observes revision and asks for the mark.

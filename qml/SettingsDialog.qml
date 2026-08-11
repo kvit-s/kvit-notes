@@ -17,6 +17,11 @@ KvitDialog {
 
     modal: true
     title: qsTr("Settings")
+
+    // The pages linked modules contribute, read once rather than per binding:
+    // the tab bar and the page stack both walk this list and have to agree on
+    // its order for a tab to select the page beside it.
+    readonly property var extensionPages: Extensions.settingsPages()
     standardButtons: Dialog.Close
     width: Interface.px(560)
     // Tall enough to show the Appearance page without scrolling at the
@@ -109,6 +114,18 @@ KvitDialog {
             TabButton { text: qsTr("Appearance"); objectName: "appearanceTab" }
             TabButton { text: qsTr("Typography"); objectName: "typographyTab" }
             TabButton { text: qsTr("General"); objectName: "generalTab" }
+            // A linked module's own pages, after the editor's three so those
+            // keep the positions they have always had. Each names itself, so
+            // nothing here has to know what a module's settings are about;
+            // with no module installed there are no extra tabs at all.
+            Repeater {
+                model: settingsDialog.extensionPages
+                TabButton {
+                    required property var modelData
+                    objectName: "extensionSettingsTab"
+                    text: modelData.title
+                }
+            }
         }
 
         StackLayout {
@@ -786,6 +803,31 @@ KvitDialog {
                         onToggled: SystemTray.closeToTray = checked
                     }
                     Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ---- a linked module's pages ---------------------------
+            //
+            // One page per contribution, in the same order as the tabs above,
+            // so the index the tab bar reports selects the page beside it.
+            Repeater {
+                model: settingsDialog.extensionPages
+                ScrollView {
+                    id: extensionPage
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    contentWidth: availableWidth
+                    clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                    Loader {
+                        objectName: "extensionSettingsPage"
+                        // Bound to the view rather than left to its own
+                        // implicit width, for the reason the pages above give.
+                        width: extensionPage.availableWidth
+                        source: extensionPage.modelData.source
+                    }
                 }
             }
         }
