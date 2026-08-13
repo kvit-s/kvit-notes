@@ -589,6 +589,31 @@ option now checks for them and explains that the agent module lives in
 option off. It used to fail deep inside `qt_add_executable` with "Cannot find
 source file" for each missing path, which reads like a broken checkout.
 
+**A superset binary declares its own identity.** `KvitApplication`'s
+constructor takes a `KvitApplication::Identity` (an organization and an
+application name) and applies it to the `QApplication` before anything reads
+it. The pair decides where per-user state lives:
+`QStandardPaths::AppConfigLocation` resolves to
+`<config>/<organization>/<application>`, which is the directory
+`ProcessServices::openSettings()` puts `settings.json` in. Two products built
+from this core that keep the same identity share one profile, and each then
+restores state the other wrote. A sidebar view id that one build has a pane
+for is meaningless to the other, and the shell drew nothing at all for such an
+id, because the notes family hides for anything outside it, the files pane
+wants `"files"`, and the module `Loader` resolves an unknown id to an empty
+source. `knownSidebarView()` in `qml/main.qml` now rejects ids the running
+build cannot resolve, and the open editor takes
+`KvitApplication::openEditorIdentity()` by default while `kvit-notes-pro`
+passes its own name, so each has its own profile.
+
+Nothing else in the tree derives state from the application name.
+`SingleInstance::defaultServerName()` keys the channel on the executable's
+canonical path, so two binaries have always elected separate primaries, and
+`VaultLock` uses the name only to describe the holder in its refusal message.
+The exclusion itself is a kernel lock on a file inside the vault, which both
+products take the same way, so renaming one of them separates the profiles
+without weakening one-writer-per-vault across the two.
+
 ## A subtree the application manages, and the few files in it the index sees
 
 The scanner skips every dot-prefixed directory, so a tree an application keeps

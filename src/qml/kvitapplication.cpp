@@ -44,14 +44,20 @@ void KvitApplication::applyPlatformWorkarounds()
     qputenv("LIBGL_ALWAYS_SOFTWARE", "1");
 }
 
-KvitApplication::KvitApplication(QApplication &app, QObject *parent)
+KvitApplication::Identity KvitApplication::openEditorIdentity()
+{
+    return Identity{QStringLiteral("Kvit"), QStringLiteral("Kvit Notes")};
+}
+
+KvitApplication::KvitApplication(QApplication &app, Identity identity,
+                                 QObject *parent)
     : QObject(parent)
     , m_app(app)
 {
     m_startupTimer.start();
 
-    m_app.setOrganizationName(QStringLiteral("Kvit"));
-    m_app.setApplicationName(QStringLiteral("Kvit Notes"));
+    m_app.setOrganizationName(identity.organization);
+    m_app.setApplicationName(identity.application);
     m_app.setApplicationVersion(QStringLiteral(KVIT_VERSION));
 
     PerfLog::instance().configureFromEnvironment();

@@ -44,9 +44,33 @@ public:
     // no-op outside WSL.
     static void applyPlatformWorkarounds();
 
-    // Sets the organization and application names and starts the startup
-    // clock, so the timings cover everything after QApplication construction.
-    explicit KvitApplication(QApplication &app, QObject *parent = nullptr);
+    // Who this binary is, as far as the desktop and QStandardPaths are
+    // concerned. AppConfigLocation resolves to <config>/<organization>/
+    // <application>, so this pair alone decides which settings.json a process
+    // reads and writes. Two products built from this core must therefore
+    // differ here or they share one per-user profile, and each will restore
+    // state the other wrote — including sidebar views and dock tabs that only
+    // one of them has a pane for.
+    //
+    // It is a constructor argument rather than a setter because the names must
+    // be in place before start() resolves the settings path, and a downstream
+    // main() that constructs this class has no other ordering to get wrong.
+    struct Identity {
+        QString organization;
+        QString application;
+    };
+
+    // The open editor's own. Defined in the translation unit rather than as
+    // member initializers because Qt expands QStringLiteral to a lambda, which
+    // a default argument of `= {}` cannot then aggregate-initialize.
+    static Identity openEditorIdentity();
+
+    // Applies `identity` to the QApplication, sets the version from the
+    // compiled-in KVIT_VERSION, and starts the startup clock, so the timings
+    // cover everything after QApplication construction.
+    explicit KvitApplication(QApplication &app,
+                             Identity identity = openEditorIdentity(),
+                             QObject *parent = nullptr);
     ~KvitApplication() override;
 
     // What start() decided the caller should do next.
