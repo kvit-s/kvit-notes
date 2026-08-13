@@ -1011,6 +1011,10 @@ and summarized in [CONTRIBUTING.md](CONTRIBUTING.md).
   without restoring anything; a link in it opens the note or page it names,
   and a remote image in it waits for the reader to approve its origin the way
   one in a note does (see selection.md, "A document drawn read-only")
+- Shading in that preview over the text this version has and the note as it
+  stands does not, so two edits of the same afternoon are told apart by what
+  they say rather than by their timestamps; a line under the pane says what
+  the shading means
 - Crash recovery (restore unsaved changes)
 
 ### 12.5 Export Options

@@ -649,6 +649,20 @@ qt_add_executable(test_documentdecorations test_documentdecorations.cpp)
 target_link_libraries(test_documentdecorations PRIVATE kvit-core Qt6::Test Qt6::Gui)
 add_test(NAME DocumentDecorationTests COMMAND test_documentdecorations)
 
+# The marked ranges of one DRAWN document — the read-only surface's
+# counterpart of the spans above, which mark the open note. This half is the
+# registry, so it needs no window; the drawing is covered by
+# ReadOnlyDocumentTests.
+qt_add_executable(test_documentblockmarks test_documentblockmarks.cpp)
+target_link_libraries(test_documentblockmarks PRIVATE kvit-core Qt6::Test Qt6::Gui)
+add_test(NAME DocumentBlockMarksTests COMMAND test_documentblockmarks)
+
+# What differs between two markdown documents, which is what gives the backup
+# dialog's preview something to mark. A pure function of two strings.
+qt_add_executable(test_documentcompare test_documentcompare.cpp)
+target_link_libraries(test_documentcompare PRIVATE kvit-core Qt6::Test Qt6::Gui)
+add_test(NAME DocumentCompareTests COMMAND test_documentcompare)
+
 # The other half, driven through the shipped shell with a demonstration module
 # installed: a container drawn between two blocks, a glyph beside one wrapped
 # line, and the pinned header strip filled. It lists resources.qrc for the

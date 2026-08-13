@@ -505,6 +505,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_documentHeights);
     m_services.add(&m_documentExporter);
     m_services.add(&m_documentSerializer);
+    m_services.add(&m_documentCompare);
     m_services.add(&m_documentImporter);
     m_services.add(&m_embedMetadata);
     m_services.add(m_globals.systemTray());

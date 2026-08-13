@@ -30,6 +30,7 @@
 #include "appcontext.h"
 #include "block.h"
 #include "blockmodel.h"
+#include "documentblockmarks.h"
 #include "documentselection.h"
 #include "documentserializer.h"
 #include "egresspolicy.h"
@@ -562,6 +563,263 @@ private slots:
             QStringLiteral("backupPreviewDocument")));
     }
 
+    // ---- marked ranges ----
+    //
+    // A surface can show a document and, until this existed, say nothing about
+    // which part of it matters. Marks close that: {block, start, length} in the
+    // block's display text, a wash behind the characters, an outline around
+    // them, and the rectangles answerable so a caller can anchor something
+    // beside the marked words. The registry is the surface's own, which is what
+    // lets two previews in one window mark different documents.
+
+    void aMarkedRunIsWashedOverExactlyTheCharactersNamed()
+    {
+        QQuickItem *surface = makeSurface(sampleMarkdown());
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 5);
+        DocumentBlockMarks *marks = marksOf(surface);
+        QVERIFY(marks);
+
+        // "bold" in the DISPLAY text, which is two characters left of where the
+        // same word sits in the markdown — the asterisks are hidden.
+        const QString drawn = rowText(surface, kFirstParagraph);
+        const int at = drawn.indexOf(QStringLiteral("bold"));
+        QVERIFY(at > 0);
+        QVERIFY(blockMarkdown(surface, kFirstParagraph)
+                    .indexOf(QStringLiteral("bold")) > at);
+
+        const QColor wash(QStringLiteral("#5533aa"));
+        const QString id = marks->add(kFirstParagraph, at, 4, wash);
+        QVERIFY(!id.isEmpty());
+
+        QTRY_COMPARE(washAt(surface, kFirstParagraph, at), wash);
+        QCOMPARE(washAt(surface, kFirstParagraph, at + 3), wash);
+        // And not one character further in either direction.
+        QVERIFY(washAt(surface, kFirstParagraph, at - 1) != wash);
+        QVERIFY(washAt(surface, kFirstParagraph, at + 4) != wash);
+        // Nor in any other block.
+        QVERIFY(washAt(surface, kSecondParagraph, at) != wash);
+
+        // The words under the wash keep the styling they had: a wash is merged
+        // into the formats already set rather than replacing them, so the bold
+        // run is still bold.
+        QVERIFY(formatAt(surface, kFirstParagraph, at).font().bold());
+
+        // Removing the mark takes the wash with it.
+        QVERIFY(marks->remove(id));
+        QTRY_VERIFY(washAt(surface, kFirstParagraph, at) != wash);
+    }
+
+    // The outline channel, and the reason a marked run answers with more than
+    // one rectangle: a marked phrase that wraps is two runs of characters in
+    // two places.
+    void aMarkThatWrapsIsOutlinedAndMeasuredLineByLine()
+    {
+        QString paragraph;
+        for (int i = 0; i < 40; ++i)
+            paragraph += QStringLiteral("wrapping paragraph text ");
+        QQuickItem *surface = makeSurface(paragraph.trimmed() + QLatin1Char('\n'));
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 1);
+        QQuickItem *row = rowItem(surface, 0);
+        QVERIFY(row);
+        QTRY_VERIFY(rowEditor(surface, 0)->property("lineCount").toInt() > 2);
+
+        DocumentBlockMarks *marks = marksOf(surface);
+        const QColor wash(QStringLiteral("#5533aa"));
+        const QColor outline(QStringLiteral("#cc4400"));
+        const QString id =
+            marks->add(0, 0, rowText(surface, 0).length(), wash, outline);
+        QVERIFY(!id.isEmpty());
+
+        // One box per visual line, drawn as items because a border is not a
+        // character format.
+        QTRY_VERIFY(visibleOutlines(surface, 0).size() > 2);
+        QCOMPARE(visibleOutlines(surface, 0).size(),
+                 rowEditor(surface, 0)->property("lineCount").toInt());
+
+        // And the same count comes back as geometry, in the surface's own
+        // coordinates, each rectangle inside the row it belongs to.
+        const QVariantList rects = markRects(surface, id);
+        QCOMPARE(rects.size(), visibleOutlines(surface, 0).size());
+        const QRectF rowBox = rowRect(surface, 0);
+        for (const QVariant &value : rects) {
+            const QRectF rect = value.toRectF();
+            QVERIFY(rect.width() > 0);
+            QVERIFY(rect.height() > 0);
+            QVERIFY2(rowBox.adjusted(-1, -1, 1, 1).contains(rect),
+                     qPrintable(QStringLiteral("%1,%2 %3x%4 is outside the row")
+                                    .arg(rect.x()).arg(rect.y())
+                                    .arg(rect.width()).arg(rect.height())));
+        }
+        // The lines are stacked, so no two rectangles share a top edge.
+        QVERIFY(rects.first().toRectF().y() < rects.last().toRectF().y());
+
+        // A wash-only mark carries no box for the outline layer to draw, which
+        // is what keeps a preview of prose from building any of it.
+        QVERIFY(marks->setColors(id, wash, QColor()));
+        QTRY_COMPARE(visibleOutlines(surface, 0).size(), 0);
+    }
+
+    // The difference from DocumentDecorations, whose spans are per window
+    // because the note is.
+    void twoSurfacesMarkTheirOwnDocuments()
+    {
+        QQuickItem *first = makeSurface(sampleMarkdown());
+        QQuickItem *second = makeSurface(sampleMarkdown());
+        QTRY_COMPARE(first->property("blockCount").toInt(), 5);
+        QTRY_COMPARE(second->property("blockCount").toInt(), 5);
+
+        const QColor wash(QStringLiteral("#5533aa"));
+        QVERIFY(!marksOf(first)->add(kHeading, 0, 7, wash).isEmpty());
+
+        QTRY_COMPARE(washAt(first, kHeading, 0), wash);
+        QCOMPARE(marksOf(second)->count(), 0);
+        QVERIFY(washAt(second, kHeading, 0) != wash);
+    }
+
+    // The core draws what it is handed: an anchor the surface cannot honour
+    // costs nothing rather than failing, which is the state a caller's marks
+    // are in for the moment between the document changing and the caller
+    // re-placing them.
+    void aMarkThatLandsOnNothingDrawsNothing()
+    {
+        QQuickItem *surface = makeSurface(sampleMarkdown());
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 5);
+        DocumentBlockMarks *marks = marksOf(surface);
+        const QColor wash(QStringLiteral("#5533aa"));
+
+        // A block the document does not have.
+        const QString offEnd = marks->add(99, 0, 4, wash);
+        QVERIFY(!offEnd.isEmpty());
+        QVERIFY(markRects(surface, offEnd).isEmpty());
+
+        // A range running past the end of the block's text clamps to the text
+        // rather than drawing outside it.
+        const int length = rowText(surface, kListItem).length();
+        const QString overrun =
+            marks->add(kListItem, length - 2, 500, wash);
+        QTRY_COMPARE(washAt(surface, kListItem, length - 1), wash);
+        QCOMPARE(markRects(surface, overrun).size(), 1);
+        QVERIFY(markRects(surface, overrun).first().toRectF().right()
+                <= rowRect(surface, kListItem).right() + 1);
+
+        // An unknown id answers with nothing at all.
+        QVERIFY(markRects(surface, QStringLiteral("mark-nope")).isEmpty());
+
+        // A mark on a picture: the row holds no characters a range can
+        // address, so it draws nothing and answers nothing.
+        QQuickItem *withPicture = makeSurface(
+            QStringLiteral("![Chart](assets/nothing.png)\n"));
+        QTRY_COMPARE(withPicture->property("blockCount").toInt(), 1);
+        const QString onPicture = marksOf(withPicture)->add(0, 0, 5, wash);
+        QVERIFY(!onPicture.isEmpty());
+        QVERIFY(markRects(withPicture, onPicture).isEmpty());
+    }
+
+    // Marking is not writing. The document, what a copy yields and how a sweep
+    // behaves are what they were with nothing registered.
+    void marksLeaveTheDocumentAndItsCopyAlone()
+    {
+        QQuickItem *surface = makeSurface(sampleMarkdown());
+        QTRY_COMPARE(surface->property("blockCount").toInt(), 5);
+
+        sweep(surface, nearStartOf(surface, kFirstParagraph),
+              nearEndOf(surface, kListItem));
+        const QString copiedBefore = invoke(surface, "selectedMarkdown").toString();
+        const QVariantMap rangeBefore = invoke(surface, "selectedRange").toMap();
+        QStringList markdownBefore;
+        for (int i = 0; i < 5; ++i)
+            markdownBefore << blockMarkdown(surface, i);
+        invoke(surface, "clearSelection");
+
+        DocumentBlockMarks *marks = marksOf(surface);
+        for (int i = 0; i < 5; ++i)
+            marks->add(i, 0, 4, QColor(QStringLiteral("#5533aa")));
+        QTRY_COMPARE(marks->count(), 5);
+        QCoreApplication::processEvents();
+
+        sweep(surface, nearStartOf(surface, kFirstParagraph),
+              nearEndOf(surface, kListItem));
+        QCOMPARE(invoke(surface, "selectedMarkdown").toString(), copiedBefore);
+        QCOMPARE(invoke(surface, "selectedRange").toMap(), rangeBefore);
+        QStringList markdownAfter;
+        for (int i = 0; i < 5; ++i)
+            markdownAfter << blockMarkdown(surface, i);
+        QCOMPARE(markdownAfter, markdownBefore);
+        QCOMPARE(surface->property("blockCount").toInt(), 5);
+    }
+
+    // The consumer: a stored version drawn with the part the note no longer has
+    // washed, so two edits of one afternoon are told apart by what they say
+    // rather than by their timestamps.
+    void theBackupPreviewMarksWhatDiffersFromTheNote()
+    {
+        // A note of its own, with exactly one stored version: the dialog opens
+        // on the most recent, and a note another case has already backed up
+        // would put that case's document under the cursor instead.
+        const QString relPath = QStringLiteral("Compared.md");
+        const QString absPath = m_vaultRoot + QLatin1Char('/') + relPath;
+        writeNote(relPath, QStringLiteral("The second draft of the report.\n"));
+        m_context->noteCollection()->refreshPaths({absPath});
+        m_context->noteCollection()->backupBeforeOverwrite(absPath);
+        QTRY_COMPARE(m_context->noteCollection()->backupsFor(relPath).size(), 1);
+
+        QQuickWindow *window = shellWindow();
+        QVERIFY(window);
+        QVariant opened;
+        QVERIFY(QMetaObject::invokeMethod(window, "openNoteByPath",
+                                          Q_RETURN_ARG(QVariant, opened),
+                                          Q_ARG(QVariant, relPath)));
+        QTRY_COMPARE(window->property("currentNoteRelPath").toString(), relPath);
+
+        // The note as it stands now differs from the stored copy in one word.
+        BlockModel *note = m_context->blockModel();
+        QTRY_COMPARE(note->count(), 1);
+        note->updateContent(
+            0, QStringLiteral("The final draft of the report."));
+
+        QObject *dialog = window->findChild<QObject *>(
+            QStringLiteral("backupDialog"));
+        QVERIFY(dialog);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "openForCurrentNote"));
+
+        QQuickItem *preview = window->findChild<QQuickItem *>(
+            QStringLiteral("backupPreviewDocument"));
+        QVERIFY(preview);
+        QTRY_COMPARE(preview->property("blockCount").toInt(), 1);
+
+        // One mark, on the word the note replaced, in the theme's
+        // changed-text colour.
+        DocumentBlockMarks *marks = marksOf(preview);
+        QVERIFY(marks);
+        QTRY_COMPARE(marks->count(), 1);
+        const QVariantList entries = marks->marksForBlock(0);
+        QCOMPARE(entries.size(), 1);
+        const QVariantMap entry = entries.first().toMap();
+        QCOMPARE(rowText(preview, 0).mid(
+                     entry.value(QStringLiteral("start")).toInt(),
+                     entry.value(QStringLiteral("length")).toInt()),
+                 QStringLiteral("second"));
+        const QColor changed = m_context->theme()->changedTextBackground();
+        QTRY_COMPARE(washAt(preview, 0,
+                            entry.value(QStringLiteral("start")).toInt()),
+                     changed);
+        QVERIFY(washAt(preview, 0, 0) != changed);
+
+        // And the dialog says what the shading means, which it does not when
+        // the version drawn is the one the reader already has.
+        QQuickItem *legend =
+            window->findChild<QQuickItem *>(QStringLiteral("backupPreviewLegend"));
+        QVERIFY(legend);
+        QTRY_VERIFY(legend->isVisible());
+
+        // Closed before the next case runs: the dialog is modal, so leaving it
+        // up would swallow the pointer events a later case delivers to the
+        // window.
+        QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+        QTRY_VERIFY(!window->findChild<QQuickItem *>(
+            QStringLiteral("backupPreviewDocument")));
+    }
+
     // ---- pictures ----
     //
     // An image block's content is its markdown expression, so a surface that
@@ -1054,6 +1312,65 @@ private:
                 return range.format;
         }
         return QTextCharFormat();
+    }
+
+    // ---- marks ----
+
+    // The surface's own mark registry, reached as the object it publishes.
+    DocumentBlockMarks *marksOf(QQuickItem *surface)
+    {
+        return qobject_cast<DocumentBlockMarks *>(
+            surface->property("marks").value<QObject *>());
+    }
+
+    QVariantList markRects(QQuickItem *surface, const QString &id)
+    {
+        QVariant result;
+        if (!QMetaObject::invokeMethod(surface, "markRects",
+                                       Q_RETURN_ARG(QVariant, result),
+                                       Q_ARG(QVariant, id))) {
+            return {};
+        }
+        return result.toList();
+    }
+
+    // The background the layout renders at a display position, or an invalid
+    // colour where it renders none.
+    //
+    // Every range covering the position is searched rather than the first one:
+    // a wash is merged into the formats already set, character by character, so
+    // the range carrying it is not necessarily the first one the position falls
+    // in. The document is looked up on every call because an engine rebuild
+    // frees the one before it.
+    QColor washAt(QQuickItem *surface, int index, int pos)
+    {
+        QTextDocument *doc = rowDocument(surface, index);
+        if (!doc || !doc->firstBlock().layout())
+            return QColor();
+        const auto formats = doc->firstBlock().layout()->formats();
+        for (const auto &range : formats) {
+            if (pos < range.start || pos >= range.start + range.length)
+                continue;
+            if (range.format.background().style() != Qt::NoBrush)
+                return range.format.background().color();
+        }
+        return QColor();
+    }
+
+    // The outline boxes drawn over one row's text. The layer carries an item
+    // per marked run and hides the wash-only ones, so the visible boxes are
+    // what a reader sees.
+    QList<QQuickItem *> visibleOutlines(QQuickItem *surface, int index)
+    {
+        QList<QQuickItem *> found;
+        collectItems(rowItem(surface, index),
+                     QStringLiteral("decorationSpanOutline"), found);
+        QList<QQuickItem *> visible;
+        for (QQuickItem *item : found) {
+            if (item->isVisible())
+                visible.append(item);
+        }
+        return visible;
     }
 
     bool hasPaintedSelection(QQuickItem *surface, int index)

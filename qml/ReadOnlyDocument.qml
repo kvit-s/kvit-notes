@@ -37,6 +37,13 @@ import Kvit 1.0
 // egress policy exactly as one in a note is. A link is followable: a release
 // that ended no selection is a click, and a click on a link opens it.
 //
+// A caller can mark runs of characters in what it asked to be drawn, through
+// the surface's own `marks` registry (DocumentBlockMarks): a background wash, a
+// border, or both, addressed by block and by offset in the block's display
+// text. The registry is per surface, so two previews in one window mark their
+// own documents; the rendering is the editor's, since the marks reach each
+// row's text engine in the same shape a module's spans reach the note's.
+//
 // Read-only is enforced rather than declared. No path from the view writes to
 // the model, no undo stack is attached to it, and a surface over a file never
 // opens that file for writing. A caller that wants the document edited opens
@@ -78,6 +85,21 @@ Item {
 
     readonly property int blockCount: docBlocks.count
     readonly property bool hasSelection: docSelection.hasTextSelection
+
+    // This surface's marked ranges, for a caller that knows something about
+    // part of what it asked to be drawn: which characters differ from the
+    // note as it stands, which phrase a search hit fell on, which passage a
+    // panel beside the surface is about. Marks are added, moved and removed on
+    // this object — `marks.add(block, start, length, wash, outline)` — and are
+    // addressed in each block's DISPLAY text, the text with the inline markers
+    // taken out.
+    //
+    // One registry per surface, so two surfaces in one window mark their own
+    // documents and nothing a caller registers on one appears on the other.
+    // Nothing about marking makes a surface writable: the marks are drawn over
+    // text already laid out, and `blockMarkdown()`, the clipboard and the
+    // selection are what they were.
+    readonly property alias marks: docMarks
 
     // The selected range as markdown: whole blocks serialized with their
     // prefixes, fences and ordinals, and a self-contained inline fragment at
@@ -142,6 +164,30 @@ Item {
     // The markdown of one block, which is what a caller that set ranges apart
     // by index needs to check it named the right ones.
     function blockMarkdown(index) { return docBlocks.getContent(index) }
+
+    // Where mark `id` is drawn, one rectangle per visual line it crosses, in
+    // this surface's coordinates — which are its content coordinates, since a
+    // surface is sized to its document. This is what anchors something beside
+    // the marked words, the way DocumentDecorations::spanRects() does for a
+    // span in the note. Empty for an id this surface does not hold, for a
+    // block it has not built, and for a mark that currently lands on no text.
+    function markRects(id) {
+        var entry = docMarks.mark(id)
+        if (entry.id === undefined)
+            return []
+        var row = (blockRows.itemAt(entry.block) as ReadOnlyBlock)
+        if (!row)
+            return []
+        surface.forceLayout()
+        var out = []
+        var boxes = row.markRects(id)
+        for (var i = 0; i < boxes.length; ++i) {
+            out.push(Qt.rect(boxes[i].x + row.x + column.x,
+                             boxes[i].y + row.y + column.y,
+                             boxes[i].width, boxes[i].height))
+        }
+        return out
+    }
 
     // The selected range as block indexes and markdown offsets:
     // {startIndex, startPos, endIndex, endPos}.
@@ -226,6 +272,15 @@ Item {
         model: docBlocks
     }
 
+    // The marks belong to this surface and are never cleared by it: a caller
+    // that replaces the `markdown` re-places its ranges, and until it does a
+    // range that no longer lands on anything draws nothing. Clearing them here
+    // instead would take a caller's registrations away under it whenever a
+    // binding it does not own re-evaluated.
+    DocumentBlockMarks {
+        id: docMarks
+    }
+
     Column {
         id: column
         objectName: "readOnlyDocumentColumn"
@@ -246,6 +301,7 @@ Item {
                 width: column.width
                 blockIndex: index
                 selection: docSelection
+                marks: docMarks
                 baseDir: surface.baseDir
             }
         }

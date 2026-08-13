@@ -196,12 +196,13 @@ surface per line, and whether a window holding a dozen of them is worth the
 objects has not been measured.
 
 **Search results do not.** `qml/SearchResultsView.qml` draws snippets as
-`Text.StyledText` with the matched span bolded. That bolding is the one thing
-`ReadOnlyDocument` has no equivalent for today: the marked range a search hit
-draws in the editor comes from `DocumentSearch`, which addresses the open
-note, and a surface has no second producer of marked ranges. Converting the
-snippets means giving a surface the same span channel a linked module has
-inside the editor.
+`Text.StyledText` with the matched span bolded. What used to block the
+conversion was that bolding — a surface had no way to mark anything — and that
+is no longer true: a surface holds its own `DocumentBlockMarks`, so the hit
+that put a result in the list can be washed the way the editor washes it
+(selection.md, "Marked ranges"). What is left is the same measurement the
+backlinks pane needs, since a results list holds many snippets at once and each
+surface carries a block model, a selection and an editing engine per row.
 
 ## What "Copy as text" still leaves out
 

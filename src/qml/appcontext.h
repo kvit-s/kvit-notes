@@ -21,6 +21,7 @@
 #include "clipboardhelper.h"
 #include "collectionsearch.h"
 #include "collectionsearchindex.h"
+#include "documentcompare.h"
 #include "documentdecorations.h"
 #include "documentexporter.h"
 #include "documentheights.h"
@@ -260,6 +261,7 @@ private:
     DocumentHeights m_documentHeights;
     DocumentExporter m_documentExporter;
     DocumentSerializer m_documentSerializer;
+    DocumentCompare m_documentCompare;
     // One policy object per root, shared by the collection scan, watcher and
     // filesystem tree. It precedes those borrowers in declaration order.
     IgnoreRules m_ignoreRules;

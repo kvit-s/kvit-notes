@@ -317,6 +317,7 @@ add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/changetypecommand.cpp
     src/domain/compoundcommand.cpp
     src/domain/convertblockcommand.cpp
+    src/domain/documentcompare.cpp
     src/domain/documentheights.cpp
     src/domain/documentoutline.cpp
     src/domain/documentsearch.cpp
@@ -428,6 +429,7 @@ target_include_directories(kvit-repository PUBLIC src/repository)
 add_library(kvit-application ${KVIT_LIB_TYPE}
     src/application/blockmenumodel.cpp
     src/application/collectionsearch.cpp
+    src/application/documentblockmarks.cpp
     src/application/documentdecorations.cpp
     src/application/documentexporter.cpp
     src/application/documentmanager.cpp

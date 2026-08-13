@@ -45,6 +45,12 @@ Item {
     // through qml/CrossBlockTextSelection.qml, and the range itself is held
     // in markdown coordinates by the DocumentSelection this points at.
     required property DocumentBlockSelection selection
+    // The surface's own marked ranges, or null when the surface has none.
+    // A row asks it for the marks on its own block exactly as the editor's
+    // text delegate asks DocumentDecorations for the note's spans, and the
+    // answer has the same shape, so the rendering is the one the editor
+    // already has rather than a second copy of it.
+    property DocumentBlockMarks marks: null
     // The directory a relative path in this block is written against, which
     // is the surface's rather than the open note's. Only a picture uses it.
     property string baseDir: ""
@@ -173,6 +179,56 @@ Item {
             return ""
         var p = body.mapFromItem(null, sceneX, sceneY)
         return engine.linkAtDocumentPosition(body.positionAt(p.x, p.y))
+    }
+
+    // ---- text the surface's owner has marked ----
+    //
+    // The marks on this block, in the surface's display coordinates. Read as a
+    // binding on the registry's revision, so a mark added, moved or removed
+    // re-paints the row without a Connections object per block. A surface with
+    // no marks registered answers with an empty list after one bool test,
+    // which is what every row of every preview in the open editor does.
+    readonly property var blockMarks: {
+        if (!block.marks)
+            return []
+        var revision = block.marks.revision   // dependency only
+        if (!block.marks.active)
+            return []
+        return block.marks.marksForBlock(block.blockIndex)
+    }
+    // Bumped whenever the text relayouts, which moves every box a mark
+    // occupies without changing the list of them. Same arrangement as
+    // mathTick, and for the same reason.
+    property int markTick: 0
+    // The boxes the outline layer draws, one per visual line a mark crosses.
+    // Read off the ENGINE's list rather than this row's, so it cannot run on
+    // marks the engine has not taken yet: the two bindings are fed from the
+    // same source and nothing orders them against each other.
+    readonly property var markBoxes: {
+        var spans = engine.decorationSpans
+        var dep = body.text          // the laid-out text changed
+        var dep2 = block.markTick    // it relayouted under the same text
+        if (!block.textual || spans.length === 0)
+            return []
+        return engine.decorationSpanBoxes()
+    }
+
+    // Where mark `id` is drawn in this row, one rectangle per visual line it
+    // crosses, in the row's own coordinates. A caller anchors things beside
+    // marked words — a note beside the phrase it is about — and a marked
+    // phrase that wraps occupies more than one rectangle. Empty for an id
+    // that is not on this block and for one that currently lands on no text.
+    function markRects(id) {
+        var out = []
+        var boxes = block.markBoxes
+        for (var i = 0; i < boxes.length; ++i) {
+            if (boxes[i].id !== id)
+                continue
+            var caret = body.positionToRectangle(boxes[i].docStart)
+            var origin = body.mapToItem(block, caret.x, caret.y)
+            out.push(Qt.rect(origin.x, origin.y, boxes[i].width, caret.height))
+        }
+        return out
     }
 
     // ---- painting this block's share of the range ----
@@ -448,8 +504,17 @@ Item {
         // applyTextPortion is a fixed point when the selection already
         // matches what the editor shows.
         onTextChanged: block.reapplyPortionLater()
-        onContentHeightChanged: if (block.hasInlineMath) block.mathTick++
-        onContentWidthChanged: if (block.hasInlineMath) block.mathTick++
+        // A relayout moves the boxes an equation or a mark occupies without
+        // changing a character, so both tick — but only where there is
+        // something to reposition.
+        onContentHeightChanged: {
+            if (block.hasInlineMath) block.mathTick++
+            if (block.blockMarks.length > 0) block.markTick++
+        }
+        onContentWidthChanged: {
+            if (block.hasInlineMath) block.mathTick++
+            if (block.blockMarks.length > 0) block.markTick++
+        }
     }
 
     // The deferred re-apply, as a timer this row owns rather than as a
@@ -480,6 +545,12 @@ Item {
         // Never active: nothing here has a caret, so no span ever reveals its
         // markers and the display text is what the reader gets.
         cursorActive: false
+        // The wash half of the surface's marks: the engine's highlight pass
+        // merges each colour into the formats already set, so a marked run
+        // keeps the bold, link and code styling under it. The outline half is
+        // not a character format at all and is drawn over the text by the
+        // layer below.
+        decorationSpans: block.textual ? block.blockMarks : []
         verbatim: block.verbatim
         codeLanguage: block.language
         theme: Theme
@@ -531,6 +602,23 @@ Item {
             pixelSize: block.inlineMathPixelSize
             verticalPadding: block.inlineMathVerticalPadding
             devicePixelRatio: block.screenDevicePixelRatio
+        }
+    }
+
+    // ---- the borders around marked text ----
+    //
+    // The wash is a character format the engine paints; a border is not
+    // expressible as one, so it is drawn as items over the text. Nothing is
+    // built for a row nobody marked, which is every row of every preview the
+    // open editor draws.
+    Loader {
+        active: block.markBoxes.length > 0
+        anchors.fill: parent
+        sourceComponent: SpanDecorationOverlay {
+            anchors.fill: parent
+            editor: body
+            boxes: block.markBoxes
+            tick: block.markTick
         }
     }
 

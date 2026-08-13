@@ -18,6 +18,8 @@
 #include "codelanguages.h"
 #include "collectionsearch.h"
 #include "diagrams/diagramcanvas.h"
+#include "documentblockmarks.h"
+#include "documentcompare.h"
 #include "documentdecorations.h"
 #include "documentexporter.h"
 #include "documentheights.h"
@@ -143,6 +145,7 @@
     X(DocumentStats, DocumentStats)           \
     X(DocumentHeights, DocumentHeights)       \
     X(DocumentDecorations, DocumentDecorations) \
+    X(DocumentCompare, DocumentCompare)       \
     X(DocumentExporter, DocumentExporter)     \
     X(DocumentSerializer, DocumentSerializer) \
     X(DocumentImporter, DocumentImporter)     \
@@ -314,6 +317,20 @@ struct DocumentBlockSelectionForeign
     Q_GADGET
     QML_FOREIGN(DocumentSelection)
     QML_NAMED_ELEMENT(DocumentBlockSelection)
+};
+
+// The marked ranges of one drawn document.
+//
+// Creatable rather than a singleton, and for the same reason the two above
+// are: the marks belong to the surface that drew the document, so two
+// surfaces in one window mark their own and see nothing of each other's. The
+// per-window counterpart is the `DocumentDecorations` singleton, whose spans
+// mark the open note because there is one of those per window.
+struct DocumentBlockMarksForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DocumentBlockMarks)
+    QML_NAMED_ELEMENT(DocumentBlockMarks)
 };
 
 #endif // QMLSINGLETONS_H

@@ -58,6 +58,7 @@ Theme::Tokens lightTokens()
     t.link = QColor("#2970c8");
     t.searchMatchBackground = QColor("#b5dcff");
     t.searchCurrentBackground = QColor("#ffb454");
+    t.changedTextBackground = QColor("#e4d7f2");
     t.codeKeyword = QColor("#a626a4");
     t.codeType = QColor("#2967f0");
     t.codeString = QColor("#3f7e3e");
@@ -116,6 +117,7 @@ Theme::Tokens darkTokens()
     t.link = QColor("#6fb1ff");
     t.searchMatchBackground = QColor("#264f78");
     t.searchCurrentBackground = QColor("#96601f");
+    t.changedTextBackground = QColor("#3d3060");
     t.codeKeyword = QColor("#c678dd");
     t.codeType = QColor("#61afef");
     t.codeString = QColor("#98c379");
@@ -174,6 +176,7 @@ Theme::Tokens sepiaTokens()
     t.link = QColor("#8a5a20");
     t.searchMatchBackground = QColor("#cfd9a8");
     t.searchCurrentBackground = QColor("#e8a94e");
+    t.changedTextBackground = QColor("#ded0e0");
     t.codeKeyword = QColor("#9a2f8a");
     t.codeType = QColor("#2f69af");
     t.codeString = QColor("#497236");
@@ -496,6 +499,7 @@ Theme::Tokens highContrastTokens()
     t.link = QColor("#66ddff");
     t.searchMatchBackground = QColor("#0055aa");
     t.searchCurrentBackground = QColor("#995a00");
+    t.changedTextBackground = QColor("#4b0082");
     t.codeKeyword = QColor("#ff99ff");
     t.codeType = QColor("#99ddff");
     t.codeString = QColor("#99ff99");

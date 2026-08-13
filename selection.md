@@ -221,14 +221,17 @@ application put a *different* note's text on screen: the backup dialog offers
 the stored versions of the open note, the backlinks pane shows the lines a
 referring note mentions this one on, and search results show snippets.
 `qml/ReadOnlyDocument.qml` is the component that draws such a document the way
-the editor draws one and lets the pointer sweep across it. The backup dialog's
-preview of the version under the cursor uses it; the other two draw plain
-`Text`, with the markdown showing as asterisks and nothing in them selectable,
-and are listed under "What is not covered" below.
+the editor draws one, lets the pointer sweep across it, and lets a caller mark
+runs of characters inside it. The backup dialog's preview of the version under
+the cursor uses all three: it draws the stored version, allows a paragraph of
+it to be copied without restoring anything, and shades the part the note as it
+stands no longer has. The other two places draw plain `Text`, with the markdown
+showing as asterisks and nothing in them selectable, and are listed under "What
+is not covered" below.
 
 ### What it is made of
 
-A surface takes a markdown string and holds three things:
+A surface takes a markdown string and holds four things:
 
 - **Its own `BlockModel`**, filled by `DocumentSerializer::loadIntoModel`.
   `parse` is a pure function of its argument, so the one shared serializer
@@ -241,6 +244,10 @@ A surface takes a markdown string and holds three things:
   and `rangeMarkdown()` is what a copy produces: whole blocks serialized with
   their prefixes, fences and ordinals, and a self-contained inline fragment at
   each partially covered end.
+- **Its own `DocumentBlockMarks`**, the runs of characters a caller has
+  asked to be set apart (see "Marked ranges" below). Empty unless somebody
+  registers something, which is what every preview in the open editor except
+  the backup dialog's is.
 - **A row per block** (`qml/ReadOnlyBlock.qml`), whose running text goes
   through `BlockEditorEngine` with `cursorActive` false. That is what hides
   the inline markers, styles the spans from the theme's tokens, resolves
@@ -251,12 +258,13 @@ A surface takes a markdown string and holds three things:
   markdown expression rather than running text, so it goes to
   `qml/ReadOnlyPicture.qml` instead (see "Pictures" below).
 
-Neither the model nor the selection is a singleton, which is the point: the
-editor's `BlockModel` and `DocumentSelection` are the open note, one per
-window, and a surface has to be able to exist several times over in the same
-window. They reach QML as the creatable types `DocumentBlocks` and
-`DocumentBlockSelection` (`src/qml/qmlsingletons.h`), the same
-singleton-plus-creatable pair `SettingsStore` already has.
+None of the three objects is a singleton, which is the point: the editor's
+`BlockModel` and `DocumentSelection` are the open note, one per window, its
+`DocumentDecorations` marks that note, and a surface has to be able to exist
+several times over in the same window. They reach QML as the creatable types
+`DocumentBlocks`, `DocumentBlockSelection` and `DocumentBlockMarks`
+(`src/qml/qmlsingletons.h`), the same singleton-plus-creatable pair
+`SettingsStore` already has.
 
 The rows are a `Column` rather than a `ListView`, so a surface sizes to its
 content and can sit inside a scrolling area it does not own. Every block is
@@ -370,6 +378,98 @@ ends over whatever it ends over and very often ends over a link, so
 the surface asks that before following anything. A double or triple click
 selects on the press, so those activate nothing either.
 
+### Marked ranges
+
+A caller often knows something about part of the document it asked to be drawn:
+which characters differ from the note as it stands, which phrase a search hit
+fell on, which passage a panel beside the surface is about. A surface used to
+have no way to say so. Putting the marks into the markdown is not an option —
+the surface exists to show a document faithfully, and its `blockMarkdown()` and
+its clipboard are expected to give back what was handed in — and drawing
+rectangles over it needs the caret geometry of a run of characters inside a
+laid-out row, which only the item that laid the text out can answer.
+
+`DocumentBlockMarks` (src/application/documentblockmarks.h) is that channel,
+and it is deliberately the same shape as a module's spans on the note. A mark
+names `{block, start, length}` in the block's display text — the text with the
+inline markers taken out, which is what a search hit and a module's span
+already use — and carries up to two colours: a wash painted behind the
+characters and an outline drawn around them, one box per visual line. The two
+compose, so a persistent categorical mark and a transient "this is the current
+one" mark can fall on the same words and both stay readable. An entry with
+neither colour, or covering no characters, is refused.
+
+The registry belongs to the surface, which is the difference from
+`DocumentDecorations`: that object's spans mark the note, and there is one note
+per window. Two surfaces on screen at once — a preview beside a list, two
+panels in one window — hold marks of their own, and nothing a caller registers
+on one appears on the other. A surface publishes its registry as its `marks`
+property and hands it down to each row.
+
+The rendering is the editor's rather than a second copy of it. A row's
+`blockMarks` binding hands the answer straight to its `BlockEditorEngine` as
+`decorationSpans`, so the wash is merged into the character formats already set
+— a marked run keeps its bold, its link colour and its code styling — and the
+outline is drawn by `qml/SpanDecorationOverlay.qml`, the same layer the
+editor's blocks use, because a border is not expressible as a character format.
+
+Marks do not follow the text. A surface whose `markdown` is replaced re-lays
+its blocks and the caller re-places its ranges; until it does, a range that no
+longer lands on anything draws nothing and costs nothing. This is the same
+contract a module's spans have in the editor and for the same reason: the core
+draws what it is handed rather than guessing what an anchor was meant to point
+at. A block index the surface does not hold, a range running past the end of a
+block's text, and a mark on a divider or a picture all draw as much as there is
+to draw, which for the last two is nothing.
+
+`markRects(id)` answers where a mark was drawn, one rectangle per visual line
+it crosses, in the surface's own coordinates — which are its content
+coordinates, since a surface is sized to its document. That is what anchors
+something beside marked words, and it is the counterpart of
+`DocumentDecorations::spanRects()`.
+
+Nothing about marking makes a surface writable. The marks are drawn over text
+the surface has already laid out: the document, `blockMarkdown()`, the
+clipboard output and the selection are what they were with nothing registered.
+
+### What the backup dialog marks
+
+The consumer in this repository is the backup dialog. It draws a stored version
+of the open note and washes the part of it the note no longer has, because two
+timestamps tell two edits of the same afternoon apart only for a reader who
+remembers what they changed — which is what they came to the dialog having
+forgotten.
+
+The comparison is `DocumentCompare::changedRanges(markdown, baseline)`
+(src/domain/documentcompare.h), a pure function of two markdown strings that
+answers in the coordinates a mark is addressed in. Both strings are parsed into
+blocks and the two block sequences are aligned by a longest common subsequence
+of their per-block keys, so a paragraph inserted into either document shifts
+nothing after it; a positional comparison would report the whole rest of the
+document as changed. The common prefix and the common suffix of the two
+sequences come off before any alignment work, which is what keeps the cost
+proportional to the edit rather than to the note.
+
+Per block, then: a block present in both unchanged contributes nothing; one
+that corresponds to a block in the baseline but differs contributes the run
+between their common prefix and their common suffix, so "the second draft"
+against "the final draft" marks the word "second"; one whose words are the same
+but whose kind, indent, to-do tick or fence language changed contributes its
+whole display text, since no run of characters can say "this line is not the
+line you have"; and one with no counterpart at all contributes the whole of
+itself.
+
+Two cases contribute nothing. A block the baseline only added to — the reader
+wrote another sentence and changed nothing else — has no character of its own
+that differs. And a divider or a picture holds no text a character range can
+address, so a changed picture is not marked; the blocks around it still are.
+
+The wash is `Theme.changedTextBackground`, its own token rather than a reuse of
+the search tint: the two answer different questions, and the theme suite holds
+it to the same contrast floor against body text that the search tint is held
+to. A line under the pane says what the shading means, and appears only when
+something is shaded.
+
 ### How it interacts with the note's own selection
 
 A sweep on a surface clears whatever `DocumentSelection` the note held, and a
@@ -397,10 +497,10 @@ drop shadow, the border and the stretch override are block attributes rather
 than part of the expression, and a surface draws a document rather than a
 note's presentation of one.
 
-There is also no way for a caller to set a run of blocks apart with a band or
-a glyph, which a diff view would want in order to show which part of a stored
-version changed. The backup dialog does not offer a diff, so nothing has asked
-for it yet.
+What a caller cannot set apart is a whole block as a block: there is no band
+behind a row and no glyph beside one, only marked runs of characters inside the
+rows. A block with no text — a divider, a picture — therefore cannot be marked
+at all, which is the one thing the backup dialog's comparison has to leave out.
 
 ## What is not covered
 

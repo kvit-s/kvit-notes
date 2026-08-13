@@ -56,6 +56,14 @@ KvitDialog {
             current, backupDialog.backups[backupDialog.selectedRow].fileName)
     }
 
+    // The note as it stands, unsaved edits included, which is what the
+    // preview's wash is measured against. Read from the block model rather
+    // than from the file: a reader comparing an old version with what is in
+    // front of them means what is in front of them.
+    function currentBody() {
+        return DocumentSerializer.serialize(BlockModel)
+    }
+
     function openForCurrentNote() {
         if (backupDialog.appWindow.currentNoteRelPath === "")
             return
@@ -184,6 +192,7 @@ KvitDialog {
             Component {
                 id: previewComponent
                 ReadOnlyDocument {
+                    id: preview
                     objectName: "backupPreviewDocument"
                     // A stored version is read at a glance rather than at
                     // reading length, so the blank rhythm between its blocks
@@ -196,10 +205,57 @@ KvitDialog {
                     // not the obvious one: the stored copy sits under
                     // .kvit/backups, while the picture paths inside it are
                     // still written against the folder the note itself is in.
+
+                    // What this version has that the note in front of the
+                    // reader does not, washed in the theme's changed-text
+                    // colour. Two timestamps tell two edits of the same
+                    // afternoon apart only for a reader who remembers what
+                    // they changed, which is what they came here having
+                    // forgotten.
+                    //
+                    // Recomputed as a binding on the version being drawn, and
+                    // applied from a handler on THIS property rather than on
+                    // `markdown`: the surface re-parses in its own
+                    // onMarkdownChanged, and two handlers for one signal in
+                    // two files leave the order they run in up to the engine.
+                    readonly property var changedRanges:
+                        DocumentCompare.changedRanges(
+                            preview.markdown, backupDialog.currentBody())
+                    onChangedRangesChanged: preview.applyMarks()
+                    Component.onCompleted: preview.applyMarks()
+
+                    function applyMarks() {
+                        preview.marks.clear()
+                        var ranges = preview.changedRanges
+                        for (var i = 0; i < ranges.length; ++i) {
+                            preview.marks.add(ranges[i].block, ranges[i].start,
+                                              ranges[i].length,
+                                              Theme.changedTextBackground)
+                        }
+                    }
                 }
             }
         }
+
+        // What the shading in the preview means. A colour nobody explains is
+        // a colour the reader has to guess at, and this one is easy to read as
+        // a selection.
+        Label {
+            objectName: "backupPreviewLegend"
+            visible: backupDialog.previewMarkCount > 0
+            Layout.fillWidth: true
+            text: qsTr("Shaded text is in this version and not in the note as "
+                       + "it stands.")
+            wrapMode: Text.WordWrap
+            font.pixelSize: Interface.small
+            color: Theme.textFaint
+        }
     }
+
+    // How much of the drawn version differs from the note. Zero while nothing
+    // is drawn, and zero for a version identical to what the reader has.
+    readonly property int previewMarkCount: previewLoader.item
+        ? (previewLoader.item as ReadOnlyDocument).marks.count : 0
 
     footer: DialogButtonBox {
         Button {

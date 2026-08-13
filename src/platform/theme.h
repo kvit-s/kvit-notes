@@ -126,6 +126,13 @@ class Theme : public QObject
     Q_PROPERTY(QColor link READ link NOTIFY themeChanged)
     Q_PROPERTY(QColor searchMatchBackground READ searchMatchBackground NOTIFY themeChanged)
     Q_PROPERTY(QColor searchCurrentBackground READ searchCurrentBackground NOTIFY themeChanged)
+    // The wash behind text that differs from another version of the same
+    // document — what the backup dialog paints over the part of a stored
+    // version the note in front of the reader no longer has. Its own token
+    // rather than a reuse of the search tint: the two answer different
+    // questions, and a reader who has both in their recent memory should not
+    // have to work out which mark they are looking at.
+    Q_PROPERTY(QColor changedTextBackground READ changedTextBackground NOTIFY themeChanged)
 
     // Code-block syntax highlighting: the five
     // token colors the code highlighter paints, read the same way the inline
@@ -188,7 +195,8 @@ public:
             selectionActiveTint, blockSelectionTint, focusRing;
         QColor accent, danger, dangerBright, success, warning, pinColor;
         QColor marker, inlineCodeBackground, highlightBackground, link,
-            searchMatchBackground, searchCurrentBackground;
+            searchMatchBackground, searchCurrentBackground,
+            changedTextBackground;
         QColor codeKeyword, codeType, codeString, codeComment, codeNumber;
         QColor calloutTip;
         QColor axisAttention, axisAttentionText, axisAgent, axisAgentText,
@@ -267,6 +275,7 @@ public:
     QColor link() const { return m_tokens.link; }
     QColor searchMatchBackground() const { return m_tokens.searchMatchBackground; }
     QColor searchCurrentBackground() const { return m_tokens.searchCurrentBackground; }
+    QColor changedTextBackground() const { return m_tokens.changedTextBackground; }
     QColor codeKeyword() const { return m_tokens.codeKeyword; }
     QColor codeType() const { return m_tokens.codeType; }
     QColor codeString() const { return m_tokens.codeString; }
