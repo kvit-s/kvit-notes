@@ -752,9 +752,9 @@ qt_add_executable(test_singleinstance test_singleinstance.cpp)
 target_link_libraries(test_singleinstance PRIVATE kvit-core Qt6::Test)
 add_test(NAME SingleInstanceTests COMMAND test_singleinstance)
 
-# The agent module's tests, built only when the module is (KVIT_AGENT=ON).
-# They live under tests/agent/ so the public export drops them with the rest
-# of the module.
+# The linked module's tests, built only when the module is (KVIT_AGENT=ON).
+# They live under tests/agent/, alongside the rest of it, and so are not part
+# of this repository either.
 if(KVIT_AGENT)
     qt_add_executable(test_agentmodule agent/test_agentmodule.cpp)
     target_link_libraries(test_agentmodule PRIVATE kvit-agent Qt6::Test Qt6::Gui)

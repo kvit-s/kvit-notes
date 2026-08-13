@@ -14,9 +14,9 @@
 
 namespace {
 
-// A stand-in for a linked module: it does what the agent module does —
-// claims a fence language, publishes a QML object, and fills one UI slot —
-// without the test depending on that module being compiled in.
+// A stand-in for a linked module: it does what a real one does — claims a
+// fence language, publishes a QML object, and fills one UI slot — without the
+// test depending on any module being compiled in.
 class FakeExtension : public KvitExtension
 {
 public:

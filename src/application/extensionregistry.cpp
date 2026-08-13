@@ -215,7 +215,7 @@ void ExtensionRegistry::installContextProperties(QQmlContext *context,
     if (!context)
         return;
 
-    // A QML identifier, so `agent.session` resolves rather than parsing as
+    // A QML identifier, so `tasks.session` resolves rather than parsing as
     // something else.
     static const QRegularExpression identifier(
         QStringLiteral("^[a-z_][A-Za-z0-9_]*$"));
@@ -265,7 +265,7 @@ void ExtensionRegistry::installContextProperties(QQmlContext *context,
         }
 
         // One property per module, holding everything it contributes. The map
-        // reaches QML as a JavaScript object, so `agent.session` works and no
+        // reaches QML as a JavaScript object, so `tasks.session` works and no
         // module can occupy a bare global name.
         context->setContextProperty(ns, extension->contextObjects());
         taken.append(ns);

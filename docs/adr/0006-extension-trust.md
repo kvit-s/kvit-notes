@@ -39,7 +39,7 @@ without risking a silent break. That is now handled by namespacing rather than
 by capabilities. `KvitExtension` no longer receives a raw `QQmlContext*` to
 install arbitrary names on. It declares `qmlNamespace()` and returns
 `contextObjects()`, and the registry publishes exactly one context property per
-module, so QML reaches `agent.session` rather than a bare global. A namespace
+module, so QML reaches `tasks.session` rather than a bare global. A namespace
 that is not a valid identifier, that another module has taken, or that collides
 with a core name is refused with a warning, and that module publishes nothing.
 

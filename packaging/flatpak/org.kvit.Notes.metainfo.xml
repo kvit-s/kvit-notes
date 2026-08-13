@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- AppStream metadata. Screenshot URLs point at the
-     repo's curated capture assets; they go live with the public repo
-     (l-capture-assets fills screenshots/press/). -->
+<!-- AppStream metadata. Screenshot URLs point at this repository's curated
+     capture assets in screenshots/press/. -->
 <component type="desktop-application">
   <id>org.kvit.Notes</id>
   <metadata_license>CC0-1.0</metadata_license>

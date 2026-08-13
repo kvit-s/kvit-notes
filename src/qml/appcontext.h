@@ -78,8 +78,8 @@ class WindowRouter;
 // properties.
 //
 // This used to be the body of main(). It lives in the core library so that a
-// binary other than the stock editor — a build that links the core plus the
-// agent module and supplies its own main() — composes the same editor
+// binary other than the stock editor — a build that links the core plus a
+// module of its own and supplies its own main() — composes the same editor
 // without copying the wiring. The stock launcher is then only
 // KvitApplication plus a nine-line main().
 //

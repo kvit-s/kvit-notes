@@ -23,9 +23,8 @@ cannot draw its own disabled state (`qml/DiscoverableMenuItem.qml`).
 ./build/kvit-notes   # launch directly
 ```
 
-Optional CMake flags: `-DKVIT_AGENT=ON` (the agent module, whose sources are
-not in this repository), `-DKVIT_UI_DRIVER=ON` (the scriptable UI driver
-below).
+Optional CMake flags: `-DKVIT_AGENT=ON` (a linked module whose sources are not
+in this repository), `-DKVIT_UI_DRIVER=ON` (the scriptable UI driver below).
 
 ## Where a new file goes
 
@@ -447,11 +446,11 @@ refusals, redirect re-checks, streaming caps, and local-only media handoff.
 
 ## Extensions are first-party code, and that is the decision
 
-Kvit Notes is the open core of a two-repository product. The private
-`kvit-notes-pro` repository links this one in as a submodule and adds an agent
-module on top, behind the `KVIT_AGENT` option. `KvitExtension` and
-`ExtensionRegistry` exist so that module can attach without this tree
-carrying any conditional that refers to it.
+Kvit Notes is the open core of a product that a larger build can extend. That
+build includes this repository and links a module on top of it, behind the
+`KVIT_AGENT` option, and the module's sources are deliberately not in this
+tree. `KvitExtension` and `ExtensionRegistry` exist so such a module can
+attach without this tree carrying any conditional that refers to it.
 
 **Extensions are statically linked and fully trusted.** There is no plugin
 loader, nothing is discovered at runtime, and nothing is loaded from disk. A
@@ -470,7 +469,7 @@ module contributes legible from the core:
 
 - **Contributions are namespaced.** A module declares a `qmlNamespace()` and
   returns its objects from `contextObjects()`; the registry publishes one
-  context property per module, so QML reaches them as `agent.session` rather
+  context property per module, so QML reaches them as `tasks.session` rather
   than as bare globals. This replaced an `installContextProperties(QQmlContext
   *)` callback that handed each module the shell's root context to set any
   name it liked. A namespace that is not a valid identifier, that another
@@ -518,8 +517,8 @@ module contributes legible from the core:
 
   Inside the document there is a second seam, `DocumentDecorations`
   (`src/application/documentdecorations.h`), because the slots can only put
-  content around the editor and annotations, review markers and comment
-  threads want to sit between and beside the blocks. A module registers a
+  content around the editor, while a mark that belongs to one paragraph wants
+  to sit between and beside the blocks. A module registers a
   CONTAINER after a block, a glyph in the reserved column at the right edge
   addressed by block and by visual text line, or a SPAN marking a run of
   characters inside one block; all three are rendered rather than inserted, so
@@ -584,10 +583,10 @@ module contributes legible from the core:
 
 **`KVIT_AGENT=ON` against this checkout stops at configure time with an
 explanation.** The module's sources are deliberately absent here, so the
-option now checks for them and explains that the agent module lives in
-`kvit-notes-pro` and that this repository builds the open editor with the
-option off. It used to fail deep inside `qt_add_executable` with "Cannot find
-source file" for each missing path, which reads like a broken checkout.
+option now checks for them and says that this repository builds the open
+editor with the option off. It used to fail deep inside `qt_add_executable`
+with "Cannot find source file" for each missing path, which reads like a
+broken checkout.
 
 **A superset binary declares its own identity.** `KvitApplication`'s
 constructor takes a `KvitApplication::Identity` (an organization and an
@@ -603,7 +602,7 @@ id, because the notes family hides for anything outside it, the files pane
 wants `"files"`, and the module `Loader` resolves an unknown id to an empty
 source. `knownSidebarView()` in `qml/main.qml` now rejects ids the running
 build cannot resolve, and the open editor takes
-`KvitApplication::openEditorIdentity()` by default while `kvit-notes-pro`
+`KvitApplication::openEditorIdentity()` by default while a superset build
 passes its own name, so each has its own profile.
 
 Nothing else in the tree derives state from the application name.

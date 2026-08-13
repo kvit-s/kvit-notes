@@ -25,7 +25,7 @@ class WindowRegistry;
 //
 // Each editor window is a VaultWindow the registry owns — its own AppContext
 // bound to its own QQmlEngine — so this class no longer owns a single context
-// or engine. A superset build that adds the agent module installs its
+// or engine. A superset build that adds a module of its own installs its
 // extensions into ProcessServices before calling start(), and otherwise reuses
 // this class unchanged.
 class KvitApplication : public QObject
