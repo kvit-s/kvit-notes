@@ -128,6 +128,11 @@ void AppContext::wire()
     m_documentExporter.setTheme(m_globals.theme());
     m_documentExporter.setCollection(&m_noteCollection);
     m_documentExporter.setEmbedMetadata(&m_embedMetadata);
+    // And the installed modules, asked per note for the markdown they add to
+    // that note's export. A module draws content beside a note rather than in
+    // it, so without this seam everything it draws is missing from every export
+    // of the note. The open build installs none and appends nothing.
+    m_documentExporter.setExtensions(m_globals.extensions());
 
     // Disk-backed global search: one SQLite FTS5 index the collection feeds
     // and the search facade queries, off the GUI thread.

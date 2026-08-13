@@ -107,6 +107,46 @@ public:
     // one-owner slot, these contributions aggregate across modules.
     virtual QVariantList bottomDockTabs() const;
     virtual QVariantList sidebarViews() const;
+
+    // ---- what this module adds to a note's export --------------------------
+    //
+    // A module that draws content BESIDE a note rather than inside it — through
+    // the containers and margin items DocumentDecorations provides — has
+    // nothing in the note's block model, so everything it draws was missing
+    // from every export of that note and there was no seam for it to say so.
+    // Exporting separately and concatenating afterwards is not the same thing:
+    // it produces two files, and in HTML and PDF the two cannot be joined at
+    // all without re-rendering, since each is a complete document with its own
+    // inlined assets.
+    //
+    // A contribution is MARKDOWN, appended to the note's own. The exporter
+    // renders it exactly as it renders the note's markdown, so it reaches all
+    // four formats and every scope that exports whole notes without the module
+    // knowing anything about any of them. Nothing here lets a module write: the
+    // note, its block model and its undo stack are untouched by an export.
+
+    // The markdown to append to the export of the note at `noteRelPath`, which
+    // is vault-relative. Empty — the default — leaves that note's export
+    // byte-identical to what it would have been with no module installed.
+    virtual QString exportAppendix(const QString &noteRelPath) const;
+
+    // The directory a relative image path inside that markdown is written
+    // against. A contribution may name pictures that live nowhere near the
+    // note, and the exporter's image context is the note's own folder, so a
+    // module with pictures either answers here or writes absolute paths.
+    // Empty means the paths are already absolute or there are none.
+    virtual QString exportAppendixBaseDir() const;
+
+    // What to call this module's contribution where the reader is told about
+    // it, in the reader's own words: "Review comments", "Conversation". A
+    // reader exporting a note is choosing what leaves the application, so an
+    // export that would carry contributed content says so before it happens,
+    // and a label is what it says.
+    //
+    // Empty — the default — means the module contributes to no export, and it
+    // is what the notice is gated on. A module that returns a label and then
+    // has nothing to add to a particular note simply adds nothing.
+    virtual QString exportAppendixLabel() const;
 };
 
 // The installed extensions, in installation order.
@@ -153,6 +193,30 @@ public:
                                    const QString &color,
                                    const QString &tooltip);
     Q_INVOKABLE void clearRootStatus(const QString &rootPath);
+
+    // What every installed module adds to the export of one note, in
+    // installation order (see KvitExtension::exportAppendix). A module with
+    // nothing to add for this note contributes no entry, so an empty list is
+    // what the open build always answers and what leaves an export
+    // byte-identical.
+    //
+    // Each contribution keeps its own base directory rather than being joined
+    // into one string here: two modules may write relative image paths against
+    // different folders, and joining first would lose which was which.
+    struct ExportContribution
+    {
+        QString module;     // KvitExtension::name(), for diagnostics
+        QString label;      // what the reader is told it is
+        QString markdown;
+        QString baseDir;
+    };
+    QList<ExportContribution> exportContributions(const QString &noteRelPath) const;
+
+    // The labels of the modules that add content to exports at all, in
+    // installation order. This is what the export dialog shows, and it is a
+    // question about the installed set rather than about one note, so a
+    // collection export can ask it once instead of per note.
+    Q_INVOKABLE QStringList exportAppendixLabels() const;
 
     // Fan-out of the two setup callbacks, in installation order.
     void registerBlockKinds(BlockKindRegistry &registry);

@@ -25,6 +25,7 @@
 class BlockKindDef;
 class BlockKindRegistry;
 class BlockModel;
+class ExtensionRegistry;
 class Theme;
 
 // Document export (features.md §12.5): one pipeline turns a block list into a
@@ -85,6 +86,16 @@ public:
     // shows. Read-only and offline: an export never fetches, so a URL nobody
     // has opened yet exports as a plain link to itself.
     void setEmbedMetadata(EmbedMetadata *metadata) { m_embedMetadata = metadata; }
+    // The installed modules, asked once per note for the markdown they
+    // contribute to that note's export (KvitExtension::exportAppendix). A
+    // module that draws content beside a note has nothing in the note's block
+    // model, so without this it is missing from every export of the note.
+    // Without a registry — the open build never installs one, and a unit test
+    // usually has none — nothing is appended and every export is what it was.
+    void setExtensions(const ExtensionRegistry *extensions)
+    {
+        m_extensions = extensions;
+    }
     // Image resolution context: the open note's folder and the collection root
     // (either may be empty in single-file mode). A collection or selection
     // export overrides this per note as it goes, so relative media resolve
@@ -274,9 +285,40 @@ private:
     QPair<QString, QString> useImageContextFor(NoteCollection *collection,
                                                const QString &relPath);
     // The markdown to export for relPath: the editor's unsaved snapshot when
-    // this is the live note, otherwise the saved body.
+    // this is the live note, otherwise the saved body, followed by whatever the
+    // installed modules contribute for that note.
     QString bodyForExport(NoteCollection *collection,
                           const QString &relPath) const;
+
+    // ---- what a module contributes ----
+    //
+    // The installed modules' markdown for one note, joined in installation
+    // order, with each module's relative image paths resolved against the base
+    // directory it named. Empty with no registry wired and for a note no module
+    // adds to, which is what keeps an export byte-identical to what it was.
+    QString appendixFor(const QString &relPath) const;
+    // The same for the note the editor has open, which is the only relative
+    // path the exporter has when it is handed a live BlockModel rather than a
+    // note to read (see setLiveNote). A loose file in single-file mode has no
+    // vault-relative path at all, and the modules are asked with the empty one
+    // rather than not asked: the seam stays uniform, and a module keyed by path
+    // — which is every module that answers this at all — matches nothing.
+    QString liveNoteAppendix() const { return appendixFor(m_liveRelPath); }
+    // `markdown` with every lone image or media expression whose path is
+    // relative rewritten to an absolute one under `baseDir`. Line by line,
+    // because an image is a whole block in this editor — a `![…](…)` mid-prose
+    // stays literal text and renders as characters, so there is nothing else
+    // to resolve.
+    static QString resolveAppendixPaths(const QString &markdown,
+                                        const QString &baseDir);
+    // `body` with `extra` after it, separated by one blank line. Returns `body`
+    // unchanged when there is nothing to add, which is the only case the open
+    // build ever has.
+    static QString appendMarkdown(const QString &body, const QString &extra);
+    // The blocks a contribution parses into, appended to a note's own. Used by
+    // the paths that export a live BlockModel, where the note's blocks come
+    // from the model rather than from a markdown string.
+    QList<Block::State> withLiveAppendix(QList<Block::State> blocks) const;
 
     QString buildPlainText(const QList<Block::State> &blocks,
                            const QList<Block::State> &documentBlocks) const;
@@ -405,6 +447,9 @@ private:
     // stale address to follow.
     QPointer<NoteCollection> m_collection;
     QPointer<EmbedMetadata> m_embedMetadata;
+    // Process-global and outlives every exporter, so a plain pointer. Null in
+    // the open build, which installs no modules.
+    const ExtensionRegistry *m_extensions = nullptr;
     QString m_noteDir;
     QString m_collectionRoot;
     QString m_liveRelPath;

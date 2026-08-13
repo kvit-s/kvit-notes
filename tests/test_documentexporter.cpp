@@ -7,6 +7,7 @@
 #include "block.h"
 #include "notecollection.h"
 #include "documentserializer.h"
+#include "extensionregistry.h"
 #include "faultinjection.h"
 
 #include <QTemporaryDir>
@@ -118,6 +119,18 @@ private slots:
     void testDisplayMathKeepsItsTeXInText();
     void testTodoMetadataSurvivesTheText();
     void testNestedNumberedListsRestartTheirNumbering();
+
+    // C7: what a linked module adds to a note's export. A module draws content
+    // beside a note rather than in it, so it is in the note's block model
+    // nowhere and was in no export of the note at all.
+    void testNoModuleLeavesEveryExportUnchanged();
+    void testTheContributionReachesEveryFormatOfTheNoteExport();
+    void testTheContributionFollowsEachNoteThroughACollectionExport();
+    void testTheContributionFollowsEachNoteIntoACombinedFile();
+    void testARelativePictureResolvesAgainstTheModulesOwnBase();
+    void testTwoModulesContributeInInstallationOrder();
+    void testABlockScopeExportCarriesNoContribution();
+    void testExportingDoesNotTouchTheNoteOrItsModel();
 
 private:
     DocumentExporter m_exporter;
@@ -1609,6 +1622,353 @@ void TestDocumentExporter::testNestedNumberedListsRestartTheirNumbering()
     QVERIFY(text.contains("  1. sub one"));
     QVERIFY(text.contains("  2. sub two"));
     QVERIFY(text.contains("2. two"));
+}
+
+// ---- what a linked module adds to a note's export (C7) ----
+//
+// A module contributes MARKDOWN for one note, given that note's vault-relative
+// path, and the exporter renders it exactly as it renders the note's own — so
+// it reaches all four formats and every scope that exports whole notes without
+// the module knowing about any of them. The cases below are that claim, plus
+// the one that has to hold for the open build: with nothing installed, every
+// export is byte-identical to what it was.
+
+namespace {
+
+// A stand-in for a linked module. It contributes a paragraph to one named
+// note and nothing to any other, which is what lets a case assert both that
+// the contribution arrives and that a note the module has nothing to say about
+// is untouched.
+class ContributingModule : public KvitExtension
+{
+public:
+    ContributingModule(QString name, QString relPath, QString markdown,
+                       QString baseDir = QString())
+        : m_name(std::move(name)), m_relPath(std::move(relPath)),
+          m_markdown(std::move(markdown)), m_baseDir(std::move(baseDir))
+    {
+    }
+
+    QString name() const override { return m_name; }
+    QString qmlNamespace() const override { return m_name; }
+
+    QString exportAppendix(const QString &noteRelPath) const override
+    {
+        return noteRelPath == m_relPath ? m_markdown : QString();
+    }
+    QString exportAppendixBaseDir() const override { return m_baseDir; }
+    QString exportAppendixLabel() const override
+    {
+        return QStringLiteral("Notes from ") + m_name;
+    }
+
+private:
+    QString m_name;
+    QString m_relPath;
+    QString m_markdown;
+    QString m_baseDir;
+};
+
+// Anything a module might add for any note.
+class SilentModule : public KvitExtension
+{
+public:
+    QString name() const override { return QStringLiteral("silent"); }
+    QString qmlNamespace() const override { return QStringLiteral("silent"); }
+};
+
+QString readFile(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+    return QString::fromUtf8(f.readAll());
+}
+
+} // namespace
+
+// The open build's guarantee: no module installed, and no export changes by a
+// byte. A registry that is wired but empty is the same case, since a module
+// that answers nothing has to be indistinguishable from no module at all.
+void TestDocumentExporter::testNoModuleLeavesEveryExportUnchanged()
+{
+    BlockModel model;
+    model.insertBlock(0, Block::Heading1, QStringLiteral("Report"));
+    model.insertBlock(1, Block::Paragraph, QStringLiteral("The note's own text."));
+
+    DocumentSerializer serializer;
+    DocumentExporter bare;
+    m_exporter.setLiveNote(QStringLiteral("Report.md"), &model);
+
+    ExtensionRegistry empty;
+    empty.install(std::make_unique<SilentModule>());
+    m_exporter.setExtensions(&empty);
+
+    QCOMPARE(m_exporter.htmlForModel(&model, "Report"),
+             bare.htmlForModel(&model, "Report"));
+    QCOMPARE(m_exporter.plainTextForModel(&model), bare.plainTextForModel(&model));
+
+    QTemporaryDir dir;
+    const QString withRegistry = dir.filePath("with.md");
+    const QString withoutRegistry = dir.filePath("without.md");
+    QVERIFY(m_exporter.writeModel(&model, "Report", "markdown", withRegistry));
+    QVERIFY(bare.writeModel(&model, "Report", "markdown", withoutRegistry));
+    QCOMPARE(readFile(withRegistry), readFile(withoutRegistry));
+    QCOMPARE(readFile(withRegistry), serializer.serialize(&model));
+
+    m_exporter.setExtensions(nullptr);
+    m_exporter.clearLiveNote();
+}
+
+void TestDocumentExporter::testTheContributionReachesEveryFormatOfTheNoteExport()
+{
+    BlockModel model;
+    model.insertBlock(0, Block::Heading1, QStringLiteral("Report"));
+    model.insertBlock(1, Block::Paragraph, QStringLiteral("The note's own text."));
+
+    ExtensionRegistry registry;
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("demo"), QStringLiteral("Report.md"),
+        QStringLiteral("## Added beside the note\n\n"
+                       "A paragraph the module drew.\n")));
+    m_exporter.setExtensions(&registry);
+    // The single-note scope renders the live model, so the note being exported
+    // is named the one way the exporter has of knowing it.
+    m_exporter.setLiveNote(QStringLiteral("Report.md"), &model);
+
+    const QString html = m_exporter.htmlForModel(&model, "Report");
+    QVERIFY2(html.contains("A paragraph the module drew"), qPrintable(html));
+    QVERIFY(html.contains("Added beside the note"));
+    // Rendered as markdown of the same document rather than pasted in: the
+    // heading became a heading, and the whole thing is one HTML document.
+    QVERIFY(html.contains("<h2"));
+    QCOMPARE(html.count(QStringLiteral("<html")), 1);
+
+    const QString text = m_exporter.plainTextForModel(&model);
+    QVERIFY2(text.contains("A paragraph the module drew"), qPrintable(text));
+    // After the note's own text, not before it.
+    QVERIFY(text.indexOf("The note's own text")
+            < text.indexOf("A paragraph the module drew"));
+
+    QTemporaryDir dir;
+    const QString mdPath = dir.filePath("out.md");
+    QVERIFY(m_exporter.writeModel(&model, "Report", "markdown", mdPath));
+    const QString markdown = readFile(mdPath);
+    QVERIFY2(markdown.contains("## Added beside the note"), qPrintable(markdown));
+    QVERIFY(markdown.startsWith("# Report"));
+
+    // PDF has no text to read back, so it is measured against the same note
+    // exported without the contribution: the extra page content makes a
+    // larger file.
+    const QString pdfPath = dir.filePath("out.pdf");
+    QVERIFY(m_exporter.writeModel(&model, "Report", "pdf", pdfPath));
+    m_exporter.setExtensions(nullptr);
+    const QString barePdfPath = dir.filePath("bare.pdf");
+    QVERIFY(m_exporter.writeModel(&model, "Report", "pdf", barePdfPath));
+    QVERIFY2(QFileInfo(pdfPath).size() > QFileInfo(barePdfPath).size(),
+             "the PDF with a contribution is no larger than the one without");
+
+    m_exporter.clearLiveNote();
+}
+
+void TestDocumentExporter::testTheContributionFollowsEachNoteThroughACollectionExport()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, QStringLiteral("Alpha.md"), QStringLiteral("Alpha body.\n"));
+    writeNote(&coll, QStringLiteral("Beta.md"), QStringLiteral("Beta body.\n"));
+    coll.refresh();
+
+    ExtensionRegistry registry;
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("demo"), QStringLiteral("Alpha.md"),
+        QStringLiteral("Only Alpha carries this.\n")));
+    m_exporter.setExtensions(&registry);
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", false), 2);
+    const QString alpha = readFile(QDir(dest.path()).filePath("Alpha.html"));
+    const QString beta = readFile(QDir(dest.path()).filePath("Beta.html"));
+    QVERIFY2(alpha.contains("Only Alpha carries this"), qPrintable(alpha));
+    // The registry is asked per note, so a note the module has nothing to add
+    // to is exported exactly as it would have been.
+    QVERIFY2(!beta.contains("Only Alpha carries this"), qPrintable(beta));
+
+    // And the markdown scope keeps the note's front matter in front of the
+    // body, with the contribution after it.
+    QTemporaryDir mdDest;
+    QCOMPARE(m_exporter.exportCollection(&coll, mdDest.path(), "markdown", false),
+             2);
+    const QString alphaMd = readFile(QDir(mdDest.path()).filePath("Alpha.md"));
+    QVERIFY(alphaMd.indexOf("Alpha body")
+            < alphaMd.indexOf("Only Alpha carries this"));
+
+    m_exporter.setExtensions(nullptr);
+}
+
+void TestDocumentExporter::testTheContributionFollowsEachNoteIntoACombinedFile()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, QStringLiteral("Alpha.md"), QStringLiteral("Alpha body.\n"));
+    writeNote(&coll, QStringLiteral("Beta.md"), QStringLiteral("Beta body.\n"));
+    coll.refresh();
+
+    ExtensionRegistry registry;
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("demo"), QStringLiteral("Alpha.md"),
+        QStringLiteral("Alpha's appendix.\n")));
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("other"), QStringLiteral("Beta.md"),
+        QStringLiteral("Beta's appendix.\n")));
+    m_exporter.setExtensions(&registry);
+
+    QTemporaryDir dest;
+    QVERIFY(m_exporter.exportCollection(&coll, dest.path(), "html", true) > 0);
+    QDir out(dest.path());
+    const QStringList produced = out.entryList(QStringList{"*.html"}, QDir::Files);
+    QCOMPARE(produced.size(), 1);
+    const QString combined = readFile(out.filePath(produced.first()));
+    QVERIFY2(combined.contains("Alpha's appendix"), qPrintable(combined));
+    QVERIFY2(combined.contains("Beta's appendix"), qPrintable(combined));
+    // Still one document: each note's contribution goes into that note's
+    // section rather than producing a second file to join afterwards.
+    QCOMPARE(combined.count(QStringLiteral("<html")), 1);
+    QVERIFY(combined.indexOf("Alpha's appendix")
+            < combined.indexOf("Beta body"));
+
+    m_exporter.setExtensions(nullptr);
+}
+
+// A contribution may name pictures that live nowhere near the note, and the
+// exporter's image context is the note's own folder.
+void TestDocumentExporter::testARelativePictureResolvesAgainstTheModulesOwnBase()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, QStringLiteral("Alpha.md"), QStringLiteral("Alpha body.\n"));
+    coll.refresh();
+
+    // The module's picture, in a directory of its own outside the vault.
+    QTemporaryDir moduleDir;
+    QVERIFY(QDir().mkpath(QDir(moduleDir.path()).filePath("pictures")));
+    QImage picture(8, 8, QImage::Format_RGB32);
+    picture.fill(Qt::darkCyan);
+    QVERIFY(picture.save(QDir(moduleDir.path()).filePath("pictures/chart.png")));
+
+    ExtensionRegistry registry;
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("demo"), QStringLiteral("Alpha.md"),
+        QStringLiteral("![Chart](pictures/chart.png)\n"), moduleDir.path()));
+    m_exporter.setExtensions(&registry);
+
+    QTemporaryDir dest;
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "html", false), 1);
+    const QString alpha = readFile(QDir(dest.path()).filePath("Alpha.html"));
+    // Embedded rather than left as a broken path: the picture resolved, which
+    // it could not have done against the note's folder.
+    QVERIFY2(alpha.contains("data:image/png;base64,"), qPrintable(alpha));
+
+    m_exporter.setExtensions(nullptr);
+}
+
+void TestDocumentExporter::testTwoModulesContributeInInstallationOrder()
+{
+    BlockModel model;
+    model.insertBlock(0, Block::Paragraph, QStringLiteral("The note."));
+
+    ExtensionRegistry registry;
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("first"), QStringLiteral("Note.md"),
+        QStringLiteral("From the first module.\n")));
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("second"), QStringLiteral("Note.md"),
+        QStringLiteral("From the second module.\n")));
+    m_exporter.setExtensions(&registry);
+    m_exporter.setLiveNote(QStringLiteral("Note.md"), &model);
+
+    const QString text = m_exporter.plainTextForModel(&model);
+    QVERIFY(text.indexOf("From the first module")
+            < text.indexOf("From the second module"));
+    QVERIFY(text.indexOf("The note.") < text.indexOf("From the first module"));
+
+    // Both are named where the reader is told, once each.
+    QCOMPARE(registry.exportAppendixLabels(),
+             (QStringList{QStringLiteral("Notes from first"),
+                          QStringLiteral("Notes from second")}));
+
+    m_exporter.setExtensions(nullptr);
+    m_exporter.clearLiveNote();
+}
+
+// The reader picked particular blocks out of a note; a module's contribution
+// is about the note and is not one of the blocks they picked.
+void TestDocumentExporter::testABlockScopeExportCarriesNoContribution()
+{
+    BlockModel model;
+    model.insertBlock(0, Block::Paragraph, QStringLiteral("First block."));
+    model.insertBlock(1, Block::Paragraph, QStringLiteral("Second block."));
+
+    ExtensionRegistry registry;
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("demo"), QStringLiteral("Note.md"),
+        QStringLiteral("The module's paragraph.\n")));
+    m_exporter.setExtensions(&registry);
+    m_exporter.setLiveNote(QStringLiteral("Note.md"), &model);
+
+    const QString html = m_exporter.htmlForModelBlocks(&model, {0}, "Note");
+    QVERIFY(html.contains("First block"));
+    QVERIFY2(!html.contains("The module's paragraph"), qPrintable(html));
+    const QString text = m_exporter.plainTextForModelBlocks(&model, {0});
+    QVERIFY(!text.contains("The module's paragraph"));
+
+    // The whole-note scope of the same model does carry it, which is what
+    // makes this an exclusion rather than a wiring failure.
+    QVERIFY(m_exporter.htmlForModel(&model, "Note")
+                .contains("The module's paragraph"));
+
+    m_exporter.setExtensions(nullptr);
+    m_exporter.clearLiveNote();
+}
+
+// The contribution is a string the exporter renders. Nothing about it reaches
+// the document.
+void TestDocumentExporter::testExportingDoesNotTouchTheNoteOrItsModel()
+{
+    QTemporaryDir root;
+    NoteCollection coll;
+    QVERIFY(coll.openRoot(root.path()));
+    writeNote(&coll, QStringLiteral("Alpha.md"), QStringLiteral("Alpha body.\n"));
+    coll.refresh();
+
+    BlockModel model;
+    model.insertBlock(0, Block::Paragraph, QStringLiteral("Alpha body."));
+    const int countBefore = model.count();
+
+    ExtensionRegistry registry;
+    registry.install(std::make_unique<ContributingModule>(
+        QStringLiteral("demo"), QStringLiteral("Alpha.md"),
+        QStringLiteral("An appendix paragraph.\n")));
+    m_exporter.setExtensions(&registry);
+    m_exporter.setLiveNote(QStringLiteral("Alpha.md"), &model);
+
+    const QString onDiskBefore = readFile(coll.absolutePath("Alpha.md"));
+    QTemporaryDir dest;
+    QVERIFY(m_exporter.writeModel(&model, "Alpha", "html",
+                                  QDir(dest.path()).filePath("out.html")));
+    QCOMPARE(m_exporter.exportCollection(&coll, dest.path(), "markdown", false),
+             1);
+
+    QCOMPARE(model.count(), countBefore);
+    QCOMPARE(readFile(coll.absolutePath("Alpha.md")), onDiskBefore);
+    QCOMPARE(coll.noteInfo("Alpha.md").value("body").toString(),
+             QStringLiteral("Alpha body.\n"));
+
+    m_exporter.setExtensions(nullptr);
+    m_exporter.clearLiveNote();
 }
 
 QTEST_MAIN(TestDocumentExporter)

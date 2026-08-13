@@ -186,6 +186,8 @@ public:
     // The heights the block list measured, which the editor's scrollbar is
     // drawn from.
     DocumentHeights *documentHeights() { return &m_documentHeights; }
+    // Export, including what an installed module contributes to each note's.
+    DocumentExporter *documentExporter() { return &m_documentExporter; }
     CollectionSearchIndex *searchIndex() { return &m_searchIndex; }
     // Reached by the Qt Quick test harness, which points it at nothing so a
     // click on a link during the suite cannot open a browser on the desk of

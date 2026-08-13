@@ -61,6 +61,13 @@ objects, in the same QML file.
 - Registries are instance-owned rather than process-global, so a second
   `AppContext` in one process keeps its own registrations. This matters for
   tests, which compose their own contexts.
+- A module can put content into a file the reader exports
+  (`KvitExtension::exportAppendix`). Nothing about the trust boundary makes
+  that need a permission prompt — the module is compiled in and could write
+  the file itself — but exporting is the reader choosing what leaves the
+  application, so the export dialog names each contribution before the
+  destination picker opens. That is a decision about telling the reader, not
+  about constraining the module.
 
 ## What would reopen this
 

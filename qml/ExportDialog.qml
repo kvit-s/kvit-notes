@@ -31,6 +31,13 @@ KvitDialog {
     property int formatIndex: 1  // HTML by default
     readonly property string format: formats[formatIndex]
 
+    // What the installed modules call the content they append to each exported
+    // note. Read once rather than bound: a module installs from main() before
+    // the shell loads and nothing exposes `install` to QML, so the set cannot
+    // change while this dialog exists. Empty in the open build, which installs
+    // no modules.
+    readonly property var contributionLabels: Extensions.exportAppendixLabels()
+
     // "note" | "selection" | "collection" | "blocks"
     property string scope: "note"
     // The dialog is modal, so the selected indexes cannot be moved by editor
@@ -162,6 +169,24 @@ KvitDialog {
             text: qsTr("Combine into a single file")
             visible: exportDialog.scope !== "note"
                 && exportDialog.scope !== "blocks"
+        }
+
+        // What a linked module adds to each exported note, named before the
+        // destination is chosen. A reader exporting a note is deciding what
+        // leaves the application, and a module draws content beside the note
+        // that is in no export of it unless it says so
+        // (KvitExtension::exportAppendix). Nothing is installed in the open
+        // build, so this is absent there — including the space it would take.
+        Label {
+            objectName: "exportContributionNotice"
+            visible: exportDialog.contributionLabels.length > 0
+                     && exportDialog.scope !== "blocks"
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            font.pixelSize: Interface.small
+            color: Theme.textSecondary
+            text: qsTr("Each note also carries: %1")
+                  .arg(exportDialog.contributionLabels.join(", "))
         }
 
         Button {

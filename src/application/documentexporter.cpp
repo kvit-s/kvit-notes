@@ -20,6 +20,7 @@
 #include "kanbandata.h"
 #include "querydata.h"
 #include "embedmetadata.h"
+#include "extensionregistry.h"
 #include "codelanguages.h"
 #include "mathrenderer.h"
 #include "diagrams/mermaidrenderer.h"
@@ -231,11 +232,82 @@ DocumentExporter::useImageContextFor(NoteCollection *collection,
 QString DocumentExporter::bodyForExport(NoteCollection *collection,
                                         const QString &relPath) const
 {
-    if (!m_liveRelPath.isEmpty() && relPath == m_liveRelPath)
-        return m_liveMarkdown;
-    return collection
-        ? collection->noteInfo(relPath).value(QStringLiteral("body")).toString()
-        : QString();
+    const QString body = !m_liveRelPath.isEmpty() && relPath == m_liveRelPath
+        ? m_liveMarkdown
+        : (collection
+               ? collection->noteInfo(relPath)
+                     .value(QStringLiteral("body")).toString()
+               : QString());
+    return appendMarkdown(body, appendixFor(relPath));
+}
+
+// ---- what a module contributes to a note's export ----
+
+QString DocumentExporter::appendMarkdown(const QString &body,
+                                         const QString &extra)
+{
+    if (extra.isEmpty())
+        return body;
+    if (body.isEmpty())
+        return extra;
+    QString out = body;
+    while (out.endsWith(QLatin1Char('\n')))
+        out.chop(1);
+    return out + QStringLiteral("\n\n") + extra;
+}
+
+QString DocumentExporter::resolveAppendixPaths(const QString &markdown,
+                                               const QString &baseDir)
+{
+    if (baseDir.isEmpty() || markdown.isEmpty())
+        return markdown;
+    const QDir base(baseDir);
+    QStringList lines = markdown.split(QLatin1Char('\n'));
+    for (QString &line : lines) {
+        const ImageAssets::Parsed parsed = ImageAssets::classifyLine(line);
+        if (!parsed.valid || parsed.path.isEmpty())
+            continue;
+        // A URL, a data: payload and an already-absolute path are all anchored
+        // somewhere of their own; only a relative path needs the module's base.
+        if (QFileInfo(parsed.path).isAbsolute()
+            || parsed.path.startsWith(QLatin1String("http"), Qt::CaseInsensitive)
+            || parsed.path.startsWith(QLatin1String("data:"), Qt::CaseInsensitive)
+            || parsed.path.startsWith(QLatin1String("file:"), Qt::CaseInsensitive)) {
+            continue;
+        }
+        // Keep the leading whitespace: an image block nested inside a list
+        // serializes indented, and classifyLine answered on the trimmed line.
+        qsizetype indent = 0;
+        while (indent < line.size() && line.at(indent).isSpace())
+            ++indent;
+        line = line.left(indent)
+            + ImageAssets::buildMarkdown(base.absoluteFilePath(parsed.path),
+                                         parsed.alt, parsed.caption,
+                                         parsed.width);
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
+QString DocumentExporter::appendixFor(const QString &relPath) const
+{
+    if (!m_extensions)
+        return QString();
+    QString out;
+    for (const auto &contribution : m_extensions->exportContributions(relPath)) {
+        out = appendMarkdown(out, resolveAppendixPaths(contribution.markdown,
+                                                       contribution.baseDir));
+    }
+    return out;
+}
+
+QList<Block::State>
+DocumentExporter::withLiveAppendix(QList<Block::State> blocks) const
+{
+    const QString appendix = liveNoteAppendix();
+    if (appendix.isEmpty())
+        return blocks;
+    blocks.append(blocksFromMarkdown(appendix));
+    return blocks;
 }
 
 QString DocumentExporter::extensionFor(const QString &format)
@@ -954,7 +1026,7 @@ QString DocumentExporter::buildHtmlWithContext(
 
 QString DocumentExporter::htmlForModel(BlockModel *model, const QString &title) const
 {
-    return buildHtml(blocksFromModel(model), title, true);
+    return buildHtml(withLiveAppendix(blocksFromModel(model)), title, true);
 }
 
 QString DocumentExporter::htmlForMarkdown(const QString &markdown,
@@ -1029,7 +1101,8 @@ QString DocumentExporter::buildPlainText(
 
 QString DocumentExporter::plainTextForModel(BlockModel *model) const
 {
-    const QList<Block::State> blocks = blocksFromModel(model);
+    const QList<Block::State> blocks =
+        withLiveAppendix(blocksFromModel(model));
     return buildPlainText(blocks, blocks);
 }
 
@@ -1104,18 +1177,25 @@ bool DocumentExporter::writeModel(BlockModel *model, const QString &title,
         });
     if (format == QLatin1String("markdown")) {
         DocumentSerializer serializer;
-        return writeText(path, serializer.serialize(model));
+        return writeText(path, appendMarkdown(serializer.serialize(model),
+                                              liveNoteAppendix()));
     }
     if (format == QLatin1String("html"))
         return writeText(path, htmlForModel(model, title));
     if (format == QLatin1String("text"))
         return writeText(path, plainTextForModel(model));
     if (format == QLatin1String("pdf"))
-        return htmlToPdf(buildHtml(blocksFromModel(model), title, false),
-                         path);
+        return htmlToPdf(
+            buildHtml(withLiveAppendix(blocksFromModel(model)), title, false),
+            path);
     return false;
 }
 
+// A block-scope export carries no module contribution, and that is a decision
+// rather than an omission. The reader picked particular blocks out of a note; a
+// module's contribution is about the note, and it is not one of the blocks they
+// picked. The three whole-note scopes carry it, and the export dialog names the
+// contribution for those and not for this one.
 bool DocumentExporter::writeModelBlocks(BlockModel *model,
                                         const QVariantList &indexes,
                                         const QString &title,

@@ -548,6 +548,40 @@ module contributes legible from the core:
   the reason `hasDecorationSpans` appears in `useReadOnlyText` and
   `useReadOnlyShell`.
 
+- **What a module adds to an export.** A module that draws content beside a
+  note through the decoration seam has nothing in that note's block model, so
+  everything it draws was missing from every export of the note and there was
+  no way for it to say so. The alternatives are worse than they look:
+  inserting the content for the duration of an export would change the note's
+  block count under the reader and breaks the premise the decoration seam is
+  built on, and exporting separately and concatenating afterwards produces two
+  files that in HTML and PDF cannot be joined at all without re-rendering,
+  since each is a complete document with its own inlined assets.
+
+  `KvitExtension::exportAppendix(noteRelPath)` answers MARKDOWN for one note,
+  and `DocumentExporter` appends it where it already resolves that note's own
+  markdown. Rendering it as more markdown of the same document is what makes
+  it reach all four formats and every whole-note scope — the open note, a
+  selection of notes, the whole collection, and a combined single file, where
+  each note's contribution goes into that note's section — without the module
+  knowing about any of them. `ExtensionRegistry::exportContributions()` is the
+  fan-out, in installation order; a module with nothing to add for a note
+  contributes no entry, so an export with nothing installed is byte-identical
+  to what it was.
+
+  Three details. A contribution's relative image paths are written against the
+  module's own base directory (`exportAppendixBaseDir()`), because the
+  exporter's image context is the note's folder and a module's pictures live
+  nowhere near it — the exporter rewrites those paths to absolute ones before
+  rendering, line by line, since an image is a whole block in this editor. A
+  block-scope export carries no contribution: the reader picked particular
+  blocks out of a note, and the contribution is about the note rather than one
+  of the blocks they picked. And the reader is told before the destination
+  picker opens, since exporting is a decision about what leaves the
+  application — the export dialog names each contribution by the label its
+  module gives it in `exportAppendixLabel()`, which is also what gates the
+  notice, so the open build shows nothing and reserves no space for it.
+
 **`KVIT_AGENT=ON` against this checkout stops at configure time with an
 explanation.** The module's sources are deliberately absent here, so the
 option now checks for them and explains that the agent module lives in

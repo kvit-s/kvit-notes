@@ -41,6 +41,22 @@ QVariantList KvitExtension::sidebarViews() const
     return {};
 }
 
+QString KvitExtension::exportAppendix(const QString &noteRelPath) const
+{
+    Q_UNUSED(noteRelPath);
+    return QString();
+}
+
+QString KvitExtension::exportAppendixBaseDir() const
+{
+    return QString();
+}
+
+QString KvitExtension::exportAppendixLabel() const
+{
+    return QString();
+}
+
 ExtensionRegistry::ExtensionRegistry(QObject *parent)
     : QObject(parent)
 {
@@ -128,6 +144,33 @@ QString ExtensionRegistry::sidebarViewSource(const QString &id) const
             return item.value(QStringLiteral("source")).toString();
     }
     return {};
+}
+
+QList<ExtensionRegistry::ExportContribution>
+ExtensionRegistry::exportContributions(const QString &noteRelPath) const
+{
+    QList<ExportContribution> result;
+    for (const auto &extension : m_extensions) {
+        const QString markdown = extension->exportAppendix(noteRelPath);
+        if (markdown.isEmpty())
+            continue;
+        result.append(ExportContribution{extension->name(),
+                                         extension->exportAppendixLabel(),
+                                         markdown,
+                                         extension->exportAppendixBaseDir()});
+    }
+    return result;
+}
+
+QStringList ExtensionRegistry::exportAppendixLabels() const
+{
+    QStringList result;
+    for (const auto &extension : m_extensions) {
+        const QString label = extension->exportAppendixLabel();
+        if (!label.isEmpty() && !result.contains(label))
+            result.append(label);
+    }
+    return result;
 }
 
 QVariantMap ExtensionRegistry::rootStatus(const QString &rootPath) const

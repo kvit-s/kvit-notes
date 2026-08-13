@@ -1024,6 +1024,10 @@ and summarized in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Export as plain text
 - Export selected notes or entire collection
 - Include images in export
+- A linked module's content appended to each exported note, in every format
+  and every whole-note scope; the export dialog names what will be included
+  before the destination is chosen. Nothing is appended in the open build,
+  which installs no modules (see devel.md, "Extensions are first-party code")
 
 ### 12.6 Import Options
 - Import Markdown files

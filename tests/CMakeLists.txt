@@ -679,6 +679,21 @@ target_link_libraries(test_decorationshell PRIVATE
 add_test(NAME DecorationShellTests COMMAND test_decorationshell)
 set_tests_properties(DecorationShellTests PROPERTIES TIMEOUT 300)
 
+# The fourth seam, driven through the shipped shell with a demonstration
+# module installed: the markdown a module contributes to a note's export, the
+# export dialog naming it before the destination picker, and a note the module
+# has nothing to add to exporting unchanged. It lists resources.qrc for the
+# same reason test_shell does — the shell's own components have to be in the
+# binary or the load hangs rather than failing.
+qt_add_executable(test_exportcontribution
+    test_exportcontribution.cpp
+    ${CMAKE_SOURCE_DIR}/resources.qrc
+)
+target_link_libraries(test_exportcontribution PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME ExportContributionTests COMMAND test_exportcontribution)
+set_tests_properties(ExportContributionTests PROPERTIES TIMEOUT 300)
+
 # The editor's scrollbar, driven through the shipped shell: a note of very
 # unequal rows read from top to bottom and back, recording what the handle did
 # at each stop. It lists resources.qrc for the same reason test_shell does —
@@ -882,6 +897,7 @@ set(KVIT_SHELL_TESTS
     MultiVaultTests
     AgentShellTests
     DecorationShellTests
+    ExportContributionTests
     ReadOnlyDocumentTests
     ScrollMetricsTests
     # The storyboard scenarios that do not need a focused window. Same

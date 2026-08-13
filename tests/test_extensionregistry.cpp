@@ -73,6 +73,39 @@ private:
     QObject m_published;
 };
 
+// A module that adds content to a note's export: the fifth thing the seam
+// carries, and the only one whose answer depends on which note is being asked
+// about.
+class ExportingExtension : public KvitExtension
+{
+public:
+    ExportingExtension(QString name, QString relPath, QString label)
+        : m_name(std::move(name)), m_relPath(std::move(relPath)),
+          m_label(std::move(label))
+    {
+    }
+
+    QString name() const override { return m_name; }
+    QString qmlNamespace() const override { return m_name; }
+
+    QString exportAppendix(const QString &noteRelPath) const override
+    {
+        return noteRelPath == m_relPath
+            ? m_name + QStringLiteral("'s paragraph.\n")
+            : QString();
+    }
+    QString exportAppendixBaseDir() const override
+    {
+        return QStringLiteral("/modules/") + m_name;
+    }
+    QString exportAppendixLabel() const override { return m_label; }
+
+private:
+    QString m_name;
+    QString m_relPath;
+    QString m_label;
+};
+
 } // namespace
 
 // The extension seam: the one place a linked module attaches to the open
@@ -270,6 +303,70 @@ private slots:
         QCOMPARE(first.count(), 1);
         QCOMPARE(second.count(), 0);
         QVERIFY(second.slotSource(KvitSlots::BottomBar).isEmpty());
+    }
+
+    // ---- what a module adds to an export ----
+
+    // The default: a module that does not implement the seam contributes
+    // nothing and is named nowhere, which is what keeps every export in the
+    // open build byte-identical to what it was.
+    void aModuleThatDoesNotExportContributesNothing()
+    {
+        ExtensionRegistry registry;
+        registry.install(std::make_unique<FakeExtension>("fake", "fence-a"));
+
+        QVERIFY(registry.exportContributions(QStringLiteral("Note.md")).isEmpty());
+        QVERIFY(registry.exportAppendixLabels().isEmpty());
+    }
+
+    // The fan-out is per note: the registry asks each module about the note
+    // being exported, so a module that has something to say about one note
+    // leaves every other note's export alone.
+    void contributionsAreCollectedPerNoteInInstallationOrder()
+    {
+        ExtensionRegistry registry;
+        registry.install(std::make_unique<ExportingExtension>(
+            "first", "Alpha.md", QStringLiteral("Review comments")));
+        registry.install(std::make_unique<ExportingExtension>(
+            "second", "Alpha.md", QStringLiteral("Conversation")));
+        registry.install(std::make_unique<ExportingExtension>(
+            "third", "Beta.md", QStringLiteral("Review comments")));
+
+        const auto alpha = registry.exportContributions(QStringLiteral("Alpha.md"));
+        QCOMPARE(alpha.size(), 2);
+        QCOMPARE(alpha.at(0).module, QStringLiteral("first"));
+        QCOMPARE(alpha.at(1).module, QStringLiteral("second"));
+        QCOMPARE(alpha.at(0).markdown, QStringLiteral("first's paragraph.\n"));
+        // Each keeps its own base directory rather than being joined into one
+        // string here: two modules may write relative image paths against
+        // different folders.
+        QCOMPARE(alpha.at(0).baseDir, QStringLiteral("/modules/first"));
+        QCOMPARE(alpha.at(1).baseDir, QStringLiteral("/modules/second"));
+
+        const auto beta = registry.exportContributions(QStringLiteral("Beta.md"));
+        QCOMPARE(beta.size(), 1);
+        QCOMPARE(beta.first().module, QStringLiteral("third"));
+
+        QVERIFY(registry.exportContributions(QStringLiteral("Gamma.md")).isEmpty());
+    }
+
+    // What the export dialog shows. It is a question about the installed set
+    // rather than about one note, so a collection export can ask it once
+    // instead of per note, and two modules calling their contribution the same
+    // thing say it once.
+    void theLabelsNameEachContributionOnce()
+    {
+        ExtensionRegistry registry;
+        registry.install(std::make_unique<ExportingExtension>(
+            "first", "Alpha.md", QStringLiteral("Review comments")));
+        registry.install(std::make_unique<ExportingExtension>(
+            "second", "Beta.md", QStringLiteral("Conversation")));
+        registry.install(std::make_unique<ExportingExtension>(
+            "third", "Gamma.md", QStringLiteral("Review comments")));
+
+        QCOMPARE(registry.exportAppendixLabels(),
+                 (QStringList{QStringLiteral("Review comments"),
+                              QStringLiteral("Conversation")}));
     }
 
     void clearRemovesEveryModule()
