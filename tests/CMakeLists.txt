@@ -308,6 +308,14 @@ qt_add_executable(test_documentoutline test_documentoutline.cpp)
 target_link_libraries(test_documentoutline PRIVATE kvit-core Qt6::Test)
 add_test(NAME DocumentOutlineTests COMMAND test_documentoutline)
 
+# DocumentHeights tests: the table of measured row heights the editor's
+# scrollbar is drawn from — the arithmetic over it, and what it does when the
+# document under it changes. The scrollbar itself is measured in
+# ScrollMetricsTests, where there is a laid-out document to measure.
+qt_add_executable(test_documentheights test_documentheights.cpp)
+target_link_libraries(test_documentheights PRIVATE kvit-core Qt6::Test)
+add_test(NAME DocumentHeightTests COMMAND test_documentheights)
+
 # DocumentStats tests (word/char/reading counts)
 qt_add_executable(test_documentstats test_documentstats.cpp)
 target_link_libraries(test_documentstats PRIVATE kvit-core Qt6::Test)
@@ -657,6 +665,20 @@ target_link_libraries(test_decorationshell PRIVATE
 add_test(NAME DecorationShellTests COMMAND test_decorationshell)
 set_tests_properties(DecorationShellTests PROPERTIES TIMEOUT 300)
 
+# The editor's scrollbar, driven through the shipped shell: a note of very
+# unequal rows read from top to bottom and back, recording what the handle did
+# at each stop. It lists resources.qrc for the same reason test_shell does —
+# the shell's own components have to be in the binary or the load hangs rather
+# than failing.
+qt_add_executable(test_scrollmetrics
+    test_scrollmetrics.cpp
+    ${CMAKE_SOURCE_DIR}/resources.qrc
+)
+target_link_libraries(test_scrollmetrics PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME ScrollMetricsTests COMMAND test_scrollmetrics)
+set_tests_properties(ScrollMetricsTests PROPERTIES TIMEOUT 300)
+
 # The read-only document surface: a markdown document drawn somewhere other
 # than the editor pane, swept across and copied as markdown. Creates its
 # surfaces inside the shipped shell, so it lists resources.qrc for the same
@@ -847,6 +869,7 @@ set(KVIT_SHELL_TESTS
     AgentShellTests
     DecorationShellTests
     ReadOnlyDocumentTests
+    ScrollMetricsTests
     # The storyboard scenarios that do not need a focused window. Same
     # binary and same file as VisualTests, but offscreen and blocking; the
     # display entry stays informational under `visual`.

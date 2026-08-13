@@ -317,6 +317,7 @@ add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/changetypecommand.cpp
     src/domain/compoundcommand.cpp
     src/domain/convertblockcommand.cpp
+    src/domain/documentheights.cpp
     src/domain/documentoutline.cpp
     src/domain/documentsearch.cpp
     src/domain/documentselection.cpp

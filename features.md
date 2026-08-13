@@ -942,6 +942,18 @@ Display when cursor moves into "information":
 - Lazy loading of off-screen content
 - Smooth scrolling performance
 - Handle documents with thousands of blocks
+- The heights of the rows that have been built are remembered for as long as
+  the note is open, so the scrollbar is drawn from a figure that settles as the
+  note is read instead of from an average over the handful of rows that happen
+  to exist at that moment. A row nobody has built yet is estimated from the
+  measured rows drawn the same way and holding about as much text. Without
+  this the handle grows and shrinks continuously while the reader scrolls a
+  note whose rows are of very unequal height, since the rows a virtualized view
+  has recycled take their heights with them.
+- Dragging the handle to a fraction of the bar scrolls to that fraction of the
+  document, and the scrollable range includes the space past the last block
+  (§2.6), so the end of a note can still be pulled into the middle of the
+  window from the bar
 
 ### 11.2 Image Optimization
 - Lazy load images as they scroll into view

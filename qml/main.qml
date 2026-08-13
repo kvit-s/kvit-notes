@@ -216,6 +216,10 @@ KvitShell {
     // list geometry before focus/reveal consumers read it.
     property bool blockRelayoutScheduled: false
     function blockGeometryChanged(item) {
+        // Before the coalescing, not after it: this is where a row's height
+        // reaches the document-height table, and all but the first
+        // notification of a turn returns on the next line.
+        root.recordBlockHeight(item)
         if (root.blockRelayoutScheduled)
             return
         root.blockRelayoutScheduled = true
@@ -224,8 +228,62 @@ KvitShell {
     function completeBlockRelayout() {
         root.blockRelayoutScheduled = false
         blockListView.forceLayout()
+        root.recordBuiltBlockHeights()
         root.scheduleFocusedBlockPosition()
         root.scheduleReveal()
+    }
+
+    // ---- the document-height table ---------------------------------------
+    // What the rows measured, kept per open document so the scrollbar is
+    // drawn from a total that settles instead of from the list's own estimate
+    // over whichever rows happen to be built. DocumentHeights says why; this
+    // is the whole of the collection, since every row already reports its
+    // geometry above.
+    function recordBlockHeight(item) {
+        // Only a row of this list. A row drawn anywhere else — a delegate
+        // hosted outside the document view — is a row of some other document.
+        var row = item as BlockDelegateBase
+        if (!row || row.parent !== blockListView.contentItem)
+            return
+        // And only at the index it is currently drawing. The delegates are
+        // pooled, so a row part-way through being reused could report a
+        // height against an index that has stopped being its own, and the
+        // list naming some OTHER row at that index is how that shows. A row
+        // the list is still building has no index registered yet and the
+        // answer is null, which is not a refusal: that is where a row's first
+        // measurement comes from, and without it a row built by the last
+        // scroll of a read stays estimated.
+        var atIndex = blockListView.itemAtIndex(row.index)
+        if (atIndex && atIndex !== row)
+            return
+        DocumentHeights.recordHeight(row.index, row.height, row.width)
+    }
+    // Re-measure every row the list currently has built. An edit drops the
+    // measurement of the block it changed, and a change that left the row the
+    // same height reports no geometry, so without this that block would stay
+    // estimated until something else moved it.
+    function recordBuiltBlockHeights() {
+        if (!blockListView.contentItem)
+            return
+        var built = blockListView.contentItem.children
+        for (var i = 0; i < built.length; ++i)
+            root.recordBlockHeight(built[i])
+    }
+    // A row's height is only meaningful at the size its text is set at, so a
+    // typography change empties the table. A column-width change — the
+    // window, the panels, the maximum content width, focus mode — needs no
+    // handler: a measurement carries the width it was taken at, and one
+    // arriving at a new width empties the table for itself.
+    Connections {
+        target: Typography
+        function onTypographyChanged() { DocumentHeights.clear() }
+    }
+    // The gap between two rows is part of the document's height and of every
+    // offset in it, and it is not part of any row's own height.
+    Binding {
+        target: DocumentHeights
+        property: "spacing"
+        value: blockListView.spacing
     }
 
     // Scroll the editor the least it can to put `item` fully inside the
@@ -2090,6 +2148,17 @@ KvitShell {
 
             contentWidth: availableWidth
 
+            // The two bars a ScrollView draws for itself are off, and the
+            // list below attaches none of its own: the editor's vertical bar
+            // is the DocumentScrollBar declared after this view, which is
+            // drawn from the document-height table rather than from the
+            // list's estimate of how tall the document is. The horizontal one
+            // has never had anything to scroll — the content is exactly as
+            // wide as the viewport — and it is switched off here so that
+            // nothing draws over the vertical one's foot.
+            ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
             ListView {
                 id: blockListView
                 objectName: "blockListView"
@@ -2307,11 +2376,19 @@ KvitShell {
                 // overlapped through any number of frames and any number of
                 // forceLayout() calls; without it the view re-placed the rows
                 // below within the frame.
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                }
             }
+        }
+
+        // The document's scrollbar, at the right edge of the scrolling area
+        // and over it, which is where the bar the ScrollView draws for itself
+        // sits. Outside the ScrollView rather than attached to it, because an
+        // attached bar is driven from C++ against the flickable's own
+        // estimate; DocumentScrollBar says what that costs the reader.
+        DocumentScrollBar {
+            listView: blockListView
+            anchors.top: scrollView.top
+            anchors.bottom: scrollView.bottom
+            anchors.right: scrollView.right
         }
 
         // The floating find/replace bar (features.md §7): overlays the

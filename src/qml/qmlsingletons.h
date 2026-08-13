@@ -20,6 +20,7 @@
 #include "diagrams/diagramcanvas.h"
 #include "documentdecorations.h"
 #include "documentexporter.h"
+#include "documentheights.h"
 #include "documentimporter.h"
 #include "documentmanager.h"
 #include "documentoutline.h"
@@ -140,6 +141,7 @@
     X(BlockMenuModel, BlockMenuModel)         \
     X(MathCommandModel, MathCommandModel)     \
     X(DocumentStats, DocumentStats)           \
+    X(DocumentHeights, DocumentHeights)       \
     X(DocumentDecorations, DocumentDecorations) \
     X(DocumentExporter, DocumentExporter)     \
     X(DocumentSerializer, DocumentSerializer) \

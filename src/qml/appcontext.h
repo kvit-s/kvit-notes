@@ -23,6 +23,7 @@
 #include "collectionsearchindex.h"
 #include "documentdecorations.h"
 #include "documentexporter.h"
+#include "documentheights.h"
 #include "documentimporter.h"
 #include "documentmanager.h"
 #include "documentoutline.h"
@@ -181,6 +182,9 @@ public:
     CollectionSearch *collectionSearch() { return &m_collectionSearch; }
     // The document-view decoration seam a linked module registers against.
     DocumentDecorations *documentDecorations() { return &m_documentDecorations; }
+    // The heights the block list measured, which the editor's scrollbar is
+    // drawn from.
+    DocumentHeights *documentHeights() { return &m_documentHeights; }
     CollectionSearchIndex *searchIndex() { return &m_searchIndex; }
     // Reached by the Qt Quick test harness, which points it at nothing so a
     // click on a link during the suite cannot open a browser on the desk of
@@ -253,6 +257,7 @@ private:
     DocumentSearch m_documentSearch;
     DocumentOutline m_documentOutline;
     DocumentStats m_documentStats;
+    DocumentHeights m_documentHeights;
     DocumentExporter m_documentExporter;
     DocumentSerializer m_documentSerializer;
     // One policy object per root, shared by the collection scan, watcher and

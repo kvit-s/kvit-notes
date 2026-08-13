@@ -60,6 +60,15 @@ Item {
         if (blockDelegateBase.geometryShell)
             blockDelegateBase.geometryShell.blockDelegateReady(blockDelegateBase)
     }
+    // A row taken out of the pool is now drawing a different block, and if
+    // that block is the same height as the one it drew before — which in a
+    // note of repeating shapes is most of the time — nothing about its
+    // geometry changes and the two handlers above say nothing. The row is a
+    // new measurement all the same, because it is a measurement OF ANOTHER
+    // BLOCK, and without this the last rows a reader scrolls to are the ones
+    // the shell never hears about. The model properties are updated before
+    // this runs, so the index it reports is the one it is now drawing.
+    ListView.onReused: blockDelegateBase.notifyShellGeometryChanged()
 
     // Standard context-menu keys, shared by every block's primary focus
     // target. Returning true lets each delegate put this first in its own key

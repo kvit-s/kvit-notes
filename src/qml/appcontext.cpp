@@ -117,6 +117,10 @@ void AppContext::wire()
     m_documentOutline.setModel(&m_blockModel);
     // Document statistics (features.md §19.1).
     m_documentStats.setModel(&m_blockModel);
+    // The heights the block list measures, remembered per open document so
+    // the scrollbar is drawn from a settling total rather than from the
+    // list's own estimate over whichever rows are built (features.md §11.1).
+    m_documentHeights.setModel(&m_blockModel);
     // Export (features.md §12.5). Theme is process-global (ProcessServices).
     // The collection is what a query block in an exported note is evaluated
     // against, and the embed cache supplies the title an embed card carries
@@ -498,6 +502,7 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(&m_blockMenuModel);
     m_services.add(&m_mathCommandModel);
     m_services.add(&m_documentStats);
+    m_services.add(&m_documentHeights);
     m_services.add(&m_documentExporter);
     m_services.add(&m_documentSerializer);
     m_services.add(&m_documentImporter);

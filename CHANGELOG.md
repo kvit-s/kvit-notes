@@ -292,6 +292,22 @@ crash recovery, and War-and-Peace-scale performance.
 
 ### Fixed
 
+- The editor's scrollbar handle no longer changes size while the reader
+  scrolls. The document view builds only the rows near the window and works
+  out how tall the note is from the average of those, keeping no record of a
+  row once it has scrolled away. In a note of very unequal rows (headings,
+  one-line paragraphs, wrapped paragraphs, fenced blocks, lists) that figure
+  moved on every notch of the wheel and the handle grew and shrank with it, on
+  the way down and on the way back up alike. The heights the view measures are
+  now remembered for as long as the note is open, and a row nobody has built
+  yet is estimated from the measured rows drawn the same way and holding about
+  as much text, so the figure settles instead of wandering and is exact once
+  the reader has been through the note. Measured over one read of a
+  150-block note, the handle's length varied by 48% before and does not vary at
+  all now. Dragging the handle also lands where the bar says it will, whatever
+  part of the note has been built: a drag resolves to a block rather than to a
+  scroll offset, whose zero moves under the reader as the view builds and
+  discards rows.
 - An inline equation now stands on the same baseline as the words around it.
   `$x$` sat about a pixel lower than the `x` beside it, because the math
   engine reports a formula's height as a whole number of pixels while drawing

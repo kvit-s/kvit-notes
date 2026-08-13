@@ -46,6 +46,7 @@
         <file>qml/WikiLinkMenu.qml</file>
         <file>qml/MathCommandMenu.qml</file>
         <file>qml/FindBar.qml</file>
+        <file>qml/DocumentScrollBar.qml</file>
         <file>qml/Sidebar.qml</file>
         <file>qml/FileTreePane.qml</file>
         <file>qml/ReadOnlyTextFile.qml</file>

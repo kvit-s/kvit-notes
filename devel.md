@@ -593,6 +593,84 @@ parse that follows takes back the ones whose front matter refuses. The rules,
 including what happens with nothing registered, are pinned in
 `tests/test_reservedsubtrees.cpp`.
 
+## The editor's scrollbar is drawn from a table of measured row heights
+
+The document view is a virtualized `ListView`: it builds the rows near the
+viewport and estimates every other row from the average height of the ones it
+has built. It keeps no memory of a row it recycled, so that average is
+recomputed from whichever rows exist at that moment, which changes on every
+notch of the wheel, and the scrollbar handle's length is the viewport divided
+by that estimate. In a note whose rows are of very unequal height the handle
+therefore grows and shrinks continuously while the reader scrolls, in both
+directions, because reading the note through teaches the view nothing it keeps.
+
+`DocumentHeights` (`src/domain/documentheights.h`) is the memory the view does
+not have: one height per block, filled as rows are built and kept when they are
+recycled, so the sample only grows. A block nobody has measured yet is
+estimated from the measured blocks *shaped* like it, meaning drawn with the
+same delegate, of the same block type, and holding about as much text. Failing
+that it falls back to the same kind whatever its length, and then to every
+height measured so far.
+
+The table never places a row: the list goes on measuring and positioning rows
+exactly as it did, `originY` and `contentHeight` keep their meanings, and the
+only consumer is `qml/DocumentScrollBar.qml`. It is in memory only, because it
+is rebuilt by reading the note.
+
+Five things about it cost time if they are not known.
+
+**A row's height means nothing without the width it was measured at.** A
+measurement carries its width, and one arriving at a different width empties
+the table rather than mixing two layouts; that covers the window, the panels,
+the maximum-content-width setting and focus mode in one rule. A typography
+change moves heights without moving the width, so the shell calls `clear()` for
+that separately.
+
+**A recycled row usually reports nothing.** `ListView` pools delegates, and a
+row taken out of the pool for another block of the same height changes no
+geometry at all, so neither `onHeightChanged` nor `Component.onCompleted`
+fires, and in a note of repeating shapes that is most rows. `BlockDelegateBase`
+answers `ListView.onReused` for exactly this reason. Without it the last rows a
+reader scrolls to are the ones the table never hears about.
+
+**The content item holds rows the list has stopped showing.** A row keeps its
+last position until the layout that releases it, so after a jump the content
+item can hold two rows lying over one another, a screenful or two apart in the
+document. Which one is on screen is a question only the list can answer, so the
+bar asks `indexAt()` and `itemAtIndex()` rather than walking
+`contentItem.children`; a walk that took the topmost row named a block two
+screens from the one the reader was looking at, and the handle went with it.
+
+**`contentY` has its zero at `originY`, and `originY` moves.** A `ListView`
+anchors its content coordinates on the rows it currently has and estimates the
+space above the first of them, so the top of the document is at `originY` and
+the end of the scroll range at `originY + contentHeight + bottomMargin -
+height`. Measured over one read of a 150-block note the origin ranged over
+several hundred pixels while nothing on screen moved. Leaving `originY` out of
+that arithmetic puts the handle at the end of the bar with a screenful of the
+note still below it. It is also why dragging the handle resolves the fraction
+to a BLOCK, through `positionViewAtIndex` plus the remainder inside that row,
+rather than writing a fraction of the document to `contentY`.
+
+**The bar is not the one the view would attach.** An attached `ScrollBar` is
+driven from C++: Qt binds its size and position to the flickable's
+`visibleArea`, which is the estimate this exists to stop using, and writes
+`contentY` directly when the handle is dragged. There is no way to opt out of
+half of that, so the shell switches off both the bars a `ScrollView` draws for
+itself and positions `DocumentScrollBar` over the same edge. A standalone bar
+is also not told when it is in use, so it sets `active` itself; without that
+the Fusion style draws it at zero opacity forever.
+
+`tests/test_documentheights.cpp` (`unit`) pins the arithmetic and what the
+table does when the document under it changes.
+`tests/test_scrollmetrics.cpp` (`shell`) reads a note of thirty repetitions of
+heading, one-line paragraph, wrapped paragraph, fenced block and list from top
+to bottom and back, recording the bar's own `size` at each stop, and asserts
+the swing about its mean. One case runs the same walk past the list's own
+estimate, which swings 48% over that note against a handle that does not
+change size at all, so a note whose rows turned out to be equal after all could
+not pass the others.
+
 ## One writer per vault
 
 Notes, the JSON sidecar, `collection.json` and the search index are all read
