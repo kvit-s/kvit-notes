@@ -66,7 +66,8 @@ Item {
         var state = rootStates()[rootPath]
         if (!state)
             return
-        persistence.appWindow.sidebarView = state.sidebarView || "notes"
+        persistence.appWindow.sidebarView =
+            persistence.appWindow.knownSidebarView(state.sidebarView)
         persistence.appWindow.sidebarWidth = Number(state.sidebarWidth || 200)
         persistence.appWindow.noteListWidth = Number(state.noteListWidth || 260)
         NoteListModel.sortMode = state.sortMode || "modified"
@@ -161,7 +162,8 @@ Item {
         var rootPath = NoteCollection.isOpen ? NoteCollection.rootPath : ""
         var sidebarViews = AppSettings.value("sidebar.viewByRoot", {})
         persistence.appWindow.sidebarView = rootPath !== ""
-            ? (sidebarViews[rootPath] || "notes") : "notes"
+            ? persistence.appWindow.knownSidebarView(sidebarViews[rootPath])
+            : "notes"
         persistence.appWindow.statusBarVisible =
             AppSettings.value("view.statusBar", true)
         persistence.appWindow.bottomDockHeight = Math.max(

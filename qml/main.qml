@@ -61,6 +61,22 @@ KvitShell {
     // whose matches were drawn in a hidden pane.
     readonly property bool notesFamilyView:
         ["notes", "folders", "tags", "search"].indexOf(sidebarView) >= 0
+
+    // A stored view id can name a sidebar this build does not have: a profile
+    // written by a build with a module installed, or one left by a version
+    // that had a view since removed. Restoring it verbatim leaves nothing
+    // drawn at all — the notes family hides for any id outside it, the files
+    // pane loads only for "files", and the module Loader resolves an unknown
+    // id to an empty source — and the controls that would switch back are
+    // inside the pane that just hid. Only restored values pass through here;
+    // an assignment from code that knows the id is left alone.
+    function knownSidebarView(id) {
+        if (["notes", "folders", "tags", "search", "files"].indexOf(id) >= 0)
+            return id
+        if (id && Extensions.sidebarViewSource(id) !== "")
+            return id
+        return "notes"
+    }
     // Exactly one document surface is active: the editable note, a read-only
     // source file, or the shared image/media viewer.
     property string contentView: "document"
@@ -584,7 +600,8 @@ KvitShell {
             if (!NoteCollection.isOpen)
                 return
             var views = AppSettings.value("sidebar.viewByRoot", {})
-            root.sidebarView = views[NoteCollection.rootPath] || "notes"
+            root.sidebarView =
+                root.knownSidebarView(views[NoteCollection.rootPath])
             root.contentView = "document"
         }
     }

@@ -433,6 +433,66 @@ private slots:
         QCOMPARE(oneFileTree->watchedDirectoryCountForTests(), 1);
     }
 
+    // A profile can name a sidebar view this build has no pane for: one
+    // written by a superset binary whose module supplies that view, or one
+    // left by a version that has since dropped it. Restored verbatim it drew
+    // nothing — the notes family hides for any id outside it, the files pane
+    // wants "files", and the module Loader resolves an unknown id to an empty
+    // source — so the window came up with a blank sidebar and no note list,
+    // reachable only through the View menu because the buttons that switch
+    // views had hidden with the pane holding them.
+    void anUnknownStoredSidebarViewFallsBackToNotes()
+    {
+        QTemporaryDir settingsDir;
+        QTemporaryDir vault;
+        ProcessServices globals(headlessOptions());
+        globals.openSettings(settingsDir.filePath(QStringLiteral("settings.json")));
+
+        const QString note = vault.filePath(QStringLiteral("a.md"));
+        QFile file(note);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QVERIFY(file.write("# A\n") > 0);
+        file.close();
+
+        // Both places a view id is restored from, as a profile that had been
+        // through a build with the view installed would hold them.
+        const QString root = QDir(vault.path()).absolutePath();
+        const QString absent = QStringLiteral("agent-sessions");
+        QVariantMap byRoot;
+        byRoot.insert(root, absent);
+        globals.settings()->setValue(QStringLiteral("sidebar.viewByRoot"),
+                                     byRoot);
+        QVariantMap state;
+        state.insert(QStringLiteral("sidebarView"), absent);
+        QVariantMap states;
+        states.insert(root, state);
+        globals.settings()->setValue(QStringLiteral("root.viewState"), states);
+
+        WindowRegistry registry(globals,
+                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+        QVERIFY(registry.openStartup(vault.path()));
+        VaultWindow *vaultWindow = registry.activeWindow();
+        QVERIFY(vaultWindow);
+        QQuickWindow *window = vaultWindow->window();
+        QVERIFY(window);
+        QTRY_COMPARE(vaultWindow->context()->noteCollection()->rootPath(), root);
+        QTRY_VERIFY(vaultWindow->context()->startupController()->finished());
+
+        QCOMPARE(window->property("sidebarView").toString(),
+                 QStringLiteral("notes"));
+        // The fallback has to reach the pane, not just the property: this is
+        // the binding that decides whether anything is drawn.
+        QVERIFY(window->property("notesFamilyView").toBool());
+
+        // A view this build does have is still restored rather than reset, so
+        // the fallback is not simply pinning every profile to "notes".
+        QVariant kept;
+        QVERIFY(QMetaObject::invokeMethod(
+            window, "knownSidebarView", Q_RETURN_ARG(QVariant, kept),
+            Q_ARG(QVariant, QStringLiteral("files"))));
+        QCOMPARE(kept.toString(), QStringLiteral("files"));
+    }
+
     // Quitting from the tray is a close of every window, and a close is where
     // the orderly save lives. QApplication::quit() sends no close event, so a
     // document with unsaved changes went with the process; the registry's
