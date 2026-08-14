@@ -8,7 +8,7 @@ Entries accumulate under the heading of the version they will ship in. That
 heading gains its release date and a link to its tag when the version is
 published; until then it is marked unreleased.
 
-## 1.0.0 — unreleased
+## [1.0.0](https://github.com/kvit-s/kvit-notes/releases/tag/v1.0.0) — 2026-08-14
 
 The first public release: the full block editor (hybrid live-preview
 markdown, the complete block palette, tables and kanban, callouts, toggles,
