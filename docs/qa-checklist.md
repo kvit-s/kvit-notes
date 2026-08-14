@@ -615,6 +615,18 @@ Run against the installed artifact with a fresh user profile.
         paste into the note: what arrives is markdown, with the asterisks
         and the fence back. Ctrl+A takes the whole version; Escape drops
         the selection; Cancel leaves the note untouched.
+25. [ ] Open a vault the account cannot write. On macOS and Linux, `chmod
+        500` a folder holding two or three notes; on Windows, deny Write to
+        your account on the folder's Security tab, or put the vault on a
+        read-only share. Open it, read a note, and try to change one.
+        *Expect:* the vault opens and the notes read normally. The status
+        line says the vault is open for reading only and that nothing
+        changed can be saved, and a "Read only" chip stays in the status bar
+        for as long as the vault is open. Editing reports the refusal rather
+        than appearing to save. Windows is the platform this most needs
+        checking on: the folder attribute Explorer sets for a customized
+        folder is not this condition, so a vault under Documents must still
+        open normally and save.
 
 ## Screen readers
 

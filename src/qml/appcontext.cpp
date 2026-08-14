@@ -355,6 +355,22 @@ void AppContext::wire()
                              "session could write to it at the same time.")
                               .arg(where, detail));
             });
+    // The other vault-wide condition, and the one with a consequence the user
+    // meets immediately: the folder cannot be written, so this session can
+    // read the notes and change nothing. Said once here, and drawn for as
+    // long as it holds by the status bar's read-only chip, because a message
+    // that clears itself after a few seconds cannot represent a condition
+    // that lasts the whole session.
+    connect(&m_noteCollection, &NoteCollection::vaultReadOnly,
+            &m_appActions, [this](const QString &path, const QString &detail) {
+                const QString where = QFileInfo(path).fileName();
+                m_appActions.requestTransientStatus(
+                    detail.isEmpty()
+                        ? tr("\"%1\" is open for reading only: nothing you "
+                             "change here can be saved.").arg(where)
+                        : tr("\"%1\" is open for reading only. %2")
+                              .arg(where, detail));
+            });
     connect(&m_noteCollection, &NoteCollection::noteChangedExternally,
             &m_appActions, [this](const QString &relPath) {
                 m_appActions.requestTransientStatus(

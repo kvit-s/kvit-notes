@@ -442,6 +442,18 @@ void TestStartupController::repositoryWarningsReachTheUser()
     QVERIFY(message.contains(QStringLiteral("Shared")));
     QVERIFY(message.contains(QStringLiteral("no locking on NFS")));
 
+    // The vault opened but cannot be written. The sentence has to say that
+    // nothing can be saved, not that somebody else might overwrite it.
+    emit collection->vaultReadOnly(
+        QStringLiteral("/vaults/Archive"),
+        QStringLiteral("This folder cannot be written to, so nothing changed "
+                       "here can be saved."));
+    QCOMPARE(status.count(), 1);
+    message = status.takeFirst().at(0).toString();
+    QVERIFY(message.contains(QStringLiteral("Archive")));
+    QVERIFY(message.contains(QStringLiteral("reading only")));
+    QVERIFY(message.contains(QStringLiteral("cannot be written to")));
+
     emit collection->noteChangedExternally(QStringLiteral("Meeting notes.md"));
     QCOMPARE(status.count(), 1);
     message = status.takeFirst().at(0).toString();

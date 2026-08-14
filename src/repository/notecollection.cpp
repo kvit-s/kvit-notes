@@ -25,6 +25,7 @@
 #include <QCryptographicHash>
 #include <QSet>
 #include <QSignalBlocker>
+#include <QTemporaryFile>
 #include <QUrl>
 #include <QUuid>
 #include <QtConcurrent/QtConcurrent>
@@ -52,6 +53,32 @@ using NoteFileIo::readFileBytes;
 using NoteFileIo::readTextFile;
 using NoteFileIo::writeFileBytesAtomic;
 using NoteFileIo::writeTextFileAtomic;
+
+// Whether a vault in this folder can be written at all. A read-only mount and
+// a directory this account has no write permission on both give a vault that
+// reads perfectly and can never be saved to.
+//
+// The two platforms need different questions asked. On POSIX
+// QFileInfo::isWritable() is access(W_OK), which answers exactly this and
+// respects a read-only mount. On Windows the same call reports the folder's
+// read-only ATTRIBUTE, which does not stop anything being created inside it:
+// Explorer sets that attribute to mark a folder as customized, so Documents
+// and the other shell folders carry it, and believing it would refuse every
+// save in a vault that is perfectly writable. There the only answer is to
+// try, and the vault open's first write is creating the control directory
+// and the lock file in it, so this is that same write made a moment earlier.
+bool vaultRootIsWritable(const QString &root)
+{
+#ifdef Q_OS_WIN
+    const QString controlDir = VaultPaths::ensureOwnedDir(root, kvitDirName);
+    if (controlDir.isEmpty())
+        return false;
+    QTemporaryFile probe(controlDir + QStringLiteral("/write-probe-XXXXXX"));
+    return probe.open();  // and removed as it goes out of scope
+#else
+    return QFileInfo(root).isWritable();
+#endif
+}
 
 // Restores a file's modification time (metadata rewrites must not read as
 // content edits in the modified-date sort).
@@ -297,6 +324,10 @@ void NoteCollection::closeRoot()
     // Released last: nothing above may still be writing when another process
     // is allowed in.
     m_vaultLock.release();
+    // Read-only because the vault was unwritable belongs to the vault being
+    // left, not to this collection.
+    m_vaultUnwritable = false;
+    applyReadOnly(m_readOnlyRequested);
     emit rootChanged();
     bump();
 }
@@ -338,15 +369,26 @@ bool NoteCollection::prepareRootPath(const QString &path)
         return false;
     }
 
+    // Whether this vault can be written at all, asked once here rather than
+    // discovered one refused save at a time. A session the caller already put
+    // in read-only mode is not asked: the answer would change nothing about
+    // what it may do, and on Windows asking is itself a write.
+    const bool unwritableVault =
+        !m_readOnlyRequested && !vaultRootIsWritable(absolute);
+    const bool readOnly = m_readOnlyRequested || unwritableVault;
+
     // Take the vault before reading any of its state. Everything below this
     // point loads files that will later be written back whole, so a second
     // process reaching the same point would set up the lost update
     // tests/test_vaultlock.cpp demonstrates. Unavailable (no locking on this
-    // filesystem, read-only directory) opens unlocked rather than refusing:
-    // an unopenable vault is a worse outcome than an unguarded one.
+    // filesystem) opens unlocked rather than refusing: an unopenable vault is
+    // a worse outcome than an unguarded one. A read-only acquisition attempts
+    // no write at all, so an unwritable vault takes neither that path nor its
+    // message, which used to explain a directory nothing may be created in as
+    // a filesystem that does not implement locking.
     const VaultLock::Result lock = m_vaultLock.acquire(
-        absolute, m_readOnly ? VaultLock::Access::Read
-                             : VaultLock::Access::Write);
+        absolute, readOnly ? VaultLock::Access::Read
+                           : VaultLock::Access::Write);
     if (lock == VaultLock::Result::HeldByAnother) {
         // One signal, not operationFailed as well: the UI needs to say
         // something specific here rather than show a generic failure, and two
@@ -367,11 +409,25 @@ bool NoteCollection::prepareRootPath(const QString &path)
         return false;
     }
 
+    // The mode is only committed once the vault is actually taken: an open
+    // refused above leaves this collection showing the vault it already had,
+    // on the terms it already had.
+    m_vaultUnwritable = unwritableVault;
+    applyReadOnly(readOnly);
     m_rootPath = absolute;
     m_canonicalRoot = canonicalizeMissingOk(m_rootPath);
     if (m_ignoreRules)
         m_ignoreRules->setRootPath(m_rootPath, false);
     attachStoresToRoot();
+    // What the user has to be told, and it is not the same thing in the two
+    // cases. An unwritable vault opens and reads normally, so nothing on
+    // screen says that the next save has nowhere to go.
+    if (unwritableVault) {
+        emit vaultReadOnly(
+            absolute,
+            tr("This folder cannot be written to, so nothing changed here "
+               "can be saved."));
+    }
     // Fail-open is a deliberate choice, but it was only ever written to the
     // log, where nobody sees it: the vault is open with nothing stopping a
     // second session from saving over this one.
@@ -616,6 +672,23 @@ bool NoteCollection::refuseWhenReadOnly()
         return false;
     emit operationFailed(tr("This vault is open for reading only"));
     return true;
+}
+
+void NoteCollection::setReadOnly(bool readOnly)
+{
+    m_readOnlyRequested = readOnly;
+    // A caller asking for read-only gets it immediately; a caller giving it up
+    // gets it back only as far as the open vault allows, since a vault that
+    // cannot be written stays unwritable however this is set.
+    applyReadOnly(readOnly || m_vaultUnwritable);
+}
+
+void NoteCollection::applyReadOnly(bool readOnly)
+{
+    if (m_readOnly == readOnly)
+        return;
+    m_readOnly = readOnly;
+    emit readOnlyChanged();
 }
 
 bool NoteCollection::ensureWithinRoot(const QString &relPath)
@@ -1154,6 +1227,12 @@ void NoteCollection::clearDerivedIndexes()
 
 void NoteCollection::saveIndexFileIfDirty()
 {
+    // The sidecar is a performance cache, and a session that may not write
+    // has no business rewriting it: on a vault that cannot be written the
+    // attempt fails on every scan, and each failure is reported as a write
+    // this collection was asked to make.
+    if (m_readOnly)
+        return;
     if (!m_indexDirty) {
         finishOperationPlanAfterIndexSave();
         return;
@@ -1779,6 +1858,8 @@ void NoteCollection::cancelAsyncSavedNote()
 
 void NoteCollection::saveIndexFileIfDirtyAsync()
 {
+    if (m_readOnly)  // as in saveIndexFileIfDirty()
+        return;
     if (!m_indexDirty)
         return;
 

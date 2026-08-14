@@ -54,10 +54,11 @@ no lock with it, so it cannot wedge a vault either. This was
 checked with `bwrap --unshare-pid` in both directions, and with SIGKILL
 recovery, rather than assumed.
 
-**Failure is open.** Only genuine contention refuses a vault. A filesystem
-without locking, a read-only directory, or any other kernel error opens the
-vault unlocked with a warning on the `kvit.vaultlock` logging category. A vault
-nobody can open is a worse failure than an unguarded one.
+**Failure is open.** Only contention refuses a vault. A filesystem without
+locking, or any other kernel error, opens the vault unlocked and says so
+through `vaultUnprotected(path, detail)`. A vault nobody can open is a worse
+failure than an unguarded one. A folder that cannot be written takes a
+different route and never reaches this one; see the update below.
 
 **One writer per canonical path, inside a process as well as between them.**
 A POSIX `flock` on a second descriptor succeeds against the holder's own
@@ -119,14 +120,15 @@ network filesystems, and the warning goes to a logging category rather than the
 user. That is the deliberate trade: refusing to open a vault because its
 filesystem lacks `flock` would be worse than proceeding without the guarantee.
 
-Eleven tests in `VaultLockTests` drive real second processes, re-execing
+Twelve tests in `VaultLockTests` drive real second processes, re-execing
 through `QProcess` rather than simulating contention. They cover the prevented
 lost update, the refusal and its message, a SIGKILLed owner's lock
 disappearing, release on close, a second writing collection in one process
 being refused while read-only sessions are admitted alongside the writer,
 single-file mode taking none, an unlockable filesystem still opening while
-still holding the one-writer rule, and a corrupt lock file still yielding a
-sane message.
+still holding the one-writer rule, a corrupt lock file still yielding a sane
+message, and a vault in a folder with no write permission opening for reading
+only.
 
 ## Update — multi-window handoff and single-instance launch (2026-07)
 
@@ -153,6 +155,30 @@ cross-process backstop, and a vault genuinely held by another process (a
 separate instance, or another machine on a shared filesystem) is still refused
 with the holder message. The registry answers "already open in this process";
 the lock answers "already open in another process".
+
+## Update — a vault that cannot be written (2026-08)
+
+A folder the process has no write permission on, or one on a read-only mount,
+is not a contention problem and never was. It was seen as one because
+attempting the lock was the first write a vault open performed, so its failure
+arrived as "this filesystem cannot lock". The vault then opened looking
+exactly like any other and warned about a second session overwriting this one,
+which is the single risk that cannot arise where nothing can be written at
+all, while the real consequence turned up one refused save at a time.
+
+`NoteCollection::prepareRootPath()` now asks `QFileInfo::isWritable()` on the
+root before acquiring anything. An unwritable root opens as a read-only
+session: `VaultLock::Access::Read`, which takes no lock and attempts no write,
+the collection's existing read-only mode refusing every mutation up front, and
+`vaultReadOnly(path, detail)` saying so. The choice is the one this ADR makes
+throughout, that a vault which opens and reads beats a refusal, with the
+difference that the session is now told what it has for as long as it has it.
+The open-time message clears itself after a few seconds, so the status bar
+also shows a "Read only" marker for the life of the vault.
+
+Read-only for this reason belongs to the vault rather than to the collection,
+so closing the root returns the collection to whatever the caller asked for
+and the next vault opens on its own terms.
 
 ## Evidence in the tree
 

@@ -59,6 +59,9 @@ class NoteCollection : public QObject
 
     Q_PROPERTY(QString rootPath READ rootPath NOTIFY rootChanged)
     Q_PROPERTY(bool isOpen READ isOpen NOTIFY rootChanged)
+    // Whether this vault can be written at all. QML draws a persistent
+    // indicator from it, because the condition lasts the whole session.
+    Q_PROPERTY(bool readOnly READ isReadOnly NOTIFY readOnlyChanged)
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
     Q_PROPERTY(bool scanInProgress READ scanInProgress NOTIFY scanInProgressChanged)
 
@@ -99,7 +102,15 @@ public:
     // a preview, an exporter or a tool that only reads is not. Without a mode
     // to say which it is, the reference-counted lock has to admit both.
     // Set before openRoot(); changing it does not reopen the current root.
-    void setReadOnly(bool readOnly) { m_readOnly = readOnly; }
+    //
+    // The caller is not the only source. Opening a root whose folder cannot
+    // be written — a read-only mount, or a directory this user has no write
+    // permission on — puts the collection in the same mode for that vault and
+    // announces it with vaultReadOnly, because a vault that can be read but
+    // never saved to is exactly a read-only session whether anybody asked for
+    // one or not. Closing the root returns the collection to what the caller
+    // asked for, so a read-only vault does not make the next one read-only.
+    void setReadOnly(bool readOnly);
     bool isReadOnly() const { return m_readOnly; }
 
     // --- Root -----------------------------------------------------------
@@ -400,6 +411,7 @@ public:
 
 signals:
     void rootChanged();
+    void readOnlyChanged();
     void revisionChanged();
     // Rename or move, including notes inside a renamed folder. Receivers
     // (open document, selections, journal) rebind their paths.
@@ -452,6 +464,17 @@ signals:
     // Fail-open is deliberate — refusing to open the vault would be worse —
     // and this is how the user gets told, rather than only the log.
     void vaultUnprotected(const QString &path, const QString &detail);
+    // The vault opened for reading only, because the folder it lives in
+    // cannot be written: a read-only mount, or a directory this user has no
+    // write permission on. Nothing changed in this session can be saved, and
+    // every mutation is refused up front rather than attempted and failed one
+    // note at a time. `detail` is the sentence to show.
+    //
+    // Separate from vaultUnprotected, which is the opposite situation: there
+    // the vault is writable and unguarded, here it is guarded by the
+    // filesystem and unwritable. Reporting one as the other told the user
+    // about a risk that does not exist while leaving out the one that does.
+    void vaultReadOnly(const QString &path, const QString &detail);
     void scanInProgressChanged();
     void scanStarted();
     void scanFinished();
@@ -544,6 +567,8 @@ private:
     // containment gate above asks this first; the operations that change only
     // collection.json do not go through it and ask here directly.
     bool refuseWhenReadOnly();
+    // Assign the effective mode and announce a change of it.
+    void applyReadOnly(bool readOnly);
     QString uniqueUntitled(const QString &folder) const;
     bool moveToTrash(const QString &relPath);
     // Write `relPath`'s cached metadata into its file, merging it over what
@@ -734,7 +759,16 @@ private:
     QString m_lastOpenNote;
 
     std::function<void(const QString &)> m_indexParseObserver;
+    // The mode in force: what the caller asked for, or what the open vault
+    // allows, whichever refuses more. m_readOnlyRequested is the caller's
+    // half alone, kept so closing a vault that could not be written does not
+    // leave the collection read-only for the next one.
     bool m_readOnly = false;
+    bool m_readOnlyRequested = false;
+    // Whether the open vault's own folder refuses writes, so that giving up a
+    // requested read-only mode mid-session does not promise more than the
+    // filesystem allows.
+    bool m_vaultUnwritable = false;
     bool m_indexDirty = false;
     bool m_scanInProgress = false;
     int m_asyncPendingUpdates = 0;

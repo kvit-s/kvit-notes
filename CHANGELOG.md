@@ -8,6 +8,23 @@ Entries accumulate under the heading of the version they will ship in. That
 heading gains its release date and a link to its tag when the version is
 published; until then it is marked unreleased.
 
+## 1.0.1 — unreleased
+
+### Fixed
+
+- A vault in a folder that cannot be written now says so, and keeps saying
+  so. Opening one on a read-only mount, or in a directory the account has no
+  write permission on, used to look like any other vault: the only notice was
+  the one meant for a filesystem without file locking, which blamed the
+  filesystem for the wrong thing and warned that another session might
+  overwrite this one, when the actual consequence is that this session cannot
+  write at all. The vault's writability is now tested when it opens. An
+  unwritable one opens for reading, is announced in the status bar in those
+  terms, and carries a "Read only" marker there for as long as it is open,
+  since the notice clears after a few seconds while the condition lasts the
+  whole session. Every change is refused when it is made rather than
+  attempted and failed one note at a time.
+
 ## [1.0.0](https://github.com/kvit-s/kvit-notes/releases/tag/v1.0.0) — 2026-08-14
 
 The first public release: the full block editor (hybrid live-preview

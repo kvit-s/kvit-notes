@@ -145,6 +145,41 @@ Rectangle {
             }
         }
 
+        // A vault whose folder cannot be written opens for reading only, and
+        // stays that way for the whole session. The notice shown when it
+        // opens is gone in seconds, so the condition is drawn here for as
+        // long as it holds — next to the save state, which is the readout it
+        // qualifies: "Saved" beside it means the last save, not the next one.
+        Rectangle {
+            objectName: "readOnlyChip"
+            visible: NoteCollection && NoteCollection.isOpen
+                     && NoteCollection.readOnly
+            implicitWidth: readOnlyLabel.implicitWidth + Interface.px(12)
+            implicitHeight: Interface.px(17)
+            Layout.preferredWidth: visible ? implicitWidth : 0
+            Layout.preferredHeight: implicitHeight
+            Layout.alignment: Qt.AlignVCenter
+            radius: height / 2
+            color: Theme.bannerBackground
+
+            Text {
+                id: readOnlyLabel
+                anchors.centerIn: parent
+                text: qsTr("Read only")
+                font.pixelSize: Interface.small
+                color: Theme.bannerText
+                // Announced once, through the chip's own name below, which
+                // says what the two words mean rather than repeating them.
+                Accessible.ignored: true
+            }
+
+            Accessible.role: Accessible.StaticText
+            Accessible.name: qsTr("Read only: this vault's folder cannot be written to, so changes cannot be saved")
+            ToolTip.visible: readOnlyHover.hovered
+            ToolTip.text: qsTr("This vault's folder cannot be written to, so changes made here cannot be saved.")
+            HoverHandler { id: readOnlyHover }
+        }
+
         // Save state indicator with dot
         Row {
             spacing: Interface.px(6)

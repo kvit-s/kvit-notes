@@ -906,6 +906,7 @@ Display when cursor moves into "information":
 - Word count for document or selection
 - Character count
 - Last saved time
+- A "Read only" marker for as long as the open vault cannot be written
 - Sync status (if applicable)
 
 ---
@@ -991,6 +992,10 @@ and summarized in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Plain text/Markdown as underlying format
 - Automatic saving
 - Save indicator (saved/unsaved state)
+- A vault in a folder that cannot be written (a read-only mount, a directory
+  the user has no write permission on) opens for reading only: said once when
+  it opens, marked in the status bar for as long as the vault is open, and
+  every change refused up front rather than attempted and failed
 
 ### 12.2 Auto-Save
 - Automatic save after changes

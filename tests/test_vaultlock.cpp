@@ -21,6 +21,10 @@
 #include "notecollection.h"
 #include "vaultlock.h"
 
+#ifndef Q_OS_WIN
+#  include <unistd.h>   // geteuid(): the permission bits do not apply to root
+#endif
+
 namespace {
 
 // Exit codes the helpers use, so a test can tell "refused" from "crashed".
@@ -85,6 +89,7 @@ private slots:
     void holderDescriptionSurvivesAGarbageLockFile();
     void failedSwitchKeepsTheCurrentVaultLocked();
     void readOnlySessionsShareAVaultWithAWriter();
+    void unwritableFolderOpensForReadingOnly();
 
 private:
     QProcess *startHolder(const QString &root);
@@ -474,6 +479,88 @@ void TestVaultLock::unlockableFilesystemTellsTheUser()
     QVERIFY(opened);
     QCOMPARE(unprotected.count(), 1);
     QVERIFY(!unprotected.first().at(1).toString().isEmpty());
+}
+
+// A vault on a read-only mount, or in a directory this user cannot write, is
+// perfectly readable and completely unsaveable. Until the collection asked, it
+// discovered that one refused save at a time, and the only thing said at open
+// was the fail-open lock notice -- which named the filesystem as the reason
+// and warned about a second session overwriting this one, when the real
+// consequence is that this session cannot write at all.
+void TestVaultLock::unwritableFolderOpensForReadingOnly()
+{
+#ifdef Q_OS_WIN
+    QSKIP("directory write permission is not what decides this on Windows");
+#else
+    if (::geteuid() == 0)
+        QSKIP("root writes through the permission bits this test relies on");
+
+    QTemporaryDir parent;
+    QVERIFY(parent.isValid());
+    const QString root = parent.filePath(QStringLiteral("Vault"));
+    QVERIFY(QDir().mkpath(root));
+
+    {
+        NoteCollection seed;
+        QVERIFY(seed.openRoot(root));
+        QVERIFY(!seed.createNote(QString(), QStringLiteral("Note")).isEmpty());
+    }
+
+    // The negative case, on the same vault before its permissions change:
+    // a writable folder opens for writing and says nothing.
+    {
+        NoteCollection writable;
+        QSignalSpy readOnly(&writable, &NoteCollection::vaultReadOnly);
+        QVERIFY(writable.openRoot(root));
+        QVERIFY(!writable.isReadOnly());
+        QVERIFY(!writable.property("readOnly").toBool());
+        QCOMPARE(readOnly.count(), 0);
+    }
+
+    // r-x: readable and searchable, and nothing may be created in it.
+    // Restored however this function leaves, so the directory can be removed.
+    const QFileDevice::Permissions original =
+        QFileInfo(root).permissions();
+    struct PermissionRestore {
+        QString path;
+        QFileDevice::Permissions permissions;
+        ~PermissionRestore() { QFile::setPermissions(path, permissions); }
+    } restore{root, original};
+    QVERIFY(QFile::setPermissions(root, QFileDevice::ReadOwner
+                                            | QFileDevice::ExeOwner
+                                            | QFileDevice::ReadUser
+                                            | QFileDevice::ExeUser));
+
+    NoteCollection collection;
+    QSignalSpy readOnly(&collection, &NoteCollection::vaultReadOnly);
+    QSignalSpy unprotected(&collection, &NoteCollection::vaultUnprotected);
+    QSignalSpy modeChanged(&collection, &NoteCollection::readOnlyChanged);
+
+    QVERIFY2(collection.openRoot(root),
+             "a vault that can be read was refused because it cannot be "
+             "written");
+    // Read-only is the mode, and QML reads it as a property.
+    QVERIFY(collection.isReadOnly());
+    QVERIFY(collection.property("readOnly").toBool());
+    QCOMPARE(modeChanged.count(), 1);
+    // The notes are all there; it is only writing that is refused.
+    QCOMPARE(collection.noteCount(), 1);
+    QVERIFY(collection.createNote(QString(), QStringLiteral("Second"))
+                .isEmpty());
+
+    // Said once, in the terms that match what happened. The old fail-open
+    // notice is not: it would blame the filesystem for not supporting locks
+    // and warn about the wrong risk.
+    QCOMPARE(readOnly.count(), 1);
+    QCOMPARE(readOnly.first().at(0).toString(), QDir(root).absolutePath());
+    QVERIFY(!readOnly.first().at(1).toString().isEmpty());
+    QCOMPARE(unprotected.count(), 0);
+
+    // The vault being unwritable does not follow the collection to the next
+    // one it opens.
+    collection.closeRoot();
+    QVERIFY(!collection.isReadOnly());
+#endif
 }
 
 int main(int argc, char *argv[])
