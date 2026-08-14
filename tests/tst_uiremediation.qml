@@ -97,6 +97,14 @@ Item {
             // that then asked the pane to focus a row found an empty list.
             tryVerify(function() { return NoteListModel.count >= 3 }, 5000,
                       "the note list filled after the collection opened")
+            // The list fills from the listing pass, and the parse behind it
+            // goes on reading every note in the tree afterwards. Cases here
+            // write into that same tree, so let the scan settle first: a
+            // reader and a writer on one file is a race whose outcome depends
+            // on how many cores the machine has, and this suite fails on the
+            // two-core CI runner at exactly such a write.
+            tryVerify(function() { return !NoteCollection.scanInProgress }, 5000,
+                      "the collection scan settled")
             return dir
         }
 
