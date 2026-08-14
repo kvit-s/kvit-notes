@@ -29,6 +29,16 @@ Item {
         asynchronous: false
     }
 
+    // Why a refused save refused. DocumentManager reports its reason through
+    // saveFailed(), and a bare verify() on save() reports only "false", which
+    // on a CI runner nobody can attach a debugger to is the difference
+    // between a diagnosis and another round trip.
+    property string lastSaveError: ""
+    Connections {
+        target: DocumentManager
+        function onSaveFailed(message) { root.lastSaveError = message }
+    }
+
     TestCase {
         id: testCase
         name: "UiRemediationTests"
@@ -114,7 +124,13 @@ Item {
             DocumentManager.setJournalDebounceMs(30)
             verify(win().openNoteByPath(relPath))
             DocumentSerializer.loadIntoModel(BlockModel, "disk truth\n")
-            verify(DocumentManager.save())
+            root.lastSaveError = ""
+            var target = DocumentManager.currentFilePath
+            verify(DocumentManager.save(),
+                   "the staged note saved (path=" + target
+                   + ", dirty=" + DocumentManager.isDirty
+                   + ", readable bytes on disk=" + testFiles.readFile(target).length
+                   + ", reason=" + root.lastSaveError + ")")
             BlockModel.updateContent(0, journalText)
             verify(DocumentManager.isDirty)
             wait(300)   // the debounced journal snapshot lands
