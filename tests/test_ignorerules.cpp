@@ -190,8 +190,17 @@ void IgnoreRulesTests::watcherNeverEntersIgnoredDirectories()
     QVERIFY(watcher.watchedFilesForTests().contains(
         root.filePath(QStringLiteral(".gitignore"))));
 
-    QSignalSpy external(&watcher, &FileWatcher::externalChange);
+    // Drain before measuring. A registration placed over a tree that was
+    // created moments ago can be handed an event for that creation, which
+    // macOS delivers after the watch is in place, and the debounced handler
+    // emits externalChange whether or not any path survived to it. The count
+    // below then reports an event from before the case began: it failed on
+    // macOS with one change and none of it fed here, since an ignored path is
+    // dropped in feedChange before it can reach the debounce at all.
     watcher.setDebounceMs(0);
+    QTest::qWait(50);
+
+    QSignalSpy external(&watcher, &FileWatcher::externalChange);
     watcher.feedChange(root.filePath(QStringLiteral("build")), false);
     QTest::qWait(20);
     QCOMPARE(external.count(), 0);

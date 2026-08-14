@@ -112,7 +112,14 @@ void TestStartupController::deferredStartOpensLastNoteAsynchronously()
     QTRY_COMPARE_WITH_TIMEOUT(scanFinishedSpy.count(), 1, 5000);
     QTRY_VERIFY_WITH_TIMEOUT(!collection.scanInProgress(), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(parsed.size() == 2, 5000);
-    QVERIFY(QFileInfo::exists(dir.filePath(QStringLiteral(".kvit/cache/index.json"))));
+    // The scan hands the sidecar write to a worker thread
+    // (NoteCollection::saveIndexFileIfDirtyAsync), so its arrival is not
+    // ordered against anything waited on above. On Linux the write finished
+    // inside those waits and a bare existence check passed; on macOS and
+    // Windows it had not, and the case failed for a write that was on its way.
+    QTRY_VERIFY_WITH_TIMEOUT(
+        QFileInfo::exists(dir.filePath(QStringLiteral(".kvit/cache/index.json"))),
+        5000);
 }
 
 // The note restored at startup is made current without going through

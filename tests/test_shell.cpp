@@ -140,13 +140,20 @@ private slots:
 
         g_warnings.clear();
         g_expectedWarnings.clear();
-        // Not the shell's warnings: Qt's multimedia backend reports a missing
-        // PipeWire on any machine without one, which a headless runner is.
-        // This gate is about the composition - a renamed context property, a
-        // QML file missing from the resources, an import that does not
-        // resolve - and an audio stack the test never asked for is noise
-        // that would make it fail wherever the runner image lacks a library.
+        // Not the shell's warnings: Qt's multimedia backend reports whatever
+        // it cannot reach on a machine that runs none of it, which a headless
+        // runner is - PipeWire missing, PulseAudio refusing the connection,
+        // and FFmpeg finding no VA-API driver to probe once a case builds the
+        // media player card. This gate is about the composition - a renamed
+        // context property, a QML file missing from the resources, an import
+        // that does not resolve - and a media stack the test never asked for
+        // is noise that would make it fail wherever the runner image lacks a
+        // library.
         g_expectedWarnings << QRegularExpression(QStringLiteral("pipewire"));
+        g_expectedWarnings << QRegularExpression(
+            QStringLiteral("PulseAudio"), QRegularExpression::CaseInsensitiveOption);
+        g_expectedWarnings << QRegularExpression(
+            QStringLiteral("Couldn't (load|resolve) va"));
         // Also the runner's, not the shell's: a machine with no "Sans Serif"
         // family makes Qt populate its alias table and say how long it took.
         g_expectedWarnings << QRegularExpression(
