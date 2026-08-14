@@ -21,6 +21,40 @@ crash recovery, and War-and-Peace-scale performance.
 
 ### Added
 
+- The vault's files are now browsable beside its notes. A Files view in the
+  sidebar lists the open root as it is on disk, expanding a folder only when
+  the reader opens it and leaving out what `.gitignore`, `.git/info/exclude`
+  and the vault's own ignore patterns exclude, so a working copy's build tree
+  does not fill the pane. What a file opens into follows what it is: a
+  markdown file opens as the note it is, a source or text file opens in a
+  read-only viewer that highlights it by language and can be pointed at a
+  line, an image opens in a viewer that fits and zooms it, and audio or video
+  opens in a player. A file the text viewer refuses — over 16 MiB, or not
+  valid UTF-8 — can still be handed to the desktop application that owns it.
+  A rail beside the sidebar keeps the roots being worked in, so moving
+  between two vaults does not go back through the folder picker, and a dock
+  across the bottom of the window is a further slot a linked module can fill,
+  as are sidebar views of its own.
+
+- A linked module's contribution to a note now leaves with that note when it
+  is exported. Such content is drawn beside the note rather than held in its
+  blocks, so it was in no export at all, and the Export command silently
+  dropped content the note visibly had. A module answers markdown for a given
+  note and the exporter appends it where it resolves that note's own
+  markdown, which carries it into all four formats and every whole-note
+  scope, including a combined collection file, where each note's contribution
+  goes into that note's own section. A block-scope export carries none of it,
+  since the reader picked particular blocks and a contribution is about the
+  note. The export dialog names each contribution by the label its module
+  gives it, before the destination is chosen. With no module installed every
+  export is byte-identical to what it was.
+
+- The backup dialog now shades the part of a stored version that the note as
+  it stands no longer has. A timestamp and a first line do not tell two edits
+  of one afternoon apart; the comparison behind the shading aligns the two
+  documents' blocks, so an inserted paragraph shifts nothing after it, and
+  marks the run between each pair's common prefix and common suffix.
+
 - A markdown document can now be drawn read-only outside the editor pane,
   rendered as blocks, swept across with the pointer as one piece of text and
   copied out as markdown. Choosing which stored version to restore is the
@@ -201,6 +235,22 @@ crash recovery, and War-and-Peace-scale performance.
 
 ### Changed
 
+- The editor opens at 14 px with a line height of 1.3, where it used to open
+  at 15 px on the font's own line height, which sets prose solid — no leading
+  between lines, so a paragraph reads as a block of text rather than lines of
+  it. Nothing about the type scale changes: heading and code sizes remain
+  ratios against a 15 px base, so at 14 they come out 30/22/19/16 with code at
+  12, and setting the base back to 15 in Settings reproduces the previous
+  32/24/20/17 and 13 to the pixel.
+
+- A product built on this editor's core keeps its own settings file. The
+  organization and application names decide where the per-user profile lives,
+  and the core set them itself with no way for another binary to say
+  otherwise, so two products built from it read and wrote one file: each
+  restored state the other had written. The names are now given at
+  construction, and this application's own name is unchanged, so its profile
+  is where it has always been.
+
 - Colours across all four themes now meet WCAG 2.1 level AA: 4.5:1 for text
   and 3:1 for the parts of a control that show where it is and what state it
   is in. Fourteen token pairs were below the line, concentrated in the light
@@ -291,6 +341,40 @@ crash recovery, and War-and-Peace-scale performance.
   "New card".
 
 ### Fixed
+
+- The Tags and Search views in the sidebar now show what they answer.
+  Notes, Folders, Tags and Search are four ways into one collection, each
+  narrowing the same note list, and the list was drawn for the Notes view
+  alone: choosing a tag filtered a list that was not on screen, and the
+  Search view typed into a field whose matches were drawn inside a pane the
+  shell had hidden. What appeared instead was the pane's own contents spread
+  down an otherwise empty column, under a heading that still read "Notes".
+  The heading now names the view the rail chose, the note list says which tag
+  is filtering it, both views say what they are for while empty, and the
+  recent searches stand on their own in the Search view.
+
+- A launch with no arguments comes back to the vaults that were open when the
+  session ended. Quitting with two vaults open reopened one of them, and
+  closing the only window reopened the default vault rather than the one just
+  closed, because the record of what is open is rewritten every time a window
+  is handed back — right while the application runs, and wrong on the way
+  out, where the last window to go recorded nothing at all.
+
+- A profile naming a sidebar view this build has no pane for no longer opens
+  a blank sidebar. A stored view id was restored as it stood, so an id from a
+  build with a module installed, or from a version that has since dropped a
+  view, left every pane declining to draw — including the buttons that would
+  have switched back, so the View menu was the only way out. An unknown id
+  now falls back to the note list.
+
+- Under WSL, "Open with desktop" opens the file that was clicked rather than
+  the Windows Documents folder. Every such click hands the opener a `file://`
+  URL naming a path in the Linux session, which `explorer.exe` cannot follow;
+  given one it opens Documents, and because it exits 1 on success the click
+  was recorded as opened, so the reader got an unrelated window and no sign
+  of a failure. Each opener now says which spelling of a file it takes, and
+  where a path cannot be spelled for it the opener is skipped and the click
+  is reported as failed.
 
 - The editor's scrollbar handle no longer changes size while the reader
   scrolls. The document view builds only the rows near the window and works
