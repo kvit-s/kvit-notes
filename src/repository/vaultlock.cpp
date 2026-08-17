@@ -38,14 +38,14 @@ using NativeHandle = int;
 const NativeHandle kInvalidHandle = -1;
 #endif
 
-// One entry per vault this process holds for writing, and at most one holder
-// per vault: the descriptor that carries the kernel lock, or an invalid one
-// when the filesystem could not provide it. The table is what makes a second
-// write-capable collection on the same root refusable, which a POSIX flock
-// cannot do on its own -- it is held per process, so this process would
-// never contend with itself.
+// One entry per vault this process reserves. Every writer and holder shares
+// the descriptor carrying the one kernel lock (or an invalid descriptor when
+// the filesystem could not provide it). Counts preserve the one-writer rule
+// while letting non-writing work keep the root reserved after its writer goes.
 struct Owned {
     NativeHandle handle = kInvalidHandle;
+    int writers = 0;
+    int holders = 0;
 };
 
 QMutex g_mutex;
@@ -235,13 +235,15 @@ VaultLock::Result VaultLock::acquire(const QString &vaultRoot, Access access)
 
     QMutexLocker locker(&g_mutex);
 
-    // Somebody in this process is already writing this vault. Admitting a
-    // second writer here would recreate the lost update the lock prevents
-    // between processes, and nothing else can catch it: the kernel lock is
-    // held per process, so this process never contends with itself. Like the
-    // cross-process refusal below, it changes nothing -- a caller whose
-    // switch is refused is left holding exactly what it had.
-    if (g_owned.contains(canonical)) {
+    auto target = g_owned.find(canonical);
+
+    // Somebody in this process is already writing this vault. Holders may
+    // join that writer, and a writer may join holders, but admitting a second
+    // writer would recreate the lost update the lock prevents. Like the
+    // cross-process refusal below, this changes nothing, so a failed switch
+    // leaves the caller holding exactly what it had.
+    if (access == Access::Write && target != g_owned.end()
+        && target->writers > 0) {
         m_blockingHolder = Holder{QSysInfo::machineHostName(),
                                   QCoreApplication::applicationName(),
                                   QCoreApplication::applicationPid(),
@@ -249,18 +251,67 @@ VaultLock::Result VaultLock::acquire(const QString &vaultRoot, Access access)
         return Result::HeldInThisProcess;
     }
 
-    // The three ways a write acquisition can succeed differ only in whether
-    // a kernel lock came with it. All three register the vault as held by
-    // this process, because that answer never depended on the filesystem.
-    const auto take = [this, &canonical](NativeHandle handle, Result result) {
-        releaseLocked();
-        g_owned.insert(canonical, Owned{handle});
+    const auto finish = [this, &canonical, access](Result result,
+                                                    NativeHandle handle) {
         m_root = canonical;
-        m_access = Access::Write;
+        m_access = access;
         m_holdsNativeLock = handle != kInvalidHandle;
         m_ownsRegistration = true;
         m_lastResult = result;
         return result;
+    };
+
+    // Changing terms on the same registered root is a count transfer, never
+    // a release and reacquire. In particular, Write -> Hold must not expose an
+    // unlocked instant when this object owns the last registration.
+    if (target != g_owned.end() && m_ownsRegistration
+        && m_root == canonical) {
+        if (m_access == Access::Write)
+            --target->writers;
+        else
+            --target->holders;
+        if (access == Access::Write)
+            ++target->writers;
+        else
+            ++target->holders;
+        const NativeHandle handle = target->handle;
+        return finish(handle == kInvalidHandle ? Result::Unavailable
+                                                : Result::Acquired,
+                      handle);
+    }
+
+    // A root already reserved in this process is joined without a second
+    // kernel operation. Move any old registration while the table is locked,
+    // then re-find the target because removing the old entry may invalidate
+    // hash iterators.
+    if (target != g_owned.end()) {
+        releaseLocked();
+        target = g_owned.find(canonical);
+        Q_ASSERT(target != g_owned.end());
+        if (access == Access::Write)
+            ++target->writers;
+        else
+            ++target->holders;
+        const NativeHandle handle = target->handle;
+        return finish(handle == kInvalidHandle ? Result::Unavailable
+                                                : Result::Acquired,
+                      handle);
+    }
+
+    // Taking an unregistered root differs only in whether a native lock was
+    // available. Both results register it in-process, because writer and
+    // holder ownership never depends on filesystem locking support.
+    const auto take = [this, &canonical, access, &finish](NativeHandle handle,
+                                                          Result result) {
+        releaseLocked();
+        Owned owned;
+        owned.handle = handle;
+        if (access == Access::Write)
+            owned.writers = 1;
+        else
+            owned.holders = 1;
+        g_owned.insert(canonical, owned);
+        return finish(result, handle);
     };
 
     if (g_forcedUnavailable)
@@ -309,12 +360,18 @@ void VaultLock::releaseLocked()
     if (m_ownsRegistration) {
         auto it = g_owned.find(m_root);
         if (it != g_owned.end()) {
-            // Closing the descriptor drops the kernel lock. The file itself is
-            // left in place: removing it would race another process that has
-            // already opened it and is about to lock it, and an unlocked file
-            // lying around costs nothing.
-            closeHandle(it->handle);
-            g_owned.erase(it);
+            if (m_access == Access::Write)
+                --it->writers;
+            else
+                --it->holders;
+            Q_ASSERT(it->writers >= 0 && it->holders >= 0);
+            if (it->writers == 0 && it->holders == 0) {
+                // Closing the descriptor drops the kernel lock. The file is
+                // left in place: removing it would race another process that
+                // has already opened it and is about to lock it.
+                closeHandle(it->handle);
+                g_owned.erase(it);
+            }
         }
     }
     m_root.clear();

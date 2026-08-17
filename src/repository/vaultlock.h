@@ -53,15 +53,13 @@ public:
         Unavailable,       // locking could not be attempted; proceed unlocked
     };
 
-    // What the acquirer intends to do with the vault. A writer contends for
-    // the lock; a reader states that it will not write and therefore takes no
-    // lock and is never refused. The distinction exists because "several
-    // collections on one root in one process" covers two different things: a
-    // second window that would save over the first, and a tool or a preview
-    // that only reads. Only the first is a correctness problem, and only an
-    // explicit mode can tell them apart.
+    // What the acquirer intends to do with the vault. A writer and a holder
+    // both reserve the root against other processes; holders may share that
+    // reservation inside this process, while at most one writer may join it.
+    // A reader states that it will not write and takes no lock at all.
     enum class Access {
         Write,
+        Hold,
         Read,
     };
 
@@ -130,8 +128,8 @@ private:
     QString m_root;                 // canonical, empty when not held
     Access m_access = Access::Write;
     bool m_holdsNativeLock = false;
-    // Whether this object is the one that registered m_root as held for
-    // writing by this process, and so the one that must unregister it.
+    // Whether this object registered m_root as a writer or holder in this
+    // process, and so must decrement that registration on release.
     bool m_ownsRegistration = false;
     // What the last successful acquisition answered, so re-acquiring the
     // same vault on the same terms repeats it rather than inventing one.

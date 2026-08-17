@@ -88,11 +88,15 @@ private slots:
     void unlockableFilesystemTellsTheUser();
     void holderDescriptionSurvivesAGarbageLockFile();
     void failedSwitchKeepsTheCurrentVaultLocked();
+    void holdKeepsTheNativeLockAfterTheWriterLeaves();
+    void switchingAWriterBetweenHeldRootsNeverUnlocksEither();
+    void holdPropagatesUnavailable();
     void readOnlySessionsShareAVaultWithAWriter();
     void unwritableFolderOpensForReadingOnly();
 
 private:
     QProcess *startHolder(const QString &root);
+    int probeWriter(const QString &root);
     QString program() const { return QCoreApplication::applicationFilePath(); }
 };
 
@@ -106,6 +110,17 @@ QProcess *TestVaultLock::startHolder(const QString &root)
     if (!holder->waitForReadyRead(15000))
         return nullptr;
     return holder;
+}
+
+int TestVaultLock::probeWriter(const QString &root)
+{
+    QProcess probe;
+    probe.start(program(), {QStringLiteral("--writer"), root,
+                            QStringLiteral("probe"),
+                            QStringLiteral("#123456"), QStringLiteral("0")});
+    if (!probe.waitForStarted(5000) || !probe.waitForFinished(20000))
+        return -1;
+    return probe.exitCode();
 }
 
 // The finding, and the fix for it. Two processes open the same vault and each
@@ -425,6 +440,118 @@ void TestVaultLock::failedSwitchKeepsTheCurrentVaultLocked()
 
     holder->kill();
     holder->waitForFinished(10000);
+}
+
+// A hold reserves the root without becoming a second writing collection. It
+// joins a writer in-process, shares the one native descriptor, and keeps that
+// descriptor alive after the writer unregisters.
+void TestVaultLock::holdKeepsTheNativeLockAfterTheWriterLeaves()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    VaultLock holder;
+    QVERIFY(holder.acquire(dir.path(), VaultLock::Access::Hold)
+            == VaultLock::Result::Acquired);
+    QVERIFY(holder.holdsNativeLock());
+    // Same terms are idempotent: one eventual release must remove this one
+    // holder registration rather than leaving a hidden second count behind.
+    QVERIFY(holder.acquire(dir.path(), VaultLock::Access::Hold)
+            == VaultLock::Result::Acquired);
+    QCOMPARE(probeWriter(dir.path()), kExitRefused);
+
+    VaultLock writer;
+    QVERIFY(writer.acquire(dir.path(), VaultLock::Access::Write)
+            == VaultLock::Result::Acquired);
+    QVERIFY(writer.holdsNativeLock());
+    QVERIFY(writer.acquire(dir.path(), VaultLock::Access::Write)
+            == VaultLock::Result::Acquired);
+
+    VaultLock secondWriter;
+    QVERIFY(secondWriter.acquire(dir.path(), VaultLock::Access::Write)
+            == VaultLock::Result::HeldInThisProcess);
+    QVERIFY(!secondWriter.isHeld());
+
+    writer.release();
+    QCOMPARE(probeWriter(dir.path()), kExitRefused);
+
+    holder.release();
+    QCOMPARE(probeWriter(dir.path()), kExitOk);
+}
+
+// An in-place root switch may acquire the arriving root before releasing the
+// departing writer. Holds on both roots mean that moving the writer's table
+// registration never makes either root available to a second process.
+void TestVaultLock::switchingAWriterBetweenHeldRootsNeverUnlocksEither()
+{
+    QTemporaryDir first;
+    QTemporaryDir second;
+    QVERIFY(first.isValid());
+    QVERIFY(second.isValid());
+
+    VaultLock holdFirst;
+    VaultLock holdSecond;
+    QVERIFY(holdFirst.acquire(first.path(), VaultLock::Access::Hold)
+            == VaultLock::Result::Acquired);
+    QVERIFY(holdSecond.acquire(second.path(), VaultLock::Access::Hold)
+            == VaultLock::Result::Acquired);
+
+    VaultLock writer;
+    QVERIFY(writer.acquire(first.path(), VaultLock::Access::Write)
+            == VaultLock::Result::Acquired);
+    QCOMPARE(probeWriter(first.path()), kExitRefused);
+    QCOMPARE(probeWriter(second.path()), kExitRefused);
+
+    QVERIFY(writer.acquire(second.path(), VaultLock::Access::Write)
+            == VaultLock::Result::Acquired);
+    QCOMPARE(QFileInfo(writer.root()).canonicalFilePath(),
+             QFileInfo(second.path()).canonicalFilePath());
+    QCOMPARE(probeWriter(first.path()), kExitRefused);
+    QCOMPARE(probeWriter(second.path()), kExitRefused);
+
+    QVERIFY(writer.acquire(first.path(), VaultLock::Access::Write)
+            == VaultLock::Result::Acquired);
+    QCOMPARE(probeWriter(first.path()), kExitRefused);
+    QCOMPARE(probeWriter(second.path()), kExitRefused);
+
+    writer.release();
+    QCOMPARE(probeWriter(first.path()), kExitRefused);
+    QCOMPARE(probeWriter(second.path()), kExitRefused);
+    holdFirst.release();
+    holdSecond.release();
+    QCOMPARE(probeWriter(first.path()), kExitOk);
+    QCOMPARE(probeWriter(second.path()), kExitOk);
+}
+
+// Fail-open is a property of the root's shared native reservation. A holder
+// that could not take a kernel lock reports Unavailable, and a writer joining
+// it reports the same result while the one-writer count still applies.
+void TestVaultLock::holdPropagatesUnavailable()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    VaultLock::setForcedUnavailableForTests(true);
+    struct ResetForcedUnavailable {
+        ~ResetForcedUnavailable()
+        {
+            VaultLock::setForcedUnavailableForTests(false);
+        }
+    } reset;
+
+    VaultLock holder;
+    QVERIFY(holder.acquire(dir.path(), VaultLock::Access::Hold)
+            == VaultLock::Result::Unavailable);
+    QVERIFY(!holder.holdsNativeLock());
+
+    VaultLock writer;
+    QVERIFY(writer.acquire(dir.path(), VaultLock::Access::Write)
+            == VaultLock::Result::Unavailable);
+    QVERIFY(!writer.holdsNativeLock());
+
+    VaultLock secondWriter;
+    QVERIFY(secondWriter.acquire(dir.path(), VaultLock::Access::Write)
+            == VaultLock::Result::HeldInThisProcess);
 }
 
 // The lock is what stops two writers. A consumer that only reads has nothing
