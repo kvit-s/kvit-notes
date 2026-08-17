@@ -41,13 +41,13 @@ public:
     // string as the default vault. An already-open target raises its window;
     // otherwise a new window is created. Returns false only when a newly
     // created window failed to load its shell.
-    bool openStartup(const QString &target);
+    virtual bool openStartup(const QString &target);
 
     // Reopen the vaults that were open at the last quit (a bare cold launch).
     // Falls back to the default vault when nothing was remembered — a first run
     // or a session with no vaults. Returns false only when every attempt failed
     // to load its shell.
-    bool openSession();
+    virtual bool openSession();
 
     // WindowRouter — actions from a menu or dialog inside a window.
     void openVaultInWindow(AppContext *requester, const QString &path) override;
@@ -75,18 +75,19 @@ signals:
     // first one for its process-level startup timing mark.
     void windowOpened(VaultWindow *window);
 
-private:
+protected:
     static QString canonicalKey(const QString &path);
     static QString defaultVaultPath();
     QString keyForTarget(const QString &target) const;
     VaultWindow *createWindow(const QString &target, const QString &key);
     void removeWindow(VaultWindow *w);
     void recordRecentVault(const QString &canonicalPath);
-    void persistOpenVaults();
+    virtual void persistOpenVaults();
     // Make `w` the active window and the sole target of the shared tray's menu
     // actions (every other window's tray gate closes).
     void setActive(VaultWindow *w);
 
+private:
     ProcessServices &m_globals;
     QUrl m_shellUrl;
     // Ownership. Keyed lookup is the parallel m_byKey; both are kept in step.

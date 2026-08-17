@@ -742,7 +742,8 @@ qt_add_executable(test_multivault
     ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_link_libraries(test_multivault PRIVATE
-    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia
+    Qt6::Widgets)
 add_test(NAME MultiVaultTests COMMAND test_multivault)
 set_tests_properties(MultiVaultTests PROPERTIES TIMEOUT 300)
 

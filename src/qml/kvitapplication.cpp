@@ -136,7 +136,11 @@ KvitApplication::StartOutcome KvitApplication::start(const QStringList &argument
                 m_app.quit();
             });
 
-    m_registry = std::make_unique<WindowRegistry>(m_processServices, m_shellUrl);
+    m_registry = m_registryFactory
+        ? m_registryFactory(m_processServices, m_shellUrl)
+        : std::make_unique<WindowRegistry>(m_processServices, m_shellUrl);
+    if (!m_registry)
+        return StartOutcome::Failed;
 
     // Tray menu actions (new note, quick capture, show) are handled in each
     // window's shell (qml/SystemIntegration.qml), gated on AppActions.trayTarget

@@ -9,6 +9,7 @@
 // so it runs offscreen alongside the other `shell`-labelled suites.
 #include <QtTest>
 
+#include <QApplication>
 #include <QDir>
 #include <QFile>
 #include <QQuickWindow>
@@ -23,6 +24,7 @@
 #include "documentmanager.h"
 #include "filesystemtreemodel.h"
 #include "filewatcher.h"
+#include "kvitapplication.h"
 #include "notecollection.h"
 #include "notelistmodel.h"
 #include "processservices.h"
@@ -39,6 +41,71 @@ ProcessServices::Options headlessOptions()
     options.configureLoggingFromSettings = false;
     return options;
 }
+
+class OneWindowPolicy final : public WindowRegistry
+{
+public:
+    using WindowRegistry::WindowRegistry;
+
+    bool openStartup(const QString &target) override
+    {
+        calls << QStringLiteral("startup:") + target;
+        if (!activeWindow())
+            return WindowRegistry::openStartup(target);
+        openVaultInNewWindow(target);
+        return true;
+    }
+
+    bool openSession() override
+    {
+        calls << QStringLiteral("session");
+        return WindowRegistry::openSession();
+    }
+
+    void openVaultInNewWindow(const QString &path) override
+    {
+        calls << QStringLiteral("vault:") + path;
+        if (VaultWindow *window = activeWindow()) {
+            WindowRegistry::openVaultInWindow(window->context(), path);
+            return;
+        }
+        WindowRegistry::openVaultInNewWindow(path);
+    }
+
+    void openFileInNewWindow(const QString &path) override
+    {
+        // A one-window policy may choose its own file transition. This harness
+        // only observes that the launch-facing virtual entry point was used.
+        calls << QStringLiteral("file:") + path;
+    }
+
+    QStringList calls;
+};
+
+class ScopedEnvironment
+{
+public:
+    ScopedEnvironment(const char *name, const QByteArray &value)
+        : m_name(name)
+        , m_hadValue(qEnvironmentVariableIsSet(name))
+        , m_value(qgetenv(name))
+    {
+        qputenv(name, value);
+    }
+
+    ~ScopedEnvironment()
+    {
+        if (m_hadValue)
+            qputenv(m_name.constData(), m_value);
+        else
+            qunsetenv(m_name.constData());
+    }
+
+private:
+    QByteArray m_name;
+    bool m_hadValue;
+    QByteArray m_value;
+};
 }
 
 class TestMultiVault : public QObject
@@ -141,6 +208,88 @@ private slots:
         // it was requested from the other one.
         first->context()->appActions()->requestCloseVault(vault2.path());
         QTRY_COMPARE(registry.windowCount(), 1);
+    }
+
+    // The launcher owns the policy through its base type, but every launch
+    // entry point still dispatches to the factory-made subclass. This policy
+    // turns both session restore and a forwarded launch into an in-place root
+    // switch, so neither route can accidentally create a second window.
+    void registryFactoryCanInstallAOneWindowPolicy()
+    {
+        QTemporaryDir configDir;
+        QTemporaryDir vault1;
+        QTemporaryDir vault2;
+        QVERIFY(configDir.isValid());
+        QVERIFY(vault1.isValid());
+        QVERIFY(vault2.isValid());
+
+        // Keep the launcher's default settings path inside the test fixture.
+        // Qt uses XDG_CONFIG_HOME on Unix and APPDATA on Windows.
+        ScopedEnvironment xdgConfig("XDG_CONFIG_HOME",
+                                    configDir.path().toUtf8());
+        ScopedEnvironment appData("APPDATA", configDir.path().toUtf8());
+
+        auto *application = qobject_cast<QApplication *>(
+            QCoreApplication::instance());
+        QVERIFY(application);
+        const QString oldOrganization = application->organizationName();
+        const QString oldApplication = application->applicationName();
+        struct RestoreIdentity {
+            QApplication *app;
+            QString organization;
+            QString application;
+            ~RestoreIdentity()
+            {
+                app->setOrganizationName(organization);
+                app->setApplicationName(application);
+            }
+        } restore{application, oldOrganization, oldApplication};
+
+        OneWindowPolicy *policy = nullptr;
+        KvitApplication launcher(
+            *application,
+            {QStringLiteral("Kvit Tests"),
+             QStringLiteral("Registry Factory")});
+        launcher.setSingleInstanceEnabled(false);
+        launcher.setRegistryFactory(
+            [&policy](ProcessServices &globals, const QUrl &shellUrl) {
+                auto made =
+                    std::make_unique<OneWindowPolicy>(globals, shellUrl);
+                policy = made.get();
+                return made;
+            });
+
+        QCOMPARE(launcher.start({QStringLiteral("test_multivault"),
+                                 vault1.path()}),
+                 KvitApplication::StartOutcome::RunEventLoop);
+        QCOMPARE(launcher.registry(), policy);
+        QVERIFY(policy);
+        QCOMPARE(policy->windowCount(), 1);
+        QTRY_COMPARE(policy->activeWindow()->context()
+                         ->noteCollection()->rootPath(),
+                     QDir(vault1.path()).absolutePath());
+
+        QVERIFY(policy->openSession());
+        QCOMPARE(policy->windowCount(), 1);
+
+        // This is the exact virtual entry point used by the primary process's
+        // second-launch handler.
+        QVERIFY(policy->openStartup(vault2.path()));
+        QCOMPARE(policy->windowCount(), 1);
+        QTRY_COMPARE(policy->activeWindow()->context()
+                         ->noteCollection()->rootPath(),
+                     QDir(vault2.path()).absolutePath());
+
+        policy->openFileInNewWindow(
+            vault2.filePath(QStringLiteral("loose.md")));
+        QVERIFY(policy->calls.contains(QStringLiteral("session")));
+        QVERIFY(policy->calls.contains(QStringLiteral("startup:")
+                                       + vault2.path()));
+        QVERIFY(policy->calls.contains(QStringLiteral("vault:")
+                                       + vault2.path()));
+        QVERIFY(policy->calls.contains(
+            QStringLiteral("file:")
+            + vault2.filePath(QStringLiteral("loose.md"))));
     }
 
     // A bare cold launch reopens the vaults that were open at the last quit.

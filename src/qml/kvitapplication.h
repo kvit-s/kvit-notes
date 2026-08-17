@@ -10,7 +10,9 @@
 #include <QStringList>
 #include <QUrl>
 
+#include <functional>
 #include <memory>
+#include <utility>
 
 #include "processservices.h"
 
@@ -97,6 +99,17 @@ public:
     void setShellUrl(const QUrl &url) { m_shellUrl = url; }
     QUrl shellUrl() const { return m_shellUrl; }
 
+    // The process-wide window policy. A superset build or harness can replace
+    // the stock registry before start() while leaving every launch entry point
+    // routed through the one object the launcher owns.
+    using RegistryFactory =
+        std::function<std::unique_ptr<WindowRegistry>(ProcessServices &,
+                                                       const QUrl &)>;
+    void setRegistryFactory(RegistryFactory factory)
+    {
+        m_registryFactory = std::move(factory);
+    }
+
     // The process-global composition, shared by every window. A downstream main()
     // installs its module here before start().
     ProcessServices &processServices() { return m_processServices; }
@@ -111,6 +124,7 @@ private:
     // The globals outlive the registry (which owns the windows that borrow
     // them), so they are declared first and destroyed last.
     ProcessServices m_processServices;
+    RegistryFactory m_registryFactory;
     std::unique_ptr<WindowRegistry> m_registry;
 };
 
