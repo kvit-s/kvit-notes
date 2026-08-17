@@ -44,6 +44,8 @@ add_test(NAME AccessibilityTests COMMAND test_accessibility)
 qt_add_executable(test_systemintegration test_systemintegration.cpp)
 target_link_libraries(test_systemintegration PRIVATE kvit-core Qt6::Test Qt6::Widgets)
 add_test(NAME SystemIntegrationTests COMMAND test_systemintegration)
+set_tests_properties(SystemIntegrationTests
+    PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # FileWatcher tests (external-change watch + own-write guard).
 qt_add_executable(test_filewatcher test_filewatcher.cpp)

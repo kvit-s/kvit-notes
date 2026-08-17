@@ -4,6 +4,12 @@ cmake_minimum_required(VERSION 3.21)
 # numeric components only, because CMake rejects a prerelease suffix here.
 project(kvit-notes VERSION 1.0.0 LANGUAGES CXX)
 
+if(APPLE)
+    # Native notification authorization and per-message activation ids are
+    # provided by UNUserNotificationCenter on macOS.
+    enable_language(OBJCXX)
+endif()
+
 # The full SemVer string the binary reports, prerelease suffix included.
 #
 # A tag build passes the version derived from the tag, so v1.0.0-rc1 produces
@@ -387,6 +393,14 @@ add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/urllauncher.cpp
     src/platform/embedfetcher.h
 )
+if(APPLE)
+    target_sources(kvit-platform PRIVATE src/platform/systemtray_mac.mm)
+    set_source_files_properties(src/platform/systemtray_mac.mm PROPERTIES
+        COMPILE_OPTIONS "-fobjc-arc")
+    find_library(KVIT_USER_NOTIFICATIONS_FRAMEWORK UserNotifications REQUIRED)
+    target_link_libraries(kvit-platform PRIVATE
+        "${KVIT_USER_NOTIFICATIONS_FRAMEWORK}")
+endif()
 target_link_libraries(kvit-platform PUBLIC kvit-domain Qt6::Network)
 target_link_libraries(kvit-platform PRIVATE Qt6::Widgets)
 target_include_directories(kvit-platform PUBLIC src/platform)

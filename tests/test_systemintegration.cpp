@@ -4,12 +4,64 @@
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QVector>
 #include "globalhotkey.h"
 #include "systemtray.h"
 #include "settingsstore.h"
 #include "notecollection.h"
 
 #include "faultinjection.h"
+
+namespace {
+
+class FakeNotificationBackend final : public SystemTrayNotificationBackend
+{
+public:
+    struct Post {
+        QString title;
+        QString message;
+        QString activationId;
+    };
+
+    FakeNotificationBackend(SystemTray::NotificationAuthorization initial,
+                            SystemTray::NotificationAuthorization requestResult)
+        : m_authorization(initial)
+        , m_requestResult(requestResult)
+    {
+    }
+
+    SystemTray::NotificationAuthorization authorization() const override
+    {
+        return m_authorization;
+    }
+
+    void requestAuthorization() override
+    {
+        ++requestCount;
+        m_authorization = m_requestResult;
+        emit authorizationChanged(m_authorization);
+    }
+
+    void post(const QString &title, const QString &message,
+              const QString &activationId) override
+    {
+        posts.push_back({title, message, activationId});
+    }
+
+    void activate(int postIndex)
+    {
+        emit activated(posts.at(postIndex).activationId);
+    }
+
+    int requestCount = 0;
+    QVector<Post> posts;
+
+private:
+    SystemTray::NotificationAuthorization m_authorization;
+    SystemTray::NotificationAuthorization m_requestResult;
+};
+
+} // namespace
 
 // System integration seams. The tray and global hotkey route
 // their actions through signals so the in-app path is exercised without a live
@@ -24,6 +76,10 @@ private slots:
     void hotkeyTriggerEmitsActivated();
     void trayActionsRouteToSignals();
     void trayNotifyRecordsAndEmits();
+    void trayAuthorizationResolvesOnce_data();
+    void trayAuthorizationResolvesOnce();
+    void trayNotificationActivationCarriesItsId();
+    void unavailableTrayDoesNotPrompt();
     void trayCloseToTrayIsOptInAndPersists();
     void captureNoteWritesBodyTitledFromFirstLine();
     void captureNoteFallsBackToUntitled();
@@ -79,9 +135,88 @@ void TestSystemIntegration::trayNotifyRecordsAndEmits()
     SystemTray tray;
     QSignalSpy spy(&tray, &SystemTray::notified);
     tray.notify("Kvit", "Note captured");
+    QCOMPARE(tray.lastNotificationTitle(), QString("Kvit"));
     QCOMPARE(tray.lastNotification(), QString("Note captured"));
     QCOMPARE(spy.count(), 1);
     QCOMPARE(spy.at(0).at(0).toString(), QString("Note captured"));
+}
+
+void TestSystemIntegration::trayAuthorizationResolvesOnce_data()
+{
+    QTest::addColumn<int>("result");
+    QTest::newRow("authorized") << int(SystemTray::Authorized);
+    QTest::newRow("denied") << int(SystemTray::Denied);
+}
+
+void TestSystemIntegration::trayAuthorizationResolvesOnce()
+{
+    QFETCH(int, result);
+    const auto expected =
+        static_cast<SystemTray::NotificationAuthorization>(result);
+    auto backend = std::make_unique<FakeNotificationBackend>(
+        SystemTray::Unknown, expected);
+    FakeNotificationBackend *fake = backend.get();
+    SystemTray tray(std::move(backend));
+    QSignalSpy changed(&tray, &SystemTray::notificationAuthorizationChanged);
+
+    QCOMPARE(tray.notificationAuthorization(), SystemTray::Unknown);
+    tray.requestNotificationAuthorization();
+    QCOMPARE(tray.notificationAuthorization(), expected);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(fake->requestCount, 1);
+
+    // Both authorized and denied are terminal. A second consumer checking the
+    // state and requesting defensively must not put up the prompt again.
+    tray.requestNotificationAuthorization();
+    QCOMPARE(fake->requestCount, 1);
+}
+
+void TestSystemIntegration::trayNotificationActivationCarriesItsId()
+{
+    auto backend = std::make_unique<FakeNotificationBackend>(
+        SystemTray::Authorized, SystemTray::Authorized);
+    FakeNotificationBackend *fake = backend.get();
+    SystemTray tray(std::move(backend));
+    QSignalSpy activated(&tray, &SystemTray::notificationActivated);
+    QSignalSpy showWindow(&tray, &SystemTray::showWindowRequested);
+
+    tray.notify("Legacy", "No activation id");
+    tray.notify("First", "One", "note:one");
+    tray.notify("Second", "Two", "note:two");
+    QCOMPARE(fake->posts.size(), 3);
+    QCOMPARE(fake->posts.at(0).title, QString("Legacy"));
+    QCOMPARE(fake->posts.at(0).message, QString("No activation id"));
+    QVERIFY(fake->posts.at(0).activationId.isEmpty());
+    QCOMPARE(fake->posts.at(1).title, QString("First"));
+    QCOMPARE(fake->posts.at(1).message, QString("One"));
+    QCOMPARE(fake->posts.at(1).activationId, QString("note:one"));
+    QCOMPARE(fake->posts.at(2).title, QString("Second"));
+    QCOMPARE(fake->posts.at(2).message, QString("Two"));
+    QCOMPARE(fake->posts.at(2).activationId, QString("note:two"));
+
+    fake->activate(1);
+    fake->activate(2);
+    QCOMPARE(activated.count(), 2);
+    QCOMPARE(activated.at(0).at(0).toString(), QString("note:one"));
+    QCOMPARE(activated.at(1).at(0).toString(), QString("note:two"));
+
+    // The tray icon's existing route is independent of notification clicks.
+    tray.triggerAction("show");
+    QCOMPARE(showWindow.count(), 1);
+    QCOMPARE(activated.count(), 2);
+}
+
+void TestSystemIntegration::unavailableTrayDoesNotPrompt()
+{
+    SystemTray tray;
+    if (tray.available())
+        QSKIP("This desktop provides a system tray");
+
+    QCOMPARE(tray.notificationAuthorization(), SystemTray::Unsupported);
+    QSignalSpy changed(&tray, &SystemTray::notificationAuthorizationChanged);
+    tray.requestNotificationAuthorization();
+    QCOMPARE(tray.notificationAuthorization(), SystemTray::Unsupported);
+    QCOMPARE(changed.count(), 0);
 }
 
 void TestSystemIntegration::trayCloseToTrayIsOptInAndPersists()

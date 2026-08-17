@@ -12410,6 +12410,7 @@ Item {
 
             // The notifier records what it posts.
             SystemTray.notify("Kvit", "Test notification")
+            compare(SystemTray.lastNotificationTitle, "Kvit")
             compare(SystemTray.lastNotification, "Test notification")
         }
 

@@ -30,6 +30,7 @@
 #include "textfileviewmodel.h"
 #include "theme.h"
 #include "qmlservices.h"
+#include "systemtray.h"
 
 #include <QQmlContext>
 #include <QRegularExpression>
@@ -188,6 +189,34 @@ private slots:
         if (m_warningsAfterLoad > 0)
             QFAIL(qPrintable(warningReport(QStringLiteral("Loading qml/main.qml"),
                                            g_warnings.mid(0, m_warningsAfterLoad), 0)));
+    }
+
+    void oldTwoArgumentNotificationCallKeepsItsQmlContract()
+    {
+        SystemTray *tray = m_context->systemTray();
+        QSignalSpy posted(tray, &SystemTray::notified);
+        QQmlComponent component(&m_engine);
+        component.setData(R"(
+            import QtQml
+            import Kvit 1.0
+            QtObject {
+                Component.onCompleted:
+                    SystemTray.notify("Compatibility title",
+                                      "Compatibility message")
+            }
+        )", QUrl(QStringLiteral("inmemory:notification-compatibility.qml")));
+        QTRY_VERIFY(component.status() != QQmlComponent::Loading);
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        std::unique_ptr<QObject> object(component.create(m_engine.rootContext()));
+        QVERIFY2(object, qPrintable(component.errorString()));
+
+        QCOMPARE(posted.count(), 1);
+        QCOMPARE(posted.at(0).at(0).toString(),
+                 QStringLiteral("Compatibility message"));
+        QCOMPARE(tray->lastNotificationTitle(),
+                 QStringLiteral("Compatibility title"));
+        QCOMPARE(tray->lastNotification(),
+                 QStringLiteral("Compatibility message"));
     }
 
     // The core publishes no context properties at all any more: every service
