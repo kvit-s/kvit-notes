@@ -46,8 +46,10 @@ kvit-domain       the block document: model, serializer, undo stack and
       ↑
 kvit-search   kvit-platform
                   the rebuildable note index, and the machine the app runs
-                  on: settings, file watching, network policy, tray,
-                  hotkeys, appearance tokens.
+                  on: file watching, network policy, tray, hotkeys.
+                  Appearance tokens, the settings store, SystemAppearance
+                  and PerfLog are in the kvit-ui submodule, linked by
+                  kvit-domain and kvit-platform.
       ↑
 kvit-repository   the vault: containment, note filesystem access, atomic
                   persistence, trash, backups, recovery, templates, import,
@@ -77,9 +79,9 @@ carries those. Qt's networking classes may appear only under `src/platform/`,
 which is the one place `Qt6::Network` is linked. Filesystem mutation
 may appear only in files listed in that script with the reason each is
 allowed: the repository as a whole, the document session for the open note,
-export output, three caches and the performance log. A stale entry fails the check
-too, so the list cannot quietly outlive the code it describes. It runs as the
-`LayeringGuard` test.
+export output, and the caches. Settings and the performance log write from
+kvit-ui. A stale entry fails the check too, so the list cannot quietly
+outlive the code it describes. It runs as the `LayeringGuard` test.
 
 ## Consequences
 

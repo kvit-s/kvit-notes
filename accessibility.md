@@ -133,7 +133,7 @@ establish both that mnemonics are stripped and that a glyph label is passed
 through verbatim as the spoken name.
 
 **Computation over the theme tokens.** A script parses the four token tables in
-`src/platform/theme.cpp` and computes WCAG 2.1 contrast ratios for every pair
+`third_party/kvit-ui/src/tokens/theme.cpp` and computes WCAG 2.1 contrast ratios for every pair
 that appears together on screen. This is what Finding 3 rests on, and it becomes
 a permanent test in the work plan below.
 
@@ -262,7 +262,7 @@ Every popup that offers a choice needs four things:
 
 Colour names are worth doing properly rather than reporting hex values: the
 palette comes from `Theme.colorPalette`, so a parallel list of names belongs
-beside it in `src/platform/theme.cpp` and can be reused by the folder and tag
+beside it in `third_party/kvit-ui/src/tokens/theme.cpp` and can be reused by the folder and tag
 colour pickers.
 
 ## Finding 3: colour contrast
@@ -409,10 +409,9 @@ the reverse — and `Typography` deliberately freezes its ratios so that documen
 rendering stays pixel-identical at the default, a promise that gets harder to
 keep if chrome metrics ride on the same base.
 
-Add `src/platform/interfacemetrics.{h,cpp}`, exposed to QML as the `Interface`
+Add `InterfaceMetrics` (now in `third_party/kvit-ui/src/tokens/interfacemetrics.{h,cpp}`), exposed to QML as the `Interface`
 singleton through the `X(InterfaceMetrics, Interface)` entry in
-`src/qml/qmlsingletons.h`, and list the new source at `CMakeLists.txt:383`
-beside `theme.cpp` and `typography.cpp`. It follows the shape `Typography`
+`src/qml/qmlsingletons.h`. It follows the shape `Typography`
 already uses: state in the settings store under an `interface.` key prefix,
 clamped setters, one change signal, and role sizes derived from one base by
 ratios frozen from today's values so the default renders unchanged.
@@ -519,7 +518,7 @@ turns it on system-wide expects every application to follow, and Kvit already ha
 a high-contrast theme that passes a 7:1 floor. Following the setting is mostly a
 matter of resolving to those existing tokens.
 
-Add `src/platform/systemappearance.{h,cpp}` with one class, a small
+Add `SystemAppearance` (now in `third_party/kvit-ui/src/tokens/systemappearance.{h,cpp}`) with one class, a small
 platform-specific implementation behind `#ifdef`, and two notifying properties:
 `highContrast` and `reducedMotion`, each of which is false where the platform
 gives no answer. `Theme` then gains a third value for its theme setting —

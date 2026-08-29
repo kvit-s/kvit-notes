@@ -16,7 +16,11 @@ cannot draw its own disabled state (`qml/DiscoverableMenuItem.qml`).
 
 ## Building and running
 
+A first clone needs the kvit-ui submodule, which holds Theme, Typography and
+InterfaceMetrics:
+
 ```
+git submodule update --init third_party/kvit-ui
 ./build.sh            # configure + build
 ./build.sh --test     # ...then run the test suite
 ./build.sh --run      # ...then launch the editor
@@ -39,8 +43,10 @@ src/domain/       the block document: model, serializer, undo, selection,
                   in-document search, outline, statistics
 src/search/       the rebuildable note index (this is the only place
                   Qt6::Sql is linked)
-src/platform/     settings, file watching, network policy, tray, hotkeys,
-                  appearance tokens (the only place Qt6::Network is linked)
+src/platform/     file watching, network policy, tray, hotkeys
+                  (the only place Qt6::Network is linked). Appearance tokens,
+                  the settings store they persist through, SystemAppearance
+                  and PerfLog live in the kvit-ui submodule.
 src/repository/   the vault: containment, note files, atomic persistence,
                   trash, backups, recovery, templates, import, assets
 src/application/  the document session, startup, the view models, queries,
@@ -56,6 +62,12 @@ resolve, and the error is "No such file or directory" rather than anything
 about layering. If a header you expect is not found, the question to ask is
 whether the include is pointing the wrong way rather than whether the path is
 misspelled.
+
+The token classes are the exception. `Theme`, `Typography` and
+`InterfaceMetrics` (and `SettingsStore`, `SystemAppearance`, `PerfLog`) are
+compiled in `third_party/kvit-ui`. QML still reaches them as `Kvit` module
+singletons — `import Kvit.Ui` is Wave 5, because that module also exports a
+`KvitDialog` that would clash with `qml/KvitDialog.qml`.
 
 Three things the compiler cannot catch are checked by
 `python3 tools/check-layering.py`, which also runs as the `LayeringGuard`

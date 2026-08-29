@@ -242,6 +242,36 @@ else()
     set(KVIT_LIB_TYPE STATIC)
 endif()
 
+# ── kvit-ui — the shared token layer (Wave 2).
+#
+# Theme, Typography and InterfaceMetrics used to be compiled here, in
+# kvit-platform, alongside the SettingsStore, SystemAppearance and PerfLog
+# they persist through. They live in the kvit-ui submodule now, so this
+# repository and the three applications that will follow it draw from one
+# table. The QML names stay Theme, Interface and Typography on the `Kvit`
+# module: importing `Kvit.Ui` here would make KvitDialog ambiguous with the
+# library's type of the same name, and adopting that type is Wave 5.
+#
+# A superbuild (kvit-notes-pro) may point KVIT_UI_ROOT at its own pin of the
+# same commit, so the two repositories cannot drift by nested-submodule
+# accident. Standalone builds use the submodule below.
+if(NOT KVIT_UI_ROOT)
+    set(KVIT_UI_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/kvit-ui")
+endif()
+if(NOT EXISTS "${KVIT_UI_ROOT}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "kvit-ui not found at ${KVIT_UI_ROOT}.\n"
+        "Initialise the submodule:\n"
+        "    git submodule update --init third_party/kvit-ui")
+endif()
+# option() in a subdirectory leaves a cache variable already set alone
+# (CMP0077), so these govern the nested build the way KVIT_SHARED_LIBS
+# governs the modules above. Gallery and tests belong to kvit-ui's own CI.
+set(KVIT_UI_SHARED_LIBS ${KVIT_SHARED_LIBS} CACHE BOOL "" FORCE)
+set(KVIT_UI_BUILD_GALLERY OFF CACHE BOOL "" FORCE)
+set(KVIT_UI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory("${KVIT_UI_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/kvit-ui")
+
 # ── kvit-content — format transforms, and nothing else.
 #
 # Every file here is a pure function of its input: markdown in, markdown or
@@ -329,7 +359,6 @@ add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/mergeblockscommand.cpp
     src/domain/moveblockcommand.cpp
     src/domain/moveblockscommand.cpp
-    src/domain/perflog.cpp
     src/domain/persistencepool.cpp
     src/domain/removeblockcommand.cpp
     src/domain/reservedsubtrees.cpp
@@ -343,7 +372,7 @@ add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/cancellationtoken.h
     src/domain/noteentry.h
 )
-target_link_libraries(kvit-domain PUBLIC kvit-content)
+target_link_libraries(kvit-domain PUBLIC kvit-content kvit-ui-tokens)
 target_link_libraries(kvit-domain PRIVATE Qt6::Concurrent)
 target_include_directories(kvit-domain PUBLIC src/domain)
 
@@ -369,6 +398,11 @@ target_include_directories(kvit-search PUBLIC src/search)
 # one cannot open a connection because it has nothing to open one with.
 # PUBLIC only because egressfetcher.h holds a QNetworkAccessManager member
 # and names QHostAddress in its resolver seam.
+#
+# Appearance tokens (Theme, Typography, InterfaceMetrics), the settings
+# store they persist through, SystemAppearance and PerfLog are kvit-ui's.
+# This module links that library publicly so every caller that already
+# reached those headers through kvit-platform still does.
 add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/accessibilityannouncer.cpp
     src/platform/clipboardhelper.cpp
@@ -377,18 +411,13 @@ add_library(kvit-platform ${KVIT_LIB_TYPE}
     src/platform/filewatcher.cpp
     src/platform/globalhotkey.cpp
     src/platform/ignorerules.cpp
-    src/platform/interfacemetrics.cpp
     src/platform/localimageprovider.cpp
     src/platform/menuaccesskeys.cpp
     src/platform/remoteimageprovider.cpp
     src/platform/remotemediacache.cpp
-    src/platform/settingsstore.cpp
     src/platform/shortcutcatalog.cpp
     src/platform/singleinstance.cpp
-    src/platform/systemappearance.cpp
     src/platform/systemtray.cpp
-    src/platform/theme.cpp
-    src/platform/typography.cpp
     src/platform/updatechecker.cpp
     src/platform/urllauncher.cpp
     src/platform/embedfetcher.h
@@ -401,7 +430,7 @@ if(APPLE)
     target_link_libraries(kvit-platform PRIVATE
         "${KVIT_USER_NOTIFICATIONS_FRAMEWORK}")
 endif()
-target_link_libraries(kvit-platform PUBLIC kvit-domain Qt6::Network)
+target_link_libraries(kvit-platform PUBLIC kvit-domain kvit-ui-tokens Qt6::Network)
 target_link_libraries(kvit-platform PRIVATE Qt6::Widgets)
 target_include_directories(kvit-platform PUBLIC src/platform)
 
@@ -578,6 +607,11 @@ endif()
 foreach(_module content domain search platform repository application)
     qt_extract_metatypes(kvit-${_module})
 endforeach()
+# Theme, Typography, InterfaceMetrics, SettingsStore and SystemAppearance
+# are compiled in kvit-ui-tokens. The Kvit module still registers them as
+# QML_FOREIGN wrappers, so the registrar has to see this target's
+# metatypes the same way it sees the seven above.
+qt_extract_metatypes(kvit-ui-tokens)
 
 # Those descriptions have to exist before the registrar reads them, which
 # under the Visual Studio generator does not happen on its own.

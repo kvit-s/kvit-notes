@@ -5,6 +5,7 @@
 #define BLOCKKIND_H
 
 #include "block.h"
+#include "typography.h"
 
 #include <QObject>
 
@@ -88,22 +89,12 @@ Q_ENUM_NS(Kind)
 // the enumeration a metaobject.
 using BlockKind = BlockKinds::Kind;
 
-// Which entry of the frozen type scale a kind renders at. Typography turns a
-// role into pixels; the ratios stay where they are.
-//
-// A role rather than a size, because the block knows what it is and the
-// typography settings know how big that should be. Typography used to switch
-// over Block::BlockType itself, which meant one more place a new kind had to
-// be added to and nothing said so.
-enum class FontRole {
-    Body,
-    Heading1,
-    Heading2,
-    Heading3,
-    Heading4,
-    // A code fence, and anything else drawn in the configured monospace
-    // family at the code size.
-    Mono,
-};
+// Which entry of the frozen type scale a kind renders at. The enumeration
+// lives on Typography, which is what turns a role into pixels; the alias
+// keeps the sixty call sites in this module spelling `FontRole::Body`
+// rather than `Typography::FontRole::Body`. The order and the values are
+// Typography's, because both are handed across as an int through a model
+// role and a mismatch would silently resize text.
+using FontRole = Typography::FontRole;
 
 #endif // BLOCKKIND_H

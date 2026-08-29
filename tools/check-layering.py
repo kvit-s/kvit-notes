@@ -47,6 +47,15 @@ DEPENDS = {
     "qml": {"application", "repository", "platform", "search", "domain", "content"},
 }
 
+# Headers that live in the kvit-ui submodule rather than under src/. Quoted
+# includes of these resolve through kvit-ui-tokens' public include directory,
+# so they have no module owner in this tree and must not be treated as a
+# layering violation. Wave 2 moved them out of kvit-platform / kvit-domain.
+EXTERNAL_HEADERS = {
+    "theme.h", "typography.h", "interfacemetrics.h",
+    "settingsstore.h", "systemappearance.h", "perflog.h",
+}
+
 # src/main.cpp is the executable's entry point, not a module; it composes.
 UNMODULED = {"main.cpp"}
 
@@ -102,8 +111,6 @@ MAY_MUTATE = {
         "export output, at a path the user chose, outside the vault",
     "application/embedmetadata.cpp":
         "the embed preview cache under .kvit/cache, rebuilt on miss",
-    "platform/settingsstore.cpp":
-        "per-user application settings, outside any vault",
     "platform/remotemediacache.cpp":
         "the fetched-media cache, rebuilt on miss",
     "search/searchindexdb.cpp":
@@ -113,8 +120,6 @@ MAY_MUTATE = {
     "content/diagrams/diagramcanvas.cpp":
         "a rendered diagram PNG, at a path the exporter chose, outside the "
         "vault",
-    "domain/perflog.cpp":
-        "the performance log and its rotation, in the user's cache directory",
 }
 
 
@@ -204,12 +209,14 @@ def main():
             # are Qt and third-party.
             match = re.match(r'\s*#\s*include\s+[<"]([^">]+)[">]', text.split("\n")[lineno - 1])
             if match:
-                owner = owners.get(match.group(1)) or owners.get(
-                    os.path.basename(match.group(1)))
-                if owner and owner not in allowed:
-                    problems.append((rel, lineno,
-                                     'includes "%s" from kvit-%s, which kvit-%s '
-                                     "may not depend on" % (match.group(1), owner, mod)))
+                header = match.group(1)
+                if os.path.basename(header) not in EXTERNAL_HEADERS:
+                    owner = owners.get(header) or owners.get(
+                        os.path.basename(header))
+                    if owner and owner not in allowed:
+                        problems.append((rel, lineno,
+                                         'includes "%s" from kvit-%s, which kvit-%s '
+                                         "may not depend on" % (header, owner, mod)))
 
             found = NETWORK_TYPES.search(line)
             if found and mod not in NETWORK_MODULES:

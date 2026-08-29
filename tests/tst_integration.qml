@@ -28,7 +28,7 @@ Item {
         // Detect headless mode (offscreen platform)
         readonly property bool isHeadless: Qt.platform.pluginName === "offscreen"
 
-        // FontRole (src/domain/blockkind.h) as QML sees it. The enum is not
+        // FontRole (Typography::FontRole, aliased in src/domain/blockkind.h)
         // registered with the engine, so the cases below name the roles here
         // and ask Typography what size each one renders at rather than
         // repeating pixel values: what they are about is a heading delegate

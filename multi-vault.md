@@ -112,8 +112,7 @@ that mostly already exists, without yet changing the one-window model.
   vault's search index before opening the next).
 - **Remember the last vault, and recent vaults.** Persist the last successfully
   opened vault path, and a short most-recently-used list, through the existing
-  settings store (`SettingsStore::setValue` / `value`,
-  `src/platform/settingsstore.cpp`). On a no-argument launch, open the
+  settings store (`SettingsStore::setValue` / `value`). On a no-argument launch, open the
   remembered vault instead of the fixed `<Documents>/Kvit`. Keep
   `<Documents>/Kvit` as the first-run default when nothing is remembered, and
   create it if absent, so a brand-new install still lands somewhere sensible.
@@ -127,8 +126,8 @@ switch `openRootAsync` already performs. Multiple simultaneous vaults wait for
 Phase 3.
 
 **Files likely touched.** `qml/` menu and dialogs; `src/qml/appcontext.*` for a
-remembered-vault read on startup and a recent-list accessor;
-`src/platform/settingsstore.*` only as a consumer (its API already suffices);
+  remembered-vault read on startup and a recent-list accessor;
+  `SettingsStore` only as a consumer (its API already suffices);
 possibly `StartupController` for the "open remembered vault" path.
 
 **Tests.** The remembered-vault and recent-list logic is deterministic and
