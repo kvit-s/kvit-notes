@@ -48,6 +48,27 @@ if [ "$CLEAN" -eq 1 ] && [ -d "$BUILD_DIR" ]; then
     rm -rf "$BUILD_DIR"
 fi
 
+# Ninja keeps CMake's whole dependency graph in one process, avoiding the
+# recursive Make walk through every test and AUTOMOC target on each build.
+# Keep Make as the fallback for machines where Ninja is not installed.
+GENERATOR="Unix Makefiles"
+if command -v ninja >/dev/null 2>&1; then
+    GENERATOR="Ninja"
+fi
+
+# CMake cannot switch a configured tree to a different generator in place.
+# Installing or removing Ninja therefore costs one clean rebuild, rather than
+# leaving the next build to fail with a generator-mismatch error.
+if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    CACHED_GENERATOR=$(sed -n 's/^CMAKE_GENERATOR:INTERNAL=//p' \
+                           "$BUILD_DIR/CMakeCache.txt")
+    if [ "$CACHED_GENERATOR" != "$GENERATOR" ]; then
+        echo "Build tree was written by '$CACHED_GENERATOR';" \
+             "recreating it for '$GENERATOR'."
+        rm -rf "$BUILD_DIR"
+    fi
+fi
+
 # Create build directory
 mkdir -p "$BUILD_DIR"
 
@@ -71,16 +92,33 @@ mkdir -p "$BUILD_DIR"
     # reach those and ship an app whose libraries were never installed
     # alongside it. Asking for it here keeps it to the builds run from this
     # script, which is where the disk is.
-    CMAKE_ARGS="-DKVIT_SHARED_LIBS=ON"
+    CMAKE_ARGS=(-DKVIT_SHARED_LIBS=ON)
     if [ -n "$QT_PATH" ]; then
         echo "Using Qt from: $QT_PATH"
-        CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_PREFIX_PATH=$QT_PATH"
+        CMAKE_ARGS+=("-DCMAKE_PREFIX_PATH=$QT_PATH")
     fi
 
-    cmake .. $CMAKE_ARGS
+    # Make and Ninja both ask CMake to regenerate when an input such as a
+    # CMakeLists.txt changes. Configure here only for a new tree, a different
+    # Qt, or a tree that was not set up for the shared local modules above.
+    NEEDS_CONFIGURE=1
+    if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+        CACHED_QT=$(sed -n 's/^CMAKE_PREFIX_PATH:[A-Z]*=//p' \
+                         "$BUILD_DIR/CMakeCache.txt")
+        CACHED_SHARED=$(sed -n 's/^KVIT_SHARED_LIBS:BOOL=//p' \
+                             "$BUILD_DIR/CMakeCache.txt")
+        if [ "$CACHED_QT" = "$QT_PATH" ] && [ "$CACHED_SHARED" = "ON" ]; then
+            NEEDS_CONFIGURE=0
+        fi
+    fi
+
+    if [ "$NEEDS_CONFIGURE" -eq 1 ]; then
+        cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -G "$GENERATOR" \
+            "${CMAKE_ARGS[@]}"
+    fi
 
     # Build
-    make -j$(nproc)
+    cmake --build "$BUILD_DIR" -j"$(nproc)"
 
     echo ""
     echo "Build complete!"
