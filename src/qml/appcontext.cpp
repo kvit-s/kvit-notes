@@ -68,6 +68,7 @@ AppContext::~AppContext() = default;
 // Emitted by qmltyperegistrar from the QML_ELEMENT macros on the types
 // themselves; see the generated build/kvit-core_qmltyperegistrations.cpp.
 extern void qml_register_types_Kvit();
+extern void qml_register_types_Kvit_Ui();
 
 void AppContext::applyQuickStyle()
 {
@@ -89,7 +90,14 @@ void AppContext::registerQmlTypes()
     // build a plugin and importing it with Q_IMPORT_QML_PLUGIN, would add a
     // plugin target for a library that is linked directly into every binary
     // that uses it.
-    qml_register_types_Kvit();
+    // Keep both registrars in a static link, and register once per process,
+    // not again when another window/test composition creates an engine.
+    static const bool registered = [] {
+        qml_register_types_Kvit();
+        qml_register_types_Kvit_Ui();
+        return true;
+    }();
+    Q_UNUSED(registered);
 }
 
 void AppContext::wire()
@@ -563,6 +571,16 @@ void AppContext::installContextProperties(QQmlEngine *engine)
     m_services.add(m_globals.systemAppearance());
     m_services.add(&m_appActions);
     KvitQml::attachServices(engine, &m_services);
+
+    // Attach before loading any QML. Never initialize the library fallback:
+    // these are the already-wired and already-loaded ProcessServices objects
+    // shared by this process's windows (or isolated by the test composition).
+    m_uiServices.add(m_globals.theme());
+    m_uiServices.add(m_globals.interfaceMetrics());
+    m_uiServices.add(m_globals.typography());
+    m_uiServices.add(m_globals.settings());
+    m_uiServices.add(m_globals.systemAppearance());
+    KvitUi::attachServices(engine, &m_uiServices);
 
     // The core installs no context properties of its own any more: every one
     // of them became a QML singleton resolved through the service table

@@ -736,6 +736,18 @@ target_link_libraries(test_shell PRIVATE
 add_test(NAME ShellTests COMMAND test_shell)
 set_tests_properties(ShellTests PROPERTIES TIMEOUT 300)
 
+# Consumer proof: no direct kvit-ui link or development QML import path.
+qt_add_executable(test_shared_ui test_shared_ui.cpp)
+target_link_libraries(test_shared_ui PRIVATE kvit-core Qt6::Test Qt6::Quick)
+add_test(NAME SharedUiTests COMMAND test_shared_ui)
+set_tests_properties(SharedUiTests PROPERTIES TIMEOUT 60
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+qt_add_executable(test_shared_ui_unlinked test_shared_ui_unlinked.cpp)
+target_link_libraries(test_shared_ui_unlinked PRIVATE Qt6::Test Qt6::Quick)
+add_test(NAME SharedUiUnlinkedTests COMMAND test_shared_ui_unlinked)
+set_tests_properties(SharedUiUnlinkedTests PROPERTIES TIMEOUT 30
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+
 # Multi-window / multi-vault: two-composition isolation and the window
 # registry's raise-vs-create. Loads the real shell per window, so it carries
 # resources.qrc and runs offscreen like ShellTests.
@@ -897,6 +909,8 @@ set(KVIT_PERFORMANCE_TESTS
     SearchIndexTimingBudget)
 set(KVIT_SHELL_TESTS
     ShellTests
+    SharedUiTests
+    SharedUiUnlinkedTests
     MultiVaultTests
     AgentShellTests
     DecorationShellTests

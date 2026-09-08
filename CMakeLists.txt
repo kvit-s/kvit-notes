@@ -501,6 +501,10 @@ add_library(kvit-qml ${KVIT_LIB_TYPE}
     src/qml/windowregistry.cpp
 )
 target_link_libraries(kvit-qml PUBLIC kvit-application)
+# Both QML vocabularies use the same token objects. Linking at the composition
+# boundary makes embedded Kvit.Ui available to every production/test consumer,
+# without importing the UI library into domain or document code.
+target_link_libraries(kvit-qml PUBLIC kvit-ui-qml)
 # QuickControls2 for the shell's style, Multimedia for the media block's QML
 # imports, Widgets because KvitApplication is a QApplication.
 target_link_libraries(kvit-qml PRIVATE

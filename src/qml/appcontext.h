@@ -53,6 +53,7 @@
 #include "notetemplates.h"
 #include "processservices.h"
 #include "qmlservices.h"
+#include "uiservices.h"
 #include "querytools.h"
 #include "quickswitchermodel.h"
 #include "remotemediacache.h"
@@ -231,10 +232,12 @@ private:
     // The process window registry this window's open actions route through,
     // or null in a composition with no registry (tests).
     WindowRouter *m_router = nullptr;
-    // What the QML singletons resolve against. Declared before the services
-    // it points at so it is destroyed after them, and so an engine outliving
-    // this context cannot read a table of dangling pointers.
+    // What the QML singletons resolve against. The table borrows its entries;
+    // engines must not outlive this context or its process-global services.
     KvitQml::ServiceTable m_services;
+    // Borrows the same process objects as the legacy table. Engines must be
+    // destroyed before this context (VaultWindow enforces that member order).
+    KvitUi::ServiceTable m_uiServices;
 
     // The process-global services this context is wired against. m_ownedGlobals
     // holds them only when an owning constructor built them; the borrowing

@@ -65,9 +65,22 @@ misspelled.
 
 The token classes are the exception. `Theme`, `Typography` and
 `InterfaceMetrics` (and `SettingsStore`, `SystemAppearance`, `PerfLog`) are
-compiled in `third_party/kvit-ui`. QML still reaches them as `Kvit` module
-singletons — `import Kvit.Ui` is Wave 5, because that module also exports a
-`KvitDialog` that would clash with `qml/KvitDialog.qml`.
+compiled in `third_party/kvit-ui`. Existing QML reaches them as `Kvit` module
+singletons. Shared controls may now use `import Kvit.Ui as Ui`: the alias avoids
+the two modules' `KvitDialog` collision. The presentation library links the UI
+module's embedded QML and fonts; no development import path is needed.
+
+`AppContext::installContextProperties()` attaches both singleton tables before
+any QML loads. Theme, Interface, Typography, AppSettings and SystemAppearance
+resolve to the same existing ProcessServices objects through both imports.
+Never open the UI library's default settings or attach a second composition.
+Settings still load before token attachment in ProcessServices::openSettings.
+Engines and their QML objects must die before their AppContext; shared
+ProcessServices must outlive all windows. VaultWindow's member order enforces
+the former. `SharedUiTests` checks embedded Button/Icon loading, QML object
+identity, live two-window updates, engine teardown/recreation and isolated
+persisted settings. Run it with both KVIT_SHARED_LIBS=ON and OFF;
+`SharedUiUnlinkedTests` proves a binary without the module cannot load it.
 
 Three things the compiler cannot catch are checked by
 `python3 tools/check-layering.py`, which also runs as the `LayeringGuard`
