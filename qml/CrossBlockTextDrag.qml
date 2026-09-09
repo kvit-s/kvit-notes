@@ -19,7 +19,14 @@ import Kvit 1.0
 // blockPositionAt is here because this is its only caller: resolving a scene
 // point to a block and a markdown offset is how a drag knows what it is over.
 QtObject {
-    id: selection
+    id: textDrag
+
+    // The editor this belongs to, and the document it is showing.
+    property BlockEditorSurface editor: null
+    readonly property BlockModel blocks:
+        textDrag.editor ? textDrag.editor.blocks : BlockModel
+    readonly property DocumentSelection selection:
+        textDrag.editor ? textDrag.editor.selection : DocumentSelection
 
     // Wired by main.qml.
     property var listView
@@ -48,8 +55,8 @@ QtObject {
         // auto-scroller all move contentY without the list's drag handling.
         // endPress puts it back, and so would the next press in any block's
         // text, so a lost release cannot leave the list stuck.
-        if (selection.listView)
-            selection.listView.interactive = false
+        if (textDrag.listView)
+            textDrag.listView.interactive = false
 
         // Click multiplicity sets the drag granularity (§21.3):
         // 1 character, 2 word, 3 whole-block
@@ -78,10 +85,10 @@ QtObject {
         // gate the block-drag gesture already uses (BlockGutter.qml §).
         var moved = Math.abs(sceneX - lastPressX) >= 5
                  || Math.abs(sceneY - lastPressY) >= 5
-        var hit = selection.blockPositionAt(sceneX, sceneY)
+        var hit = textDrag.blockPositionAt(sceneX, sceneY)
         if (hit) {
             if (!engaged && moved && hit.index !== pressIndex) {
-                DocumentSelection.beginTextSelection(pressIndex, pressMd,
+                textDrag.selection.beginTextSelection(pressIndex, pressMd,
                     clickCount >= 3 ? 2 : clickCount === 2 ? 1 : 0)
                 engaged = true
             }
@@ -89,26 +96,26 @@ QtObject {
                 if (hit.index === pressIndex) {
                     // Back inside the anchor block: the native
                     // in-block selection takes over again
-                    DocumentSelection.clearTextSelection()
+                    textDrag.selection.clearTextSelection()
                     engaged = false
                 } else {
-                    DocumentSelection.updateTextSelectionHead(
+                    textDrag.selection.updateTextSelectionHead(
                         hit.index, hit.mdPos)
                 }
             }
         }
         if (engaged) {
-            selection.scroller.pointerY =
-                selection.listView.mapFromItem(null, sceneX, sceneY).y
-            selection.scroller.active = true
+            textDrag.scroller.pointerY =
+                textDrag.listView.mapFromItem(null, sceneX, sceneY).y
+            textDrag.scroller.active = true
         } else {
-            selection.scroller.active = false
+            textDrag.scroller.active = false
         }
     }
 
     function endPress() {
-        if (selection.listView)
-            selection.listView.interactive = true
+        if (textDrag.listView)
+            textDrag.listView.interactive = true
         // The anchor block painted its share of the range with its own
         // native selection while the drag ran, and the release collapses
         // that selection to the press point: Qt holds a press in a text area
@@ -116,43 +123,43 @@ QtObject {
         // the release. That left the block a drag started in blank while
         // every block after it stayed highlighted, which is what "the
         // selection starts at the end of the first block" was.
-        if (engaged && pressIndex >= 0 && selection.listView) {
-            var anchorRow = (selection.listView.itemAtIndex(pressIndex)
+        if (engaged && pressIndex >= 0 && textDrag.listView) {
+            var anchorRow = (textDrag.listView.itemAtIndex(pressIndex)
                              as BlockDelegateBase)
             if (anchorRow)
                 anchorRow.reapplySelectionPortion()
         }
         pressIndex = -1
         engaged = false
-        selection.scroller.active = false
+        textDrag.scroller.active = false
     }
 
     // Map a scene point to {index, mdPos, inText} on the block list.
     // Pointer positions above, below, or between blocks resolve to the
     // nearest block edge so a selection drag never loses its target.
     function blockPositionAt(sceneX, sceneY) {
-        if (!BlockModel || BlockModel.count === 0)
+        if (!textDrag.blocks || textDrag.blocks.count === 0)
             return null
-        var pos = selection.listView.contentItem.mapFromItem(null, sceneX, sceneY)
+        var pos = textDrag.listView.contentItem.mapFromItem(null, sceneX, sceneY)
         if (pos.y < 0)
             return { index: 0, mdPos: 0, inText: false }
-        if (pos.y >= selection.listView.contentHeight) {
-            var last = BlockModel.count - 1
-            return { index: last, mdPos: BlockModel.getContent(last).length,
+        if (pos.y >= textDrag.listView.contentHeight) {
+            var last = textDrag.blocks.count - 1
+            return { index: last, mdPos: textDrag.blocks.getContent(last).length,
                      inText: false }
         }
-        var cx = Math.max(1, Math.min(pos.x, selection.listView.width - 1))
-        var idx = selection.listView.indexAt(cx, pos.y)
+        var cx = Math.max(1, Math.min(pos.x, textDrag.listView.width - 1))
+        var idx = textDrag.listView.indexAt(cx, pos.y)
         if (idx < 0) {
             // In the spacing gap: attach to the block just above
-            idx = selection.listView.indexAt(
-                cx, Math.max(0, pos.y - selection.listView.spacing))
+            idx = textDrag.listView.indexAt(
+                cx, Math.max(0, pos.y - textDrag.listView.spacing))
             if (idx < 0)
                 return null
-            return { index: idx, mdPos: BlockModel.getContent(idx).length,
+            return { index: idx, mdPos: textDrag.blocks.getContent(idx).length,
                      inText: false }
         }
-        var item = (selection.listView.itemAtIndex(idx) as BlockDelegateBase)
+        var item = (textDrag.listView.itemAtIndex(idx) as BlockDelegateBase)
         if (!item || !item.markdownPositionAt)
             return { index: idx, mdPos: 0, inText: false }
         return { index: idx,

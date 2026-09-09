@@ -44,7 +44,7 @@ private slots:
         // to declare theirs in main.qml by hand and carry nothing here.
         BlockKindRegistry registry;
         QCOMPARE(registry.delegateUrl(BlockModel::KanbanKind),
-                 QStringLiteral("qrc:/qml/KanbanBlock.qml"));
+                 QStringLiteral("qrc:/qt/qml/Kvit/KanbanBlock.qml"));
 
         const QVariantList choices = registry.delegateChoices();
         QVERIFY(!choices.isEmpty());
@@ -52,7 +52,7 @@ private slots:
         for (const QVariant &value : choices) {
             const QVariantMap choice = value.toMap();
             const QString url = choice.value("delegateUrl").toString();
-            QVERIFY2(url.startsWith(QStringLiteral("qrc:/qml/")),
+            QVERIFY2(url.startsWith(QStringLiteral("qrc:/qt/qml/Kvit/")),
                      qPrintable(url));
             QVERIFY(!choice.value("id").toString().isEmpty());
             // One choice per delegate kind. Two choices claiming the same
@@ -105,7 +105,7 @@ private slots:
         const int kanban = registry.registerFenceLanguage("kanban", "qrc:/hijack.qml");
         QCOMPARE(kanban, BlockModel::KanbanKind);
         QCOMPARE(registry.delegateUrl(BlockModel::KanbanKind),
-                 QStringLiteral("qrc:/qml/KanbanBlock.qml"));
+                 QStringLiteral("qrc:/qt/qml/Kvit/KanbanBlock.qml"));
     }
 
     void aModuleKindJoinsTheDelegateChoices()

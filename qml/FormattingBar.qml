@@ -20,9 +20,14 @@ import Kvit 1.0
 // A plain high-z item, not a Popup: it must never touch focus.
 Rectangle {
     id: bar
+
+    readonly property DocumentSelection selection:
+        bar.editor ? bar.editor.selection : DocumentSelection
     objectName: "formattingBar"
 
-    // Wired by main.qml: the caret's block and the block list.
+    // Wired by BlockEditor: the editor this bar formats in, the caret's
+    // block, and the block list.
+    property BlockEditorSurface editor: null
     property var target
     property var listView
 
@@ -39,7 +44,7 @@ Rectangle {
         && target.selectedDisplayText !== undefined
         && target.selectionEndDoc > target.selectionStartDoc
         && !target.verbatimEditing
-        && !DocumentSelection.hasTextSelection
+        && !bar.selection.hasTextSelection
 
     // One number that changes with any selection movement; every change
     // disarms and restarts the settle timer, so the bar only appears
@@ -201,6 +206,7 @@ Rectangle {
             }
             ColorPicker {
                 id: fbColorPicker
+                editor: bar.editor
                 y: parent.height
                 currentColor: (bar.target && bar.target.currentColor !== undefined)
                     ? bar.target.currentColor : ""

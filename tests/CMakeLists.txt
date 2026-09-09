@@ -121,7 +121,6 @@ qt_add_executable(test_performance_app
     testsetup.h
     perf/corpus.cpp
     integration_tests.qrc
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_include_directories(test_performance_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_performance_app PRIVATE
@@ -504,7 +503,6 @@ qt_add_executable(test_integration
     test_integration.cpp
     testsetup.h
     integration_tests.qrc
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 
 target_link_libraries(test_integration PRIVATE
@@ -580,7 +578,6 @@ qt_add_executable(test_visual
     test_visual.cpp
     testsetup.h
     integration_tests.qrc
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 
 target_link_libraries(test_visual PRIVATE
@@ -673,14 +670,13 @@ add_test(NAME DocumentCompareTests COMMAND test_documentcompare)
 
 # The other half, driven through the shipped shell with a demonstration module
 # installed: a container drawn between two blocks, a glyph beside one wrapped
-# line, and the pinned header strip filled. It lists resources.qrc for the
+# line, and the pinned header strip filled. It loads the shipped shell for the
 # same reason test_shell does — the shell's own components have to be in the
 # binary or the load hangs rather than failing — plus the demonstration
 # module's own QML, which stands in for a module's private resource.
 qt_add_executable(test_decorationshell
     test_decorationshell.cpp
     decoration_demo.qrc
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_link_libraries(test_decorationshell PRIVATE
     kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
@@ -690,12 +686,11 @@ set_tests_properties(DecorationShellTests PROPERTIES TIMEOUT 300)
 # The fourth seam, driven through the shipped shell with a demonstration
 # module installed: the markdown a module contributes to a note's export, the
 # export dialog naming it before the destination picker, and a note the module
-# has nothing to add to exporting unchanged. It lists resources.qrc for the
+# has nothing to add to exporting unchanged. It loads the shipped shell for the
 # same reason test_shell does — the shell's own components have to be in the
 # binary or the load hangs rather than failing.
 qt_add_executable(test_exportcontribution
     test_exportcontribution.cpp
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_link_libraries(test_exportcontribution PRIVATE
     kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
@@ -704,12 +699,11 @@ set_tests_properties(ExportContributionTests PROPERTIES TIMEOUT 300)
 
 # The editor's scrollbar, driven through the shipped shell: a note of very
 # unequal rows read from top to bottom and back, recording what the handle did
-# at each stop. It lists resources.qrc for the same reason test_shell does —
+# at each stop. It loads the shipped shell for the same reason test_shell does —
 # the shell's own components have to be in the binary or the load hangs rather
 # than failing.
 qt_add_executable(test_scrollmetrics
     test_scrollmetrics.cpp
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_link_libraries(test_scrollmetrics PRIVATE
     kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
@@ -718,12 +712,11 @@ set_tests_properties(ScrollMetricsTests PROPERTIES TIMEOUT 300)
 
 # The read-only document surface: a markdown document drawn somewhere other
 # than the editor pane, swept across and copied as markdown. Creates its
-# surfaces inside the shipped shell, so it lists resources.qrc for the same
+# surfaces inside the shipped shell, so it loads that shell for the same
 # reason test_shell does — the shell's own components have to be in the binary
 # or the load hangs rather than failing.
 qt_add_executable(test_readonlydocument
     test_readonlydocument.cpp
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_link_libraries(test_readonlydocument PRIVATE
     kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
@@ -735,7 +728,6 @@ set_tests_properties(ReadOnlyDocumentTests PROPERTIES TIMEOUT 300)
 # suite's mirror of it.
 qt_add_executable(test_shell
     test_shell.cpp
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_link_libraries(test_shell PRIVATE
     kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
@@ -756,10 +748,9 @@ set_tests_properties(SharedUiUnlinkedTests PROPERTIES TIMEOUT 30
 
 # Multi-window / multi-vault: two-composition isolation and the window
 # registry's raise-vs-create. Loads the real shell per window, so it carries
-# resources.qrc and runs offscreen like ShellTests.
+# the shipped shell and runs offscreen like ShellTests.
 qt_add_executable(test_multivault
     test_multivault.cpp
-    ${CMAKE_SOURCE_DIR}/resources.qrc
 )
 target_link_libraries(test_multivault PRIVATE
     kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia
@@ -781,13 +772,12 @@ if(KVIT_AGENT)
     target_link_libraries(test_agentmodule PRIVATE kvit-agent Qt6::Test Qt6::Gui)
     add_test(NAME AgentModuleTests COMMAND test_agentmodule)
 
-    # Loads the shipped shell — the top-level resources.qrc itself, not a
+    # Loads the shipped shell — the Kvit module's own main.qml, not a
     # mirror of it — with the module installed, and checks the bar lands in
     # its slot. The one case that proves the seam end to end.
     qt_add_executable(test_agentshell
         agent/test_agentshell.cpp
-        ${CMAKE_SOURCE_DIR}/resources.qrc
-    )
+        )
     target_link_libraries(test_agentshell PRIVATE
         kvit-agent Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
     add_test(NAME AgentShellTests COMMAND test_agentshell)
@@ -903,7 +893,7 @@ endif()
 # storyboard scenarios that do not need focus can fail a merge, takes about
 # nine seconds. They were previously labelled `gui-smoke` and run in CI under
 # continue-on-error, which meant the one test that loads the shipped
-# resources.qrc could not fail a merge — a QML syntax error, a resource
+# the QML component list could not fail a merge — a QML syntax error, a resource
 # missing from the qrc, an import that does not resolve, or a context
 # property renamed out from under main.qml all merged green. They gate now.
 set(KVIT_PERFORMANCE_TESTS

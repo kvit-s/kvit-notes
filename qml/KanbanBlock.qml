@@ -29,11 +29,6 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
-    // The editor window this row is in, typed. Null for any other window,
-    // so the guards below still mean what they meant.
-    readonly property KvitShell shell: Window.window as KvitShell
-
-
     required property string blockId
     required property int blockType
     required property string content
@@ -46,7 +41,7 @@ BlockDelegateBase {
     property int blockIndex: index
     property bool isPooled: false
     property ListView listView: ListView.view
-    property bool isFocused: focusTarget.activeFocus || root.editCol >= 0
+    isFocused: focusTarget.activeFocus || root.editCol >= 0
     // The gutter's MouseAreas sit over hoverArea and steal its hover; fold
     // the gutter's own hover back in so the buttons do not vanish the moment
     // the pointer reaches them (as EditableBlock does).
@@ -341,7 +336,7 @@ BlockDelegateBase {
     }
 
     // ---- Board mutations, each one model content update (one undo step) ----
-    function writeBoard(md) { BlockModel.updateContent(root.index, md) }
+    function writeBoard(md) { root.blocks.updateContent(root.index, md) }
 
     function toggleCardDone(col, idx) {
         root.writeBoard(KanbanTools.toggleCardDone(root.content, col, idx,
@@ -541,9 +536,9 @@ BlockDelegateBase {
     }
 
     readonly property bool blockSelected: {
-        var revision = DocumentSelection.revision // dependency only
-        return DocumentSelection.isBlockSelected(root.index)
-            || DocumentSelection.portionForBlock(root.index).selected === true
+        var revision = root.selection.revision // dependency only
+        return root.selection.isBlockSelected(root.index)
+            || root.selection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -553,16 +548,16 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
-        return root.shell.blockDrag.isMulti ? root.blockSelected
-                                     : root.shell.blockDrag.sourceIndex === root.index
+        if (!root.editor || !root.editor.blockDrag || !root.editor.blockDrag.active) return false
+        return root.editor.blockDrag.isMulti ? root.blockSelected
+                                     : root.editor.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
         AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            if (root.shell && root.shell.lastFocusedBlock !== undefined) root.shell.lastFocusedBlock = index
+            if (root.editor && root.editor.lastFocusedBlock !== undefined) root.editor.lastFocusedBlock = index
         }
     }
 
@@ -579,7 +574,7 @@ BlockDelegateBase {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        BlockModel.removeBlock(root.index)
+        root.blocks.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -590,7 +585,7 @@ BlockDelegateBase {
     }
     function createBlockBelow() {
         var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
+        root.blocks.insertBlock(newIndex, 0, "")
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -601,7 +596,7 @@ BlockDelegateBase {
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
+        root.blocks.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -810,7 +805,7 @@ BlockDelegateBase {
             if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 && (event.modifiers & Qt.ControlModifier) && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
-                DocumentSelection.selectBlock(root.index)
+                root.selection.selectBlock(root.index)
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
@@ -819,7 +814,7 @@ BlockDelegateBase {
                 var prev = (root.listView.itemAtIndex(pi) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd(); event.accepted = true; return
             }
-            if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1 && root.listView) {
+            if (event.key === Qt.Key_Down && root.index < root.blocks.count - 1 && root.listView) {
                 var ni = root.index + 1
                 root.listView.currentIndex = ni
                 var next = (root.listView.itemAtIndex(ni) as BlockDelegateBase)
@@ -2056,10 +2051,10 @@ BlockDelegateBase {
                 cursorPosition: cardArea.cursorPosition
                 cursorActive: cardArea.activeFocus
                 theme: root.appThemeRef
-                linkResolver: DocumentOutline
-                // With no collection open every [[wiki-link]] styles as an
+                linkResolver: root.outline
+                // With no resolver every [[wiki-link]] styles as an
                 // ordinary link rather than all rendering "unresolved".
-                wikiResolver: NoteCollection.isOpen ? NoteCollection : null
+                wikiResolver: root.editor ? root.editor.linkResolver : null
                 contentFontPixelSize: root.cardFontSize
                 onMarkdownEdited: function(md) {
                     if (root.isPooled)
@@ -2181,16 +2176,16 @@ BlockDelegateBase {
             MathEntryAssist {
                 id: cardMathEntry
                 objectName: "kanbanCardMathEntry"
-                editor: cardArea
+                textEditor: cardArea
                 engine: cardEngine
-                shell: root.shell
+                editor: root.editor
             }
             WikiLinkCompletion {
                 id: cardWikiCompletion
                 objectName: "kanbanCardWikiCompletion"
-                editor: cardArea
+                textEditor: cardArea
                 engine: cardEngine
-                shell: root.shell
+                editor: root.editor
             }
 
             // The equations for this field's hidden `$…$` spans, drawn over
@@ -2598,7 +2593,7 @@ BlockDelegateBase {
         anchors.topMargin: 4
 
         rowHovered: root.isHovered
-        dragEnabled: root.shell !== null && root.shell.blockDrag !== null
+        dragEnabled: root.editor !== null && root.editor.blockDrag !== null
 
         onInsertRequested: root.insertBlockBelowAndOpenMenu()
         onDeleteRequested: root.deleteCurrentBlock()
@@ -2606,22 +2601,22 @@ BlockDelegateBase {
         onBlockSelectRequested: {
             if (root.listView)
                 root.listView.currentIndex = root.index
-            DocumentSelection.selectBlock(root.index)
+            root.selection.selectBlock(root.index)
             root.focusSelectionHandler()
         }
         onDragStarted: function(sceneX, sceneY) {
-            root.shell.blockDrag.begin(root.index, sceneX, sceneY)
+            root.editor.blockDrag.begin(root.index, sceneX, sceneY)
         }
         onDragMoved: function(sceneX, sceneY) {
-            root.shell.blockDrag.update(sceneX, sceneY)
+            root.editor.blockDrag.update(sceneX, sceneY)
         }
         onDragDropped: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.drop()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.drop()
         }
         onDragCanceled: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.cancel()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.cancel()
         }
     }
 }

@@ -28,13 +28,14 @@ QtObject {
     // The editor being typed into. Its own document is the subject, and the
     // menu is opened against it as the host, so the same editor has to be
     // both the thing read and the thing named.
-    property TextArea editor: null
+    property TextArea textEditor: null
     // The engine, for the questions only it can answer: where the math span
     // under the caret runs, and whether a `$` here should auto-pair at all.
     property BlockEditorEngine engine: null
-    // The window that owns the shared command menu. One menu serves every
-    // block, so "is it mine" is a question about the host it was opened for.
-    property KvitShell shell: null
+    // The editing surface that owns the shared command menu. One menu
+    // serves every block, so "is it mine" is a question about the host it
+    // was opened for.
+    property BlockEditorSurface editor: null
     // Code blocks type dollars and backslashes literally.
     property bool verbatim: false
 
@@ -46,13 +47,13 @@ QtObject {
 
     // The command menu while it is open FOR THIS EDITOR, else null.
     function activeMenu() {
-        return root.shell ? root.shell.activeMathMenu(root.editor) : null
+        return root.editor ? root.editor.activeMathMenu(root.textEditor) : null
     }
 
     function openMenu() {
-        var rect = root.editor.positionToRectangle(root.editor.cursorPosition)
-        var topLeft = root.editor.mapToItem(null, rect.x, rect.y)
-        AppActions.requestMathCommandMenu(root.editor,
+        var rect = root.textEditor.positionToRectangle(root.textEditor.cursorPosition)
+        var topLeft = root.textEditor.mapToItem(null, rect.x, rect.y)
+        AppActions.requestMathCommandMenu(root.textEditor,
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height),
             false /* inline context: single-line templates */)
         root.syncQuery()
@@ -63,21 +64,21 @@ QtObject {
     // inside the pair, and the next $ is at or right of the caret.
     function dollarPairClosePos() {
         var open = root.dollarPairOpenPos
-        if (open < 0 || open >= root.editor.text.length
-            || root.editor.text.charAt(open) !== "$")
+        if (open < 0 || open >= root.textEditor.text.length
+            || root.textEditor.text.charAt(open) !== "$")
             return -1
-        if (root.editor.cursorPosition <= open)
+        if (root.textEditor.cursorPosition <= open)
             return -1
-        var close = root.editor.text.indexOf("$", open + 1)
-        if (close < 0 || close < root.editor.cursorPosition)
+        var close = root.textEditor.text.indexOf("$", open + 1)
+        if (close < 0 || close < root.textEditor.cursorPosition)
             return -1
         return close
     }
 
     // The backslash-word ending at the caret — {trigger, query} or null.
     function wordAtCaret() {
-        var text = root.editor.text
-        var pos = root.editor.cursorPosition
+        var text = root.textEditor.text
+        var pos = root.textEditor.cursorPosition
         // TeX control symbols are one non-letter character.
         // These five are the symbol-style commands in the menu.
         if (pos >= 2 && text.charAt(pos - 2) === "\\"
@@ -144,7 +145,7 @@ QtObject {
     // slot, arm the Tab chain. Inline context always takes the single-line
     // form.
     function applyCommand(row) {
-        var ed = root.editor
+        var ed = root.textEditor
         var insertText = row.insert
         var offset = row.cursorOffset
         var word = root.wordAtCaret()
@@ -169,7 +170,7 @@ QtObject {
     // the caret; false when none is left or the caret left the span — the
     // chain ends there.
     function jumpToNextSlot(backward) {
-        var ed = root.editor
+        var ed = root.textEditor
         var span = root.engine.mathSpanRangeAt(ed.cursorPosition)
         if (!span.found) {
             root.slotChain = false
@@ -270,7 +271,7 @@ QtObject {
     function handleBackslash(event) {
         if (event.text !== "\\" || root.verbatim)
             return false
-        var ed = root.editor
+        var ed = root.textEditor
         var menu = root.activeMenu()
         var bsPos = ed.selectionStart
         var inMathContext = root.dollarPairClosePos() >= 0
@@ -292,7 +293,7 @@ QtObject {
     // The remaining math-entry keys: re-triggering completion, the dollar
     // auto-pair and its two escape hatches, and the Tab slot chain.
     function handleEntryKey(event) {
-        var ed = root.editor
+        var ed = root.textEditor
 
         // Ctrl+Space: re-trigger completion for the backslash-word at the
         // caret, inside a math span.

@@ -10,6 +10,27 @@ published; until then it is marked unreleased.
 
 ## 1.0.1 — unreleased
 
+### Changed
+
+- The editing surface is a component. `BlockEditor` — the block list, the
+  gestures over it, the floating formatting and find bars, and the focus,
+  reveal and relayout machinery — used to be declared inline in the
+  application window, so nothing could instantiate one and every row asked
+  the window it happened to be in whether a drag was running or which row
+  last held the caret. It is now a QML type an application obtains by linking
+  this library and writing `import Kvit 1.0`, told which document to edit,
+  where that document is stored, where pasted images go and what resolves a
+  `[[wiki link]]`; with none of those supplied it is a working editor over an
+  empty document. Nothing about the application changed: it instantiates one
+  editor and supplies the same objects the window always used. devel.md, "The
+  editor is a component, and the window is its host", is the whole boundary.
+
+- The QML components ship as the `Kvit` module rather than as a resource file
+  compiled into each executable, so a binary that links `kvit-core` gets them
+  along with the C++ types. `KVIT_QML_FILES` in `CMakeLists.txt` is the
+  component list that `resources.qrc` used to be, and `QrcSyncGuard` checks
+  that list against `qml/` as it did before.
+
 ### Fixed
 
 - A vault in a folder that cannot be written now says so, and keeps saying

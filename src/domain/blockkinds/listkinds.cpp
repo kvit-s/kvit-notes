@@ -102,7 +102,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/BulletListDelegate.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/BulletListDelegate.qml");
     }
 };
 
@@ -191,7 +191,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/NumberedListDelegate.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/NumberedListDelegate.qml");
     }
 };
 
@@ -297,7 +297,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/TodoDelegate.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/TodoDelegate.qml");
     }
 };
 
@@ -415,7 +415,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/QuoteDelegate.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/QuoteDelegate.qml");
     }
 };
 

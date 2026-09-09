@@ -85,7 +85,7 @@ opportunity to forget one:
 |---|---|
 | Recognising a kind while reading a file | `DocumentSerializer::parse`, a line scanner |
 | Writing it back to markdown | `DocumentSerializer::serializeBlock`, a switch |
-| Which QML delegate draws it | `BlockKindRegistry` plus seventeen `DelegateChoice` blocks in `main.qml` |
+| Which QML delegate draws it | `BlockKindRegistry` plus seventeen `DelegateChoice` blocks in `BlockEditor.qml` |
 | What the delegate must implement | `BlockDelegateBase.qml` |
 | Its slash-menu and turn-into entry | `BlockMenuModel`, a 23-entry catalog literal |
 | HTML and PDF export | `DocumentExporter::buildHtmlBody` |
@@ -270,7 +270,7 @@ is a second line rather than the guarantee.
 2. Return it from its group's accessor in `kindgroups.h`, which is what puts
    it in the registry and so in the block menu and the delegate chooser.
 3. Write the QML delegate, inheriting `BlockDelegateBase`, add it to
-   `resources.qrc`, and name it from `delegateUrl()`. That one list reaches
+   `KVIT_QML_FILES` in `CMakeLists.txt`, and name it from `delegateUrl()`. That one list reaches
    the application and every test binary; `QrcSyncGuard` fails if a file in
    `qml/` is missing from it.
 4. Add a sample to `tests/test_blockkinddef.cpp`. The suite fails naming your

@@ -11,10 +11,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Dialogs
-import Qt.labs.qmlmodels
 import Kvit 1.0
 
-KvitShell {
+ApplicationWindow {
     id: root
 
     // First-run default; every later launch restores the persisted
@@ -37,11 +36,35 @@ KvitShell {
             + name + " - Kvit Notes"
     }
 
+    // ---- The editor, under the names the rest of the window uses --------
+    // Everything below forwards to the BlockEditor declared in the document
+    // pane. The panes, menus, dialogs and the session all reached these on the
+    // window before the editor was a component of its own, and they are the
+    // window's own vocabulary rather than the editor's, so they stay here.
+    //
     // The block that most recently held editing focus (§3.1's "current
     // block"): the Shift+Click block-range anchor. Maintained by the
     // delegates on focus gain — not listView.currentIndex, whose
     // assignment moves focus into the delegate root.
-    property int lastFocusedBlock: 0
+    property alias lastFocusedBlock: blockEditor.lastFocusedBlock
+    readonly property alias caretBlockIndex: blockEditor.caretBlockIndex
+    readonly property alias blockDrag: blockEditor.blockDrag
+    readonly property alias findBar: blockEditor.findBar
+    readonly property alias selectionKeyHandler: blockEditor.selectionKeys
+    readonly property alias blockGapCursor: blockEditor.gapCursor
+    // Popups that hold the caret's text selection while they are open. The
+    // toolbar's colour picker is outside the editor and raises the same count.
+    property alias selectionHolders: blockEditor.selectionHolders
+
+    function focusBlockAtIndex(index, atEnd, typed) {
+        blockEditor.focusBlockAtIndex(index, atEnd, typed)
+    }
+    function focusEditor() { blockEditor.focusEditor() }
+    function scrollToBlock(idx) { blockEditor.scrollToBlock(idx) }
+    function centerCaretLine(item) { blockEditor.centerCaretLine(item) }
+    function revealItem(item) { blockEditor.revealItem(item) }
+    function editorContentY() { return blockEditor.editorContentY() }
+    function setEditorContentY(value) { blockEditor.setEditorContentY(value) }
 
     // ---- The notes collection -------------------------------------------
     // Collection mode shows the sidebar and note list; single-file mode
@@ -183,361 +206,17 @@ KvitShell {
         A11y.announceMode(qsTr("Typewriter mode"), typewriterMode)   // §14.2
         if (typewriterMode)
             Qt.callLater(function() {
-                if (appToolbar.targetBlock)
-                    root.centerCaretLine(appToolbar.targetBlock)
+                if (blockEditor.caretBlock)
+                    blockEditor.centerCaretLine(blockEditor.caretBlock)
             })
-    }
-    // The block index holding the caret (-1 when the editor is unfocused);
-    // typewriter mode fades every other block. Off the keystroke path — it
-    // changes only when focus moves between blocks.
-    readonly property int caretBlockIndex:
-        appToolbar.targetBlock ? appToolbar.targetBlock.index : -1
-
-    // When the caret moves to a new block (not just within one), recenter it.
-    // onCursorRectangleChanged in the delegate catches within-block moves, but
-    // a focus change can settle after that signal, so this covers the handoff.
-    onCaretBlockIndexChanged: {
-        if (typewriterMode && caretBlockIndex >= 0)
-            Qt.callLater(function() {
-                if (appToolbar.targetBlock)
-                    root.centerCaretLine(appToolbar.targetBlock)
-            })
-    }
-
-    // Center the caret's line in the editor viewport (typewriter mode).
-    // Generalizes the find bar's scroll-into-view to "put the caret line at
-    // mid-viewport"; the scroll animates only while typewriter mode is on.
-    function centerCaretLine(item) {
-        if (!item || !item.rectForMarkdownPosition || !item.markdownCursor)
-            return
-        var rect = item.rectForMarkdownPosition(item.markdownCursor())
-        var yInContent = item.y + rect.y
-        var target = yInContent - blockListView.height / 2 + rect.height / 2
-        var maxY = Math.max(0, blockListView.contentHeight - blockListView.height)
-        blockListView.contentY = Math.max(0, Math.min(target, maxY))
-    }
-    function editorContentY() { return blockListView.contentY }
-    function setEditorContentY(value) {
-        var maxY = Math.max(0, blockListView.contentHeight
-                               + blockListView.bottomMargin
-                               - blockListView.height)
-        blockListView.contentY = Math.max(0, Math.min(Number(value), maxY))
-    }
-
-    // ---- Completion-driven block geometry -------------------------------
-    // ListView batches model and delegate geometry changes. Every block row
-    // reports height changes through BlockDelegateBase; diagrams additionally
-    // report their asynchronous render lifecycle. One callLater coalesces all
-    // notifications from the turn and forceLayout() processes the outstanding
-    // list geometry before focus/reveal consumers read it.
-    property bool blockRelayoutScheduled: false
-    function blockGeometryChanged(item) {
-        // Before the coalescing, not after it: this is where a row's height
-        // reaches the document-height table, and all but the first
-        // notification of a turn returns on the next line.
-        root.recordBlockHeight(item)
-        if (root.blockRelayoutScheduled)
-            return
-        root.blockRelayoutScheduled = true
-        Qt.callLater(root.completeBlockRelayout)
-    }
-    function completeBlockRelayout() {
-        root.blockRelayoutScheduled = false
-        blockListView.forceLayout()
-        root.recordBuiltBlockHeights()
-        root.scheduleFocusedBlockPosition()
-        root.scheduleReveal()
-    }
-
-    // ---- the document-height table ---------------------------------------
-    // What the rows measured, kept per open document so the scrollbar is
-    // drawn from a total that settles instead of from the list's own estimate
-    // over whichever rows happen to be built. DocumentHeights says why; this
-    // is the whole of the collection, since every row already reports its
-    // geometry above.
-    function recordBlockHeight(item) {
-        // Only a row of this list. A row drawn anywhere else — a delegate
-        // hosted outside the document view — is a row of some other document.
-        var row = item as BlockDelegateBase
-        if (!row || row.parent !== blockListView.contentItem)
-            return
-        // And only at the index it is currently drawing. The delegates are
-        // pooled, so a row part-way through being reused could report a
-        // height against an index that has stopped being its own, and the
-        // list naming some OTHER row at that index is how that shows. A row
-        // the list is still building has no index registered yet and the
-        // answer is null, which is not a refusal: that is where a row's first
-        // measurement comes from, and without it a row built by the last
-        // scroll of a read stays estimated.
-        var atIndex = blockListView.itemAtIndex(row.index)
-        if (atIndex && atIndex !== row)
-            return
-        DocumentHeights.recordHeight(row.index, row.height, row.width)
-    }
-    // Re-measure every row the list currently has built. An edit drops the
-    // measurement of the block it changed, and a change that left the row the
-    // same height reports no geometry, so without this that block would stay
-    // estimated until something else moved it.
-    function recordBuiltBlockHeights() {
-        if (!blockListView.contentItem)
-            return
-        var built = blockListView.contentItem.children
-        for (var i = 0; i < built.length; ++i)
-            root.recordBlockHeight(built[i])
-    }
-    // A row's height is only meaningful at the size its text is set at, so a
-    // typography change empties the table. A column-width change — the
-    // window, the panels, the maximum content width, focus mode — needs no
-    // handler: a measurement carries the width it was taken at, and one
-    // arriving at a new width empties the table for itself.
-    Connections {
-        target: Typography
-        function onTypographyChanged() { DocumentHeights.clear() }
-    }
-    // The gap between two rows is part of the document's height and of every
-    // offset in it, and it is not part of any row's own height.
-    Binding {
-        target: DocumentHeights
-        property: "spacing"
-        value: blockListView.spacing
-    }
-
-    // Scroll the editor the least it can to put `item` fully inside the
-    // viewport, and not at all when it is already there. The target and its
-    // containing block stay connected while it owns focus, so growth follows
-    // geometry changes rather than an eight-tick settling window. A newer
-    // target replaces it; focus loss or manual scrolling cancels it.
-    property Item revealTarget: null
-    property Item revealBlock: null
-    property bool revealScheduled: false
-    function containingBlock(item) {
-        var candidate = item
-        while (candidate && candidate !== blockListView) {
-            var block = candidate as BlockDelegateBase
-            if (block)
-                return block
-            candidate = candidate.parent
-        }
-        return null
-    }
-    function revealItem(item) {
-        if (!item || !blockListView.contentItem)
-            return
-        root.revealTarget = item
-        root.revealBlock = root.containingBlock(item)
-        root.scheduleReveal()
-    }
-    function scheduleReveal() {
-        if (!root.revealTarget || root.revealScheduled)
-            return
-        root.revealScheduled = true
-        Qt.callLater(function() {
-            root.revealScheduled = false
-            root.applyReveal()
-        })
-    }
-    function cancelRevealTracking() {
-        root.revealTarget = null
-        root.revealBlock = null
-    }
-    function applyReveal() {
-        var item = root.revealTarget
-        if (!item || !item.visible || !blockListView.contentItem)
-            return
-        var top = item.mapToItem(blockListView.contentItem, 0, 0).y
-        var bottom = top + item.height
-        var margin = 16
-        var target = blockListView.contentY
-        if (bottom + margin > target + blockListView.height)
-            target = bottom + margin - blockListView.height
-        if (top - margin < target)
-            target = top - margin
-        if (target === blockListView.contentY)
-            return
-        // The list's own bottom margin is scrollable space past the last
-        // block, so the reveal may use it: a card at the very end of a note
-        // has nothing below it to scroll into view otherwise.
-        var maxY = Math.max(0, blockListView.contentHeight + blockListView.bottomMargin
-                               - blockListView.height)
-        blockListView.contentY = Math.max(0, Math.min(target, maxY))
-    }
-    Connections {
-        target: root.revealTarget
-        function onHeightChanged() { root.scheduleReveal() }
-        function onYChanged() { root.scheduleReveal() }
-        function onVisibleChanged() {
-            if (root.revealTarget && root.revealTarget.visible)
-                root.scheduleReveal()
-            else
-                root.cancelRevealTracking()
-        }
-    }
-    Connections {
-        target: root.revealBlock
-        function onHeightChanged() { root.scheduleReveal() }
-        function onYChanged() { root.scheduleReveal() }
     }
 
     function openSettingsDialog() { settingsDialog.open() }
 
-    // ---- Focusing a block by index --------------------------------------
-    // The editor list is virtualized, so a row only exists once the view has
-    // positioned and created it. Requests set currentIndex and position once;
-    // currentItemChanged or the delegate's Component.onCompleted then finishes
-    // the focus. Once the caret lands, the row's heightChanged signal keeps it
-    // contained until focus leaves, the user scrolls, or a newer request wins.
-    // The one timer below is only a generous cancellation/error guard.
-    property int focusRequestGeneration: 0
-    property bool focusRequestPending: false
-    property int focusTargetIndex: -1
-    property bool focusTargetAtEnd: false
-    property string focusTargetTyped: ""
-    property BlockDelegateBase focusWatchItem: null
-    property bool focusWatchHasFocus: false
-    property bool focusPositionScheduled: false
-    property bool trackedFocusValidationScheduled: false
-
-    function focusBlockAtIndex(index, atEnd, typed) {
-        if (BlockModel.count === 0)
-            return
-        var idx = Math.max(0, Math.min(index, BlockModel.count - 1))
-        root.focusRequestGeneration++
-        root.clearBlockFocusLifecycle()
-        root.focusTargetIndex = idx
-        root.focusTargetAtEnd = atEnd === true
-        root.focusTargetTyped = typed === undefined ? "" : typed
-        root.focusRequestPending = true
-        blockFocusGuard.generation = root.focusRequestGeneration
-        blockFocusGuard.restart()
-        blockListView.currentIndex = idx
-        blockListView.positionViewAtIndex(idx, ListView.Contain)
-        root.applyPendingBlockFocus(blockListView.itemAtIndex(idx))
-    }
-    function blockDelegateReady(item) {
-        if (!root.focusRequestPending || !item)
-            return
-        if (item === blockListView.itemAtIndex(root.focusTargetIndex))
-            root.applyPendingBlockFocus(item)
-    }
-    function applyPendingBlockFocus(candidate) {
-        if (!root.focusRequestPending)
-            return false
-        var item = candidate as BlockDelegateBase
-        if (!item || item !== blockListView.itemAtIndex(root.focusTargetIndex))
-            item = (blockListView.itemAtIndex(root.focusTargetIndex)
-                    as BlockDelegateBase)
-        if (!item)
-            return false
-
-        if (root.focusTargetAtEnd)
-            item.focusAtEnd()
-        else
-            item.focusAtStart()
-        if (root.focusTargetTyped !== "") {
-            item.typeText(root.focusTargetTyped)
-            root.focusTargetTyped = ""
-        }
-
-        root.focusRequestPending = false
-        root.focusWatchItem = item
-        root.focusWatchHasFocus = false
-        root.updateTrackedFocus()
-        return true
-    }
-    function activeFocusIsInside(item) {
-        if (!item)
-            return false
-        var focusItem = root.activeFocusItem
-        while (focusItem) {
-            if (focusItem === item)
-                return true
-            focusItem = focusItem.parent
-        }
-        return false
-    }
-    function updateTrackedFocus() {
-        var item = root.focusWatchItem
-        if (!item)
-            return
-        if (root.activeFocusIsInside(item)) {
-            root.focusWatchHasFocus = true
-            blockFocusGuard.stop()
-            root.scheduleFocusedBlockPosition()
-        } else if (root.focusWatchHasFocus) {
-            root.clearBlockFocusLifecycle()
-        }
-    }
-    function scheduleTrackedFocusValidation() {
-        if (root.trackedFocusValidationScheduled)
-            return
-        root.trackedFocusValidationScheduled = true
-        Qt.callLater(function() {
-            root.trackedFocusValidationScheduled = false
-            root.updateTrackedFocus()
-            if (root.revealTarget
-                    && !root.activeFocusIsInside(root.revealTarget))
-                root.cancelRevealTracking()
-        })
-    }
-    onActiveFocusItemChanged: root.scheduleTrackedFocusValidation()
-
-    function scheduleFocusedBlockPosition() {
-        if (!root.focusWatchItem || !root.focusWatchHasFocus
-                || root.focusPositionScheduled)
-            return
-        root.focusPositionScheduled = true
-        Qt.callLater(function() {
-            root.focusPositionScheduled = false
-            if (!root.focusWatchItem || !root.focusWatchHasFocus)
-                return
-            blockListView.forceLayout()
-            // Contain shows the whole row where it fits and puts its top at the
-            // top of the view where it does not, which for a table is its header.
-            blockListView.positionViewAtIndex(root.focusTargetIndex,
-                                              ListView.Contain)
-        })
-    }
-    function clearBlockFocusLifecycle() {
-        root.focusRequestPending = false
-        root.focusWatchItem = null
-        root.focusWatchHasFocus = false
-        blockFocusGuard.stop()
-    }
-    function cancelGeometryTrackingForMovement() {
-        if (root.focusRequestPending || root.focusWatchItem) {
-            root.focusRequestGeneration++
-            root.clearBlockFocusLifecycle()
-        }
-        root.cancelRevealTracking()
-    }
-    Connections {
-        target: root.focusWatchItem
-        function onHeightChanged() { root.scheduleFocusedBlockPosition() }
-    }
-    Timer {
-        id: blockFocusGuard
-        objectName: "blockFocusGuard"
-        property int generation: 0
-        interval: 5000
-        repeat: false
-        onTriggered: {
-            if (blockFocusGuard.generation !== root.focusRequestGeneration)
-                return
-            if (root.focusRequestPending
-                    || (root.focusWatchItem && !root.focusWatchHasFocus)) {
-                console.warn("Block delegate did not become focus-ready at index "
-                             + root.focusTargetIndex)
-                root.clearBlockFocusLifecycle()
-            }
-        }
-    }
-
     // ---- Keyboard accessibility: focus and pane navigation (§14.1) ----
-    // Skip-navigation: land on the current (or first) editor block, bypassing
-    // the chrome. Bound to F6's pane cycle and the View menu.
-    function focusEditor() {
-        root.focusBlockAtIndex(root.lastFocusedBlock)
-    }
+    // Skip-navigation lands on the current (or first) editor block, bypassing
+    // the chrome; focusEditor() above forwards to the editor for it.
+    //
     // Which major pane last took focus (0 sidebar, 1 note list, 2 editor,
     // 3 toolbar, 4 bottom dock, 5 navigation rails), so F6 can cycle to the next visible one — the standard
     // desktop region key. The toolbar is in the cycle because Insert,
@@ -667,7 +346,9 @@ KvitShell {
         function onTransientStatusRequested(message) { root.showTransientStatus(message) }
         // Objects this window owns. A delegate asks for the effect; which
         // child provides it stays private to the shell.
-        function onSelectionFocusRequested() { selectionKeyHandler.forceActiveFocus() }
+        function onSelectionFocusRequested() {
+            blockEditor.selectionKeys.forceActiveFocus()
+        }
         function onOpenLinkRequested(url) { linkOpener.activate(url) }
         function onBlockMenuRequested(index, mode, area) { blockMenu.openForBlock(index, mode, area) }
         function onMathCommandMenuRequested(host, area, displayMath) {
@@ -680,21 +361,6 @@ KvitShell {
         function onInsertLinkRequested(index, start, end, text) {
             linkDialog.openForInsert(index, start, end, text)
         }
-    }
-
-    // Scroll a block to the top of the editor viewport and focus it — the
-    // find-bar's scroll-into-view generalized, reused by internal-link
-    // navigation and the outline/TOC click-to-scroll.
-    function scrollToBlock(idx) {
-        if (idx < 0 || !BlockModel || idx >= BlockModel.count)
-            return
-        blockListView.currentIndex = idx
-        blockListView.positionViewAtIndex(idx, ListView.Beginning)
-        Qt.callLater(function() {
-            var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
-            if (item && item.focusAtStart)
-                item.focusAtStart()
-        })
     }
 
     // ---- Session state that outlives the window --------------------------
@@ -725,13 +391,6 @@ KvitShell {
     // A table-of-contents fence's stored body is derived from the headings,
     // and TocFenceSync.qml keeps it current.
     TocFenceSync {}
-
-    Connections {
-        target: blockListView
-        function onCurrentIndexChanged() {
-            DocumentOutline.setCurrentBlock(blockListView.currentIndex)
-        }
-    }
 
     // relPath of the open note ("" outside collection mode).
     readonly property string currentNoteRelPath:
@@ -764,7 +423,8 @@ KvitShell {
     NoteSession {
         id: noteSession
         appWindow: root
-        listView: blockListView
+        editor: blockEditor
+        listView: blockEditor.listView
         findBar: root.findBar
         sidebarPanel: sidebar
     }
@@ -772,9 +432,11 @@ KvitShell {
     // Drop ingestion lives in EditorDropArea now. Both of its entry points
     // keep their window-level names, which the delegates and the integration
     // suite call.
-    function blockForPath(stored) { return editorDropArea.blockForPath(stored) }
+    function blockForPath(stored) {
+        return blockEditor.dropArea.blockForPath(stored)
+    }
     function insertBlocksAt(afterIndex, typedBlocks) {
-        editorDropArea.insertBlocksAt(afterIndex, typedBlocks)
+        blockEditor.dropArea.insertBlocksAt(afterIndex, typedBlocks)
     }
 
     function openNoteByPath(relPath) {
@@ -1001,7 +663,7 @@ KvitShell {
     property alias linkDialog: linkDialog
     LinkDialog {
         id: linkDialog
-        listView: blockListView
+        listView: blockEditor.listView
     }
 
     // The block-type menu (features.md §4): opened by "/" on an empty
@@ -1044,9 +706,10 @@ KvitShell {
     property alias blockMenu: blockMenu
     BlockMenu {
         id: blockMenu
+        editor: blockEditor
         onApplied: function(blockIndex, type, opensDialog) {
             Qt.callLater(function() {
-                blockListView.currentIndex = blockIndex
+                blockEditor.listView.currentIndex = blockIndex
                 // An entry that opened an insert dialog (image, embed, table
                 // size grid) leaves the keyboard to that dialog. Focusing the
                 // block here would take it straight back, one tick after the
@@ -1054,130 +717,25 @@ KvitShell {
                 // once it has what it asked for.
                 if (opensDialog)
                     return
-                var item = (blockListView.itemAtIndex(blockIndex) as BlockDelegateBase)
+                var item = (blockEditor.listView.itemAtIndex(blockIndex)
+                            as BlockDelegateBase)
                 if (item)
                     item.focusAtStart()
             })
         }
     }
 
-    // Cross-block text selection and block drag-and-drop are two gestures
-    // over the same list, sharing the edge auto-scroller that keeps the
-    // pointer's end of the list in view. KvitShell declares both states
-    // because the delegates read them; the behaviour is in the components.
-    EdgeAutoScroller {
-        id: edgeScroller
-        listView: blockListView
-    }
-
-    crossBlockDrag: CrossBlockTextDrag {
-        listView: blockListView
-        scroller: edgeScroller
-    }
-
-    blockDrag: BlockDragController {
-        id: blockDragState
-        listView: blockListView
-        scroller: edgeScroller
-        dragLayer: blockDragLayer
-        selectionKeys: selectionKeyHandler
-    }
-
-    // The multi-block floating proxy draws over the whole shell, which is
-    // what the z value on the proxy used to say from here. Single-block
-    // drags use only the live-moving row.
+    // The multi-block floating proxy draws over the whole shell — the toolbar
+    // and the side panes included — which is what the z value on it says. An
+    // editor draws its own only when its host supplies none, and it could
+    // then draw no further than the editor's own bounds. Single-block drags
+    // use only the live-moving row.
     BlockDragLayer {
         id: blockDragLayer
         anchors.fill: parent
         z: 1000
-        dragState: blockDragState
-        listView: blockListView
-    }
-
-    // Keys while a block selection is active (features.md §3.1).
-    // Entering block selection focuses this item — the blurred
-    // TextArea's reveal collapses and any open block
-    // menu dismisses, both intended. Escape/Enter return to editing;
-    // plain Up/Down move the collapsed selection; Ctrl+Shift+Up/Down
-    // extend it; printable keys are deliberately inert (typing never
-    // replaces a block selection).
-    property alias findBar: findBar
-    // Keys while a block selection is active (features.md §3.1), in
-    // BlockSelectionKeys.qml. Entering block selection focuses this item,
-    // which blurs the editing block — its reveal collapses and any open block
-    // menu dismisses, both intended.
-    property alias selectionKeyHandler: selectionKeyHandler
-    BlockSelectionKeys {
-        id: selectionKeyHandler
-        listView: blockListView
-        gapCursor: blockGapCursor
-
-        // An oversized paste is confirmed by the window's dialog, which then
-        // performs the insert itself.
-        onOversizedPasteRequested: function(text, insertAt, plain) {
-            largePasteConfirmDialog.pendingText = text
-            largePasteConfirmDialog.pendingIndex = insertAt
-            largePasteConfirmDialog.pendingPlain = plain
-            largePasteConfirmDialog.pendingStripFormatting = plain
-            largePasteConfirmDialog.pendingFocusLast = false
-            largePasteConfirmDialog.open()
-        }
-    }
-
-    // The caret between two blocks (features.md §3.7), in BlockGapCursor.qml.
-    // A mode of the same shape as block selection above: it takes the focus
-    // while it is placed, and typing into it makes the block. It draws in the
-    // block list's own seams, so it is suspended while a drag is drawing its
-    // drop indicator in them.
-    property alias blockGapCursor: blockGapCursor
-    BlockGapCursor {
-        id: blockGapCursor
-        listView: blockListView
-        appWindow: root
-        dragState: blockDragState
-
-        onOversizedPasteRequested: function(text, insertAt, plain,
-                                            stripFormatting) {
-            largePasteConfirmDialog.pendingText = text
-            largePasteConfirmDialog.pendingIndex = insertAt
-            largePasteConfirmDialog.pendingPlain = plain
-            largePasteConfirmDialog.pendingStripFormatting = stripFormatting
-            largePasteConfirmDialog.pendingFocusLast = true
-            largePasteConfirmDialog.open()
-        }
-    }
-
-    // Right-click anywhere in a row's gutter opens that block's menu (§9.5).
-    //
-    // Inside the strip only the drag handle answered a right press, and it is
-    // fourteen pixels wide and only there while the pointer is on the row, so
-    // the menu was reachable by whoever already knew where it was. This sits
-    // at the back of the list's content item — the same stacking the gap
-    // cursor's hover probe uses (BlockGapCursor.qml) — because Qt offers a
-    // press to the items in front first: a press on a block's own chrome or
-    // text never reaches here, and one on the strip does, for all twelve
-    // block kinds without each growing a handler of its own.
-    //
-    // The strip is 44px wide and an indented row's content starts one indent
-    // step further in again, so the band widens with the indent. The indent
-    // is read from the model rather than the row because it is the twelve
-    // delegate types that carry it, not the interface the shell sees.
-    MouseArea {
-        objectName: "gutterMenuArea"
-        parent: blockListView.contentItem
-        z: -1
-        width: blockListView.width
-        height: blockListView.contentHeight
-        acceptedButtons: Qt.RightButton
-        onPressed: function(mouse) {
-            var idx = blockListView.indexAt(Math.max(1, mouse.x), mouse.y)
-            var block = idx >= 0 ? BlockModel.blockAt(idx) : null
-            if (!block || mouse.x >= 44 + block.indentLevel * 24) {
-                mouse.accepted = false
-                return
-            }
-            AppActions.requestBlockHandleMenu(blockListView.itemAtIndex(idx))
-        }
+        dragState: blockEditor.blockDrag
+        listView: blockEditor.listView
     }
 
     // ---- Opening, starting and closing a document -----------------------
@@ -1320,7 +878,7 @@ KvitShell {
     StatisticsPanel {
         id: statisticsPanel
         appWindow: root
-        targetBlock: appToolbar.targetBlock
+        targetBlock: blockEditor.caretBlock
     }
 
     // §19.2 writing-goal dialog: set or clear the open note's word target.
@@ -1365,8 +923,8 @@ KvitShell {
     // ---- Context menus (features.md §9.5) ---------------------------
     // The right-click menus live in EditorContextMenus.qml; what stays here
     // is the shell-level surface they answer. contextMenuHoldsSelection is a
-    // KvitShell query a delegate makes on itself, and the three open calls
-    // arrive from AppActions, so both have to be reachable on the window.
+    // BlockEditorSurface query a delegate makes on itself, and the three open
+    // calls arrive from AppActions, so both have to be reachable here.
     // Built on the first right-click rather than at startup. These are five
     // full menus with their items, actions and separators — measured at
     // about 800 QObjects, the largest single thing the shell was creating
@@ -1380,7 +938,7 @@ KvitShell {
             anchors.fill: parent
             appWindow: root
             toolbar: appToolbar
-            selectionKeys: selectionKeyHandler
+            selectionKeys: blockEditor.selectionKeys
         }
     }
     function contextMenus() {
@@ -1412,7 +970,8 @@ KvitShell {
     readonly property bool blockContextShortcutEnabled: {
         var item = root.activeFocusItem
         while (item) {
-            if (item === blockListView || item === selectionKeyHandler)
+            if (item === blockEditor.listView
+                    || item === blockEditor.selectionKeys)
                 return true
             item = item.parent
         }
@@ -1423,7 +982,7 @@ KvitShell {
         if (DocumentSelection.hasBlockSelection) {
             var selectedIndex = DocumentSelection.lastActiveIndex()
             if (selectedIndex >= 0 && selectedIndex < BlockModel.count)
-                target = (blockListView.itemAtIndex(selectedIndex)
+                target = (blockEditor.listView.itemAtIndex(selectedIndex)
                           as BlockDelegateBase)
         } else {
             // The ListView's currentIndex is updated by editor operations,
@@ -1431,14 +990,15 @@ KvitShell {
             // up from the real focus item so this route cannot target a row
             // left current by an earlier mouse or drag operation.
             var item = root.activeFocusItem
-            while (item && item !== blockListView) {
+            while (item && item !== blockEditor.listView) {
                 target = (item as BlockDelegateBase)
                 if (target)
                     break
                 item = item.parent
             }
-            if (!target && blockListView.currentIndex >= 0)
-                target = (blockListView.itemAtIndex(blockListView.currentIndex)
+            if (!target && blockEditor.listView.currentIndex >= 0)
+                target = (blockEditor.listView.itemAtIndex(
+                              blockEditor.listView.currentIndex)
                           as BlockDelegateBase)
         }
         if (target)
@@ -1446,21 +1006,6 @@ KvitShell {
     }
 
 
-    // KvitShell query overrides: a delegate asks whether its completion menu
-    // is open for it, and gets the menu back to drive. The menus are this
-    // window's own objects; the delegate never names them.
-    function activeBlockMenu(index) {
-        return (blockMenu.visible && blockMenu.targetIndex === index)
-            ? blockMenu : null
-    }
-    function activeMathMenu(host) {
-        return (mathCommandMenu.visible && mathCommandMenu.targets(host))
-            ? mathCommandMenu : null
-    }
-    function activeWikiMenu(host) {
-        return (wikiLinkMenu.visible && wikiLinkMenu.targets(host))
-            ? wikiLinkMenu : null
-    }
     function openLink(url) {
         linkOpener.activate(url)
         return true
@@ -1588,7 +1133,7 @@ KvitShell {
             var at = pendingIndex
             var focusLast = pendingFocusLast
             var pasted = pendingStripFormatting
-                ? blockGapCursor.stripPastedFormatting(pendingText)
+                ? blockEditor.gapCursor.stripPastedFormatting(pendingText)
                 : pendingText
             var count = pendingPlain
                 ? DocumentSerializer.insertPlainTextAt(
@@ -1601,7 +1146,7 @@ KvitShell {
                         root.focusBlockAtIndex(at + count - 1, true)
                     })
                 } else {
-                    selectionKeyHandler.selectRange(at, at + count - 1)
+                    blockEditor.selectionKeys.selectRange(at, at + count - 1)
                 }
             }
             pendingText = ""
@@ -1765,7 +1310,7 @@ KvitShell {
         anchors.left: parent.left
         anchors.right: parent.right
         appWindow: root
-        listView: blockListView
+        editor: blockEditor
         // Focus mode (§16.1) hides the toolbar with the rest of the chrome.
         visible: !root.focusMode
     }
@@ -2047,17 +1592,66 @@ KvitShell {
             + extensionSidePanel.width
         color: root.backgroundColor
 
-        // A press that no block claimed (margins, the gap between
-        // blocks, below the last block) ends any document-level
-        // selection (§3.1 clicking-elsewhere behavior).
-        MouseArea {
+        // The editing surface (BlockEditor.qml): the block list, the gestures
+        // over it, the floating bars, and the focus and scroll machinery that
+        // make the list an editor. Declared first so the tag strip and the
+        // document-header slot, which carry a z of their own, draw over it.
+        BlockEditor {
+            id: blockEditor
+            objectName: "blockEditor"
             anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
-            onPressed: function(mouse) {
-                if (DocumentSelection.hasBlockSelection
-                    || DocumentSelection.hasTextSelection)
-                    DocumentSelection.clear()
-                mouse.accepted = false
+
+            // The chrome this window draws across the top of the editor: the
+            // tag strip, and the document header a linked module fills. The
+            // block column starts below both; the floating bars clear only
+            // the strip, which is all that reaches the corner they sit in.
+            contentTopMargin: (tagStrip.visible ? tagStrip.height + 16 : 20)
+                              + extensionDocumentHeader.height
+            overlayTopMargin: tagStrip.visible ? tagStrip.height + 12 : 8
+
+            focusColumn: root.focusMode
+            typewriterMode: root.typewriterMode
+            dragLayer: blockDragLayer
+
+            // Where this document lives, and the three things the editor asks
+            // of the collection holding it. With no collection open every one
+            // of them is empty or inert, which is the single-file mode this
+            // application has always had: images are stored beside the file
+            // and a [[wiki link]] styles as an ordinary link.
+            documentPath: DocumentManager.currentFilePath
+            assetRoot: NoteCollection.isOpen ? NoteCollection.rootPath : ""
+            assetSink: AssetStore
+            linkResolver: NoteCollection.isOpen ? NoteCollection : null
+
+            // The completion menus are this window's own objects; a delegate
+            // asks whether one is open for it and gets it back to drive.
+            function activeBlockMenu(index) {
+                return (blockMenu.visible && blockMenu.targetIndex === index)
+                    ? blockMenu : null
+            }
+            function activeMathMenu(host) {
+                return (mathCommandMenu.visible && mathCommandMenu.targets(host))
+                    ? mathCommandMenu : null
+            }
+            function activeWikiMenu(host) {
+                return (wikiLinkMenu.visible && wikiLinkMenu.targets(host))
+                    ? wikiLinkMenu : null
+            }
+            function contextMenuHoldsSelection(target) {
+                return root.contextMenuHoldsSelection(target)
+            }
+            function openLink(url) { return root.openLink(url) }
+
+            // An oversized paste is confirmed by this window's dialog, which
+            // then performs the insert itself.
+            onOversizedPasteRequested: function(text, insertAt, plain,
+                                                stripFormatting, focusLast) {
+                largePasteConfirmDialog.pendingText = text
+                largePasteConfirmDialog.pendingIndex = insertAt
+                largePasteConfirmDialog.pendingPlain = plain
+                largePasteConfirmDialog.pendingStripFormatting = stripFormatting
+                largePasteConfirmDialog.pendingFocusLast = focusLast
+                largePasteConfirmDialog.open()
             }
         }
 
@@ -2114,318 +1708,6 @@ KvitShell {
             anchors.left: parent.left
             anchors.right: parent.right
             height: active && item ? (item as Item).implicitHeight : 0
-        }
-
-        // External-drag ingestion (§5.4), in EditorDropArea.qml.
-        EditorDropArea {
-            id: editorDropArea
-            objectName: "editorDropArea"
-            anchors.fill: scrollView
-            z: 40
-            appWindow: root
-            listView: blockListView
-        }
-
-        ScrollView {
-            id: scrollView
-            objectName: "editorScrollView"
-
-            // §10.2 maximum content width: when capped, the extra space
-            // becomes symmetric margins, centering the block column
-            // (delegates cannot be x-offset: ListView re-asserts item
-            // positions on every relayout).
-            readonly property int centeringMargin: {
-                var max = Typography.maxContentWidth
-                // Focus mode (§16.1) centers the column even when the user has
-                // left the max width uncapped: a fullscreen edge-to-edge line
-                // would be the opposite of focused, so it applies a readable
-                // default (honoring an explicit max width if one is set).
-                if (max <= 0 && root.focusMode)
-                    max = 760
-                if (max <= 0)
-                    return 0
-                return Math.max(0, Math.floor((parent.width - 40 - max) / 2))
-            }
-
-            anchors.fill: parent
-            anchors.margins: 20
-            anchors.leftMargin: 20 + centeringMargin
-            anchors.rightMargin: 20 + centeringMargin
-            anchors.topMargin: (tagStrip.visible ? tagStrip.height + 16 : 20)
-                               + extensionDocumentHeader.height
-
-            // A Flickable does not clip unless told to, and rows scrolled just
-            // past the top of the viewport stay instantiated (cacheBuffer
-            // below), so they painted over the tag strip and on up over the
-            // toolbar — the editor pane is declared after the toolbar, so it
-            // wins the overlap. Every other scrolling surface in the app
-            // already clips; the popups a block raises are window-level items,
-            // so none of them are clipped by this.
-            clip: true
-
-            contentWidth: availableWidth
-
-            // The two bars a ScrollView draws for itself are off, and the
-            // list below attaches none of its own: the editor's vertical bar
-            // is the DocumentScrollBar declared after this view, which is
-            // drawn from the document-height table rather than from the
-            // list's estimate of how tall the document is. The horizontal one
-            // has never had anything to scroll — the content is exactly as
-            // wide as the viewport — and it is switched off here so that
-            // nothing draws over the vertical one's foot.
-            ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-
-            ListView {
-                id: blockListView
-                objectName: "blockListView"
-
-                width: parent.width
-                // Blank-line rhythm between blocks (§10.2).
-                spacing: Typography.paragraphSpacing
-
-                reuseItems: true
-                // Keep a small offscreen row window warm for ordinary
-                // wheel/flick movement without making startup instantiate a
-                // large variable-height document through the buffer.
-                cacheBuffer: 240
-
-                // Scrollable space past the last block, so the end of a note
-                // can be pulled up into the middle of the window instead of
-                // being pinned to its bottom edge. The last block was where
-                // the reader had the least room to work: a task-board card
-                // clicked there grows a description field below the window's
-                // edge, and with the document ending exactly at that edge
-                // there was nothing to scroll to. It is a scroll range, not a
-                // row and not content height, so what the seam cursor and the
-                // block list measure themselves against is unchanged.
-                bottomMargin: Math.max(120, Math.round(height * 0.35))
-
-                // §16.2 typewriter mode: caret-line centering scrolls smoothly.
-                // The animation is enabled only in typewriter mode so ordinary
-                // scrolling, find-bar jumps, and drag auto-scroll are unchanged.
-                Behavior on contentY {
-                    // Typewriter scroll honors reduced motion (§14.3): 0
-                    // duration stills it instantly.
-                    enabled: root.typewriterMode && Theme.motionScale > 0
-                    NumberAnimation { duration: 130 * Theme.motionScale
-                                      easing.type: Easing.OutQuad }
-                }
-
-                model: BlockModel
-
-                // ---- geometry answers for a linked module's decorations ----
-                //
-                // A module that draws between or beside the blocks needs
-                // positions to implement a scroll policy of its own, and a
-                // position only exists once Qt Quick has laid the row out.
-                // DocumentDecorations forwards its three geometry questions
-                // here, to the object that has the laid-out rows; the
-                // rectangles are in this list's content coordinates, which is
-                // the space contentY moves through. A row outside the window
-                // of rows the list keeps alive answers with a null rectangle,
-                // which is the same answer as "no such block".
-                Component.onCompleted: DocumentDecorations.setDocumentView(blockListView)
-
-                function decorationBlockGeometry(blockIndex) {
-                    var row = (blockListView.itemAtIndex(blockIndex)
-                               as BlockDelegateBase)
-                    if (!row)
-                        return Qt.rect(0, 0, 0, 0)
-                    return Qt.rect(row.x, row.y, row.width, row.height)
-                }
-                function decorationLineGeometry(blockIndex, line) {
-                    var row = (blockListView.itemAtIndex(blockIndex)
-                               as BlockDelegateBase)
-                    if (!row)
-                        return Qt.rect(0, 0, 0, 0)
-                    return Qt.rect(row.x, row.y + row.lineTop(line),
-                                   row.width, row.lineHeightAt(line))
-                }
-                // Where a marked run of characters is drawn: one rectangle
-                // per visual line it crosses, since a marked phrase that
-                // wraps is in two places. The row that holds the span works
-                // them out in its own coordinates and this lifts them into
-                // the list's content coordinates, as with a container.
-                function decorationSpanRects(id) {
-                    for (var i = 0; i < BlockModel.count; ++i) {
-                        var spanRow = (blockListView.itemAtIndex(i)
-                                       as BlockDelegateBase)
-                        if (!spanRow)
-                            continue
-                        var rects = spanRow.decorationSpanRects(id)
-                        if (rects.length === 0)
-                            continue
-                        var out = []
-                        for (var j = 0; j < rects.length; ++j) {
-                            out.push(Qt.rect(spanRow.x + rects[j].x,
-                                             spanRow.y + rects[j].y,
-                                             rects[j].width, rects[j].height))
-                        }
-                        return out
-                    }
-                    return []
-                }
-                function decorationContainerGeometry(id) {
-                    for (var i = 0; i < BlockModel.count; ++i) {
-                        var row = (blockListView.itemAtIndex(i)
-                                   as BlockDelegateBase)
-                        if (!row)
-                            continue
-                        var box = row.decorationContainerRect(id)
-                        // A container is as wide as the row, so a zero width
-                        // is how the row says it is not drawing this one.
-                        if (box.width > 0) {
-                            return Qt.rect(row.x + box.x, row.y + box.y,
-                                           box.width, box.height)
-                        }
-                    }
-                    return Qt.rect(0, 0, 0, 0)
-                }
-
-                // Delegate readiness completes pending focus without polling.
-                // Geometry-driven reveal/focus tracking yields immediately to
-                // the reader as soon as they start moving the view themselves.
-                onCurrentItemChanged: root.blockDelegateReady(currentItem)
-                onMovementStarted: root.cancelGeometryTrackingForMovement()
-                onContentHeightChanged: root.scheduleReveal()
-
-                // One delegate per block type; paragraphs and headings
-                // share the default text choice.
-                // The chooser watches delegateKind, not blockType: it
-                // recreates a row's delegate whenever the watched role
-                // changes, and heading conversions must not drop focus.
-                delegate: DelegateChooser {
-                    id: blockDelegateChooser
-                    role: "delegateKind"
-
-                    // One DelegateChoice per registered kind, built when the
-                    // block list is created. A kind reaches the screen by
-                    // being registered — the same rule for a built-in kind
-                    // and for one a linked module added.
-                    //
-                    // This was seventeen DelegateChoice blocks written out
-                    // here, each pairing a kind number with a QML file, and
-                    // nothing checked that a kind had one: a kind whose
-                    // choice nobody remembered to add drew an empty row and
-                    // said nothing about it.
-                    //
-                    // The order matters. DelegateChooser takes the FIRST
-                    // choice whose roleValue matches, and a choice with no
-                    // roleValue matches everything — so every choice built
-                    // here names its kind, and none can shadow another.
-                    Component.onCompleted: {
-                        var choices = BlockKindRegistry.delegateChoices()
-                        for (var i = 0; i < choices.length; ++i) {
-                            var entry = choices[i]
-                            // Parented to the chooser, which is what keeps it
-                            // alive. A component created with no parent is
-                            // owned by JavaScript, and once this loop's local
-                            // goes out of scope the collector is free to take
-                            // it — leaving the chooser holding a freed
-                            // component and crashing on the next row it
-                            // builds, which is a scroll or two later.
-                            var component = Qt.createComponent(
-                                entry.delegateUrl, Component.PreferSynchronous,
-                                blockDelegateChooser)
-                            if (component.status !== Component.Ready) {
-                                console.warn("block kind '" + entry.id
-                                             + "' has no usable delegate: "
-                                             + component.errorString())
-                                continue
-                            }
-                            var choice = Qt.createQmlObject(
-                                'import QtQml.Models; DelegateChoice { }',
-                                blockDelegateChooser)
-                            choice.roleValue = entry.kind
-                            choice.delegate = component
-                            blockDelegateChooser.choices.push(choice)
-                        }
-                    }
-                }
-
-                // Do not animate displaced rows. Delegates such as Mermaid
-                // diagrams acquire their final height asynchronously, after
-                // insertion. A displaced y-transition keeps the following
-                // rows at positions calculated from the delegate's temporary
-                // height and can leave them overlapped after the animation.
-                // Let ListView track changing delegate heights directly.
-
-                // The one positional animation in the editor, and the
-                // category reduced-motion settings exist for: every block
-                // insert, delete and reorder slides the rows below it. It is
-                // the first thing that has to go still when the setting is on
-                // (accessibility.md Finding 5).
-                move: Transition {
-                    NumberAnimation {
-                        properties: "y"
-                        duration: 200 * Theme.motionScale
-                        easing.type: Easing.OutQuad
-                    }
-                }
-
-                // Add remove animation for visual feedback
-                remove: Transition {
-                    NumberAnimation {
-                        property: "opacity"
-                        to: 0
-                        duration: 150 * Theme.motionScale
-                    }
-                }
-
-                // No fade-in for an inserted row, for the same reason there is
-                // no displaced transition above, and it is worth stating
-                // exactly because the animation itself was harmless.
-                //
-                // While a ListView is running one of its own add transitions
-                // it drops any size change a delegate reports, and it never
-                // revisits it: the rows below stay where the shorter delegate
-                // put them, and forceLayout() afterwards does nothing, because
-                // the view has nothing recorded to lay out. The window is only
-                // the 150 ms of the fade, but that is precisely when a row
-                // that acquires its height asynchronously — a Mermaid diagram,
-                // an image, a decoration a module draws as a note opens — is
-                // most likely to grow, and the result is a row drawn over the
-                // one below it until the reader happens to edit something.
-                //
-                // Measured directly (tests/test_decorationshell.cpp): with the
-                // transition present a row that grew during it stayed
-                // overlapped through any number of frames and any number of
-                // forceLayout() calls; without it the view re-placed the rows
-                // below within the frame.
-            }
-        }
-
-        // The document's scrollbar, at the right edge of the scrolling area
-        // and over it, which is where the bar the ScrollView draws for itself
-        // sits. Outside the ScrollView rather than attached to it, because an
-        // attached bar is driven from C++ against the flickable's own
-        // estimate; DocumentScrollBar says what that costs the reader.
-        DocumentScrollBar {
-            listView: blockListView
-            anchors.top: scrollView.top
-            anchors.bottom: scrollView.bottom
-            anchors.right: scrollView.right
-        }
-
-        // The floating find/replace bar (features.md §7): overlays the
-        // editor's top-right corner, so opening it reflows nothing.
-        // Placed after the ScrollView so
-        // presses on it never reach the selection-clearing MouseArea.
-        FormattingBar {
-            id: formattingBar
-            target: appToolbar.targetBlock
-            listView: blockListView
-        }
-
-        FindBar {
-            id: findBar
-            appWindow: root
-            listView: blockListView
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.margins: 8
-            anchors.topMargin: tagStrip.visible ? tagStrip.height + 12 : 8
         }
     }
 
@@ -2546,8 +1828,8 @@ KvitShell {
         visible: root.statusBarVisible && !root.focusMode
 
         appWindow: root
-        listView: blockListView
-        targetBlock: appToolbar.targetBlock
+        listView: blockEditor.listView
+        targetBlock: blockEditor.caretBlock
         statisticsPanel: root.statisticsPanel
 
         onWritingGoalRequested: goalDialog.openFor(root.currentNoteRelPath)

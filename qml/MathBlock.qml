@@ -21,11 +21,6 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
-    // The editor window this row is in, typed. Null for any other window,
-    // so the guards below still mean what they meant.
-    readonly property KvitShell shell: Window.window as KvitShell
-
-
     required property string blockId
     required property int blockType
     required property string content
@@ -38,7 +33,7 @@ BlockDelegateBase {
     property int blockIndex: index
     property bool isPooled: false
     property ListView listView: ListView.view
-    property bool isFocused: sourceArea.activeFocus
+    isFocused: sourceArea.activeFocus
     property bool isHovered: hoverArea.hovered
     // The drag proxy grabs this instead of the whole row: a formula
     // occupies a fraction of the full-width delegate, and fitting the row
@@ -86,8 +81,8 @@ BlockDelegateBase {
     // roles. derivedRevision is the model's counter for that class of change;
     // reading it gives the binding the dependency it otherwise lacks.
     readonly property int equationNumber: {
-        var derived = BlockModel.derivedRevision
-        return BlockModel.mathNumber(root.index)
+        var derived = root.blocks.derivedRevision
+        return root.blocks.mathNumber(root.index)
     }
 
     // aarrggbb hex of a color, for the image://math/ query.
@@ -101,16 +96,20 @@ BlockDelegateBase {
     // this follows the window across screens of different ratios.
     readonly property real renderDpr: root.currentDpr()
     function currentDpr() {
-        // Qt's type description for ApplicationWindow omits devicePixelRatio,
-        // which is documented QML API, so the linter cannot see it. Same gap
-        // as Qt.application.screens in main.qml, and scoped the same way.
+        // The window, not the editor: this is about the display the row is
+        // drawn on rather than about the document. Qt's type description for
+        // the window omits devicePixelRatio, which is documented QML API, so
+        // the linter cannot see it. Same gap as Qt.application.screens in
+        // main.qml, and scoped the same way.
         // qmllint disable missing-property
-        if (root.shell && root.shell.devicePixelRatio !== undefined && root.shell.devicePixelRatio > 0)
-            return Math.round(root.shell.devicePixelRatio * 100) / 100
+        var hostWindow = root.Window.window
+        if (hostWindow && hostWindow.devicePixelRatio !== undefined
+                && hostWindow.devicePixelRatio > 0)
+            return Math.round(hostWindow.devicePixelRatio * 100) / 100
         // qmllint enable missing-property
         // The window's own screen is this item's screen, so the attached
-        // Screen below answers what root.shell.screen used to — typed, and
-        // still correct when the cast yields null.
+        // Screen below answers the same question, typed, and still correctly
+        // when this item is in no window yet.
         if (Screen.devicePixelRatio !== undefined && Screen.devicePixelRatio > 0)
             return Math.round(Screen.devicePixelRatio * 100) / 100
         return 1
@@ -127,9 +126,9 @@ BlockDelegateBase {
     }
 
     readonly property bool blockSelected: {
-        var revision = DocumentSelection.revision // dependency only
-        return DocumentSelection.isBlockSelected(root.index)
-            || DocumentSelection.portionForBlock(root.index).selected === true
+        var revision = root.selection.revision // dependency only
+        return root.selection.isBlockSelected(root.index)
+            || root.selection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -139,16 +138,16 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
-        return root.shell.blockDrag.isMulti ? root.blockSelected
-                                     : root.shell.blockDrag.sourceIndex === root.index
+        if (!root.editor || !root.editor.blockDrag || !root.editor.blockDrag.active) return false
+        return root.editor.blockDrag.isMulti ? root.blockSelected
+                                     : root.editor.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
         AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            if (root.shell && root.shell.lastFocusedBlock !== undefined) root.shell.lastFocusedBlock = index
+            if (root.editor && root.editor.lastFocusedBlock !== undefined) root.editor.lastFocusedBlock = index
             previewTex = content
         }
     }
@@ -192,7 +191,7 @@ BlockDelegateBase {
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
         if (!root.listView || targetIndex < 0
-            || targetIndex >= BlockModel.count)
+            || targetIndex >= root.blocks.count)
             return false
         root.listView.currentIndex = targetIndex
         var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
@@ -207,7 +206,7 @@ BlockDelegateBase {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        BlockModel.removeBlock(root.index)
+        root.blocks.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -239,12 +238,12 @@ BlockDelegateBase {
         if (typeof A11y !== "undefined" && names[newType])
             A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
-        BlockModel.convertBlock(root.index, newType, root.content, false, lang)
+        root.blocks.convertBlock(root.index, newType, root.content, false, lang)
     }
 
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
+        root.blocks.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -264,7 +263,7 @@ BlockDelegateBase {
             if (sourceArea.text !== root.content) {
                 var caret = sourceArea.cursorPosition
                 var keepMenu = sourceArea.activeMathMenu() !== null
-                BlockModel.updateContentById(root.blockId, sourceArea.text)
+                root.blocks.updateContentById(root.blockId, sourceArea.text)
                 // Re-applying the model-backed source can move the TextArea
                 // caret before the command trigger. Restore it before query
                 // synchronization so a slow typist does not lose the popup.
@@ -427,8 +426,8 @@ BlockDelegateBase {
             property bool slotChainActive: false
 
             function activeMathMenu() {
-                return root.shell
-                    ? root.shell.activeMathMenu(sourceArea) : null
+                return root.editor
+                    ? root.editor.activeMathMenu(sourceArea) : null
             }
 
             function openMathMenu(triggerPos) {
@@ -552,7 +551,7 @@ BlockDelegateBase {
                         menu.dismiss()
                     mathTriggerPos = -1
                     if (text !== root.content)
-                        BlockModel.updateContent(root.index, text)
+                        root.blocks.updateContent(root.index, text)
                     text = Qt.binding(function() { return root.content })
                 }
             }
@@ -769,7 +768,7 @@ BlockDelegateBase {
         anchors.topMargin: 4
 
         rowHovered: root.isHovered
-        dragEnabled: root.shell !== null && root.shell.blockDrag !== null
+        dragEnabled: root.editor !== null && root.editor.blockDrag !== null
 
         onInsertRequested: root.insertBlockBelowAndOpenMenu()
         onDeleteRequested: root.deleteCurrentBlock()
@@ -777,22 +776,22 @@ BlockDelegateBase {
         onBlockSelectRequested: {
             if (root.listView)
                 root.listView.currentIndex = root.index
-            DocumentSelection.selectBlock(root.index)
+            root.selection.selectBlock(root.index)
             root.focusSelectionHandler()
         }
         onDragStarted: function(sceneX, sceneY) {
-            root.shell.blockDrag.begin(root.index, sceneX, sceneY)
+            root.editor.blockDrag.begin(root.index, sceneX, sceneY)
         }
         onDragMoved: function(sceneX, sceneY) {
-            root.shell.blockDrag.update(sceneX, sceneY)
+            root.editor.blockDrag.update(sceneX, sceneY)
         }
         onDragDropped: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.drop()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.drop()
         }
         onDragCanceled: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.cancel()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.cancel()
         }
     }
 }

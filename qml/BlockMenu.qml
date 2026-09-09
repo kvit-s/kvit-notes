@@ -18,6 +18,13 @@ import Kvit 1.0
 Popup {
     id: menu
 
+    // The editor this belongs to, and the document it is showing.
+    property BlockEditorSurface editor: null
+    readonly property BlockModel blocks:
+        menu.editor ? menu.editor.blocks : BlockModel
+    readonly property DocumentOutline outline:
+        menu.editor ? menu.editor.outline : DocumentOutline
+
     objectName: "blockMenu"
 
     // The block the menu is operating on, or -1 while closed.
@@ -198,9 +205,9 @@ Popup {
         // text the user goes on to type. Three lines is the menu default; the
         // block context menu offers the other spans.
         if (type === Block.Paragraph && row.language === "dropcap") {
-            BlockModel.convertBlock(idx, Block.Paragraph, "", false, "")
-            BlockModel.setBlockAttributes(
-                idx, BlockAttributes.withValue(BlockModel.getAttributes(idx),
+            menu.blocks.convertBlock(idx, Block.Paragraph, "", false, "")
+            menu.blocks.setBlockAttributes(
+                idx, BlockAttributes.withValue(menu.blocks.getAttributes(idx),
                                                "dropcap", "3"))
             applied(idx, type, false)
             return
@@ -217,8 +224,8 @@ Popup {
         // body is correct from the moment it is inserted. A block kind is a
         // description of a kind and has no document to read.
         if (lang === "toc")
-            seed = DocumentOutline.tocMarkdown()
-        BlockModel.convertBlock(idx, type, seed, false, lang)
+            seed = menu.outline.tocMarkdown()
+        menu.blocks.convertBlock(idx, type, seed, false, lang)
         applied(idx, type, false)
     }
 

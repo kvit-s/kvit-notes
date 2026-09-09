@@ -123,7 +123,7 @@ public:
     int delegateKind() const override { return 0; }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/TextBlockDelegate.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/TextBlockDelegate.qml");
     }
 };
 

@@ -128,7 +128,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/CodeBlockDelegate.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/CodeBlockDelegate.qml");
     }
 };
 
@@ -265,7 +265,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/DividerDelegate.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/DividerDelegate.qml");
     }
 };
 
@@ -386,7 +386,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/MathBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/MathBlock.qml");
     }
 };
 

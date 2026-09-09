@@ -221,7 +221,7 @@ public:
     }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/ImageBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/ImageBlock.qml");
     }
 };
 
@@ -309,7 +309,7 @@ public:
     }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/MediaBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/MediaBlock.qml");
     }
 };
 
@@ -434,7 +434,7 @@ public:
     }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/EmbedBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/EmbedBlock.qml");
     }
 };
 

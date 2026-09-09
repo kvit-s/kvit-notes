@@ -28,10 +28,17 @@ import Kvit 1.0
 QtObject {
     id: root
 
+    // The editor this belongs to, and the document it is showing.
+    property BlockEditorSurface editor: null
+    readonly property BlockModel blocks:
+        root.editor ? root.editor.blocks : BlockModel
+    readonly property DocumentSelection selection:
+        root.editor ? root.editor.selection : DocumentSelection
+
     // This block's row in the document.
     property int blockIndex: -1
     // The editor this block renders its portion in.
-    property TextArea editor: null
+    property TextArea textEditor: null
     // The engine that maps this block between markdown and document offsets.
     // The two differ wherever the reveal state hides a span's markers.
     property BlockEditorEngine engine: null
@@ -56,31 +63,31 @@ QtObject {
 
     // Markdown position under a scene point (clamped into this block).
     function markdownPositionAt(sceneX, sceneY) {
-        var p = root.editor.mapFromItem(null, sceneX, sceneY)
-        var cx = Math.max(0, Math.min(p.x, root.editor.width - 1))
-        var cy = Math.max(0, Math.min(p.y, root.editor.height - 1))
-        return root.engine.toMarkdownPosition(root.editor.positionAt(cx, cy))
+        var p = root.textEditor.mapFromItem(null, sceneX, sceneY)
+        var cx = Math.max(0, Math.min(p.x, root.textEditor.width - 1))
+        var cy = Math.max(0, Math.min(p.y, root.textEditor.height - 1))
+        return root.engine.toMarkdownPosition(root.textEditor.positionAt(cx, cy))
     }
 
     // Whether a scene point is over this block's text (a press in the
     // gutter must not seed a text-selection drag).
     function pointInText(sceneX, sceneY) {
-        var p = root.editor.mapFromItem(null, sceneX, sceneY)
-        return p.x >= 0 && p.x <= root.editor.width
-            && p.y >= 0 && p.y <= root.editor.height
+        var p = root.textEditor.mapFromItem(null, sceneX, sceneY)
+        return p.x >= 0 && p.x <= root.textEditor.width
+            && p.y >= 0 && p.y <= root.textEditor.height
     }
 
     // Markdown position one visual line up/down from mdPos within this
     // block, or -1 when that would leave the block.
     function lineStepPosition(mdPos, dir) {
         var doc = Math.min(root.engine.toDocumentPosition(mdPos),
-                           root.editor.text.length)
-        var rect = root.editor.positionToRectangle(doc)
+                           root.textEditor.text.length)
+        var rect = root.textEditor.positionToRectangle(doc)
         var newY = rect.y + dir * rect.height + rect.height / 2
         if (newY < 0)
             return -1
-        var newDoc = root.editor.positionAt(rect.x, newY)
-        var newRect = root.editor.positionToRectangle(newDoc)
+        var newDoc = root.textEditor.positionAt(rect.x, newY)
+        var newRect = root.textEditor.positionToRectangle(newDoc)
         if (Math.abs(newRect.y - rect.y) < 1)
             return -1 // same visual line: the step leaves the block
         return root.engine.toMarkdownPosition(newDoc)
@@ -89,15 +96,15 @@ QtObject {
     // Entry position for a vertical crossing into this block at a given
     // x (the first or last visual line).
     function entryPositionAtX(x, fromTop) {
-        var y = fromTop ? 2 : root.editor.height - 2
-        var cx = Math.max(0, Math.min(x, root.editor.width - 1))
-        return root.engine.toMarkdownPosition(root.editor.positionAt(cx, y))
+        var y = fromTop ? 2 : root.textEditor.height - 2
+        var cx = Math.max(0, Math.min(x, root.textEditor.width - 1))
+        return root.engine.toMarkdownPosition(root.textEditor.positionAt(cx, y))
     }
 
     function xAtMarkdown(mdPos) {
         var doc = Math.min(root.engine.toDocumentPosition(mdPos),
-                           root.editor.text.length)
-        return root.editor.positionToRectangle(doc).x
+                           root.textEditor.text.length)
+        return root.textEditor.positionToRectangle(doc).x
     }
 
     // ---- Rendering this block's portion ----
@@ -121,20 +128,20 @@ QtObject {
     // drag by collapsing that native selection, and the anchor block has to
     // be painted from the range like every other block in it.
     function applyTextPortion(force) {
-        if (root.pooled || (root.editor.activeFocus && !force))
+        if (root.pooled || (root.textEditor.activeFocus && !force))
             return
-        var p = DocumentSelection.portionForBlock(root.blockIndex)
+        var p = root.selection.portionForBlock(root.blockIndex)
         if (p.selected === true && p.end > p.start) {
             var docStart = root.engine.toDocumentPosition(p.start)
             var docEnd = root.engine.toDocumentPosition(p.end)
             // Fixed-point guard: re-select only when the TextArea does
             // not already show the desired range, so the re-apply paths
             // below cannot feed back through the engine indefinitely.
-            if (root.editor.selectionStart !== docStart
-                || root.editor.selectionEnd !== docEnd)
-                root.editor.select(docStart, docEnd)
-        } else if (root.editor.selectionEnd > root.editor.selectionStart) {
-            root.editor.deselect()
+            if (root.textEditor.selectionStart !== docStart
+                || root.textEditor.selectionEnd !== docEnd)
+                root.textEditor.select(docStart, docEnd)
+        } else if (root.textEditor.selectionEnd > root.textEditor.selectionStart) {
+            root.textEditor.deselect()
         }
     }
 
@@ -146,7 +153,7 @@ QtObject {
     // afterwards.
     function onSelectionRevisionChanged() {
         root.applyTextPortion()
-        if (DocumentSelection.hasTextSelection)
+        if (root.selection.hasTextSelection)
             root.applyTextPortionLater()
     }
 
@@ -161,22 +168,22 @@ QtObject {
     // Remove the coordinator's range from the model (one undo step) and
     // return the {index, cursor} landing spot.
     function crossBlockDeleteRange() {
-        var range = DocumentSelection.orderedTextRange()
-        DocumentSelection.clearTextSelection()
-        root.editor.deselect()
-        return BlockModel.removeTextRange(range.startIndex, range.startPos,
-                                          range.endIndex, range.endPos)
+        var range = root.selection.orderedTextRange()
+        root.selection.clearTextSelection()
+        root.textEditor.deselect()
+        return root.blocks.removeTextRange(range.startIndex, range.startPos,
+                                           range.endIndex, range.endPos)
     }
 
     // Move the cross-block head one step (Shift+Arrows, §21.3 keyboard
     // extension). Vertical steps stay within the head block's visual
     // lines until they must cross into the neighbor at the same x.
     function moveCrossBlockHead(key) {
-        var headIdx = DocumentSelection.textHeadIndex()
-        var headMd = DocumentSelection.textHeadPosition()
+        var headIdx = root.selection.textHeadIndex()
+        var headMd = root.selection.textHeadPosition()
         if (headIdx < 0 || !root.blockList)
             return
-        var content = BlockModel.getContent(headIdx)
+        var content = root.blocks.getContent(headIdx)
         var headItem = (root.blockList.itemAtIndex(headIdx) as BlockDelegateBase)
         var newIdx = headIdx
         var newMd = headMd
@@ -184,7 +191,7 @@ QtObject {
         if (key === Qt.Key_Right) {
             if (headMd < content.length) {
                 newMd = headMd + 1
-            } else if (headIdx < BlockModel.count - 1) {
+            } else if (headIdx < root.blocks.count - 1) {
                 newIdx = headIdx + 1
                 newMd = 0
             }
@@ -193,7 +200,7 @@ QtObject {
                 newMd = headMd - 1
             } else if (headIdx > 0) {
                 newIdx = headIdx - 1
-                newMd = BlockModel.getContent(newIdx).length
+                newMd = root.blocks.getContent(newIdx).length
             }
         } else if (key === Qt.Key_Down || key === Qt.Key_Up) {
             var dir = key === Qt.Key_Down ? 1 : -1
@@ -204,7 +211,7 @@ QtObject {
             } else {
                 var x = headItem && headItem.xAtMarkdown
                     ? headItem.xAtMarkdown(headMd) : 0
-                if (dir > 0 && headIdx < BlockModel.count - 1) {
+                if (dir > 0 && headIdx < root.blocks.count - 1) {
                     newIdx = headIdx + 1
                     var below = (root.blockList.itemAtIndex(newIdx) as BlockDelegateBase)
                     newMd = below && below.entryPositionAtX
@@ -214,22 +221,22 @@ QtObject {
                     var above = (root.blockList.itemAtIndex(newIdx) as BlockDelegateBase)
                     newMd = above && above.entryPositionAtX
                         ? above.entryPositionAtX(x, false)
-                        : BlockModel.getContent(newIdx).length
+                        : root.blocks.getContent(newIdx).length
                 }
             }
         }
 
-        if (newIdx === DocumentSelection.textAnchorIndex()
+        if (newIdx === root.selection.textAnchorIndex()
             && newIdx === root.blockIndex) {
             // The head returned into the anchor block: collapse back to
             // a native in-block selection
-            var anchorMd = DocumentSelection.textAnchorPosition()
-            DocumentSelection.clearTextSelection()
-            root.editor.select(root.engine.toDocumentPosition(anchorMd),
+            var anchorMd = root.selection.textAnchorPosition()
+            root.selection.clearTextSelection()
+            root.textEditor.select(root.engine.toDocumentPosition(anchorMd),
                                root.engine.toDocumentPosition(newMd))
             return
         }
-        DocumentSelection.updateTextSelectionHead(newIdx, newMd)
+        root.selection.updateTextSelectionHead(newIdx, newMd)
     }
 
     // Keys while this block anchors an active cross-block selection.
@@ -241,8 +248,8 @@ QtObject {
                    || event.key === Qt.Key_Up || event.key === Qt.Key_Down
 
         if (event.key === Qt.Key_Escape) {
-            DocumentSelection.clearTextSelection()
-            root.editor.deselect()
+            root.selection.clearTextSelection()
+            root.textEditor.deselect()
             event.accepted = true
             return true
         }
@@ -253,9 +260,9 @@ QtObject {
         }
         if (!ctrl && !shift && isArrow) {
             // Plain arrows collapse the selection to its edge
-            var range = DocumentSelection.orderedTextRange()
-            DocumentSelection.clearTextSelection()
-            root.editor.deselect()
+            var range = root.selection.orderedTextRange()
+            root.selection.clearTextSelection()
+            root.textEditor.deselect()
             var goStart = event.key === Qt.Key_Left || event.key === Qt.Key_Up
             root.refocusRequested(goStart ? range.startIndex : range.endIndex,
                                   goStart ? range.startPos : range.endPos)
@@ -263,12 +270,12 @@ QtObject {
             return true
         }
         if (event.key === Qt.Key_C && ctrl) {
-            root.copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
+            root.copyMarkdownToClipboard(root.selection.rangeMarkdown())
             event.accepted = true
             return true
         }
         if (event.key === Qt.Key_X && ctrl) {
-            root.copyMarkdownToClipboard(DocumentSelection.rangeMarkdown())
+            root.copyMarkdownToClipboard(root.selection.rangeMarkdown())
             var cutResult = root.crossBlockDeleteRange()
             if (cutResult.index !== undefined)
                 root.refocusRequested(cutResult.index, cutResult.cursor)
@@ -303,8 +310,8 @@ QtObject {
         if (!ctrl && event.text.length > 0 && event.text.charCodeAt(0) >= 32) {
             var repResult = root.crossBlockDeleteRange()
             if (repResult.index !== undefined) {
-                var md = BlockModel.getContent(repResult.index)
-                BlockModel.updateContent(repResult.index,
+                var md = root.blocks.getContent(repResult.index)
+                root.blocks.updateContent(repResult.index,
                     md.substring(0, repResult.cursor) + event.text
                     + md.substring(repResult.cursor))
                 root.refocusRequested(repResult.index,
@@ -322,19 +329,19 @@ QtObject {
     function beginSelectionAtEdge(event) {
         var crossIdx = -1
         var crossMd = 0
-        var ed = root.editor
+        var ed = root.textEditor
         if (event.key === Qt.Key_Right
             && ed.cursorPosition >= ed.text.length
-            && root.blockIndex < BlockModel.count - 1) {
+            && root.blockIndex < root.blocks.count - 1) {
             crossIdx = root.blockIndex + 1
             crossMd = 0
         } else if (event.key === Qt.Key_Left
                    && ed.cursorPosition === 0 && root.blockIndex > 0) {
             crossIdx = root.blockIndex - 1
-            crossMd = BlockModel.getContent(crossIdx).length
+            crossMd = root.blocks.getContent(crossIdx).length
         } else if (event.key === Qt.Key_Down
                    && root.cursorOnLastLine()
-                   && root.blockIndex < BlockModel.count - 1) {
+                   && root.blockIndex < root.blocks.count - 1) {
             crossIdx = root.blockIndex + 1
             var below = root.blockList
                 ? (root.blockList.itemAtIndex(crossIdx) as BlockDelegateBase) : null
@@ -350,7 +357,7 @@ QtObject {
             crossMd = above && above.entryPositionAtX
                 ? above.entryPositionAtX(
                       ed.positionToRectangle(ed.cursorPosition).x, false)
-                : BlockModel.getContent(crossIdx).length
+                : root.blocks.getContent(crossIdx).length
         }
         if (crossIdx < 0)
             return false
@@ -359,25 +366,25 @@ QtObject {
             ? (ed.cursorPosition === ed.selectionEnd
                    ? ed.selectionStart : ed.selectionEnd)
             : ed.cursorPosition
-        DocumentSelection.beginTextSelection(root.blockIndex,
+        root.selection.beginTextSelection(root.blockIndex,
             root.engine.toMarkdownPosition(anchorDoc), 0)
-        DocumentSelection.updateTextSelectionHead(crossIdx, crossMd)
+        root.selection.updateTextSelectionHead(crossIdx, crossMd)
         return true
     }
 
     // Whether the caret is on the first or last visual line of this block,
     // which is what decides between moving within it and leaving it.
     function cursorOnFirstLine() {
-        if (root.editor.text.indexOf('\n') === -1) return true
-        var rect = root.editor.positionToRectangle(root.editor.cursorPosition)
-        var firstLineRect = root.editor.positionToRectangle(0)
+        if (root.textEditor.text.indexOf('\n') === -1) return true
+        var rect = root.textEditor.positionToRectangle(root.textEditor.cursorPosition)
+        var firstLineRect = root.textEditor.positionToRectangle(0)
         return Math.abs(rect.y - firstLineRect.y) < 1
     }
 
     function cursorOnLastLine() {
-        if (root.editor.text.indexOf('\n') === -1) return true
-        var rect = root.editor.positionToRectangle(root.editor.cursorPosition)
-        var lastLineRect = root.editor.positionToRectangle(root.editor.text.length)
+        if (root.textEditor.text.indexOf('\n') === -1) return true
+        var rect = root.textEditor.positionToRectangle(root.textEditor.cursorPosition)
+        var lastLineRect = root.textEditor.positionToRectangle(root.textEditor.text.length)
         return Math.abs(rect.y - lastLineRect.y) < 1
     }
 }

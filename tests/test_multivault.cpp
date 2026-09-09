@@ -177,7 +177,7 @@ private slots:
         ProcessServices globals(headlessOptions());
         globals.openSettings(settingsDir.filePath(QStringLiteral("settings.json")));
         WindowRegistry registry(globals,
-                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
 
         QVERIFY(registry.openStartup(vault1.path()));
         QCOMPARE(registry.windowCount(), 1);
@@ -306,7 +306,7 @@ private slots:
             ProcessServices globals(headlessOptions());
             globals.openSettings(settingsPath);
             WindowRegistry registry(globals,
-                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                    QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
             QVERIFY(registry.openStartup(vault1.path()));
             registry.openVaultInNewWindow(vault2.path());
             QCOMPARE(registry.windowCount(), 2);
@@ -318,7 +318,7 @@ private slots:
             ProcessServices globals(headlessOptions());
             globals.openSettings(settingsPath);
             WindowRegistry registry(globals,
-                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                    QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
             QVERIFY(registry.openSession());
             QCOMPARE(registry.windowCount(), 2);
         }
@@ -345,7 +345,7 @@ private slots:
             ProcessServices globals(headlessOptions());
             globals.openSettings(settingsPath);
             WindowRegistry registry(globals,
-                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                    QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
             QVERIFY(registry.openStartup(vault1.path()));
             registry.openVaultInNewWindow(vault2.path());
             QCOMPARE(registry.windowCount(), 2);
@@ -362,7 +362,7 @@ private slots:
             ProcessServices globals(headlessOptions());
             globals.openSettings(settingsPath);
             WindowRegistry registry(globals,
-                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                    QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
             QVERIFY(registry.openSession());
             QCOMPARE(registry.windowCount(), 2);
         }
@@ -386,7 +386,7 @@ private slots:
             ProcessServices globals(headlessOptions());
             globals.openSettings(settingsPath);
             WindowRegistry registry(globals,
-                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                    QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
             QVERIFY(registry.openStartup(vault.path()));
             registry.closeVault(vault.path());
             QTRY_COMPARE(registry.windowCount(), 0);
@@ -398,7 +398,7 @@ private slots:
             ProcessServices globals(headlessOptions());
             globals.openSettings(settingsPath);
             WindowRegistry registry(globals,
-                                    QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                    QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
             QVERIFY(registry.openSession());
             QCOMPARE(registry.windowCount(), 1);
             expectRemembered(globals, vault.path());
@@ -472,7 +472,7 @@ private slots:
         }
 
         WindowRegistry registry(globals,
-                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
         QVERIFY(registry.openStartup(vault1.path()));
         VaultWindow *vaultWindow = registry.activeWindow();
         QVERIFY(vaultWindow);
@@ -618,7 +618,7 @@ private slots:
         globals.settings()->setValue(QStringLiteral("root.viewState"), states);
 
         WindowRegistry registry(globals,
-                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
         QVERIFY(registry.openStartup(vault.path()));
         VaultWindow *vaultWindow = registry.activeWindow();
         QVERIFY(vaultWindow);
@@ -654,7 +654,7 @@ private slots:
         ProcessServices globals(headlessOptions());
         globals.openSettings(settingsDir.filePath(QStringLiteral("settings.json")));
         WindowRegistry registry(globals,
-                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
 
         QVERIFY(registry.openStartup(vault1.path()));
         VaultWindow *first = registry.activeWindow();
@@ -704,7 +704,7 @@ private slots:
         ProcessServices globals(headlessOptions());
         globals.openSettings(settingsDir.filePath(QStringLiteral("settings.json")));
         WindowRegistry registry(globals,
-                                QUrl(QStringLiteral("qrc:/qml/main.qml")));
+                                QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
 
         QVERIFY(registry.openStartup(vault1.path()));
         VaultWindow *first = registry.activeWindow();

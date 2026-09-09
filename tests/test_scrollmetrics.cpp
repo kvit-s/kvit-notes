@@ -105,7 +105,7 @@ private slots:
 
         g_warnings.clear();
         g_previousHandler = qInstallMessageHandler(capturingHandler);
-        m_engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
+        m_engine.load(QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
         QCoreApplication::processEvents();
         QVERIFY(!m_engine.rootObjects().isEmpty());
         m_warningsAfterLoad = g_warnings.size();

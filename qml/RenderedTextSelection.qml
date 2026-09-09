@@ -33,6 +33,11 @@ import Kvit 1.0
 Item {
     id: sel
 
+    // The editor this belongs to, and the document it is showing.
+    property BlockEditorSurface editor: null
+    readonly property DocumentSelection selection:
+        sel.editor ? sel.editor.selection : DocumentSelection
+
     // The subtree holding the runs — the block's rendered card.
     property Item content: null
     // The list the block is a row of. It stops flicking while a sweep is in
@@ -315,9 +320,9 @@ Item {
         sel.sweeping = true
         if (sel.blockList)
             sel.blockList.interactive = false
-        if (DocumentSelection.hasBlockSelection
-            || DocumentSelection.hasTextSelection)
-            DocumentSelection.clear()
+        if (sel.selection.hasBlockSelection
+            || sel.selection.hasTextSelection)
+            sel.selection.clear()
         sel.sweepStarted()
     }
 
@@ -480,9 +485,9 @@ Item {
         // paragraph. A block with nothing drawn in it has no first stage.
         if (ctrl && event.key === Qt.Key_A && !sel.everythingSelected()) {
             if (sel.selectAll()) {
-                if (DocumentSelection.hasBlockSelection
-                    || DocumentSelection.hasTextSelection)
-                    DocumentSelection.clear()
+                if (sel.selection.hasBlockSelection
+                    || sel.selection.hasTextSelection)
+                    sel.selection.clear()
                 event.accepted = true
                 return true
             }
@@ -495,10 +500,10 @@ Item {
     // during engage() bumps the revision too, and finds neither kind set,
     // which is why engaging does not immediately undo itself.
     Connections {
-        target: DocumentSelection
+        target: sel.selection
         function onRevisionChanged() {
-            if (DocumentSelection.hasBlockSelection
-                || DocumentSelection.hasTextSelection)
+            if (sel.selection.hasBlockSelection
+                || sel.selection.hasTextSelection)
                 sel.clear()
         }
     }

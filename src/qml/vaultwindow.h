@@ -16,7 +16,7 @@ class WindowRouter;
 class QQuickWindow;
 
 // One editor window: a per-vault AppContext composed onto its own QQmlEngine,
-// which loads the shell (KvitShell) into a single ApplicationWindow. A process
+// which loads the shell (qml/main.qml) into a single window. A process
 // holds one of these per open vault (and per loose file), all sharing one
 // ProcessServices.
 //

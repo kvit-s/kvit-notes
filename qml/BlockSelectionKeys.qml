@@ -18,6 +18,15 @@ import Kvit 1.0
 // cannot diverge.
 Item {
     id: keys
+
+    // The editor this belongs to, and the document it is showing.
+    property BlockEditorSurface editor: null
+    readonly property BlockModel blocks:
+        keys.editor ? keys.editor.blocks : BlockModel
+    readonly property DocumentSelection selection:
+        keys.editor ? keys.editor.selection : DocumentSelection
+    readonly property DocumentStats stats:
+        keys.editor ? keys.editor.stats : DocumentStats
     objectName: "selectionKeyHandler"
 
     // Wired by main.qml.
@@ -34,10 +43,10 @@ Item {
 
     // Leave selection mode and edit the given block.
     function exitToBlock(idx) {
-        DocumentSelection.clear()
-        if (idx < 0 || idx >= BlockModel.count)
+        keys.selection.clear()
+        if (idx < 0 || idx >= keys.blocks.count)
             idx = Math.max(0, Math.min(keys.listView.currentIndex,
-                                       BlockModel.count - 1))
+                                       keys.blocks.count - 1))
         keys.listView.currentIndex = idx
         var item = (keys.listView.itemAtIndex(idx) as BlockDelegateBase)
         if (item)
@@ -45,7 +54,7 @@ Item {
     }
 
     function revealSelectionEdge() {
-        var idx = DocumentSelection.lastActiveIndex()
+        var idx = keys.selection.lastActiveIndex()
         if (idx >= 0) {
             keys.listView.currentIndex = idx
             keys.listView.positionViewAtIndex(idx, ListView.Contain)
@@ -56,9 +65,9 @@ Item {
     // after a structural change).
     function focusBlockLater(idx, atEnd) {
         Qt.callLater(function() {
-            if (BlockModel.count === 0)
+            if (keys.blocks.count === 0)
                 return
-            var i = Math.max(0, Math.min(idx, BlockModel.count - 1))
+            var i = Math.max(0, Math.min(idx, keys.blocks.count - 1))
             keys.listView.currentIndex = i
             var item = (keys.listView.itemAtIndex(i) as BlockDelegateBase)
             if (item) {
@@ -75,36 +84,36 @@ Item {
     // the internal marker so pasting back into Kvit is lossless.
     function copyBlocksToClipboard() {
         var md = DocumentSerializer.serializeBlocks(
-            BlockModel, DocumentSelection.selectedIndexes())
+            keys.blocks, keys.selection.selectedIndexes())
         Clipboard.setMarkdown(md, MarkdownFormatter.toHtml(md))
     }
 
     // Remove the selected blocks and land the cursor on the block
     // before the removed run (§3.5).
     function removeSelectedBlocks() {
-        var indexes = DocumentSelection.selectedIndexes()
+        var indexes = keys.selection.selectedIndexes()
         if (indexes.length === 0)
             return
         var first = Number(indexes[0])
-        DocumentSelection.clear()
-        BlockModel.removeBlocks(indexes)
+        keys.selection.clear()
+        keys.blocks.removeBlocks(indexes)
         keys.focusBlockLater(first > 0 ? first - 1 : 0, first > 0)
     }
 
     function selectRange(first, last) {
-        DocumentSelection.selectBlock(first)
+        keys.selection.selectBlock(first)
         if (last > first)
-            DocumentSelection.extendBlockSelectionTo(last)
+            keys.selection.extendBlockSelectionTo(last)
         keys.revealSelectionEdge()
     }
 
     Keys.onPressed: function(event) {
-        if (!DocumentSelection.hasBlockSelection)
+        if (!keys.selection.hasBlockSelection)
             return
         if (event.key === Qt.Key_Menu
             || (event.key === Qt.Key_F10
                 && (event.modifiers & Qt.ShiftModifier))) {
-            var targetIndex = DocumentSelection.lastActiveIndex()
+            var targetIndex = keys.selection.lastActiveIndex()
             var target = targetIndex >= 0
                 ? (keys.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
                 : null
@@ -122,10 +131,10 @@ Item {
         // Checked before plain Enter below, which edits the block instead.
         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
             && ctrl && keys.gapCursor) {
-            var selected = DocumentSelection.selectedIndexes()
+            var selected = keys.selection.selectedIndexes()
             var after = selected.length > 0
                 ? Number(selected[selected.length - 1]) + 1
-                : BlockModel.count
+                : keys.blocks.count
             // place() ends the selection; the indexes are read first because
             // of it.
             keys.gapCursor.place(after)
@@ -135,7 +144,7 @@ Item {
 
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return
             || event.key === Qt.Key_Enter) {
-            keys.exitToBlock(DocumentSelection.lastActiveIndex())
+            keys.exitToBlock(keys.selection.lastActiveIndex())
             event.accepted = true
             return
         }
@@ -152,8 +161,8 @@ Item {
         // Ctrl+D: duplicate the selection below itself; the
         // selection moves to the clones (features.md §3.6)
         if (event.key === Qt.Key_D && ctrl) {
-            var clones = BlockModel.duplicateBlocks(
-                DocumentSelection.selectedIndexes())
+            var clones = keys.blocks.duplicateBlocks(
+                keys.selection.selectedIndexes())
             if (clones.length > 0)
                 keys.selectRange(Number(clones[0]),
                             Number(clones[clones.length - 1]))
@@ -165,8 +174,8 @@ Item {
         // selection follows the moved blocks by id
         if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
             && (event.modifiers & Qt.AltModifier)) {
-            BlockModel.moveBlocksBy(DocumentSelection.selectedIndexes(),
-                                    event.key === Qt.Key_Down ? 1 : -1)
+            keys.blocks.moveBlocksBy(keys.selection.selectedIndexes(),
+                                     event.key === Qt.Key_Down ? 1 : -1)
             keys.revealSelectionEdge()
             event.accepted = true
             return
@@ -175,8 +184,8 @@ Item {
         // Tab/Shift+Tab: indent/outdent the selection's list-family
         // blocks together (§3.3)
         if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-            BlockModel.changeIndentForBlocks(
-                DocumentSelection.selectedIndexes(),
+            keys.blocks.changeIndentForBlocks(
+                keys.selection.selectedIndexes(),
                 event.key === Qt.Key_Tab ? 1 : -1)
             event.accepted = true
             return
@@ -200,10 +209,10 @@ Item {
         // selection (§5.3); the new blocks become the selection
         if (event.key === Qt.Key_V && ctrl) {
             if (Clipboard.hasText) {
-                var indexes = DocumentSelection.selectedIndexes()
+                var indexes = keys.selection.selectedIndexes()
                 var insertAt = indexes.length > 0
                     ? Number(indexes[indexes.length - 1]) + 1
-                    : BlockModel.count
+                    : keys.blocks.count
                 // §5.3 format matrix (internal / HTML / plain); paste-plain
                 // deliberately takes the source's own plain text instead.
                 var pasteText = (shift ? Clipboard.text
@@ -230,15 +239,15 @@ Item {
                     // displayText(markdown) for non-verbatim content —
                     // and there is no block here, so verbatim is false.
                     var plain = pasteText.split("\n").map(function(line) {
-                        return DocumentStats.displayTextFor(line, false)
+                        return keys.stats.displayTextFor(line, false)
                     }).join("\n")
                     var plainCount = DocumentSerializer.insertPlainTextAt(
-                        BlockModel, insertAt, plain)
+                        keys.blocks, insertAt, plain)
                     if (plainCount > 0)
                         keys.selectRange(insertAt, insertAt + plainCount - 1)
                 } else {
                     var count = DocumentSerializer.insertMarkdownAt(
-                        BlockModel, insertAt, pasteText)
+                        keys.blocks, insertAt, pasteText)
                     if (count > 0)
                         keys.selectRange(insertAt, insertAt + count - 1)
                 }
@@ -249,7 +258,7 @@ Item {
 
         if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
             && ctrl && shift) {
-            DocumentSelection.extendBlockSelection(
+            keys.selection.extendBlockSelection(
                 event.key === Qt.Key_Down ? 1 : -1)
             keys.revealSelectionEdge()
             event.accepted = true
@@ -257,14 +266,14 @@ Item {
         }
         if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
             && !ctrl && !shift && !(event.modifiers & Qt.AltModifier)) {
-            DocumentSelection.collapseBlockSelection(
+            keys.selection.collapseBlockSelection(
                 event.key === Qt.Key_Down ? 1 : -1)
             keys.revealSelectionEdge()
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_A && ctrl) {
-            DocumentSelection.selectAllBlocks()
+            keys.selection.selectAllBlocks()
             event.accepted = true
             return
         }

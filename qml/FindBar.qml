@@ -21,10 +21,17 @@ import Kvit 1.0
 // the search.
 Rectangle {
     id: findBar
+
+    readonly property BlockModel blocks:
+        findBar.editor ? findBar.editor.blocks : BlockModel
+    readonly property DocumentSelection selection:
+        findBar.editor ? findBar.editor.selection : DocumentSelection
+    readonly property DocumentSearch search:
+        findBar.editor ? findBar.editor.search : DocumentSearch
     objectName: "findBar"
 
     // Injected by main.qml.
-    property var appWindow: null
+    property BlockEditorSurface editor: null
     property var listView: null
 
     // Ctrl+H mode: the replace row shows.
@@ -63,21 +70,21 @@ Rectangle {
     function open(withReplace) {
         replaceMode = withReplace
 
-        var idx = appWindow ? appWindow.lastFocusedBlock : 0
+        var idx = findBar.editor ? findBar.editor.lastFocusedBlock : 0
         var item = listView ? listView.itemAtIndex(idx) : null
         var mdPos = (item && item.markdownCursor) ? item.markdownCursor() : 0
-        DocumentSearch.setActiveCursor(idx, mdPos)
+        findBar.search.setActiveCursor(idx, mdPos)
 
-        if (DocumentSelection.hasBlockSelection) {
-            DocumentSearch.setBlockDomain(DocumentSelection.selectedIndexes())
+        if (findBar.selection.hasBlockSelection) {
+            findBar.search.setBlockDomain(findBar.selection.selectedIndexes())
             inSelectionButton.checked = true
-        } else if (DocumentSelection.hasTextSelection) {
-            var range = DocumentSelection.orderedTextRange()
-            DocumentSearch.setTextDomain(range.startIndex, range.startPos,
+        } else if (findBar.selection.hasTextSelection) {
+            var range = findBar.selection.orderedTextRange()
+            findBar.search.setTextDomain(range.startIndex, range.startPos,
                                          range.endIndex, range.endPos)
             inSelectionButton.checked = true
         } else {
-            DocumentSearch.clearDomain()
+            findBar.search.clearDomain()
             inSelectionButton.checked = false
             if (item && item.selectionDisplayText) {
                 var selected = item.selectionDisplayText()
@@ -88,8 +95,8 @@ Rectangle {
 
         visible = true
         queryDebounceTimer.stop()
-        DocumentSearch.active = true
-        DocumentSearch.query = queryField.text
+        findBar.search.active = true
+        findBar.search.query = queryField.text
         queryField.forceActiveFocus()
         queryField.selectAll()
         scrollToCurrent()
@@ -101,15 +108,15 @@ Rectangle {
     function openAt(query, blockIndex, mdPos) {
         replaceMode = false
         previewPanel.close()
-        DocumentSearch.clearDomain()
+        findBar.search.clearDomain()
         inSelectionButton.checked = false
         queryField.text = query
-        DocumentSearch.setActiveCursor(blockIndex, mdPos)
+        findBar.search.setActiveCursor(blockIndex, mdPos)
         visible = true
         queryDebounceTimer.stop()
-        DocumentSearch.active = true
-        DocumentSearch.query = query
-        DocumentSearch.recomputeNow()
+        findBar.search.active = true
+        findBar.search.query = query
+        findBar.search.recomputeNow()
         scrollToCurrent()
     }
 
@@ -120,16 +127,16 @@ Rectangle {
         if (!visible)
             return
         previewPanel.close()
-        var info = DocumentSearch.currentMatchInfo()
+        var info = findBar.search.currentMatchInfo()
         visible = false
-        DocumentSearch.active = false
-        DocumentSearch.clearDomain()
+        findBar.search.active = false
+        findBar.search.clearDomain()
         inSelectionButton.checked = false
 
         var idx = info.found ? info.blockIndex
-                             : (appWindow ? appWindow.lastFocusedBlock : 0)
+                             : (findBar.editor ? findBar.editor.lastFocusedBlock : 0)
         var mdPos = info.found ? info.mdStart : -1
-        if (!listView || idx < 0 || idx >= BlockModel.count)
+        if (!listView || idx < 0 || idx >= findBar.blocks.count)
             return
         listView.positionViewAtIndex(idx, ListView.Contain)
         Qt.callLater(function() {
@@ -145,13 +152,13 @@ Rectangle {
 
     function stepNext() {
         applyPendingQuery()
-        DocumentSearch.next()
+        findBar.search.next()
         scrollToCurrent()
     }
 
     function stepPrevious() {
         applyPendingQuery()
-        DocumentSearch.previous()
+        findBar.search.previous()
         scrollToCurrent()
     }
 
@@ -180,7 +187,7 @@ Rectangle {
     function scrollToCurrent() {
         if (!visible || !listView)
             return
-        var info = DocumentSearch.currentMatchInfo()
+        var info = findBar.search.currentMatchInfo()
         if (!info.found)
             return
         listView.positionViewAtIndex(info.blockIndex, ListView.Contain)
@@ -219,7 +226,7 @@ Rectangle {
 
     function replaceOne() {
         applyPendingQuery()
-        if (DocumentSearch.replaceCurrent(replaceField.text))
+        if (findBar.search.replaceCurrent(replaceField.text))
             scrollToCurrent()
     }
 
@@ -228,23 +235,23 @@ Rectangle {
     // step, Cancel leaves the document untouched.
     function requestReplaceAll() {
         applyPendingQuery()
-        if (DocumentSearch.matchCount === 0 || DocumentSearch.patternError)
+        if (findBar.search.matchCount === 0 || findBar.search.patternError)
             return
-        previewRows = DocumentSearch.previewReplacements(replaceField.text)
+        previewRows = findBar.search.previewReplacements(replaceField.text)
         previewPanel.open()
     }
 
     function confirmReplaceAll() {
         applyPendingQuery()
         previewPanel.close()
-        DocumentSearch.replaceAll(replaceField.text)
+        findBar.search.replaceAll(replaceField.text)
     }
 
     function applyPendingQuery() {
         if (!queryDebounceTimer.running)
             return
         queryDebounceTimer.stop()
-        DocumentSearch.query = queryField.text
+        findBar.search.query = queryField.text
     }
 
     Timer {
@@ -252,7 +259,7 @@ Rectangle {
         interval: 30
         repeat: false
         onTriggered: {
-            DocumentSearch.query = queryField.text
+            findBar.search.query = queryField.text
             findBar.scrollToCurrent()
         }
     }
@@ -296,13 +303,13 @@ Rectangle {
                 Layout.preferredHeight: Interface.px(28)
                 placeholderText: qsTr("Find")
                 selectByMouse: true
-                color: DocumentSearch.patternError ? Theme.danger : Theme.textPrimary
+                color: findBar.search.patternError ? Theme.danger : Theme.textPrimary
                 Keys.onPressed: function(event) { findBar.handleFieldKeys(event) }
                 onTextChanged: {
                     if (findBar.visible)
                         queryDebounceTimer.restart()
                     else
-                        DocumentSearch.query = text
+                        findBar.search.query = text
                 }
             }
 
@@ -313,14 +320,14 @@ Rectangle {
                 elide: Text.ElideRight
                 // matchCount/currentNumber/patternError all notify via
                 // revisionChanged, so this re-evaluates on every change.
-                text: DocumentSearch.patternError
+                text: findBar.search.patternError
                       ? qsTr("Invalid pattern")
-                      : (DocumentSearch.matchCount > 0
-                         ? DocumentSearch.currentNumber + qsTr(" of ")
-                           + DocumentSearch.matchCount
-                         : (DocumentSearch.query.length > 0
+                      : (findBar.search.matchCount > 0
+                         ? findBar.search.currentNumber + qsTr(" of ")
+                           + findBar.search.matchCount
+                         : (findBar.search.query.length > 0
                             ? qsTr("No results") : ""))
-                color: DocumentSearch.patternError ? Theme.danger : Theme.textMuted
+                color: findBar.search.patternError ? Theme.danger : Theme.textMuted
                 font.pixelSize: Interface.body
             }
 
@@ -330,7 +337,7 @@ Rectangle {
                 label: qsTr("Previous match")
                 implicitWidth: Interface.px(28)
                 font.pixelSize: Interface.caption
-                enabled: DocumentSearch.matchCount > 0
+                enabled: findBar.search.matchCount > 0
                 onClicked: findBar.stepPrevious()
             }
             FindButton {
@@ -339,7 +346,7 @@ Rectangle {
                 label: qsTr("Next match")
                 implicitWidth: Interface.px(28)
                 font.pixelSize: Interface.caption
-                enabled: DocumentSearch.matchCount > 0
+                enabled: findBar.search.matchCount > 0
                 onClicked: findBar.stepNext()
             }
 
@@ -424,7 +431,7 @@ Rectangle {
                 text: qsTr("Replace")
                 implicitHeight: Interface.px(28)
                 font.pixelSize: Interface.body
-                enabled: DocumentSearch.matchCount > 0
+                enabled: findBar.search.matchCount > 0
                 onClicked: findBar.replaceOne()
             }
             Button {
@@ -432,7 +439,7 @@ Rectangle {
                 text: qsTr("All")
                 implicitHeight: Interface.px(28)
                 font.pixelSize: Interface.body
-                enabled: DocumentSearch.matchCount > 0
+                enabled: findBar.search.matchCount > 0
                 onClicked: findBar.requestReplaceAll()
             }
 
@@ -457,18 +464,18 @@ Rectangle {
                 objectName: "inSelectionButton"
                 text: qsTr("In selection")
                 checkable: true
-                visible: DocumentSearch.hasDomain
+                visible: findBar.search.hasDomain
                 implicitHeight: Interface.px(28)
                 font.pixelSize: Interface.small
             }
         }
     }
 
-    Binding { target: DocumentSearch; property: "caseSensitive"; value: caseButton.checked }
-    Binding { target: DocumentSearch; property: "wholeWord"; value: wordButton.checked }
-    Binding { target: DocumentSearch; property: "useRegex"; value: regexButton.checked }
-    Binding { target: DocumentSearch; property: "preserveCase"; value: preserveCaseButton.checked }
-    Binding { target: DocumentSearch; property: "inSelectionOnly"; value: inSelectionButton.checked }
+    Binding { target: findBar.search; property: "caseSensitive"; value: caseButton.checked }
+    Binding { target: findBar.search; property: "wholeWord"; value: wordButton.checked }
+    Binding { target: findBar.search; property: "useRegex"; value: regexButton.checked }
+    Binding { target: findBar.search; property: "preserveCase"; value: preserveCaseButton.checked }
+    Binding { target: findBar.search; property: "inSelectionOnly"; value: inSelectionButton.checked }
 
     // The replace-all preview: every pending replacement
     // as its match line with the matched text struck through and the
@@ -490,7 +497,7 @@ Rectangle {
         // change (an edit recomputing matches, an option flip)
         // invalidates the snapshot and dismisses the panel.
         Connections {
-            target: DocumentSearch
+            target: findBar.search
             enabled: previewPanel.visible
             function onRevisionChanged() { previewPanel.close() }
         }

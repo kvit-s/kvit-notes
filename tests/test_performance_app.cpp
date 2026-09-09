@@ -124,7 +124,7 @@ void TestPerformanceApp::guiStartupSamples()
     startup.start();
     QVERIFY(manager->open(QUrl::fromLocalFile(notePath)));
 
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/Kvit/main.qml"));
     engine.load(url);
     if (engine.rootObjects().isEmpty())
         QSKIP("QML window did not load in this environment");
@@ -172,7 +172,7 @@ void TestPerformanceApp::guiColdStartObjectCount()
 
     QElapsedTimer startup;
     startup.start();
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/Kvit/main.qml"));
     engine.load(url);
     if (engine.rootObjects().isEmpty())
         QSKIP("QML window did not load in this environment");
@@ -269,7 +269,7 @@ void TestPerformanceApp::guiScrollWarAndPeaceFrameSample()
 
     QVERIFY(manager->open(QUrl::fromLocalFile(notePath)));
 
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/Kvit/main.qml"));
     engine.load(url);
     if (engine.rootObjects().isEmpty())
         QSKIP("QML window did not load in this environment");
@@ -395,7 +395,7 @@ void TestPerformanceApp::guiCollectionStartupDeferredVault10K()
 
     QElapsedTimer startup;
     startup.start();
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/Kvit/main.qml"));
     engine.load(url);
     if (engine.rootObjects().isEmpty())
         QSKIP("QML window did not load in this environment");
@@ -490,7 +490,7 @@ void TestPerformanceApp::guiCollectionStartupDeferredSmallVaultHugeNote()
 
     QElapsedTimer startup;
     startup.start();
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/Kvit/main.qml"));
     engine.load(url);
     if (engine.rootObjects().isEmpty())
         QSKIP("QML window did not load in this environment");
@@ -576,7 +576,7 @@ void TestPerformanceApp::guiCollectionPersistenceLiveSizedNote()
     QVERIFY(controller);
     controller->setRootPath(dir.path());
 
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/Kvit/main.qml"));
     engine.load(url);
     if (engine.rootObjects().isEmpty())
         QSKIP("QML window did not load in this environment");

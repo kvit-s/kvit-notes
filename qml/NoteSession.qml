@@ -26,6 +26,8 @@ QtObject {
     // own — which note is open, the last focused block, the transient status
     // line — and the three objects a switch has to touch.
     property var appWindow
+    // The editor the session opens documents into.
+    property BlockEditorSurface editor: null
     property var listView
     property var findBar
     // The sidebar owns the recent-search history that opening a search result
@@ -63,7 +65,7 @@ QtObject {
             return false
         NavigationHistory.visit(relPath, departingY)
         NoteCollection.setLastOpenNote(relPath)
-        session.appWindow.lastFocusedBlock = 0
+        session.editor.lastFocusedBlock = 0
         session.listView.currentIndex = 0
         // Reset the session word tracker to the just-loaded document (the model
         // has finished loading synchronously here).
@@ -153,7 +155,7 @@ QtObject {
         var idx = DocumentOutline.blockIndexForSlug(
             DocumentOutline.slugForText(heading))
         if (idx >= 0)
-            session.appWindow.scrollToBlock(idx)
+            session.editor.scrollToBlock(idx)
         else
             session.appWindow.showTransientStatus(
                 qsTr("No heading “%1”").arg(heading))
@@ -356,7 +358,7 @@ QtObject {
         // is still in conflict, so the banner stays for a second attempt.
         if (!DocumentManager.open(DocumentManager.toLocalFileUrl(target)))
             return false
-        session.appWindow.lastFocusedBlock = 0
+        session.editor.lastFocusedBlock = 0
         session.listView.currentIndex = 0
         Qt.callLater(session.appWindow.refreshSessionBaseline)
         session.appWindow.externalConflict = false

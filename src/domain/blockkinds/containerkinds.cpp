@@ -160,7 +160,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/CalloutBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/CalloutBlock.qml");
     }
 };
 
@@ -320,7 +320,7 @@ public:
     int delegateKind() const override { return static_cast<int>(kind()); }
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/TableBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/TableBlock.qml");
     }
 };
 

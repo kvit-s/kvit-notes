@@ -35,7 +35,7 @@ The suite is heterogeneous, and the labels matter:
 - `unit`: deterministic C++ tests, headless-safe. This is the merge gate on
   every platform: `ctest -L unit` (or `ctest --preset unit-linux`).
 - `performance`: timing-sensitive; informational on loaded machines.
-- `shell`: loads the shipped `resources.qrc` and constructs the real
+- `shell`: loads the shipped QML shell and constructs the real
   application shell. Deterministic offscreen, and a merge gate on every
   platform alongside `unit`: `ctest --preset shell-linux`. These are what
   catch a QML syntax error, a file missing from the resource file, an import

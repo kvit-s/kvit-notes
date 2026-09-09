@@ -25,21 +25,24 @@ import Kvit 1.0
 DropArea {
     id: dropArea
 
+    readonly property BlockModel blocks:
+        dropArea.editor ? dropArea.editor.blocks : BlockModel
+
     // Wired by main.qml.
-    property var appWindow
+    property BlockEditorSurface editor
     property var listView
 
     property real dropY: -1
 
+    // Where a dropped file becomes a stored one. All three answers are the
+    // editor's: a host with no collection stores assets beside the document,
+    // and one with no sink at all refuses the drop.
     function currentNoteSlug() {
-        var p = DocumentManager.currentFilePath
-        var fn = p.substring(p.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "")
-        var slug = fn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
-        return slug === "" ? "image" : slug
+        return dropArea.editor ? dropArea.editor.documentSlug : "image"
     }
 
     function assetRoot() {
-        return NoteCollection.isOpen ? NoteCollection.rootPath : ""
+        return dropArea.editor ? dropArea.editor.assetRoot : ""
     }
 
     // The block index a drop at content-y lands after (-1 → append).
@@ -52,17 +55,17 @@ DropArea {
     function insertBlocksAt(afterIndex, typedBlocks) {
         // typedBlocks: [{type, content}]. Insert after `afterIndex` (append
         // when -1); focus the last inserted block.
-        var at = afterIndex < 0 ? BlockModel.count : afterIndex + 1
+        var at = afterIndex < 0 ? dropArea.blocks.count : afterIndex + 1
         var last = at
         for (var i = 0; i < typedBlocks.length; ++i) {
-            BlockModel.insertBlock(at, typedBlocks[i].type, typedBlocks[i].content)
+            dropArea.blocks.insertBlock(at, typedBlocks[i].type, typedBlocks[i].content)
             last = at
             at++
         }
         // The dropped blocks can land outside the viewport, where no delegate
         // exists yet, so the window's retrying focus router is what puts the
         // caret in the last one rather than a single deferred itemAtIndex().
-        dropArea.appWindow.focusBlockAtIndex(last)
+        dropArea.editor.focusBlockAtIndex(last)
     }
 
     // Turn a stored image/media path into the right block type by extension.
@@ -77,7 +80,11 @@ DropArea {
         var afterIndex = dropArea.dropTargetIndex(drop.y)
         var slug = dropArea.currentNoteSlug()
         var root2 = dropArea.assetRoot()
-        var nd = dropArea.appWindow.currentNoteDir()
+        var nd = dropArea.editor ? dropArea.editor.documentDirectory : ""
+        // The sink that turns dropped bytes into a file. Null in a host with
+        // nowhere to put them, which leaves the two ingest arms below to fall
+        // through to the plain-text arm rather than writing anywhere.
+        var sink = dropArea.editor ? dropArea.editor.assetSink : null
         var blocks = []
 
         // 1) Raw image bytes (spike b's bytes arm), if delivered.
@@ -85,9 +92,9 @@ DropArea {
         for (var f = 0; f < fmts.length; ++f) {
             if (fmts[f] === "application/x-qt-image"
                 || fmts[f].indexOf("image/") === 0) {
-                var buf = drop.getDataAsArrayBuffer(fmts[f])
+                var buf = sink ? drop.getDataAsArrayBuffer(fmts[f]) : null
                 if (buf) {
-                    var storedB = AssetStore.ingestImageBytes(buf, slug, root2, nd)
+                    var storedB = sink.ingestImageBytes(buf, slug, root2, nd)
                     if (storedB !== "") {
                         blocks.push({ type: Block.Image,
                             content: ImageAssets.build(storedB, "", "", 0) })
@@ -108,9 +115,9 @@ DropArea {
                     // here left %23 and %25 in the path, so a file named
                     // "photo #2.png" resolved to nothing and the drop was
                     // silently ignored.
-                    if (ImageAssets.kindOf(url) === "none")
-                        continue  // not an image/media file
-                    var stored = AssetStore.ingestLocalFile(url, slug, root2, nd)
+                    if (!sink || ImageAssets.kindOf(url) === "none")
+                        continue  // no sink, or not an image/media file
+                    var stored = sink.ingestLocalFile(url, slug, root2, nd)
                     if (stored !== "")
                         blocks.push(dropArea.blockForPath(stored))
                 } else if (url.indexOf("http") === 0) {

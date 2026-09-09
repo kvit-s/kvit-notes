@@ -11,11 +11,6 @@ import Kvit 1.0
 BlockDelegateBase {
     id: delegate
 
-    // The editor window this row is in, typed. Null for any other window,
-    // so the guards below still mean what they meant.
-    readonly property KvitShell shell: Window.window as KvitShell
-
-
     required property string blockId
     required property int blockType
     required property string content
@@ -46,13 +41,13 @@ BlockDelegateBase {
     }
     // Write new divider attributes as one undo step (used by the style picker).
     function setDividerAttributes(payload) {
-        BlockModel.setBlockAttributes(delegate.index, payload)
+        delegate.blocks.setBlockAttributes(delegate.index, payload)
     }
 
     property int blockIndex: index
     property bool isPooled: false
     property ListView listView: ListView.view
-    property bool isFocused: focusTarget.activeFocus
+    isFocused: focusTarget.activeFocus
     // The gutter's MouseAreas sit over hoverArea and steal its hover; fold
     // the gutter's own hover back in so the buttons do not vanish the moment
     // the pointer reaches them (as EditableBlock does).
@@ -63,9 +58,9 @@ BlockDelegateBase {
     // divider inside a cross-block text range shows the same tint —
     // it has no text to highlight.
     readonly property bool blockSelected: {
-        var revision = DocumentSelection.revision // dependency only
-        return DocumentSelection.isBlockSelected(delegate.index)
-            || DocumentSelection.portionForBlock(delegate.index).selected === true
+        var revision = delegate.selection.revision // dependency only
+        return delegate.selection.isBlockSelected(delegate.index)
+            || delegate.selection.portionForBlock(delegate.index).selected === true
     }
 
     // Cross-block position helpers, matching EditableBlock's API: a
@@ -78,10 +73,10 @@ BlockDelegateBase {
 
     // Dragged-row dim, matching EditableBlock (§21.4 space-holder).
     readonly property bool isDragSource: {
-        if (!delegate.shell || !delegate.shell.blockDrag || !delegate.shell.blockDrag.active)
+        if (!delegate.editor || !delegate.editor.blockDrag || !delegate.editor.blockDrag.active)
             return false
-        return delegate.shell.blockDrag.isMulti ? delegate.blockSelected
-                                     : delegate.shell.blockDrag.sourceIndex === delegate.index
+        return delegate.editor.blockDrag.isMulti ? delegate.blockSelected
+                                     : delegate.editor.blockDrag.sourceIndex === delegate.index
     }
 
     function focusSelectionHandler() {
@@ -93,8 +88,8 @@ BlockDelegateBase {
     // which would move focus to the delegate root).
     onIsFocusedChanged: {
         if (isFocused) {
-            if (delegate.shell && delegate.shell.lastFocusedBlock !== undefined)
-                delegate.shell.lastFocusedBlock = index
+            if (delegate.editor && delegate.editor.lastFocusedBlock !== undefined)
+                delegate.editor.lastFocusedBlock = index
         }
     }
 
@@ -124,7 +119,7 @@ BlockDelegateBase {
 
     function deleteCurrentBlock() {
         var prevIndex = delegate.index - 1
-        BlockModel.removeBlock(delegate.index)
+        delegate.blocks.removeBlock(delegate.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -136,7 +131,7 @@ BlockDelegateBase {
 
     function createBlockBelow() {
         var newIndex = delegate.index + 1
-        BlockModel.insertBlock(newIndex, 0, "") // 0 = Paragraph
+        delegate.blocks.insertBlock(newIndex, 0, "") // 0 = Paragraph
         Qt.callLater(function() {
             if (listView) {
                 listView.currentIndex = newIndex
@@ -151,7 +146,7 @@ BlockDelegateBase {
     // The new block is a text delegate, which owns openBlockMenu.
     function insertBlockBelowAndOpenMenu() {
         var newIndex = delegate.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
+        delegate.blocks.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv)
@@ -182,13 +177,13 @@ BlockDelegateBase {
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (delegate.listView)
                     delegate.listView.currentIndex = delegate.index
-                DocumentSelection.selectBlock(delegate.index)
+                delegate.selection.selectBlock(delegate.index)
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                DocumentSelection.selectAllBlocks()
+                delegate.selection.selectAllBlocks()
                 delegate.focusSelectionHandler()
                 event.accepted = true
                 return
@@ -202,7 +197,7 @@ BlockDelegateBase {
                 return
             }
             if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
-                BlockModel.duplicateBlocks([delegate.index])
+                delegate.blocks.duplicateBlocks([delegate.index])
                 var lv = delegate.listView
                 var cloneIndex = delegate.index + 1
                 Qt.callLater(function() {
@@ -225,7 +220,7 @@ BlockDelegateBase {
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Down && delegate.index < BlockModel.count - 1
+            if (event.key === Qt.Key_Down && delegate.index < delegate.blocks.count - 1
                 && delegate.listView) {
                 var nextIndex = delegate.index + 1
                 delegate.listView.currentIndex = nextIndex
@@ -380,26 +375,26 @@ BlockDelegateBase {
             // The §3.1 modifier gestures work on dividers too; a divider
             // has no text, so there is no link carve-out here.
             if (mouse.modifiers & Qt.ControlModifier) {
-                DocumentSelection.toggleBlock(delegate.index)
-                if (DocumentSelection.hasBlockSelection)
+                delegate.selection.toggleBlock(delegate.index)
+                if (delegate.selection.hasBlockSelection)
                     delegate.focusSelectionHandler()
                 else
                     focusTarget.forceActiveFocus()
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var anchor = delegate.shell && delegate.shell.lastFocusedBlock !== undefined
-                        ? delegate.shell.lastFocusedBlock : -1
-                if (!DocumentSelection.hasBlockSelection
+                var anchor = delegate.editor && delegate.editor.lastFocusedBlock !== undefined
+                        ? delegate.editor.lastFocusedBlock : -1
+                if (!delegate.selection.hasBlockSelection
                     && anchor >= 0 && anchor !== delegate.index)
-                    DocumentSelection.selectBlock(anchor)
-                DocumentSelection.extendBlockSelectionTo(delegate.index)
+                    delegate.selection.selectBlock(anchor)
+                delegate.selection.extendBlockSelectionTo(delegate.index)
                 delegate.focusSelectionHandler()
                 return
             }
-            if (DocumentSelection.hasBlockSelection
-                || DocumentSelection.hasTextSelection)
-                DocumentSelection.clear()
+            if (delegate.selection.hasBlockSelection
+                || delegate.selection.hasTextSelection)
+                delegate.selection.clear()
             focusTarget.forceActiveFocus()
         }
     }
@@ -414,7 +409,7 @@ BlockDelegateBase {
         anchors.topMargin: 4
 
         rowHovered: delegate.isHovered
-        dragEnabled: delegate.shell !== null && delegate.shell.blockDrag !== null
+        dragEnabled: delegate.editor !== null && delegate.editor.blockDrag !== null
 
         onInsertRequested: delegate.insertBlockBelowAndOpenMenu()
         onDeleteRequested: delegate.deleteCurrentBlock()
@@ -422,22 +417,22 @@ BlockDelegateBase {
         onBlockSelectRequested: {
             if (delegate.listView)
                 delegate.listView.currentIndex = delegate.index
-            DocumentSelection.selectBlock(delegate.index)
+            delegate.selection.selectBlock(delegate.index)
             delegate.focusSelectionHandler()
         }
         onDragStarted: function(sceneX, sceneY) {
-            delegate.shell.blockDrag.begin(delegate.index, sceneX, sceneY)
+            delegate.editor.blockDrag.begin(delegate.index, sceneX, sceneY)
         }
         onDragMoved: function(sceneX, sceneY) {
-            delegate.shell.blockDrag.update(sceneX, sceneY)
+            delegate.editor.blockDrag.update(sceneX, sceneY)
         }
         onDragDropped: {
-            if (delegate.shell && delegate.shell.blockDrag)
-                delegate.shell.blockDrag.drop()
+            if (delegate.editor && delegate.editor.blockDrag)
+                delegate.editor.blockDrag.drop()
         }
         onDragCanceled: {
-            if (delegate.shell && delegate.shell.blockDrag)
-                delegate.shell.blockDrag.cancel()
+            if (delegate.editor && delegate.editor.blockDrag)
+                delegate.editor.blockDrag.cancel()
         }
     }
 }

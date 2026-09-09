@@ -33,7 +33,7 @@ Item {
     Loader {
         id: appLoader
         anchors.fill: parent
-        source: "qrc:/qml/main.qml"
+        source: "qrc:/qt/qml/Kvit/main.qml"
         asynchronous: false
     }
 

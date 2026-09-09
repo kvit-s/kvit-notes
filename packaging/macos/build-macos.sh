@@ -180,7 +180,7 @@ cp "$OFFSCREEN_SRC" "$APP/Contents/PlugIns/platforms/"
 # ── Deploy the Qt runtime
 #
 # -qmldir gives macdeployqt the import graph: the app compiles its QML into
-# resources.qrc, so there is no QML tree to scan otherwise — the same failure
+# the kvit-qml library, so there is no QML tree to scan otherwise — the same failure
 # that once shipped a Linux AppImage unable to load its own UI.
 "$MACDEPLOYQT" "$APP" \
     -qmldir="$PWD/qml" \

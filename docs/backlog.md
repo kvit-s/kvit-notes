@@ -62,6 +62,47 @@ where each now lives.
   the scene is non-empty, and the QML action stays hidden while a render is
   pending or errored.
 
+## QML bindings that depend on a value they do not use
+
+The `Kvit` QML module is built with `QT_QMLCACHEGEN_ARGUMENTS "--only-bytecode"`
+(see `CMakeLists.txt`), which switches off `qmlsc`'s ahead-of-time compilation
+of bindings and leaves them to the interpreter.
+
+The reason is a pattern used in about forty bindings across `qml/`: a binding
+establishes a dependency on a notifying property by reading it into a local it
+never uses, so that the binding re-evaluates when that property changes.
+
+```qml
+readonly property string displaySource: {
+    var revision = EgressPolicy.revision          // dependency only
+    return EgressPolicy.imageSourceFor(picture.resolvedSource)
+}
+```
+
+The interpreter performs the read, so the binding depends on `revision`.
+`qmlsc` sees a local that is never used and eliminates it, and the binding then
+never re-evaluates. Measured when `QML_FILES` first turned the compiler on: the
+generated `ReadOnlyPicture_qml.cpp` held one singleton lookup, one context
+lookup, one property read and one call, with no read of `revision` anywhere in
+it, and five `ReadOnlyDocumentTests` cases failed — a remote image's consent
+tile staying on screen after the reader approved its origin, and a selection
+band never appearing.
+
+Turning the compiler back on means rewriting every such read so its value
+reaches the result, for example
+
+```qml
+readonly property string displaySource:
+    EgressPolicy.revision >= 0
+        ? EgressPolicy.imageSourceFor(picture.resolvedSource) : ""
+```
+
+There is no mechanical way to find them all — a dependency-only read is
+syntactically an ordinary unused local — so the work is a file-by-file pass
+over the bindings that carry a `// dependency only` comment or equivalent,
+followed by a build with the flag removed and a full `ReadOnlyDocumentTests`,
+`ShellTests` and `IntegrationTestsIsolated` run. Until then the flag stays.
+
 ## What the six Qt Quick failures turned out to be
 
 Recorded 2026-07-20, when the Qt Quick suites were repointed at the QML names

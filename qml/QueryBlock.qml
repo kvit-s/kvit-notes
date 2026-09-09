@@ -21,11 +21,6 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
-    // The editor window this row is in, typed. Null for any other window,
-    // so the guards below still mean what they meant.
-    readonly property KvitShell shell: Window.window as KvitShell
-
-
     required property string blockId
     required property int blockType
     required property string content
@@ -38,7 +33,7 @@ BlockDelegateBase {
     property int blockIndex: index
     property bool isPooled: false
     property ListView listView: ListView.view
-    property bool isFocused: sourceArea.activeFocus
+    isFocused: sourceArea.activeFocus
     // The gutter's MouseAreas sit over hoverArea and steal its hover; fold
     // the gutter's own hover back in so the buttons do not vanish the moment
     // the pointer reaches them (as EditableBlock does).
@@ -129,9 +124,9 @@ BlockDelegateBase {
     }
 
     readonly property bool blockSelected: {
-        var revision = DocumentSelection.revision // dependency only
-        return DocumentSelection.isBlockSelected(root.index)
-            || DocumentSelection.portionForBlock(root.index).selected === true
+        var revision = root.selection.revision // dependency only
+        return root.selection.isBlockSelected(root.index)
+            || root.selection.portionForBlock(root.index).selected === true
     }
 
     // ---- non-text focus API (matches the other wave-2 blocks) ----
@@ -148,6 +143,7 @@ BlockDelegateBase {
 
     // Selecting part of the results with the pointer.
     RenderedTextSelection {
+        editor: root.editor
         id: renderedSelection
         objectName: "renderedSelection"
         content: card
@@ -181,7 +177,7 @@ BlockDelegateBase {
             // is the document's, as it is in every other block.
             if (event.key === Qt.Key_A
                 && (event.modifiers & Qt.ControlModifier)) {
-                DocumentSelection.selectAllBlocks()
+                root.selection.selectAllBlocks()
                 root.focusSelectionHandler()
                 event.accepted = true
                 return
@@ -194,17 +190,17 @@ BlockDelegateBase {
     }
 
     readonly property bool isDragSource: {
-        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active) return false
-        return root.shell.blockDrag.isMulti ? root.blockSelected
-                                     : root.shell.blockDrag.sourceIndex === root.index
+        if (!root.editor || !root.editor.blockDrag || !root.editor.blockDrag.active) return false
+        return root.editor.blockDrag.isMulti ? root.blockSelected
+                                     : root.editor.blockDrag.sourceIndex === root.index
     }
     function focusSelectionHandler() {
         AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            if (root.shell && root.shell.lastFocusedBlock !== undefined)
-                root.shell.lastFocusedBlock = index
+            if (root.editor && root.editor.lastFocusedBlock !== undefined)
+                root.editor.lastFocusedBlock = index
         }
     }
 
@@ -248,7 +244,7 @@ BlockDelegateBase {
     }
     function focusAdjacentBlock(direction) {
         var targetIndex = root.index + direction
-        if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
+        if (!root.listView || targetIndex < 0 || targetIndex >= root.blocks.count)
             return false
         root.listView.currentIndex = targetIndex
         var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
@@ -258,7 +254,7 @@ BlockDelegateBase {
     }
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        BlockModel.removeBlock(root.index)
+        root.blocks.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -282,7 +278,7 @@ BlockDelegateBase {
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
+        root.blocks.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -318,24 +314,24 @@ BlockDelegateBase {
             if (renderedSelection.suppressClick)
                 return
             if (mouse.modifiers & Qt.ControlModifier) {
-                DocumentSelection.toggleBlock(root.index)
-                if (DocumentSelection.hasBlockSelection)
+                root.selection.toggleBlock(root.index)
+                if (root.selection.hasBlockSelection)
                     root.focusSelectionHandler()
                 return
             }
             if (mouse.modifiers & Qt.ShiftModifier) {
-                var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
-                        ? root.shell.lastFocusedBlock : -1
-                if (!DocumentSelection.hasBlockSelection
+                var anchor = root.editor && root.editor.lastFocusedBlock !== undefined
+                        ? root.editor.lastFocusedBlock : -1
+                if (!root.selection.hasBlockSelection
                     && anchor >= 0 && anchor !== root.index)
-                    DocumentSelection.selectBlock(anchor)
-                DocumentSelection.extendBlockSelectionTo(root.index)
+                    root.selection.selectBlock(anchor)
+                root.selection.extendBlockSelectionTo(root.index)
                 root.focusSelectionHandler()
                 return
             }
-            if (DocumentSelection.hasBlockSelection
-                || DocumentSelection.hasTextSelection)
-                DocumentSelection.clear()
+            if (root.selection.hasBlockSelection
+                || root.selection.hasTextSelection)
+                root.selection.clear()
             sourceArea.forceActiveFocus()
         }
     }
@@ -393,7 +389,7 @@ BlockDelegateBase {
                 // this delegate may have been rebound to a different row.
                 function commitPendingSource() {
                     if (text !== root.content)
-                        BlockModel.updateContentById(root.blockId, text)
+                        root.blocks.updateContentById(root.blockId, text)
                 }
                 onActiveFocusChanged: {
                     if (!activeFocus) {
@@ -812,7 +808,7 @@ BlockDelegateBase {
         anchors.topMargin: 4
 
         rowHovered: root.isHovered
-        dragEnabled: root.shell !== null && root.shell.blockDrag !== null
+        dragEnabled: root.editor !== null && root.editor.blockDrag !== null
 
         onInsertRequested: root.insertBlockBelowAndOpenMenu()
         onDeleteRequested: root.deleteCurrentBlock()
@@ -820,22 +816,22 @@ BlockDelegateBase {
         onBlockSelectRequested: {
             if (root.listView)
                 root.listView.currentIndex = root.index
-            DocumentSelection.selectBlock(root.index)
+            root.selection.selectBlock(root.index)
             root.focusSelectionHandler()
         }
         onDragStarted: function(sceneX, sceneY) {
-            root.shell.blockDrag.begin(root.index, sceneX, sceneY)
+            root.editor.blockDrag.begin(root.index, sceneX, sceneY)
         }
         onDragMoved: function(sceneX, sceneY) {
-            root.shell.blockDrag.update(sceneX, sceneY)
+            root.editor.blockDrag.update(sceneX, sceneY)
         }
         onDragDropped: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.drop()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.drop()
         }
         onDragCanceled: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.cancel()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.cancel()
         }
     }
 }

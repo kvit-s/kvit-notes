@@ -33,9 +33,9 @@ EditableBlock {
     // untouched. derivedRevision is the model's counter for exactly that
     // class of change, and reading it here is what makes the badge update.
     readonly property var progress: {
-        var dep = BlockModel.count            // structural dependency
-        var derived = BlockModel.derivedRevision   // child-state dependency
-        return BlockModel.todoProgress(root.index)
+        var dep = root.blocks.count            // structural dependency
+        var derived = root.blocks.derivedRevision   // child-state dependency
+        return root.blocks.todoProgress(root.index)
     }
     readonly property bool overdue: {
         if (meta.due === "") return false
@@ -44,13 +44,13 @@ EditableBlock {
     }
 
     function setDue(iso) {
-        BlockModel.updateContent(root.index,
+        root.blocks.updateContent(root.index,
             TodoMeta.build(meta.text, iso, meta.priority))
     }
     function cyclePriority() {
         var p = meta.priority
         var next = p === 0 ? -1 : (p === -1 ? 1 : (p === 1 ? 2 : 0))
-        BlockModel.updateContent(root.index,
+        root.blocks.updateContent(root.index,
             TodoMeta.build(meta.text, meta.due, next))
     }
 
@@ -79,7 +79,7 @@ EditableBlock {
                 Accessible.checkable: true
                 Accessible.checked: root.checked
                 Accessible.onToggleAction: checkbox.clicked()
-                onClicked: BlockModel.setChecked(root.index, !root.checked)
+                onClicked: root.blocks.setChecked(root.index, !root.checked)
 
                 background: Rectangle {
                     radius: 3

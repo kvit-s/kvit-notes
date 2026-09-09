@@ -28,13 +28,20 @@ import Kvit 1.0
 // raise it.
 Item {
     id: cursor
+
+    readonly property BlockModel blocks:
+        cursor.editor ? cursor.editor.blocks : BlockModel
+    readonly property DocumentSelection selection:
+        cursor.editor ? cursor.editor.selection : DocumentSelection
+    readonly property DocumentStats stats:
+        cursor.editor ? cursor.editor.stats : DocumentStats
     objectName: "blockGapCursor"
 
     // Wired by main.qml: the list of blocks, the window that owns focusing a
     // row by index, and the block drag, which draws its own indicator in
     // these same seams and must not have a second one under it.
     property var listView: null
-    property var appWindow: null
+    property BlockEditorSurface editor: null
     property var dragState: null
 
     // A paste larger than the open-file cap is handed to the window's shared
@@ -79,10 +86,10 @@ Item {
     // the final row.
     function gapContentY(g) {
         var lv = cursor.listView
-        if (!lv || BlockModel.count === 0)
+        if (!lv || cursor.blocks.count === 0)
             return 0
-        if (g >= BlockModel.count) {
-            var last = (lv.itemAtIndex(BlockModel.count - 1) as BlockDelegateBase)
+        if (g >= cursor.blocks.count) {
+            var last = (lv.itemAtIndex(cursor.blocks.count - 1) as BlockDelegateBase)
             return last ? last.y + last.height + lv.spacing / 2 : 0
         }
         var item = (lv.itemAtIndex(Math.max(0, g)) as BlockDelegateBase)
@@ -105,7 +112,7 @@ Item {
         if (!lv)
             return false
         for (var i = g - 1; i <= g; ++i) {
-            if (i < 0 || i >= BlockModel.count)
+            if (i < 0 || i >= cursor.blocks.count)
                 continue
             var item = (lv.itemAtIndex(i) as BlockDelegateBase)
             if (item && item.pointInText(sceneX, sceneY))
@@ -119,7 +126,7 @@ Item {
     // the coordinate system a block answers pointInText in.
     function gapUnder(cx, cy, sceneX, sceneY) {
         var lv = cursor.listView
-        if (!lv || cursor.suspended || BlockModel.count === 0)
+        if (!lv || cursor.suspended || cursor.blocks.count === 0)
             return -1
         if (cx < cursor.leftInset || cx > lv.width - cursor.rightInset)
             return -1
@@ -132,7 +139,7 @@ Item {
         if (cy < 0) {
             candidates.push(0)
         } else if (cy > lv.contentHeight) {
-            candidates.push(BlockModel.count)
+            candidates.push(cursor.blocks.count)
         } else {
             var probeX = Math.max(1, Math.min(cx, lv.width - 1))
             var idx = lv.indexAt(probeX, cy)
@@ -153,7 +160,7 @@ Item {
         var bestDistance = cursor.reach
         for (var i = 0; i < candidates.length; ++i) {
             var g = candidates[i]
-            if (g < 0 || g > BlockModel.count)
+            if (g < 0 || g > cursor.blocks.count)
                 continue
             var d = Math.abs(cy - cursor.gapContentY(g))
             if (d <= bestDistance) {
@@ -176,10 +183,10 @@ Item {
     // ---- The mode -------------------------------------------------------
 
     function place(g) {
-        if (!cursor.listView || BlockModel.count === 0)
+        if (!cursor.listView || cursor.blocks.count === 0)
             return
-        DocumentSelection.clear()
-        cursor.gap = Math.max(0, Math.min(g, BlockModel.count))
+        cursor.selection.clear()
+        cursor.gap = Math.max(0, Math.min(g, cursor.blocks.count))
         cursor.forceActiveFocus()
         cursor.reveal()
         A11y.announce(qsTr("Insertion point between blocks"))
@@ -191,16 +198,16 @@ Item {
 
     function reveal() {
         var lv = cursor.listView
-        if (!lv || cursor.gap < 0 || BlockModel.count === 0)
+        if (!lv || cursor.gap < 0 || cursor.blocks.count === 0)
             return
         lv.positionViewAtIndex(
-            Math.max(0, Math.min(cursor.gap, BlockModel.count - 1)),
+            Math.max(0, Math.min(cursor.gap, cursor.blocks.count - 1)),
             ListView.Contain)
     }
 
     function moveBy(delta) {
         var next = cursor.gap + delta
-        if (next < 0 || next > BlockModel.count)
+        if (next < 0 || next > cursor.blocks.count)
             return
         cursor.gap = next
         cursor.reveal()
@@ -211,12 +218,12 @@ Item {
     // to the new row rather than written into the model, so the block menu
     // and the prefix conversions see it as typing.
     function insertHere(typed) {
-        if (cursor.gap < 0 || !cursor.appWindow)
+        if (cursor.gap < 0 || !cursor.editor)
             return
         var at = cursor.gap
         cursor.dismiss()
-        BlockModel.insertBlock(at, Block.Paragraph, "")
-        cursor.appWindow.focusBlockAtIndex(at, false, typed)
+        cursor.blocks.insertBlock(at, Block.Paragraph, "")
+        cursor.editor.focusBlockAtIndex(at, false, typed)
     }
 
     // Whether the Clipboard's plain-text flavour opens a fenced block. A
@@ -230,7 +237,7 @@ Item {
 
     function stripPastedFormatting(text) {
         return text.split("\n").map(function(line) {
-            return DocumentStats.displayTextFor(line, false)
+            return cursor.stats.displayTextFor(line, false)
         }).join("\n")
     }
 
@@ -240,7 +247,7 @@ Item {
     // their typed blocks. All inserted blocks form one undo step through the
     // serializer helpers.
     function pasteFromClipboard(stripFormatting) {
-        if (cursor.gap < 0 || !cursor.appWindow || !Clipboard.hasText)
+        if (cursor.gap < 0 || !cursor.editor || !Clipboard.hasText)
             return
 
         var at = cursor.gap
@@ -269,11 +276,11 @@ Item {
         if (stripFormatting)
             pasted = cursor.stripPastedFormatting(pasted)
         var count = structured
-            ? DocumentSerializer.insertMarkdownAt(BlockModel, at, pasted)
-            : DocumentSerializer.insertPlainTextAt(BlockModel, at, pasted)
+            ? DocumentSerializer.insertMarkdownAt(cursor.blocks, at, pasted)
+            : DocumentSerializer.insertPlainTextAt(cursor.blocks, at, pasted)
         if (count > 0) {
             cursor.dismiss()
-            cursor.appWindow.focusBlockAtIndex(at + count - 1, true)
+            cursor.editor.focusBlockAtIndex(at + count - 1, true)
         }
     }
 
@@ -282,9 +289,9 @@ Item {
     function leaveToText() {
         var g = cursor.gap
         cursor.dismiss()
-        if (!cursor.appWindow || BlockModel.count === 0)
+        if (!cursor.editor || cursor.blocks.count === 0)
             return
-        cursor.appWindow.focusBlockAtIndex(g > 0 ? g - 1 : 0, g > 0)
+        cursor.editor.focusBlockAtIndex(g > 0 ? g - 1 : 0, g > 0)
     }
 
     // A click anywhere in a block moves the focus, which is the end of the
@@ -303,10 +310,10 @@ Item {
     }
 
     Connections {
-        target: BlockModel
+        target: cursor.blocks
         // Loading another note leaves a seam index that means nothing now.
         function onCountChanged() {
-            if (cursor.gap > BlockModel.count)
+            if (cursor.gap > cursor.blocks.count)
                 cursor.dismiss()
             cursor.hoverGap = -1
         }

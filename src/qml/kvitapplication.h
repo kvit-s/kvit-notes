@@ -118,7 +118,7 @@ public:
 private:
     QApplication &m_app;
     QElapsedTimer m_startupTimer;
-    QUrl m_shellUrl{QStringLiteral("qrc:/qml/main.qml")};
+    QUrl m_shellUrl{QStringLiteral("qrc:/qt/qml/Kvit/main.qml")};
     bool m_singleInstanceEnabled = true;
     std::unique_ptr<SingleInstance> m_single;
     // The globals outlive the registry (which owns the windows that borrow

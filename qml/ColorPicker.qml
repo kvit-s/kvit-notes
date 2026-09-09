@@ -32,7 +32,7 @@ import Kvit 1.0
 //
 // Taking focus is what it costs. The block this recolours drops its
 // selection when it loses focus, so the popup raises the shell's
-// selectionHolders count for as long as it is open — see KvitShell.
+// selectionHolders count for as long as it is open — see BlockEditorSurface.
 Popup {
     id: root
 
@@ -48,9 +48,13 @@ Popup {
     readonly property var swatches: Theme.colorPalette.concat(
         ["#333333", "#888888"])
 
-    // Popup is not an Item and has no Window attached property of its own;
-    // the item it was declared in is the way to the window it belongs to.
-    readonly property KvitShell shell: root.parent ? root.parent.Window.window as KvitShell : null
+    // The editor whose caret selection this picker is about to recolour. It
+    // is raised while the picker is open so the block does not drop that
+    // selection when the picker takes the keyboard (accessibility.md
+    // Finding 2). Set by whoever declares the picker — the formatting bar
+    // inside the editor, and the toolbar outside it, both act on the same
+    // caret — and left null by a picker that colours something else.
+    property BlockEditorSurface editor: null
     // What had the keyboard before this opened, so closing can hand it back.
     property Item openedFrom: null
 
@@ -72,13 +76,13 @@ Popup {
     onAboutToShow: {
         const w = root.parent ? root.parent.Window.window : null
         root.openedFrom = w ? w.activeFocusItem : null
-        if (root.shell)
-            root.shell.selectionHolders += 1
+        if (root.editor)
+            root.editor.selectionHolders += 1
     }
     onOpened: swatchGrid.forceActiveFocus()
     onClosed: {
-        if (root.shell)
-            root.shell.selectionHolders -= 1
+        if (root.editor)
+            root.editor.selectionHolders -= 1
         if (root.openedFrom)
             root.openedFrom.forceActiveFocus()
         root.openedFrom = null

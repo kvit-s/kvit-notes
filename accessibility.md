@@ -85,7 +85,7 @@ setting for it.
 
 The parts listed here were checked against the code and work as described.
 
-Keyboard navigation is broad. `F6` cycles the major panes, and `main.qml:416-441`
+Keyboard navigation is broad. `F6` cycles the major panes, and `main.qml:226-256`
 deliberately keeps the toolbar in that cycle so that Insert, Templates and View
 stay reachable, since those have no other chord. `Menu` and `Shift+F10` open the
 context menu for the focused block. `src/platform/shortcutcatalog.cpp` records
@@ -225,7 +225,7 @@ Tooltips should appear on keyboard focus as well as hover, as sketched above.
 Today they are hover-only, which means a keyboard user never sees the explanation
 that a mouse user gets for free.
 
-Add `IconButton.qml` to `resources.qrc`; `QrcSyncGuard` fails the build
+Add `IconButton.qml` to `KVIT_QML_FILES` in `CMakeLists.txt`; `QrcSyncGuard` fails the build
 otherwise, and a QML file missing from the resource list hangs the Qt Quick
 harness rather than failing it.
 
@@ -469,7 +469,7 @@ Typography" keeps the two symmetrical.
 written `150 * Theme.motionScale` becomes instant. Eleven files honour it and 15
 animation durations bypass it.
 
-The one that matters is the block list's transitions in `qml/main.qml:2047-2071`:
+The one that matters is the block list's transitions in `qml/BlockEditor.qml:832-848`:
 a 200 ms positional move on every block insert, delete or reorder. Positional
 motion is the category reduced-motion settings exist for, so this is the first
 one to scale. The remaining bypasses are opacity fades in `ImageBlock.qml`,
@@ -538,7 +538,7 @@ Six phases, ordered so that each one is worth shipping on its own and so that th
 work a screen reader depends on lands before the work that refines it.
 
 **Phase 1: names, roles and state.** Add `qml/IconButton.qml` and register it in
-`resources.qrc`. Convert the block gutter, the find bar buttons, the formatting
+the Kvit module's component list. Convert the block gutter, the find bar buttons, the formatting
 bar, the kanban card controls and the table handles. Put `Accessible.checkable`
 and `Accessible.checked` on to-do blocks. Make tooltips appear on focus as well
 as hover. Add the `Ctrl+Enter` to-do toggle to `shortcutcatalog.cpp`. This is the

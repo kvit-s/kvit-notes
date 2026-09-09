@@ -22,6 +22,13 @@ import Kvit 1.0
 BlockDragState {
     id: controller
 
+    // The editor this belongs to, and the document it is showing.
+    property BlockEditorSurface editor: null
+    readonly property BlockModel blocks:
+        controller.editor ? controller.editor.blocks : BlockModel
+    readonly property DocumentSelection selection:
+        controller.editor ? controller.editor.selection : DocumentSelection
+
     // Wired by main.qml: the list being reordered, the shared edge scroller,
     // the layer that draws the proxy and the drop indicator, and the
     // block-selection key handler that takes focus back after a multi-block
@@ -37,16 +44,16 @@ BlockDragState {
     property int indicatorGap: -1   // multi: gap BEFORE this index
 
     function begin(index, sceneX, sceneY) {
-        controller.isMulti = DocumentSelection.hasBlockSelection
-            && DocumentSelection.isBlockSelected(index)
-        if (DocumentSelection.hasBlockSelection && !controller.isMulti)
-            DocumentSelection.clear()
-        if (DocumentSelection.hasTextSelection)
-            DocumentSelection.clearTextSelection()
+        controller.isMulti = controller.selection.hasBlockSelection
+            && controller.selection.isBlockSelected(index)
+        if (controller.selection.hasBlockSelection && !controller.isMulti)
+            controller.selection.clear()
+        if (controller.selection.hasTextSelection)
+            controller.selection.clearTextSelection()
         controller.sourceIndex = index
         controller.originalIndex = index
         controller.dragIndexes = controller.isMulti
-            ? DocumentSelection.selectedIndexes() : [index]
+            ? controller.selection.selectedIndexes() : [index]
         controller.dragCount = controller.dragIndexes.length
         controller.indicatorGap = -1
         controller.active = true
@@ -77,7 +84,7 @@ BlockDragState {
                     var centerY = item.y + item.height / 2
                     if ((idx > controller.sourceIndex && pos.y > centerY)
                         || (idx < controller.sourceIndex && pos.y < centerY)) {
-                        BlockModel.previewMoveBlock(controller.sourceIndex, idx)
+                        controller.blocks.previewMoveBlock(controller.sourceIndex, idx)
                         controller.sourceIndex = idx
                     }
                 }
@@ -92,7 +99,7 @@ BlockDragState {
         if (cy <= 0)
             return 0
         if (cy >= controller.listView.contentHeight)
-            return BlockModel.count
+            return controller.blocks.count
         var idx = controller.listView.indexAt(cx, cy)
         if (idx < 0) {
             idx = controller.listView.indexAt(cx,
@@ -110,14 +117,14 @@ BlockDragState {
             return
         if (controller.isMulti) {
             if (controller.indicatorGap >= 0)
-                BlockModel.moveBlocksTo(controller.dragIndexes,
-                                        controller.indicatorGap)
+                controller.blocks.moveBlocksTo(controller.dragIndexes,
+                                               controller.indicatorGap)
             // The selection follows the moved blocks by id; keys
             // stay with the selection handler
             controller.selectionKeys.forceActiveFocus()
         } else {
-            BlockModel.commitDragMove(controller.originalIndex,
-                                      controller.sourceIndex)
+            controller.blocks.commitDragMove(controller.originalIndex,
+                                             controller.sourceIndex)
             controller.listView.currentIndex = controller.sourceIndex
         }
         controller.end()
@@ -130,8 +137,8 @@ BlockDragState {
             return
         if (!controller.isMulti
                 && controller.sourceIndex !== controller.originalIndex)
-            BlockModel.previewMoveBlock(controller.sourceIndex,
-                                        controller.originalIndex)
+            controller.blocks.previewMoveBlock(controller.sourceIndex,
+                                               controller.originalIndex)
         controller.end()
     }
 

@@ -33,6 +33,11 @@ import Kvit 1.0
 // the shell switches the attached bars off and positions this one itself.
 ScrollBar {
     id: control
+
+    // The editor this belongs to, and the document it is showing.
+    property BlockEditorSurface editor: null
+    readonly property DocumentHeights heights:
+        control.editor ? control.editor.heights : DocumentHeights
     objectName: "editorScrollBar"
 
     // The document view this bar scrolls.
@@ -53,14 +58,14 @@ ScrollBar {
     // window.
     readonly property real scrollRange:
         control.listView
-            ? DocumentHeights.totalHeight + control.listView.bottomMargin
+            ? control.heights.totalHeight + control.listView.bottomMargin
             : 0
 
     // Whether the table can answer yet. It cannot before the first row has
     // been measured, which is the frame or two after a note opens, and the
     // view's own estimate is what there is until then.
     readonly property bool driven:
-        control.listView !== null && DocumentHeights.ready
+        control.listView !== null && control.heights.ready
         && control.scrollRange > 0
 
     // Both numbers are assigned rather than bound, and always together.
@@ -110,7 +115,7 @@ ScrollBar {
         var top = control.topRow()
         if (top.index < 0)
             return 0
-        return (DocumentHeights.offsetOf(top.index) + top.into) / range
+        return (control.heights.offsetOf(top.index) + top.into) / range
     }
 
     // How far the view can be scrolled, in its own content coordinates.
@@ -168,7 +173,7 @@ ScrollBar {
         // below it reports the foot of that row rather than a distance into
         // the next one.
         answer.into = Math.max(0, Math.min(y - row.y,
-                                           DocumentHeights.heightOf(index)))
+                                           control.heights.heightOf(index)))
         return answer
     }
 
@@ -210,10 +215,10 @@ ScrollBar {
         if (!view || range <= 0)
             return
         var target = fraction * range
-        var index = DocumentHeights.blockAt(target)
+        var index = control.heights.blockAt(target)
         if (index < 0)
             return
-        var remainder = target - DocumentHeights.offsetOf(index)
+        var remainder = target - control.heights.offsetOf(index)
         // Asked more than once, because the first placement is what teaches
         // the list how tall the rows around the target are. A list whose own
         // estimate of the document is short — which it is whenever the rows it
@@ -232,7 +237,7 @@ ScrollBar {
         // only as far as that row goes: anything past it belongs to the next
         // row, which the list places rather than this.
         var row = view.itemAtIndex(index) as BlockDelegateBase
-        var rowHeight = row ? row.height : DocumentHeights.heightOf(index)
+        var rowHeight = row ? row.height : control.heights.heightOf(index)
         view.contentY = Math.max(
             view.originY,
             Math.min(view.contentY + Math.max(0, Math.min(remainder, rowHeight)),
@@ -261,7 +266,7 @@ ScrollBar {
 
     // Every measurement, and every model change that moved or dropped one.
     Connections {
-        target: DocumentHeights
+        target: control.heights
         function onRevisionChanged() { control.refresh() }
     }
 }

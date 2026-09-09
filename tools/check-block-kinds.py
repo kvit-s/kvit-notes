@@ -18,7 +18,8 @@ Two things a compiler cannot see are checked here:
     it silently draws and exports as prose.
 
   * a delegate URL naming a QML file that is not in qml/ or not listed in
-    resources.qrc. The shell builds one DelegateChoice per registered kind
+    KVIT_QML_FILES in CMakeLists.txt, which is what puts a component into the
+    Kvit module. The shell builds one DelegateChoice per registered kind
     from these, so an unresolvable one draws an empty row, and the warning
     it logs is easy to miss in a running application.
 
@@ -44,7 +45,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 KIND_HEADER = ROOT / "src" / "domain" / "blockkind.h"
 KINDS_DIR = ROOT / "src" / "domain" / "blockkinds"
 QML_DIR = ROOT / "qml"
-APP_QRC = ROOT / "resources.qrc"
+CMAKELISTS = ROOT / "CMakeLists.txt"
 
 # `Paragraph    = Block::Paragraph,` and `Kanban  = 100,` alike: the name is
 # what matters here, not the value.
@@ -54,8 +55,8 @@ ENUMERATOR_RE = re.compile(r"^\s{4}(\w+)\s*=\s*[^,]+,\s*$", re.MULTILINE)
 # `BlockKind::Heading2` as a constructor argument where one class serves four.
 IMPLEMENTED_RE = re.compile(r"BlockKind::(\w+)\b")
 
-# `return QStringLiteral("qrc:/qml/KanbanBlock.qml");`
-DELEGATE_URL_RE = re.compile(r"\"(qrc:/qml/[A-Za-z0-9_]+\.qml)\"")
+# `return QStringLiteral("qrc:/qt/qml/Kvit/KanbanBlock.qml");`
+DELEGATE_URL_RE = re.compile(r"\"(qrc:/qt/qml/Kvit/[A-Za-z0-9_]+\.qml)\"")
 
 
 def enumerators():
@@ -106,9 +107,12 @@ def main():
                 "{} names BlockKind::{}, which src/domain/blockkind.h does "
                 "not declare.".format(", ".join(sorted(set(sources))), name))
 
-    listed = APP_QRC.read_text(encoding="utf-8")
+    # The Kvit QML module's component list: every delegate a kind names has
+    # to be in it, or the type is not in the binary at all.
+    listed = CMAKELISTS.read_text(encoding="utf-8")
     for url in sorted(delegate_urls()):
-        name = url[len("qrc:/"):]              # qml/KanbanBlock.qml
+        # qrc:/qt/qml/Kvit/KanbanBlock.qml -> qml/KanbanBlock.qml
+        name = "qml/" + url.rsplit("/", 1)[1]
         if not (ROOT / name).exists():
             problems.append(
                 "a block kind names the delegate {}, which is not in qml/. "
@@ -117,9 +121,9 @@ def main():
         elif name not in listed:
             problems.append(
                 "a block kind names the delegate {}, which is not listed in "
-                "resources.qrc. It exists on disk but is not in the binary, "
-                "so the shipped application draws an empty row for it."
-                .format(url))
+                "KVIT_QML_FILES in CMakeLists.txt. It exists on disk but is "
+                "not in the binary, so the shipped application draws an empty "
+                "row for it.".format(url))
 
     if problems:
         sys.stderr.write("Block kinds are out of step.\n\n")

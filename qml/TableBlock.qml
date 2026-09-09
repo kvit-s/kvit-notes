@@ -19,11 +19,6 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
-    // The editor window this row is in, typed. Null for any other window,
-    // so the guards below still mean what they meant.
-    readonly property KvitShell shell: Window.window as KvitShell
-
-
     required property string blockId
     required property int blockType
     required property string content
@@ -39,7 +34,7 @@ BlockDelegateBase {
     property int blockIndex: index
     property bool isPooled: false
     property ListView listView: ListView.view
-    property bool isFocused: activeRow !== -2 || focusTarget.activeFocus
+    isFocused: activeRow !== -2 || focusTarget.activeFocus
     // The gutter's MouseAreas sit over hoverArea and steal its hover; fold
     // the gutter's own hover back in so the buttons do not vanish the moment
     // the pointer reaches them (as EditableBlock does).
@@ -280,9 +275,9 @@ BlockDelegateBase {
     property int menuCol: -1
 
     readonly property bool blockSelected: {
-        var revision = DocumentSelection.revision // dependency only
-        return DocumentSelection.isBlockSelected(root.index)
-            || DocumentSelection.portionForBlock(root.index).selected === true
+        var revision = root.selection.revision // dependency only
+        return root.selection.isBlockSelected(root.index)
+            || root.selection.portionForBlock(root.index).selected === true
     }
 
     function markdownPositionAt(sceneX, sceneY) { return 0 }
@@ -292,10 +287,10 @@ BlockDelegateBase {
     function xAtMarkdown(mdPos) { return 0 }
 
     readonly property bool isDragSource: {
-        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
+        if (!root.editor || !root.editor.blockDrag || !root.editor.blockDrag.active)
             return false
-        return root.shell.blockDrag.isMulti ? root.blockSelected
-                                     : root.shell.blockDrag.sourceIndex === root.index
+        return root.editor.blockDrag.isMulti ? root.blockSelected
+                                     : root.editor.blockDrag.sourceIndex === root.index
     }
 
     function focusSelectionHandler() {
@@ -303,8 +298,8 @@ BlockDelegateBase {
     }
     onIsFocusedChanged: {
         if (isFocused) {
-            if (root.shell && root.shell.lastFocusedBlock !== undefined)
-                root.shell.lastFocusedBlock = index
+            if (root.editor && root.editor.lastFocusedBlock !== undefined)
+                root.editor.lastFocusedBlock = index
         }
     }
 
@@ -331,7 +326,7 @@ BlockDelegateBase {
     function isCursorOnLastLine() { return true }
 
     // ---- Mutations, each one model content update (one undo step) ----
-    function writeTable(md) { BlockModel.updateContent(root.index, md) }
+    function writeTable(md) { root.blocks.updateContent(root.index, md) }
     // Where the caret sits in a cell that has just gone live: at the end of
     // its text, or at the start for a cell entered from the left, so that a
     // held Right key crosses each cell rather than stopping at its far end.
@@ -457,7 +452,7 @@ BlockDelegateBase {
     // route the block's own Up/Down already takes when no cell is live.
     function leaveTable(direction) {
         var targetIndex = root.index + direction
-        if (!root.listView || targetIndex < 0 || targetIndex >= BlockModel.count)
+        if (!root.listView || targetIndex < 0 || targetIndex >= root.blocks.count)
             return
         var target = (root.listView.itemAtIndex(targetIndex) as BlockDelegateBase)
         if (!target)
@@ -587,7 +582,7 @@ BlockDelegateBase {
             if (widths[i] > 0)
                 any = true
         }
-        BlockModel.setBlockAttributes(
+        root.blocks.setBlockAttributes(
             root.index,
             any ? BlockAttributes.withValue(root.attributes, "cols",
                                             parts.join(","))
@@ -605,7 +600,7 @@ BlockDelegateBase {
         root.writeColumnWidths(widths)
     }
     function clearColumnWidths() {
-        BlockModel.setBlockAttributes(
+        root.blocks.setBlockAttributes(
             root.index, BlockAttributes.without(root.attributes, "cols"))
     }
     // Keep the stored widths lined up with the columns when one is added or
@@ -656,7 +651,7 @@ BlockDelegateBase {
 
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
-        BlockModel.removeBlock(root.index)
+        root.blocks.removeBlock(root.index)
         Qt.callLater(function() {
             if (listView && prevIndex >= 0) {
                 listView.currentIndex = prevIndex
@@ -682,7 +677,7 @@ BlockDelegateBase {
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
+        root.blocks.insertBlock(newIndex, 0, "")
         var lv = listView
         Qt.callLater(function() {
             if (!lv) return
@@ -777,11 +772,11 @@ BlockDelegateBase {
                 && (event.modifiers & Qt.ControlModifier)
                 && (event.modifiers & Qt.ShiftModifier)) {
                 if (root.listView) root.listView.currentIndex = root.index
-                DocumentSelection.selectBlock(root.index)
+                root.selection.selectBlock(root.index)
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                DocumentSelection.selectAllBlocks()
+                root.selection.selectAllBlocks()
                 root.focusSelectionHandler(); event.accepted = true; return
             }
             if (event.key === Qt.Key_Up && root.index > 0 && root.listView) {
@@ -790,7 +785,7 @@ BlockDelegateBase {
                 var prev = (root.listView.itemAtIndex(pi) as BlockDelegateBase)
                 if (prev) prev.focusAtEnd(); event.accepted = true; return
             }
-            if (event.key === Qt.Key_Down && root.index < BlockModel.count - 1
+            if (event.key === Qt.Key_Down && root.index < root.blocks.count - 1
                 && root.listView) {
                 var ni = root.index + 1
                 root.listView.currentIndex = ni
@@ -1412,9 +1407,9 @@ BlockDelegateBase {
             MathEntryAssist {
                 id: cellMathEntry
                 objectName: "tableCellMathEntry"
-                editor: cellArea
+                textEditor: cellArea
                 engine: cellEngine
-                shell: root.shell
+                editor: root.editor
             }
 
             // The equations for this cell's hidden `$…$` spans, drawn over
@@ -1665,7 +1660,7 @@ BlockDelegateBase {
         anchors.topMargin: 4
 
         rowHovered: root.isHovered
-        dragEnabled: root.shell !== null && root.shell.blockDrag !== null
+        dragEnabled: root.editor !== null && root.editor.blockDrag !== null
 
         onInsertRequested: root.insertBlockBelowAndOpenMenu()
         onDeleteRequested: root.deleteCurrentBlock()
@@ -1673,22 +1668,22 @@ BlockDelegateBase {
         onBlockSelectRequested: {
             if (root.listView)
                 root.listView.currentIndex = root.index
-            DocumentSelection.selectBlock(root.index)
+            root.selection.selectBlock(root.index)
             root.focusSelectionHandler()
         }
         onDragStarted: function(sceneX, sceneY) {
-            root.shell.blockDrag.begin(root.index, sceneX, sceneY)
+            root.editor.blockDrag.begin(root.index, sceneX, sceneY)
         }
         onDragMoved: function(sceneX, sceneY) {
-            root.shell.blockDrag.update(sceneX, sceneY)
+            root.editor.blockDrag.update(sceneX, sceneY)
         }
         onDragDropped: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.drop()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.drop()
         }
         onDragCanceled: {
-            if (root.shell && root.shell.blockDrag)
-                root.shell.blockDrag.cancel()
+            if (root.editor && root.editor.blockDrag)
+                root.editor.blockDrag.cancel()
         }
     }
 }

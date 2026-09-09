@@ -23,6 +23,7 @@
 #include "blockkindregistry.h"
 #include "block.h"
 #include "blockmodel.h"
+#include "undostack.h"
 #include "extensionregistry.h"
 #include "menuaccesskeys.h"
 #include "perflog.h"
@@ -160,7 +161,7 @@ private slots:
         g_expectedWarnings << QRegularExpression(
             QStringLiteral("Populating font family aliases"));
         g_previousHandler = qInstallMessageHandler(capturingHandler);
-        m_engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
+        m_engine.load(QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
         // Bindings evaluate as the scene is built; let the queue drain so a
         // late failure is captured too.
         QCoreApplication::processEvents();
@@ -189,6 +190,90 @@ private slots:
         if (m_warningsAfterLoad > 0)
             QFAIL(qPrintable(warningReport(QStringLiteral("Loading qml/main.qml"),
                                            g_warnings.mid(0, m_warningsAfterLoad), 0)));
+    }
+
+    // The editing surface is a component, and this is what says so.
+    //
+    // `import Kvit 1.0` yields BlockEditor as a type, so an application that
+    // links this library obtains the editor by writing it down rather than by
+    // copying a hundred QML files out of this repository. Nothing the
+    // application owns appears below: no window, no notes collection, no
+    // document session. The editor was declared inline in qml/main.qml
+    // before, so this could not be written at all.
+    void theEditorIsAComponentAnyApplicationCanInstantiate()
+    {
+        QQmlComponent component(&m_engine);
+        component.setData(R"(
+            import QtQuick
+            import Kvit 1.0
+            BlockEditor { width: 400; height: 300 }
+        )", QUrl(QStringLiteral("inmemory:standalone-editor.qml")));
+        QTRY_VERIFY(component.status() != QQmlComponent::Loading);
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        std::unique_ptr<QObject> editor(component.create(m_engine.rootContext()));
+        QVERIFY2(editor, qPrintable(component.errorString()));
+
+        // Told nothing, it edits the document this composition holds, which
+        // is what the application relies on: it declares one of these and
+        // supplies none of the four properties below.
+        QCOMPARE(editor->property("blocks").value<BlockModel *>(),
+                 m_context->blockModel());
+        QCOMPARE(editor->property("undoStack").value<UndoStack *>(),
+                 m_context->undoStack());
+
+        // And it is told where the document lives rather than asking a
+        // collection. Unset means there is no collection, which is the
+        // single-file mode the application has always had.
+        QCOMPARE(editor->property("documentPath").toString(), QString());
+        QCOMPARE(editor->property("assetRoot").toString(), QString());
+        QVERIFY(!editor->property("assetSink").value<QObject *>());
+        QVERIFY(!editor->property("linkResolver").value<QObject *>());
+    }
+
+    // Two documents, one process. The point of the properties above is that
+    // an editor edits the document it was given, so an application can show
+    // one beside another; before them every row reached the same singleton
+    // whatever surface it was drawn in.
+    void twoEditorsCanHoldTwoDifferentDocuments()
+    {
+        BlockModel first;
+        BlockModel second;
+        first.insertBlock(0, Block::Paragraph, QStringLiteral("First document"));
+        second.insertBlock(0, Block::Paragraph, QStringLiteral("Second document"));
+        second.insertBlock(1, Block::Paragraph, QStringLiteral("With two blocks"));
+
+        QQmlComponent component(&m_engine);
+        component.setData(R"(
+            import QtQuick
+            import Kvit 1.0
+            Item {
+                property alias firstEditor: leftEditor
+                property alias secondEditor: rightEditor
+                BlockEditor { id: leftEditor; width: 300; height: 200 }
+                BlockEditor { id: rightEditor; width: 300; height: 200 }
+            }
+        )", QUrl(QStringLiteral("inmemory:two-editors.qml")));
+        QTRY_VERIFY(component.status() != QQmlComponent::Loading);
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        std::unique_ptr<QObject> pair(component.create(m_engine.rootContext()));
+        QVERIFY2(pair, qPrintable(component.errorString()));
+
+        auto *left = pair->property("firstEditor").value<QObject *>();
+        auto *right = pair->property("secondEditor").value<QObject *>();
+        QVERIFY(left && right);
+        left->setProperty("blocks", QVariant::fromValue(&first));
+        right->setProperty("blocks", QVariant::fromValue(&second));
+
+        QCOMPARE(left->property("blocks").value<BlockModel *>(), &first);
+        QCOMPARE(right->property("blocks").value<BlockModel *>(), &second);
+        // Each list is over its own model, so the two show different counts
+        // of a different document rather than one shared one.
+        auto *leftList = left->property("listView").value<QQuickItem *>();
+        auto *rightList = right->property("listView").value<QQuickItem *>();
+        QVERIFY(leftList && rightList);
+        QTRY_COMPARE(leftList->property("count").toInt(), first.count());
+        QTRY_COMPARE(rightList->property("count").toInt(), second.count());
+        QVERIFY(first.count() != second.count());
     }
 
     void oldTwoArgumentNotificationCallKeepsItsQmlContract()

@@ -33,7 +33,7 @@ Menu {
     objectName: "toolbarFileMenu"
     title: MenuText.label(qsTr("&File"))
 
-    // The editor window these commands act on. Untyped because KvitShell
+    // The editor window these commands act on. Untyped because the window
     // declares only what block delegates read, not the window's own API.
     property var appWindow
 

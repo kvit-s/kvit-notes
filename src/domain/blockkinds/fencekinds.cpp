@@ -198,7 +198,7 @@ public:
 
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/KanbanBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/KanbanBlock.qml");
     }
 };
 
@@ -251,7 +251,7 @@ public:
 
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/TocBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/TocBlock.qml");
     }
 };
 
@@ -331,7 +331,7 @@ public:
 
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/DiagramBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/DiagramBlock.qml");
     }
 };
 
@@ -401,7 +401,7 @@ public:
 
     QString delegateUrl() const override
     {
-        return QStringLiteral("qrc:/qml/QueryBlock.qml");
+        return QStringLiteral("qrc:/qt/qml/Kvit/QueryBlock.qml");
     }
 };
 

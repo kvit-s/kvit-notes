@@ -24,11 +24,6 @@ import Kvit 1.0
 BlockDelegateBase {
     id: root
 
-    // The editor window this row is in, typed. Null for any other window,
-    // so the guards below still mean what they meant.
-    readonly property KvitShell shell: Window.window as KvitShell
-
-
     required property string blockId
     required property int blockType
     required property string content
@@ -94,10 +89,10 @@ BlockDelegateBase {
       : TextEdit.AlignLeft
 
     readonly property bool hasSearchMatches: {
-        if (!DocumentSearch.active || DocumentSearch.matchCount === 0)
+        if (!root.search.active || root.search.matchCount === 0)
             return false
-        var revision = DocumentSearch.revision
-        return DocumentSearch.matchesForBlock(root.index).length > 0
+        var revision = root.search.revision
+        return root.search.matchesForBlock(root.index).length > 0
     }
     readonly property bool hasDropCap:
         root.blockType === Block.Paragraph
@@ -106,10 +101,10 @@ BlockDelegateBase {
         && BlockAttributes.num(root.attributes, "dropcap", 0) >= 2
     // Only rows inside the active text range need the editor for portion paint.
     readonly property bool inTextSelectionRange: {
-        if (!DocumentSelection.hasTextSelection)
+        if (!root.selection.hasTextSelection)
             return false
-        var revision = DocumentSelection.revision
-        var portion = DocumentSelection.portionForBlock(root.index)
+        var revision = root.selection.revision
+        var portion = root.selection.portionForBlock(root.index)
         return !!(portion && portion.selected)
     }
     // A block a module has marked promotes to the editor, the same way a
@@ -117,10 +112,10 @@ BlockDelegateBase {
     // engine's highlighter, which the lightweight shell below does not have.
     // The gate is one bool in the open build, where nothing is registered.
     readonly property bool hasDecorationSpans: {
-        if (!DocumentDecorations.hasSpans)
+        if (!root.decorations.hasSpans)
             return false
-        var revision = DocumentDecorations.revision
-        return DocumentDecorations.spansForBlock(root.index).length > 0
+        var revision = root.decorations.revision
+        return root.decorations.spansForBlock(root.index).length > 0
     }
     readonly property bool useReadOnlyShell:
         !root.editorRequested
@@ -132,7 +127,7 @@ BlockDelegateBase {
 
     readonly property var editable: editorLoader.item
     readonly property bool editorActive: editable ? !!editable.editorActive : false
-    readonly property bool isFocused: editable ? !!editable.isFocused : false
+    isFocused: editable ? !!editable.isFocused : false
     // Same hover contract as the other block delegates: the shell tracks
     // its own hover; the latched editor reports its own.
     readonly property bool isHovered: editorLoaderActive
@@ -160,23 +155,23 @@ BlockDelegateBase {
     readonly property real typewriterDim: {
         if (editable && editable.typewriterDim !== undefined)
             return editable.typewriterDim
-        if (root.shell && root.shell.typewriterMode !== undefined && root.shell.typewriterMode
-                && root.shell.caretBlockIndex >= 0 && root.shell.caretBlockIndex !== root.index)
+        if (root.editor && root.editor.typewriterMode !== undefined && root.editor.typewriterMode
+                && root.editor.caretBlockIndex >= 0 && root.editor.caretBlockIndex !== root.index)
             return 0.32
         return 1.0
     }
 
     readonly property bool blockSelected: {
-        if (!DocumentSelection.hasBlockSelection)
+        if (!root.selection.hasBlockSelection)
             return false
-        var revision = DocumentSelection.revision
-        return DocumentSelection.isBlockSelected(root.index)
+        var revision = root.selection.revision
+        return root.selection.isBlockSelected(root.index)
     }
     readonly property bool isDragSource: {
-        if (!root.shell || !root.shell.blockDrag || !root.shell.blockDrag.active)
+        if (!root.editor || !root.editor.blockDrag || !root.editor.blockDrag.active)
             return false
-        return root.shell.blockDrag.isMulti ? root.blockSelected
-                                     : root.shell.blockDrag.sourceIndex === root.index
+        return root.editor.blockDrag.isMulti ? root.blockSelected
+                                     : root.editor.blockDrag.sourceIndex === root.index
     }
 
     // Shell geometry while the editor is not latched; editor height after load.
@@ -364,7 +359,7 @@ BlockDelegateBase {
             var next = (value === "left" || value === "")
                 ? BlockAttributes.without(root.attributes, "align")
                 : BlockAttributes.withValue(root.attributes, "align", value)
-            BlockModel.setBlockAttributes(root.index, next)
+            root.blocks.setBlockAttributes(root.index, next)
         }
     }
     function setDropCap(lines) { forward("setDropCap", [lines]) }
@@ -384,11 +379,11 @@ BlockDelegateBase {
         if (typeof A11y !== "undefined" && names[newType])
             A11y.announceConversion(names[newType])
         var lang = newType === Block.Callout ? "info" : ""
-        BlockModel.convertBlock(root.index, newType, root.content, false, lang)
+        root.blocks.convertBlock(root.index, newType, root.content, false, lang)
     }
     function insertBlockBelowAndOpenMenu() {
         var newIndex = root.index + 1
-        BlockModel.insertBlock(newIndex, 0, "")
+        root.blocks.insertBlock(newIndex, 0, "")
         var lv = ListView.view
         Qt.callLater(function() {
             if (!lv)
@@ -408,7 +403,7 @@ BlockDelegateBase {
     function deleteCurrentBlock() {
         var prevIndex = root.index - 1
         var lv = ListView.view
-        BlockModel.removeBlock(root.index)
+        root.blocks.removeBlock(root.index)
         Qt.callLater(function() {
             if (lv && prevIndex >= 0) {
                 lv.currentIndex = prevIndex
@@ -522,8 +517,8 @@ BlockDelegateBase {
             var ctrl = mouse.modifiers & Qt.ControlModifier
             var shift = mouse.modifiers & Qt.ShiftModifier
             if (ctrl && !shift) {
-                DocumentSelection.toggleBlock(root.index)
-                if (DocumentSelection.hasBlockSelection)
+                root.selection.toggleBlock(root.index)
+                if (root.selection.hasBlockSelection)
                     root.focusSelectionHandler()
                 else
                     root.focusAtPosition(0)
@@ -531,30 +526,30 @@ BlockDelegateBase {
                 return
             }
             if (shift && !ctrl) {
-                if (!DocumentSelection.hasBlockSelection) {
-                    var anchor = root.shell && root.shell.lastFocusedBlock !== undefined
-                            ? root.shell.lastFocusedBlock : -1
+                if (!root.selection.hasBlockSelection) {
+                    var anchor = root.editor && root.editor.lastFocusedBlock !== undefined
+                            ? root.editor.lastFocusedBlock : -1
                     if (anchor >= 0 && anchor !== root.index)
-                        DocumentSelection.selectBlock(anchor)
+                        root.selection.selectBlock(anchor)
                 }
-                DocumentSelection.extendBlockSelectionTo(root.index)
+                root.selection.extendBlockSelectionTo(root.index)
                 root.focusSelectionHandler()
                 mouse.accepted = true
                 return
             }
             var gutterWidth = 44 + root.indentLevel * 24
             if (mouse.x < gutterWidth) {
-                if ((DocumentSelection.hasBlockSelection
-                     || DocumentSelection.hasTextSelection)
-                    && !DocumentSelection.isBlockSelected(root.index))
-                    DocumentSelection.clear()
+                if ((root.selection.hasBlockSelection
+                     || root.selection.hasTextSelection)
+                    && !root.selection.isBlockSelected(root.index))
+                    root.selection.clear()
                 mouse.accepted = false
                 return
             }
-            if ((DocumentSelection.hasBlockSelection
-                 || DocumentSelection.hasTextSelection)
-                && !DocumentSelection.isBlockSelected(root.index))
-                DocumentSelection.clear()
+            if ((root.selection.hasBlockSelection
+                 || root.selection.hasTextSelection)
+                && !root.selection.isBlockSelected(root.index))
+                root.selection.clear()
 
             // QML Text has no positionAt(): the old fallback split the whole
             // row in half, so nearly every click on a short line resolved to
@@ -574,7 +569,7 @@ BlockDelegateBase {
         // pointer is on.
         BlockGutter {
             rowHovered: root.shellHovered
-            dragEnabled: root.shell !== null && root.shell.blockDrag !== null
+            dragEnabled: root.editor !== null && root.editor.blockDrag !== null
 
             onInsertRequested: root.insertBlockBelowAndOpenMenu()
             onDeleteRequested: root.deleteCurrentBlock()
@@ -582,22 +577,22 @@ BlockDelegateBase {
             onBlockSelectRequested: {
                 if (root.ListView.view)
                     root.ListView.view.currentIndex = root.index
-                DocumentSelection.selectBlock(root.index)
+                root.selection.selectBlock(root.index)
                 root.focusSelectionHandler()
             }
             onDragStarted: function(sceneX, sceneY) {
-                root.shell.blockDrag.begin(root.index, sceneX, sceneY)
+                root.editor.blockDrag.begin(root.index, sceneX, sceneY)
             }
             onDragMoved: function(sceneX, sceneY) {
-                root.shell.blockDrag.update(sceneX, sceneY)
+                root.editor.blockDrag.update(sceneX, sceneY)
             }
             onDragDropped: {
-                if (root.shell && root.shell.blockDrag)
-                    root.shell.blockDrag.drop()
+                if (root.editor && root.editor.blockDrag)
+                    root.editor.blockDrag.drop()
             }
             onDragCanceled: {
-                if (root.shell && root.shell.blockDrag)
-                    root.shell.blockDrag.cancel()
+                if (root.editor && root.editor.blockDrag)
+                    root.editor.blockDrag.cancel()
             }
         }
     }

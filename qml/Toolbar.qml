@@ -25,7 +25,8 @@ Rectangle {
     objectName: "toolbar"
 
     property var appWindow
-    property var listView
+    // The editor the toolbar's commands act on.
+    property BlockEditorSurface editor: null
 
     // macOS puts an application's menus in the system menu bar at the top of
     // the screen, where main.qml hangs File and View instead. The buttons for
@@ -79,24 +80,11 @@ Rectangle {
     }
 
     // ---- The caret's block and formatting state --------------------
-    readonly property var targetBlock: {
-        var focusDep = toolbar.appWindow ? toolbar.appWindow.activeFocusItem : null
-        var indexDep = toolbar.appWindow ? toolbar.appWindow.lastFocusedBlock : 0
-        // A popup that is acting on the caret's selection — the colour picker
-        // — takes the keyboard from the block by design, so it can be used
-        // without a pointer (accessibility.md Finding 2). That does not mean
-        // the block stopped being the one the toolbar's commands act on: it is
-        // the block whose selection the popup is about to change. Reading the
-        // count is also what makes this re-evaluate when a popup opens.
-        var holdDep = toolbar.appWindow && toolbar.appWindow.selectionHolders
-            !== undefined ? toolbar.appWindow.selectionHolders : 0
-        if (!toolbar.appWindow || !listView)
-            return null
-        var item = listView.itemAtIndex(toolbar.appWindow.lastFocusedBlock)
-        if (!item)
-            return null
-        return (item.isFocused || holdDep > 0) ? item : null
-    }
+    // The editor's own answer. The toolbar used to work it out for itself
+    // from the window's focus item, the row that last held it and the count
+    // of popups holding the caret's selection — the same three reads the
+    // editor makes, kept in step by hand.
+    readonly property var targetBlock: toolbar.editor ? toolbar.editor.caretBlock : null
     readonly property int caretFlags:
         targetBlock && targetBlock.cursorFormatFlags !== undefined
             ? targetBlock.cursorFormatFlags : 0
@@ -423,6 +411,7 @@ Rectangle {
                     ColorPicker {
                         id: toolbarColorPicker
                         objectName: "toolbarColorPicker"
+                        editor: toolbar.editor
                         y: parent.height
                         currentColor: (toolbar.targetBlock
                             && toolbar.targetBlock.currentColor !== undefined)
@@ -544,15 +533,15 @@ Rectangle {
     // Insert below the caret's block (or at the end), focusing the new
     // block — the plus-button contract without the menu step.
     function insertBlockOfType(type) {
-        var idx = toolbar.appWindow ? toolbar.appWindow.lastFocusedBlock : -1
+        var idx = toolbar.editor ? toolbar.editor.lastFocusedBlock : -1
         if (idx < 0 || idx >= BlockModel.count)
             idx = BlockModel.count - 1
         BlockModel.insertBlock(idx + 1, type, "")
         // Inserting below the caret can put the new block past the viewport,
-        // where its delegate does not exist yet; the window's focus router
+        // where its delegate does not exist yet; the editor's focus router
         // brings it into view and retries until it does.
-        if (toolbar.appWindow)
-            toolbar.appWindow.focusBlockAtIndex(idx + 1)
+        if (toolbar.editor)
+            toolbar.editor.focusBlockAtIndex(idx + 1)
     }
 
     // Insert a wave-2 type that needs a flow rather than a bare convert
@@ -560,7 +549,7 @@ Rectangle {
     // board seeds its columns. A new empty block is created below the caret's
     // block and handed to that flow.
     function insertSpecialBelow(kind) {
-        var idx = toolbar.appWindow ? toolbar.appWindow.lastFocusedBlock : -1
+        var idx = toolbar.editor ? toolbar.editor.lastFocusedBlock : -1
         if (idx < 0 || idx >= BlockModel.count)
             idx = BlockModel.count - 1
         var newIdx = idx + 1

@@ -101,6 +101,85 @@ The reasoning behind all of this, including the three placements a first
 reading of the layout would not predict and what is still one large class, is
 [docs/adr/0008-module-boundary.md](docs/adr/0008-module-boundary.md).
 
+## The editor is a component, and the window is its host
+
+`qml/BlockEditor.qml` is the editing surface for one block document: the
+scrolling list of rows, the drag and selection gestures over it, the floating
+formatting and find bars, and the focus, reveal and relayout machinery that
+makes a `ListView` behave like an editor. `qml/main.qml` instantiates one of
+them inside the document pane and supplies what it cannot know for itself.
+
+That division did not exist before. The `ListView` was declared in the middle
+of `main.qml`, and the eight hundred lines above it held the rest — so nothing
+could instantiate an editor, and every row reached the window it happened to
+be in (`Window.window as KvitShell`) to ask whether a drag was running or which
+row last held the caret. The consequences were the same in both directions: no
+other application could obtain the editor by linking this library, and this
+application could not show two documents at once.
+
+**What a host supplies.** The whole of it is at the top of
+`qml/BlockEditorSurface.qml`, and every entry has a default that means "there
+is nothing here", so an editor nobody configures still runs:
+
+- **The document** — `blocks`, `selection`, `undoStack`, `search`, `outline`,
+  `heights`, `stats`, `decorations`. Each defaults to the singleton of the same
+  name, which is the per-vault instance `AppContext` builds, so an unconfigured
+  editor edits the window's one document exactly as before.
+- **Where the document lives** — `documentPath`, `assetRoot`, `assetSink`,
+  `linkResolver`. With none of them an image pasted into the document is
+  refused rather than written to a folder nobody chose, and a `[[wiki link]]`
+  styles as an ordinary link rather than as one that failed to resolve. That is
+  the single-file mode this application has always had, reached through the
+  same four properties rather than through `NoteCollection.isOpen` tests spread
+  across the rows.
+- **Four hooks for the popups the window owns** — `activeBlockMenu`,
+  `activeMathMenu`, `activeWikiMenu`, `contextMenuHoldsSelection`, plus
+  `openLink`. A menu is a popup, so it belongs to a window; a row asks the
+  editor whether one is open for it and gets the object back to drive.
+- **Presentation the host decides** — `contentTopMargin` and
+  `overlayTopMargin` for chrome drawn across the top of the editor (the tag
+  strip, the document-header extension slot), `typewriterMode`, `focusColumn`,
+  `selectionHolders`, and `dragLayer` for a multi-block drag proxy that has to
+  draw over the host's own chrome.
+
+**How a row reaches its editor.** `BlockDelegateBase` walks out of the block
+list until it finds a `BlockEditorSurface`, three or four hops, once when the
+row is created. It exposes `editor` and, from it, the document objects with a
+fallback to the singletons, so a row built outside any editor — a drag
+snapshot, or a test that instantiates one delegate — still works. No delegate
+names a window; `KvitShell.qml` existed only to be the type they cast to and
+is gone.
+
+**Why `BlockEditorSurface` is a separate file.** `BlockEditor` casts rows to
+`BlockDelegateBase` and `BlockDelegateBase` names the surface, so a single type
+would be a reference cycle between two QML documents. The surface declares the
+interface and nothing else — the same arrangement `BlockDragState` already had
+with the same delegates — and it names no delegate, so neither file names the
+other.
+
+**The components ship as the `Kvit` module.** `KVIT_QML_FILES` in
+`CMakeLists.txt` is the component list, and `qt_add_qml_module` turns it into
+the module's own types: `import Kvit 1.0` gives an application
+`BlockEditor { }` the same way it gives it `BlockModel`. A component's URL is
+`qrc:/qt/qml/Kvit/BlockEditor.qml`. They used to be a `resources.qrc` compiled
+into whichever executable wanted them, which is why a binary linking
+`kvit-core` got every C++ type and not one component.
+
+One consequence is worth knowing before changing that build rule.
+`QML_FILES` turns on `qmlsc`, which compiles bindings ahead of time, and
+around forty bindings in `qml/` establish a dependency by reading a value they
+do not use — `var revision = EgressPolicy.revision` on the line above the read
+that matters. The interpreter performs that read; `qmlsc` sees an unused local
+and eliminates it, and the binding then never re-evaluates. Measured on the
+generated `ReadOnlyPicture_qml.cpp`: one singleton lookup, one property read
+and one call, with no read of `revision` anywhere in it, and five
+`ReadOnlyDocumentTests` cases failed — a remote image's consent tile staying on
+screen after the reader approved its origin, and a selection band never
+appearing. So `kvit-qml` sets `QT_QMLCACHEGEN_ARGUMENTS "--only-bytecode"`,
+which keeps the compile-time parse and the cached bytecode and leaves the
+bindings to the interpreter this code was written against. Turning it on means
+rewriting every one of those reads so its value reaches the result.
+
 ## Building on Windows: the two-tree workflow
 
 Since 2026-07-19 the Windows port builds and passes the full unit suite
@@ -530,7 +609,8 @@ module contributes legible from the core:
   round-trips its markdown, carries its attribute tag where the parser expects
   it, and exports as something in both formats; `tools/check-block-kinds.py`
   (the `BlockKindsGuard` ctest entry) checks the same completeness without a
-  built tree and that every delegate URL a kind names is in `resources.qrc`.
+  built tree and that every delegate URL a kind names is in the Kvit
+  module's component list (`KVIT_QML_FILES` in `CMakeLists.txt`).
 
 - **Where a module may draw.** Four named UI slots (`KvitSlots` in
   `src/application/extensionregistry.h`) are empty `Loader`s in `qml/main.qml`
@@ -914,7 +994,7 @@ service rather than a flag, add a narrow interface and a setter in the shape of
 
 Three checks keep the wiring honest, and all three block a merge:
 
-- **ShellTests** loads the shipped `resources.qrc` against the real context and
+- **ShellTests** loads the shipped shell against the real context and
   fails on any QML warning, both during load and for the rest of the suite as
   the loaded shell is exercised. QML reports an unknown context property or an
   unresolvable type as a warning and then carries on with an undefined value,
@@ -924,12 +1004,13 @@ Three checks keep the wiring honest, and all three block a merge:
   context-property set is empty and checks every singleton in
   `KVIT_QML_SINGLETONS`, reading that registry directly so the two cannot
   drift.
-- **QrcSyncGuard** (`tools/check-qrc-sync.py`) compares `resources.qrc` with
-  the files actually in `qml/`. A component missing from that list breaks the
-  shipped shell and hangs the Qt Quick harness until its CTest timeout, since
-  a QML load error leaves the harness waiting on its `when:` condition rather
-  than failing. `resources.qrc` is the only list: the application, `test_shell`
-  and the Qt Quick Test binaries all compile it, and
+- **QrcSyncGuard** (`tools/check-qrc-sync.py`) compares `KVIT_QML_FILES` in
+  `CMakeLists.txt` — the Kvit QML module's component list — with the files
+  actually in `qml/`. A component missing from that list breaks the shipped
+  shell and hangs the Qt Quick harness until its CTest timeout, since a QML
+  load error leaves the harness waiting on its `when:` condition rather than
+  failing. That list is the only one: the application and every test binary
+  get the components by linking `kvit-qml`, and
   `tests/integration_tests.qrc` holds the `tst_*.qml` suite files alone. The
   guard also fails if a component list reappears there.
 - **qmllint** reads every file in `qml/`, including the ones no test

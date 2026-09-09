@@ -8,14 +8,15 @@
 #   tools/check-appdir-runtime.sh <appdir>
 #
 # Why this exists: linuxdeploy-plugin-qt deploys QML modules only for QML it
-# is pointed at. This app compiles its QML into resources.qrc, so there is no
-# QML directory for the plugin to discover on its own, and without
+# is pointed at. This app compiles its QML into the kvit-qml library as the
+# Kvit module's own components, so there is no QML directory on disk for the
+# plugin to discover on its own, and without
 # QML_SOURCES_PATHS it deployed no QML modules at all. The resulting AppImage
 # contained the executable, the Qt libraries and the math resources, passed
 # `--math-selftest` — which never constructs a QML engine — and then failed at
 # launch with:
 #
-#   qrc:/qml/main.qml:5:1: module "QtQuick.Controls" plugin
+#   qrc:/qt/qml/Kvit/main.qml:5:1: module "QtQuick.Controls" plugin
 #   "qtquickcontrols2plugin" not found
 #
 # Every check that existed looked at files rather than behaviour, so nothing

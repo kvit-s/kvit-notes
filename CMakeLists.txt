@@ -51,12 +51,12 @@ set(CMAKE_AUTORCC ON)
 # internally even though the app does not.
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Test QuickTest Widgets Multimedia Network Concurrent Sql)
 
-# Where the Kvit QML module's generated files live in the resource system:
-# `:/qt/qml/Kvit`, which is Qt's standard location and on the engine's default
-# import path, rather than the pre-6.5 `:/Kvit`. Unset, the policy makes every
-# configure print a QTP0001 warning. Only the generated qmldir and .qmltypes
-# move: the QML itself ships through resources.qrc, and the types are
-# registered from C++ (see the NO_PLUGIN note on qt_add_qml_module below).
+# Where the Kvit QML module lives in the resource system: `:/qt/qml/Kvit`,
+# which is Qt's standard location and on the engine's default import path,
+# rather than the pre-6.5 `:/Kvit`. Unset, the policy makes every configure
+# print a QTP0001 warning. The module's generated qmldir and .qmltypes and its
+# QML components all sit there, so a component's URL is
+# qrc:/qt/qml/Kvit/BlockEditor.qml.
 qt_policy(SET QTP0001 NEW)
 
 # The optional linked module. OFF is the open editor: nothing under
@@ -544,22 +544,186 @@ target_compile_definitions(kvit-qml PRIVATE
 # there is nothing for a plugin to load. See AppContext::registerQmlTypes()
 # for the consequence that has, which is not obvious.
 #
-# The QML files themselves still ship in resources.qrc rather than through
-# QML_FILES here. Moving them is a larger change and is not needed for the
-# type checking this enables.
 # DEPENDENCIES is stated rather than derived. Qt writes the qmldir's
 # `depends` line from the QML modules the target links DIRECTLY, and kvit-qml
 # reaches Qt6::Quick transitively through kvit-application now. Without the
 # line qmllint cannot resolve a value type like QColor in a Kvit type's
 # property and reports several hundred unresolved-type findings on files that
 # are in fact correct.
+#
+# ── The QML components, and why the list is here.
+#
+# They used to ship in a resources.qrc attached to the EXECUTABLE, which had
+# two consequences. A binary that linked kvit-core got every C++ type and not
+# one component, so "the editor" was not something another application could
+# obtain by linking this library — it had to copy the resource file and the
+# hundred-odd files it names. And because they were plain resources rather
+# than a module's QML, `import Kvit` yielded types written in C++ only:
+# BlockEditor and its delegates were reachable by URL and by nothing else.
+#
+# As QML_FILES they are the Kvit module's own types. `import Kvit 1.0` now
+# gives an application `BlockEditor { }` the same way it gives it BlockModel,
+# and every file below is compiled and cached at build time rather than parsed
+# from a resource at startup.
+#
+# QT_RESOURCE_ALIAS below strips the qml/ directory so each file sits at the
+# module root, which is where a module's types belong and what makes the URL
+# qrc:/qt/qml/Kvit/BlockEditor.qml rather than .../Kvit/qml/BlockEditor.qml.
+#
+# The list is written out rather than globbed: CMake does not re-run for a new
+# file matching a glob, so a component added to qml/ would be missing from the
+# build until someone reconfigured by hand — and a missing component hangs the
+# Qt Quick harness until its CTest timeout rather than failing. Instead
+# tools/check-layering.py's sibling tools/check-qrc-sync.py compares this list
+# against the directory and fails as the QrcSyncGuard test.
+set(KVIT_QML_FILES
+    qml/main.qml
+    qml/AppShortcuts.qml
+    qml/BacklinksPanel.qml
+    qml/BackupRestoreDialog.qml
+    qml/BlockDelegateBase.qml
+    qml/BlockDragController.qml
+    qml/BlockDragLayer.qml
+    qml/BlockDragState.qml
+    qml/BlockEditor.qml
+    qml/BlockEditorSurface.qml
+    qml/BlockExitBelow.qml
+    qml/BlockGapCursor.qml
+    qml/BlockGutter.qml
+    qml/BlockInsertDialogs.qml
+    qml/BlockKeyHint.qml
+    qml/BlockMenu.qml
+    qml/BlockSelectionKeys.qml
+    qml/BottomDock.qml
+    qml/BulletListDelegate.qml
+    qml/CalloutBlock.qml
+    qml/CalloutBlockChrome.qml
+    qml/CalloutColorPicker.qml
+    qml/CalloutTypePicker.qml
+    qml/CodeBlockChrome.qml
+    qml/CodeBlockDelegate.qml
+    qml/ColorPicker.qml
+    qml/CrossBlockTextDrag.qml
+    qml/CrossBlockTextSelection.qml
+    qml/DateRangePicker.qml
+    qml/DayPicker.qml
+    qml/DiagramBlock.qml
+    qml/DiscoverableMenuItem.qml
+    qml/DividerDelegate.qml
+    qml/DividerStylePicker.qml
+    qml/DocumentScrollBar.qml
+    qml/DocumentSessionDialogs.qml
+    qml/DropCapOverlay.qml
+    qml/EdgeAutoScroller.qml
+    qml/EditableBlock.qml
+    qml/EditorContextMenus.qml
+    qml/EditorDropArea.qml
+    qml/EditorStatusBar.qml
+    qml/EmbedBlock.qml
+    qml/ExportDialog.qml
+    qml/FileMenu.qml
+    qml/FileTreePane.qml
+    qml/FindBar.qml
+    qml/FormattingBar.qml
+    qml/IconButton.qml
+    qml/ImageBlock.qml
+    qml/ImageEffectsPopover.qml
+    qml/ImageViewerSurface.qml
+    qml/ImportDialog.qml
+    qml/InlineMathOverlay.qml
+    qml/KanbanBlock.qml
+    qml/KvitDialog.qml
+    qml/LanguagePicker.qml
+    qml/Lightbox.qml
+    qml/LinkDialog.qml
+    qml/MathBlock.qml
+    qml/MathCommandMenu.qml
+    qml/MathEntryAssist.qml
+    qml/MediaBlock.qml
+    qml/MediaPlayerCard.qml
+    qml/NavigationRails.qml
+    qml/NoteAutoTitle.qml
+    qml/NoteListPane.qml
+    qml/NoteRenameWorkflow.qml
+    qml/NoteSession.qml
+    qml/NumberedListDelegate.qml
+    qml/OutlinePanel.qml
+    qml/PanelSeam.qml
+    qml/QueryBlock.qml
+    qml/QuickCaptureWindow.qml
+    qml/QuickSwitcher.qml
+    qml/QuoteDelegate.qml
+    qml/ReadOnlyBlock.qml
+    qml/ReadOnlyDocument.qml
+    qml/ReadOnlyDocumentDrag.qml
+    qml/ReadOnlyEquation.qml
+    qml/ReadOnlyPicture.qml
+    qml/ReadOnlyTextFile.qml
+    qml/RenderedTextSelection.qml
+    qml/SearchResultsView.qml
+    qml/SelectableText.qml
+    qml/SessionPersistence.qml
+    qml/SettingsDialog.qml
+    qml/ShortcutReference.qml
+    qml/Sidebar.qml
+    qml/SpanDecorationOverlay.qml
+    qml/StandaloneFileView.qml
+    qml/StatisticsPanel.qml
+    qml/SystemIntegration.qml
+    qml/TableBlock.qml
+    qml/TableSizePicker.qml
+    qml/TagStrip.qml
+    qml/TemplateDialog.qml
+    qml/TextBlockDelegate.qml
+    qml/TocBlock.qml
+    qml/TocFenceSync.qml
+    qml/TodoDelegate.qml
+    qml/Toolbar.qml
+    qml/ViewMenu.qml
+    qml/WikiLinkCompletion.qml
+    qml/WikiLinkMenu.qml
+)
+
+foreach(_kvit_qml IN LISTS KVIT_QML_FILES)
+    get_filename_component(_kvit_qml_alias "${_kvit_qml}" NAME)
+    set_source_files_properties("${_kvit_qml}"
+        PROPERTIES QT_RESOURCE_ALIAS "${_kvit_qml_alias}")
+endforeach()
+
 qt_add_qml_module(kvit-qml
     URI Kvit
     VERSION 1.0
     NO_PLUGIN
     DEPENDENCIES QtQuick
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/qmlmodules/Kvit
+    QML_FILES ${KVIT_QML_FILES}
 )
+
+# ── Bytecode, not compiled C++, and why that is deliberate.
+#
+# QML_FILES turns on qmlsc, which compiles bindings ahead of time into C++.
+# That breaks this tree, in a way no compiler warning reports and only some
+# tests catch.
+#
+# Around forty bindings here establish a dependency by reading a value they do
+# not use — `var revision = EgressPolicy.revision` on the line above the read
+# that matters. The interpreter performs that read, so the binding depends on
+# `revision` and re-evaluates when it changes. qmlsc sees a local that is
+# never used and eliminates it: the generated
+# build/.rcc/qmlcache/kvit-qml_qml/ReadOnlyPicture_qml.cpp held one singleton
+# lookup, one context lookup, one property read and one call, with no read of
+# `revision` anywhere in it. The binding then never re-evaluated, and
+# ReadOnlyDocumentTests failed five cases — a remote image's consent tile
+# staying on screen after the reader approved its origin, and a selection band
+# never appearing.
+#
+# --only-bytecode keeps the compile-time parse and the cached bytecode, which
+# is what makes a component load without being parsed from source at startup,
+# and leaves the bindings to the interpreter that this code was written
+# against. Turning it back on means rewriting every one of those reads so its
+# value reaches the result, which is worth doing and is not this change.
+set_target_properties(kvit-qml PROPERTIES
+    QT_QMLCACHEGEN_ARGUMENTS "--only-bytecode")
 
 # ── The two QML analysis entry points, both owned by this project.
 #
@@ -580,11 +744,10 @@ add_custom_target(kvit-qmltypes ALL)
 add_dependencies(kvit-qmltypes kvit-qml_qmltyperegistration)
 
 # `qmllint` runs the real gate — tools/run-qmllint.sh, over the shipping QML
-# and the test QML both. Qt generates a per-module lint target too, but the
-# QML files ship through resources.qrc rather than through QML_FILES, so it
-# has nothing to lint and `all_qmllint` reported a clean run over an empty
-# set. Hanging this target off it means that aggregate now means what a
-# reader assumes it means.
+# and the test QML both. Qt generates a per-module lint target too, and it now
+# has the module's QML_FILES to lint; the script stays the gate because it
+# also covers the Qt Quick Test QML, which is in no module. Hanging this
+# target off `all_qmllint` means that aggregate covers both.
 if(UNIX)
     add_custom_target(qmllint
         COMMAND ${CMAKE_COMMAND} -E env KVIT_BUILD_DIR=${CMAKE_BINARY_DIR}
@@ -696,12 +859,14 @@ if(KVIT_AGENT)
     target_compile_definitions(kvit-agent PUBLIC KVIT_AGENT)
 endif()
 
-# Main executable: main() plus the shell's QML. The resource file stays with
-# the executable rather than the library so a superset binary picks which
-# shell it ships; it adds the open repo's resources.qrc to its own target.
+# Main executable: main(), and nothing else. The shell's QML is the Kvit
+# module's now (see QML_FILES above), so it arrives with kvit-core rather than
+# being compiled into whichever binary happens to want it. A superset binary
+# that wants a shell of its own loads that instead of qrc:/qt/qml/Kvit/main.qml
+# — which is what KvitApplication::setShellUrl() is for — rather than choosing
+# a different resource file to compile.
 qt_add_executable(kvit-notes
     src/main.cpp
-    resources.qrc
 )
 
 target_link_libraries(kvit-notes PRIVATE
@@ -716,8 +881,8 @@ if(KVIT_AGENT)
 endif()
 
 # ── Platform packaging: icon, bundle metadata, install layout.
-#    QML ships inside resources.qrc, so the only runtime payload beyond
-#    the executable is the MicroTeX resource tree; MathRenderer::resourceRoot()
+#    QML ships inside the kvit-qml library, so the only runtime payload beyond
+#    the executable and its libraries is the MicroTeX resource tree; MathRenderer::resourceRoot()
 #    resolves it relative to the executable in each installed layout below,
 #    and `kvit-notes --math-selftest` verifies the result headlessly.
 if(WIN32)
@@ -827,7 +992,6 @@ if(KVIT_UI_DRIVER)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     qt_add_executable(kvit-uidriver
         tools/uidriver.cpp
-        resources.qrc
     )
     # Widgets for the same reason kvit-notes needs it: this tool constructs
     # the QApplication itself. kvit-core stopped exporting Widgets when its

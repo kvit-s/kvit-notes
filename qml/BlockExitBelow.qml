@@ -24,13 +24,16 @@ import Kvit 1.0
 Item {
     id: exitBelow
 
+    readonly property BlockModel blocks:
+        exitBelow.editor ? exitBelow.editor.blocks : BlockModel
+
     // Wired by the block: where it sits, and the list it sits in.
     property int blockIndex: -1
     property ListView listView
     property BlockDelegateBase blockItem
     property bool editing: false
-    readonly property KvitShell shell:
-        blockItem ? blockItem.geometryShell : null
+    readonly property BlockEditorSurface editor:
+        blockItem ? blockItem.editor : null
     property bool pending: false
 
     width: 0
@@ -58,15 +61,15 @@ Item {
         // geometry before changing the model so the next row is positioned
         // against the block's resting height.
         if (exitBelow.blockItem)
-            exitBelow.blockItem.notifyShellGeometryChanged()
+            exitBelow.blockItem.notifyEditorGeometryChanged()
         if (exitBelow.listView)
             exitBelow.listView.forceLayout()
 
         exitBelow.pending = false
         var newIndex = exitBelow.blockIndex + 1
-        BlockModel.insertBlock(newIndex, 0, "")
-        if (exitBelow.shell)
-            exitBelow.shell.focusBlockAtIndex(newIndex)
+        exitBelow.blocks.insertBlock(newIndex, 0, "")
+        if (exitBelow.editor)
+            exitBelow.editor.focusBlockAtIndex(newIndex)
         else if (exitBelow.listView)
             exitBelow.listView.currentIndex = newIndex
     }

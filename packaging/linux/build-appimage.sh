@@ -168,7 +168,7 @@ export EXTRA_QT_MODULES="multimedia;waylandcompositor"
 export EXTRA_PLATFORM_PLUGINS="libqwayland.so"
 
 # linuxdeploy-plugin-qt works out which QML modules to deploy by scanning QML
-# source files. This app compiles its QML into resources.qrc, so there is no
+# source files. This app compiles its QML into the kvit-qml library, so there is no
 # QML tree for the plugin to find by itself, and without this it deployed no
 # QML modules whatsoever: the AppImage then held the executable, the Qt
 # libraries and the math resources, passed --math-selftest (which never builds

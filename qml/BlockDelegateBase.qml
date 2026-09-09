@@ -9,7 +9,7 @@ import QtQuick
 import QtQuick.Window
 import Kvit 1.0
 
-// What every block delegate provides to the shell.
+// What every block delegate provides to the editor drawing it.
 //
 // This interface is not new. All twelve delegates already implement exactly
 // these eight functions, and QueryBlock.qml described the set as "matches the
@@ -17,7 +17,7 @@ import Kvit 1.0
 // enforcing it and nothing recording it. Writing it down does not add
 // coupling; it names coupling that was already there.
 //
-// The shell reaches a row as `blockListView.itemAtIndex(i)`, which is typed
+// The editor reaches a row as `blockListView.itemAtIndex(i)`, which is typed
 // QQuickItem, so before this every call had to be written as
 //
 //     if (item && item.focusAtStart)
@@ -44,21 +44,61 @@ Item {
     // role of the same name, so no delegate and no call site changed.
     required property int index
 
-    // Variable-height rows tell their own shell whenever their geometry
-    // changes. The shell coalesces all notifications in the current event turn
-    // before asking ListView to process outstanding layout. This also gives
-    // specialized delegates (notably asynchronous diagrams) an explicit hook
-    // for completion signals that do not themselves change height.
-    readonly property KvitShell geometryShell: Window.window as KvitShell
-    function notifyShellGeometryChanged() {
-        if (blockDelegateBase.geometryShell)
-            blockDelegateBase.geometryShell.blockGeometryChanged(blockDelegateBase)
+    // The editing surface this row is drawn in, and the one thing every
+    // delegate needs in order to ask anything of it: is a drag running, which
+    // row last held the caret, is a completion menu open for me.
+    //
+    // Found by walking out of the block list rather than by asking which
+    // window this is. A row is a child of the list's content item, which is
+    // inside the BlockEditor that owns it, so the walk is three or four hops
+    // and settles when the row is created. Asking the window instead — which
+    // is what this did — meant that a row could only be drawn in the one
+    // window type the application happens to have, and that two editors in
+    // one window would both get the same answers.
+    readonly property BlockEditorSurface editor: {
+        var candidate = blockDelegateBase.parent
+        while (candidate) {
+            var surface = candidate as BlockEditorSurface
+            if (surface)
+                return surface
+            candidate = candidate.parent
+        }
+        return null
     }
-    onHeightChanged: blockDelegateBase.notifyShellGeometryChanged()
+
+    // The document this row is part of, taken from the editor drawing it. The
+    // fallback is the process's own, for a row built outside any editor — a
+    // drag snapshot, or a test that instantiates one delegate — which is what
+    // every one of these reads was before the editor could be told.
+    readonly property BlockModel blocks:
+        blockDelegateBase.editor ? blockDelegateBase.editor.blocks : BlockModel
+    readonly property DocumentSelection selection:
+        blockDelegateBase.editor ? blockDelegateBase.editor.selection
+                                 : DocumentSelection
+    readonly property UndoStack undoStack:
+        blockDelegateBase.editor ? blockDelegateBase.editor.undoStack : UndoStack
+    readonly property DocumentSearch search:
+        blockDelegateBase.editor ? blockDelegateBase.editor.search : DocumentSearch
+    readonly property DocumentOutline outline:
+        blockDelegateBase.editor ? blockDelegateBase.editor.outline : DocumentOutline
+    readonly property DocumentDecorations decorations:
+        blockDelegateBase.editor ? blockDelegateBase.editor.decorations
+                                 : DocumentDecorations
+
+    // Variable-height rows tell their own editor whenever their geometry
+    // changes. The editor coalesces all notifications in the current event
+    // turn before asking ListView to process outstanding layout. This also
+    // gives specialized delegates (notably asynchronous diagrams) an explicit
+    // hook for completion signals that do not themselves change height.
+    function notifyEditorGeometryChanged() {
+        if (blockDelegateBase.editor)
+            blockDelegateBase.editor.blockGeometryChanged(blockDelegateBase)
+    }
+    onHeightChanged: blockDelegateBase.notifyEditorGeometryChanged()
     Component.onCompleted: {
-        blockDelegateBase.notifyShellGeometryChanged()
-        if (blockDelegateBase.geometryShell)
-            blockDelegateBase.geometryShell.blockDelegateReady(blockDelegateBase)
+        blockDelegateBase.notifyEditorGeometryChanged()
+        if (blockDelegateBase.editor)
+            blockDelegateBase.editor.blockDelegateReady(blockDelegateBase)
     }
     // A row taken out of the pool is now drawing a different block, and if
     // that block is the same height as the one it drew before — which in a
@@ -66,9 +106,15 @@ Item {
     // geometry changes and the two handlers above say nothing. The row is a
     // new measurement all the same, because it is a measurement OF ANOTHER
     // BLOCK, and without this the last rows a reader scrolls to are the ones
-    // the shell never hears about. The model properties are updated before
+    // the editor never hears about. The model properties are updated before
     // this runs, so the index it reports is the one it is now drawing.
-    ListView.onReused: blockDelegateBase.notifyShellGeometryChanged()
+    ListView.onReused: blockDelegateBase.notifyEditorGeometryChanged()
+
+    // Whether the caret is in this row. Every delegate answers it — from its
+    // TextArea's activeFocus, or from whatever else it puts the caret in —
+    // and the editor reads it to decide which row its commands act on. It was
+    // declared twelve times over with nothing recording that it had to be.
+    property bool isFocused: false
 
     // Standard context-menu keys, shared by every block's primary focus
     // target. Returning true lets each delegate put this first in its own key
@@ -87,9 +133,9 @@ Item {
     // A block row fills the list it is in, less the reserved margin column
     // (which is zero wide unless a module asked for it).
     //
-    // main.qml used to say this per delegate — `width: blockListView.width`
+    // The editor used to say this per delegate — `width: blockListView.width`
     // repeated on all seventeen DelegateChoice blocks — and a choice the
-    // shell builds at runtime from the kind registry cannot carry a binding
+    // editor builds at runtime from the kind registry cannot carry a binding
     // written by hand. The row knows it fills its view, so it says so once,
     // here, and every delegate inherits it.
     width: ListView.view
@@ -117,8 +163,8 @@ Item {
     // than when its first glyph appears, so no text ever shifts sideways
     // under the reader.
     readonly property real marginColumnWidth:
-        DocumentDecorations.marginColumnReserved
-            ? Math.round(Typography.baseSize * DocumentDecorations.marginColumnEms)
+        blockDelegateBase.decorations.marginColumnReserved
+            ? Math.round(Typography.baseSize * blockDelegateBase.decorations.marginColumnEms)
             : 0
 
     // The registrations that land on this row. Both read `revision` first:
@@ -126,16 +172,16 @@ Item {
     // added after this row was built would never appear. Same idiom as the
     // search and selection reads in the delegates.
     readonly property var containerEntries: {
-        var revision = DocumentDecorations.revision
-        if (!blockDelegateBase.isDocumentRow || !DocumentDecorations.active)
+        var revision = blockDelegateBase.decorations.revision
+        if (!blockDelegateBase.isDocumentRow || !blockDelegateBase.decorations.active)
             return []
-        return DocumentDecorations.containersAfter(blockDelegateBase.index)
+        return blockDelegateBase.decorations.containersAfter(blockDelegateBase.index)
     }
     readonly property var marginEntries: {
-        var revision = DocumentDecorations.revision
-        if (!blockDelegateBase.isDocumentRow || !DocumentDecorations.active)
+        var revision = blockDelegateBase.decorations.revision
+        if (!blockDelegateBase.isDocumentRow || !blockDelegateBase.decorations.active)
             return []
-        return DocumentDecorations.marginItemsForBlock(blockDelegateBase.index)
+        return blockDelegateBase.decorations.marginItemsForBlock(blockDelegateBase.index)
     }
 
     // How tall this row's own content is. Every delegate binds this, and none
@@ -198,7 +244,7 @@ Item {
     }
 
     // Where container `id` was drawn, in this row's coordinates, or a
-    // zero-width rectangle when this row is not drawing it. The shell asks
+    // zero-width rectangle when this row is not drawing it. The editor asks
     // each instantiated row in turn; see main.qml's
     // decorationContainerGeometry.
     function decorationContainerRect(id) {
@@ -260,7 +306,7 @@ Item {
         id: marginColumn
         objectName: "blockMarginColumn"
         visible: blockDelegateBase.isDocumentRow
-                 && DocumentDecorations.marginColumnReserved
+                 && blockDelegateBase.decorations.marginColumnReserved
         x: blockDelegateBase.width
         width: blockDelegateBase.marginColumnWidth
         height: blockDelegateBase.blockContentHeight
@@ -284,7 +330,7 @@ Item {
     }
 
     // ---- focus entry points ----
-    // Where the caret goes when the shell moves focus into this block.
+    // Where the caret goes when the editor moves focus into this block.
     function focusAtStart() {}
     function focusAtEnd() {}
     // `markdownPos` is an offset into the block's markdown source, not into
@@ -295,12 +341,12 @@ Item {
     // The markdown offset under a point in scene coordinates.
     function markdownPositionAt(sceneX, sceneY) { return 0 }
     // Whether a scene point is over text this block would take a caret in,
-    // which is how the shell decides between placing a caret and starting a
+    // which is how the editor decides between placing a caret and starting a
     // block selection.
     function pointInText(sceneX, sceneY) { return false }
     // The markdown offset one display line up (dir < 0) or down (dir > 0)
     // from `mdPos`, or -1 when the step leaves this block — which is the
-    // shell's signal to move to the next one.
+    // editor's signal to move to the next one.
     function lineStepPosition(mdPos, dir) { return -1 }
     // The offset the caret takes when arriving from another block at
     // horizontal position `x`, entering from the top or the bottom.
@@ -311,7 +357,7 @@ Item {
 
     // Paint this row's share of a cross-block text range that a mouse drag
     // has just finished, when the row is the one the drag started in. The
-    // shell calls it on the anchor row at the release; a row with no text
+    // editor calls it on the anchor row at the release; a row with no text
     // has no share to paint, which is what the default here says.
     function reapplySelectionPortion() {}
 
@@ -322,7 +368,7 @@ Item {
     function openBlockMenu(mode) {}
 
     // Put text in at the caret as though it had been typed there. The
-    // distinction from BlockModel.updateContent is the point: an edit made
+    // distinction from blockDelegateBase.blocks.updateContent is the point: an edit made
     // through the editor raises the engine's edited signal, which is what the
     // slash menu and the markdown prefix conversions hang off, and a model
     // write does not. The gap cursor (§3.7) uses it to hand the character

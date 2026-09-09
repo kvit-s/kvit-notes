@@ -18,32 +18,32 @@ QtObject {
 
     // The editor being typed into, which is also the host the shared menu is
     // opened for.
-    property TextArea editor: null
+    property TextArea textEditor: null
     // The engine, asked only whether the caret is inside a math span, where
     // brackets belong to the formula.
     property BlockEditorEngine engine: null
-    // The window that owns the shared menu; one serves every block.
-    property KvitShell shell: null
+    // The editing surface that owns the shared menu; one serves every block.
+    property BlockEditorSurface editor: null
     // Code blocks type brackets literally.
     property bool verbatim: false
 
     // The menu while it is open FOR THIS EDITOR, else null.
     function activeMenu() {
-        return root.shell ? root.shell.activeWikiMenu(root.editor) : null
+        return root.editor ? root.editor.activeWikiMenu(root.textEditor) : null
     }
 
     function openMenu() {
-        var rect = root.editor.positionToRectangle(root.editor.cursorPosition)
-        var topLeft = root.editor.mapToItem(null, rect.x, rect.y)
-        AppActions.requestWikiLinkMenu(root.editor,
+        var rect = root.textEditor.positionToRectangle(root.textEditor.cursorPosition)
+        var topLeft = root.textEditor.mapToItem(null, rect.x, rect.y)
+        AppActions.requestWikiLinkMenu(root.textEditor,
             Qt.rect(topLeft.x, topLeft.y, rect.width, rect.height))
         root.syncQuery()
     }
 
     // The "[[…" run ending at the caret — {trigger, query} or null.
     function wordAtCaret() {
-        var text = root.editor.text
-        var pos = root.editor.cursorPosition
+        var text = root.textEditor.text
+        var pos = root.textEditor.cursorPosition
         var open = text.lastIndexOf("[[", Math.max(0, pos - 2))
         if (open < 0 || open + 2 > pos)
             return null
@@ -79,7 +79,7 @@ QtObject {
     // Insertion (the menu hands the chosen row here): replace the whole
     // "[[…" run with the completed link, caret after the closing "]]".
     function applyCompletion(row) {
-        var ed = root.editor
+        var ed = root.textEditor
         var word = root.wordAtCaret()
         if (!word)
             return
@@ -147,13 +147,13 @@ QtObject {
         return true
     }
 
-    // The second "[" of the trigger — prose only, with a collection open,
-    // and never inside a math span. It is inserted by hand so the menu opens
-    // on a settled document.
+    // The second "[" of the trigger — prose only, with somewhere for a wiki
+    // link to resolve to, and never inside a math span. It is inserted by
+    // hand so the menu opens on a settled document.
     function handleBracket(event) {
-        var ed = root.editor
+        var ed = root.textEditor
         if (event.text !== "[" || root.verbatim
-            || !NoteCollection.isOpen
+            || !root.editor || !root.editor.linkResolver
             || root.activeMenu()
             || ed.selectionStart !== ed.selectionEnd
             || ed.cursorPosition <= 0
