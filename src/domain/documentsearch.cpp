@@ -6,6 +6,7 @@
 #include "inlinemarkdown.h"
 #include "blockmodel.h"
 #include "block.h"
+#include "blockpositions.h"
 #include "undostack.h"
 #include "perflog.h"
 
@@ -175,7 +176,7 @@ void DocumentSearch::setInSelectionOnly(bool on)
 void DocumentSearch::setActiveCursor(int blockIndex, int mdPos)
 {
     m_seedId = idAt(blockIndex);
-    m_seedDisplayPos = displayPosition(blockIndex, mdPos);
+    m_seedDisplayPos = BlockPositions::displayPosition(m_model, blockIndex, mdPos);
 }
 
 void DocumentSearch::next()
@@ -234,19 +235,9 @@ QVariantMap DocumentSearch::currentMatchInfo() const
         // Markdown coordinate of the match start: what the QML layer
         // needs for focusAtPosition and the scroll fine adjust (their
         // engine mappings speak markdown, not display).
-        {QStringLiteral("mdStart"), markdownPosition(m.blockIndex, m.start)},
+        {QStringLiteral("mdStart"),
+         BlockPositions::markdownPosition(m_model, m.blockIndex, m.start)},
     };
-}
-
-int DocumentSearch::markdownPosition(int blockIndex, int displayPos) const
-{
-    Block *block = m_model ? m_model->blockAt(blockIndex) : nullptr;
-    if (!block)
-        return 0;
-    if (block->kind()->isVerbatim())
-        return qBound(0, displayPos, static_cast<int>(block->content().length()));
-    return InlineMarkdown::documentToMarkdown(block->content(),
-                                                 QList<int>(), displayPos);
 }
 
 // ---- in-selection domain ----
@@ -323,8 +314,8 @@ void DocumentSearch::resolveTextDomain()
     m_resolvedDomain.valid = true;
     m_resolvedDomain.startIndex = sIdx;
     m_resolvedDomain.endIndex = eIdx;
-    m_resolvedDomain.startDisplay = displayPosition(sIdx, sMd);
-    m_resolvedDomain.endDisplay = displayPosition(eIdx, eMd);
+    m_resolvedDomain.startDisplay = BlockPositions::displayPosition(m_model, sIdx, sMd);
+    m_resolvedDomain.endDisplay = BlockPositions::displayPosition(m_model, eIdx, eMd);
 }
 
 bool DocumentSearch::matchInDomain(const Match &match) const
@@ -712,17 +703,6 @@ QString DocumentSearch::searchableText(int blockIndex) const
     // follow it, and a replace spliced into a field the serializer writes as
     // three characters, so the edit disappeared at the next save.
     return block->searchText();
-}
-
-int DocumentSearch::displayPosition(int blockIndex, int mdPos) const
-{
-    Block *block = m_model ? m_model->blockAt(blockIndex) : nullptr;
-    if (!block)
-        return 0;
-    if (block->kind()->isVerbatim())
-        return qBound(0, mdPos, static_cast<int>(block->content().length()));
-    return InlineMarkdown::markdownToDocument(block->content(),
-                                                 QList<int>(), mdPos);
 }
 
 // ---- pure helpers ----

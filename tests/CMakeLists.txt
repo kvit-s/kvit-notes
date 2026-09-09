@@ -163,6 +163,12 @@ qt_add_executable(test_blockmodel test_blockmodel.cpp)
 target_link_libraries(test_blockmodel PRIVATE kvit-core Qt6::Test)
 add_test(NAME BlockModelTests COMMAND test_blockmodel)
 
+# BlockPositions tests: display <-> markdown position mapping for one block
+# of an open document, including what it answers outside the block's text.
+qt_add_executable(test_blockpositions test_blockpositions.cpp)
+target_link_libraries(test_blockpositions PRIVATE kvit-core Qt6::Test)
+add_test(NAME BlockPositionTests COMMAND test_blockpositions)
+
 # MarkdownFormatter tests
 qt_add_executable(test_markdownformatter test_markdownformatter.cpp)
 target_link_libraries(test_markdownformatter PRIVATE kvit-core Qt6::Test)

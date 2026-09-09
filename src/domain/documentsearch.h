@@ -195,9 +195,6 @@ private:
     // displayText(content), or content itself for code blocks.
     QString searchableText(int blockIndex) const;
     bool isVerbatimBlock(int blockIndex) const;
-    // Markdown position -> display position within a block, and back.
-    int displayPosition(int blockIndex, int mdPos) const;
-    int markdownPosition(int blockIndex, int displayPos) const;
     bool matchInDomain(const Match &match) const;
     // Text-domain endpoints as indexes and display positions, refreshed once
     // per recompute so matchInDomain is O(1) per candidate match.

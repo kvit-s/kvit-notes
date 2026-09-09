@@ -344,6 +344,7 @@ add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/blockkinds/mediakinds.cpp
     src/domain/blockkinds/textkinds.cpp
     src/domain/blockmodel.cpp
+    src/domain/blockpositions.cpp
     src/domain/changeindentcommand.cpp
     src/domain/changetypecommand.cpp
     src/domain/compoundcommand.cpp

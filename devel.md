@@ -572,6 +572,18 @@ module contributes legible from the core:
   the reason `hasDecorationSpans` appears in `useReadOnlyText` and
   `useReadOnlyShell`.
 
+  A module that STORES such a span has one more problem to solve. Display
+  coordinates are recomputed from the block's content on every edit, so what
+  survives the note being closed and reopened is a markdown offset, while what
+  a reader points at and what the span registry takes are display positions.
+  `BlockPositions` (`src/domain/blockpositions.h`) is that translation,
+  addressed by block index against a `BlockModel`: `markdownPosition` for a
+  range the reader has just made, `displayPosition` for one being drawn again.
+  It answers for any block of the open document, including one whose editor is
+  not up — a `BlockEditorEngine` exists only where a block is focused, and
+  every other row is drawn through the read-only path. `DocumentSearch` maps a
+  hit's markdown offset through the same two functions.
+
 - **What a module adds to an export.** A module that draws content beside a
   note through the decoration seam has nothing in that note's block model, so
   everything it draws was missing from every export of the note and there was
