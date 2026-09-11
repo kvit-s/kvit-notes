@@ -26,7 +26,7 @@ Item {
     id: workflow
 
     // Wired by main.qml.
-    property var appWindow
+    property NoteSession noteSession: null
 
     // The plan awaiting the dialog's answer, and the callback the folder tree
     // passes so it can follow the rename it asked for.
@@ -61,7 +61,7 @@ Item {
 
     function executeRenamePlan(planId, updateLinks) {
         DocumentManager.flushPendingEdits()
-        var openRelPath = workflow.appWindow.currentNoteRelPath
+        var openRelPath = workflow.noteSession.currentNoteRelPath
         var openBody = openRelPath !== ""
             ? DocumentSerializer.serialize(BlockModel) : ""
         var wasDirty = DocumentManager.isDirty

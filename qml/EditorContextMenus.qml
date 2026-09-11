@@ -38,7 +38,10 @@ Item {
     // the selection menu shares with it.
     property var toolbar
     property var selectionKeys
+    // The window owns the export dialog this menu opens; the session answers
+    // where the open note's assets live.
     property var appWindow
+    property NoteSession noteSession: null
 
     function markdownForIndexes(indexes) {
         return DocumentSerializer.serializeBlocks(BlockModel, indexes)
@@ -49,8 +52,7 @@ Item {
     // point it back at the active document every time, including a loose file
     // whose folder is not a collection root.
     function prepareRenderContext() {
-        var noteDir = appWindow && appWindow.currentNoteDir
-            ? appWindow.currentNoteDir() : ""
+        var noteDir = noteSession ? noteSession.currentNoteDir() : ""
         DocumentExporter.setImageContext(
             noteDir, NoteCollection.isOpen ? NoteCollection.rootPath : "")
     }

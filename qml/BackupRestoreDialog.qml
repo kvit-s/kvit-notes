@@ -31,7 +31,7 @@ KvitDialog {
     objectName: "backupDialog"
 
     // Wired by main.qml.
-    property var appWindow
+    property NoteSession noteSession: null
 
     modal: true
     anchors.centerIn: parent
@@ -48,8 +48,8 @@ KvitDialog {
         if (!backupDialog.visible || backupDialog.selectedRow < 0
             || backupDialog.selectedRow >= backupDialog.backups.length)
             return ""
-        var current = backupDialog.appWindow
-            ? backupDialog.appWindow.currentNoteRelPath : ""
+        var current = backupDialog.noteSession
+            ? backupDialog.noteSession.currentNoteRelPath : ""
         if (current === "")
             return ""
         return NoteCollection.backupBody(
@@ -65,10 +65,10 @@ KvitDialog {
     }
 
     function openForCurrentNote() {
-        if (backupDialog.appWindow.currentNoteRelPath === "")
+        if (backupDialog.noteSession.currentNoteRelPath === "")
             return
         backups = NoteCollection.backupsFor(
-            backupDialog.appWindow.currentNoteRelPath)
+            backupDialog.noteSession.currentNoteRelPath)
         selectedRow = 0
         open()
     }
@@ -77,7 +77,7 @@ KvitDialog {
         if (selectedRow < 0 || selectedRow >= backups.length)
             return
         var body = NoteCollection.backupBody(
-            backupDialog.appWindow.currentNoteRelPath,
+            backupDialog.noteSession.currentNoteRelPath,
             backups[selectedRow].fileName)
         if (DocumentManager.restoreBody(body))
             DocumentManager.save()

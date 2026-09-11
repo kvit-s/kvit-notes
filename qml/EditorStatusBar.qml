@@ -29,7 +29,7 @@ Rectangle {
     // Wired by main.qml, which also anchors this bar and decides when it is
     // visible. Reads are guarded because a binding here can run before the
     // window has assigned them.
-    property var appWindow
+    property NoteSession noteSession: null
     property var listView
     // The delegate holding the caret, from the toolbar. Its caret position
     // and in-block selection are two of the readouts.
@@ -73,8 +73,8 @@ Rectangle {
         // feedback etc. Takes no space when empty.
         Text {
             objectName: "transientStatusText"
-            visible: statusBar.appWindow && statusBar.appWindow.transientStatus !== ""
-            text: statusBar.appWindow ? statusBar.appWindow.transientStatus : ""
+            visible: statusBar.noteSession && statusBar.noteSession.transientStatus !== ""
+            text: statusBar.noteSession ? statusBar.noteSession.transientStatus : ""
             font.pixelSize: Interface.small
             color: Theme.accent
         }
@@ -98,8 +98,8 @@ Rectangle {
                     .arg(UpdateChecker.latestVersion)
                 : ""
             Accessible.onPressAction: {
-                if (statusBar.appWindow)
-                    statusBar.appWindow.openLink(UpdateChecker.releaseUrl)
+                if (statusBar.noteSession)
+                    statusBar.noteSession.openLink(UpdateChecker.releaseUrl)
                 else
                     Qt.openUrlExternally(UpdateChecker.releaseUrl)
             }
@@ -112,8 +112,8 @@ Rectangle {
                 // desktop, so a machine with no browser says so here too
                 // instead of the notice appearing to do nothing.
                 onClicked: {
-                    if (statusBar.appWindow)
-                        statusBar.appWindow.openLink(UpdateChecker.releaseUrl)
+                    if (statusBar.noteSession)
+                        statusBar.noteSession.openLink(UpdateChecker.releaseUrl)
                     else
                         Qt.openUrlExternally(UpdateChecker.releaseUrl)
                 }
@@ -126,7 +126,7 @@ Rectangle {
         // never a popup or a first-run prompt.
         Text {
             objectName: "createVaultAffordance"
-            visible: statusBar.appWindow && !statusBar.appWindow.collectionOpen
+            visible: statusBar.noteSession && !statusBar.noteSession.collectionOpen
                      && DocumentManager.hasFile
             text: qsTr("Create vault from this folder…")
             font.pixelSize: Interface.small
@@ -550,16 +550,16 @@ Rectangle {
         Item {
             id: goalRing
             objectName: "goalRing"
-            visible: statusBar.appWindow && statusBar.appWindow.collectionOpen
-                     && statusBar.appWindow.currentNoteRelPath !== ""
+            visible: statusBar.noteSession && statusBar.noteSession.collectionOpen
+                     && statusBar.noteSession.currentNoteRelPath !== ""
             width: visible ? 60 : 0
             height: Interface.px(18)
             Layout.alignment: Qt.AlignVCenter
 
             property int goal: {
                 var r = NoteCollection.revision  // dependency only
-                var rel = statusBar.appWindow
-                    ? statusBar.appWindow.currentNoteRelPath : ""
+                var rel = statusBar.noteSession
+                    ? statusBar.noteSession.currentNoteRelPath : ""
                 return rel !== "" ? NoteCollection.goalFor(rel) : 0
             }
             property int words: docCounter.docWords

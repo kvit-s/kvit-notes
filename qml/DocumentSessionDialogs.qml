@@ -22,7 +22,10 @@ import Kvit 1.0
 Item {
     id: dialogs
 
-    // Wired by main.qml.
+    // Wired by main.qml. Every answer these dialogs collect is about the open
+    // note, so they go to the session; the window is here only because two of
+    // the answers to "close without saving?" are to close the window.
+    property NoteSession noteSession: null
     property var appWindow
 
     // Importing is the collection's business, so the choice offered on Ctrl+O
@@ -105,7 +108,7 @@ Item {
                 onClicked: {
                     var path = recoveryOverwriteDialog.relPath
                     recoveryOverwriteDialog.close()
-                    dialogs.appWindow.keepEditsOverRecovery(path)
+                    dialogs.noteSession.keepEditsOverRecovery(path)
                 }
             }
             Button {
@@ -115,7 +118,7 @@ Item {
                 onClicked: {
                     var path = recoveryOverwriteDialog.relPath
                     recoveryOverwriteDialog.close()
-                    dialogs.appWindow.replaceEditsWithRecovery(path)
+                    dialogs.noteSession.replaceEditsWithRecovery(path)
                 }
             }
         }
@@ -142,7 +145,7 @@ Item {
                 DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
                 onClicked: {
                     openOrImportChoiceDialog.close()
-                    dialogs.appWindow.openFileFromDialog()
+                    dialogs.noteSession.openFileFromDialog()
                 }
             }
             Button {
@@ -187,7 +190,7 @@ Item {
                 DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
                 onClicked: {
                     createVaultDialog.close()
-                    var dir = dialogs.appWindow.currentNoteDir()
+                    var dir = dialogs.noteSession.currentNoteDir()
                     // Through AppActions rather than straight to the
                     // collection: the application's openVaultRoot() releases
                     // the outgoing vault's search index first, and opening the
@@ -275,12 +278,12 @@ Item {
                         : DocumentManager.saveFileDialog()
             if (!saved)
                 return
-            dialogs.appWindow.openFileFromDialog()
+            dialogs.noteSession.openFileFromDialog()
         }
 
         onDiscarded: {
             // Discard button clicked - open without saving
-            dialogs.appWindow.openFileFromDialog()
+            dialogs.noteSession.openFileFromDialog()
         }
 
         // Cancel - do nothing
@@ -398,12 +401,12 @@ Item {
         // Oversized-file guard: the file was refused before any read;
         // show the placeholder with an "Open anyway".
         function onOpenRejectedTooLarge(filePath, sizeBytes, capBytes) {
-            dialogs.appWindow.oversizedFilePath = filePath
-            dialogs.appWindow.oversizedFileBytes = sizeBytes
-            dialogs.appWindow.oversizedFileCap = capBytes
+            dialogs.noteSession.oversizedFilePath = filePath
+            dialogs.noteSession.oversizedFileBytes = sizeBytes
+            dialogs.noteSession.oversizedFileCap = capBytes
         }
         function onOpenSucceeded(filePath) {
-            dialogs.appWindow.oversizedFilePath = ""
+            dialogs.noteSession.oversizedFilePath = ""
         }
     }
 }

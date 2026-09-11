@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The stats rows are a Repeater delegate whose Texts are separate
 // scopes, and a few visibility bindings read the popup's own
-// appWindow property from nested scopes. Binding resolves both.
+// noteSession property from nested scopes. Binding resolves both.
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -20,7 +20,7 @@ Popup {
     id: statsPopup
     objectName: "statisticsPanel"
 
-    property var appWindow
+    property NoteSession noteSession: null
     // The focused block delegate (for an in-block selection's display text),
     // bound by main.qml from the toolbar's target.
     property var targetBlock
@@ -174,11 +174,11 @@ Popup {
 
         Rectangle {
             Layout.fillWidth: true; height: 1; color: Theme.border
-            visible: statsPopup.appWindow && statsPopup.appWindow.collectionOpen
+            visible: statsPopup.noteSession && statsPopup.noteSession.collectionOpen
         }
         // Session tracker (ephemeral): words added since the note opened.
         RowLayout {
-            visible: statsPopup.appWindow && statsPopup.appWindow.collectionOpen
+            visible: statsPopup.noteSession && statsPopup.noteSession.collectionOpen
             Layout.fillWidth: true
             Layout.leftMargin: Interface.px(12)
             Layout.rightMargin: Interface.px(12)
@@ -192,9 +192,9 @@ Popup {
             }
             Text {
                 id: sessionDelta
-                property int delta: statsPopup.appWindow
+                property int delta: statsPopup.noteSession
                     ? (statsPopup.docStats.words || 0)
-                      - statsPopup.appWindow.sessionStartWords
+                      - statsPopup.noteSession.sessionStartWords
                     : 0
                 text: (sessionDelta.delta >= 0 ? "+" : "") + sessionDelta.delta
                 font.pixelSize: Interface.body

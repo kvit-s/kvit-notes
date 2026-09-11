@@ -70,7 +70,7 @@ ApplicationWindow {
     // Collection mode shows the sidebar and note list; single-file mode
     // (file argument, or the test harness's unopened collection) keeps
     // the pre-Phase-8 editor-only geometry.
-    readonly property bool collectionOpen: NoteCollection && NoteCollection.isOpen
+    readonly property alias collectionOpen: openNote.collectionOpen
     property bool panelsVisible: true
     property bool navigationRailsVisible: false
     // The note navigator remains the default. Files is an independent, lazy
@@ -292,33 +292,15 @@ ApplicationWindow {
         }
     }
 
-    // features.md §19.2 session word-count tracker: the document's
-    // word count when the note opened; the statistics popover shows the delta.
-    // Ephemeral, reset per note.
-    property int sessionStartWords: 0
-    function refreshSessionBaseline() {
-        sessionStartWords = BlockModel ? BlockModel.documentWordCount : 0
-    }
+    // The session word baseline (features.md §19.2) and the transient status
+    // line are the open note's, not this window's, so both are declared on
+    // NoteSession below. The names stay here because the status bar, the
+    // statistics popover and the integration suite already use them.
+    property alias sessionStartWords: openNote.sessionStartWords
+    function refreshSessionBaseline() { openNote.refreshSessionBaseline() }
 
-    // A transient status-bar note: shown briefly, e.g.
-    // when an internal link resolves or dangles. Cleared by its timer.
-    property string transientStatus: ""
-    Timer {
-        id: transientStatusTimer
-        interval: 3500
-        onTriggered: root.transientStatus = ""
-    }
-    function showTransientStatus(msg) {
-        root.transientStatus = msg
-        transientStatusTimer.restart()
-    }
-
-    // The note-list's bulk selection, for the export dialog's selection scope.
-    function noteListSelectedPaths() {
-        return noteListPane && noteListPane.selectedPaths
-            ? noteListPane.selectedPaths : []
-    }
-    // A file:// URL to a local filesystem path.
+    property alias transientStatus: openNote.transientStatus
+    function showTransientStatus(msg) { openNote.showTransientStatus(msg) }
 
     // Delegates ask for shell-level actions through AppActions rather than
     // reaching this window by name. Each handler forwards to the function
@@ -349,7 +331,7 @@ ApplicationWindow {
         function onSelectionFocusRequested() {
             blockEditor.selectionKeys.forceActiveFocus()
         }
-        function onOpenLinkRequested(url) { linkOpener.activate(url) }
+        function onOpenLinkRequested(url) { openNote.openLink(url) }
         function onBlockMenuRequested(index, mode, area) { blockMenu.openForBlock(index, mode, area) }
         function onMathCommandMenuRequested(host, area, displayMath) {
             mathCommandMenu.openForHost(host, area, displayMath)
@@ -393,9 +375,7 @@ ApplicationWindow {
     TocFenceSync {}
 
     // relPath of the open note ("" outside collection mode).
-    readonly property string currentNoteRelPath:
-        collectionOpen && DocumentManager.hasFile
-            ? NoteCollection.relativePath(DocumentManager.currentFilePath) : ""
+    readonly property alias currentNoteRelPath: openNote.currentNoteRelPath
 
     // ---- The keyboard map ----------------------------------------------
     // Every window-level shortcut is in AppShortcuts.qml, along with the
@@ -410,6 +390,8 @@ ApplicationWindow {
         // it, which is what its own z said while it was a child of the window.
         z: 10000
         appWindow: root
+        noteSession: openNote
+        editor: blockEditor
         findBar: root.findBar
         quickSwitcher: root.quickSwitcher
         sidebarPanel: sidebar
@@ -420,13 +402,31 @@ ApplicationWindow {
     // NoteSession.qml. The calls below are the names its callers already use:
     // the delegates reach them through AppActions, the side panels through
     // this window, and the integration suite drives several directly.
+    // The id is `openNote` rather than `noteSession` because every part below
+    // that takes one declares a property of that name, and `noteSession:
+    // noteSession` is a line a reader has to stop and work out. (QML resolves
+    // it to the id, so the short name would have worked.)
     NoteSession {
-        id: noteSession
-        appWindow: root
+        id: openNote
         editor: blockEditor
         listView: blockEditor.listView
         findBar: root.findBar
         sidebarPanel: sidebar
+        renameWorkflow: renameWorkflow
+
+        // The four things a session cannot do for itself, each of which puts
+        // a window on screen. Three reach the lazily-built session dialogs;
+        // the fourth is this window's own folder picker.
+        function showDocumentError(message) {
+            root.documentDialogs().showError(message)
+        }
+        function prepareErrorReporting() { root.documentDialogs() }
+        function confirmRecoveryOverwrite(relPath) {
+            root.documentDialogs().confirmRecoveryOverwrite(relPath)
+        }
+        function openFolderFromDialog(inNewWindow) {
+            root.openFolderFromDialog(inNewWindow)
+        }
     }
 
     // Drop ingestion lives in EditorDropArea now. Both of its entry points
@@ -441,14 +441,14 @@ ApplicationWindow {
 
     function openNoteByPath(relPath) {
         root.contentView = "document"
-        return noteSession.openNoteByPath(relPath)
+        return openNote.openNoteByPath(relPath)
     }
     function openFileTreeEntry(absolutePath, kind, relativePath) {
         if (kind === "markdown") {
             root.contentView = "document"
             var info = NoteCollection.noteInfo(relativePath)
             if (info && info.relPath !== undefined)
-                return noteSession.openNoteByPath(relativePath)
+                return openNote.openNoteByPath(relativePath)
             return DocumentManager.open(
                 DocumentManager.toLocalFileUrl(absolutePath))
         }
@@ -465,43 +465,41 @@ ApplicationWindow {
         return UrlLauncher.open(
             DocumentManager.toLocalFileUrl(absolutePath).toString())
     }
-    function navigateBack() { noteSession.navigateBack() }
-    function navigateForward() { noteSession.navigateForward() }
-    function followWikiLink(spec) { noteSession.followWikiLink(spec) }
+    function navigateBack() { openNote.navigateBack() }
+    function navigateForward() { openNote.navigateForward() }
+    function followWikiLink(spec) { openNote.followWikiLink(spec) }
     function openSearchResult(relPath, blockIndex, displayStart) {
-        noteSession.openSearchResult(relPath, blockIndex, displayStart)
+        openNote.openSearchResult(relPath, blockIndex, displayStart)
     }
-    function createNoteInCurrentScope() { noteSession.createNoteInCurrentScope() }
+    function createNoteInCurrentScope() { openNote.createNoteInCurrentScope() }
     function createFromTemplate(templateName) {
-        return noteSession.createFromTemplate(templateName)
+        return openNote.createFromTemplate(templateName)
     }
     function saveCurrentNoteAsTemplate(name) {
-        return noteSession.saveCurrentNoteAsTemplate(name)
+        return openNote.saveCurrentNoteAsTemplate(name)
     }
     function restoreRecoveredNote(relPath) {
-        return noteSession.restoreRecoveredNote(relPath)
+        return openNote.restoreRecoveredNote(relPath)
     }
     // Asked for by restoreRecoveredNote when the recovered note is the open
     // one and its buffer holds edits the journal does not: the dialog offers
     // replace / keep / cancel and calls back into the session.
     function confirmRecoveryOverwrite(relPath) {
-        root.documentDialogs().confirmRecoveryOverwrite(relPath)
+        openNote.confirmRecoveryOverwrite(relPath)
     }
     function replaceEditsWithRecovery(relPath) {
-        return noteSession.replaceEditsWithRecovery(relPath)
+        return openNote.replaceEditsWithRecovery(relPath)
     }
     function keepEditsOverRecovery(relPath) {
-        noteSession.keepEditsOverRecovery(relPath)
+        openNote.keepEditsOverRecovery(relPath)
     }
-    // A failure the session has to put in front of the user. Named here so the
-    // session does not have to know which child owns the error dialog.
-    function showDocumentError(message) { root.documentDialogs().showError(message) }
+    function showDocumentError(message) { openNote.showDocumentError(message) }
     // The conflict banner's two buttons (§12.1), and the one entry point that
     // raises it — both the file watcher and the collection report an external
     // change, and both arrive here.
-    function keepMine() { return noteSession.keepMine() }
-    function loadTheirs(absPath) { return noteSession.loadTheirs(absPath) }
-    function noteChangedOnDisk(absPath) { noteSession.noteChangedOnDisk(absPath) }
+    function keepMine() { return openNote.keepMine() }
+    function loadTheirs(absPath) { return openNote.loadTheirs(absPath) }
+    function noteChangedOnDisk(absPath) { openNote.noteChangedOnDisk(absPath) }
 
     // ---- Renaming a note, and the links that point at it ----------------
     // NoteRenameWorkflow.qml owns the plan-then-apply sequence and its two
@@ -511,7 +509,7 @@ ApplicationWindow {
         id: renameWorkflow
         // Its dialogs centre on this window, so it spans it.
         anchors.fill: parent
-        appWindow: root
+        noteSession: openNote
     }
 
     // A note created before it had a name takes one from its first block,
@@ -519,18 +517,19 @@ ApplicationWindow {
     NoteAutoTitle {
         id: noteAutoTitle
         objectName: "noteAutoTitle"
-        appWindow: root
+        noteSession: openNote
+        editor: blockEditor
         renameWorkflow: renameWorkflow
     }
 
     function requestNoteRename(relPath, newTitle) {
-        renameWorkflow.requestNoteRename(relPath, newTitle)
+        openNote.requestNoteRename(relPath, newTitle)
     }
     function requestNoteMove(relPath, targetFolder) {
-        renameWorkflow.requestNoteMove(relPath, targetFolder)
+        openNote.requestNoteMove(relPath, targetFolder)
     }
     function requestFolderRename(relPath, newName, afterApply) {
-        renameWorkflow.requestFolderRename(relPath, newName, afterApply)
+        openNote.requestFolderRename(relPath, newName, afterApply)
     }
     // Driven directly by the integration suite, which skips the dialog.
     function finishRenamePlan(updateLinks) {
@@ -571,88 +570,15 @@ ApplicationWindow {
     // table gives Save As no binding). Ctrl+S on an untitled document
     // still opens the save dialog.
 
-    // One route for the File menu and Ctrl+S. Loading the session-dialog
-    // component first also wires save failures to its error dialog; without
-    // it, a first save attempt could fail before that lazy component existed.
     function saveCurrentDocument(forceSaveAs) {
-        root.documentDialogs()
-        if (forceSaveAs || !DocumentManager.hasFile)
-            return DocumentManager.saveFileDialog()
-        return DocumentManager.saveAsync()
+        return openNote.saveCurrentDocument(forceSaveAs)
     }
 
-    // Opens link targets (features.md §2.4). Routed through one object so
-    // tests can observe activations without launching a browser.
-    property alias linkOpener: linkOpener
-    QtObject {
-        id: linkOpener
-        property bool openExternally: true
-        signal activated(string url)
-        // The last target handed to the desktop, so a test can observe that
-        // the browser branch really was reached rather than only that the
-        // activation signal fired.
-        property string lastExternalTarget: ""
-        // What a click that opened nothing leaves behind. The address goes to
-        // the clipboard, so the answer to "it did not open" is a paste away
-        // rather than a retype.
-        function reportNoBrowser(target) {
-            Clipboard.text = target
-            root.showTransientStatus(
-                qsTr("No web browser available. Link copied to the clipboard."))
-        }
-        function activate(url) {
-            // The target arrives as a plain string (a raw href or wiki-note
-            // name); it is deliberately not a QUrl, whose string form would
-            // percent-encode a space to %20 and carry that into the note name.
-            // Normalize defensively so a null/undefined never reaches indexOf.
-            var target = String(url === undefined || url === null ? "" : url)
-            if (target.length === 0)
-                return
-            activated(target)
-            // Wiki-link: kvit-note:target#heading resolves through the
-            // collection and opens in-app — creating the note when the
-            // target dangles — never a browser.
-            if (target.indexOf("kvit-note:") === 0) {
-                root.followWikiLink(target.substring(10))
-                return
-            }
-            // Internal document link: #slug resolves
-            // through the shared slug function to a heading and scrolls there,
-            // rather than opening a browser. An unresolved slug is a
-            // recoverable no-op with a status-bar note, never an error.
-            if (target.charAt(0) === "#") {
-                var slug = target.substring(1)
-                var idx = DocumentOutline.blockIndexForSlug(slug)
-                if (idx >= 0) {
-                    root.scrollToBlock(idx)
-                } else {
-                    root.showTransientStatus(
-                        qsTr("No heading “") + slug + qsTr("”"))
-                }
-                return
-            }
-            linkOpener.lastExternalTarget = target
-            if (!openExternally)
-                return
-            // Through UrlLauncher rather than Qt.openUrlExternally, which on
-            // Unix answers true whether or not anything opened (see
-            // urllauncher.h). The verdict arrives as a signal, because
-            // establishing it means running an opener and watching it.
-            UrlLauncher.open(target)
-        }
-    }
-    Connections {
-        target: UrlLauncher
-        function onFailed(url) { linkOpener.reportNoBrowser(url) }
-        // A scheme this application does not hand to the desktop at all. Said
-        // plainly, because from the reader's side it is the same click that
-        // did nothing, and the reason is different.
-        function onRefused(url) {
-            root.showTransientStatus(
-                qsTr("This kind of link is not opened: ") + url)
-        }
-    }
-
+    // Opens link targets (features.md §2.4), in NoteSession.qml: two of its
+    // three branches resolve against this note rather than against the
+    // window. The alias stays because the integration suite reaches the
+    // object by this name to watch an activation without launching a browser.
+    property alias linkOpener: openNote.linkOpener
     // The Ctrl+K link dialog (features.md §2.4): display-text and URL
     // fields; prefilled when invoked inside an existing link; "Remove
     // link" replaces the span with its bare text. All edits go through
@@ -758,6 +684,7 @@ ApplicationWindow {
         sourceComponent: DocumentSessionDialogs {
             anchors.fill: parent
             appWindow: root
+            noteSession: openNote
 
             onImportRequested: importDialog.openDialog()
         }
@@ -767,21 +694,7 @@ ApplicationWindow {
         return documentDialogsLoader.item as DocumentSessionDialogs
     }
 
-    // Open a file chosen from the native picker, routed by the window's mode
-    // (multi-vault.md §): a vault window opens the file in its own single-file
-    // window (raising an existing one if that file is already open), so the
-    // vault it is showing is left intact; a single-file window replaces its
-    // document in place, the historical behavior. The picker is shown first so
-    // the path can be routed rather than opened blindly.
-    function openFileFromDialog() {
-        var path = DocumentManager.chooseFileToOpen()
-        if (path === "")
-            return
-        if (root.collectionOpen)
-            AppActions.requestOpenFileInNewWindow(path)
-        else
-            DocumentManager.open(DocumentManager.toLocalFileUrl(path))
-    }
+    function openFileFromDialog() { openNote.openFileFromDialog() }
 
     // Native folder picker behind "Open Folder…" and "Open Folder in New
     // Window…". inNewWindow chooses which route the chosen folder takes; both
@@ -825,20 +738,23 @@ ApplicationWindow {
     }
 
     // Oversized-file guard: a file over the size cap is refused before any
-    // read; the placeholder names the file, its size, and the cap, and
-    // offers the informed-consent "Open anyway".
-    property string oversizedFilePath: ""
-    property real oversizedFileBytes: 0
-    property real oversizedFileCap: 0
+    // read; the placeholder below names the file, its size, and the cap, and
+    // offers the informed-consent "Open anyway". The three values belong to
+    // the attempt to open a note, so they are the session's; the banner that
+    // draws them is this window's.
+    property alias oversizedFilePath: openNote.oversizedFilePath
+    property alias oversizedFileBytes: openNote.oversizedFileBytes
+    property alias oversizedFileCap: openNote.oversizedFileCap
     function formatMiB(bytes) {
         return (bytes / (1024 * 1024)).toFixed(1) + " MiB"
     }
 
     // features.md §12.1 external-change conflict: when the open note is
     // changed on disk outside the app while it is dirty here, offer keep-mine /
-    // load-theirs rather than silently clobbering either side.
-    property bool externalConflict: false
-    property string conflictPath: ""
+    // load-theirs rather than silently clobbering either side. Both flags are
+    // the session's; the banner below is this window's.
+    property alias externalConflict: openNote.externalConflict
+    property alias conflictPath: openNote.conflictPath
 
     // features.md §15 system integration: the tray icon, the system-wide
     // hotkey and the quick-capture window, in SystemIntegration.qml. The
@@ -846,6 +762,7 @@ ApplicationWindow {
     SystemIntegration {
         id: systemIntegration
         appWindow: root
+        noteSession: openNote
     }
 
     function openQuickCapture() { systemIntegration.openQuickCapture() }
@@ -854,21 +771,24 @@ ApplicationWindow {
     property alias templateDialog: templateDialog
     TemplateDialog {
         id: templateDialog
-        appWindow: root
+        noteSession: openNote
     }
 
     // features.md §12.5 export dialog.
     property alias exportDialog: exportDialog
     ExportDialog {
         id: exportDialog
-        appWindow: root
+        noteSession: openNote
+        hostWindow: root
+        noteList: noteListPane
     }
 
     // features.md §12.6 import dialog.
     property alias importDialog: importDialog
     ImportDialog {
         id: importDialog
-        appWindow: root
+        noteSession: openNote
+        hostWindow: root
     }
 
     // features.md §19.1 statistics popover: opened from the status
@@ -877,7 +797,7 @@ ApplicationWindow {
     property alias statisticsPanel: statisticsPanel
     StatisticsPanel {
         id: statisticsPanel
-        appWindow: root
+        noteSession: openNote
         targetBlock: blockEditor.caretBlock
     }
 
@@ -937,6 +857,7 @@ ApplicationWindow {
         sourceComponent: EditorContextMenus {
             anchors.fill: parent
             appWindow: root
+            noteSession: openNote
             toolbar: appToolbar
             selectionKeys: blockEditor.selectionKeys
         }
@@ -1006,10 +927,7 @@ ApplicationWindow {
     }
 
 
-    function openLink(url) {
-        linkOpener.activate(url)
-        return true
-    }
+    function openLink(url) { return openNote.openLink(url) }
 
     // The image lightbox (§1.2.8): an image block opens it with a resolved
     // source. Declared below over the whole window at a high z.
@@ -1048,14 +966,7 @@ ApplicationWindow {
     function editEmbedInBlock(idx, url) { root.blockInserts().editEmbed(idx, url) }
     function insertTableIntoBlock(idx) { root.blockInserts().insertTable(idx) }
 
-    // The folder holding the open file. Two workflows ask for it: a drop
-    // ingests its assets beside the note, and the create-a-vault offer turns
-    // this folder into the collection root.
-    function currentNoteDir() {
-        var p = DocumentManager.currentFilePath
-        var idx = p.lastIndexOf("/")
-        return idx >= 0 ? p.substring(0, idx) : ""
-    }
+    function currentNoteDir() { return openNote.currentNoteDir() }
 
     // The image lightbox overlay (§1.2.8), over the whole window.
     Lightbox {
@@ -1091,7 +1002,7 @@ ApplicationWindow {
     property alias backupDialog: backupDialog
     BackupRestoreDialog {
         id: backupDialog
-        appWindow: root
+        noteSession: openNote
     }
 
     // Oversized-paste confirm: pasting a payload over the open-size cap
@@ -1287,10 +1198,12 @@ ApplicationWindow {
             objectName: "macMenuBar"
             FileMenu {
                 appWindow: root
+                noteSession: openNote
                 popupType: Popup.Native
             }
             ViewMenu {
                 appWindow: root
+                noteSession: openNote
                 popupType: Popup.Native
             }
         }
@@ -1310,6 +1223,7 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         appWindow: root
+        noteSession: openNote
         editor: blockEditor
         // Focus mode (§16.1) hides the toolbar with the rest of the chrome.
         visible: !root.focusMode
@@ -1445,6 +1359,7 @@ ApplicationWindow {
     NavigationRails {
         id: navigationRails
         appWindow: root
+        noteSession: openNote
         visible: root.navigationRailsVisible && root.collectionOpen
                  && !root.focusMode
         width: visible ? railWidth * 2 : 0
@@ -1507,6 +1422,7 @@ ApplicationWindow {
             width: visible ? root.sidebarWidth : 0
             height: parent.height
             appWindow: root
+            noteSession: openNote
             // Reinstated panel-collapse animation (§14.3), gated by the reduced-
             // motion source and suppressed during a seam drag so the two never
             // fight over width.
@@ -1559,6 +1475,7 @@ ApplicationWindow {
             width: visible ? root.noteListWidth : 0
             height: parent.height
             appWindow: root
+            noteSession: openNote
             sidebar: sidebar
             Behavior on width {
                 enabled: Theme.motionScale > 0 && !noteListSeam.dragging
@@ -1662,7 +1579,7 @@ ApplicationWindow {
         TagStrip {
             id: tagStrip
             z: 5
-            appWindow: root
+            noteSession: openNote
             visible: root.collectionOpen && root.currentNoteRelPath !== ""
             height: visible ? 30 : 0
             anchors.top: parent.top
@@ -1752,6 +1669,7 @@ ApplicationWindow {
         id: outlinePanel
         objectName: "outlinePanel"
         appWindow: root
+        editor: blockEditor
         visible: root.contentView === "document"
                  && root.outlineVisible && !root.focusMode
         width: visible ? root.outlineWidth : 0
@@ -1766,7 +1684,7 @@ ApplicationWindow {
     BacklinksPanel {
         id: backlinksPanel
         objectName: "backlinksPanel"
-        appWindow: root
+        noteSession: openNote
         visible: root.contentView === "document"
                  && root.backlinksVisible && root.collectionOpen
                  && !root.focusMode
@@ -1827,7 +1745,7 @@ ApplicationWindow {
         anchors.bottom: parent.bottom
         visible: root.statusBarVisible && !root.focusMode
 
-        appWindow: root
+        noteSession: openNote
         listView: blockEditor.listView
         targetBlock: blockEditor.caretBlock
         statisticsPanel: root.statisticsPanel

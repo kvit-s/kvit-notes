@@ -21,7 +21,7 @@ Rectangle {
     id: panel
     objectName: "backlinksPanel"
 
-    property var appWindow
+    property NoteSession noteSession: null
 
     // [{relPath, title, count, contexts}] for the open note.
     property var rows: []
@@ -29,7 +29,7 @@ Rectangle {
     color: Theme.panelBackground
 
     function refresh() {
-        var current = appWindow ? appWindow.currentNoteRelPath : ""
+        var current = noteSession ? noteSession.currentNoteRelPath : ""
         rows = (visible && current !== "")
             ? NoteCollection.backlinksTo(current) : []
     }
@@ -41,7 +41,7 @@ Rectangle {
         function onRootChanged() { panel.refresh() }
     }
     Connections {
-        target: panel.appWindow
+        target: panel.noteSession
         function onCurrentNoteRelPathChanged() { panel.refresh() }
     }
 
@@ -137,12 +137,12 @@ Rectangle {
                     Accessible.name: qsTr("%1, %n backlink(s)", "",
                                           entryColumn.modelData.count)
                                      .arg(entryColumn.modelData.title)
-                    Accessible.onPressAction: if (panel.appWindow)
-                        panel.appWindow.openNoteByPath(entryColumn.modelData.relPath)
+                    Accessible.onPressAction: if (panel.noteSession)
+                        panel.noteSession.openNoteByPath(entryColumn.modelData.relPath)
                     HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
-                        onTapped: if (panel.appWindow)
-                            panel.appWindow.openNoteByPath(entryColumn.modelData.relPath)
+                        onTapped: if (panel.noteSession)
+                            panel.noteSession.openNoteByPath(entryColumn.modelData.relPath)
                     }
                 }
 
@@ -172,13 +172,13 @@ Rectangle {
                         Accessible.name: contextRow.modelData
                         Accessible.description: qsTr("In %1")
                                                 .arg(entryColumn.modelData.title)
-                        Accessible.onPressAction: if (panel.appWindow)
-                            panel.appWindow.openNoteByPath(
+                        Accessible.onPressAction: if (panel.noteSession)
+                            panel.noteSession.openNoteByPath(
                                 entryColumn.modelData.relPath)
                         HoverHandler { id: ctxHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler {
-                            onTapped: if (panel.appWindow)
-                                panel.appWindow.openNoteByPath(
+                            onTapped: if (panel.noteSession)
+                                panel.noteSession.openNoteByPath(
                                     entryColumn.modelData.relPath)
                         }
                     }

@@ -16,11 +16,15 @@ Item {
     id: integration
 
     // Wired by main.qml.
+    // Two things, named apart. Capture and the tray's "New note" open notes,
+    // which is the session's; showing and raising the window when the tray is
+    // clicked is the window's.
+    property NoteSession noteSession: null
     property var appWindow
 
     // Capture only makes sense with somewhere to put the note.
     function openQuickCapture() {
-        if (integration.appWindow.collectionOpen)
+        if (integration.noteSession.collectionOpen)
             quickCaptureWindow.openCapture()
     }
 
@@ -28,8 +32,8 @@ Item {
         id: quickCaptureWindow
         onCaptured: function(relPath) {
             // Surface the captured note in the running window.
-            if (integration.appWindow.collectionOpen)
-                integration.appWindow.openNoteByPath(relPath)
+            if (integration.noteSession.collectionOpen)
+                integration.noteSession.openNoteByPath(relPath)
         }
     }
 
@@ -69,7 +73,7 @@ Item {
         }
         function onNewNoteRequested() {
             if (AppActions.trayTarget)
-                integration.appWindow.createNoteInCurrentScope()
+                integration.noteSession.createNoteInCurrentScope()
         }
         function onShowWindowRequested() {
             if (!AppActions.trayTarget)

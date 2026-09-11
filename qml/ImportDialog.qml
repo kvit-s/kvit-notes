@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Window
 import Kvit 1.0
 
 // Import dialog (features.md §12.6): bring markdown/text
@@ -15,7 +16,10 @@ KvitDialog {
     id: importDialog
     objectName: "importDialog"
 
-    property var appWindow
+    // The session is what a finished import reports through; the destination
+    // picker is native, so it is parented to a real window.
+    property NoteSession noteSession: null
+    property Window hostWindow: null
 
     title: qsTr("Import into collection")
     modal: true
@@ -96,8 +100,8 @@ KvitDialog {
         // importer, and importFinished would then never arrive for this call,
         // leaving the progress dialog up with nothing behind it.
         if (DocumentImporter.importInProgress) {
-            if (appWindow)
-                appWindow.showTransientStatus(
+            if (noteSession)
+                noteSession.showTransientStatus(
                     qsTr("An import is already running."))
             return
         }
@@ -139,8 +143,8 @@ KvitDialog {
         // reader would otherwise discover much later.
         if (skipped > 0)
             message += qsTr(" (%1 skipped)").arg(skipped)
-        if (appWindow)
-            appWindow.showTransientStatus(message)
+        if (noteSession)
+            noteSession.showTransientStatus(message)
         importDialog.close()
     }
 
@@ -271,7 +275,7 @@ KvitDialog {
         // file chooser of its own, shown inside it: the dialog Qt builds in
         // that case is a top-level window, and an unowned one never gives
         // the keyboard focus back on Wayland when it closes.
-        parentWindow: importDialog.appWindow
+        parentWindow: importDialog.hostWindow
         popupType: Popup.Item
         fileMode: FileDialog.OpenFiles
         nameFilters: ["Markdown/Text (*.md *.markdown *.txt)", "All files (*)"]
@@ -290,7 +294,7 @@ KvitDialog {
         objectName: "importFolderDialog"
         // As above: owned by the window, and inside it when Qt has to build
         // the dialog itself.
-        parentWindow: importDialog.appWindow
+        parentWindow: importDialog.hostWindow
         popupType: Popup.Item
         onAccepted: {
             importDialog.pendingKind = "folder"

@@ -15,7 +15,11 @@ import Kvit 1.0
 Row {
     id: rails
     objectName: "navigationRails"
+    // The rails switch the sidebar view, which is the window's screen; the
+    // one button that opens a folder as a vault is a collection command, so it
+    // goes through the session like every other one.
     property var appWindow
+    property NoteSession noteSession: null
     property var roots: []
     // Removing the active root is a two-phase operation. A dirty document can
     // keep the switch in a confirmation dialog, so do not forget the root
@@ -182,7 +186,7 @@ Row {
                 Layout.fillWidth: true
                 text: "+"
                 Accessible.name: qsTr("Open another root")
-                onClicked: rails.appWindow.openFolderFromDialog(false)
+                onClicked: rails.noteSession.openFolderFromDialog(false)
             }
             ToolButton {
                 Layout.fillWidth: true

@@ -20,7 +20,7 @@ Item {
     id: resultsView
     objectName: "searchResultsView"
 
-    property var appWindow
+    property NoteSession noteSession: null
 
     // Grouped results, live under the search revision.
     readonly property var groups: {
@@ -165,11 +165,11 @@ Item {
                     Accessible.name: qsTr("%1, %n match(es)", "",
                                           groupColumn.group.matchCount)
                                      .arg(groupColumn.group.title)
-                    Accessible.onPressAction: resultsView.appWindow
+                    Accessible.onPressAction: resultsView.noteSession
                         .openNoteByPath(groupColumn.group.relPath)
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: resultsView.appWindow
+                        onClicked: resultsView.noteSession
                                        .openNoteByPath(groupColumn.group.relPath)
                     }
                 }
@@ -205,13 +205,13 @@ Item {
                             ? matchRow.modelData.text
                             : qsTr("Match in %1").arg(groupColumn.group.title)
                         Accessible.onPressAction:
-                            resultsView.appWindow.openSearchResult(
+                            resultsView.noteSession.openSearchResult(
                                 groupColumn.group.relPath,
                                 matchRow.modelData.blockIndex,
                                 matchRow.modelData.start)
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: resultsView.appWindow.openSearchResult(
+                            onClicked: resultsView.noteSession.openSearchResult(
                                            groupColumn.group.relPath,
                                            matchRow.modelData.blockIndex,
                                            matchRow.modelData.start)

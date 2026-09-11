@@ -26,7 +26,11 @@ Menu {
     title: MenuText.label(qsTr("&View"))
 
     // The editor window these commands act on (main.qml's root).
+    // Every entry here is the window's own screen. The session is consulted
+    // for one thing: an entry that shows or hides a pane of the notes
+    // collection is not a command at all without a collection open.
     property var appWindow
+    property NoteSession noteSession: null
 
     // The Theme submenu's own row is built from this; see
     // DiscoverableMenuItem.qml.
@@ -36,7 +40,7 @@ Menu {
         objectName: "viewMenuSidebar"
         text: MenuText.label(qsTr("&Sidebar"))
         checkable: true
-        enabled: viewMenu.appWindow.collectionOpen
+        enabled: viewMenu.noteSession.collectionOpen
         checked: !viewMenu.appWindow.sidebarCollapsed
         onTriggered: viewMenu.appWindow.sidebarCollapsed
             = !viewMenu.appWindow.sidebarCollapsed
@@ -45,7 +49,7 @@ Menu {
         objectName: "viewMenuNoteList"
         text: MenuText.label(qsTr("&Note list"))
         checkable: true
-        enabled: viewMenu.appWindow.collectionOpen
+        enabled: viewMenu.noteSession.collectionOpen
         checked: !viewMenu.appWindow.noteListCollapsed
         onTriggered: viewMenu.appWindow.noteListCollapsed
             = !viewMenu.appWindow.noteListCollapsed
@@ -54,7 +58,7 @@ Menu {
         objectName: "viewMenuFileTree"
         text: MenuText.label(qsTr("&Files tree"))
         checkable: true
-        enabled: viewMenu.appWindow.collectionOpen
+        enabled: viewMenu.noteSession.collectionOpen
         checked: viewMenu.appWindow.sidebarView === "files"
         onTriggered: viewMenu.appWindow.sidebarView = checked ? "files" : "notes"
     }
@@ -62,7 +66,7 @@ Menu {
         objectName: "viewMenuNavigationRails"
         text: MenuText.label(qsTr("Navigation r&ails"))
         checkable: true
-        enabled: viewMenu.appWindow.collectionOpen
+        enabled: viewMenu.noteSession.collectionOpen
         checked: viewMenu.appWindow.navigationRailsVisible
         onTriggered: viewMenu.appWindow.navigationRailsVisible = checked
     }
@@ -78,7 +82,7 @@ Menu {
         objectName: "viewMenuBacklinks"
         text: MenuText.label(qsTr("&Backlinks"))
         checkable: true
-        enabled: viewMenu.appWindow.collectionOpen
+        enabled: viewMenu.noteSession.collectionOpen
         checked: viewMenu.appWindow.backlinksVisible
         onTriggered: viewMenu.appWindow.backlinksVisible
             = !viewMenu.appWindow.backlinksVisible

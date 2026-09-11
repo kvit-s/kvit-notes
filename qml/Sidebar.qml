@@ -22,7 +22,11 @@ Rectangle {
     color: Theme.panelBackground
 
     // Wired by main.qml (the collapse control writes layout state).
+    // The window owns which sidebar view is showing and whether this pane is
+    // collapsed; the session is what a chosen note or a renamed folder goes
+    // through.
     property var appWindow
+    property NoteSession noteSession: null
     readonly property string activeView:
         appWindow ? appWindow.sidebarView : "notes"
     readonly property bool notesFamily:
@@ -958,8 +962,8 @@ Rectangle {
             onTriggered: {
                 var created = NoteCollection.createNote(
                     folderContextMenu.relPath, "")
-                if (created !== "" && sidebar.appWindow)
-                    sidebar.appWindow.openNoteByPath(created)
+                if (created !== "" && sidebar.noteSession)
+                    sidebar.noteSession.openNoteByPath(created)
             }
         }
         DiscoverableMenuItem {
@@ -1062,7 +1066,7 @@ Rectangle {
             } else {
                 var color = selectedColor
                 var oldPath = targetPath
-                sidebar.appWindow.requestFolderRename(
+                sidebar.noteSession.requestFolderRename(
                     oldPath, name, function(result) {
                         NoteCollection.setFolderColor(result.newPath, color)
                     })

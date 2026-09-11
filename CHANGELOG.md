@@ -12,6 +12,21 @@ published; until then it is marked unreleased.
 
 ### Changed
 
+- The open note is an object. `NoteSession` — which note is open, every
+  transition into another one, saving, the crash-recovery and external-change
+  questions, and the status line those answers are reported through — used to
+  be declared on the application window, so every pane, menu, dialog and
+  keyboard shortcut that opened or saved a note held that window in order to
+  do it, and a second window could not open a note at all. It is now a QML
+  type a host declares and hands to the parts that need it, told which editor
+  and which list it is working over and answering four questions through the
+  host because each of them puts a dialog on screen. Nothing about the
+  application changed: the window declares one, supplies the same objects it
+  always used, and keeps every name the panes, menus, dialogs and test suites
+  already called on it. devel.md, "The open note is an object, and the window
+  is one of its hosts", classifies all seventy-six members the window was
+  reached for and says which of the five groups each is in.
+
 - The editing surface is a component. `BlockEditor` — the block list, the
   gestures over it, the floating formatting and find bars, and the focus,
   reveal and relayout machinery — used to be declared inline in the

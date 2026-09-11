@@ -180,6 +180,114 @@ which keeps the compile-time parse and the cached bytecode and leaves the
 bindings to the interpreter this code was written against. Turning it on means
 rewriting every one of those reads so its value reaches the result.
 
+## The open note is an object, and the window is one of its hosts
+
+`qml/NoteSession.qml` is the open note: which note it is, every transition into
+another one, saving, the crash-recovery and external-change questions, and the
+status line those answers are reported through. A part of the application that
+needs any of it declares one property and is given the object —
+
+```qml
+property NoteSession noteSession: null
+```
+
+— and `qml/main.qml` supplies it the same way any other host would.
+
+The alternative is to declare all of it on the window, which is where it was.
+The note list, the backlinks pane, the search results, the tag strip, the tray,
+the menus and the keyboard map then each hold an `ApplicationWindow` in order
+to open a note, and "open this note" becomes a request only the application's
+one window can serve. `qml/QuickCaptureWindow.qml` is what that costs: the
+editor's other window writes through `NoteCollection.captureNote()` directly,
+because from a window that is not the main one none of this could be reached.
+
+**What a host supplies.** Five properties, each defaulting to "there is nothing
+here", so a session nobody wires up still opens, saves and navigates notes:
+`editor` (a `BlockEditorSurface`), `listView`, `findBar`, `sidebarPanel` and
+`renameWorkflow`. Without them a session loses the scroll position back and
+forward restore, the find bar a clicked search result hands off to, and the
+recent-search history that result is added to — not the ability to work.
+
+**What a host answers.** Four functions with empty bodies that a host overrides,
+because each puts a window on screen and a window is what owns one:
+`showDocumentError`, `prepareErrorReporting`, `confirmRecoveryOverwrite` and
+`openFolderFromDialog`. This is the arrangement `BlockEditorSurface` already
+has for the completion menus — the session says what it wants to ask, and the
+host answers from the dialogs it owns.
+
+**The session never reads the screen.** Not `focusMode`, not `sidebarView`, not
+`panelsVisible`, not a pane width or a collapse flag. A session that needed one
+of those would be a session only the full editor screen could own, which is the
+arrangement the type exists to end.
+
+### The five things `appWindow` means
+
+A part that needs the window holds it in a property called `appWindow`, and
+fifteen files still do. Seventy-six members have been named through that one
+property across the QML, and they are five unrelated things sharing a name: the
+window, the screen drawn in it, the editing surface inside that, the popups the
+window owns, and the open note. Which group a member is in decides what a part
+has to hold in order to use it, so reading one out of the wrong group is how a
+pane ends up needing an `ApplicationWindow` to do something that has nothing to
+do with windows.
+
+| Group | Members | Where it lives |
+|---|---|---|
+| **The window** | `x`, `y`, `width`, `height`, `visibility`, `geometryRestored`, `show`, `raise`, `requestActivate`, `close`, `forceActualClose`, `contentItem`, and `appWindow` itself as a `parentWindow:` value | `main.qml`. A part that moves or closes the window says so in a property of its own: `ExportDialog` and `ImportDialog` call theirs `hostWindow`, because all they want is something to parent a native picker to. |
+| **The editor's screen** | `panelsVisible`, `navigationRailsVisible`, `sidebarView`, `knownSidebarView`, `notesFamilyView`, `sidebarCollapsed`, `sidebarWidth`, `noteListCollapsed`, `noteListWidth`, `outlineVisible`, `backlinksVisible`, `statusBarVisible`, `bottomDockCollapsed`, `bottomDockHeight`, `focusMode`, `typewriterMode`, `cyclePane` | `main.qml`. Presentation of one window, persisted by `SessionPersistence.qml`; nothing outside a window has an opinion about it. |
+| **The editing surface** | `caretBlockIndex`, `blockDrag`, `focusEditor`, `scrollToBlock`, `editorContentY`, `setEditorContentY` | `BlockEditor.qml`, which `main.qml` forwards to. A part that wants the editor takes a `BlockEditorSurface`: `NoteAutoTitle` for the caret row, `OutlinePanel` for scrolling to a heading, `AppShortcuts` for whether a block drag is running. |
+| **Dialogs and popups the window owns** | `documentDialogs`, `openSettingsDialog`, `openShortcutReference`, `openQuickCapture`, `templateDialog`, `importDialog`, `exportDialog`, `insertImageIntoBlock`, `insertTableIntoBlock`, `openFocusedBlockContextMenu`, `blockContextShortcutEnabled` | `main.qml`. A popup is parented into a window, so it belongs to one however much it is about a note. `blockContextShortcutEnabled` reads `activeFocusItem`, which is a window's answer about a window. |
+| **The open note** | `collectionOpen`, `currentNoteRelPath`, `currentNoteDir`, `openNoteByPath`, `openSearchResult`, `navigateBack`, `navigateForward`, `followWikiLink`, `createNoteInCurrentScope`, `createFromTemplate`, `saveCurrentNoteAsTemplate`, `saveCurrentDocument`, `openFileFromDialog`, `openFolderFromDialog`, `requestNoteRename`, `requestNoteMove`, `requestFolderRename`, `restoreRecoveredNote`, `keepEditsOverRecovery`, `replaceEditsWithRecovery`, `confirmRecoveryOverwrite`, `keepMine`, `loadTheirs`, `noteChangedOnDisk`, `externalConflict`, `conflictPath`, `oversizedFilePath`, `oversizedFileBytes`, `oversizedFileCap`, `showDocumentError`, `transientStatus`, `showTransientStatus`, `sessionStartWords`, `refreshSessionBaseline`, `openLink`, `linkOpener` | `NoteSession.qml`. |
+
+Three of those placements are worth the sentence they cost, because the
+plausible reading is the other one.
+
+- `collectionOpen` is the open note's, not the screen's, even though the view
+  menu reads it more than anything else does. It answers "is there a vault", so
+  `ViewMenu` takes a session for that one question and a window for everything
+  else it does. Every other reader of it — the File menu, the toolbar, the
+  status bar, the tray — is a note command that is not a command without one.
+- `insertImageIntoBlock` and `insertTableIntoBlock` read like the editing
+  surface and are not: each opens a picker the window builds lazily
+  (`BlockInsertDialogs.qml`) and converts a block once the reader has chosen.
+  The editor is where the block is, not what asks the question.
+- `linkOpener` is the session's rather than the window's because two of its
+  three branches are about this note: `kvit-note:` resolves against the
+  collection and opens another note, and `#slug` resolves against this
+  document's headings. Only the third hands a URL to the desktop.
+
+Two members are in two groups at once, and each is split rather than filed.
+
+- `openFolderFromDialog` is a collection command wrapped around a native
+  picker. The command is the session's, so `FileMenu` and `NavigationRails`
+  call it there; the picker is parented to a window, so the session declares
+  the name with an empty body and `main.qml` overrides it with the
+  `FolderDialog` it owns. Nothing outside the window ever holds the picker.
+- `noteListSelectedPaths` was the export dialog's way of asking the window
+  which rows the note list had selected — a note command reading a pane's
+  state. It is neither the session's nor the window's, so it is now neither:
+  `ExportDialog` takes a `noteList` property and reads `selectedPaths` off the
+  pane that owns it, and `main.qml` forwards nothing.
+
+`SessionPersistence.qml` is the file the table explains best. It names
+`appWindow` thirty-eight times, more than any file except the keyboard map, and
+it needs nothing at all from the session: every one of those is geometry or
+screen, which is exactly what a per-window persister should be made of.
+
+**What keeps it that way.** `python3 tools/check-window-reach.py`, the
+`WindowReachGuard` CTest entry, reads the session's public surface out of
+`NoteSession.qml` and fails on any file outside `main.qml` that asks the window
+for one of those members, and on any line of `NoteSession.qml` that reads the
+screen. Both mistakes compile, pass `qmllint` and run correctly in the one
+window this application ships — they cost nothing until somebody wants a second
+one, which is when it is far too late to find out.
+
+`NoteSessionTests` (`tests/test_notesession.cpp`) is the other half: a host that
+is a bare `Window` with a `NoteSession` in it and nothing else — no pane, no
+toolbar, no menu, no view state, and no `main.qml` — opening a note by path,
+saving it, moving back and forward through the history, answering a change made
+on disk by another program, and reading back a status message.
+
 ## Building on Windows: the two-tree workflow
 
 Since 2026-07-19 the Windows port builds and passes the full unit suite

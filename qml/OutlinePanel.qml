@@ -20,7 +20,10 @@ Rectangle {
     id: outline
     objectName: "outlinePanel"
 
+    // The window owns this pane's visibility, which is a view toggle; the
+    // editor is what a clicked heading scrolls.
     property var appWindow
+    property BlockEditorSurface editor: null
 
     color: Theme.panelBackground
 
@@ -205,14 +208,14 @@ Rectangle {
                                  .arg(row.level).arg(row.text)
                 Accessible.selected: row.isCurrent
                 Accessible.onPressAction: {
-                    if (outline.appWindow)
-                        outline.appWindow.scrollToBlock(row.blockIndex)
+                    if (outline.editor)
+                        outline.editor.scrollToBlock(row.blockIndex)
                 }
                 HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
                     onTapped: {
-                        if (outline.appWindow)
-                            outline.appWindow.scrollToBlock(row.blockIndex)
+                        if (outline.editor)
+                            outline.editor.scrollToBlock(row.blockIndex)
                     }
                 }
             }

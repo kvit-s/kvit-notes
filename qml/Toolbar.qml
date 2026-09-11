@@ -24,7 +24,10 @@ Rectangle {
     id: toolbar
     objectName: "toolbar"
 
+    // The window owns the two insert dialogs this toolbar opens; the session
+    // is what its navigation buttons and its two menus act on.
     property var appWindow
+    property NoteSession noteSession: null
     // The editor the toolbar's commands act on.
     property BlockEditorSurface editor: null
 
@@ -224,7 +227,10 @@ Rectangle {
                 Loader {
                     id: fileMenuLoader
                     active: !toolbar.nativeMenuBar
-                    sourceComponent: FileMenu { appWindow: toolbar.appWindow }
+                    sourceComponent: FileMenu {
+                        appWindow: toolbar.appWindow
+                        noteSession: toolbar.noteSession
+                    }
                 }
             }
 
@@ -247,7 +253,10 @@ Rectangle {
                 Loader {
                     id: viewMenuLoader
                     active: !toolbar.nativeMenuBar
-                    sourceComponent: ViewMenu { appWindow: toolbar.appWindow }
+                    sourceComponent: ViewMenu {
+                        appWindow: toolbar.appWindow
+                        noteSession: toolbar.noteSession
+                    }
                 }
             }
 
@@ -256,7 +265,7 @@ Rectangle {
             ToolButton {
                 id: backButton
                 objectName: "toolbarBackButton"
-                visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
+                visible: toolbar.noteSession ? toolbar.noteSession.collectionOpen : false
                 focusPolicy: Qt.TabFocus
                 implicitWidth: Interface.px(30)
                 implicitHeight: Interface.px(28)
@@ -267,12 +276,12 @@ Rectangle {
                 enabled: NavigationHistory.canGoBack
                 ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Back (Alt+Left)")
-                onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateBack()
+                onClicked: if (toolbar.noteSession) toolbar.noteSession.navigateBack()
             }
             ToolButton {
                 id: forwardButton
                 objectName: "toolbarForwardButton"
-                visible: toolbar.appWindow ? toolbar.appWindow.collectionOpen : false
+                visible: toolbar.noteSession ? toolbar.noteSession.collectionOpen : false
                 focusPolicy: Qt.TabFocus
                 implicitWidth: Interface.px(30)
                 implicitHeight: Interface.px(28)
@@ -283,7 +292,7 @@ Rectangle {
                 enabled: NavigationHistory.canGoForward
                 ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Forward (Alt+Right)")
-                onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateForward()
+                onClicked: if (toolbar.noteSession) toolbar.noteSession.navigateForward()
             }
 
             ComboBox {

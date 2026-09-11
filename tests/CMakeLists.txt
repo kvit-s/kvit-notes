@@ -710,6 +710,19 @@ target_link_libraries(test_scrollmetrics PRIVATE
 add_test(NAME ScrollMetricsTests COMMAND test_scrollmetrics)
 set_tests_properties(ScrollMetricsTests PROPERTIES TIMEOUT 300)
 
+# The open note as an object a host obtains rather than a window declares.
+# Its host is a bare Window with a NoteSession in it and nothing else, which is
+# the point of the suite, but the session instantiates types from the `Kvit`
+# module, so the module's components have to be in the binary — the same reason
+# test_shell links what it links.
+qt_add_executable(test_notesession
+    test_notesession.cpp
+)
+target_link_libraries(test_notesession PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME NoteSessionTests COMMAND test_notesession)
+set_tests_properties(NoteSessionTests PROPERTIES TIMEOUT 300)
+
 # The read-only document surface: a markdown document drawn somewhere other
 # than the editor pane, swept across and copied as markdown. Creates its
 # surfaces inside the shipped shell, so it loads that shell for the same
@@ -850,6 +863,17 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME AccessibleNameGuard
              COMMAND ${Python3_EXECUTABLE}
                      ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-accessible-names.py)
+
+    # The line between the open note and the editor's screen. A pane that goes
+    # back through `appWindow` to open or save a note needs the application's
+    # main window again in order to work, and a NoteSession that reads a pane
+    # width is a session only that window can own. Both read correctly in the
+    # source and pass qmllint, because both are about what a file reaches for
+    # rather than whether the reach resolves. See devel.md, "The open note is
+    # an object, and the window is one of its hosts".
+    add_test(NAME WindowReachGuard
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-window-reach.py)
 endif()
 
 # Static QML analysis, as a test rather than only as a script somebody has to
@@ -911,6 +935,7 @@ set(KVIT_SHELL_TESTS
     AgentShellTests
     DecorationShellTests
     ExportContributionTests
+    NoteSessionTests
     ReadOnlyDocumentTests
     ScrollMetricsTests
     # The storyboard scenarios that do not need a focused window. Same

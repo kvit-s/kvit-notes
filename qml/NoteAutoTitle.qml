@@ -27,8 +27,12 @@ import Kvit 1.0
 Item {
     id: autoTitle
 
-    // Wired by main.qml.
-    property var appWindow
+    // Wired by main.qml. The open note supplies which note it is and whether
+    // there is a collection to rename inside; the editor supplies the caret,
+    // because leaving the first block is the moment the name is finished.
+    // Neither is the window: nothing here draws anything.
+    property NoteSession noteSession: null
+    property BlockEditorSurface editor: null
     property var renameWorkflow
 
     // How much of a paragraph becomes a name. A heading is normally shorter
@@ -69,10 +73,10 @@ Item {
     // what to call it. Returns whether it was renamed, which is what the test
     // reads; nothing in the window depends on the answer.
     function titleOpenNote() {
-        if (!autoTitle.appWindow || !autoTitle.appWindow.collectionOpen
+        if (!autoTitle.noteSession || !autoTitle.noteSession.collectionOpen
                 || !autoTitle.renameWorkflow)
             return false
-        var relPath = autoTitle.appWindow.currentNoteRelPath
+        var relPath = autoTitle.noteSession.currentNoteRelPath
         if (relPath === "" || !NoteCollection.isUntitledNote(relPath))
             return false
         var title = autoTitle.candidateTitle()
@@ -91,9 +95,9 @@ Item {
     // in it is finished — pressing Enter for the next block, or clicking away
     // — and renaming any earlier would name the note after half a heading.
     Connections {
-        target: autoTitle.appWindow
+        target: autoTitle.editor
         function onCaretBlockIndexChanged() {
-            if (autoTitle.appWindow.caretBlockIndex !== 0)
+            if (autoTitle.editor.caretBlockIndex !== 0)
                 autoTitle.titleOpenNote()
         }
     }

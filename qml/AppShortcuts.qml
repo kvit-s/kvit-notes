@@ -29,8 +29,13 @@ import Kvit 1.0
 Item {
     id: shortcuts
 
-    // Wired by main.qml.
+    // Wired by main.qml. The keys divide the same way the shell does: the
+    // note commands are the session's, the view toggles and the three popups
+    // are the window's, and Escape has to know whether the editor is in the
+    // middle of a block drag.
+    property NoteSession noteSession: null
     property var appWindow
+    property BlockEditorSurface editor: null
     property var findBar
     property var quickSwitcher
     // Named apart from its id so the wiring cannot resolve to this property.
@@ -77,15 +82,15 @@ Item {
     // File shortcuts
     Shortcut {
         sequences: [StandardKey.Save]  // Ctrl+S
-        onActivated: shortcuts.appWindow.saveCurrentDocument(false)
+        onActivated: shortcuts.noteSession.saveCurrentDocument(false)
     }
 
     Shortcut {
         sequences: [StandardKey.New]  // Ctrl+N — New Note (§13.4)
         onActivated: {
             DocumentManager.flushPendingEdits()
-            if (shortcuts.appWindow.collectionOpen) {
-                shortcuts.appWindow.createNoteInCurrentScope()
+            if (shortcuts.noteSession.collectionOpen) {
+                shortcuts.noteSession.createNoteInCurrentScope()
             } else if (DocumentManager.isDirty) {
                 shortcuts.appWindow.documentDialogs()
                          .confirmNewWithUnsavedChanges()
@@ -102,12 +107,12 @@ Item {
             if (DocumentManager.isDirty) {
                 shortcuts.appWindow.documentDialogs()
                          .confirmOpenWithUnsavedChanges()
-            } else if (shortcuts.appWindow.collectionOpen) {
+            } else if (shortcuts.noteSession.collectionOpen) {
                 // In collection mode, offer to import rather than only open a
                 // standalone file.
                 shortcuts.appWindow.documentDialogs().chooseOpenOrImport()
             } else {
-                shortcuts.appWindow.openFileFromDialog()
+                shortcuts.noteSession.openFileFromDialog()
             }
         }
     }
@@ -147,24 +152,24 @@ Item {
     Shortcut {
         sequence: "Alt+Left"
         context: Qt.ApplicationShortcut
-        enabled: shortcuts.appWindow
-                 && shortcuts.appWindow.collectionOpen
-        onActivated: shortcuts.appWindow.navigateBack()
+        enabled: shortcuts.noteSession
+                 && shortcuts.noteSession.collectionOpen
+        onActivated: shortcuts.noteSession.navigateBack()
     }
 
     Shortcut {
         sequence: "Alt+Right"
         context: Qt.ApplicationShortcut
-        enabled: shortcuts.appWindow
-                 && shortcuts.appWindow.collectionOpen
-        onActivated: shortcuts.appWindow.navigateForward()
+        enabled: shortcuts.noteSession
+                 && shortcuts.noteSession.collectionOpen
+        onActivated: shortcuts.noteSession.navigateForward()
     }
 
     Shortcut {
         sequence: "Ctrl+P"
         context: Qt.ApplicationShortcut
-        enabled: shortcuts.appWindow
-                 && shortcuts.appWindow.collectionOpen
+        enabled: shortcuts.noteSession
+                 && shortcuts.noteSession.collectionOpen
         onActivated: shortcuts.quickSwitcher.toggle()
     }
 
@@ -175,13 +180,13 @@ Item {
         anchors.fill: parent
         z: 10000
         acceptedButtons: Qt.BackButton | Qt.ForwardButton
-        enabled: shortcuts.appWindow
-                 && shortcuts.appWindow.collectionOpen
+        enabled: shortcuts.noteSession
+                 && shortcuts.noteSession.collectionOpen
         onClicked: function(mouse) {
             if (mouse.button === Qt.BackButton)
-                shortcuts.appWindow.navigateBack()
+                shortcuts.noteSession.navigateBack()
             else if (mouse.button === Qt.ForwardButton)
-                shortcuts.appWindow.navigateForward()
+                shortcuts.noteSession.navigateForward()
         }
     }
 
@@ -214,8 +219,8 @@ Item {
     Shortcut {
         sequence: "Ctrl+Shift+B"
         context: Qt.ApplicationShortcut
-        enabled: shortcuts.appWindow
-                 && shortcuts.appWindow.collectionOpen
+        enabled: shortcuts.noteSession
+                 && shortcuts.noteSession.collectionOpen
         onActivated: shortcuts.appWindow.backlinksVisible =
             !shortcuts.appWindow.backlinksVisible
     }
@@ -239,8 +244,8 @@ Item {
         // leave Escape doing nothing mid-drag.
         enabled: shortcuts.appWindow
                  && shortcuts.appWindow.focusMode
-                 && !(shortcuts.appWindow.blockDrag
-                      && shortcuts.appWindow.blockDrag.active)
+                 && !(shortcuts.editor && shortcuts.editor.blockDrag
+                      && shortcuts.editor.blockDrag.active)
         onActivated: shortcuts.appWindow.focusMode = false
     }
 
@@ -254,8 +259,8 @@ Item {
     Shortcut {
         sequence: "Ctrl+Shift+F"
         context: Qt.ApplicationShortcut
-        enabled: shortcuts.appWindow
-                 && shortcuts.appWindow.collectionOpen
+        enabled: shortcuts.noteSession
+                 && shortcuts.noteSession.collectionOpen
         onActivated: {
             shortcuts.appWindow.panelsVisible = true
             shortcuts.sidebarPanel.focusSearch()

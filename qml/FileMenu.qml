@@ -20,7 +20,10 @@ import Kvit 1.0
 // main.qml instantiates this component instead (see "The menu bar on macOS"
 // there). Only one of the two exists in a running window.
 //
-// The commands act on `appWindow`, which is main.qml's root; everything else
+// The commands divide between two objects. Opening, saving and creating a note
+// go through `noteSession`, so they do not need a window at all; the six
+// dialogs and the quick-capture window go through `appWindow`, because each of
+// those puts a window on screen and a window is what owns one. Everything else
 // they need is a singleton.
 //
 // Each command's label marks its access key with `&`, and MenuText.label()
@@ -35,6 +38,10 @@ Menu {
 
     // The editor window these commands act on. Untyped because the window
     // declares only what block delegates read, not the window's own API.
+    // Two things, named apart. The session opens, saves and creates notes;
+    // the window owns the six dialogs and the quick-capture window this menu
+    // puts on screen, because each of those is a window of its own.
+    property NoteSession noteSession: null
     property var appWindow
 
     // What a submenu's own row in this menu is built from: Qt creates that
@@ -47,7 +54,7 @@ Menu {
     // the menu lives: the toolbar's button and the macOS menu bar both raise
     // this signal before the menu appears.
     onAboutToShow: {
-        if (fileMenu.appWindow && fileMenu.appWindow.collectionOpen)
+        if (fileMenu.noteSession && fileMenu.noteSession.collectionOpen)
             NoteTemplates.seedBuiltinsIfEmpty()
     }
 
@@ -57,19 +64,19 @@ Menu {
         // Routed by window mode: a vault window opens the file in
         // its own single-file window; single-file mode replaces the
         // current document in place.
-        onTriggered: fileMenu.appWindow.openFileFromDialog()
+        onTriggered: fileMenu.noteSession.openFileFromDialog()
     }
     DiscoverableMenuItem {
         objectName: "fileMenuOpenFolder"
         text: MenuText.label(qsTr("Open &Folder…"))
         // Switches this window to the chosen vault (raising an
         // existing window if that vault is already open).
-        onTriggered: fileMenu.appWindow.openFolderFromDialog(false)
+        onTriggered: fileMenu.noteSession.openFolderFromDialog(false)
     }
     DiscoverableMenuItem {
         objectName: "fileMenuOpenFolderNewWindow"
         text: MenuText.label(qsTr("Open Folder in New &Window…"))
-        onTriggered: fileMenu.appWindow.openFolderFromDialog(true)
+        onTriggered: fileMenu.noteSession.openFolderFromDialog(true)
     }
     MenuSeparator {}
 
@@ -79,12 +86,12 @@ Menu {
         enabled: DocumentManager
                  && (!DocumentManager.hasFile
                      || DocumentManager.isDirty)
-        onTriggered: fileMenu.appWindow.saveCurrentDocument(false)
+        onTriggered: fileMenu.noteSession.saveCurrentDocument(false)
     }
     DiscoverableMenuItem {
         objectName: "fileMenuSaveAs"
         text: MenuText.label(qsTr("Save &As…"))
-        onTriggered: fileMenu.appWindow.saveCurrentDocument(true)
+        onTriggered: fileMenu.noteSession.saveCurrentDocument(true)
     }
     MenuSeparator {}
 
@@ -117,7 +124,7 @@ Menu {
         id: newFromTemplateMenu
         objectName: "newFromTemplateMenu"
         title: MenuText.label(qsTr("&New from template"))
-        enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
+        enabled: fileMenu.noteSession && fileMenu.noteSession.collectionOpen
         Repeater {
             model: {
                 var r = NoteTemplates.revision  // dependency
@@ -127,20 +134,20 @@ Menu {
                 required property string modelData
                 text: MenuText.plain(modelData)
                 onTriggered:
-                    fileMenu.appWindow.createFromTemplate(modelData)
+                    fileMenu.noteSession.createFromTemplate(modelData)
             }
         }
     }
     DiscoverableMenuItem {
         objectName: "manageTemplatesItem"
         text: MenuText.label(qsTr("&Manage templates…"))
-        enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
+        enabled: fileMenu.noteSession && fileMenu.noteSession.collectionOpen
         onTriggered: fileMenu.appWindow.templateDialog.openManage()
     }
     DiscoverableMenuItem {
         objectName: "fileMenuQuickCapture"
         text: MenuText.label(qsTr("&Quick capture note… (Ctrl+Alt+N)"))
-        enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
+        enabled: fileMenu.noteSession && fileMenu.noteSession.collectionOpen
         onTriggered: fileMenu.appWindow.openQuickCapture()
     }
 
@@ -149,7 +156,7 @@ Menu {
     DiscoverableMenuItem {
         objectName: "fileMenuImport"
         text: MenuText.label(qsTr("&Import…"))
-        enabled: fileMenu.appWindow && fileMenu.appWindow.collectionOpen
+        enabled: fileMenu.noteSession && fileMenu.noteSession.collectionOpen
         onTriggered: fileMenu.appWindow.importDialog.openDialog()
     }
     DiscoverableMenuItem {

@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Window
 import Kvit 1.0
 
 // Export dialog (features.md §12.5): choose a format
@@ -16,7 +17,13 @@ KvitDialog {
     id: exportDialog
     objectName: "exportDialog"
 
-    property var appWindow
+    // Three narrow things rather than one window. The session says which note
+    // is open and where its assets are; the note list owns the bulk selection
+    // this dialog offers as a scope; and the destination picker is native, so
+    // it is parented to a real window.
+    property NoteSession noteSession: null
+    property var noteList: null
+    property Window hostWindow: null
 
     title: qsTr("Export")
     modal: true
@@ -70,14 +77,14 @@ KvitDialog {
     }
 
     function selectedPaths() {
-        return appWindow && appWindow.noteListSelectedPaths
-            ? appWindow.noteListSelectedPaths() : []
+        return exportDialog.noteList && exportDialog.noteList.selectedPaths
+            ? exportDialog.noteList.selectedPaths : []
     }
 
     function currentTitle() {
-        if (!appWindow || appWindow.currentNoteRelPath === "")
+        if (!noteSession || noteSession.currentNoteRelPath === "")
             return "Document"
-        return NoteCollection.noteInfo(appWindow.currentNoteRelPath).title
+        return NoteCollection.noteInfo(noteSession.currentNoteRelPath).title
     }
 
     function prepareContext() {
@@ -85,16 +92,15 @@ KvitDialog {
         // currentNoteRelPath is empty for a loose file, but relative media is
         // still relative to that file's folder. currentNoteDir handles both
         // loose files and notes inside a collection.
-        var noteDir = appWindow && appWindow.currentNoteDir
-            ? appWindow.currentNoteDir() : ""
+        var noteDir = noteSession ? noteSession.currentNoteDir() : ""
         var root = NoteCollection.isOpen ? NoteCollection.rootPath : ""
         // The single-note scope renders the live model directly. A collection
         // or selection export instead reads each note from disk, where the
         // note being edited may be out of date, so hand the exporter the
         // editor's current markdown for that one note. Exporting snapshots
         // rather than saving: it must not write to the user's notes.
-        if (appWindow && appWindow.currentNoteRelPath !== "")
-            DocumentExporter.setLiveNote(appWindow.currentNoteRelPath, BlockModel)
+        if (noteSession && noteSession.currentNoteRelPath !== "")
+            DocumentExporter.setLiveNote(noteSession.currentNoteRelPath, BlockModel)
         else
             DocumentExporter.clearLiveNote()
         DocumentExporter.setImageContext(noteDir, root)
@@ -145,9 +151,9 @@ KvitDialog {
                 objectName: "exportScopeSelection"
                 text: qsTr("Selected notes (%1)").arg(
                           exportDialog.selectedPaths().length)
-                visible: exportDialog.appWindow
+                visible: exportDialog.noteSession
                     && exportDialog.scope !== "blocks"
-                    && exportDialog.appWindow.collectionOpen
+                    && exportDialog.noteSession.collectionOpen
                     && exportDialog.selectedPaths().length > 0
                 checked: exportDialog.scope === "selection"
                 onClicked: exportDialog.scope = "selection"
@@ -155,9 +161,9 @@ KvitDialog {
             RadioButton {
                 objectName: "exportScopeCollection"
                 text: qsTr("Whole collection")
-                visible: exportDialog.appWindow
+                visible: exportDialog.noteSession
                     && exportDialog.scope !== "blocks"
-                    && exportDialog.appWindow.collectionOpen
+                    && exportDialog.noteSession.collectionOpen
                 checked: exportDialog.scope === "collection"
                 onClicked: exportDialog.scope = "collection"
             }
@@ -206,7 +212,7 @@ KvitDialog {
         // file chooser of its own, shown inside it: the dialog Qt builds in
         // that case is a top-level window, and an unowned one never gives
         // the keyboard focus back on Wayland when it closes.
-        parentWindow: exportDialog.appWindow
+        parentWindow: exportDialog.hostWindow
         popupType: Popup.Item
         fileMode: FileDialog.SaveFile
         defaultSuffix: DocumentExporter.extensionFor(exportDialog.format)
@@ -219,7 +225,7 @@ KvitDialog {
                 : DocumentExporter.writeModel(
                       BlockModel, exportDialog.currentTitle(),
                       exportDialog.format, path)
-            exportDialog.appWindow.showTransientStatus(
+            exportDialog.noteSession.showTransientStatus(
                 ok ? qsTr("Exported to ") + path
                    : qsTr("Export failed"))
             exportDialog.close()
@@ -236,7 +242,7 @@ KvitDialog {
         objectName: "exportFolderDialog"
         // As above: owned by the window, and inside it when Qt has to build
         // the dialog itself.
-        parentWindow: exportDialog.appWindow
+        parentWindow: exportDialog.hostWindow
         popupType: Popup.Item
         onAccepted: {
             exportDialog.destination = DocumentManager.toLocalPath(selectedFolder)
@@ -264,8 +270,8 @@ KvitDialog {
         function onExportRefused(reason) {
             progressDialog.close()
             DocumentExporter.clearLiveNote()
-            if (exportDialog.appWindow)
-                exportDialog.appWindow.showTransientStatus(reason)
+            if (exportDialog.noteSession)
+                exportDialog.noteSession.showTransientStatus(reason)
         }
 
         function onExportProgress(done, total, relPath) {
@@ -294,8 +300,8 @@ KvitDialog {
                     .arg(written).arg(exportDialog.destination)
             else
                 message = qsTr("Export failed")
-            if (exportDialog.appWindow)
-                exportDialog.appWindow.showTransientStatus(message)
+            if (exportDialog.noteSession)
+                exportDialog.noteSession.showTransientStatus(message)
             exportDialog.close()
         }
     }

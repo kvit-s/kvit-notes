@@ -22,7 +22,11 @@ Rectangle {
     color: Theme.listBackground
 
     // Wired by main.qml.
+    // The window owns this pane's collapse and the overlay layer its drag
+    // proxy is reparented into; the session is which note is open and every
+    // command a row issues.
     property var appWindow
+    property NoteSession noteSession: null
     property var sidebar
 
     // Pane focus entry (§14.1 tab order): land on the note list, on the open
@@ -32,8 +36,8 @@ Rectangle {
     function focusPane() {
         if (noteListView.currentIndex < 0 || noteListView.currentIndex
             >= NoteListModel.count) {
-            var open = noteListPane.appWindow
-                ? NoteListModel.rowOf(noteListPane.appWindow.currentNoteRelPath)
+            var open = noteListPane.noteSession
+                ? NoteListModel.rowOf(noteListPane.noteSession.currentNoteRelPath)
                 : -1
             noteListView.currentIndex =
                 open >= 0 ? open : (NoteListModel.count > 0 ? 0 : -1)
@@ -118,7 +122,7 @@ Rectangle {
         }
         selectedPaths = [relPath]
         selectionAnchor = relPath
-        noteListPane.appWindow.openNoteByPath(relPath)
+        noteListPane.noteSession.openNoteByPath(relPath)
     }
 
     function startRename(relPath) {
@@ -328,7 +332,7 @@ Rectangle {
                 implicitWidth: Interface.px(26)
                 ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("New note (Ctrl+N)")
-                onClicked: noteListPane.appWindow.createNoteInCurrentScope()
+                onClicked: noteListPane.noteSession.createNoteInCurrentScope()
             }
         }
 
@@ -437,7 +441,7 @@ Rectangle {
                                 text: qsTr("Restore")
                                 font.pixelSize: Interface.caption
                                 implicitHeight: Interface.px(22)
-                                onClicked: noteListPane.appWindow
+                                onClicked: noteListPane.noteSession
                                     .restoreRecoveredNote(recoveryEntry.modelData.relPath)
                             }
                             ToolButton {
@@ -551,7 +555,7 @@ Rectangle {
             visible: noteListPane.searching
             Layout.fillWidth: true
             Layout.fillHeight: true
-            appWindow: noteListPane.appWindow
+            noteSession: noteListPane.noteSession
         }
 
         // ---- Rows -------------------------------------------------------
@@ -664,8 +668,8 @@ Rectangle {
                 Accessible.role: Accessible.ListItem
                 Accessible.name: noteRow.title
                 Accessible.description: noteRow.snippet
-                Accessible.selected: noteListPane.appWindow
-                    && noteListPane.appWindow.currentNoteRelPath === noteRow.relPath
+                Accessible.selected: noteListPane.noteSession
+                    && noteListPane.noteSession.currentNoteRelPath === noteRow.relPath
                 Accessible.focused: noteListView.activeFocus
                     && noteListView.currentIndex === noteRow.index
                 // The keyboard's position in the list has to be visible, or
@@ -676,8 +680,8 @@ Rectangle {
                     if (noteListPane.isSelected(noteRow.relPath)
                         && noteListPane.selectedPaths.length > 1)
                         return Theme.selectionActiveTint
-                    if (noteListPane.appWindow
-                        && noteListPane.appWindow.currentNoteRelPath === noteRow.relPath)
+                    if (noteListPane.noteSession
+                        && noteListPane.noteSession.currentNoteRelPath === noteRow.relPath)
                         return Theme.selectionTint
                     if (noteRow.isCurrentRow && noteListView.activeFocus)
                         return Theme.focusTint
@@ -770,7 +774,7 @@ Rectangle {
                                 var path = noteRow.relPath
                                 noteListPane.renamingPath = ""
                                 if (text !== noteRow.title)
-                                    noteListPane.appWindow.requestNoteRename(path, text)
+                                    noteListPane.noteSession.requestNoteRename(path, text)
                             }
 
                             // Return commits the rename and has to stop here.
@@ -1002,7 +1006,7 @@ Rectangle {
         DiscoverableMenuItem {
             objectName: "ctxNoteOpen"
             text: MenuText.label(qsTr("&Open"))
-            onTriggered: noteListPane.appWindow.openNoteByPath(noteContextMenu.relPath)
+            onTriggered: noteListPane.noteSession.openNoteByPath(noteContextMenu.relPath)
         }
         DiscoverableMenuItem {
             objectName: "ctxNoteRename"
@@ -1030,7 +1034,7 @@ Rectangle {
             title: MenuText.label(qsTr("&Move to"))
             DiscoverableMenuItem {
                 text: MenuText.label(qsTr("&Notes root"))
-                onTriggered: noteListPane.appWindow.requestNoteMove(
+                onTriggered: noteListPane.noteSession.requestNoteMove(
                     noteContextMenu.relPath, "")
             }
             Repeater {
@@ -1039,7 +1043,7 @@ Rectangle {
                 DiscoverableMenuItem {
                     required property string modelData
                     text: MenuText.plain(modelData)
-                    onTriggered: noteListPane.appWindow.requestNoteMove(
+                    onTriggered: noteListPane.noteSession.requestNoteMove(
                         noteContextMenu.relPath, modelData)
                 }
             }
@@ -1131,8 +1135,9 @@ Rectangle {
     // F2 renames the open note (features.md §8.3's rename path).
     Shortcut {
         sequence: "F2"
-        enabled: noteListPane.visible && noteListPane.appWindow
-                 && noteListPane.appWindow.currentNoteRelPath !== ""
-        onActivated: noteListPane.startRename(noteListPane.appWindow.currentNoteRelPath)
+        enabled: noteListPane.visible && noteListPane.noteSession
+                 && noteListPane.noteSession.currentNoteRelPath !== ""
+        onActivated: noteListPane.startRename(
+                         noteListPane.noteSession.currentNoteRelPath)
     }
 }

@@ -22,7 +22,7 @@ KvitDialog {
     id: dlg
     objectName: "templateDialog"
 
-    property var appWindow
+    property NoteSession noteSession: null
 
     title: qsTr("Manage templates")
     modal: true
@@ -116,8 +116,8 @@ KvitDialog {
                 objectName: "saveNoteAsTemplateButton"
                 Layout.fillWidth: true
                 text: qsTr("Save current note…")
-                enabled: dlg.appWindow && dlg.appWindow.collectionOpen
-                    && dlg.appWindow.currentNoteRelPath !== ""
+                enabled: dlg.noteSession && dlg.noteSession.collectionOpen
+                    && dlg.noteSession.currentNoteRelPath !== ""
                 onClicked: saveNoteDialog.open()
             }
         }
@@ -185,11 +185,11 @@ KvitDialog {
         anchors.centerIn: parent
         width: Interface.px(320)
         standardButtons: Dialog.Ok | Dialog.Cancel
-        onOpened: saveNoteName.text = dlg.appWindow
-            ? NoteCollection.noteInfo(dlg.appWindow.currentNoteRelPath).title : ""
+        onOpened: saveNoteName.text = dlg.noteSession
+            ? NoteCollection.noteInfo(dlg.noteSession.currentNoteRelPath).title : ""
         onAccepted: {
-            if (dlg.appWindow
-                && dlg.appWindow.saveCurrentNoteAsTemplate(saveNoteName.text.trim()))
+            if (dlg.noteSession
+                && dlg.noteSession.saveCurrentNoteAsTemplate(saveNoteName.text.trim()))
                 dlg.selected = saveNoteName.text.trim()
         }
         contentItem: ColumnLayout {

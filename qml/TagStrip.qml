@@ -18,14 +18,14 @@ Item {
     id: tagStrip
     objectName: "tagStrip"
 
-    property var appWindow
+    property NoteSession noteSession: null
 
     // Tags of the open note, live under the collection revision.
     readonly property var noteTags: {
         var revision = NoteCollection.revision // dependency
-        if (!appWindow || appWindow.currentNoteRelPath === "")
+        if (!noteSession || noteSession.currentNoteRelPath === "")
             return []
-        var info = NoteCollection.noteInfo(appWindow.currentNoteRelPath)
+        var info = NoteCollection.noteInfo(noteSession.currentNoteRelPath)
         return info.tags !== undefined ? info.tags : []
     }
 
@@ -70,9 +70,9 @@ Item {
     }
 
     function applyTag(name) {
-        if (name.trim() === "" || appWindow.currentNoteRelPath === "")
+        if (name.trim() === "" || noteSession.currentNoteRelPath === "")
             return
-        NoteCollection.addTag(appWindow.currentNoteRelPath, name.trim())
+        NoteCollection.addTag(noteSession.currentNoteRelPath, name.trim())
         addField.text = ""
         suggestionsPopup.close()
     }
@@ -125,12 +125,12 @@ Item {
                         Accessible.role: Accessible.Button
                         Accessible.name: qsTr("Remove tag %1").arg(chip.tagName)
                         Accessible.onPressAction: NoteCollection.removeTag(
-                            tagStrip.appWindow.currentNoteRelPath, chip.tagName)
+                            tagStrip.noteSession.currentNoteRelPath, chip.tagName)
                         MouseArea {
                             anchors.fill: parent
                             anchors.margins: -4 // a comfortable hit target
                             onClicked: NoteCollection.removeTag(
-                                           tagStrip.appWindow.currentNoteRelPath,
+                                           tagStrip.noteSession.currentNoteRelPath,
                                            chip.tagName)
                         }
                     }
