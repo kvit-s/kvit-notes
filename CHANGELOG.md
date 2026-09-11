@@ -12,6 +12,17 @@ published; until then it is marked unreleased.
 
 ### Changed
 
+- The middle of the editor window — the note being edited, and the read-only
+  source and media surfaces that stand in its place — can be turned off by an
+  application that composes this window and draws a document view of its own.
+  `contentAreaVisible` joins the properties for the toolbar, the panels, the
+  outline, the backlinks pane, the status bar, the module bar and the bottom
+  dock, and it is the one thing a host had no way to ask about at all, since
+  the pane's visibility followed `contentView`, which says which content
+  surface is current rather than whether to draw any of them. A pane the window
+  is not drawing is out of the F6 region cycle and the Tab chain and absent
+  from the accessibility tree, as the rest already were.
+
 - An application composing the editor window into something larger can now say
   which of the window's own chrome it wants drawn. The toolbar, the bottom bar a
   linked module fills and the resizable bottom dock have gained
@@ -69,6 +80,23 @@ published; until then it is marked unreleased.
   that list against `qml/` as it did before.
 
 ### Fixed
+
+- F6 no longer stops on a region that is not on screen. With the side panels
+  hidden from the View menu, or in focus mode, the region cycle still offered
+  the sidebar and the note list and put the keyboard into a column nobody could
+  see, because it asked whether the column was collapsed rather than whether it
+  was drawn. Every region now answers from the item itself, so each of the
+  reasons one is off screen counts.
+
+- The keyboard focus lands on a region the reader can see when an application
+  composing this window turns part of it off. The recovery that runs then moves
+  the focus to the first region the window is still drawing rather than to the
+  content area whatever state it is in, and where the window is drawing no
+  region at all it drops the focus instead of putting it into an item that is
+  not on screen, which leaves the keystrokes with whatever the host draws.
+  `focusPane()` refuses a pane that is not drawn for the same reason. The
+  shipped editor's content area is always drawn while a note is open, so
+  nothing there changes.
 
 - A vault in a folder that cannot be written now says so, and keeps saying
   so. Opening one on a read-only mount, or in a directory the account has no

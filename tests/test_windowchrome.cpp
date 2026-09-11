@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFile>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -17,6 +18,7 @@
 #include "appcontext.h"
 #include "block.h"
 #include "blockmodel.h"
+#include "notecollection.h"
 #include "extensionregistry.h"
 #include "processservices.h"
 
@@ -70,6 +72,27 @@ constexpr const char *kModuleDockPaneQml = R"(
     }
 )";
 
+// A region belonging to the application that composed this window: one item
+// with one keyboard-reachable control in it, put into the window's content
+// item the way a host inheriting from this ApplicationWindow puts its own.
+// Sized rather than anchored, because it is created without a parent and an
+// anchor to one would be a warning this suite counts.
+constexpr const char *kHostRegionQml = R"(
+    import QtQuick
+    import QtQuick.Controls
+    Rectangle {
+        objectName: "hostRegion"
+        width: 240
+        height: 60
+        color: "#101820"
+        Button {
+            objectName: "hostRegionButton"
+            anchors.centerIn: parent
+            text: "Host region action"
+        }
+    }
+)";
+
 // A module that fills both slots, so the window has all three pieces of chrome
 // to draw. Without one the bottom bar is an empty Loader and the bottom dock
 // has no tabs, and a suite about hiding them would be hiding nothing.
@@ -111,6 +134,9 @@ private:
 const QString kToolbarNode = QStringLiteral("Insert block");
 const QString kDockNode = QStringLiteral("Bottom dock tab: Module output");
 const QString kBottomBarNode = QStringLiteral("Module bottom bar action");
+// And of the content area: the one block this suite's document holds, which a
+// screen reader is offered as an editable text field naming its kind.
+const QString kContentNode = QStringLiteral("Paragraph block");
 
 // Warnings the shell emits while this suite runs, captured the way
 // tests/test_shell.cpp captures them and for the same reason: QML reports a
@@ -295,6 +321,7 @@ private slots:
         w->setProperty("toolbarVisible", true);
         w->setProperty("extensionBottomBarVisible", true);
         w->setProperty("bottomDockVisible", true);
+        w->setProperty("contentAreaVisible", true);
         w->setProperty("bottomDockCollapsed", false);
         w->setProperty("focusedPane", 2);
         call0(w, "focusEditor");
@@ -480,6 +507,244 @@ private slots:
         QVERIFY(!paneCycleOf(bare).contains(4));
     }
 
+    // The content area — the pane a note is drawn and edited in — is the sixth
+    // thing a host can turn off, and the one an application composing this
+    // window is likeliest to replace, since drawing a document view of its own
+    // is usually why it composed the window at all. Proved the way the three
+    // pieces of chrome above are proved: not drawn, out of the F6 region
+    // cycle, out of the Tab chain in both directions, and absent from the
+    // accessibility tree.
+    //
+    // The Tab chain is walked from the toolbar rather than from the editor
+    // here, because the walk has to start from something that is drawn and in
+    // this case the editor is what is not.
+    void aHostThatDrawsItsOwnDocumentViewGetsNoContentArea()
+    {
+        QQuickWindow *w = window();
+        QQuickItem *pane = item("documentPane");
+        QVERIFY(pane);
+
+        // Drawn until a host says otherwise, and reachable while it is. Every
+        // claim below is also true of a window that never drew the pane at
+        // all, so this is what makes them mean something.
+        QVERIFY(w->property("contentAreaVisible").toBool());
+        QVERIFY(pane->isVisible());
+        QVERIFY2(paneCycle().contains(2), "F6 reaches the content area");
+        QVERIFY2(chainReaches(tabChainFrom("toolbarInsertButton", true), pane),
+                 "Tab reaches the content area");
+        QVERIFY2(accessibleNames().contains(kContentNode),
+                 qPrintable(kContentNode));
+
+        w->setProperty("contentAreaVisible", false);
+        QTRY_VERIFY2(!pane->isVisible(), "contentAreaVisible");
+
+        // F6 stops on what is left, and no longer on the content area.
+        const QList<int> cycle = paneCycle();
+        QVERIFY2(!cycle.contains(2), "F6 still stops on the content area");
+        QVERIFY2(cycle.contains(3), "F6 stopped reaching the toolbar too");
+        QVERIFY2(cycle.contains(4), "F6 stopped reaching the bottom dock too");
+
+        const QList<QQuickItem *> forward = tabChainFrom("toolbarInsertButton", true);
+        QVERIFY2(!forward.isEmpty(), "Tab moves the focus at all");
+        QVERIFY2(!chainReaches(forward, pane),
+                 "Tab still enters the content area");
+        QVERIFY2(!chainReaches(tabChainFrom("toolbarInsertButton", false), pane),
+                 "Backtab still enters the content area");
+
+        QVERIFY2(!accessibleNames().contains(kContentNode),
+                 qPrintable(QStringLiteral("the accessibility tree still offers "
+                                           "\"%1\"").arg(kContentNode)));
+
+        // The content area's other two surfaces go with it. Which one of the
+        // three is current is the window's own answer, in `contentView`, and a
+        // host that is drawing its own document view is drawing over whichever
+        // it happens to be — so opening a source file into a content area the
+        // host turned off must not put the window's viewer back on screen.
+        for (const char *view : {"text", "media"}) {
+            w->setProperty("contentView", view);
+            const char *surface = qstrcmp(view, "text") == 0 ? "textFilePane"
+                                                             : "standaloneFilePane";
+            QTRY_VERIFY2(item(surface) && !item(surface)->isVisible(), surface);
+        }
+        w->setProperty("contentView", "document");
+    }
+
+    // A host drawing its own content area draws its own regions with it, and
+    // those regions hold the keyboard. Hiding a piece of the window's chrome
+    // must not disturb that: the focus was never in the item being hidden, so
+    // there is nothing to recover from and nothing to move.
+    //
+    // What this case guards is the recovery staying out of the way — a
+    // recovery that moved the focus whenever a host turned something off,
+    // rather than only when the focus had nowhere to be, would take a region
+    // of the host's own away from the reader on every toggle. The two cases
+    // below are the ones that say where the focus goes when it does have to
+    // move.
+    void hidingChromeLeavesTheHostsOwnFocusWhereItWas()
+    {
+        QQuickWindow *w = window();
+        std::unique_ptr<QQuickItem> host = createHostRegion();
+        QVERIFY(host);
+        QQuickItem *hostControl =
+            host->findChild<QQuickItem *>(QStringLiteral("hostRegionButton"));
+        QVERIFY(hostControl);
+
+        w->setProperty("contentAreaVisible", false);
+        QTRY_VERIFY(!item("documentPane")->isVisible());
+
+        for (const char *property : {"toolbarVisible", "extensionBottomBarVisible",
+                                     "bottomDockVisible"}) {
+            hostControl->forceActiveFocus(Qt::TabFocusReason);
+            QTRY_COMPARE(w->activeFocusItem(), hostControl);
+
+            w->setProperty(property, false);
+            QCoreApplication::processEvents();
+            // The recovery runs through Qt.callLater, so the frame after the
+            // change is where it would take the focus away.
+            QTest::qWait(50);
+            QCoreApplication::processEvents();
+
+            QVERIFY2(w->activeFocusItem() == hostControl,
+                     qPrintable(QStringLiteral("hiding %1 moved the keyboard "
+                                               "from the host's own region to %2")
+                                    .arg(QLatin1String(property),
+                                         describe(w->activeFocusItem()))));
+            w->setProperty(property, true);
+            QCoreApplication::processEvents();
+        }
+    }
+
+    // And when the focus really was in the item being hidden, with no content
+    // area to fall back on: it goes to another region the window is drawing —
+    // here the bottom dock — and never into the pane that is not on screen.
+    void withNoContentAreaTheFocusMovesToAPaneThatIsDrawn()
+    {
+        QQuickWindow *w = window();
+        QQuickItem *pane = item("documentPane");
+        w->setProperty("contentAreaVisible", false);
+        QTRY_VERIFY(!pane->isVisible());
+
+        call(w, "focusPane", 3);
+        QTRY_VERIFY2(isInside(w->activeFocusItem(), item("toolbar")),
+                     "the focus never reached the toolbar");
+
+        w->setProperty("toolbarVisible", false);
+        QTRY_VERIFY(!item("toolbar")->isVisible());
+
+        QTRY_VERIFY2(w->activeFocusItem() && w->activeFocusItem()->isVisible()
+                         && isInside(w->activeFocusItem(), item("bottomDock")),
+                     qPrintable(QStringLiteral("hiding the toolbar left the "
+                                               "keyboard on %1")
+                                    .arg(describe(w->activeFocusItem()))));
+        QVERIFY2(!isInside(w->activeFocusItem(), pane),
+                 "the focus went into the content area the host is not drawing");
+
+        // Asking for the pane that has just been hidden is refused the same
+        // way. focusPane() has always fallen back to the content area for a
+        // pane it will not focus, and that fallback asks whether the content
+        // area is drawn before it takes it.
+        call(w, "focusPane", 3);
+        QCoreApplication::processEvents();
+        QVERIFY2(!isInside(w->activeFocusItem(), pane),
+                 qPrintable(QStringLiteral("asking for the hidden toolbar put "
+                                           "the keyboard on %1")
+                                .arg(describe(w->activeFocusItem()))));
+    }
+
+    // With every region of the window's own turned off as well, there is
+    // nowhere of the window's left to put the focus. It is dropped rather than
+    // pushed into something invisible: the window's own shortcuts are bound on
+    // the window and still arrive, and a host's region keeps the keystrokes it
+    // was getting.
+    void withNothingLeftToFocusTheKeyboardIsNotLeftInsideAHiddenPane()
+    {
+        QQuickWindow *w = window();
+        QQuickItem *pane = item("documentPane");
+        w->setProperty("contentAreaVisible", false);
+        w->setProperty("extensionBottomBarVisible", false);
+        QTRY_VERIFY(!pane->isVisible());
+
+        call(w, "focusPane", 4);
+        QTRY_VERIFY2(isInside(w->activeFocusItem(), item("bottomDock")),
+                     "the focus never reached the bottom dock");
+
+        w->setProperty("bottomDockVisible", false);
+        w->setProperty("toolbarVisible", false);
+        QTRY_VERIFY(!item("bottomDock")->isVisible());
+        QTRY_VERIFY(!item("toolbar")->isVisible());
+
+        QTRY_VERIFY2(!w->activeFocusItem() || w->activeFocusItem()->isVisible(),
+                     qPrintable(QStringLiteral("the keyboard was left on %1, "
+                                               "which is not drawn")
+                                    .arg(describe(w->activeFocusItem()))));
+        QVERIFY2(!isInside(w->activeFocusItem(), pane),
+                 "the focus went into the content area the host is not drawing");
+    }
+
+    // The two columns down the left, which answer the same way the rest do:
+    // from the item, so that every reason it is off screen counts. A column is
+    // gone because the reader collapsed it, because no collection is open,
+    // because focus mode is running, or because a host turned the panels off,
+    // and only the item knows all four.
+    //
+    // On a composition of its own, because this suite's own window has no
+    // collection open and a window without one draws neither column whatever
+    // any property says.
+    void aColumnTheHostTurnedOffIsNotOfferedEither()
+    {
+        QTemporaryDir settings;
+        QTemporaryDir vault;
+        QVERIFY(settings.isValid());
+        QVERIFY(vault.isValid());
+        ProcessServices globals(headlessOptions());
+        globals.openSettings(settings.filePath(QStringLiteral("settings.json")));
+        AppContext context(globals);
+        QQmlApplicationEngine engine;
+        context.installContextProperties(&engine);
+        engine.load(QUrl(QStringLiteral("qrc:/qt/qml/Kvit/main.qml")));
+        QCoreApplication::processEvents();
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(w);
+
+        QVERIFY(context.noteCollection()->openRoot(vault.path()));
+        QCoreApplication::processEvents();
+        QVERIFY2(w->property("collectionOpen").toBool(),
+                 "the window never saw the collection open");
+
+        QQuickItem *sidebar = w->findChild<QQuickItem *>(QStringLiteral("sidebar"));
+        QQuickItem *noteList = w->findChild<QQuickItem *>(QStringLiteral("noteListPane"));
+        QVERIFY(sidebar);
+        QVERIFY(noteList);
+        QTRY_VERIFY(sidebar->isVisible());
+        QVERIFY(noteList->isVisible());
+        const QList<int> shown = paneCycleOf(w);
+        QVERIFY2(shown.contains(0), "F6 reaches the sidebar");
+        QVERIFY2(shown.contains(1), "F6 reaches the note list");
+
+        // `panelsVisible` takes both columns away without collapsing either
+        // one, so a pane answering from `sidebarCollapsed` would still call
+        // them drawn.
+        w->setProperty("panelsVisible", false);
+        QTRY_VERIFY(!sidebar->isVisible());
+        QVERIFY(!noteList->isVisible());
+        QVERIFY(!w->property("sidebarCollapsed").toBool());
+        QVERIFY(!w->property("noteListCollapsed").toBool());
+
+        const QList<int> hidden = paneCycleOf(w);
+        QVERIFY2(!hidden.contains(0), "F6 still stops on a sidebar nobody can see");
+        QVERIFY2(!hidden.contains(1), "F6 still stops on a note list nobody can see");
+        QVERIFY2(hidden.contains(2), "F6 stopped reaching the content area too");
+
+        // And asking for one directly is refused, which leaves the keyboard in
+        // the content area — the fallback focusPane() has for a pane it will
+        // not focus.
+        call(w, "focusPane", 0);
+        QCoreApplication::processEvents();
+        QVERIFY2(!isInside(w->activeFocusItem(), sidebar),
+                 "asking for the hidden sidebar put the keyboard in it");
+    }
+
     // Declared last on purpose: QtTest runs test functions in declaration
     // order, so this sees everything the cases above provoked.
     void noWarningsAppearAfterTheShellHasLoaded()
@@ -601,6 +866,34 @@ private:
             seen << pane;
         }
         return seen;
+    }
+
+    // The host's own region, created in the window's content item the way an
+    // application composing this window declares one. Owned by the caller, so
+    // that it is gone again before the next case runs.
+    std::unique_ptr<QQuickItem> createHostRegion()
+    {
+        QQmlComponent component(&m_engine);
+        component.setData(kHostRegionQml, QUrl());
+        if (component.isError()) {
+            qWarning() << component.errorString();
+            return {};
+        }
+        std::unique_ptr<QQuickItem> region(
+            qobject_cast<QQuickItem *>(component.create()));
+        if (region)
+            region->setParentItem(window()->contentItem());
+        QCoreApplication::processEvents();
+        return region;
+    }
+
+    // Every stop Tab, or Backtab, makes starting from a named control. The
+    // walk has to start somewhere that is drawn, which is why the case that
+    // hides the editor starts it in the toolbar instead.
+    QList<QQuickItem *> tabChainFrom(const char *name, bool forward) const
+    {
+        QQuickItem *start = item(name);
+        return start ? focusChainFrom(start, forward) : QList<QQuickItem *>();
     }
 
     QList<QQuickItem *> tabChainFromTheEditor(bool forward) const

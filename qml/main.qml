@@ -179,6 +179,15 @@ ApplicationWindow {
     property bool toolbarVisible: true
     property bool extensionBottomBarVisible: true
     property bool bottomDockVisible: true
+    // The content area: the pane a note is drawn and edited in, and the
+    // read-only source and media surfaces that stand in its place. It is the
+    // one region a composing application certainly replaces, since drawing a
+    // document view of its own is usually why it composed this window at all,
+    // and it is the only one with no other way to ask: the pane's own
+    // `visible` follows `contentView`, which says which of the three surfaces
+    // is current rather than whether to draw any of them. Defaults to drawn,
+    // and is not persisted, for the same reasons as the three above.
+    property bool contentAreaVisible: true
     // Turning one of these off can take away the pane the keyboard is in;
     // moveFocusOutOfHiddenPanes() below is what becomes of the focus then.
     onToolbarVisibleChanged:
@@ -187,6 +196,8 @@ ApplicationWindow {
         if (!extensionBottomBarVisible) Qt.callLater(root.moveFocusOutOfHiddenPanes)
     onBottomDockVisibleChanged:
         if (!bottomDockVisible) Qt.callLater(root.moveFocusOutOfHiddenPanes)
+    onContentAreaVisibleChanged:
+        if (!contentAreaVisible) Qt.callLater(root.moveFocusOutOfHiddenPanes)
 
     // What every bottom-anchored region has to clear: the status bar plus an
     // extension bottom bar when a module fills that slot (zero otherwise).
@@ -250,50 +261,104 @@ ApplicationWindow {
     // Templates, View and the customization menu have no other shortcut, so
     // leaving it out left those actions with no keyboard route at all.
     property int focusedPane: 2
+    // Whether the window is drawing the pane `p` names, and so whether putting
+    // the keyboard in it would put it somewhere the reader can see. Asked in
+    // the three places that have to agree about a pane: focusPane() before it
+    // moves the focus, cyclePane() when it builds the order F6 walks, and
+    // moveFocusOutOfHiddenPanes() when it has to choose a destination.
+    //
+    // Every pane answers with its own item's visibility, which is the only
+    // answer that stays true as reasons are added to it. A pane is off screen
+    // because the reader collapsed its column, because no collection is open,
+    // because focus mode is running, or because the application composing this
+    // window draws that region itself, and each of those already reaches the
+    // item — a child of a hidden parent reads back as not visible, so the
+    // reasons its parents have count here too.
+    function paneIsDrawn(p) {
+        if (p === 0)
+            return sidebar.visible
+        if (p === 1)
+            return noteListPane.visible
+        if (p === 2)
+            return documentPane.visible
+        if (p === 3)
+            return appToolbar.visible
+        if (p === 4)
+            return bottomDock.visible
+        if (p === 5)
+            return navigationRails.visible
+        return false
+    }
+    // Put the keyboard in the pane `p` names. A pane the window is not drawing
+    // is refused, and the content area takes the focus instead — the last
+    // branch is that fallback, and it asks the same question of the content
+    // area that every branch above it asks of the pane that was named. A host
+    // drawing its own document view has turned this one off, and focusing it
+    // would put the keyboard in an item nobody can see, so nothing is focused
+    // at all; moveFocusOutOfHiddenPanes(), the caller that cares, goes on to
+    // look for a pane that is drawn.
     function focusPane(p) {
         root.focusedPane = p
-        if (p === 0 && !root.sidebarCollapsed && root.collectionOpen)
+        if (p === 0 && root.paneIsDrawn(0))
             sidebar.focusPane()
-        else if (p === 1 && root.notesFamilyView
-                 && !root.noteListCollapsed && root.collectionOpen)
+        else if (p === 1 && root.paneIsDrawn(1))
             noteListPane.focusPane()
-        else if (p === 3 && appToolbar.visible)
+        else if (p === 3 && root.paneIsDrawn(3))
             appToolbar.focusPane()
-        else if (p === 4 && bottomDock.visible)
+        else if (p === 4 && root.paneIsDrawn(4))
             bottomDock.focusPane()
-        else if (p === 5 && navigationRails.visible)
+        else if (p === 5 && root.paneIsDrawn(5))
             navigationRails.focusPane()
-        else
+        else if (root.paneIsDrawn(2))
             focusEditor()
     }
     function cyclePane() {
         var order = []
-        if (navigationRails.visible) order.push(5)
-        if (root.collectionOpen && !root.sidebarCollapsed) order.push(0)
-        if (root.collectionOpen && root.notesFamilyView
-                && !root.noteListCollapsed) order.push(1)
-        order.push(2)  // the editor is always present
-        if (bottomDock.visible) order.push(4)
-        if (appToolbar.visible) order.push(3)
+        if (root.paneIsDrawn(5)) order.push(5)
+        if (root.paneIsDrawn(0)) order.push(0)
+        if (root.paneIsDrawn(1)) order.push(1)
+        if (root.paneIsDrawn(2)) order.push(2)
+        if (root.paneIsDrawn(4)) order.push(4)
+        if (root.paneIsDrawn(3)) order.push(3)
+        // Everything this window draws can be turned off at once by a host
+        // that draws all of it, and then F6 has nowhere to stop.
+        if (order.length === 0)
+            return
         var cur = order.indexOf(root.focusedPane)
         focusPane(order[(cur + 1) % order.length])
     }
-    // Run after a host has turned a piece of chrome off, because the item it
-    // turned off may be the one holding the keyboard focus. Measured on Qt
+    // Run after a host has turned a piece of the window off, because the item
+    // it turned off may be the one holding the keyboard focus. Measured on Qt
     // 6.10.1: an item that stops being drawn keeps the active focus it
     // already had, so what is left is a window whose keystrokes go to
-    // something nobody can see. The editor takes the focus instead — it is
-    // the one pane that is always there.
+    // something nobody can see.
     //
     // Asked once the hiding has settled rather than from the change handler
     // directly, since the handler and the `visible` binding are two listeners
     // on the same property and the binding may not have run yet. Both shapes
     // are caught: a focus item that is no longer drawn, and — should a later
     // Qt clear it instead — no focus item at all.
+    //
+    // The content area is tried first, because that is where the reader was
+    // working, and then the other regions in the order F6 walks them. A host
+    // that draws its own content area can leave the window with no region of
+    // its own to offer, and then the focus is dropped rather than pushed into
+    // an item that is not on screen: the window's shortcuts are bound on the
+    // window and still arrive, and whatever the host is drawing keeps the
+    // keystrokes it was already getting.
     function moveFocusOutOfHiddenPanes() {
         var focused = root.activeFocusItem
-        if (!focused || !focused.visible)
-            root.focusPane(2)
+        if (focused && focused.visible)
+            return
+        var order = [2, 5, 0, 1, 4, 3]
+        for (var i = 0; i < order.length; ++i) {
+            if (root.paneIsDrawn(order[i])) {
+                root.focusPane(order[i])
+                return
+            }
+        }
+        if (focused)
+            focused.focus = false
     }
     // Live-region announcements for dynamic changes (§14.2). Save state speaks
     // only the meaningful "Saved" transition (not every keystroke's dirtying);
@@ -1545,7 +1610,7 @@ ApplicationWindow {
     Rectangle {
         id: documentPane
         objectName: "documentPane"
-        visible: root.contentView === "document"
+        visible: root.contentView === "document" && root.contentAreaVisible
         anchors.fill: parent
         anchors.leftMargin: sidePanels.width + navigationRails.width
         anchors.topMargin: appToolbar.visible ? appToolbar.height : 0
@@ -1674,20 +1739,27 @@ ApplicationWindow {
         }
     }
 
+    // A source file, read-only, in place of the editor. This and the media
+    // viewer below are the content area's other two surfaces, so a host that
+    // is drawing its own gets neither: `active` stays as it was, since what
+    // loaded is still loaded and still holds the file it was given, and only
+    // the drawing stops.
     Loader {
         id: textFilePane
+        objectName: "textFilePane"
         anchors.fill: parent
         anchors.leftMargin: sidePanels.width + navigationRails.width
         anchors.topMargin: appToolbar.visible ? appToolbar.height : 0
         anchors.bottomMargin: root.bottomChromeHeight
         anchors.rightMargin: extensionSidePanel.width
         active: root.contentView === "text"
-        visible: active
+        visible: active && root.contentAreaVisible
         sourceComponent: ReadOnlyTextFile { }
     }
 
     Loader {
         id: standaloneFilePane
+        objectName: "standaloneFilePane"
         property string requestedPath: ""
         property string requestedKind: ""
         function openFile(path, kind) {
@@ -1704,7 +1776,7 @@ ApplicationWindow {
         anchors.bottomMargin: root.bottomChromeHeight
         anchors.rightMargin: extensionSidePanel.width
         active: root.contentView === "media"
-        visible: active
+        visible: active && root.contentAreaVisible
         sourceComponent: StandaloneFileView { }
     }
 

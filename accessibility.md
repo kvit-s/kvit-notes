@@ -85,9 +85,14 @@ setting for it.
 
 The parts listed here were checked against the code and work as described.
 
-Keyboard navigation is broad. `F6` cycles the major panes, and `main.qml:226-256`
-deliberately keeps the toolbar in that cycle so that Insert, Templates and View
-stay reachable, since those have no other chord. `Menu` and `Shift+F10` open the
+Keyboard navigation is broad. `F6` cycles the major panes, and
+`main.qml:263-362` deliberately keeps the toolbar in that cycle so that Insert,
+Templates and View stay reachable, since those have no other chord. It stops
+only on panes that are on screen: `paneIsDrawn()` there answers for each region
+from its own item's visibility, so a collapsed column, a hidden panel, focus
+mode and a region an application composing the window draws itself all take
+that region out of the cycle, and out of the destinations the window picks from
+when the pane holding the keyboard stops being drawn. `Menu` and `Shift+F10` open the
 context menu for the focused block. `src/platform/shortcutcatalog.cpp` records
 every command's chord and, for the handful that have none, the reason — a habit
 worth keeping as new commands arrive.

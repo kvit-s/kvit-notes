@@ -114,6 +114,10 @@ SCREEN_MEMBERS = {
     "backlinksVisible",
     "backlinksWidth",
     "statusBarVisible",
+    "toolbarVisible",
+    "extensionBottomBarVisible",
+    "bottomDockVisible",
+    "contentAreaVisible",
     "bottomDockCollapsed",
     "bottomDockHeight",
     "bottomChromeHeight",
@@ -121,6 +125,7 @@ SCREEN_MEMBERS = {
     "typewriterMode",
     "focusedPane",
     "focusPane",
+    "paneIsDrawn",
     "cyclePane",
     "contentView",
 }
