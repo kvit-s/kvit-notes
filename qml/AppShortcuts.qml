@@ -29,10 +29,23 @@ import Kvit 1.0
 Item {
     id: shortcuts
 
-    // Wired by main.qml. The keys divide the same way the shell does: the
-    // note commands are the session's, the view toggles and the three popups
-    // are the window's, and Escape has to know whether the editor is in the
-    // middle of a block drag.
+    // Wired by main.qml. Which object a key asks divides the same way the
+    // shell does, and the line is between running a command and learning a
+    // fact.
+    //
+    // A command — save, new note, open, back, forward — is a decision about
+    // what this window does with that keystroke, so it is issued to the
+    // window, which answers it out of the session it hosts. That is what lets
+    // an application compose this map into a window of its own and say what
+    // Alt+Left means there, and it is why a preview or capture window that
+    // grows a Back key does not silently drive the main window's note
+    // history.
+    //
+    // A fact about the open note is the same answer in every window, so
+    // collectionOpen — which decides whether the note keys are live at all —
+    // is asked of the session directly rather than relayed. The view toggles
+    // and the three popups are the window's, and Escape has to know whether
+    // the editor is in the middle of a block drag.
     property NoteSession noteSession: null
     property var appWindow
     property BlockEditorSurface editor: null
@@ -82,7 +95,7 @@ Item {
     // File shortcuts
     Shortcut {
         sequences: [StandardKey.Save]  // Ctrl+S
-        onActivated: shortcuts.noteSession.saveCurrentDocument(false)
+        onActivated: shortcuts.appWindow.saveCurrentDocument(false)
     }
 
     Shortcut {
@@ -90,7 +103,7 @@ Item {
         onActivated: {
             DocumentManager.flushPendingEdits()
             if (shortcuts.noteSession.collectionOpen) {
-                shortcuts.noteSession.createNoteInCurrentScope()
+                shortcuts.appWindow.createNoteInCurrentScope()
             } else if (DocumentManager.isDirty) {
                 shortcuts.appWindow.documentDialogs()
                          .confirmNewWithUnsavedChanges()
@@ -112,7 +125,7 @@ Item {
                 // standalone file.
                 shortcuts.appWindow.documentDialogs().chooseOpenOrImport()
             } else {
-                shortcuts.noteSession.openFileFromDialog()
+                shortcuts.appWindow.openFileFromDialog()
             }
         }
     }
@@ -154,7 +167,7 @@ Item {
         context: Qt.ApplicationShortcut
         enabled: shortcuts.noteSession
                  && shortcuts.noteSession.collectionOpen
-        onActivated: shortcuts.noteSession.navigateBack()
+        onActivated: shortcuts.appWindow.navigateBack()
     }
 
     Shortcut {
@@ -162,7 +175,7 @@ Item {
         context: Qt.ApplicationShortcut
         enabled: shortcuts.noteSession
                  && shortcuts.noteSession.collectionOpen
-        onActivated: shortcuts.noteSession.navigateForward()
+        onActivated: shortcuts.appWindow.navigateForward()
     }
 
     Shortcut {
@@ -184,9 +197,9 @@ Item {
                  && shortcuts.noteSession.collectionOpen
         onClicked: function(mouse) {
             if (mouse.button === Qt.BackButton)
-                shortcuts.noteSession.navigateBack()
+                shortcuts.appWindow.navigateBack()
             else if (mouse.button === Qt.ForwardButton)
-                shortcuts.noteSession.navigateForward()
+                shortcuts.appWindow.navigateForward()
         }
     }
 

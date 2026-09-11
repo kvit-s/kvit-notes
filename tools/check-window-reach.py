@@ -24,9 +24,10 @@ parts that need it. Keeping it that way is two rules, and neither the compiler
 nor qmllint can see either of them, because both describe what a file reaches
 for rather than whether the reach resolves.
 
-  1. **Nothing but the window itself asks the window about the open note.** A
-     part that wants to open, save or navigate a note takes a NoteSession. The
-     day one of them goes back through `appWindow` instead, that part needs the
+  1. **Nothing but the window itself asks the window a fact about the open
+     note.** A part that wants to know which note is open, or whether there is
+     a collection at all, takes a NoteSession and reads it there. The day one
+     of them goes back through `appWindow` instead, that part needs the
      application's main window again in order to work, and a second window —
      quick capture, a preview, an embedded editor — cannot have it.
 
@@ -36,6 +37,20 @@ for rather than whether the reach resolves.
 
 The first rule's member list is read out of qml/NoteSession.qml rather than
 written here, so adding a member to the session extends the check by itself.
+
+**Asking the window to run a command is not asking it a fact**, and rule 1 does
+not cover it. Alt+Left means "go back to what this window was showing", so what
+it does is the window's decision and not the session's: qml/AppShortcuts.qml
+issues it to `appWindow`, and the window answers out of the session it hosts.
+An application that composes the keyboard map into a window that draws its own
+screens then says what that key does there by declaring the function, and a
+preview or capture window that grows a Back key cannot silently drive the main
+window's note history. A file that decides what this window does rather than
+showing part of what it holds is named in WINDOW_COMMAND_FILES below; there is
+one, the keyboard map. Inside it the distinction is still enforced in both
+directions — it may call a command on the window, it may not read a fact off
+it, and the command it calls has to be one qml/main.qml actually declares,
+since a command the host does not answer is a key that does nothing.
 
 Run it directly, or as the WindowReachGuard ctest entry:
 
@@ -55,6 +70,16 @@ SESSION = "NoteSession.qml"
 # The window's own file declares the session and forwards its public names to
 # it, so it names both sides of the line by definition.
 HOST = "main.qml"
+
+# The files that decide what this window does, rather than drawing part of
+# what it holds. Every other key in the keyboard map already goes through
+# `appWindow` — pane cycling, the panel and view toggles, focus mode, the
+# settings dialog — because a window-level keystroke is a property of the
+# window it is bound in; the five note commands among them are the same kind
+# of thing. Such a file may ask the window to RUN a session command. It may
+# still not ask the window a FACT about the open note, which is why
+# `collectionOpen` in that file is read off the session.
+WINDOW_COMMAND_FILES = {"AppShortcuts.qml"}
 
 # Where an exception would be written down if one were ever justified. A file
 # here would be one that reaches the window for the open note on purpose; there
@@ -99,39 +124,70 @@ TOP_LEVEL_FUNCTION = re.compile(r"^    function\s+(\w+)\s*\(")
 
 COMMENT = re.compile(r"^\s*//")
 
+# `appWindow.thing` — and whether an open bracket follows the name, which is
+# the whole difference between asking the window to do something and asking it
+# how things are.
+REACH = re.compile(r"\bappWindow\s*\.\s*(\w+)\s*(\(?)")
 
-def session_surface():
-    """Every member a host can reach on a NoteSession."""
+
+def top_level_members(name, patterns):
     members = set()
-    with open(os.path.join(QML, SESSION), encoding="utf-8") as handle:
+    with open(os.path.join(QML, name), encoding="utf-8") as handle:
         for line in handle:
-            for pattern in (TOP_LEVEL_PROPERTY, TOP_LEVEL_FUNCTION):
+            for pattern in patterns:
                 found = pattern.match(line)
                 if found:
                     members.add(found.group(1))
     return members
 
 
+def session_surface():
+    """Every member a host can reach on a NoteSession."""
+    return top_level_members(SESSION, (TOP_LEVEL_PROPERTY, TOP_LEVEL_FUNCTION))
+
+
+def window_commands():
+    """Every command qml/main.qml answers, which is every function on it."""
+    return top_level_members(HOST, (TOP_LEVEL_FUNCTION,))
+
+
 def qml_files():
     return sorted(name for name in os.listdir(QML) if name.endswith(".qml"))
 
 
-def check_nothing_reaches_the_window_for_the_open_note(members, problems):
-    reach = re.compile(r"\bappWindow\s*\.\s*(\w+)")
+def check_nothing_reaches_the_window_for_the_open_note(members, answered,
+                                                      problems):
     for name in qml_files():
         if name in (HOST, SESSION) or name in ALLOWED_TO_REACH_THE_WINDOW:
             continue
+        commands_allowed = name in WINDOW_COMMAND_FILES
         path = os.path.join(QML, name)
         with open(path, encoding="utf-8") as handle:
             for number, line in enumerate(handle, 1):
                 if COMMENT.match(line):
                     continue
-                for member in reach.findall(line):
-                    if member in members:
+                for member, bracket in REACH.findall(line):
+                    if member not in members:
+                        continue
+                    called = bracket == "("
+                    if called and commands_allowed:
+                        if member not in answered:
+                            problems.append(
+                                "qml/%s:%d: asks the window to run `%s`, and "
+                                "qml/%s declares no function of that name, so "
+                                "the command reaches nothing."
+                                % (name, number, member, HOST))
+                        continue
+                    if called:
                         problems.append(
-                            "qml/%s:%d: reaches the window for `%s`, which is "
+                            "qml/%s:%d: asks the window to run `%s`, which is "
                             "the open note's. Take a NoteSession and call it "
                             "on that." % (name, number, member))
+                    else:
+                        problems.append(
+                            "qml/%s:%d: asks the window for `%s`, which is a "
+                            "fact about the open note. Take a NoteSession and "
+                            "read it there." % (name, number, member))
 
 
 def check_the_session_never_reads_the_screen(problems):
@@ -153,9 +209,14 @@ def main():
     if not members:
         print("could not read any member off qml/%s" % SESSION, file=sys.stderr)
         return 1
+    answered = window_commands()
+    if not answered:
+        print("could not read any function off qml/%s" % HOST, file=sys.stderr)
+        return 1
 
     problems = []
-    check_nothing_reaches_the_window_for_the_open_note(members, problems)
+    check_nothing_reaches_the_window_for_the_open_note(members, answered,
+                                                       problems)
     check_the_session_never_reads_the_screen(problems)
 
     if problems:

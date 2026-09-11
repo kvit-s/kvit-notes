@@ -274,19 +274,61 @@ Two members are in two groups at once, and each is split rather than filed.
 it needs nothing at all from the session: every one of those is geometry or
 screen, which is exactly what a per-window persister should be made of.
 
-**What keeps it that way.** `python3 tools/check-window-reach.py`, the
-`WindowReachGuard` CTest entry, reads the session's public surface out of
-`NoteSession.qml` and fails on any file outside `main.qml` that asks the window
-for one of those members, and on any line of `NoteSession.qml` that reads the
-screen. Both mistakes compile, pass `qmllint` and run correctly in the one
-window this application ships — they cost nothing until somebody wants a second
-one, which is when it is far too late to find out.
+### What a window-level keystroke asks
+
+`qml/AppShortcuts.qml` is the window's keyboard map, and the five note commands
+in it — `saveCurrentDocument`, `createNoteInCurrentScope`, `openFileFromDialog`,
+`navigateBack` and `navigateForward` — are issued to `appWindow`, which answers
+each out of the session it hosts. The one thing the map reads off the session
+directly is `collectionOpen`.
+
+The line is between running a command and learning a fact. Ctrl+S means "save
+what this window is showing" and Alt+Left means "go back to what I was looking
+at", so what the key does is a decision about the window it is bound in. An
+application that composes this map into a window drawing its own screens says
+what Alt+Left means there by declaring `navigateBack`, and the editor's own
+second window makes the same point from inside the repository: a preview or
+capture window that grows a Back key should move what it is showing rather than
+drive the main window's note history. Whether there is a collection at all is
+not a decision — it is the same answer in every window — so `collectionOpen` is
+read off the session, where no host can give the key a different opinion about
+when it is live.
+
+Every other key in the map was already the window's and stayed there: pane
+cycling, the panel and view toggles, focus mode, the settings dialog, the
+shortcut reference, and the three popups. The five above were the only ones
+pointed at the session instead, which made them the only five a host could not
+answer for.
+
+### What keeps it that way
+
+`python3 tools/check-window-reach.py`, the `WindowReachGuard` CTest entry,
+reads the session's public surface out of `NoteSession.qml` and fails on four
+things: a file outside `main.qml` that asks the window a fact about the open
+note, a file outside the keyboard map that asks the window to run one of the
+session's commands, a command the keyboard map issues that `main.qml` declares
+no function for — a key nothing answers — and a line of `NoteSession.qml` that
+reads the screen. `appWindow.navigateBack()` and `appWindow.collectionOpen` are
+told apart by the bracket after the name, which is the whole difference between
+running a command and learning a fact. All four mistakes compile, pass
+`qmllint` and run correctly in the one window this application ships — they
+cost nothing until somebody wants a second one, which is when it is far too
+late to find out.
 
 `NoteSessionTests` (`tests/test_notesession.cpp`) is the other half: a host that
 is a bare `Window` with a `NoteSession` in it and nothing else — no pane, no
 toolbar, no menu, no view state, and no `main.qml` — opening a note by path,
 saving it, moving back and forward through the history, answering a change made
 on disk by another program, and reading back a status message.
+
+`WindowCommandTests` (`tests/test_windowcommands.cpp`) is the same claim from
+the keyboard's side. Two windows compose `AppShortcuts`: one declares
+`navigateBack` and `navigateForward` itself and never touches its session, and
+Alt+Left and Alt+Right reach those declarations while the note history stays
+where it was; one forwards both to the session as `main.qml` does, and the same
+two keys move the history. Either way the window holds exactly one Alt+Left,
+because two enabled shortcuts on one sequence are an ambiguous overload Qt
+resolves by firing neither.
 
 ## Building on Windows: the two-tree workflow
 

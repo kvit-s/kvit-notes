@@ -23,9 +23,15 @@ published; until then it is marked unreleased.
   host because each of them puts a dialog on screen. Nothing about the
   application changed: the window declares one, supplies the same objects it
   always used, and keeps every name the panes, menus, dialogs and test suites
-  already called on it. devel.md, "The open note is an object, and the window
-  is one of its hosts", classifies all seventy-six members the window was
-  reached for and says which of the five groups each is in.
+  already called on it. A window-level keystroke still asks the window: Ctrl+S,
+  Ctrl+N, Ctrl+O and the two note-history keys each mean something about what
+  this window is showing, so the keyboard map issues them to the window and the
+  window answers each out of the session it hosts — which is what lets an
+  application compose that map into a window of its own and say what Alt+Left
+  means there. devel.md,
+  "The open note is an object, and the window is one of its hosts", classifies
+  all seventy-six members the window was reached for and says which of the five
+  groups each is in.
 
 - The editing surface is a component. `BlockEditor` — the block list, the
   gestures over it, the floating formatting and find bars, and the focus,

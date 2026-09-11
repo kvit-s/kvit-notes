@@ -723,6 +723,19 @@ target_link_libraries(test_notesession PRIVATE
 add_test(NAME NoteSessionTests COMMAND test_notesession)
 set_tests_properties(NoteSessionTests PROPERTIES TIMEOUT 300)
 
+# Who a window-level keystroke asks. Two windows compose qml/AppShortcuts.qml,
+# one answering Alt+Left and Alt+Right itself and one forwarding them to its
+# session as qml/main.qml does, and the keys are pressed for real in both. It
+# instantiates types from the `Kvit` module, so the module's components have to
+# be in the binary — the same reason test_shell links what it links.
+qt_add_executable(test_windowcommands
+    test_windowcommands.cpp
+)
+target_link_libraries(test_windowcommands PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME WindowCommandTests COMMAND test_windowcommands)
+set_tests_properties(WindowCommandTests PROPERTIES TIMEOUT 300)
+
 # The read-only document surface: a markdown document drawn somewhere other
 # than the editor pane, swept across and copied as markdown. Creates its
 # surfaces inside the shipped shell, so it loads that shell for the same
@@ -865,10 +878,13 @@ if(Python3_Interpreter_FOUND)
                      ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-accessible-names.py)
 
     # The line between the open note and the editor's screen. A pane that goes
-    # back through `appWindow` to open or save a note needs the application's
-    # main window again in order to work, and a NoteSession that reads a pane
-    # width is a session only that window can own. Both read correctly in the
-    # source and pass qmllint, because both are about what a file reaches for
+    # back through `appWindow` for a fact about the open note needs the
+    # application's main window again in order to work, and a NoteSession that
+    # reads a pane width is a session only that window can own. The window's
+    # keyboard map is the one file that may still ask the window to run a
+    # command, because what a window-level key does is that window's decision;
+    # it may not ask it a fact. All of that reads correctly in the source and
+    # passes qmllint, because each of them is about what a file reaches for
     # rather than whether the reach resolves. See devel.md, "The open note is
     # an object, and the window is one of its hosts".
     add_test(NAME WindowReachGuard
@@ -936,6 +952,7 @@ set(KVIT_SHELL_TESTS
     DecorationShellTests
     ExportContributionTests
     NoteSessionTests
+    WindowCommandTests
     ReadOnlyDocumentTests
     ScrollMetricsTests
     # The storyboard scenarios that do not need a focused window. Same
