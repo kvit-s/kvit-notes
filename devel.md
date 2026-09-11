@@ -274,46 +274,70 @@ Two members are in two groups at once, and each is split rather than filed.
 it needs nothing at all from the session: every one of those is geometry or
 screen, which is exactly what a per-window persister should be made of.
 
-### What a window-level keystroke asks
+### Who a window's own command asks
 
-`qml/AppShortcuts.qml` is the window's keyboard map, and the five note commands
-in it — `saveCurrentDocument`, `createNoteInCurrentScope`, `openFileFromDialog`,
-`navigateBack` and `navigateForward` — are issued to `appWindow`, which answers
-each out of the session it hosts. The one thing the map reads off the session
-directly is `collectionOpen`.
+Two files are the window's own controls: `qml/AppShortcuts.qml`, the
+window-level keyboard map, and `qml/Toolbar.qml`, the strip along the top of the
+window. Between them they issue five commands about the open note —
+`saveCurrentDocument`, `createNoteInCurrentScope`, `openFileFromDialog`,
+`navigateBack` and `navigateForward` — and each goes to `appWindow`, which
+answers it out of the session it hosts. The one thing either file reads off the
+session directly is `collectionOpen`.
 
 The line is between running a command and learning a fact. Ctrl+S means "save
 what this window is showing" and Alt+Left means "go back to what I was looking
-at", so what the key does is a decision about the window it is bound in. An
-application that composes this map into a window drawing its own screens says
-what Alt+Left means there by declaring `navigateBack`, and the editor's own
-second window makes the same point from inside the repository: a preview or
-capture window that grows a Back key should move what it is showing rather than
-drive the main window's note history. Whether there is a collection at all is
-not a decision — it is the same answer in every window — so `collectionOpen` is
-read off the session, where no host can give the key a different opinion about
-when it is live.
+at", so what the control does is a decision about the window it sits in. An
+application that composes either file into a window drawing its own screens says
+what Back means there by declaring `navigateBack`, and the editor's own second
+window makes the same point from inside the repository: a preview or capture
+window that grows a Back key should move what it is showing rather than drive
+the main window's note history. Whether there is a collection at all is not a
+decision — it is the same answer in every window — so `collectionOpen` is read
+off the session, where no host can give a control a different opinion about when
+it is live.
 
-Every other key in the map was already the window's and stayed there: pane
-cycling, the panel and view toggles, focus mode, the settings dialog, the
-shortcut reference, and the three popups. The five above were the only ones
-pointed at the session instead, which made them the only five a host could not
-answer for.
+The toolbar's two arrows are the same Back and Forward the keyboard map binds,
+arriving from a third device after the key and the mouse button, and they say so
+themselves: the tooltips read "Back (Alt+Left)" and "Forward (Alt+Right)". A
+window that answered the key one way while the arrow beside it did something
+else would be worse than either answer on its own.
+
+What separates these two files from a pane is what the command is about. A pane
+names its subject — the search results open the result that was clicked, the
+backlinks pane follows the link it drew — and a name is not a window's to
+answer. Back names nothing: it means "whatever this window was showing before",
+which only the window knows. Every other key in the map was already the window's
+on that reading and stayed there: pane cycling, the panel and view toggles,
+focus mode, the settings dialog, the shortcut reference, and the three popups.
+
+**Two things this does not settle.** Three callers still ask the session for a
+command by the same reasoning that moved these five: `FileMenu.qml` for Save,
+Save As and Open, `NoteListPane.qml` for the new-note button, and
+`SystemIntegration.qml` for the tray's new-note entry. The File menu is the
+window's own menu bar and reads like the keyboard map; the note list's button
+creates a note in the folder that pane has selected, which reads like a pane
+naming its subject. Neither reading has been argued out.
+
+The other is what a control is greyed by. Both arrows take their enabled state
+from `NavigationHistory` and the note keys take theirs from `collectionOpen`,
+which are the note history and the collection rather than the window. A host
+that answers Back itself therefore gets a Back arrow enabled by a history it is
+not driving. Nothing in this repository needs that yet, and no host has asked.
 
 ### What keeps it that way
 
 `python3 tools/check-window-reach.py`, the `WindowReachGuard` CTest entry,
 reads the session's public surface out of `NoteSession.qml` and fails on four
 things: a file outside `main.qml` that asks the window a fact about the open
-note, a file outside the keyboard map that asks the window to run one of the
-session's commands, a command the keyboard map issues that `main.qml` declares
-no function for — a key nothing answers — and a line of `NoteSession.qml` that
-reads the screen. `appWindow.navigateBack()` and `appWindow.collectionOpen` are
-told apart by the bracket after the name, which is the whole difference between
-running a command and learning a fact. All four mistakes compile, pass
-`qmllint` and run correctly in the one window this application ships — they
-cost nothing until somebody wants a second one, which is when it is far too
-late to find out.
+note, a file that is not one of the window's own two controls asking the window
+to run one of the session's commands, a command one of those controls issues
+that `main.qml` declares no function for — a key or an arrow nothing answers —
+and a line of `NoteSession.qml` that reads the screen.
+`appWindow.navigateBack()` and `appWindow.collectionOpen` are told apart by the
+bracket after the name, which is the whole difference between running a command
+and learning a fact. All four mistakes compile, pass `qmllint` and run correctly
+in the one window this application ships — they cost nothing until somebody
+wants a second one, which is when it is far too late to find out.
 
 `NoteSessionTests` (`tests/test_notesession.cpp`) is the other half: a host that
 is a bare `Window` with a `NoteSession` in it and nothing else — no pane, no
@@ -322,13 +346,17 @@ saving it, moving back and forward through the history, answering a change made
 on disk by another program, and reading back a status message.
 
 `WindowCommandTests` (`tests/test_windowcommands.cpp`) is the same claim from
-the keyboard's side. Two windows compose `AppShortcuts`: one declares
-`navigateBack` and `navigateForward` itself and never touches its session, and
-Alt+Left and Alt+Right reach those declarations while the note history stays
-where it was; one forwards both to the session as `main.qml` does, and the same
-two keys move the history. Either way the window holds exactly one Alt+Left,
-because two enabled shortcuts on one sequence are an ambiguous overload Qt
-resolves by firing neither.
+the controls' side. Two windows compose both `AppShortcuts` and `Toolbar`: one
+declares `navigateBack`, `navigateForward`, `saveCurrentDocument` and
+`createNoteInCurrentScope` itself and never touches its session, and Alt+Left,
+Alt+Right, Ctrl+S, Ctrl+N and a real click on each toolbar arrow reach those
+declarations while the note history stays where it was; the other forwards
+everything to the session as `main.qml` does, and the same keys and arrows move
+the history. Either way the window holds exactly one Alt+Left, because two
+enabled shortcuts on one sequence are an ambiguous overload Qt resolves by
+firing neither. What each host has to declare is worth reading as the list it
+is: the four commands, and seven members of its own screen that the keyboard map
+and the View menu ask it about.
 
 ## Building on Windows: the two-tree workflow
 

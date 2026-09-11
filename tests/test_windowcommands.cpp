@@ -9,6 +9,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
 #include <QUrl>
@@ -35,25 +36,33 @@ ProcessServices::Options headlessOptions()
 //
 // This is the application the suite is about: it links the library, takes
 // qml/AppShortcuts.qml for the window-level keys, and draws screens of its own
-// that Back and Forward move through. None of its four answers touches the
-// session, so a key that went round this window to the session instead would
-// leave both marks — the count here would not move, and the note history
-// would.
+// that Back and Forward move through, and the toolbar whose two arrows are the
+// same Back and Forward. None of its four answers touches the session, so a key
+// or an arrow that went round this window to the session instead would leave
+// both marks — the count here would not move, and the note history would.
 constexpr const char *kHostThatAnswersTheKeysItself = R"(
     import QtQuick
     import QtQuick.Window
     import Kvit 1.0
     Window {
         id: host
-        width: 400
+        width: 1200
         height: 300
         property alias session: openNote
 
-        // What the map asks this window before any key is pressed. Both are
-        // `enabled` bindings over the window's own screen, which is why a host
-        // declares them and the session does not have them at all.
+        // The window's own screen, which a host taking these two parts has to
+        // declare: the first two are what the keyboard map reads before any key
+        // is pressed, and the rest are what the toolbar's View menu draws its
+        // checkmarks from. None of them is on the session, which is the point —
+        // a session that had them would be one only this screen could own.
         property bool focusMode: false
         property bool blockContextShortcutEnabled: false
+        property bool navigationRailsVisible: true
+        property bool outlineVisible: false
+        property bool backlinksVisible: false
+        property bool bottomDockCollapsed: true
+        property bool typewriterMode: false
+        property bool statusBarVisible: true
 
         property int backs: 0
         property int forwards: 0
@@ -70,6 +79,13 @@ constexpr const char *kHostThatAnswersTheKeysItself = R"(
             appWindow: host
             noteSession: openNote
         }
+        Toolbar {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            appWindow: host
+            noteSession: openNote
+        }
     }
 )";
 
@@ -81,12 +97,18 @@ constexpr const char *kHostThatForwardsToItsSession = R"(
     import Kvit 1.0
     Window {
         id: host
-        width: 400
+        width: 1200
         height: 300
         property alias session: openNote
 
         property bool focusMode: false
         property bool blockContextShortcutEnabled: false
+        property bool navigationRailsVisible: true
+        property bool outlineVisible: false
+        property bool backlinksVisible: false
+        property bool bottomDockCollapsed: true
+        property bool typewriterMode: false
+        property bool statusBarVisible: true
 
         function navigateBack() { openNote.navigateBack() }
         function navigateForward() { openNote.navigateForward() }
@@ -100,6 +122,13 @@ constexpr const char *kHostThatForwardsToItsSession = R"(
         NoteSession { id: openNote }
         AppShortcuts {
             anchors.fill: parent
+            appWindow: host
+            noteSession: openNote
+        }
+        Toolbar {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
             appWindow: host
             noteSession: openNote
         }
@@ -120,6 +149,13 @@ QVariant call(QObject *target, const char *name, const QVariant &argument)
     QVariant result;
     QMetaObject::invokeMethod(target, name, Q_RETURN_ARG(QVariant, result),
                               Q_ARG(QVariant, argument));
+    return result;
+}
+
+QVariant call0(QObject *target, const char *name)
+{
+    QVariant result;
+    QMetaObject::invokeMethod(target, name, Q_RETURN_ARG(QVariant, result));
     return result;
 }
 
@@ -273,6 +309,55 @@ private slots:
                      QStringLiteral("two.md"));
     }
 
+    // The toolbar's two arrows are the same commands from a third device —
+    // their tooltips name the keys — so they ask the same object. A window that
+    // answers Alt+Left while the Back arrow beside it quietly did something
+    // else would be worse than either answer on its own.
+    //
+    // Whether each arrow is greyed out is a separate question this change does
+    // not touch: it comes from NavigationHistory, which is the note history and
+    // not this window's. So the session is moved back once here rather than by
+    // the Back arrow, which is what leaves the Forward arrow something to be
+    // enabled for.
+    void theToolbarArrowsReachTheWindowsOwnAnswersToo()
+    {
+        build(kHostThatAnswersTheKeysItself);
+        QVERIFY(call(m_session, "openNoteByPath",
+                     QStringLiteral("one.md")).toBool());
+        QVERIFY(call(m_session, "openNoteByPath",
+                     QStringLiteral("two.md")).toBool());
+
+        clickToolbarButton("toolbarBackButton");
+        QTRY_COMPARE(m_host->property("backs").toInt(), 1);
+        QCOMPARE(m_session->property("currentNoteRelPath").toString(),
+                 QStringLiteral("two.md"));
+
+        call0(m_session, "navigateBack");
+        QTRY_COMPARE(m_session->property("currentNoteRelPath").toString(),
+                     QStringLiteral("one.md"));
+
+        clickToolbarButton("toolbarForwardButton");
+        QTRY_COMPARE(m_host->property("forwards").toInt(), 1);
+        QCOMPARE(m_session->property("currentNoteRelPath").toString(),
+                 QStringLiteral("one.md"));
+    }
+
+    void withNothingRedefinedTheArrowsMoveTheNoteHistory()
+    {
+        build(kHostThatForwardsToItsSession);
+        QVERIFY(call(m_session, "openNoteByPath",
+                     QStringLiteral("one.md")).toBool());
+        QVERIFY(call(m_session, "openNoteByPath",
+                     QStringLiteral("two.md")).toBool());
+
+        clickToolbarButton("toolbarBackButton");
+        QTRY_COMPARE(m_session->property("currentNoteRelPath").toString(),
+                     QStringLiteral("one.md"));
+        clickToolbarButton("toolbarForwardButton");
+        QTRY_COMPARE(m_session->property("currentNoteRelPath").toString(),
+                     QStringLiteral("two.md"));
+    }
+
     void exactlyOneAltLeftShortcutExistsEitherWay_data()
     {
         QTest::addColumn<QString>("host");
@@ -286,10 +371,10 @@ private slots:
     {
         QFETCH(QString, host);
         build(host.toUtf8().constData());
-        QCOMPARE(shortcutsFor(m_window, QKeySequence(QStringLiteral("Alt+Left"))),
-                 1);
-        QCOMPARE(shortcutsFor(m_window, QKeySequence(QStringLiteral("Alt+Right"))),
-                 1);
+        const QKeySequence back(QStringLiteral("Alt+Left"));
+        const QKeySequence forward(QStringLiteral("Alt+Right"));
+        QCOMPARE(shortcutsFor(m_window, back), 1);
+        QCOMPARE(shortcutsFor(m_window, forward), 1);
     }
 
 private:
@@ -319,6 +404,36 @@ private:
     void press(Qt::Key key, Qt::KeyboardModifiers modifiers)
     {
         QTest::keyClick(m_window, key, modifiers);
+    }
+
+    // A real click on a toolbar arrow, at the point on the window the arrow
+    // has been laid out at. The keyboard map's own MouseArea covers the whole
+    // window above everything, so this also says that it accepts only the two
+    // mouse navigation buttons and lets an ordinary click through.
+    void clickToolbarButton(const char *objectName)
+    {
+        QQuickItem *button = m_window->findChild<QQuickItem *>(
+            QString::fromUtf8(objectName));
+        QVERIFY2(button, objectName);
+        QTRY_VERIFY(button->width() > 0 && button->height() > 0);
+        QVERIFY2(button->isVisible(), objectName);
+        QVERIFY2(button->isEnabled(), objectName);
+        const QPointF centre = button->mapToScene(
+            QPointF(button->width() / 2, button->height() / 2));
+        // A click outside the window is swallowed and reports nothing, so say
+        // which it was: the toolbar lays these arrows out after the block-type
+        // dropdown and the menu buttons, so a narrow window puts them past its
+        // own edge.
+        QVERIFY2(centre.x() < m_window->width()
+                     && centre.y() < m_window->height(),
+                 qPrintable(QStringLiteral("%1 is at %2,%3, outside the %4x%5 "
+                                           "window")
+                                .arg(QString::fromUtf8(objectName))
+                                .arg(centre.x()).arg(centre.y())
+                                .arg(m_window->width())
+                                .arg(m_window->height())));
+        QTest::mouseClick(m_window, Qt::LeftButton, Qt::NoModifier,
+                          centre.toPoint());
     }
 
     // The platform's own binding for a standard command: Ctrl+S and Ctrl+N

@@ -24,8 +24,13 @@ Rectangle {
     id: toolbar
     objectName: "toolbar"
 
-    // The window owns the two insert dialogs this toolbar opens; the session
-    // is what its navigation buttons and its two menus act on.
+    // The window owns the two insert dialogs this toolbar opens, and answers
+    // the two navigation commands its arrows issue: Back means "go back to
+    // what this window was showing", which is the window's decision however a
+    // reader asks for it — the key, the mouse button or this arrow. What the
+    // session answers here is whether there is a collection at all, which is
+    // the same answer in every window and is what decides whether the arrows
+    // are there.
     property var appWindow
     property NoteSession noteSession: null
     // The editor the toolbar's commands act on.
@@ -261,7 +266,10 @@ Rectangle {
             }
 
             // Back/forward over the note history; collection mode only, like
-            // the shortcuts they mirror.
+            // the shortcuts they mirror, and issued to the window as those
+            // shortcuts are. The tooltips say "Back (Alt+Left)" because the
+            // arrow and the key are one command, and a window where the two
+            // disagreed would be a worse answer than either of them.
             ToolButton {
                 id: backButton
                 objectName: "toolbarBackButton"
@@ -276,7 +284,7 @@ Rectangle {
                 enabled: NavigationHistory.canGoBack
                 ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Back (Alt+Left)")
-                onClicked: if (toolbar.noteSession) toolbar.noteSession.navigateBack()
+                onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateBack()
             }
             ToolButton {
                 id: forwardButton
@@ -292,7 +300,7 @@ Rectangle {
                 enabled: NavigationHistory.canGoForward
                 ToolTip.visible: hovered || visualFocus
                 ToolTip.text: qsTr("Forward (Alt+Right)")
-                onClicked: if (toolbar.noteSession) toolbar.noteSession.navigateForward()
+                onClicked: if (toolbar.appWindow) toolbar.appWindow.navigateForward()
             }
 
             ComboBox {

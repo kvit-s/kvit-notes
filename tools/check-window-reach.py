@@ -45,12 +45,21 @@ issues it to `appWindow`, and the window answers out of the session it hosts.
 An application that composes the keyboard map into a window that draws its own
 screens then says what that key does there by declaring the function, and a
 preview or capture window that grows a Back key cannot silently drive the main
-window's note history. A file that decides what this window does rather than
-showing part of what it holds is named in WINDOW_COMMAND_FILES below; there is
-one, the keyboard map. Inside it the distinction is still enforced in both
-directions — it may call a command on the window, it may not read a fact off
-it, and the command it calls has to be one qml/main.qml actually declares,
-since a command the host does not answer is a key that does nothing.
+window's note history.
+
+The files that may do that are named in WINDOW_COMMAND_FILES below: the keyboard
+map and the toolbar, whose two arrows are the same Back and Forward from a third
+device and say so in their own tooltips. What separates them from a pane is what
+the command is about. A pane names its subject — the search results open the
+result that was clicked, the backlinks pane follows the link it drew — and a
+name is not a window's to answer. Back names nothing; it means "whatever this
+window was showing before", which only the window can know. Inside those two
+files the distinction is still enforced in both directions: each may call a
+command on the window, neither may read a fact off it, and the command it calls
+has to be one qml/main.qml actually declares, since a command the host does not
+answer is a control that does nothing. What the File menu, the note list and the
+tray do with the same commands is not settled; devel.md, "Who a window's own
+command asks", has the open question.
 
 Run it directly, or as the WindowReachGuard ctest entry:
 
@@ -71,15 +80,16 @@ SESSION = "NoteSession.qml"
 # it, so it names both sides of the line by definition.
 HOST = "main.qml"
 
-# The files that decide what this window does, rather than drawing part of
-# what it holds. Every other key in the keyboard map already goes through
-# `appWindow` — pane cycling, the panel and view toggles, focus mode, the
-# settings dialog — because a window-level keystroke is a property of the
-# window it is bound in; the five note commands among them are the same kind
-# of thing. Such a file may ask the window to RUN a session command. It may
-# still not ask the window a FACT about the open note, which is why
-# `collectionOpen` in that file is read off the session.
-WINDOW_COMMAND_FILES = {"AppShortcuts.qml"}
+# The window's own controls: the keyboard map, and the toolbar's Back and
+# Forward arrows, which are the same two commands the map binds and advertise
+# themselves that way ("Back (Alt+Left)"). Every other key in the map already
+# went through `appWindow` — pane cycling, the panel and view toggles, focus
+# mode, the settings dialog — because a window-level keystroke is a property of
+# the window it is bound in, and an arrow beside it is no different. A file
+# here may ask the window to RUN a session command. It may still not ask the
+# window a FACT about the open note, which is why `collectionOpen` in both of
+# them is read off the session.
+WINDOW_COMMAND_FILES = {"AppShortcuts.qml", "Toolbar.qml"}
 
 # Where an exception would be written down if one were ever justified. A file
 # here would be one that reaches the window for the open note on purpose; there
