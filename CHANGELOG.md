@@ -12,6 +12,22 @@ published; until then it is marked unreleased.
 
 ### Changed
 
+- An application composing the editor window into something larger can now say
+  which of the window's own chrome it wants drawn. The toolbar, the bottom bar a
+  linked module fills and the resizable bottom dock have gained
+  `toolbarVisible`, `extensionBottomBarVisible` and `bottomDockVisible`
+  alongside the properties the panels, the outline, the backlinks pane and the
+  status bar already had, so a host that draws its own toolbar says so once
+  rather than finding the item by its `objectName` and assigning over the
+  binding that would have brought it back. The window's own reasons still
+  decide on top of the host's: focus mode hides all three whatever was asked
+  for, and the dock appears only when a module has docked something into it.
+  Turning one off takes it out of the F6 region cycle and the Tab chain, removes
+  it from the accessibility tree, and moves the keyboard focus to the editor if
+  it was in the pane being hidden. Nothing about the application changed: with
+  nothing set, all three are drawn as before. devel.md, "The window's chrome,
+  and what a host can turn off", is the whole of it.
+
 - The open note is an object. `NoteSession` — which note is open, every
   transition into another one, saving, the crash-recovery and external-change
   questions, and the status line those answers are reported through — used to

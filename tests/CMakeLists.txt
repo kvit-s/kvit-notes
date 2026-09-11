@@ -736,6 +736,22 @@ target_link_libraries(test_windowcommands PRIVATE
 add_test(NAME WindowCommandTests COMMAND test_windowcommands)
 set_tests_properties(WindowCommandTests PROPERTIES TIMEOUT 300)
 
+# The window's chrome as an application composing the window decides it: the
+# toolbar, a module's bottom bar and the bottom dock each turned off by a host
+# that draws its own, and the four things that have to agree with an item that
+# is not drawn — the F6 region cycle, the Tab chain, the accessibility tree and
+# where the keyboard focus is. It loads the shipped shell for the same reason
+# test_shell does — the shell's own components have to be in the binary or the
+# load hangs rather than failing — and carries no resource of its own, since
+# the window under test has to be qml/main.qml itself.
+qt_add_executable(test_windowchrome
+    test_windowchrome.cpp
+)
+target_link_libraries(test_windowchrome PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME WindowChromeTests COMMAND test_windowchrome)
+set_tests_properties(WindowChromeTests PROPERTIES TIMEOUT 300)
+
 # The read-only document surface: a markdown document drawn somewhere other
 # than the editor pane, swept across and copied as markdown. Creates its
 # surfaces inside the shipped shell, so it loads that shell for the same
@@ -953,6 +969,7 @@ set(KVIT_SHELL_TESTS
     ExportContributionTests
     NoteSessionTests
     WindowCommandTests
+    WindowChromeTests
     ReadOnlyDocumentTests
     ScrollMetricsTests
     # The storyboard scenarios that do not need a focused window. Same

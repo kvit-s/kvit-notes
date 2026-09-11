@@ -234,7 +234,7 @@ do with windows.
 | Group | Members | Where it lives |
 |---|---|---|
 | **The window** | `x`, `y`, `width`, `height`, `visibility`, `geometryRestored`, `show`, `raise`, `requestActivate`, `close`, `forceActualClose`, `contentItem`, and `appWindow` itself as a `parentWindow:` value | `main.qml`. A part that moves or closes the window says so in a property of its own: `ExportDialog` and `ImportDialog` call theirs `hostWindow`, because all they want is something to parent a native picker to. |
-| **The editor's screen** | `panelsVisible`, `navigationRailsVisible`, `sidebarView`, `knownSidebarView`, `notesFamilyView`, `sidebarCollapsed`, `sidebarWidth`, `noteListCollapsed`, `noteListWidth`, `outlineVisible`, `backlinksVisible`, `statusBarVisible`, `bottomDockCollapsed`, `bottomDockHeight`, `focusMode`, `typewriterMode`, `cyclePane` | `main.qml`. Presentation of one window, persisted by `SessionPersistence.qml`; nothing outside a window has an opinion about it. |
+| **The editor's screen** | `panelsVisible`, `navigationRailsVisible`, `sidebarView`, `knownSidebarView`, `notesFamilyView`, `sidebarCollapsed`, `sidebarWidth`, `noteListCollapsed`, `noteListWidth`, `outlineVisible`, `backlinksVisible`, `statusBarVisible`, `toolbarVisible`, `extensionBottomBarVisible`, `bottomDockVisible`, `bottomDockCollapsed`, `bottomDockHeight`, `focusMode`, `typewriterMode`, `cyclePane` | `main.qml`. Presentation of one window, persisted by `SessionPersistence.qml`; nothing outside a window has an opinion about it. |
 | **The editing surface** | `caretBlockIndex`, `blockDrag`, `focusEditor`, `scrollToBlock`, `editorContentY`, `setEditorContentY` | `BlockEditor.qml`, which `main.qml` forwards to. A part that wants the editor takes a `BlockEditorSurface`: `NoteAutoTitle` for the caret row, `OutlinePanel` for scrolling to a heading, `AppShortcuts` for whether a block drag is running. |
 | **Dialogs and popups the window owns** | `documentDialogs`, `openSettingsDialog`, `openShortcutReference`, `openQuickCapture`, `templateDialog`, `importDialog`, `exportDialog`, `insertImageIntoBlock`, `insertTableIntoBlock`, `openFocusedBlockContextMenu`, `blockContextShortcutEnabled` | `main.qml`. A popup is parented into a window, so it belongs to one however much it is about a note. `blockContextShortcutEnabled` reads `activeFocusItem`, which is a window's answer about a window. |
 | **The open note** | `collectionOpen`, `currentNoteRelPath`, `currentNoteDir`, `openNoteByPath`, `openSearchResult`, `navigateBack`, `navigateForward`, `followWikiLink`, `createNoteInCurrentScope`, `createFromTemplate`, `saveCurrentNoteAsTemplate`, `saveCurrentDocument`, `openFileFromDialog`, `openFolderFromDialog`, `requestNoteRename`, `requestNoteMove`, `requestFolderRename`, `restoreRecoveredNote`, `keepEditsOverRecovery`, `replaceEditsWithRecovery`, `confirmRecoveryOverwrite`, `keepMine`, `loadTheirs`, `noteChangedOnDisk`, `externalConflict`, `conflictPath`, `oversizedFilePath`, `oversizedFileBytes`, `oversizedFileCap`, `showDocumentError`, `transientStatus`, `showTransientStatus`, `sessionStartWords`, `refreshSessionBaseline`, `openLink`, `linkOpener` | `NoteSession.qml`. |
@@ -357,6 +357,92 @@ enabled shortcuts on one sequence are an ambiguous overload Qt resolves by
 firing neither. What each host has to declare is worth reading as the list it
 is: the four commands, and seven members of its own screen that the keyboard map
 and the View menu ask it about.
+
+## The window's chrome, and what a host can turn off
+
+`qml/main.qml` is an `ApplicationWindow` an application can inherit from and
+compose into something larger, drawing chrome of its own around the editor. A
+host doing that has to be able to say which of the window's own chrome it wants
+drawn, or it gets two toolbars stacked on top of each other.
+
+Ten properties on the window say it, each defaulting to the way the shipped
+editor looks:
+
+| Property | What it decides |
+|---|---|
+| `panelsVisible` | the sidebar and note-list column together |
+| `navigationRailsVisible` | the icon rails down the left edge |
+| `sidebarCollapsed`, `noteListCollapsed` | those two columns individually |
+| `outlineVisible`, `backlinksVisible` | the two right-hand panes |
+| `statusBarVisible` | the bar along the foot |
+| `toolbarVisible` | the toolbar across the top (`qml/Toolbar.qml`) |
+| `extensionBottomBarVisible` | the bar a linked module fills, between the editor and the status bar |
+| `bottomDockVisible` | the resizable dock a linked module puts tabs in (`qml/BottomDock.qml`) |
+
+**Why a property rather than the item.** A host can find any of these items by
+its `objectName` and assign `visible = false` on it, and two things make that
+the wrong thing to depend on. An object name is not an interface, so nothing
+here is obliged to keep it; and the assignment replaces a binding, which is how
+a host that hid the toolbar that way also stopped it coming back when focus mode
+ended.
+
+**The window's own reasons still apply.** The host's answer is one term in the
+binding rather than the whole of it. Focus mode (features.md §16.1) hides the
+toolbar, the module bar and the dock whatever a host asked for, and the dock
+needs a module to have docked something into it before there is anything to
+draw:
+
+```qml
+visible: root.toolbarVisible && !root.focusMode
+visible: hasTabs && appWindow && appWindow.bottomDockVisible
+         && !appWindow.focusMode
+```
+
+So a host cannot ask for chrome back while focus mode is on, and asking for the
+dock does not produce an empty one. `Ctrl+J`, which collapses the dock, is
+switched off along with it for a host that is not drawing it, since the only
+thing collapsing an invisible dock does is write a setting. These three
+properties are not persisted, unlike the view-menu toggles beside them: they say
+how the running application is composed rather than what the reader chose.
+
+**Four things have to agree with an item that is not drawn.** Not painting it is
+the first, and the rest are where a new way of hiding something comes apart.
+
+- *The F6 region cycle.* `focusPane()` and `cyclePane()` build their order from
+  each pane's `visible`, so a pane the host turned off leaves the cycle for the
+  same reason a collapsed sidebar does.
+- *The Tab chain.* Qt skips an item that is not drawn, so this follows from the
+  `visible` binding — as long as the property is read there, and not somewhere
+  that only affects painting.
+- *The accessibility tree.* The same mechanism: an invisible node is reported
+  invisible, and an assistive technology does not descend into it.
+- *Where the keyboard focus is.* This one does not follow. Qt 6.10 leaves the
+  active focus on an item that has stopped being drawn, so hiding the pane the
+  reader is typing in sends every keystroke somewhere nobody can see.
+  `moveFocusOutOfHiddenPanes()` in `main.qml` answers it: called from each of
+  the three change handlers, it asks whether the window's `activeFocusItem` is
+  gone or is no longer drawn, and if so moves the focus to the editor, which is
+  the one pane that is always there. It is asked through `Qt.callLater` rather
+  than in the change handler itself, because the handler and the `visible`
+  binding are two listeners on the same property and the binding may not have
+  run yet.
+
+`WindowChromeTests` (`tests/test_windowchrome.cpp`) is what keeps the four
+agreeing. It loads the shipped `qrc:/qt/qml/Kvit/main.qml` with a demonstration
+module installed — one that fills the bottom-bar slot and contributes a dock
+tab, so that all three pieces of chrome exist to be hidden — and proves all four
+for each of the three, plus that the focus ends up back in the editor. It proves
+the default in its own case first, because every one of those claims is also
+true of a window that never drew the item at all.
+
+Two details of that suite are worth knowing before adding to it. The Tab chain
+is walked with `QQuickItem::nextItemInFocusChain`, the call Qt's own Tab
+handling uses, rather than by pressing the key, because the block being edited
+is a text field and a text field keeps Tab for itself: pressing it inserts a tab
+character and moves no focus. And the focus is asked about immediately after the
+item is hidden, before the cycle and chain are walked, since walking either of
+those starts by focusing the editor and would otherwise be reporting on the
+probe rather than on the window.
 
 ## Building on Windows: the two-tree workflow
 

@@ -20,7 +20,13 @@ Rectangle {
         ? tabs[currentIndex] : null
     color: Theme.panelBackground
     border.color: Theme.border
-    visible: hasTabs && appWindow && !appWindow.focusMode
+    // Three answers, all of which have to be yes: a module has docked
+    // something here, the window composing the dock is drawing it (a host
+    // that puts a module's panes somewhere of its own sets that false), and
+    // the window is not in focus mode, which hides the chrome whatever
+    // anybody else asked for.
+    visible: hasTabs && appWindow && appWindow.bottomDockVisible
+             && !appWindow.focusMode
     height: !visible ? 0 : appWindow.bottomDockCollapsed
             ? Interface.px(34) : appWindow.bottomDockHeight
 
@@ -54,7 +60,11 @@ Rectangle {
 
     Shortcut {
         sequence: "Ctrl+J"
-        enabled: dock.hasTabs
+        // Not offered by a window that is not drawing this dock at all;
+        // collapsing something nobody can see would only persist a setting.
+        // Focus mode is deliberately not part of this: the key has always
+        // worked there and exits nothing.
+        enabled: dock.hasTabs && dock.appWindow && dock.appWindow.bottomDockVisible
         onActivated: dock.appWindow.bottomDockCollapsed =
             !dock.appWindow.bottomDockCollapsed
     }

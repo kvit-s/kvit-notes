@@ -161,6 +161,33 @@ ApplicationWindow {
     property bool statusBarVisible: true
     property int bottomDockHeight: 220
     property bool bottomDockCollapsed: false
+    // The three remaining pieces of chrome, for an application that composes
+    // this window into something larger and draws its own. Each says whether
+    // the window should draw that item at all, the way `statusBarVisible`,
+    // `outlineVisible` and `panelsVisible` above already do for the items
+    // they name, and each defaults to drawing it, so a window nobody
+    // configures looks exactly as it always has.
+    //
+    // These are the host's answer only. The window's own reasons still apply
+    // on top of them: focus mode (§16.1) hides all three whatever a host
+    // asked for, and the bottom dock appears only when a module has docked
+    // something into it. So a host cannot ask for chrome back in focus mode,
+    // and asking for the dock does not conjure one with no tabs in it.
+    //
+    // Not persisted, unlike the view-menu toggles beside them: this is how
+    // the running application is composed, not something the reader chose.
+    property bool toolbarVisible: true
+    property bool extensionBottomBarVisible: true
+    property bool bottomDockVisible: true
+    // Turning one of these off can take away the pane the keyboard is in;
+    // moveFocusOutOfHiddenPanes() below is what becomes of the focus then.
+    onToolbarVisibleChanged:
+        if (!toolbarVisible) Qt.callLater(root.moveFocusOutOfHiddenPanes)
+    onExtensionBottomBarVisibleChanged:
+        if (!extensionBottomBarVisible) Qt.callLater(root.moveFocusOutOfHiddenPanes)
+    onBottomDockVisibleChanged:
+        if (!bottomDockVisible) Qt.callLater(root.moveFocusOutOfHiddenPanes)
+
     // What every bottom-anchored region has to clear: the status bar plus an
     // extension bottom bar when a module fills that slot (zero otherwise).
     readonly property int bottomChromeHeight:
@@ -250,6 +277,23 @@ ApplicationWindow {
         if (appToolbar.visible) order.push(3)
         var cur = order.indexOf(root.focusedPane)
         focusPane(order[(cur + 1) % order.length])
+    }
+    // Run after a host has turned a piece of chrome off, because the item it
+    // turned off may be the one holding the keyboard focus. Measured on Qt
+    // 6.10.1: an item that stops being drawn keeps the active focus it
+    // already had, so what is left is a window whose keystrokes go to
+    // something nobody can see. The editor takes the focus instead — it is
+    // the one pane that is always there.
+    //
+    // Asked once the hiding has settled rather than from the change handler
+    // directly, since the handler and the `visible` binding are two listeners
+    // on the same property and the binding may not have run yet. Both shapes
+    // are caught: a focus item that is no longer drawn, and — should a later
+    // Qt clear it instead — no focus item at all.
+    function moveFocusOutOfHiddenPanes() {
+        var focused = root.activeFocusItem
+        if (!focused || !focused.visible)
+            root.focusPane(2)
     }
     // Live-region announcements for dynamic changes (§14.2). Save state speaks
     // only the meaningful "Saved" transition (not every keystroke's dirtying);
@@ -1225,8 +1269,10 @@ ApplicationWindow {
         appWindow: root
         noteSession: openNote
         editor: blockEditor
-        // Focus mode (§16.1) hides the toolbar with the rest of the chrome.
-        visible: !root.focusMode
+        // A host composing this window can draw its own toolbar and say so;
+        // focus mode (§16.1) hides this one with the rest of the chrome
+        // either way.
+        visible: root.toolbarVisible && !root.focusMode
     }
 
     // features.md §12.1 external-change conflict banner: the open note was
@@ -1706,7 +1752,9 @@ ApplicationWindow {
         anchors.bottom: statusBar.visible ? statusBar.top : parent.bottom
         height: active && item ? (item as Item).implicitHeight : 0
         // Focus mode hides the chrome (§16.1); an extension bar is chrome.
-        visible: !root.focusMode
+        // A host that has somewhere else to put a module's bar says so the
+        // same way it says it draws its own toolbar.
+        visible: root.extensionBottomBarVisible && !root.focusMode
     }
 
     BottomDock {
