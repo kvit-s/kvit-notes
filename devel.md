@@ -1229,6 +1229,78 @@ Things worth knowing before changing this:
   (QLocalServer) and a window-raise protocol. `NoteCollection::vaultInUse`
   carries the holder's description, and main.qml explains it.
 
+## The search index never blocks the window, and never closes a connection out from under one
+
+Global search runs on two threads of its own, both owned by
+`CollectionSearchIndex` (src/search/collectionsearchindex.{h,cpp}): a write
+connection that reconciles and reindexes, and a read connection that answers
+queries. Both are SQLite connections on the same cache database, so a vault
+switch has three parties — the GUI thread asking for the switch, the writer
+letting go of one file and taking another, and the reader part-way through a
+query on the file being let go of. Getting any two of them to wait on each
+other froze the whole application, which is what this section is about.
+
+**Nothing on the GUI thread waits for a search thread on the switch path.**
+`openForRoot()` returns immediately: it posts the open to the two workers and
+reports the outcome on `openFinished()` and `usableChanged()`. It used to be
+two `Qt::BlockingQueuedConnection` calls, and that is what turned a stuck
+search thread into a stuck window — the GUI thread held a semaphore waiting on
+a worker that was waiting on the other worker, and nothing timed out. The
+calls that still block are the explicit ones (`closeIndex()`,
+`rebuildIndex()`, `revisionOf()` and teardown), they are bounded by
+`workerReplyTimeoutMs()`, and each reports failure instead of waiting for a
+thread that is not coming back. A teardown that times out leaves the thread
+running rather than destroying a running `QThread`, which would abort the
+process.
+
+**Order comes from the queues, not from waiting.** Every worker delivers what
+it is given in the order it was given, so the close of the vault being left,
+the open of the next one and every write in between happen in that order on
+the search side while the caller carries on. Two rules follow from it: the
+write connection's open is posted first, so a reconcile issued in the same
+breath lands on the new vault's database instead of being dropped for arriving
+early; and the read connection reattaches only once the writer reports the
+file is good, because the writer owns rebuilding and a reader that opened
+first could race an empty database into a destructive rebuild.
+
+**A connection is never attached or detached while the other one is running a
+statement on that file.** `QSqlDatabase::removeDatabase()` holds Qt's
+process-wide connection registry lock while it destroys the driver, and
+destroying the driver enters SQLite, which holds locks that a running
+statement also holds; from two threads at once those were taken in opposite
+orders and neither thread came back. `SearchConnectionGate`
+(src/search/searchindexdb.cpp) is one object per database file, shared by
+every connection to it: running a statement is shared use, opening or closing
+is exclusive. A close therefore waits for the readers of that file instead of
+competing with them. Two things to know before touching it:
+
+- **Never open or close a connection while running a statement on the same
+  file.** The gate is not reentrant in that direction and the call would wait
+  for itself. Every statement in searchindexdb.cpp is self-contained, which is
+  what makes the rule easy to keep.
+- **Ask for connections with `QSqlDatabase::database(name, false)`.** The
+  default form reopens a closed connection *while holding the registry's read
+  lock*, which is the other half of the same lock inversion. Every connection
+  here is opened explicitly by `SearchIndexDb::open()`, so there is nothing
+  for that path to do but widen the window.
+
+**What the tests cover.** `testClosingWaitsForTheReadersOfThatFile`
+(tests/test_searchindexdb.cpp) parks a query inside its scan through the
+cancellation token and asserts the close does not return until the query
+finishes — it fails within a second if the gate is removed.
+`testSwitchingRootsUnderQueryLoadCompletesEveryTime`,
+`testWorkQueuedDuringAnOpenReachesTheNewVault` and
+`testAWedgedSearchThreadLeavesTheWindowUsable`
+(tests/test_collectionsearch.cpp) cover the other end: a hundred switches with
+the read thread busy, each completing inside a bounded time and none of them
+holding the caller; a reconcile and a save handed over while the database is
+still being attached, both of which reach it; and a session that still
+switches vaults and still closes when both search threads have stopped
+answering for good. The switch test is
+worth running with other test binaries running, because the original hang
+appeared about one switch in four on a loaded machine and never on an idle
+one.
+
 ## Menu labels carry their access key
 
 Every hand-written menu label in `qml/` is written with its access key marked

@@ -10,6 +10,7 @@
 #include <QStringList>
 
 #include <atomic>
+#include <memory>
 
 // The synchronous SQLite FTS5 engine behind global search.
 //
@@ -220,6 +221,13 @@ void recordFileRead();
 
 } // namespace SearchIndexOps
 
+// Orders one connection's open or close against the statements the other
+// connection to the same database file is running. Defined in the
+// implementation file, where the whole reason for it is written out; one
+// instance exists per database file and is shared by every SearchIndexDb
+// attached to that file.
+class SearchConnectionGate;
+
 class SearchIndexDb
 {
 public:
@@ -276,6 +284,14 @@ public:
     // connection name, apply connection PRAGMAs, verify integrity and schema,
     // and create the schema when the file is new. Returns false when no usable
     // database is available, leaving isUsable() false.
+    //
+    // BLOCKS until every statement in flight on `dbPath` — including the ones
+    // the *other* connection to that file is running on its own thread — has
+    // finished, and keeps new ones out until the open is done. close() does
+    // the same. See SearchConnectionGate in the implementation file: attaching
+    // and detaching a connection destroys driver state the other connection's
+    // statements are inside, and doing both at once is what hung a vault
+    // switch.
     bool open(const QString &dbPath,
               OpenMode mode = OpenMode::RebuildIfUnusable,
               DeepCheck deep = DeepCheck::WhenUnverified);
@@ -365,6 +381,10 @@ private:
 
     QString m_connectionName;
     QString m_dbPath;
+    // The gate of the file this connection is attached to. Set by open() and,
+    // like the connection name, deliberately kept across a close: it is what
+    // the close itself has to hold, and what a reopen of the same file joins.
+    std::shared_ptr<SearchConnectionGate> m_gate;
     OpenMode m_mode = OpenMode::RequireUsable;
     bool m_open = false;
     bool m_usable = false;

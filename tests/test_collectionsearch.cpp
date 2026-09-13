@@ -16,8 +16,11 @@
 #include "collectionsearchindex.h"
 
 #include <QElapsedTimer>
+#include <QSemaphore>
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlQuery>
+
+#include <memory>
 
 namespace {
 
@@ -130,6 +133,11 @@ private slots:
     // ARCH-4: switching vaults through the real composition must not park the
     // GUI thread behind the previous vault's reconcile and queries.
     void testVaultSwitchReleasesTheOldIndexWithoutBlocking();
+    // C22: switching vaults while the read thread is busy used to deadlock the
+    // two search threads against each other and take the window with them.
+    void testSwitchingRootsUnderQueryLoadCompletesEveryTime();
+    void testWorkQueuedDuringAnOpenReachesTheNewVault();
+    void testAWedgedSearchThreadLeavesTheWindowUsable();
 
 private:
     void writeNote(const QString &relPath, const QString &content);
@@ -629,7 +637,9 @@ void TestCollectionSearch::testTwoIndexesOnTwoRootsStayApart()
 
     CollectionSearchIndex secondIndex;
     secondIndex.openForRoot(other.path());
-    QVERIFY(secondIndex.isUsable());
+    // The open finishes on the second index's own search threads, so this
+    // waits for it rather than reading the answer off the call.
+    QTRY_VERIFY(secondIndex.isUsable());
     QVERIFY(m_index->isUsable());
 
     QSignalSpy secondIndexed(&secondIndex,
@@ -1145,15 +1155,17 @@ void TestCollectionSearch::testRebuildIndexRefillsFromDisk()
 }
 
 // ARCH-4. The shipped composition always attaches the search index, and
-// opening a vault's index is two BlockingQueuedConnection calls onto its
-// database worker threads. Switching straight from one vault to another
-// reached those calls with the vault being left still reconciling and still
-// answering queries, so the GUI thread waited on that worker queue.
+// opening a vault's index used to be two blocking calls onto its database
+// worker threads. Switching straight from one vault to another reached those
+// calls with the vault being left still reconciling and still answering
+// queries, so the GUI thread waited on that worker queue.
 //
-// The fix is that the composition gives up the old vault's index first, with
-// requestClose(), which returns immediately. This composes the real
-// AppContext, because the previous responsiveness test used a bare
-// NoteCollection and so never touched this path at all.
+// What this covers is the composition giving up the old vault's index first,
+// with requestClose(), before taking the next one — the release is observable
+// as usable going false and then true again. It composes the real AppContext,
+// because the responsiveness test before it used a bare NoteCollection and so
+// never touched this path at all. The open itself no longer blocks either;
+// testSwitchingRootsUnderQueryLoadCompletesEveryTime covers that.
 void TestCollectionSearch::testVaultSwitchReleasesTheOldIndexWithoutBlocking()
 {
     QTemporaryDir first;
@@ -1204,7 +1216,10 @@ void TestCollectionSearch::testVaultSwitchReleasesTheOldIndexWithoutBlocking()
     // The observable difference: the vault being left had its index RELEASED
     // (usable -> false) before the next one's database was opened over the
     // top of it (false -> true). Opening straight through leaves usable true
-    // throughout and emits nothing.
+    // throughout and emits nothing. The second transition is waited for
+    // because the open finishes on the search threads rather than inside the
+    // switch.
+    QTRY_VERIFY_WITH_TIMEOUT(usableSpy.count() >= 2, 20000);
     QVERIFY2(usableSpy.count() >= 2,
              qPrintable(QStringLiteral("the old vault's index was not "
                                        "released before the new one opened "
@@ -1223,6 +1238,293 @@ void TestCollectionSearch::testVaultSwitchReleasesTheOldIndexWithoutBlocking()
     QTRY_COMPARE_WITH_TIMEOUT(search->noteCount(), 3, 20000);
     search->setQuery(QStringLiteral("alpha"));
     QTRY_COMPARE_WITH_TIMEOUT(search->noteCount(), 0, 20000);
+}
+
+namespace {
+
+// A vault of `count` notes, each with `blocks` body blocks that all contain
+// `word`. The block count is what makes a query over this vault real work:
+// every block matching is a candidate row the verifier has to scan, so the
+// read thread is still inside a statement when the switch below arrives, which
+// is the state the deadlock needed.
+void seedVault(const QString &root, int count, int blocks, const QString &word)
+{
+    for (int i = 0; i < count; ++i) {
+        QString body = QStringLiteral("# Note %1\n\n").arg(i);
+        for (int block = 0; block < blocks; ++block) {
+            body += QStringLiteral("%1 line %2 of note %3\n\n")
+                        .arg(word).arg(block).arg(i);
+        }
+        QFile file(QDir(root).filePath(QStringLiteral("Note%1.md").arg(i)));
+        if (!file.open(QIODevice::WriteOnly))
+            return;
+        file.write(body.toUtf8());
+    }
+}
+
+SearchQuery queryFor(const QString &text)
+{
+    SearchQuery request;
+    request.query = text;
+    request.nowMs = QDateTime::currentMSecsSinceEpoch();
+    return request;
+}
+
+// The semaphore a parked search thread waits on, deliberately never freed.
+//
+// Parking a worker is how the wedge test produces a search thread that does
+// not answer, and a teardown that gives up on such a thread leaves it running
+// — still inside acquire(). The gate therefore has to outlive the test that
+// created it, and one leaked semaphore per test is the price of proving that
+// the session can end without waiting for a thread that never comes back.
+QSemaphore *leakedParkingGate()
+{
+    return new QSemaphore(0);
+}
+
+} // namespace
+
+// C22. The bug: switching vaults hung the whole application, about one switch
+// in four on a loaded machine and never on an idle one. The write thread was
+// closing the index of the vault being left while the read thread was
+// part-way through a query on the same database file, Qt's connection registry
+// and the SQLite driver each have a lock of their own, and the two threads
+// took them in opposite orders. The GUI thread was waiting on the write thread
+// with a blocking call, so the window never came back and nothing timed out.
+//
+// What this asserts is the outcome rather than the mechanism: a hundred
+// switches with the read thread kept busy, every one of them completing inside
+// a bounded time, and the switch never waiting on a search thread — which the
+// structural check inside the loop catches whatever the clock says. Run it
+// with other test binaries running: the collision the deadlock needed is the
+// reader's last statement still running when the close begins, and an idle
+// machine produces it far less often.
+void TestCollectionSearch::testSwitchingRootsUnderQueryLoadCompletesEveryTime()
+{
+    QTemporaryDir first;
+    QTemporaryDir second;
+    QVERIFY(first.isValid() && second.isValid());
+    seedVault(first.path(), 300, 12, QStringLiteral("alpha"));
+    seedVault(second.path(), 300, 12, QStringLiteral("omega"));
+
+    CollectionSearchIndex index;
+
+    // Both databases are built once, so what the loop below exercises is the
+    // switch itself rather than two cold builds a hundred times over.
+    for (const QString &root : {first.path(), second.path()}) {
+        index.openForRoot(root);
+        QTRY_VERIFY_WITH_TIMEOUT(index.isUsable(), 30000);
+        index.reconcile(listingFor(root));
+        QTRY_VERIFY_WITH_TIMEOUT(!index.isIndexing(), 120000);
+    }
+
+    // How long one of these queries keeps the read thread inside a statement.
+    // It is reported rather than asserted on, because it is what says whether
+    // this test still has any teeth: the switch below is aimed at a reader
+    // that is part-way through a query, and a query that costs nothing is a
+    // reader that is never there to collide with.
+    quint64 generation = 0;
+    QSignalSpy timing(&index, &CollectionSearchIndex::queryFinished);
+    QElapsedTimer queryTimer;
+    queryTimer.start();
+    index.submitQuery(++generation, queryFor(QStringLiteral("omega")));
+    QTRY_VERIFY_WITH_TIMEOUT(timing.count() == 1, 30000);
+    const qint64 queryMs = queryTimer.elapsed();
+    QCOMPARE(timing.at(0).at(1).value<SearchResults>().noteCount, 300);
+
+    // Latency, so wall clock, and generous with it: this is a hang detector,
+    // not a performance budget. A switch that has not completed in ten seconds
+    // on any machine is not slow, it is stuck.
+    static const int perSwitchBudgetMs = 10000;
+    // What the GUI thread itself pays. Nothing on this path waits for a search
+    // thread, so the real number is a fraction of a millisecond; the budget is
+    // set where a blocking call would show up and nothing else would.
+    static const qint64 callBudgetMs = 250;
+
+    qint64 worstCallMs = 0;
+    qint64 worstSwitchMs = 0;
+    // One completion per switch, which is the asynchronous half of the
+    // contract: openForRoot() answers on this signal rather than on the call.
+    QSignalSpy opens(&index, &CollectionSearchIndex::openFinished);
+    // The warm-up above left the second vault open.
+    QString openWord = QStringLiteral("omega");
+    for (int iteration = 0; iteration < 100; ++iteration) {
+        const QString root =
+            (iteration % 2 == 0) ? first.path() : second.path();
+        // A query against the vault about to be left, matching every note in
+        // it so the verifier has thousands of candidate rows to work through.
+        // One query, not several: submitting a second supersedes the first,
+        // and a superseded query is dropped before it reaches the database.
+        index.submitQuery(++generation, queryFor(openWord));
+        // Long enough for the read thread to be inside the statement rather
+        // than still picking the request up. Without it the switch cancels the
+        // query before it reaches SQLite, and then nothing is holding the
+        // driver when the close arrives — which is the whole collision this
+        // test exists to provoke.
+        QTest::qWait(1);
+        openWord = (iteration % 2 == 0) ? QStringLiteral("alpha")
+                                        : QStringLiteral("omega");
+
+        QElapsedTimer call;
+        call.start();
+        index.requestClose();
+        index.openForRoot(root);
+        worstCallMs = qMax(worstCallMs, call.elapsed());
+        // Structural, and the assertion that actually distinguishes the two
+        // implementations: the switch cannot have opened anything yet, because
+        // the open finishes through signals this thread has not stopped to
+        // deliver. A blocking open returns with the index already usable and
+        // fails here whatever the clock says.
+        QVERIFY2(!index.isUsable(),
+                 "openForRoot() opened the database before returning, so the "
+                 "calling thread waited for a search thread");
+
+        QElapsedTimer settle;
+        settle.start();
+        QTRY_VERIFY_WITH_TIMEOUT(index.isUsable(), perSwitchBudgetMs);
+        worstSwitchMs = qMax(worstSwitchMs, settle.elapsed());
+    }
+
+    QVERIFY2(worstCallMs < callBudgetMs,
+             qPrintable(QStringLiteral("a vault switch held the calling thread "
+                                       "for %1 ms").arg(worstCallMs)));
+    QCOMPARE(opens.count(), 100);
+    for (const QList<QVariant> &open : opens)
+        QVERIFY(open.at(1).toBool());
+    // Reported rather than asserted a second time: the per-switch bound is
+    // enforced by the wait above, and the numbers are what say how much room
+    // was left when the suite ran under whatever load it ran under, and how
+    // busy the read thread was while the switches went through.
+    qInfo("100 switches: worst call %lld ms, worst completion %lld ms, "
+          "one query over the vault being left %lld ms",
+          worstCallMs, worstSwitchMs, queryMs);
+
+    // The index is answering about the vault it ended on, not the one before
+    // it: a switch that completes is no use if it left the previous vault's
+    // notes in the results.
+    QSignalSpy replies(&index, &CollectionSearchIndex::queryFinished);
+    index.submitQuery(++generation, queryFor(openWord));
+    QTRY_VERIFY(replies.count() >= 1);
+    const SearchResults hits = replies.last().at(1).value<SearchResults>();
+    QVERIFY(hits.ok);
+    QCOMPARE(hits.noteCount, 300);
+    index.submitQuery(++generation,
+                      queryFor(openWord == QStringLiteral("alpha")
+                                   ? QStringLiteral("omega")
+                                   : QStringLiteral("alpha")));
+    QTRY_VERIFY(replies.count() >= 2);
+    const SearchResults other = replies.last().at(1).value<SearchResults>();
+    QVERIFY(other.ok);
+    QCOMPARE(other.noteCount, 0);
+}
+
+// C22, the ordering the asynchronous open depends on. A caller hands over the
+// reconcile in the same breath as the open, and a note saved a moment later
+// arrives while the database is still being attached. Both go to the same
+// worker thread as the open and are delivered behind it, so neither is dropped
+// for arriving before the vault was ready — which is exactly what happened
+// while the open was posted to the other worker first, and it cost the whole
+// cold build with nothing to show that anything had been lost.
+void TestCollectionSearch::testWorkQueuedDuringAnOpenReachesTheNewVault()
+{
+    QTemporaryDir vault;
+    QVERIFY(vault.isValid());
+    seedVault(vault.path(), 3, 1, QStringLiteral("alpha"));
+
+    CollectionSearchIndex index;
+    index.openForRoot(vault.path());
+    // Nothing is open yet and cannot be: the open finishes on the search
+    // threads, which this one has not stopped to hear from.
+    QVERIFY(!index.isUsable());
+    index.reconcile(listingFor(vault.path()));
+    index.replaceFromText(QStringLiteral("Saved.md"),
+                          QStringLiteral("# Saved\n\nzarfblat body\n"), 30, 0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(index.isUsable(), 30000);
+    QTRY_VERIFY_WITH_TIMEOUT(!index.isIndexing(), 30000);
+    QVERIFY(!index.isDegraded());
+
+    QSignalSpy replies(&index, &CollectionSearchIndex::queryFinished);
+    index.submitQuery(1, queryFor(QStringLiteral("alpha")));
+    QTRY_VERIFY(replies.count() >= 1);
+    QCOMPARE(replies.last().at(1).value<SearchResults>().noteCount, 3);
+    // One query at a time: a second submission supersedes the first, and a
+    // superseded query is dropped rather than answered.
+    index.submitQuery(2, queryFor(QStringLiteral("zarfblat")));
+    QTRY_VERIFY(replies.count() >= 2);
+    QCOMPARE(replies.last().at(1).value<SearchResults>().noteCount, 1);
+}
+
+// C22, the other half. A search thread that stops answering has to cost the
+// search and nothing else: the vault still switches, the window still works,
+// and the session still ends. Both workers are parked here for good, which is
+// the strongest form of "the index is not coming back" — a real one would be a
+// thread stuck inside the SQLite driver.
+void TestCollectionSearch::testAWedgedSearchThreadLeavesTheWindowUsable()
+{
+    QTemporaryDir first;
+    QTemporaryDir second;
+    QVERIFY(first.isValid() && second.isValid());
+    seedVault(first.path(), 5, 2, QStringLiteral("alpha"));
+    seedVault(second.path(), 5, 2, QStringLiteral("omega"));
+
+    // The production bound is five seconds, which is the right number for a
+    // user and a slow one to spend in a suite. What is under test is that the
+    // waits are bounded at all.
+    const int productionTimeoutMs = CollectionSearchIndex::workerReplyTimeoutMs();
+    CollectionSearchIndex::setWorkerReplyTimeoutMs(250);
+
+    AppContext::Options options;
+    options.showSystemTray = false;
+    options.configureLoggingFromSettings = false;
+    auto context = std::make_unique<AppContext>(options);
+    QTemporaryDir config;
+    context->openSettings(config.filePath(QStringLiteral("settings.json")));
+
+    NoteCollection *collection = context->noteCollection();
+    CollectionSearchIndex *index = context->searchIndex();
+    CollectionSearch *search = context->collectionSearch();
+
+    QVERIFY(collection->openRootAsync(first.path()));
+    QTRY_VERIFY_WITH_TIMEOUT(index->isUsable(), 30000);
+
+    // Both search threads stop answering, here and for the rest of the test.
+    index->parkWorkersForTesting(leakedParkingGate());
+
+    QElapsedTimer timer;
+    timer.start();
+    QVERIFY(context->openVaultRoot(second.path()));
+    const qint64 switchMs = timer.elapsed();
+
+    QVERIFY2(switchMs < 2000,
+             qPrintable(QStringLiteral("a vault switch waited %1 ms on a search "
+                                       "thread that never answered")
+                            .arg(switchMs)));
+    // The window has the new vault: its notes are listed and openable, which
+    // is everything the vault switch was for.
+    QCOMPARE(collection->rootPath(), QDir(second.path()).absolutePath());
+    QTRY_COMPARE_WITH_TIMEOUT(collection->noteCount(), 5, 10000);
+
+    // The search is what degraded. It answers "nothing", which is what an
+    // index that cannot be opened has to answer, and it does not hang.
+    QVERIFY(!index->isUsable());
+    search->setQuery(QStringLiteral("omega"));
+    search->submitNow();
+    QTest::qWait(200);
+    QCOMPARE(search->noteCount(), 0);
+
+    // And the session ends rather than waiting for a thread that is not
+    // coming back. The parked threads outlive this call on purpose; see
+    // leakedParkingGate().
+    timer.restart();
+    context.reset();
+    const qint64 teardownMs = timer.elapsed();
+    QVERIFY2(teardownMs < 5000,
+             qPrintable(QStringLiteral("closing the session waited %1 ms on a "
+                                       "search thread that never answered")
+                            .arg(teardownMs)));
+
+    CollectionSearchIndex::setWorkerReplyTimeoutMs(productionTimeoutMs);
 }
 
 QTEST_MAIN(TestCollectionSearch)

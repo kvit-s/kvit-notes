@@ -95,6 +95,13 @@ void CollectionSearch::setSearchIndex(CollectionSearchIndex *index)
                 &CollectionSearch::indexingChanged);
         connect(m_index, &CollectionSearchIndex::indexingChanged, this,
                 &CollectionSearch::scheduleQuery);
+        // Opening a vault's index finishes on the index's own threads, so a
+        // query submitted between the switch and the database being ready is
+        // answered with nothing to search. Re-running the query when the index
+        // becomes usable is what turns that into a short wait for results
+        // rather than a confident, empty answer that stays on screen.
+        connect(m_index, &CollectionSearchIndex::usableChanged, this,
+                &CollectionSearch::scheduleQuery);
         connect(m_index, &CollectionSearchIndex::degradedChanged, this,
                 &CollectionSearch::degradedChanged);
     }

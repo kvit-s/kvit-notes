@@ -81,6 +81,29 @@ published; until then it is marked unreleased.
 
 ### Fixed
 
+- Switching vaults no longer freezes the window. The global-search index keeps
+  two SQLite connections on two threads of its own, and a switch had all three
+  parties waiting on each other: the write thread let go of the vault being
+  left while the read thread was part-way through a query on the same database
+  file, Qt's connection registry and the SQLite driver each have a lock the
+  other thread was holding, and the window thread was waiting on the write
+  thread for the answer. Nothing timed out, so the window was gone for the rest
+  of the session. It appeared about one switch in four on a loaded machine and
+  never on an idle one.
+
+  Three things changed. A connection is now opened or closed only while no
+  other connection to that file is running a statement, so a close waits for
+  the readers of that index rather than competing with them inside the driver.
+  Opening a vault's index no longer blocks the window at all: it runs on the
+  search threads and reports back, and the calls that do still wait — the
+  rebuild that recovers a damaged index, and closing down — give up after five
+  seconds and report failure rather than waiting for a thread that is not
+  coming back. And a switch that arrives while the previous vault's index is
+  still closing is ordered behind that close on the search threads instead of
+  racing it. A search that cannot open now costs the search: the vault opens,
+  the notes are there, and the results say nothing rather than the window
+  stopping.
+
 - F6 no longer stops on a region that is not on screen. With the side panels
   hidden from the View menu, or in focus mode, the region cycle still offered
   the sidebar and the note list and put the keyboard into a column nobody could

@@ -267,15 +267,15 @@ bool NoteCollection::openRootAsync(const QString &path)
     // Release the index for the vault being left, now that the next one has
     // actually been taken. close() returns immediately: it tells both database
     // workers to abandon their reconcile and query work, posts the two closes
-    // rather than waiting on them, and forgets the root synchronously — so
-    // they unwind while the scan below starts, and the blocking open that
-    // follows is not queued behind a full-vault reconcile. Ordering matters
-    // twice over. Without the close, switching vaults reached that blocking
-    // open with the old vault's work still running and stalled the GUI thread
-    // behind it; with the close any earlier, a refused switch (the new vault
-    // is held by another process) would leave the retained vault's index shut
-    // for the rest of the session, because prepareRootPath is the only step
-    // here that can fail.
+    // rather than waiting on them, and forgets the root synchronously, so they
+    // unwind while the scan below starts. The open that follows returns
+    // immediately too, and is delivered behind these closes on the workers'
+    // own threads.
+    //
+    // The position of this call still matters: with it any earlier, a refused
+    // switch (the new vault is held by another process) would leave the
+    // retained vault's index shut for the rest of the session, because
+    // prepareRootPath is the only step here that can fail.
     m_searchFeed.close();
 
     // Open the search index for the new root at once so queries hit the warm

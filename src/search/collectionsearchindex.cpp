@@ -15,15 +15,32 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSemaphore>
 #include <QStandardPaths>
 #include <QThread>
 
 #include <limits>
+#include <memory>
+#include <utility>
 
 // ======================================================================
 // Worker objects. Each owns a thread-affine SearchIndexDb connection and runs
 // on its own QThread; the coordinator posts work through queued invocations.
 // ======================================================================
+
+// What a worker needs to know about the root the coordinator is on now.
+//
+// Every unit of work is stamped with the epoch it was queued for, and the
+// coordinator's current epoch is published where the workers can read it. Work
+// that no longer matches is not merely ignored when it comes back — an open of
+// a vault the user has already left is not started at all, which is what keeps
+// a run of fast switches from making each one wait for the last one's database
+// to be verified.
+//
+// Held by shared handle because a search thread that stopped answering is left
+// running rather than taken down with the window, and it has to be able to
+// read this after the coordinator is gone.
+using RootEpoch = std::shared_ptr<const std::atomic<quint64>>;
 
 // The write side: reconcile, per-note replace, and remove, all serialized on
 // one thread with one write connection.
@@ -31,20 +48,29 @@ class SearchIndexWriteWorker : public QObject
 {
     Q_OBJECT
 public:
-    SearchIndexWriteWorker()
+    explicit SearchIndexWriteWorker(RootEpoch rootEpoch)
         : m_db(QStringLiteral("write"))
+        , m_rootEpoch(std::move(rootEpoch))
     {
     }
 
-    Q_INVOKABLE bool openDb(const QString &dbPath)
+    Q_INVOKABLE void openDb(const QString &dbPath, quint64 epoch)
     {
+        if (m_rootEpoch->load() != epoch) {
+            // The vault this was for has already been left. Opening it now
+            // would verify, and possibly rebuild, a database nobody is going
+            // to ask anything.
+            emit openFinished(epoch, false);
+            return;
+        }
         // Runs on the write thread, so everything cancelled for the previous
         // root has already unwound and the flag can be cleared here — clearing
         // it from the coordinator would revive a reconcile that was still
         // sitting in the queue.
         m_cancel.store(false);
         // The writer is the only side allowed to delete and recreate the file.
-        return m_db.open(dbPath, SearchIndexDb::OpenMode::RebuildIfUnusable);
+        emit openFinished(
+            epoch, m_db.open(dbPath, SearchIndexDb::OpenMode::RebuildIfUnusable));
     }
 
     Q_INVOKABLE bool rebuildDb(const QString &dbPath)
@@ -59,7 +85,8 @@ public:
             // replacement inherits nothing from it.
             QFile::remove(SearchIndexDb::cleanMarkerPath(dbPath));
         }
-        return openDb(dbPath);
+        m_cancel.store(false);
+        return m_db.open(dbPath, SearchIndexDb::OpenMode::RebuildIfUnusable);
     }
 
     Q_INVOKABLE void closeDb() { m_db.close(); }
@@ -240,6 +267,7 @@ public:
     }
 
 signals:
+    void openFinished(quint64 epoch, bool ok);
     void reconcileStarted();
     void reconcileProgress(int indexed, int total);
     void reconcileFinished(quint64 epoch, bool ok);
@@ -248,6 +276,7 @@ signals:
 
 private:
     SearchIndexDb m_db;
+    RootEpoch m_rootEpoch;
     // Reconcile walks and reparses the whole vault on one thread. Without a
     // way out it runs to the end even when the vault it was reconciling has
     // been closed, holding the write connection and the thread against work
@@ -261,12 +290,17 @@ class SearchIndexReadWorker : public QObject
 {
     Q_OBJECT
 public:
-    SearchIndexReadWorker()
+    explicit SearchIndexReadWorker(RootEpoch rootEpoch)
         : m_db(QStringLiteral("read"))
+        , m_rootEpoch(std::move(rootEpoch))
     {
     }
 
-    Q_INVOKABLE bool openDb(const QString &dbPath)
+    // Attach to `dbPath` whatever root the coordinator has moved on to. Only
+    // the rebuild uses it: that path has just replaced this exact file and is
+    // waiting for the answer, so there is no later request for a stale one to
+    // lose to.
+    bool openDbNow(const QString &dbPath)
     {
         // Runs on the read thread, so no query can be in flight: a fresh root
         // starts counting generations from zero again.
@@ -275,6 +309,15 @@ public:
         // and, if necessary, rebuilt the file, and a second rebuild here would
         // unlink the database the writer is attached to.
         return m_db.open(dbPath, SearchIndexDb::OpenMode::RequireUsable);
+    }
+
+    Q_INVOKABLE void openDb(const QString &dbPath, quint64 epoch)
+    {
+        if (m_rootEpoch->load() != epoch) {
+            emit openFinished(epoch, false);
+            return;
+        }
+        emit openFinished(epoch, openDbNow(dbPath));
     }
 
     Q_INVOKABLE void closeDb() { m_db.close(); }
@@ -310,10 +353,12 @@ public:
     }
 
 signals:
+    void openFinished(quint64 epoch, bool ok);
     void queryReady(quint64 generation, SearchResults results);
 
 private:
     SearchIndexDb m_db;
+    RootEpoch m_rootEpoch;
     // The newest generation anyone has asked for. Work tagged with anything
     // older is obsolete; the previous shared bool let an older query reset the
     // flag a newer submission had just set, so the obsolete scan ran to the
@@ -321,12 +366,59 @@ private:
     std::atomic<quint64> m_target{0};
 };
 
+namespace {
+
+// The timeout on every call that still blocks the GUI thread. Five seconds is
+// long enough that an ordinary close finishes inside it even when it is queued
+// behind work that has just been cancelled — a cancelled reconcile stops at
+// its next note and a cancelled query at its next row — and short enough that
+// a search thread which has stopped answering costs a pause rather than the
+// session.
+std::atomic<int> g_workerReplyTimeoutMs{5000};
+
+// Run `call` on `worker`'s own thread and wait for it to finish, for as long
+// as workerReplyTimeoutMs() and no longer. Returns false when the worker did
+// not answer in time; the caller then reports failure rather than waiting.
+//
+// Everything the queued call touches is owned by the call itself, because a
+// timeout does not cancel it: the worker may run it minutes later, or never,
+// and it must not write into a caller's stack frame that is long gone. That is
+// what the shared semaphore and shared result holders below are for.
+template <typename Worker, typename Call>
+bool callWorker(Worker *worker, Call call)
+{
+    if (!worker)
+        return false;
+    const auto done = std::make_shared<QSemaphore>();
+    QMetaObject::invokeMethod(
+        worker,
+        [worker, call, done]() {
+            call(worker);
+            done->release();
+        },
+        Qt::QueuedConnection);
+    return done->tryAcquire(1, CollectionSearchIndex::workerReplyTimeoutMs());
+}
+
+} // namespace
+
 // ======================================================================
 // Coordinator
 // ======================================================================
 
+int CollectionSearchIndex::workerReplyTimeoutMs()
+{
+    return g_workerReplyTimeoutMs.load();
+}
+
+void CollectionSearchIndex::setWorkerReplyTimeoutMs(int timeoutMs)
+{
+    g_workerReplyTimeoutMs.store(timeoutMs);
+}
+
 CollectionSearchIndex::CollectionSearchIndex(QObject *parent)
     : QObject(parent)
+    , m_rootEpoch(std::make_shared<std::atomic<quint64>>(0))
 {
     qRegisterMetaType<SearchResults>("SearchResults");
     qRegisterMetaType<SearchQuery>("SearchQuery");
@@ -334,10 +426,12 @@ CollectionSearchIndex::CollectionSearchIndex(QObject *parent)
 
     m_writeThread = new QThread(this);
     m_writeThread->setObjectName(QStringLiteral("kvit-search-write"));
-    m_writeWorker = new SearchIndexWriteWorker;
+    m_writeWorker = new SearchIndexWriteWorker(m_rootEpoch);
     m_writeWorker->moveToThread(m_writeThread);
     connect(m_writeThread, &QThread::finished, m_writeWorker,
             &QObject::deleteLater);
+    connect(m_writeWorker, &SearchIndexWriteWorker::openFinished, this,
+            &CollectionSearchIndex::onWriteOpened);
     connect(m_writeWorker, &SearchIndexWriteWorker::reconcileProgress, this,
             &CollectionSearchIndex::onReconcileProgress);
     connect(m_writeWorker, &SearchIndexWriteWorker::reconcileFinished, this,
@@ -350,17 +444,19 @@ CollectionSearchIndex::CollectionSearchIndex(QObject *parent)
                 // been closed — the index is not degraded, it is gone — and
                 // about one that has been left for another, where the report
                 // is true of a database this object no longer has open.
-                if (epoch == m_rootEpoch && m_usable)
+                if (epoch == this->epoch() && m_usable)
                     setDegraded(true);
             });
     m_writeThread->start();
 
     m_readThread = new QThread(this);
     m_readThread->setObjectName(QStringLiteral("kvit-search-read"));
-    m_readWorker = new SearchIndexReadWorker;
+    m_readWorker = new SearchIndexReadWorker(m_rootEpoch);
     m_readWorker->moveToThread(m_readThread);
     connect(m_readThread, &QThread::finished, m_readWorker,
             &QObject::deleteLater);
+    connect(m_readWorker, &SearchIndexReadWorker::openFinished, this,
+            &CollectionSearchIndex::onReadOpened);
     connect(m_readWorker, &SearchIndexReadWorker::queryReady, this,
             &CollectionSearchIndex::onQueryReady);
     m_readThread->start();
@@ -368,19 +464,33 @@ CollectionSearchIndex::CollectionSearchIndex(QObject *parent)
 
 CollectionSearchIndex::~CollectionSearchIndex()
 {
-    // Cancel before the blocking closes, so teardown waits for one note or one
-    // row rather than for a whole vault.
+    // The root is given up and the work in flight cancelled before the closes
+    // are asked for, so teardown waits for one note or one row rather than for
+    // a whole vault, and an open still sitting in a worker's queue is skipped
+    // rather than started on the way out.
+    nextEpoch();
     cancelWork();
-    if (m_writeWorker)
-        QMetaObject::invokeMethod(m_writeWorker, "closeDb",
-                                  Qt::BlockingQueuedConnection);
-    if (m_readWorker)
-        QMetaObject::invokeMethod(m_readWorker, "closeDb",
-                                  Qt::BlockingQueuedConnection);
-    m_writeThread->quit();
-    m_writeThread->wait();
-    m_readThread->quit();
-    m_readThread->wait();
+    callWorker(m_readWorker, [](SearchIndexReadWorker *worker) {
+        worker->closeDb();
+    });
+    callWorker(m_writeWorker, [](SearchIndexWriteWorker *worker) {
+        worker->closeDb();
+    });
+    // A search thread that did not answer the close will not answer quit()
+    // either, and waiting on it here is the hang this class exists to stop
+    // having: destroying a QThread that is still running aborts the process,
+    // so the thread and its worker are let go of instead and outlive the
+    // session. That is a bounded leak — two threads and two SQLite
+    // connections, once, in a session where the search has already stopped
+    // working — and the alternative is taking the window down on the way out.
+    for (QThread *thread : {m_readThread, m_writeThread}) {
+        thread->quit();
+        if (thread->wait(workerReplyTimeoutMs()))
+            continue;
+        qWarning("kvit-search: %s did not stop; leaving it running",
+                 qPrintable(thread->objectName()));
+        thread->setParent(nullptr);
+    }
 }
 
 bool CollectionSearchIndex::capabilityAvailable()
@@ -424,78 +534,156 @@ void CollectionSearchIndex::setDegraded(bool degraded)
     emit degradedChanged();
 }
 
+quint64 CollectionSearchIndex::nextEpoch()
+{
+    return m_rootEpoch->fetch_add(1) + 1;
+}
+
 void CollectionSearchIndex::openForRoot(const QString &rootPath)
 {
     if (rootPath.isEmpty()) {
-        closeIndex();
+        requestClose();
         return;
     }
     // Everything queued for the previous root belongs to the previous root,
     // whatever order it completes in.
-    ++m_rootEpoch;
+    const quint64 openEpoch = nextEpoch();
     m_rootPath = rootPath;
     m_dbPath = databasePathForRoot(rootPath);
     QDir().mkpath(QFileInfo(m_dbPath).absolutePath());
 
-    // Stop whatever the previous root left running before waiting on the
-    // worker threads: both opens below are blocking, so without this they
-    // queue behind a full-vault reconcile or a query over a large index.
+    // Stop whatever the previous root left running, so the steps below wait
+    // for one note or one row rather than for a whole vault.
     cancelWork();
-
-    // Open the write connection first: it owns schema creation and rebuild, so
-    // the read connection never races an empty database into a destructive
-    // rebuild.
-    bool writeOk = false;
-    QMetaObject::invokeMethod(m_writeWorker, "openDb",
-                              Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(bool, writeOk),
-                              Q_ARG(QString, m_dbPath));
-    bool readOk = false;
-    if (writeOk) {
-        QMetaObject::invokeMethod(m_readWorker, "openDb",
-                                  Qt::BlockingQueuedConnection,
-                                  Q_RETURN_ARG(bool, readOk),
-                                  Q_ARG(QString, m_dbPath));
-    }
     m_pendingReconciles = 0;
     setIndexing(false);
     setDegraded(false);
-    setUsable(writeOk && readOk);
+    // Not usable until it is: this object is answering about the previous
+    // vault's database until the new one is attached, and it must not offer
+    // that vault's notes as this one's.
+    setUsable(false);
+
+    // Both connections are told what to do now; the read connection's own open
+    // follows when the writer reports back. Nothing here waits for any of it.
+    //
+    //   The write connection takes the new file, and takes it ahead of
+    //   everything else this object will post to that thread. That ordering is
+    //   what lets the writes queued during an open — the reconcile the caller
+    //   issues in the same breath, a note saved a moment later — land on the
+    //   new vault's database instead of being dropped for arriving before it
+    //   was ready.
+    //
+    //   The read connection lets go of the vault being left. It is the one
+    //   that answers queries, so a reader left attached answers about the
+    //   wrong vault.
+    //
+    //   The read connection reattaches in onWriteOpened(), once the writer has
+    //   vetted and if necessary rebuilt the file. The writer owns that, and a
+    //   reader that opened first could race an empty database into a
+    //   destructive rebuild.
+    //
+    // Each worker delivers what it is given in the order it was given, so a
+    // close still running when this arrives finishes before the open behind it
+    // starts. That is the whole of the ordering between the vault being left
+    // and the one being taken, and none of it is on the caller's thread.
+    QMetaObject::invokeMethod(m_writeWorker, "openDb", Qt::QueuedConnection,
+                              Q_ARG(QString, m_dbPath),
+                              Q_ARG(quint64, openEpoch));
+    QMetaObject::invokeMethod(m_readWorker, "closeDb", Qt::QueuedConnection);
+}
+
+void CollectionSearchIndex::onWriteOpened(quint64 openEpoch, bool ok)
+{
+    if (openEpoch != epoch() || !serving())
+        return;
+    if (!ok) {
+        failOpen();
+        return;
+    }
+    QMetaObject::invokeMethod(m_readWorker, "openDb", Qt::QueuedConnection,
+                              Q_ARG(QString, m_dbPath),
+                              Q_ARG(quint64, openEpoch));
+}
+
+void CollectionSearchIndex::onReadOpened(quint64 openEpoch, bool ok)
+{
+    if (openEpoch != epoch() || !serving())
+        return;
+    if (!ok) {
+        failOpen();
+        return;
+    }
+    setUsable(true);
+    emit openFinished(m_rootPath, true);
+}
+
+void CollectionSearchIndex::failOpen()
+{
+    const QString rootPath = m_rootPath;
+    // An index that could not be opened is not an index. Forgetting the root
+    // is what makes the next sync ask for it again: recording it as served
+    // told every later sync this vault was already taken care of, and search
+    // stayed dead for as long as the vault stayed open. The write connection
+    // may have attached before the read connection failed, so it is let go of
+    // too.
+    QMetaObject::invokeMethod(m_writeWorker, "closeDb", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(m_readWorker, "closeDb", Qt::QueuedConnection);
+    forgetRoot();
+    emit openFinished(rootPath, false);
 }
 
 void CollectionSearchIndex::closeIndex()
 {
-    // Both closes are BlockingQueuedConnection, so each waits for whatever
-    // its worker is doing to return first. Cancel first: they are plain
+    // The blocking teardown, for a caller that has to know the connections are
+    // gone before it goes on — a test, or a vault whose cache directory is
+    // about to be removed.
+    //
+    // The root is given up before anything is asked of the workers, so a
+    // verdict arriving from the work cancelled below belongs to an epoch this
+    // object has already left. Cancelling matters because the flags are plain
     // atomics, safe to set from here, and a reconcile or query that stops at
     // its next check turns a wait for the whole vault into a wait for one
     // note.
-    cancelWork();
-    if (m_writeWorker)
-        QMetaObject::invokeMethod(m_writeWorker, "closeDb",
-                                  Qt::BlockingQueuedConnection);
-    if (m_readWorker)
-        QMetaObject::invokeMethod(m_readWorker, "closeDb",
-                                  Qt::BlockingQueuedConnection);
+    //
+    // The waits are bounded, and the reader goes first so the writer's close
+    // is never the one competing with a query. A worker that does not answer
+    // inside the bound is reported and left behind; the index is closed as far
+    // as every caller of this object is concerned either way.
     forgetRoot();
+    cancelWork();
+    const bool readClosed =
+        callWorker(m_readWorker,
+                   [](SearchIndexReadWorker *worker) { worker->closeDb(); });
+    const bool writeClosed =
+        callWorker(m_writeWorker,
+                   [](SearchIndexWriteWorker *worker) { worker->closeDb(); });
+    if (!readClosed || !writeClosed) {
+        qWarning("kvit-search: the index did not close inside %d ms; the "
+                 "search thread that owes an answer is left to finish on its "
+                 "own", workerReplyTimeoutMs());
+    }
 }
 
 void CollectionSearchIndex::requestClose()
 {
-    // The non-blocking teardown. Both workers are told to abandon what they
-    // are doing, and the two closes are posted rather than waited on, so a
-    // caller switching vaults on the GUI thread never waits behind a full-
-    // vault reconcile or a query over a large index. Work queued after these
-    // closes — the next root's opens — is delivered in order behind them, so
-    // reopening immediately is safe.
-    cancelWork();
-    if (m_writeWorker)
-        QMetaObject::invokeMethod(m_writeWorker, "closeDb",
-                                  Qt::QueuedConnection);
-    if (m_readWorker)
-        QMetaObject::invokeMethod(m_readWorker, "closeDb",
-                                  Qt::QueuedConnection);
+    // The non-blocking teardown, and the one a vault switch uses. The root is
+    // given up here and now, both workers are told to abandon what they are
+    // doing, and the two closes are posted rather than waited on, so a caller
+    // switching vaults never waits behind a full-vault reconcile or a query
+    // over a large index. Work queued after these closes — the next root's
+    // opens — is delivered in order behind them, so reopening immediately is
+    // safe.
     forgetRoot();
+    cancelWork();
+    QMetaObject::invokeMethod(m_readWorker, "closeDb", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(m_writeWorker, "closeDb", Qt::QueuedConnection);
+}
+
+void CollectionSearchIndex::parkWorkersForTesting(QSemaphore *gate)
+{
+    const auto park = [gate]() { gate->acquire(); };
+    QMetaObject::invokeMethod(m_writeWorker, park, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(m_readWorker, park, Qt::QueuedConnection);
 }
 
 void CollectionSearchIndex::cancelWork()
@@ -511,7 +699,7 @@ void CollectionSearchIndex::cancelWork()
 
 void CollectionSearchIndex::forgetRoot()
 {
-    ++m_rootEpoch;
+    nextEpoch();
     m_rootPath.clear();
     m_dbPath.clear();
     m_pendingReconciles = 0;
@@ -527,30 +715,44 @@ bool CollectionSearchIndex::rebuildIndex()
     const QString dbPath = m_dbPath;
     // The database about to be deleted is the one every queued job was
     // stamped for, so their verdicts are about a file that will not exist.
-    ++m_rootEpoch;
+    nextEpoch();
     cancelWork();
-    // The reader detaches first so the writer's unlink cannot leave it on a
-    // deleted inode, and reattaches only after the writer has recreated the
-    // file.
-    QMetaObject::invokeMethod(m_readWorker, "closeDb",
-                              Qt::BlockingQueuedConnection);
-    bool writeOk = false;
-    QMetaObject::invokeMethod(m_writeWorker, "rebuildDb",
-                              Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(bool, writeOk),
-                              Q_ARG(QString, dbPath));
-    bool readOk = false;
-    if (writeOk) {
-        QMetaObject::invokeMethod(m_readWorker, "openDb",
-                                  Qt::BlockingQueuedConnection,
-                                  Q_RETURN_ARG(bool, readOk),
-                                  Q_ARG(QString, dbPath));
+    // Each step waits for the one before it, because this one really is a
+    // sequence: the reader detaches first so the writer's unlink cannot leave
+    // it on a deleted inode, and reattaches only after the writer has recreated
+    // the file. The waits are bounded, so the recovery action reports failure
+    // rather than taking the window down with it — which is the whole
+    // difference from the switch path, where nothing waits at all.
+    const auto shared = std::make_shared<std::atomic_bool>(false);
+    bool ok = callWorker(m_readWorker,
+                         [](SearchIndexReadWorker *worker) {
+                             worker->closeDb();
+                         });
+    if (ok) {
+        ok = callWorker(m_writeWorker,
+                        [dbPath, shared](SearchIndexWriteWorker *worker) {
+                            shared->store(worker->rebuildDb(dbPath));
+                        })
+            && shared->load();
+    }
+    if (ok) {
+        shared->store(false);
+        ok = callWorker(m_readWorker,
+                        [dbPath, shared](SearchIndexReadWorker *worker) {
+                            // Straight onto the file the rebuild just made,
+                            // rather than through the epoch-stamped openDb:
+                            // the epoch moved when this rebuild started, and
+                            // the point of a rebuild is that this database is
+                            // the one wanted now.
+                            shared->store(worker->openDbNow(dbPath));
+                        })
+            && shared->load();
     }
     m_pendingReconciles = 0;
     setIndexing(false);
-    setUsable(writeOk && readOk);
-    setDegraded(!(writeOk && readOk));
-    return writeOk && readOk;
+    setUsable(ok);
+    setDegraded(!ok);
+    return ok;
 }
 
 // ----------------------------------------------------------------------
@@ -772,7 +974,12 @@ IndexedNote CollectionSearchIndex::parseNote(const QString &relPath,
 
 void CollectionSearchIndex::reconcile(const QList<ReconcileEntry> &listing)
 {
-    if (!m_usable)
+    // Queued against the root being served, which is not the same as against
+    // a database that is already attached: the open runs on these same worker
+    // threads and delivers before anything posted after it, so work handed
+    // over while a vault is still opening lands on that vault's database
+    // rather than being dropped for arriving a few milliseconds early.
+    if (!serving())
         return;
     // Indexing becomes true here, where the work is enqueued, not later when
     // the worker gets around to announcing it. A caller that queued a
@@ -783,46 +990,46 @@ void CollectionSearchIndex::reconcile(const QList<ReconcileEntry> &listing)
     setIndexing(true);
     QMetaObject::invokeMethod(m_writeWorker, "reconcile", Qt::QueuedConnection,
                               Q_ARG(QList<ReconcileEntry>, listing),
-                              Q_ARG(quint64, m_rootEpoch));
+                              Q_ARG(quint64, epoch()));
 }
 
 void CollectionSearchIndex::replaceFromText(const QString &relPath,
                                             const QString &fileText,
                                             qint64 fileSize, qint64 modifiedMs)
 {
-    if (!m_usable)
+    if (!serving())
         return;
     QMetaObject::invokeMethod(m_writeWorker, "replaceFromText",
                               Qt::QueuedConnection, Q_ARG(QString, relPath),
                               Q_ARG(QString, fileText), Q_ARG(qint64, fileSize),
                               Q_ARG(qint64, modifiedMs),
-                              Q_ARG(quint64, m_rootEpoch));
+                              Q_ARG(quint64, epoch()));
 }
 
 void CollectionSearchIndex::replaceFromPath(const QString &relPath,
                                             const QString &absPath)
 {
-    if (!m_usable)
+    if (!serving())
         return;
     QMetaObject::invokeMethod(m_writeWorker, "replaceFromPath",
                               Qt::QueuedConnection, Q_ARG(QString, relPath),
                               Q_ARG(QString, absPath),
-                              Q_ARG(quint64, m_rootEpoch));
+                              Q_ARG(quint64, epoch()));
 }
 
 void CollectionSearchIndex::removePath(const QString &relPath)
 {
-    if (!m_usable)
+    if (!serving())
         return;
     QMetaObject::invokeMethod(m_writeWorker, "removePath", Qt::QueuedConnection,
                               Q_ARG(QString, relPath),
-                              Q_ARG(quint64, m_rootEpoch));
+                              Q_ARG(quint64, epoch()));
 }
 
 void CollectionSearchIndex::submitQuery(quint64 generation,
                                         const SearchQuery &request)
 {
-    if (!m_usable) {
+    if (!serving()) {
         // No index to ask. The reply carries ok=false so the caller can tell
         // "there is nothing to search" from "nothing matched".
         SearchResults empty;
@@ -842,7 +1049,7 @@ void CollectionSearchIndex::submitQuery(quint64 generation,
 
 void CollectionSearchIndex::cancelQueries(quint64 generation)
 {
-    if (!m_usable || !m_readWorker)
+    if (!m_readWorker)
         return;
     m_submittedGeneration.store(generation);
     m_readWorker->advanceTarget(generation);
@@ -854,12 +1061,15 @@ qint64 CollectionSearchIndex::revisionOf(const QString &relPath) const
     // connection (which could trip the destructive rebuild-on-open path).
     if (!m_usable || !m_readWorker)
         return 0;
-    qint64 revision = 0;
-    QMetaObject::invokeMethod(m_readWorker, "revisionOf",
-                              Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(qint64, revision),
-                              Q_ARG(QString, relPath));
-    return revision;
+    const auto revision = std::make_shared<std::atomic<qint64>>(0);
+    // Bounded, like everything else here that waits on a search thread: a
+    // read worker that never answers costs this lookup rather than the caller.
+    // 0 is what an unknown note answers too, and a staleness check that cannot
+    // be made is the same answer as a note the index has never seen.
+    callWorker(m_readWorker, [relPath, revision](SearchIndexReadWorker *worker) {
+        revision->store(worker->revisionOf(relPath));
+    });
+    return revision->load();
 }
 
 void CollectionSearchIndex::onReconcileProgress(int indexed, int total)
@@ -867,13 +1077,13 @@ void CollectionSearchIndex::onReconcileProgress(int indexed, int total)
     emit indexingProgress(indexed, total);
 }
 
-void CollectionSearchIndex::onReconcileFinished(quint64 epoch, bool ok)
+void CollectionSearchIndex::onReconcileFinished(quint64 workEpoch, bool ok)
 {
     // A verdict about a root this object has left, or about the database a
     // rebuild has since replaced, says nothing about the one open now. It also
     // must not touch the pending count: that belongs to the current root, and
     // decrementing it here published a half-built index as complete.
-    if (epoch != m_rootEpoch)
+    if (workEpoch != epoch())
         return;
     if (!ok && m_usable)
         setDegraded(true);

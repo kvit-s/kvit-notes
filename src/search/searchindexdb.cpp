@@ -6,16 +6,22 @@
 #include "perflog.h"
 
 #include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
 #include <QHash>
+#include <QMutex>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QThread>
 #include <QVariant>
+#include <QWaitCondition>
 
 #include <algorithm>
 #include <atomic>
 #include <limits>
+#include <memory>
+#include <utility>
 
 // Current on-disk schema version: every schema change bumps
 // PRAGMA user_version; an unsupported version is rebuilt.
@@ -274,6 +280,224 @@ QString uniqueConnectionName(const QString &role)
         .arg(counter.fetch_add(1));
 }
 
+// The connection handle, asked for in the form that never opens anything.
+//
+// QSqlDatabase::database(name) — the default, with `open` true — reopens a
+// connection it finds closed, and it does so while holding the read side of
+// Qt's process-wide connection registry lock. That puts a thread inside the
+// SQLite driver with a global Qt lock in hand, which is one of the two orders
+// the gate below exists to make impossible; the other is removeDatabase(),
+// which holds the *write* side of that same registry lock while it destroys a
+// driver. Every connection in this file is opened explicitly by open(), so
+// asking Qt to open one here could only ever widen that window.
+QSqlDatabase connectionNamed(const QString &connectionName)
+{
+    return QSqlDatabase::database(connectionName, false);
+}
+
+} // namespace
+
+// ======================================================================
+// The connection gate: what orders a teardown against the statements the
+// other connection to the same file is running.
+//
+// Two connections are open on one database file at a time — the write
+// worker's and the read worker's, each on its own thread — and detaching one
+// of them is not a private act. QSqlDatabase::removeDatabase() takes Qt's
+// process-wide connection registry lock and destroys the driver underneath
+// it; destroying the driver enters SQLite, which takes locks of its own that
+// the other connection's running statement is also holding. Reached from two
+// threads at once, those two locks get taken in opposite orders and neither
+// thread ever comes back. That is the vault switch that hung the whole
+// application: the write thread closing the index of the vault being left,
+// the read thread part-way through a query on the same file, and the GUI
+// thread waiting on the write thread. It reproduced about one switch in four
+// on a loaded machine and never on an idle one, because it needs the reader's
+// last statement to still be running when the close begins.
+//
+// So the connections to a file say what they are doing, and the file's gate
+// keeps the two kinds apart:
+//
+//   use        running a statement. Shared: the read and write connections do
+//              it at the same time, which is the entire point of having two
+//              of them and what WAL is configured for.
+//   lifecycle  attaching or detaching a connection. Exclusive: it waits for
+//              every statement in flight on this file to finish and holds new
+//              ones off until it is done.
+//
+// The result is the property the fix needs: no thread is ever inside the
+// SQLite driver for a file while another thread is destroying a connection to
+// it, so there are no longer two locks to take in two orders. A close now
+// waits for the readers of that file instead of competing with them.
+//
+// Two details that are not decoration:
+//
+//   Write-preferring. A lifecycle change that has started waiting keeps new
+//   statements out, because the vault being left can otherwise be queried
+//   faster than the close can find a gap between two queries.
+//
+//   The exclusive holder may still run statements. open() runs the pragmas,
+//   the integrity checks and the schema creation from inside its own
+//   lifecycle hold, and close() calls into it again through the rebuild
+//   retry, so the gate recognises the thread that already owns it.
+//
+//   Shared use nests. schemaValid() runs a statement and then calls
+//   schemaObjectsPresent(), which runs several more, and with a plain counter
+//   the inner call would join the queue behind a close that is waiting for the
+//   outer one to finish — a deadlock of exactly the kind this class exists to
+//   remove, and a rarer one. A thread is counted once however deep it goes.
+//
+// The rule the gate cannot check: a thread must not open or close a
+// connection while it is running a statement on the same file. Nothing in
+// this file does — every statement is self-contained — and doing it would
+// wait for itself.
+class SearchConnectionGate
+{
+public:
+    void beginUse()
+    {
+        QMutexLocker locker(&m_mutex);
+        const Qt::HANDLE self = QThread::currentThreadId();
+        if (m_owner == self)
+            return; // already holds the file exclusively
+        if (m_useDepth[self]++ > 0)
+            return; // this thread is already one of m_users
+        while (m_exclusive || m_waiting > 0)
+            m_free.wait(&m_mutex);
+        ++m_users;
+    }
+
+    void endUse()
+    {
+        QMutexLocker locker(&m_mutex);
+        const Qt::HANDLE self = QThread::currentThreadId();
+        if (m_owner == self)
+            return;
+        const auto depth = m_useDepth.find(self);
+        if (depth == m_useDepth.end() || --depth.value() > 0)
+            return;
+        m_useDepth.erase(depth);
+        if (--m_users == 0)
+            m_free.wakeAll();
+    }
+
+    void beginLifecycle()
+    {
+        QMutexLocker locker(&m_mutex);
+        const Qt::HANDLE self = QThread::currentThreadId();
+        if (m_exclusive && m_owner == self) {
+            ++m_depth; // open() closes the previous file first
+            return;
+        }
+        ++m_waiting;
+        while (m_exclusive || m_users > 0)
+            m_free.wait(&m_mutex);
+        --m_waiting;
+        m_exclusive = true;
+        m_owner = self;
+        m_depth = 1;
+    }
+
+    void endLifecycle()
+    {
+        QMutexLocker locker(&m_mutex);
+        if (--m_depth > 0)
+            return;
+        m_exclusive = false;
+        m_owner = nullptr;
+        m_free.wakeAll();
+    }
+
+private:
+    QMutex m_mutex;
+    QWaitCondition m_free;
+    int m_users = 0;      // threads running statements on this file
+    int m_waiting = 0;    // opens and closes queued behind them
+    int m_depth = 0;      // nesting of the exclusive holder
+    bool m_exclusive = false;
+    Qt::HANDLE m_owner = nullptr;
+    // How deep each thread's statements are nested. One entry per thread
+    // actually running one, so two on this file and gone again the moment they
+    // are done.
+    QHash<Qt::HANDLE, int> m_useDepth;
+};
+
+namespace {
+
+// RAII for the two halves. Both hold a reference to the gate so it outlives
+// the connection that is letting go of it, and both no-op on a connection
+// that has never been opened.
+class GateUse
+{
+public:
+    explicit GateUse(std::shared_ptr<SearchConnectionGate> gate)
+        : m_gate(std::move(gate))
+    {
+        if (m_gate)
+            m_gate->beginUse();
+    }
+    ~GateUse()
+    {
+        if (m_gate)
+            m_gate->endUse();
+    }
+    GateUse(const GateUse &) = delete;
+    GateUse &operator=(const GateUse &) = delete;
+
+private:
+    std::shared_ptr<SearchConnectionGate> m_gate;
+};
+
+class GateLifecycle
+{
+public:
+    explicit GateLifecycle(std::shared_ptr<SearchConnectionGate> gate)
+        : m_gate(std::move(gate))
+    {
+        if (m_gate)
+            m_gate->beginLifecycle();
+    }
+    ~GateLifecycle()
+    {
+        if (m_gate)
+            m_gate->endLifecycle();
+    }
+    GateLifecycle(const GateLifecycle &) = delete;
+    GateLifecycle &operator=(const GateLifecycle &) = delete;
+
+private:
+    std::shared_ptr<SearchConnectionGate> m_gate;
+};
+
+// The gate for one database file, created on first use and dropped when the
+// last connection to that file has gone. Keyed by the file, because that is
+// what the two connections share; an in-memory database is private to its own
+// connection and no other connection can reach it, so it gets a gate to
+// itself rather than queueing behind every other in-memory database in the
+// process.
+std::shared_ptr<SearchConnectionGate> gateForFile(const QString &dbPath,
+                                                  const QString &connectionName)
+{
+    static QMutex mutex;
+    static QHash<QString, std::weak_ptr<SearchConnectionGate>> gates;
+
+    const QString key = dbPath == QStringLiteral(":memory:")
+                            ? dbPath + QLatin1Char('\n') + connectionName
+                            : QDir::cleanPath(dbPath);
+    QMutexLocker locker(&mutex);
+    std::shared_ptr<SearchConnectionGate> gate = gates.value(key).lock();
+    if (gate)
+        return gate;
+    // A miss means the table may be holding expired entries for vaults the
+    // session has finished with; it is never large, so this is the whole
+    // cleanup.
+    for (auto it = gates.begin(); it != gates.end();)
+        it = it.value().expired() ? gates.erase(it) : ++it;
+    gate = std::make_shared<SearchConnectionGate>();
+    gates.insert(key, gate);
+    return gate;
+}
+
 } // namespace
 
 namespace SearchIndexOps {
@@ -338,7 +562,14 @@ bool SearchIndexDb::probeCapability()
 
 bool SearchIndexDb::open(const QString &dbPath, OpenMode mode, DeepCheck deep)
 {
-    close(); // still under the previous path: a clean close is stamped there
+    close(); // still under the previous path: a clean close is stamped there,
+             // and it is that file's gate the close has to hold
+    // From here the file being taken is the one whose statements have to stand
+    // still. Its gate is held for the whole open, which is why the pragmas,
+    // the integrity checks and the rebuild retry below can run without asking
+    // for it again.
+    m_gate = gateForFile(dbPath, m_connectionName);
+    const GateLifecycle lifecycle(m_gate);
     m_dbPath = dbPath;
     m_mode = mode;
 
@@ -408,12 +639,17 @@ bool SearchIndexDb::open(const QString &dbPath, OpenMode mode, DeepCheck deep)
 
 void SearchIndexDb::close()
 {
+    // The whole close runs under the file's gate, so the other connection to
+    // this file is between statements for as long as Qt is destroying this
+    // one's driver. Without that the two threads deadlocked inside SQLite and
+    // the window never came back.
+    const GateLifecycle lifecycle(m_gate);
     // Only a writer that reached a usable state has anything to certify, and
     // only this line ever creates a marker.
     const bool certify = m_usable && m_mode == OpenMode::RebuildIfUnusable;
     if (QSqlDatabase::contains(m_connectionName)) {
         {
-            QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+            QSqlDatabase db = connectionNamed(m_connectionName);
             if (db.isOpen())
                 db.close();
         }
@@ -480,7 +716,8 @@ void SearchIndexDb::writeCleanMarker()
 
 bool SearchIndexDb::applyPragmas()
 {
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     // WAL keeps readers unblocked by the writer; NORMAL trades a sliver of
     // durability the disposable cache does not need for speed; the busy timeout
@@ -502,7 +739,8 @@ bool SearchIndexDb::schemaValid() const
 {
     if (!m_open)
         return false;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     if (!q.exec(QStringLiteral("PRAGMA user_version")) || !q.next())
         return false;
@@ -533,7 +771,8 @@ bool SearchIndexDb::schemaObjectsPresent() const
         {"table", "search_trigrams", "content='search_blocks'"},
     };
 
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral(
         "SELECT type, sql FROM sqlite_master WHERE name = ?"));
@@ -554,7 +793,8 @@ bool SearchIndexDb::schemaObjectsPresent() const
 
 bool SearchIndexDb::ensureSchema()
 {
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery probe(db);
     if (probe.exec(QStringLiteral("PRAGMA user_version")) && probe.next()) {
         const int version = probe.value(0).toInt();
@@ -623,7 +863,8 @@ bool SearchIndexDb::structuralIntegrityOk() const
 {
     if (!m_open)
         return false;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     if (!q.exec(QStringLiteral("PRAGMA integrity_check")) || !q.next())
         return false;
@@ -641,7 +882,8 @@ bool SearchIndexDb::ftsIntegrityOk() const
     // text return notes whose display text does not contain the query, and
     // withdraw notes that do. FTS5's own integrity-check command compares the
     // index against the content table and fails the statement when they part.
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     for (const char *table : {"search_words", "search_trigrams"}) {
         // The tables only exist once the schema has been created; a brand new
         // file legitimately has neither.
@@ -680,7 +922,8 @@ bool SearchIndexDb::removeNote(const QString &relPath)
 {
     if (!m_usable)
         return false;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     if (!db.transaction())
         return false;
 
@@ -750,7 +993,8 @@ bool SearchIndexDb::replaceNote(const IndexedNote &note, qint64 *outRevision)
     PerfLog::ScopedTimer perf(QStringLiteral("search.index.note_replace"),
                               QVariantMap{{QStringLiteral("blocks"),
                                            note.blocks.size()}});
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     if (!db.transaction())
         return false;
 
@@ -942,7 +1186,8 @@ bool SearchIndexDb::touchNote(const QString &relPath, qint64 fileSize,
 {
     if (!m_usable)
         return false;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral(
         "UPDATE search_notes SET file_size=?, modified_ms=?, content_hash=?, "
@@ -962,7 +1207,8 @@ bool SearchIndexDb::hasNoteFresh(const QString &relPath, qint64 fileSize,
 {
     if (!m_usable)
         return false;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral("SELECT file_size, modified_ms, content_hash "
                              "FROM search_notes WHERE rel_path=?"));
@@ -980,7 +1226,8 @@ bool SearchIndexDb::hasNoteStamp(const QString &relPath, qint64 fileSize,
 {
     if (!m_usable || changeToken == 0)
         return false;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral("SELECT file_size, modified_ms, change_token "
                              "FROM search_notes WHERE rel_path=?"));
@@ -996,7 +1243,8 @@ qint64 SearchIndexDb::changeTokenOf(const QString &relPath) const
 {
     if (!m_usable)
         return 0;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral(
         "SELECT change_token FROM search_notes WHERE rel_path=?"));
@@ -1011,7 +1259,8 @@ QStringList SearchIndexDb::allRelPaths() const
     QStringList paths;
     if (!m_usable)
         return paths;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     if (q.exec(QStringLiteral("SELECT rel_path FROM search_notes"))) {
         while (q.next())
@@ -1024,7 +1273,8 @@ qint64 SearchIndexDb::revisionOf(const QString &relPath) const
 {
     if (!m_usable)
         return 0;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     q.prepare(QStringLiteral(
         "SELECT index_revision FROM search_notes WHERE rel_path=?"));
@@ -1038,7 +1288,8 @@ int SearchIndexDb::noteRowCount() const
 {
     if (!m_usable)
         return 0;
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     if (q.exec(QStringLiteral("SELECT COUNT(*) FROM search_notes")) && q.next())
         return q.value(0).toInt();
@@ -1124,7 +1375,8 @@ SearchResults SearchIndexDb::query(const SearchQuery &request,
         "JOIN search_notes n ON n.id = b.note_id WHERE ").arg(ftsTable)
         + predicates.join(QStringLiteral(" AND "));
 
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    const GateUse use(m_gate);
+    QSqlDatabase db = connectionNamed(m_connectionName);
     QSqlQuery q(db);
     q.setForwardOnly(true);
     if (!q.prepare(sql)) {

@@ -13,6 +13,7 @@
 
 #include "searchindexdb.h"
 
+class QSemaphore;
 class QThread;
 class SearchIndexWriteWorker;
 class SearchIndexReadWorker;
@@ -59,13 +60,33 @@ public:
     bool isDegraded() const { return m_degraded; }
 
     // --- Lifecycle (GUI thread) -----------------------------------------
-    // Opens (creating) the cache database for `rootPath` and readies both
-    // connections. A closed or empty root tears the index down.
+    // Open (creating) the cache database for `rootPath` and ready both
+    // connections. An empty root tears the index down instead.
+    //
+    // RETURNS IMMEDIATELY. The work runs on the two search threads and the
+    // outcome arrives on openFinished(), and on usableChanged() when it
+    // succeeded. It used to be two blocking calls onto those threads, and that
+    // is how a search thread that stopped answering took the window with it:
+    // the GUI thread waited on a worker that was waiting on the other worker,
+    // and nothing timed out. A stuck index now costs the search rather than
+    // the session.
+    //
+    // Ordering is the other half of it. The close of the vault being left, the
+    // open of the next one and every write in between are posted to the same
+    // two worker threads, which deliver them in the order they were posted, so
+    // a switch that arrives while the previous vault is still closing waits
+    // behind that close on the search side — not on the caller's.
     void openForRoot(const QString &rootPath);
+
+    // The root the index is serving or is in the middle of opening. Empty when
+    // it is closed and when the last open failed, so a caller can tell "this
+    // vault is already being taken care of" from "ask again".
+    QString openRoot() const { return m_rootPath; }
 
     // Tear the index down, waiting for both workers to become idle first.
     // BLOCKS THE CALLER for as long as the work in flight takes to notice the
-    // cancellation. Prefer requestClose() on the GUI thread.
+    // cancellation, and gives up after workerReplyTimeoutMs(). Prefer
+    // requestClose() on the GUI thread.
     void closeIndex();
 
     // Tear the index down without waiting. In-flight reconcile and query work
@@ -79,8 +100,20 @@ public:
     // both connections. This is the recovery step for isDegraded(): it throws
     // away an index that cannot be trusted and leaves an empty one, so the
     // caller must follow it with reconcile() to refill it. Returns false when
-    // no root is open or the rebuild failed. BLOCKS THE CALLER.
+    // no root is open, the rebuild failed, or a search thread did not answer
+    // inside workerReplyTimeoutMs(). BLOCKS THE CALLER, boundedly.
     bool rebuildIndex();
+
+    // How long anything on this class that blocks the calling thread waits for
+    // a search thread before deciding it is not coming back. The calls that
+    // still wait are the explicit ones — the rebuild, the blocking close, the
+    // revision lookup and teardown — and each of them reports failure instead
+    // of hanging. Nothing on the vault-switch path waits at all.
+    //
+    // The setter exists for the suite that wedges a worker on purpose, which
+    // would otherwise spend the whole production bound on every call it makes.
+    static int workerReplyTimeoutMs();
+    static void setWorkerReplyTimeoutMs(int timeoutMs);
 
     // Absolute path of the cache database for a notes root — exposed for tests
     // and diagnostics.
@@ -190,11 +223,13 @@ public:
 
     // The current index revision of a note, for click-time staleness checks.
     //
-    // BLOCKS THE CALLER. The read is short, but it is a
-    // BlockingQueuedConnection onto the read worker's thread, so it also waits
-    // for whatever that worker is already doing — a full-text query over a
-    // large vault, for instance. Calling it from the GUI thread ties the
-    // interface to query latency.
+    // BLOCKS THE CALLER, up to workerReplyTimeoutMs(). The read itself is
+    // short, but it queues onto the read worker's thread, so it also waits for
+    // whatever that worker is already doing — a full-text query over a large
+    // vault, for instance. Calling it from the GUI thread ties the interface to
+    // query latency. A worker that does not answer inside the bound gives 0,
+    // which is also what an unknown note gives: a staleness check that could
+    // not be made and a note the index has never seen are the same answer.
     //
     // Nothing calls this today (verified across src/, qml/ and tests/), which
     // is why it has not been made asynchronous: there is no caller whose
@@ -202,8 +237,22 @@ public:
     // one and it should return a future or take a callback rather than block.
     qint64 revisionOf(const QString &relPath) const;
 
+    // --- Test seam ------------------------------------------------------
+    // Park both search threads inside a queued call until `gate` is released
+    // once per thread. A search thread that stops answering is the one failure
+    // this class has to survive and the one it cannot produce on demand, and
+    // what has to hold while it is parked is that every call the GUI thread
+    // makes still returns. The gate must outlive the threads: a parked worker
+    // is still holding it when a teardown gives up on it.
+    void parkWorkersForTesting(QSemaphore *gate);
+
 signals:
     void usableChanged();
+    // The asynchronous half of openForRoot(): `ok` is false when the database
+    // could not be opened, and openRoot() is empty again by the time it
+    // arrives. A result for a root that has already been left is never
+    // emitted.
+    void openFinished(const QString &rootPath, bool ok);
     void indexingChanged();
     void degradedChanged();
     void indexingProgress(int indexed, int total);
@@ -216,6 +265,10 @@ private slots:
     void onReconcileFinished(quint64 epoch, bool ok);
     void onNoteReplaced();
     void onQueryReady(quint64 generation, SearchResults results);
+    // The two halves of an open: the read connection is told to reattach once
+    // the write connection reports the file is good. See openForRoot().
+    void onWriteOpened(quint64 epoch, bool ok);
+    void onReadOpened(quint64 epoch, bool ok);
 
 private:
     void setUsable(bool usable);
@@ -223,6 +276,17 @@ private:
     void setDegraded(bool degraded);
     void cancelWork();
     void forgetRoot();
+    // Give up on an open that could not be completed: the root is forgotten,
+    // so the next sync asks for it again rather than assuming it is served.
+    void failOpen();
+    // True while a root is being served or taken — which is what decides
+    // whether work may be queued, since work posted during an open is
+    // delivered behind it rather than dropped.
+    bool serving() const { return !m_rootPath.isEmpty(); }
+    // Bump the epoch that stamps every unit of work, publishing it where the
+    // workers can see it.
+    quint64 nextEpoch();
+    quint64 epoch() const { return m_rootEpoch->load(); }
 
     QThread *m_writeThread = nullptr;
     QThread *m_readThread = nullptr;
@@ -242,11 +306,16 @@ private:
     // outlive any one vault, so a reconcile or a write queued for one root
     // completes on its worker thread whenever it gets there — sometimes after
     // the reader has opened a different vault, or after a rebuild has replaced
-    // the database underneath it. Every unit of work carries this number out
+    // the database underneath it. Every unit of work takes this number out
     // and back, and a completion whose number no longer matches is discarded
     // rather than allowed to set the degraded flag or clear the indexing one
     // for a database it never touched.
-    quint64 m_rootEpoch = 0;
+    //
+    // Shared with the workers, and by a handle that outlives this object: a
+    // teardown that gives up on a wedged search thread leaves that thread
+    // running, and it must still be able to see that its work is obsolete.
+    // The workers only ever read it.
+    std::shared_ptr<std::atomic<quint64>> m_rootEpoch;
 
     std::atomic<quint64> m_submittedGeneration{0};
 };

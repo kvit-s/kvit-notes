@@ -24,7 +24,12 @@ void SearchIndexFeed::setIndex(CollectionSearchIndex *index)
 
 bool SearchIndexFeed::servesRoot(const QString &rootPath) const
 {
-    return m_index && !rootPath.isEmpty() && m_openRoot == rootPath;
+    // Two questions, and the second one is the index's to answer. This object
+    // knows which root it asked for; whether the index took it is a fact about
+    // the index, and asking it here is what makes a failed open visible to the
+    // next sync instead of being remembered as a success.
+    return m_index && !rootPath.isEmpty() && m_openRoot == rootPath
+        && m_index->openRoot() == rootPath;
 }
 
 void SearchIndexFeed::close()
@@ -51,12 +56,17 @@ void SearchIndexFeed::syncTo(const QString &rootPath)
     // ones. Reconcile compares each note's content fingerprint, so an
     // unchanged note costs a read and a hash rather than a reparse, and the
     // first cold build remains the expensive one.
-    if (m_openRoot != rootPath) {
-        m_index->openForRoot(rootPath);
-        m_openRoot = m_index->isUsable() ? rootPath : QString();
-    }
-    if (m_openRoot.isEmpty())
-        return;   // nothing to reconcile against; the next sync tries again
+    //
+    // Reopening covers a root that has changed and a root whose open did not
+    // take: an open can fail for reasons that pass — the cache directory was
+    // briefly unwritable, the file was locked by something else — and a sync
+    // that assumed otherwise left search dead for as long as the vault stayed
+    // open.
+    if (!servesRoot(rootPath))
+        openFor(rootPath);
+    // The reconcile goes to the same worker thread as the open and is
+    // delivered behind it, so it reaches the new root's database rather than
+    // needing that database to be ready first.
     m_index->reconcile(m_listing());
 }
 
@@ -65,12 +75,12 @@ void SearchIndexFeed::openFor(const QString &rootPath)
     if (!m_index || rootPath.isEmpty())
         return;
     m_index->openForRoot(rootPath);
-    // Remember the root only when the database actually opened. An open can
-    // fail for reasons that pass — the cache directory was briefly unwritable,
-    // the file was locked by something else — and recording the root anyway
-    // told every later syncTo() that this root was already open, so it never
-    // tried again and search stayed dead for as long as the vault stayed open.
-    m_openRoot = m_index->isUsable() ? rootPath : QString();
+    // What is recorded here is the root the index has been told to take, which
+    // is what stops the next sync reopening it. The open itself finishes on the
+    // search threads; whether it succeeded is the index's to report, and
+    // servesRoot() asks it rather than storing an answer that had not been
+    // given yet.
+    m_openRoot = rootPath;
 }
 
 void SearchIndexFeed::reindexNoteFromText(const QString &rootPath,

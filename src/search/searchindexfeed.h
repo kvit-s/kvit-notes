@@ -47,6 +47,11 @@ public:
     // repository listing: the cold build and the warm-startup sync. An empty
     // root closes the index instead. Called at each scan and refresh settle
     // point.
+    //
+    // Both of these return before the index is open: the database work runs on
+    // the index's own threads, and everything queued afterwards is delivered
+    // behind it. Nothing here waits for a vault's database, which is what a
+    // vault switch on the GUI thread depends on.
     void syncTo(const QString &rootPath);
     // Open for `rootPath` without reconciling. The asynchronous open takes
     // this path: it has no complete listing yet, so it readies the database
@@ -73,7 +78,7 @@ private:
     bool servesRoot(const QString &rootPath) const;
 
     CollectionSearchIndex *m_index = nullptr;
-    QString m_openRoot; // the root the index is currently open for
+    QString m_openRoot; // the root the index has been told to take
     ListingProvider m_listing;
     AbsolutePathResolver m_absolutePath;
 };

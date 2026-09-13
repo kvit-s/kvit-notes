@@ -82,6 +82,9 @@ private slots:
     void testGenerationCancelIsMonotonic();
     void testEveryRowIsACancellationPoint();
     void testHugeBlockKeepsBoundedMatches();
+    // C22: closing a connection waits for the other connection's statements
+    // on the same file instead of racing them inside the driver.
+    void testClosingWaitsForTheReadersOfThatFile();
 
 private:
     struct Note {
@@ -1532,6 +1535,135 @@ void TestSearchIndexDb::testHugeBlockKeepsBoundedMatches()
     request.query = QStringLiteral("needle");
     request.nowMs = QDateTime::currentMSecsSinceEpoch();
     QVERIFY(m_db->query(request, &prompt).cancelled);
+}
+
+// C22. Two connections share one database file — the write worker's and the
+// read worker's, each on its own thread — and closing one of them used to run
+// alongside whatever the other was doing. Qt's connection registry has a
+// process-wide lock that removeDatabase() holds while it destroys the driver,
+// the SQLite driver has locks of its own that a running statement holds, and
+// from two threads at once the two were taken in opposite orders. Neither
+// thread came back, and the GUI thread was waiting on one of them.
+//
+// The property that replaces it, asserted here directly: a close waits for the
+// statements in flight on that file. The cancellation token is the one place
+// inside a running query where a test can stand — the engine asks it once per
+// candidate row — so it is used here to hold a query open at a known point.
+void TestSearchIndexDb::testClosingWaitsForTheReadersOfThatFile()
+{
+    // Parks the scan at its first row, and holds it there until released. It
+    // never cancels anything: what is being tested is a close arriving while a
+    // statement is genuinely running.
+    class ScanGate : public SearchCancel
+    {
+    public:
+        bool cancelled() const override
+        {
+            if (!m_parked.exchange(true)) {
+                reached.release();
+                release.acquire();
+            }
+            return false;
+        }
+
+        mutable QSemaphore reached;  // the scan is inside a statement
+        mutable QSemaphore release;  // let it finish
+
+    private:
+        mutable std::atomic_bool m_parked{false};
+    };
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString dbPath = dir.filePath(QStringLiteral("index.sqlite"));
+
+    // Each connection is opened, used and closed on its own thread, the way
+    // the two search workers do it: a SearchIndexDb belongs to the thread that
+    // opened it.
+    QSemaphore seeded;
+    QSemaphore closeNow;
+    std::atomic_bool writerOk{false};
+    std::atomic_bool closeReturned{false};
+    std::thread writerThread([&]() {
+        SearchIndexDb writer(QStringLiteral("write"));
+        writerOk.store(
+            writer.open(dbPath, SearchIndexDb::OpenMode::RebuildIfUnusable));
+        if (writerOk.load()) {
+            for (int note = 0; note < 40 && writerOk.load(); ++note) {
+                QString body;
+                for (int block = 0; block < 10; ++block)
+                    body += QStringLiteral("needle line %1\n\n").arg(block);
+                writerOk.store(writer.replaceNote(CollectionSearchIndex::parseNote(
+                    QStringLiteral("Bulk %1.md").arg(note), body,
+                    body.toUtf8().size(), 0)));
+            }
+        }
+        seeded.release();
+        closeNow.acquire();
+        writer.close();
+        closeReturned.store(true);
+    });
+
+    // Every early exit from here on releases the threads first: returning
+    // from a test function with a std::thread still running takes the process
+    // down, and a failure has to be readable.
+    seeded.acquire();
+    if (!writerOk.load()) {
+        closeNow.release();
+        writerThread.join();
+        QFAIL("the write connection could not build the database to read");
+    }
+
+    ScanGate gate;
+    std::atomic_bool readerOk{false};
+    std::atomic_int notesFound{-1};
+    std::thread readerThread([&]() {
+        SearchIndexDb reader(QStringLiteral("read"));
+        readerOk.store(
+            reader.open(dbPath, SearchIndexDb::OpenMode::RequireUsable));
+        if (!readerOk.load()) {
+            gate.reached.release(); // do not strand the test
+            return;
+        }
+        SearchQuery request;
+        request.query = QStringLiteral("needle");
+        request.nowMs = QDateTime::currentMSecsSinceEpoch();
+        const SearchResults results = reader.query(request, &gate);
+        notesFound.store(results.ok ? results.noteCount : -1);
+        reader.close();
+    });
+
+    // Bounded: a scan that never reaches a row would otherwise leave this
+    // thread waiting until CTest's own timeout, with nothing said about why.
+    const bool scanning = gate.reached.tryAcquire(1, 30000);
+    if (!scanning || !readerOk.load()) {
+        gate.release.release();
+        closeNow.release();
+        readerThread.join();
+        writerThread.join();
+        QVERIFY2(scanning, "the query never reached a row to be held at");
+        QFAIL("the read connection could not open the database the writer made");
+    }
+
+    // The reader is inside a statement on this file. The close begins now.
+    closeNow.release();
+    QTest::qWait(200);
+    const bool closedDuringTheQuery = closeReturned.load();
+
+    // Released and joined before anything is asserted: a QVERIFY that returns
+    // from here with two threads still running takes the process down with it,
+    // and a failure has to be readable.
+    gate.release.release();
+    readerThread.join();
+    writerThread.join();
+
+    QVERIFY2(!closedDuringTheQuery,
+             "the close went ahead while a query was still running on the "
+             "same database file");
+    QVERIFY(closeReturned.load());
+    // The query that the close waited for finished, and finished correctly:
+    // waiting for the readers is not the same as breaking them.
+    QCOMPARE(notesFound.load(), 40);
 }
 
 QTEST_MAIN(TestSearchIndexDb)
