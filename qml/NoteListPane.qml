@@ -653,8 +653,15 @@ Rectangle {
                 required property string relPath
                 required property string title
                 required property string snippet
-                required property string modified
-                required property string created
+                // date, not string. NoteListModel returns QDateTime for
+                // both roles; declaring them string converts each to text
+                // first, and the Qt.formatDateTime call below then has to
+                // parse it back. A row whose date is not set converts to the
+                // empty string, which that call refuses with
+                // "Invalid argument passed to formatDateTime():" rather than
+                // formatting nothing.
+                required property date modified
+                required property date created
                 required property int wordCount
                 required property bool pinned
                 required property bool favorite

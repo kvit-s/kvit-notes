@@ -56,6 +56,10 @@ Item {
             NoteCollection.setClockOffsetForTesting(0)
             DocumentManager.setJournalDebounceMs(2000)
             CollectionSearch.query = ""
+            // The sort is persisted across a session and nothing else resets
+            // it, so a case that changes it would otherwise hand the next one
+            // a list in a different order.
+            NoteListModel.sortMode = "modified"
             if (NoteCollection.isOpen)
                 closeTestCollection()
             DocumentManager.newDocument()
@@ -461,6 +465,87 @@ Item {
             keyClick(Qt.Key_Return)
             tryCompare(win(), "currentNoteRelPath", expected, 2000)
 
+        }
+
+        // The date at the start of a note row's detail line.
+        //
+        // NoteListModel returns QDateTime for its modified and created roles,
+        // and the delegate in qml/NoteListPane.qml has to declare both as
+        // `date` so each value reaches Qt.formatDateTime as a date. Declared
+        // `string`, QML converts the QDateTime to text before the delegate
+        // sees it, and a row whose date is not set becomes the empty string —
+        // which that call refuses with "Invalid argument passed to
+        // formatDateTime():", leaving the detail line to start at its " · "
+        // separator with no date in front of it.
+        //
+        // Both sort modes are checked because the label draws whichever of
+        // the two values the current sort is on.
+        function test_notelist_rowDrawsItsDateInBothSortModes() {
+            var dir = openTestCollection()
+            // The helper's three notes are written with no front matter, so
+            // their created date comes from the filesystem — the fallback in
+            // vaultscan.cpp. This fourth one states its own, which is the
+            // other branch of that same choice.
+            verify(testFiles.writeFile(
+                       dir + "/Dated.md",
+                       "---\ntitle: Dated\ncreated: 2026-03-04T09:12:00\n---\n"
+                       + "\nA note that states its own created date.\n"),
+                   "the dated note was written")
+            NoteCollection.refresh()
+            tryVerify(function() { return NoteListModel.count >= 4 }, 5000,
+                      "the dated note reached the list")
+            tryVerify(function() { return !NoteCollection.scanInProgress }, 5000,
+                      "the rescan settled")
+
+            var list = childNamed("noteListView")
+            var modes = ["modified", "created"]
+            for (var m = 0; m < modes.length; ++m) {
+                NoteListModel.sortMode = modes[m]
+                // The re-sort moves rows, and itemAtIndex() below reads the
+                // items the view has built; without this it reads the
+                // layout from before the sort changed.
+                list.forceLayout()
+                wait(50)
+                var checked = 0
+                for (var i = 0; i < NoteListModel.count; ++i) {
+                    // Only the rows the view has built can be read; a list
+                    // longer than the viewport has none for the rest.
+                    var row = list.itemAtIndex(i)
+                    if (row === null)
+                        continue
+                    ++checked
+
+                    var where = " (sorted by " + modes[m] + ", row " + i + ")"
+                    // The type, which is the thing that regresses: declared
+                    // `string` these arrive as JavaScript strings instead.
+                    verify(row.modified instanceof Date,
+                           "modified reaches the row as a date" + where)
+                    verify(row.created instanceof Date,
+                           "created reaches the row as a date" + where)
+                    verify(!isNaN(row.modified.getTime()),
+                           "modified is a real date" + where)
+                    verify(!isNaN(row.created.getTime()),
+                           "created is a real date" + where)
+
+                    // And what the row actually draws.
+                    var label = findChild(row, "noteDetailsLabel")
+                    verify(label !== null, "the row has a detail label" + where)
+                    var shown = Qt.formatDateTime(
+                        modes[m] === "created" ? row.created : row.modified,
+                        "MMM d, yyyy hh:mm")
+                    verify(shown !== "", "the date formats to something" + where)
+                    compare(label.text.substring(0, shown.length), shown,
+                            "the detail line opens with the date" + where)
+                    // The symptom the user sees when the date is refused:
+                    // a detail line that opens on its separator.
+                    compare(label.text.indexOf(" \u00b7 "), shown.length,
+                            "the separator follows the date rather than"
+                            + " opening the line" + where)
+                }
+                verify(checked > 0, "at least one row was built to read"
+                                    + " (sorted by " + modes[m] + ")")
+            }
+            NoteListModel.sortMode = "modified"
         }
 
         // ==============================================================
