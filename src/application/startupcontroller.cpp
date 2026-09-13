@@ -30,6 +30,9 @@ void StartupController::setDocumentManager(DocumentManager *manager)
         disconnect(m_documentManager, nullptr, this, nullptr);
     m_documentManager = manager;
     if (m_documentManager) {
+        connect(m_documentManager, &DocumentManager::openAsyncSuperseded,
+                this, &StartupController::onStartupNoteOpenSuperseded,
+                Qt::UniqueConnection);
         connect(m_documentManager, &DocumentManager::openAsyncFinished,
                 this, &StartupController::onStartupNoteOpenFinished,
                 Qt::UniqueConnection);
@@ -203,6 +206,44 @@ void StartupController::onStartupNoteOpenFinished(const QString &filePath,
 
     m_failedStartupNotes.insert(relPath);
     tryFinishStartup();
+}
+
+void StartupController::onStartupNoteOpenSuperseded(const QString &filePath)
+{
+    if (!m_initialOpenInProgress || !m_collection)
+        return;
+
+    const QString expectedPath =
+        m_collection->absolutePath(m_pendingStartupRelPath);
+    if (filePath != expectedPath)
+        return;
+
+    const QString relPath = m_pendingStartupRelPath;
+    m_pendingStartupRelPath.clear();
+    m_initialOpenInProgress = false;
+
+    // Recorded so the timing log does not quietly lose the sample, and marked
+    // for what it was: the open never finished, so its elapsed time is how
+    // long it ran before something else took over.
+    PerfLog::instance().record(
+        QStringLiteral("startup.initial_open"),
+        m_initialOpenTimer.elapsed(),
+        QVariantMap{{QStringLiteral("note"), relPath},
+                    {QStringLiteral("async"), true},
+                    {QStringLiteral("superseded"), true},
+                    {QStringLiteral("ok"), false}});
+
+    // Not added to the failed set. Nothing is wrong with this note, and a
+    // later startup should be free to open it; what happened is that somebody
+    // asked for a different document while this one was being read.
+    //
+    // Finished outright rather than through tryFinishStartup(), which picks a
+    // candidate and opens it. There is nothing left to choose: an open is
+    // what startup was trying to reach, and one has just happened. Going back
+    // through the candidate list here would reopen the remembered note over
+    // the document somebody actually asked for, which is the first thing this
+    // did before the distinction was drawn.
+    finishStartup();
 }
 
 void StartupController::tryFinishStartup()

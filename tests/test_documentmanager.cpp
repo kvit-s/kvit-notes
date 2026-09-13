@@ -55,6 +55,7 @@ private slots:
     // Open operations
     void testOpenFile();
     void testOpenAsyncFile();
+    void testAnOvertakenAsyncOpenSaysSoRatherThanGoingQuiet();
     void testOpenNonExistent();
     void testOpenClearsUndo();
 
@@ -638,6 +639,58 @@ void TestDocumentManager::testOpenFile()
     QCOMPARE(m_model->blockAt(1)->blockType(), Block::Paragraph);
     QCOMPARE(m_model->blockAt(1)->content(), QString("Opened content."));
     QCOMPARE(m_manager->currentFilePath(), filePath);
+}
+
+// C21. Every open bumps a generation counter, and an asynchronous result whose
+// generation no longer matches used to be dropped without a word: no
+// openAsyncFinished, no openFailed, nothing at all. A caller waiting on the
+// outcome of its own open then waited for the rest of the session, because
+// nothing behind this times out.
+//
+// Being overtaken is said in its own signal rather than as an `ok` of false,
+// because the two mean different things to whoever asked. A failure is worth
+// telling somebody about and worth not retrying; being overtaken is ordinary,
+// the file is fine, and the open that replaced yours is the one that was
+// wanted.
+void TestDocumentManager::testAnOvertakenAsyncOpenSaysSoRatherThanGoingQuiet()
+{
+    const QString slow = m_tempDir->filePath(QStringLiteral("slow.md"));
+    const QString wanted = m_tempDir->filePath(QStringLiteral("wanted.md"));
+    {
+        QFile file(slow);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        // Big enough to still be reading when the next open arrives, and
+        // under the size cap that would refuse it outright.
+        file.write((QStringLiteral("# Slow\n\n")
+                    + QString(400 * 1024, QLatin1Char('x'))
+                    + QStringLiteral("\n")).toUtf8());
+    }
+    {
+        QFile file(wanted);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("# Wanted\n\nthe one somebody asked for\n");
+    }
+
+    QSignalSpy finished(m_manager, &DocumentManager::openAsyncFinished);
+    QSignalSpy supersededSpy(m_manager,
+                             &DocumentManager::openAsyncSuperseded);
+    QSignalSpy failed(m_manager, &DocumentManager::openFailed);
+
+    QVERIFY(m_manager->openAsync(QUrl::fromLocalFile(slow)));
+    // A synchronous open is what a click is, and it invalidates the
+    // asynchronous one in flight.
+    QVERIFY(m_manager->open(QUrl::fromLocalFile(wanted)));
+
+    // Exactly one outcome for the open that was started, naming its own file.
+    QTRY_COMPARE_WITH_TIMEOUT(supersededSpy.count(), 1, 5000);
+    QCOMPARE(supersededSpy.first().first().toString(), slow);
+
+    // And it is not dressed up as a failure: nothing tells the reader the
+    // file could not be read, and nothing says the open finished, because it
+    // did not.
+    QCOMPARE(failed.count(), 0);
+    QCOMPARE(finished.count(), 0);
+    QCOMPARE(m_manager->currentFilePath(), wanted);
 }
 
 void TestDocumentManager::testOpenAsyncFile()

@@ -32,6 +32,7 @@ private slots:
     void oversizedFirstCandidateDoesNotCancelTheSecond();
     void coldVaultOpenDoesNotStripLiveFrontMatter();
     void repositoryWarningsReachTheUser();
+    void anOvertakenStartupOpenStillFinishesStartup();
 };
 
 namespace {
@@ -260,6 +261,76 @@ void TestStartupController::traversalLastOpenNoteIsIgnored()
              collection.absolutePath(QStringLiteral("Safe.md")));
     QVERIFY(documentManager.currentFilePath()
             != outer.filePath(QStringLiteral("outside.md")));
+}
+
+// C21. A startup open that a later open overtakes used to be told nothing, so
+// startup never finished and everything gated on it waited for the rest of the
+// session.
+//
+// DocumentManager bumps a generation counter on every open, synchronous ones
+// included, and the asynchronous result whose generation no longer matches was
+// dropped in silence: no openAsyncFinished, no openFailed, nothing. This is
+// reachable from any window that opens a document during its first second, and
+// Kvit Works met it when a second window restored the file surface it had
+// closed on while the startup open was still in flight.
+void TestStartupController::anOvertakenStartupOpenStillFinishesStartup()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    // Large enough that reading it takes long enough to be overtaken, and
+    // small enough to stay under the size cap that would refuse it outright.
+    writeText(dir.filePath(QStringLiteral("Remembered.md")),
+              QStringLiteral("# Remembered\n\n")
+                  + QString(400 * 1024, QLatin1Char('x'))
+                  + QStringLiteral("\n"));
+    writeText(dir.filePath(QStringLiteral("Wanted.md")),
+              QStringLiteral("# Wanted\n\nthe note somebody asked for\n"));
+
+    QDir().mkpath(dir.filePath(QStringLiteral(".kvit")));
+    QJsonObject state;
+    state.insert(QStringLiteral("lastOpenNote"),
+                 QStringLiteral("Remembered.md"));
+    writeText(dir.filePath(QStringLiteral(".kvit/collection.json")),
+              QString::fromUtf8(QJsonDocument(state).toJson()));
+
+    UndoStack undoStack;
+    BlockModel blockModel;
+    blockModel.setUndoStack(&undoStack);
+    DocumentManager documentManager;
+    documentManager.setBlockModel(&blockModel);
+    documentManager.setUndoStack(&undoStack);
+    NoteCollection collection;
+
+    StartupController controller;
+    controller.setCollection(&collection);
+    controller.setDocumentManager(&documentManager);
+    controller.setBlockModel(&blockModel);
+    controller.setUndoStack(&undoStack);
+    controller.setRootPath(dir.path());
+
+    QSignalSpy superseded(&documentManager,
+                          &DocumentManager::openAsyncSuperseded);
+    controller.start();
+    QVERIFY(controller.started());
+    QVERIFY(!controller.finished());
+
+    // Somebody opens another note while the remembered one is still being
+    // read. A synchronous open is what a click is, and it invalidates the
+    // asynchronous one in flight.
+    QVERIFY(documentManager.open(
+        QUrl::fromLocalFile(dir.filePath(QStringLiteral("Wanted.md")))));
+
+    // The overtaken open says so, exactly once, naming the file nobody will
+    // hear about again.
+    QTRY_COMPARE_WITH_TIMEOUT(superseded.count(), 1, 5000);
+    QCOMPARE(superseded.first().first().toString(),
+             collection.absolutePath(QStringLiteral("Remembered.md")));
+
+    // And startup finishes rather than waiting for an answer that is never
+    // coming. The document left open is the one that was asked for.
+    QTRY_VERIFY_WITH_TIMEOUT(controller.finished(), 5000);
+    QCOMPARE(documentManager.currentFilePath(),
+             dir.filePath(QStringLiteral("Wanted.md")));
 }
 
 // APP-4. DocumentManager::openAsync() refuses an oversized file before any

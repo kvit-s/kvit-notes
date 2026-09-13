@@ -808,8 +808,17 @@ DocumentManager::writeSnapshotToFile(const QString &operation,
 void DocumentManager::onAsyncOpenFinished()
 {
     const AsyncOpenResult result = m_asyncOpenWatcher.result();
-    if (result.generation != m_asyncOpenGeneration)
+    if (result.generation != m_asyncOpenGeneration) {
+        // Overtaken: a later open — asynchronous or synchronous, since every
+        // open() calls invalidateAsyncOpen() first — bumped the generation
+        // while this one was reading. This used to return here without a
+        // word, so whoever asked for this open heard nothing ever again.
+        //
+        // The in-progress flag is deliberately left alone: the open that
+        // overtook this one may still be running, and it owns that flag now.
+        emit openAsyncSuperseded(result.filePath);
         return;
+    }
 
     setAsyncOpenInProgress(false);
 

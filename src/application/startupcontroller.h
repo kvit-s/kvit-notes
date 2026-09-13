@@ -70,6 +70,11 @@ signals:
 private:
     bool openStartupNote(const QString &relPath);
     void onStartupNoteOpenFinished(const QString &filePath, bool ok);
+    // The open we asked for was overtaken by a later one. Startup has nothing
+    // left to do about the remembered note -- the open that replaced ours is
+    // the one somebody asked for -- so it finishes rather than waiting for an
+    // answer that is never coming.
+    void onStartupNoteOpenSuperseded(const QString &filePath);
     void tryFinishStartup();
     void finishStartup();
 

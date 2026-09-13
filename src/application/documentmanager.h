@@ -214,7 +214,29 @@ signals:
                               double capBytes);
     void journalPathChanged();
     void openInProgressChanged();
+    // The open you started reached a conclusion about the document: `ok` says
+    // whether it is now open. Exactly one of this and openAsyncSuperseded is
+    // emitted for every openAsync() that returned true.
     void openAsyncFinished(const QString &filePath, bool ok);
+
+    // A newer open replaced yours before it could finish, so nothing was said
+    // about this file and nothing is wrong with it.
+    //
+    // This exists because the alternative was silence. A later open bumps the
+    // generation counter, and every synchronous open() bumps it too, so any
+    // asynchronous open a later one overtakes used to return from
+    // onAsyncOpenFinished() without emitting anything at all: not this, not
+    // openAsyncFinished, not openFailed. A caller waiting on the outcome of
+    // its own open then waited for the rest of the session, because there is
+    // no timeout behind any of this. StartupController is such a caller, and
+    // a window whose startup open was overtaken never finished starting.
+    //
+    // It is a signal of its own rather than an `ok` of false because the two
+    // mean different things to whoever asked. A failure is worth telling
+    // somebody about and worth not trying again; being overtaken is ordinary,
+    // the file is fine, and the open that replaced yours is the one the
+    // person asked for.
+    void openAsyncSuperseded(const QString &filePath);
 
     // Emitted just before the file is overwritten — the backup
     // rotation's hook.
