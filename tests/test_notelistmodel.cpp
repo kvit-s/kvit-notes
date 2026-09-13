@@ -31,6 +31,10 @@ private slots:
     void testManualSortFallsBackToTitleElsewhere();
     void testRebuildsOnCollectionChange();
     void testRebuildNowSynchronizesPendingRevision();
+    void testClosingTheRootEmptiesTheModelAtOnce();
+    void testSwitchingRootLandsOnTheNewVault();
+    void testRapidWritesStillCoalesceIntoOneRebuild();
+    void testRowWhoseNoteHasGoneAnswersInType();
     void testMetadataChangeUpdatesRowsWithoutReset();
     void testShapeChangesUseIncrementalSignals();
     void testRowLookups();
@@ -283,6 +287,138 @@ void TestNoteListModel::testRebuildNowSynchronizesPendingRevision()
     m_model->rebuildNow();
     QCOMPARE(m_model->rowCount(), 5);
     QCOMPARE(m_model->rowOf(QStringLiteral("Fig.md")), -1);
+}
+
+// Closing the vault takes the rows with it, in the same call rather than
+// 20 ms later.
+//
+// The rows name notes in the vault being closed, so from the moment the root
+// changes the collection can answer nothing about any of them: their path,
+// title, snippet and both dates all come back empty. While the rebuild was
+// merely scheduled, a repaint in that window drew every row blank -- which is
+// how a downstream module found this, its note rows showing an empty title, an
+// empty snippet and no date at all. Nothing announced it, because an invalid
+// QDateTime formats to nothing without complaint.
+void TestNoteListModel::testClosingTheRootEmptiesTheModelAtOnce()
+{
+    QCOMPARE(m_model->rowCount(), 5);
+    QSignalSpy removeSpy(m_model, &QAbstractItemModel::rowsRemoved);
+
+    m_collection->closeRoot();
+
+    // No event loop turn has happened yet, so this is the state any repaint
+    // between closing the vault and the next one opening would find.
+    QCOMPARE(m_model->rowCount(), 0);
+    QCOMPARE(removeSpy.count(), 1);
+
+    // And it is still that state part way through the old 20 ms window,
+    // which is where the rebuild used to happen.
+    QTest::qWait(5);
+    QCOMPARE(m_model->rowCount(), 0);
+}
+
+// The point of emptying the list on a root change is not to leave it empty:
+// switching vaults has to land on the new vault's notes, and only those.
+void TestNoteListModel::testSwitchingRootLandsOnTheNewVault()
+{
+    QCOMPARE(m_model->rowCount(), 5);
+    // Both of the new vault's notes are written in the same instant, so the
+    // default modified sort would order them on its path tie-break. Name the
+    // order this case is checking instead.
+    m_model->setSortMode(QStringLiteral("title"));
+    m_model->setAscending(true);
+
+    QTemporaryDir other;
+    QVERIFY(other.isValid());
+    for (const QString &name : {QStringLiteral("Kale.md"),
+                                QStringLiteral("Leek.md")}) {
+        QFile file(other.filePath(name));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("vegetable body\n");
+        file.close();
+    }
+
+    QVERIFY(m_collection->openRoot(other.path()));
+
+    // Synchronously again: the switch does not pass through a state where
+    // the old vault's rows are still being advertised.
+    QCOMPARE(rows(), (QStringList() << "Kale.md" << "Leek.md"));
+    QTest::qWait(30); // past the coalescing timer, in case one is pending
+    QCOMPARE(rows(), (QStringList() << "Kale.md" << "Leek.md"));
+}
+
+// The 20 ms timer still does the job it exists for. Several notes written in
+// quick succession are one rebuild, not one per file: the row count moves
+// from five to eight in a single step, so countChanged fires once.
+void TestNoteListModel::testRapidWritesStillCoalesceIntoOneRebuild()
+{
+    QCOMPARE(m_model->rowCount(), 5);
+    QSignalSpy countSpy(m_model, &NoteListModel::countChanged);
+
+    QCOMPARE(m_collection->createNote(QString(), QStringLiteral("Fig")),
+             QStringLiteral("Fig.md"));
+    QCOMPARE(m_collection->createNote(QString(), QStringLiteral("Grape")),
+             QStringLiteral("Grape.md"));
+    QCOMPARE(m_collection->createNote(QString(), QStringLiteral("Honeydew")),
+             QStringLiteral("Honeydew.md"));
+
+    // All three revisions arrived inside one window, and none of them has
+    // been projected yet.
+    QCOMPARE(m_model->rowCount(), 5);
+    QCOMPARE(countSpy.count(), 0);
+
+    QTRY_COMPARE(m_model->rowCount(), 8);
+    QCOMPARE(countSpy.count(), 1);
+    QVERIFY(m_model->rowOf(QStringLiteral("Fig.md")) >= 0);
+    QVERIFY(m_model->rowOf(QStringLiteral("Grape.md")) >= 0);
+    QVERIFY(m_model->rowOf(QStringLiteral("Honeydew.md")) >= 0);
+}
+
+// A row can outlive the note it names even with the root fixed: deleting a
+// note drops it from the collection at once, while the rows stand until the
+// coalesced rebuild. The model keeps answering for that row -- refusing it
+// would assert on a state the filesystem can produce at any moment -- and
+// every role answers in its own type, so the delegate's required `date`,
+// `int` and `bool` properties never receive `undefined`.
+void TestNoteListModel::testRowWhoseNoteHasGoneAnswersInType()
+{
+    const int row = m_model->rowOf(QStringLiteral("Banana.md"));
+    QVERIFY(row >= 0);
+    QVERIFY(m_collection->deleteNote(QStringLiteral("Banana.md")));
+    // Still advertised: this is the window under test.
+    QCOMPARE(m_model->rowOf(QStringLiteral("Banana.md")), row);
+
+    const QModelIndex index = m_model->index(row, 0);
+    auto value = [this, &index](int role) {
+        return m_model->data(index, role);
+    };
+
+    // The path is never unknown -- it is the row -- and the title falls back
+    // to the file name, so the row identifies its note rather than drawing
+    // as an empty line.
+    QCOMPARE(value(NoteListModel::RelPathRole).toString(),
+             QStringLiteral("Banana.md"));
+    QCOMPARE(value(NoteListModel::TitleRole).toString(),
+             QStringLiteral("Banana"));
+    QCOMPARE(value(NoteListModel::SnippetRole).toString(), QString());
+
+    // Types, which is what the delegate depends on.
+    QCOMPARE(value(NoteListModel::ModifiedRole).metaType().id(),
+             int(QMetaType::QDateTime));
+    QCOMPARE(value(NoteListModel::CreatedRole).metaType().id(),
+             int(QMetaType::QDateTime));
+    QVERIFY(!value(NoteListModel::ModifiedRole).toDateTime().isValid());
+    QCOMPARE(value(NoteListModel::WordCountRole).metaType().id(),
+             int(QMetaType::Int));
+    QCOMPARE(value(NoteListModel::WordCountRole).toInt(), 0);
+    QCOMPARE(value(NoteListModel::PinnedRole).metaType().id(),
+             int(QMetaType::Bool));
+    QCOMPARE(value(NoteListModel::FavoriteRole).toBool(), false);
+    QCOMPARE(value(NoteListModel::TagsRole).toStringList(), QStringList());
+    QCOMPARE(value(NoteListModel::RealmRole).toString(), QString());
+
+    // And the row goes when the rebuild catches up.
+    QTRY_COMPARE(m_model->rowOf(QStringLiteral("Banana.md")), -1);
 }
 
 void TestNoteListModel::testMetadataChangeUpdatesRowsWithoutReset()

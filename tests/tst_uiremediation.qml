@@ -548,6 +548,92 @@ Item {
             NoteListModel.sortMode = "modified"
         }
 
+        // A vault that has been closed leaves the pane no rows to draw.
+        //
+        // NoteListModel coalesces its rebuilds for 20 milliseconds, and that
+        // used to include the rebuild a root change causes. For that interval
+        // the pane still had the closed vault's rows while the collection
+        // could answer nothing about any of them, so every row drew an empty
+        // title, an empty snippet, a word count of zero and no date. Nothing
+        // reported it: an invalid date formats to nothing without complaint,
+        // which is why the claim is asserted here rather than watched for in
+        // the console.
+        function test_notelist_aClosedVaultLeavesNoRowsToDraw() {
+            openTestCollection()
+            var list = childNamed("noteListView")
+            tryVerify(function() { return list.count >= 3 }, 5000,
+                      "the list drew the open vault's notes")
+            // itemAtIndex() reads the items the view has built, and the view
+            // builds them on its next layout pass.
+            list.forceLayout()
+            wait(50)
+            verify(list.itemAtIndex(0) !== null, "a row was built to begin with")
+
+            NoteCollection.closeRoot()
+
+            // Read before anything waits, because this is the instant the
+            // rebuild used to be merely scheduled into.
+            compare(NoteListModel.count, 0,
+                    "the model dropped its rows with the vault")
+
+            // And still nothing part way through that old 20 ms window, which
+            // is where a repaint would have found the blank rows.
+            list.forceLayout()
+            wait(5)
+            compare(list.count, 0, "the view has nothing to draw")
+            verify(list.itemAtIndex(0) === null, "no row item survives")
+        }
+
+        // The other half of that: emptying the list on a root change must not
+        // leave it empty. Opening the next vault fills the pane with that
+        // vault's notes, and with nothing from the one just left.
+        function test_notelist_aVaultSwitchDrawsTheNewVaultsNotes() {
+            openTestCollection()
+            verify(NoteCollection.createNote("", "OnlyInVaultA") !== "",
+                   "the first vault has a note of its own")
+            tryVerify(function() {
+                return NoteListModel.rowOf("OnlyInVaultA.md") >= 0
+            }, 2000, "that note reached the list")
+
+            // A second root, opened straight over the first. openRoot() is
+            // called here rather than through openTestCollection(), because
+            // that helper waits for the list to fill and the assertion below
+            // is about the instant before any waiting.
+            collectionSerial++
+            verify(NoteCollection.openRoot(
+                       testCollectionDir + "/rem" + collectionSerial),
+                   "the second vault opens")
+            compare(NoteListModel.rowOf("OnlyInVaultA.md"), -1,
+                    "nothing survives from the vault just left")
+
+            verify(NoteCollection.createNote("", "OnlyInVaultB") !== "",
+                   "the second vault has a note of its own")
+            tryVerify(function() {
+                return NoteListModel.rowOf("OnlyInVaultB.md") >= 0
+            }, 2000, "that note reached the list")
+            compare(NoteListModel.rowOf("OnlyInVaultA.md"), -1,
+                    "and still nothing, once the list has filled")
+
+            var list = childNamed("noteListView")
+            list.forceLayout()
+            wait(50)
+            var checked = 0
+            for (var i = 0; i < NoteListModel.count; ++i) {
+                // Only the rows the view has built can be read.
+                var row = list.itemAtIndex(i)
+                if (row === null)
+                    continue
+                ++checked
+                var where = " (row " + i + ")"
+                verify(row.relPath !== "OnlyInVaultA.md",
+                       "no row names a note of the closed vault" + where)
+                verify(row.title !== "", "the row draws a title" + where)
+                verify(!isNaN(row.modified.getTime()),
+                       "the row draws a real modified date" + where)
+            }
+            verify(checked > 0, "at least one row was built to read")
+        }
+
         // ==============================================================
         // QML-4 — toolbar actions must have a keyboard route
         // ==============================================================

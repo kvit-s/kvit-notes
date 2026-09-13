@@ -3,9 +3,29 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include "notelistmodel.h"
 #include "notecollection.h"
+#include "noteentry.h"
 
 #include <algorithm>
+#include <QDateTime>
 #include <QSet>
+
+namespace {
+
+// The title the index would have given this path: the file name without its
+// ".md" extension, which is how vaultscan.cpp derives every entry's title.
+// Only ever used for a row whose note has already left the collection, so
+// that a list drawn in that instant names the note instead of showing a
+// blank line.
+QString titleFromRelPath(const QString &relPath)
+{
+    const QString name = nameOfRelPath(relPath);
+    const QLatin1String suffix(".md");
+    return name.endsWith(suffix, Qt::CaseInsensitive)
+        ? name.left(name.size() - suffix.size())
+        : name;
+}
+
+} // namespace
 
 NoteListModel::NoteListModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -24,8 +44,20 @@ void NoteListModel::setCollection(NoteCollection *collection)
     if (m_collection) {
         connect(m_collection, &NoteCollection::revisionChanged,
                 this, &NoteListModel::scheduleRebuild);
+        // Rebuild, not scheduleRebuild: the root is the one change the 20 ms
+        // coalescing must not cover. Every row names a note in the vault
+        // being left, so the moment the root changes they are all
+        // unanswerable, and anything that paints before the timer fires
+        // draws them blank — no title, no snippet, no date, a word count of
+        // zero. There is nothing to coalesce either, because opening or
+        // closing a vault is one deliberate act rather than the stream of
+        // filesystem events the timer exists for. Regression tests:
+        // testClosingTheRootEmptiesTheModelAtOnce in
+        // tests/test_notelistmodel.cpp and
+        // test_notelist_aClosedVaultLeavesNoRowsToDraw in
+        // tests/tst_uiremediation.qml.
         connect(m_collection, &NoteCollection::rootChanged,
-                this, &NoteListModel::scheduleRebuild);
+                this, &NoteListModel::rebuild);
     }
     rebuild();
 }
@@ -278,34 +310,44 @@ int NoteListModel::rowCount(const QModelIndex &parent) const
 
 QVariant NoteListModel::data(const QModelIndex &index, int role) const
 {
-    if (!m_collection || index.row() < 0 || index.row() >= m_rows.size())
+    if (index.row() < 0 || index.row() >= m_rows.size())
         return QVariant();
+    const QString &relPath = m_rows.at(index.row());
     const NoteCollection::NoteEntry *entry =
-        m_collection->note(m_rows.at(index.row()));
-    if (!entry)
-        return QVariant();
+        m_collection ? m_collection->note(relPath) : nullptr;
 
+    // A row can outlive the index entry it names. Deleting a note drops it
+    // from the collection at once while these rows stand until the next
+    // rebuild, so a repaint in between asks for a note that is no longer
+    // there. That row is answered rather than refused, and every role
+    // answers in the type the delegate declares for it (the required
+    // properties at the top of the delegate in qml/NoteListPane.qml),
+    // because a role that returns a default QVariant reaches QML as
+    // `undefined`, which a `date`, an `int` or a `bool` property cannot
+    // take. The path is always known — it is the row — so a row in
+    // that state still identifies its note rather than drawing as an empty
+    // line.
     switch (role) {
     case RelPathRole:
-        return entry->relPath;
+        return relPath;
     case TitleRole:
-        return entry->title;
+        return entry ? entry->title : titleFromRelPath(relPath);
     case SnippetRole:
-        return entry->snippet;
+        return entry ? entry->snippet : QString();
     case ModifiedRole:
-        return entry->modified;
+        return entry ? entry->modified : QDateTime();
     case CreatedRole:
-        return entry->created;
+        return entry ? entry->created : QDateTime();
     case WordCountRole:
-        return entry->wordCount;
+        return entry ? entry->wordCount : 0;
     case PinnedRole:
-        return entry->meta.pinned;
+        return entry && entry->meta.pinned;
     case FavoriteRole:
-        return entry->meta.favorite;
+        return entry && entry->meta.favorite;
     case TagsRole:
-        return entry->meta.tags;
+        return entry ? entry->meta.tags : QStringList();
     case RealmRole:
-        return entry->realm;
+        return entry ? entry->realm : QString();
     }
     return QVariant();
 }
