@@ -13,18 +13,127 @@ cmake_minimum_required(VERSION 3.16)
 
 find_package(Qt6 REQUIRED COMPONENTS Gui)
 
-# Every core translation unit: all of src/ except the non-Qt platform
-# backends and the sample programs. The upstream target_sources list enumerates
-# exactly this set (atom, box, core, fonts, utils, res/*, latex.cpp,
-# render.cpp); globbing with those two exclusions reproduces it without a
-# 130-line transcription that would drift from upstream.
-file(GLOB_RECURSE MICROTEX_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-list(FILTER MICROTEX_SOURCES EXCLUDE REGEX "/src/platform/")
-list(FILTER MICROTEX_SOURCES EXCLUDE REGEX "/src/samples/")
-# The vendored generated NewTX metric tables are #included by the
-# kvit_newtx_* wrapper defs, never compiled standalone.
-list(FILTER MICROTEX_SOURCES EXCLUDE REGEX "/src/res/font/newtx-generated/")
+# Every core translation unit: all of src/ except the non-Qt platform backends,
+# the sample programs, and the generated NewTX metric tables, which are
+# #included by the kvit_newtx_* wrapper defs and never compiled standalone.
+#
+# Written out rather than globbed. The list used to be a GLOB_RECURSE with
+# those three exclusions, and its comment gave the reason: it "reproduces [the
+# upstream source list] without a 130-line transcription that would drift from
+# upstream". That reason held while upstream was still being followed, and this
+# is a vendored copy at a pinned commit that nobody is updating, so the drift
+# it guarded against can no longer happen.
+#
+# Be accurate about what the glob cost, because it is not much. CONFIGURE_DEPENDS
+# made the build tool re-check the directories on every build, which measures
+# 0.01 seconds. What it bought was that a file appearing or disappearing under
+# src/ triggered a re-configure, costing about 15 seconds -- in a copy nobody
+# is changing, never. So this is tidying rather than a speed-up.
+#
+# The list below is exactly what the glob selected, 101 files.
+set(MICROTEX_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/atom_basic.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/atom_char.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/atom_impl.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/atom_matrix.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/atom_row.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/atom_space.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/colors_def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atom/unit_conversion.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/box/box.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/box/box_factory.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/box/box_group.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/box/box_single.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/core.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/formula.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/formula_def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/glue.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/localized_num.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/macro.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/macro_def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/macro_impl.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/parser.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/fonts/alphabet.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/fonts/font_basic.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/fonts/font_info.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/fonts/fonts.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/latex.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/render.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/builtin/formula_mappings.res.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/builtin/symbol_mapping.res.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/builtin/tex_param.res.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/builtin/tex_symbols.res.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/bi10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/bx10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmbsy10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmbx10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmbxti10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmex10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmmi10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmmi10_unchanged.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmmib10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmmib10_unchanged.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmr10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmss10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmssbx10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmssi10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmsy10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmti10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmti10_unchanged.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/cmtt10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/dsrom10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/eufb10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/eufm10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/i10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxbexa.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxbexx.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxbsy.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxbsy5.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxbsy7.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxbsyc.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxbsym.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxexa.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxexx.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxsy.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxsy5.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxsy7.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxsyc.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_ntxsym.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_xcharter_bold_tlf_t1.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_xcharter_bolditalic_tlf_t1.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_xcharter_italic_tlf_t1.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_xcharter_roman_tlf_t1.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_zchbmi.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_zchbmia.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_zchmi.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/kvit_newtx_zchmia.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/moustache.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/msam10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/msbm10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/r10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/r10_unchanged.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/rsfs10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/sb10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/sbi10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/si10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/special.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/ss10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/stmary10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/font/tt10.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/parser/font_parser.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/parser/formula_parser.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/reg/builtin_font_reg.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/reg/builtin_syms_reg.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/sym/amsfonts.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/sym/amssymb.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/sym/base.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/sym/kvit_newtx.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/sym/stmaryrd.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/res/sym/symspecial.def.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/string_utils.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utf.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.cpp"
+)
 
 add_library(microtex STATIC
     ${MICROTEX_SOURCES}
