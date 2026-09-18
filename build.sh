@@ -4,6 +4,22 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$PROJECT_DIR/build"
 
+# Settings shared with the other Kvit repositories on this machine: the
+# compiler cache, the linker, how debug information is stored, where tests
+# write their evidence. They live in one place so that changing one of those
+# decisions is one edit rather than five.
+#
+# This is a development convenience and nothing depends on it. Absent the
+# file, the script configures without it and builds exactly as before, which
+# is what keeps the repository buildable for continuous integration, for
+# Flathub and on Windows, where none of it is present.
+KVIT_BUILD_ENV="${KVIT_BUILD_ENV:-$HOME/kvit-build/kvit-build-env.sh}"
+KVIT_CMAKE_SHARED_ARGS=()
+if [ -f "$KVIT_BUILD_ENV" ]; then
+    . "$KVIT_BUILD_ENV"
+    kvit_build_env "$PROJECT_DIR"
+fi
+
 # Find Qt installation
 if [ -d "$HOME/Qt" ]; then
     QT_VERSION=$(ls "$HOME/Qt" | grep -E '^6\.' | sort -V | tail -1)
@@ -110,11 +126,17 @@ mkdir -p "$BUILD_DIR"
         if [ "$CACHED_QT" = "$QT_PATH" ] && [ "$CACHED_SHARED" = "ON" ]; then
             NEEDS_CONFIGURE=0
         fi
+        # A tree configured before the shared settings existed, or against a
+        # different artifact directory, would keep the old ones indefinitely.
+        if command -v kvit_build_settings_changed >/dev/null 2>&1 \
+           && kvit_build_settings_changed "$BUILD_DIR"; then
+            NEEDS_CONFIGURE=1
+        fi
     fi
 
     if [ "$NEEDS_CONFIGURE" -eq 1 ]; then
         cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -G "$GENERATOR" \
-            "${CMAKE_ARGS[@]}"
+            "${CMAKE_ARGS[@]}" "${KVIT_CMAKE_SHARED_ARGS[@]}"
     fi
 
     # Build
