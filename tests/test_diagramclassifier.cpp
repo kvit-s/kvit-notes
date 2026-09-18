@@ -6,6 +6,8 @@
 #include <QTextStream>
 
 #include "diagrams/diagramclassifier.h"
+#include <QDir>
+#include "testpaths.h"
 
 // Character-diagram classifier corpus. The positive set is the checked-in
 // llm-diagram.md fixture (read from disk so the test proves the committed
@@ -45,7 +47,8 @@ private slots:
     void classifiesCanonicalFixture()
     {
         const QString body =
-            fenceBody(QStringLiteral(KVIT_SOURCE_ROOT "/tests/fixtures/llm-diagram.md"));
+            fenceBody(QDir(KvitTestPaths::sourceRoot()).filePath(
+                QStringLiteral("tests/fixtures/llm-diagram.md")));
         QVERIFY2(!body.isEmpty(), "could not read llm-diagram.md fence body");
         const DiagramClassifier::Result r = DiagramClassifier::classify(body);
         QVERIFY2(r.isDiagram, qPrintable(r.reasons.join(QStringLiteral("; "))));

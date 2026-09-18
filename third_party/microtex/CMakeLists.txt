@@ -61,11 +61,29 @@ target_include_directories(microtex SYSTEM PUBLIC
 target_link_libraries(microtex PUBLIC Qt6::Gui)
 
 # The resource root (fonts + formula/symbol XML) is read at runtime by
-# LaTeX::init(). Expose the vendored source path so the MathRenderer seam can
-# resolve it in dev and test; deployment can override via the KVIT_MATH_RES
-# environment variable (handled in MathRenderer).
-target_compile_definitions(microtex PUBLIC
-    KVIT_MATH_RES_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/res")
+# LaTeX::init(), and where it is depends on the layout the binary is running
+# in. MathRenderer::resourceRoot() answers that, and the dev and test answer is
+# the vendored `res` directory beside these sources.
+#
+# The path used to be a PUBLIC compile definition on this target, which put it
+# on the compile command of everything that links microtex: 554 of 651 compile
+# edges in this repository, and 586 of 713 and 387 of 540 in the two projects
+# that build the editor as a subdirectory. That defeats a compiler cache
+# outright. A cache decides whether it has compiled a file before by hashing
+# the compiler, the whole argument list and the contents of every file the
+# compile reads, and it can rewrite the arguments it recognises as paths --
+# -I, -isystem, -include, the input file -- to paths relative to the working
+# directory before hashing. It cannot rewrite a path inside a macro value,
+# because nothing tells it that one is a path. So the same source compiled in a
+# second checkout of the same commit looked like a different compile, and none
+# of it could be served from the cache.
+#
+# Only MathRenderer::resourceRoot() ever reads the macro, so it is now set on
+# that one source file, in the top-level CMakeLists.txt beside the target that
+# compiles it. Nothing about how the path resolves changed: the same value
+# reaches the same function, and the KVIT_MATH_RES environment variable still
+# overrides it. What changed is that one compile command holds an absolute path
+# rather than five hundred.
 
 # Upstream sources trip -Wall pedantry we do not own; keep our warnings off
 # this third-party target without dropping them project-wide.

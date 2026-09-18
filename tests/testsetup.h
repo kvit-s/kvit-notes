@@ -16,6 +16,8 @@
 #include <QGuiApplication>
 #include <QMimeData>
 
+#include "testpaths.h"
+
 #include "appcontext.h"
 #include "blockkindregistry.h"
 #include "blockmodel.h"
@@ -259,9 +261,8 @@ public slots:
         // Sample audio/video on disk for the media-block storyboard.
         // Copied from the committed fixtures into the collection so they
         // resolve like any note asset.
-#ifdef KVIT_TEST_FIXTURES
         {
-            const QString fx = QStringLiteral(KVIT_TEST_FIXTURES);
+            const QString fx = KvitTestPaths::fixtures();
             const QString audio = m_collectionDir.filePath("sample.wav");
             const QString video = m_collectionDir.filePath("sample.mp4");
             QFile::remove(audio);
@@ -278,7 +279,6 @@ public slots:
             QFile::copy(fx + QStringLiteral("/sample.png"), image);
             context->setContextProperty("sampleImagePath", image);
         }
-#endif
 
         // Lets a test act as "another program" editing a note on disk, so
         // the FileWatcher paths run end to end.

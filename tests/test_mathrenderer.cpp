@@ -6,7 +6,6 @@
 #include <QGuiApplication>
 #include <QImage>
 #include <QPainter>
-#include <QDir>
 #include <QFile>
 #include <QRect>
 #include <QtMath>
@@ -14,6 +13,8 @@
 
 #include "mathrenderer.h"
 #include "diagrams/diagrambudget.h"
+#include <QDir>
+#include "testpaths.h"
 
 // Render corpus for the MicroTeX seam. These are the first thing built once
 // the library is vendored: they prove the resource root resolves (fonts +
@@ -54,15 +55,7 @@ class TestMathRenderer : public QObject
         return false;
     }
 
-    QString sourceRoot() const
-    {
-#ifdef KVIT_SOURCE_ROOT
-        return QStringLiteral(KVIT_SOURCE_ROOT);
-#else
-        return QDir(MathRenderer::resourceRoot()).absoluteFilePath(
-            QStringLiteral("../../.."));
-#endif
-    }
+    QString sourceRoot() const { return KvitTestPaths::sourceRoot(); }
 
     QString newtxReferenceDir() const
     {

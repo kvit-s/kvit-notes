@@ -132,8 +132,6 @@ target_link_libraries(test_performance_app PRIVATE
     Qt6::Widgets
     Qt6::Test
 )
-target_compile_definitions(test_performance_app PRIVATE
-    KVIT_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 add_test(NAME PerformanceAppTests COMMAND test_performance_app)
 set_tests_properties(PerformanceAppTests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
@@ -202,6 +200,27 @@ qt_add_executable(test_todometa test_todometa.cpp)
 target_link_libraries(test_todometa PRIVATE kvit-core Qt6::Test)
 add_test(NAME TodoMetaTests COMMAND test_todometa)
 
+# ── Where a test finds the repository and the committed fixtures.
+#
+# Set on every test registered in this directory rather than compiled into the
+# ones that need them. A compiler cache decides whether it has compiled a file
+# before by hashing the compiler, the whole argument list and the contents of
+# every file the compile reads, and it cannot rewrite a path inside a macro
+# value because nothing tells it that one is a path. So an absolute path in a
+# -D makes every translation unit that sees it look like a different compile in
+# a second checkout of the same commit, and none of them can be served from the
+# cache. These two were on 16 compile edges between them.
+#
+# KvitTestPaths::sourceRoot() and ::fixtures() in testpaths.h read them, and
+# each falls back to a path relative to the test binary's own directory, so a
+# test run by hand still works.
+#
+# set_property(DIRECTORY ... TESTS) is not a thing CMake offers, so this is
+# applied at the end of the file, once every add_test() above has run.
+set(KVIT_TEST_PATH_ENVIRONMENT
+    "KVIT_SOURCE_ROOT=${CMAKE_SOURCE_DIR}"
+    "KVIT_TEST_FIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
 # KanbanData tests (board parse/serialize/mutate)
 qt_add_executable(test_kanbandata test_kanbandata.cpp)
 target_link_libraries(test_kanbandata PRIVATE kvit-core Qt6::Test)
@@ -211,24 +230,18 @@ add_test(NAME KanbanDataTests COMMAND test_kanbandata)
 # Needs a GUI context (font loading) — QTEST_MAIN gives it a QGuiApplication.
 qt_add_executable(test_mathrenderer test_mathrenderer.cpp)
 target_link_libraries(test_mathrenderer PRIVATE kvit-core Qt6::Test Qt6::Gui)
-target_compile_definitions(test_mathrenderer PRIVATE
-    KVIT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME MathRendererTests COMMAND test_mathrenderer)
 
 # DiagramClassifier tests (character-diagram detection corpus). Reads the
 # checked-in llm-diagram.md fixture, so it needs the source root.
 qt_add_executable(test_diagramclassifier test_diagramclassifier.cpp)
 target_link_libraries(test_diagramclassifier PRIVATE kvit-core Qt6::Test)
-target_compile_definitions(test_diagramclassifier PRIVATE
-    KVIT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME DiagramClassifierTests COMMAND test_diagramclassifier)
 
 # DiagramRepair tests (ingest straightening of LLM diagram flaws). Reads the
 # checked-in llm-diagram.md flawed corpus.
 qt_add_executable(test_diagramrepair test_diagramrepair.cpp)
 target_link_libraries(test_diagramrepair PRIVATE kvit-core Qt6::Test)
-target_compile_definitions(test_diagramrepair PRIVATE
-    KVIT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME DiagramRepairTests COMMAND test_diagramrepair)
 
 # MermaidParser tests (lexer offsets + flowchart AST + diagnostics, §8.2/§9).
@@ -513,9 +526,6 @@ target_link_libraries(test_integration PRIVATE
     Qt6::Multimedia
 )
 
-# The committed audio/video fixtures the media-block tests copy and play.
-target_compile_definitions(test_integration PRIVATE
-    KVIT_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 # The normal developer test keeps one process and one persistent window for
 # the whole suite. Do not replace this with per-function process isolation:
@@ -588,8 +598,6 @@ target_link_libraries(test_visual PRIVATE
     Qt6::Multimedia
 )
 
-target_compile_definitions(test_visual PRIVATE
-    KVIT_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 add_test(NAME VisualTests COMMAND test_visual -input ${CMAKE_CURRENT_SOURCE_DIR}/tst_visual.qml)
 
@@ -1009,6 +1017,11 @@ endforeach()
 
 get_property(_kvit_tests DIRECTORY PROPERTY TESTS)
 foreach(_t IN LISTS _kvit_tests)
+    # Where this test finds the repository and the committed fixtures. See
+    # KVIT_TEST_PATH_ENVIRONMENT near the top of this file for why they are
+    # here rather than compiled in.
+    set_property(TEST ${_t} APPEND PROPERTY
+                 ENVIRONMENT ${KVIT_TEST_PATH_ENVIRONMENT})
     # Windows: make the suite's own output readable. Qt decides at startup
     # whether a console exists and, when it decides there is none, sends every
     # message to the debugger, where neither CTest nor a redirect can see it.

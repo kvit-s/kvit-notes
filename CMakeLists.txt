@@ -326,6 +326,28 @@ target_link_libraries(kvit-content PUBLIC
 target_link_libraries(kvit-content PRIVATE Qt6::Concurrent)
 target_include_directories(kvit-content PUBLIC src/content)
 
+# Where the math resource tree is when nothing else says.
+#
+# MathRenderer::resourceRoot() resolves it in three steps: the KVIT_MATH_RES
+# environment variable taken verbatim, then the per-platform paths beside the
+# executable that an installed package uses, and only then this, the dev and
+# test fallback.
+#
+# On this one source file rather than on the microtex target, where it used to
+# be as a PUBLIC compile definition reaching every translation unit that links
+# it. An absolute path in a macro defeats a compiler cache for every compile
+# that sees it, because a cache cannot rewrite a path it has no way to
+# recognise as one; third_party/microtex/CMakeLists.txt says more about that.
+# mathrenderer.cpp is the only file that reads the macro, so this is the same
+# value reaching the same function with 553 fewer compile commands carrying it.
+#
+# CMAKE_CURRENT_SOURCE_DIR rather than CMAKE_SOURCE_DIR: two other projects
+# build this repository as a subdirectory, and there CMAKE_SOURCE_DIR is
+# theirs.
+set_property(SOURCE src/content/mathrenderer.cpp APPEND PROPERTY
+    COMPILE_DEFINITIONS
+    KVIT_MATH_RES_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/third_party/microtex/res")
+
 # ── kvit-domain — the block document.
 add_library(kvit-domain ${KVIT_LIB_TYPE}
     src/domain/block.cpp

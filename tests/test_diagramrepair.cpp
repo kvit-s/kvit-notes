@@ -6,6 +6,8 @@
 
 #include "diagrams/diagramrepair.h"
 #include "diagrams/diagramclassifier.h"
+#include <QDir>
+#include "testpaths.h"
 
 using DiagramRepair::repair;
 
@@ -19,7 +21,8 @@ class TestDiagramRepair : public QObject
 
     static QString fixtureBody()
     {
-        QFile f(QStringLiteral(KVIT_SOURCE_ROOT "/tests/fixtures/llm-diagram.md"));
+        QFile f(QDir(KvitTestPaths::sourceRoot()).filePath(
+                    QStringLiteral("tests/fixtures/llm-diagram.md")));
         if (!f.open(QIODevice::ReadOnly))
             return QString();
         QString text = QString::fromUtf8(f.readAll());
