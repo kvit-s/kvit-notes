@@ -703,6 +703,7 @@ set(KVIT_QML_FILES
     qml/TocFenceSync.qml
     qml/TodoDelegate.qml
     qml/Toolbar.qml
+    qml/WheelScroller.qml
     qml/ViewMenu.qml
     qml/WikiLinkCompletion.qml
     qml/WikiLinkMenu.qml

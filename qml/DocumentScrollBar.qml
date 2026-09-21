@@ -43,6 +43,14 @@ ScrollBar {
     // The document view this bar scrolls.
     property ListView listView: null
 
+    // Who is moving it, when the wheel is. A flickable reports a wheel scroll
+    // as `moving`, which is what the style needs to draw the handle at all;
+    // a scroll this component drives instead writes contentY directly and the
+    // flickable reports nothing, so the bar would stay invisible for exactly
+    // the gesture readers use most. Null in a host that left the wheel to the
+    // flickable.
+    property WheelScroller wheelScroller: null
+
     orientation: Qt.Vertical
     policy: ScrollBar.AsNeeded
 
@@ -51,6 +59,7 @@ ScrollBar {
     // zero opacity forever, since its "active" state is what fades it in.
     active: control.pressed || control.hovered
             || (control.listView ? control.listView.moving : false)
+            || (control.wheelScroller ? control.wheelScroller.chasing : false)
 
     // The scrollable extent in document coordinates: every block's height,
     // measured or estimated, plus the space the list leaves past the last

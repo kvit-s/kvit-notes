@@ -68,6 +68,11 @@ BlockEditorSurface {
     // The document scrollbar at the right edge. A box that grows with its
     // content and scrolls only past its cap has no use for one.
     property bool showScrollBar: true
+    // Whether the wheel is handled by qml/WheelScroller.qml rather than by
+    // the flickable itself. That file has what the flickable's own handling
+    // did and why this exists; it is a property so the two can be measured
+    // against each other, and so a host that wants the old behaviour can ask.
+    property bool smoothWheelScrolling: true
 
     // Space around the block column, inside the editor's own bounds. The
     // reading default is the twenty pixels a page of prose wants on either
@@ -796,7 +801,16 @@ BlockEditorSurface {
             Behavior on contentY {
                 // Typewriter scroll honors reduced motion (§14.3): 0
                 // duration stills it instantly.
+                //
+                // And not while the wheel is being turned. WheelScroller
+                // writes contentY once a frame and reads back what it wrote
+                // to tell its own movement from anybody else's; an animation
+                // between the write and the value means it never reads back
+                // what it wrote, so it concludes something else has taken the
+                // view and gives up. Typewriter mode would otherwise be the
+                // one mode in which the wheel does nothing.
                 enabled: editor.typewriterMode && Theme.motionScale > 0
+                         && !wheelScroller.chasing
                 NumberAnimation { duration: 130 * Theme.motionScale
                                   easing.type: Easing.OutQuad }
             }
@@ -985,6 +999,17 @@ BlockEditorSurface {
         }
     }
 
+    // How the wheel moves the list. Declared outside the ScrollView so that
+    // it is not reparented into the flickable's content item; the handler
+    // inside it attaches itself to the list. WheelScroller says what the
+    // flickable's own handling did and why this replaces it.
+    WheelScroller {
+        id: wheelScroller
+        objectName: "editorWheelScroller"
+        listView: blockListView
+        enabled: editor.smoothWheelScrolling
+    }
+
     // The document's scrollbar, at the right edge of the scrolling area
     // and over it, which is where the bar the ScrollView draws for itself
     // sits. Outside the ScrollView rather than attached to it, because an
@@ -993,6 +1018,7 @@ BlockEditorSurface {
     DocumentScrollBar {
         editor: editor
         listView: blockListView
+        wheelScroller: wheelScroller
         visible: editor.showScrollBar
         anchors.top: scrollView.top
         anchors.bottom: scrollView.bottom
