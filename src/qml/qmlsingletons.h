@@ -289,22 +289,29 @@ struct SettingsStoreForeign
     QML_NAMED_ELEMENT(SettingsStore)
 };
 
-// A second document, and a selection over it.
+// A second document, and the seven objects that hold its state.
 //
-// The `BlockModel` and `DocumentSelection` singletons above are the open
-// note: one per window, wired to the undo stack, the document manager and the
-// file on disk. A window may also DRAW a markdown document that is not the
-// open note — a stored version of it, a referring note's context, a search
-// snippet — and a drawn document is a second BlockModel with a selection of
-// its own, which is what qml/ReadOnlyDocument.qml instantiates through these
-// two names. Same C++ classes, and the same pair of registrations
-// SettingsStore already has above: a singleton wrapper for the composition's
-// own instance, and a creatable wrapper under a different name for anything
-// that needs one of its own.
+// The singletons above are the OPEN NOTE: one set per window, built by
+// AppContext, wired to each other, to the document manager and to the file on
+// disk. The eight names here are the same C++ classes registered a second
+// time as creatable types, so that a QML component can build a document of
+// its own — the same pair of registrations SettingsStore already has above.
 //
-// Nothing constructed this way is attached to an undo stack or to a file. The
-// surface never writes to its model, and a caller that wants a document
-// edited opens it as a note.
+// There are two kinds of caller. One DRAWS a markdown document that is not
+// the open note: a stored version of it, a referring note's context, a search
+// snippet. qml/ReadOnlyDocument.qml is that caller, and it needs two of these
+// — a model and a selection over it. The other EMBEDS an editing surface
+// somewhere that is not the editor pane: a message composer, a quick-capture
+// box, a second document beside the first. qml/CompactEditor.qml is that
+// caller, and it needs all eight, because BlockEditorSurface takes eight
+// objects and every one it is not given falls back to the window's, which
+// means the embedded surface would be typing into the open note's undo
+// history, outline, statistics, search matches, height table and decorations.
+//
+// A creatable instance starts attached to nothing. The caller joins them:
+// `model` on the six projections, `undoStack` on the model. Nothing is
+// attached to a file either — a caller that wants a document opened as a note
+// opens it as a note.
 struct DocumentBlocksForeign
 {
     Q_GADGET
@@ -317,6 +324,55 @@ struct DocumentBlockSelectionForeign
     Q_GADGET
     QML_FOREIGN(DocumentSelection)
     QML_NAMED_ELEMENT(DocumentBlockSelection)
+};
+
+// The undo history of a document that is not the open note. A model with no
+// stack is still editable and simply forgets, which is what an embedded
+// surface got before this existed.
+struct DocumentUndoStackForeign
+{
+    Q_GADGET
+    QML_FOREIGN(UndoStack)
+    QML_NAMED_ELEMENT(DocumentUndoStack)
+};
+
+struct DocumentBlockSearchForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DocumentSearch)
+    QML_NAMED_ELEMENT(DocumentBlockSearch)
+};
+
+struct DocumentBlockOutlineForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DocumentOutline)
+    QML_NAMED_ELEMENT(DocumentBlockOutline)
+};
+
+struct DocumentBlockHeightsForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DocumentHeights)
+    QML_NAMED_ELEMENT(DocumentBlockHeights)
+};
+
+struct DocumentBlockStatsForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DocumentStats)
+    QML_NAMED_ELEMENT(DocumentBlockStats)
+};
+
+// Where a linked module draws inside a document that is not the open note.
+// Unlike the six above it takes no model: its entries are addressed by block
+// index and by offset within a block, so a second instance is the whole of
+// what a second document needs.
+struct DocumentBlockDecorationsForeign
+{
+    Q_GADGET
+    QML_FOREIGN(DocumentDecorations)
+    QML_NAMED_ELEMENT(DocumentBlockDecorations)
 };
 
 // The marked ranges of one drawn document.

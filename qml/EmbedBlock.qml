@@ -338,7 +338,7 @@ BlockDelegateBase {
         // A configured width drops the right anchor for an explicit size
         // (§1.2.14); the default card spans the full content width.
         anchors.right: root.effectiveWidth > 0 ? undefined : parent.right
-        anchors.leftMargin: 52
+        anchors.leftMargin: root.gutterInset + 8
         anchors.rightMargin: 8
         anchors.top: parent.top
         anchors.topMargin: 4

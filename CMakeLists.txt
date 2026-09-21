@@ -625,6 +625,7 @@ set(KVIT_QML_FILES
     qml/CodeBlockChrome.qml
     qml/CodeBlockDelegate.qml
     qml/ColorPicker.qml
+    qml/CompactEditor.qml
     qml/CrossBlockTextDrag.qml
     qml/CrossBlockTextSelection.qml
     qml/DateRangePicker.qml

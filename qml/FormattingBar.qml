@@ -31,6 +31,11 @@ Rectangle {
     property var target
     property var listView
 
+    // Whether this editor offers the bar at all. A compact editor — a message
+    // composer, a capture box — sets it false, and the bar then never appears
+    // however the selection moves.
+    property bool available: true
+
     z: 600
     width: buttonRow.implicitWidth + 8
     height: Interface.px(34)
@@ -80,7 +85,7 @@ Rectangle {
         function onContentYChanged() { bar.armed = false }
     }
 
-    visible: armed && selectionActive
+    visible: bar.available && armed && selectionActive
 
     // Above the selection, never under the pointer's press point;
     // below it when the top would clip (§9.3 "without obscuring").

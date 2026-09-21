@@ -57,6 +57,7 @@ void DocumentOutline::setModel(BlockModel *model)
                 this, &DocumentOutline::scheduleRebuild);
     }
     rebuild();
+    emit modelChanged();
 }
 
 void DocumentOutline::onModelDestroyed()

@@ -1447,7 +1447,7 @@ BlockDelegateBase {
         Rectangle {
             id: hoverBackground
             anchors.fill: parent
-            anchors.leftMargin: 44  // Leave space for the gutter
+            anchors.leftMargin: delegate.gutterInset
             color: delegate.isHovered && !delegate.isFocused
                    && !delegate.blockSelected ? Theme.blockHoverTint : "transparent"
             radius: 4
@@ -1463,7 +1463,7 @@ BlockDelegateBase {
             id: selectionBackground
             objectName: "selectionBackground"
             anchors.fill: parent
-            anchors.leftMargin: 44
+            anchors.leftMargin: delegate.gutterInset
             radius: 4
             visible: delegate.blockSelected
             color: Theme.blockSelectionTint
@@ -2910,6 +2910,21 @@ BlockDelegateBase {
 
                     if (delegate.isStructural && text.length === 0) {
                         delegate.unstructureToParagraph()
+                        event.accepted = true
+                        return
+                    }
+
+                    // A host that has taken Enter for itself — a message
+                    // composer, where Enter sends and Shift+Enter starts a new
+                    // line. The keystroke is accepted here and reported to the
+                    // editor, which is what carries it to the host; leaving it
+                    // unaccepted would hand it to the text area below this
+                    // handler, which writes Return into the block as a
+                    // newline. Everything above still runs, so a completion
+                    // menu still takes Enter, a code block still writes a
+                    // newline, and Shift+Enter still breaks a line.
+                    if (delegate.editor && !delegate.editor.returnCreatesBlock) {
+                        delegate.editor.returnPressed(delegate.index)
                         event.accepted = true
                         return
                     }

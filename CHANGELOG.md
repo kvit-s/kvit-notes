@@ -10,6 +10,40 @@ published; until then it is marked unreleased.
 
 ## 1.0.1 — unreleased
 
+### Added
+
+- The block editor can now be embedded as a message box. `qml/CompactEditor.qml`
+  is a block editor sized like a text field: it starts one line tall, grows with
+  what is typed up to a cap, scrolls inside itself past that, and draws none of
+  the chrome a document pane has. Markdown goes in through `setMarkdown()` and
+  comes back out through `markdown()`, so what a host stores and sends is
+  markdown while what the writer sees is the rendered document — the same
+  headings, lists, tables and pictures a note has. Enter sends and Shift+Enter
+  starts a new line, which is the chat convention; a host that wants Enter to
+  make the next block instead sets `returnSubmits` false.
+
+- The eight objects that hold one document's state can now all be built from
+  QML. `UndoStack`, `DocumentSearch`, `DocumentOutline`, `DocumentHeights`,
+  `DocumentStats` and `DocumentDecorations` join `BlockModel` and
+  `DocumentSelection` as creatable types under the names `DocumentUndoStack`,
+  `DocumentBlockSearch`, `DocumentBlockOutline`, `DocumentBlockHeights`,
+  `DocumentBlockStats` and `DocumentBlockDecorations`, and the six that address
+  a document take that document as a settable `model` property, as
+  `DocumentSelection` already did. `BlockModel` takes its `undoStack` the same
+  way. Before this an editor embedded anywhere but the document pane shared six
+  of the eight with the open note, so typing into it grew the note's undo
+  history, its outline, its statistics, its search matches and its height table
+  without failing in any visible way.
+
+- Three new flags on `BlockEditor` and two on `BlockEditorSurface` say which of
+  the editor's chrome and behaviour a host wants: `showFindBar`,
+  `showFormattingBar`, `showScrollBar`, `showGutter` and `returnCreatesBlock`,
+  alongside `contentMargin`, `trailingScrollSpace` and `paragraphPlaceholder`.
+  An editor told to draw no gutter reclaims the strip's width rather than
+  indenting its text past an empty column, which is what the measurement each
+  block delegate used to write out as the literal `44` now answers
+  (`BlockDelegateBase.gutterInset`).
+
 ### Changed
 
 - The middle of the editor window — the note being edited, and the read-only

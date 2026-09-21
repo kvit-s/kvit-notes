@@ -34,6 +34,12 @@ Rectangle {
     property BlockEditorSurface editor: null
     property var listView: null
 
+    // Whether this editor offers the bar at all. A compact editor — a message
+    // composer, a capture box — sets it false, and open() then does nothing,
+    // so a host that routes Ctrl+F to the editor it draws does not have to ask
+    // first which of its editors has a bar.
+    property bool available: true
+
     // Ctrl+H mode: the replace row shows.
     property bool replaceMode: false
 
@@ -68,6 +74,8 @@ Rectangle {
     // in-selection domain from a live document-level selection, or
     // prefills the query from an in-block selection (decisions 4, 6, 9).
     function open(withReplace) {
+        if (!findBar.available)
+            return
         replaceMode = withReplace
 
         var idx = findBar.editor ? findBar.editor.lastFocusedBlock : 0
@@ -106,6 +114,8 @@ Rectangle {
     // is given and the cursor seeds to the clicked occurrence, which the
     // at-or-after rule makes the current match.
     function openAt(query, blockIndex, mdPos) {
+        if (!findBar.available)
+            return
         replaceMode = false
         previewPanel.close()
         findBar.search.clearDomain()

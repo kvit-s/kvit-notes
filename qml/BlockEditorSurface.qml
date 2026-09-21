@@ -77,6 +77,51 @@ Item {
     // A view mode rather than an editor mode, so the host sets it.
     property bool typewriterMode: false
 
+    // ---- What a compact host switches off ---------------------------------
+    //
+    // Two decisions a row has to make that are the host's rather than the
+    // editor's. Both are here rather than on BlockEditor because it is the
+    // delegates that read them, and a delegate reaches its editor through
+    // this type and nothing else.
+
+    // Whether Enter at the end of a block makes the next block, and Enter in
+    // the middle of one splits it — which is what a document editor does, and
+    // is the default.
+    //
+    // A message composer needs Enter to send and Shift+Enter to start a new
+    // line, which is what every chat window does and what the box being
+    // replaced already did. With this false the row reports the keystroke
+    // through `returnPressed` below instead of acting on it, and the host
+    // decides what Enter means. Everything else Enter does is unchanged: it
+    // still takes the highlighted entry while a completion menu is open,
+    // still writes a newline inside a code block, still leaves an empty list
+    // item, and Shift+Enter still breaks a line.
+    property bool returnCreatesBlock: true
+
+    // Enter, in an editor that was told not to make a block for it.
+    // `blockIndex` is the row the caret was in.
+    //
+    // A signal rather than an unaccepted keystroke travelling up to the host,
+    // which is the obvious alternative and does not work: the row's text area
+    // handles Return itself, so a keystroke the row declines is taken by the
+    // text area underneath it and written into the block as a newline, and
+    // nothing outside the row ever sees it. The row therefore accepts the key
+    // and says so here.
+    signal returnPressed(int blockIndex)
+
+    // What an empty paragraph shows when the caret is not in it. The editor's
+    // own hint in a note; a composer says what the box is for instead
+    // ("Message the agent…"), which is the whole of what a reader has to go
+    // on in a box that is one line tall and otherwise blank.
+    property string paragraphPlaceholder: qsTr("Type something...")
+
+    // Whether each row draws the strip to its left: the plus-button, the
+    // dotted drag handle and the menu button (qml/BlockGutter.qml). False
+    // takes the strip's width with it, so the text starts at the left edge of
+    // the editor — which is what a two-line message box wants, and what it
+    // has no room for otherwise.
+    property bool showGutter: true
+
     // How many open popups are acting on the caret's text selection. A block
     // that loses focus drops its selection, which is the right default; a
     // keyboard-navigable colour picker takes focus by definition, and the

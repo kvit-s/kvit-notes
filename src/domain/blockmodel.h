@@ -7,13 +7,17 @@
 #include <QAbstractListModel>
 #include <QHash>
 #include <QList>
+#include <QPointer>
 #include <QVariantList>
 #include <QVariantMap>
 #include <memory>
 #include "block.h"
 #include "blockkindregistry.h"
+// Included, not forward-declared: the undo stack below is a QPointer and a
+// settable property, and both need the complete type wherever this header is
+// used.
+#include "undostack.h"
 
-class UndoStack;
 class UndoCommand;
 class BlockKindDef;
 
@@ -44,6 +48,16 @@ class BlockModel : public QAbstractListModel
     // own, has no other way to say which kinds exist.
     Q_PROPERTY(BlockKindRegistry *blockKindRegistry READ blockKindRegistry WRITE
                    setBlockKindRegistry NOTIFY blockKindRegistryChanged)
+    // The undo history this document's edits are recorded in, as a property
+    // for the same reason `blockKindRegistry` above is one. The window's own
+    // model is wired from C++ by AppContext; a model a QML component builds
+    // for a second, editable document — a message composer, a quick-capture
+    // box — has no other way to be given a stack of its own, and without one
+    // it edits with no undo at all. Null is a supported state: every edit
+    // path checks before recording, so a model with no stack is editable and
+    // simply forgets.
+    Q_PROPERTY(UndoStack *undoStack READ undoStack WRITE setUndoStack
+                   NOTIFY undoStackChanged)
 
 public:
     enum BlockRoles {
@@ -306,7 +320,7 @@ public:
     void initializeWithSampleData();
 
     // UndoStack integration
-    void setUndoStack(UndoStack *stack) { m_undoStack = stack; }
+    void setUndoStack(UndoStack *stack);
     UndoStack* undoStack() const { return m_undoStack; }
 
     // Internal methods (for undo commands to use - bypass undo stack)
@@ -334,6 +348,7 @@ signals:
     void tocBlockIndexesChanged();
     void derivedRevisionChanged();
     void blockKindRegistryChanged();
+    void undoStackChanged();
 
 private:
     // Blocks are handed out through blockAt() and BlockObjectRole, so a
@@ -432,7 +447,11 @@ private:
     void rebuildDerivedOrder() const;
 
     QList<Block*> m_blocks;
-    UndoStack *m_undoStack = nullptr;
+    // Guarded: a stack built in QML beside the model can be destroyed before
+    // it, and every use below is already a null check, so the QPointer makes
+    // those checks true after the stack has gone rather than only before it
+    // was attached.
+    QPointer<UndoStack> m_undoStack;
     int m_documentWordCount = 0;
     int m_documentCharCount = 0;
     int m_documentCharsNoSpaces = 0;

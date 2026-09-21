@@ -23,7 +23,10 @@ DocumentStats::DocumentStats(QObject *parent)
 
 void DocumentStats::setModel(BlockModel *model)
 {
+    if (m_model == model)
+        return;
     m_model = model;
+    emit modelChanged();
 }
 
 int DocumentStats::wordCount(const QString &displayText)

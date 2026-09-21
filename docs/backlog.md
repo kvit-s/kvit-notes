@@ -267,3 +267,22 @@ the title into the frame's top line before any edge is routed, and a line never
 overwrites text, so an edge entering the subgraph from above stops at the
 title's row and only its arrowhead appears inside. Either the title moves off
 the crossing point or the frame gains a row for it.
+
+## A compact editor still builds the bars it never shows
+
+`qml/CompactEditor.qml` turns off the find bar and the formatting bar with
+`showFindBar` and `showFormattingBar`, which is a `visible` gate plus an
+`available` flag on each bar: the objects are still created, they simply never
+appear. That is the right behaviour and the wrong cost for a host that draws
+several boxes at once — the private `kvit-notes-pro` tree uses the same
+composer in six places, so six find bars and six formatting bars are built and
+never used.
+
+The obvious fix, wrapping each in a `Loader` gated on the flag, does not work
+as written. `FormattingBar.reposition()` places itself against `parent.width`,
+and a `Loader` becomes that parent: sized to the bar it would break the clamp,
+and filling the editor it would resize the bar, since a `Loader` with an
+explicit size sets its item's size. Doing it properly means repositioning the
+bar against `bar.editor` rather than against its parent, which is the more
+correct binding anyway. Worth doing when a host draws enough composers for the
+count to matter.

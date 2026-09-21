@@ -277,7 +277,7 @@ BlockDelegateBase {
 
     Rectangle {
         anchors.fill: parent
-        anchors.leftMargin: 44
+        anchors.leftMargin: root.gutterInset
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
@@ -292,7 +292,7 @@ BlockDelegateBase {
         // Past the gutter and onto the text column: the same left edge a
         // code panel or a callout card gets from EditableBlock's content
         // area, so a document's blocks share one left margin.
-        x: 52; y: 8
+        x: root.gutterInset + 8; y: 8
         width: root.width - 64
         spacing: 6
         opacity: root.isDragSource ? 0.35 : 1

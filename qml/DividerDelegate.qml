@@ -246,7 +246,7 @@ BlockDelegateBase {
 
     Rectangle {
         anchors.fill: parent
-        anchors.leftMargin: 44
+        anchors.leftMargin: delegate.gutterInset
         radius: 4
         opacity: delegate.isDragSource ? 0.35 : 1
         color: delegate.blockSelected ? Theme.blockSelectionTint
@@ -265,7 +265,7 @@ BlockDelegateBase {
         objectName: "dividerLine"
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 52
+        anchors.leftMargin: delegate.gutterInset + 8
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
         height: Math.max(delegate.divThickness,

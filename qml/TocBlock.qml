@@ -283,7 +283,7 @@ BlockDelegateBase {
         objectName: "tocCard"
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 52
+        anchors.leftMargin: delegate.gutterInset + 8
         anchors.rightMargin: 8
         anchors.top: parent.top
         anchors.topMargin: 4

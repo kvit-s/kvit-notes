@@ -49,6 +49,37 @@ BlockEditorSurface {
     // host's, so it arrives as a plain flag rather than as the whole view mode.
     property bool focusColumn: false
 
+    // ---- What a compact host switches off --------------------------------
+    //
+    // A message composer or a capture box is an editor without a pane around
+    // it: it is a few lines tall, it grows with what is typed, and it has no
+    // room for chrome that belongs to a document being read. Each of these is
+    // separate rather than one "compact" flag, because a host may want the
+    // formatting bar in a box that has no find bar, and because one flag
+    // covering five decisions could not say which. qml/CompactEditor.qml is
+    // the composition the notes application and its hosts use; these are what
+    // it is composed from.
+
+    // The floating find/replace bar (features.md §7). Nothing opens it in an
+    // embedded editor, and an editor with no bar has nothing to open.
+    property bool showFindBar: true
+    // The floating formatting bar over a completed selection (§9.3).
+    property bool showFormattingBar: true
+    // The document scrollbar at the right edge. A box that grows with its
+    // content and scrolls only past its cap has no use for one.
+    property bool showScrollBar: true
+
+    // Space around the block column, inside the editor's own bounds. The
+    // reading default is the twenty pixels a page of prose wants on either
+    // side of it; a composer gives its text the box instead.
+    property int contentMargin: 20
+    // Scrollable space past the last block, so the end of a long note can be
+    // pulled up into the middle of the window rather than being pinned to its
+    // bottom edge. Negative means that reading default, which is a third of
+    // the viewport; a compact editor sets 0, since a box whose last line can
+    // be scrolled out of sight is a box that looks empty.
+    property real trailingScrollSpace: -1
+
     // The floating proxy a multi-block drag draws under the pointer. A host
     // that wants it over its own chrome supplies one, because an editor's own
     // layer can only draw within the editor's stacking order; with none the
@@ -563,6 +594,10 @@ BlockEditorSurface {
         width: blockListView.width
         height: blockListView.contentHeight
         acceptedButtons: Qt.RightButton
+        // Nothing to open in an editor that draws no strip, and no band it
+        // would be in: the rows start at the left edge there, so the same
+        // press is a press on a block's own text.
+        enabled: editor.showGutter
         onPressed: function(mouse) {
             var idx = blockListView.indexAt(Math.max(1, mouse.x), mouse.y)
             var block = idx >= 0 ? editor.blocks.blockAt(idx) : null
@@ -618,13 +653,14 @@ BlockEditorSurface {
                 max = 760
             if (max <= 0)
                 return 0
-            return Math.max(0, Math.floor((parent.width - 40 - max) / 2))
+            return Math.max(0, Math.floor(
+                (parent.width - 2 * editor.contentMargin - max) / 2))
         }
 
         anchors.fill: parent
-        anchors.margins: 20
-        anchors.leftMargin: 20 + centeringMargin
-        anchors.rightMargin: 20 + centeringMargin
+        anchors.margins: editor.contentMargin
+        anchors.leftMargin: editor.contentMargin + centeringMargin
+        anchors.rightMargin: editor.contentMargin + centeringMargin
         anchors.topMargin: editor.contentTopMargin
 
         // A Flickable does not clip unless told to, and rows scrolled just
@@ -672,7 +708,9 @@ BlockEditorSurface {
             // there was nothing to scroll to. It is a scroll range, not a
             // row and not content height, so what the seam cursor and the
             // block list measure themselves against is unchanged.
-            bottomMargin: Math.max(120, Math.round(height * 0.35))
+            bottomMargin: editor.trailingScrollSpace >= 0
+                          ? editor.trailingScrollSpace
+                          : Math.max(120, Math.round(height * 0.35))
 
             // §16.2 typewriter mode: caret-line centering scrolls smoothly.
             // The animation is enabled only in typewriter mode so ordinary
@@ -877,6 +915,7 @@ BlockEditorSurface {
     DocumentScrollBar {
         editor: editor
         listView: blockListView
+        visible: editor.showScrollBar
         anchors.top: scrollView.top
         anchors.bottom: scrollView.bottom
         anchors.right: scrollView.right
@@ -888,6 +927,7 @@ BlockEditorSurface {
     FormattingBar {
         id: formattingBar
         editor: editor
+        available: editor.showFormattingBar
         target: editor.caretBlock
         listView: blockListView
     }
@@ -897,6 +937,7 @@ BlockEditorSurface {
     FindBar {
         id: findBar
         editor: editor
+        available: editor.showFindBar
         listView: blockListView
         anchors.top: parent.top
         anchors.right: parent.right

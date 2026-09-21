@@ -100,6 +100,12 @@ class DocumentHeights : public QObject
     // The width every measurement in the table was taken at, or -1 for an
     // empty table.
     Q_PROPERTY(qreal measuredWidth READ measuredWidth NOTIFY revisionChanged)
+    // Which document these heights belong to, as a property so a
+    // projection a QML component owns can be pointed at a model that
+    // component owns too. The window's own instance is wired from C++ by
+    // AppContext; a second, embedded document builds its own, and this is how
+    // the two are joined. Mirrors DocumentSelection.
+    Q_PROPERTY(BlockModel *model READ model WRITE setModel NOTIFY modelChanged)
 
 public:
     explicit DocumentHeights(QObject *parent = nullptr);
@@ -151,6 +157,7 @@ public:
 
 signals:
     void revisionChanged();
+    void modelChanged();
 
 private:
     // A row that has not been measured. Negative rather than 0, because a

@@ -58,6 +58,12 @@ class DocumentSearch : public QObject
     // error STATE, never a crash.
     Q_PROPERTY(bool patternError READ patternError NOTIFY revisionChanged)
     Q_PROPERTY(bool hasDomain READ hasDomain NOTIFY revisionChanged)
+    // Which document this search runs over, as a property so a
+    // projection a QML component owns can be pointed at a model that
+    // component owns too. The window's own instance is wired from C++ by
+    // AppContext; a second, embedded document builds its own, and this is how
+    // the two are joined. Mirrors DocumentSelection.
+    Q_PROPERTY(BlockModel *model READ model WRITE setModel NOTIFY modelChanged)
 
 public:
     // One match: a display-coordinate range in one block. captures holds
@@ -186,6 +192,7 @@ signals:
     void queryChanged();
     void optionsChanged();
     void revisionChanged();
+    void modelChanged();
 
 private:
     enum DomainMode { NoDomain, BlockDomain, TextDomain };

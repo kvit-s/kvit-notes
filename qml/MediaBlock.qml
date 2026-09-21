@@ -173,7 +173,7 @@ BlockDelegateBase {
     MediaPlayerCard {
         id: sharedCard
         objectName: "mediaBlockCard"
-        x: 52
+        x: root.gutterInset + 8
         y: 8
         width: root.isVideo && !root.hasError ? root.videoWidth
               : Math.min(Interface.px(520), root.maxWidth)
@@ -241,7 +241,7 @@ BlockDelegateBase {
 
     Rectangle {
         anchors.fill: parent
-        anchors.leftMargin: 44
+        anchors.leftMargin: root.gutterInset
         anchors.rightMargin: 8
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1

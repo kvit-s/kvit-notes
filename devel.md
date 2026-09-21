@@ -150,6 +150,49 @@ snapshot, or a test that instantiates one delegate — still works. No delegate
 names a window; `KvitShell.qml` existed only to be the type they cast to and
 is gone.
 
+**The editor sized like a text field.** `qml/CompactEditor.qml` is the same
+editor in a box a few lines tall: a message to a coding agent, a comment on a
+passage, a note jotted without opening the main window. It gives its
+`BlockEditor` `showGutter`, `showFindBar`, `showFormattingBar` and
+`showScrollBar` all false, a small `contentMargin`, no trailing scroll space,
+and `returnCreatesBlock` false so Enter sends; it reads `listView.contentHeight`
+for its own height and caps it at `maximumLines`. Markdown goes in with
+`setMarkdown()` and comes back out with `markdown()`, both through
+`DocumentSerializer`, so a host stores and sends markdown while the writer sees
+the document.
+
+What makes that possible is that it owns its document rather than sharing the
+window's. The eight objects at the top of `BlockEditorSurface` each default to
+the singleton of the same name, so an embedded editor that leaves one unset
+shares it with the open note — and the failure is silent. Typing into such a box
+would grow the note's undo history, put the message's headings in the note's
+outline, count the message in the note's statistics, match the message's text in
+the note's find bar, record the message's rows in the note's height table, and
+take the decoration seam's document view away from the note's own editor.
+
+So all eight are registered a second time in `src/qml/qmlsingletons.h` as
+creatable types — `DocumentBlocks`, `DocumentBlockSelection`,
+`DocumentUndoStack`, `DocumentBlockSearch`, `DocumentBlockOutline`,
+`DocumentBlockHeights`, `DocumentBlockStats`, `DocumentBlockDecorations` — and
+the six that address a document take it as a settable `model` property, with
+`BlockModel` taking its `undoStack` the same way. `tests/test_embeddededitor.cpp`
+is the suite that defends the separation: it creates a compact editor inside the
+shipped shell, types into it, and checks each of the note's six by name.
+
+`DocumentDecorations` takes no model: its entries are addressed by block index
+and by offset within a block, so a second instance is the whole of what a second
+document needs. It still has to be a second instance, because `BlockEditor`
+installs its own block list as the view those entries answer geometry from.
+
+**How Enter reaches the host.** A row whose editor has `returnCreatesBlock`
+false does not leave the keystroke unaccepted — the row's `TextArea` handles
+Return itself, so an unaccepted Return is taken by the text area underneath and
+written into the block as a newline, and nothing outside the row ever sees it.
+The row accepts the key and emits `BlockEditorSurface.returnPressed(blockIndex)`
+instead. Everything else Enter does is unchanged: it still takes the highlighted
+entry of an open completion menu, still writes a newline inside a code fence,
+still leaves an empty list item, and Shift+Enter still breaks a line.
+
 **Why `BlockEditorSurface` is a separate file.** `BlockEditor` casts rows to
 `BlockDelegateBase` and `BlockDelegateBase` names the surface, so a single type
 would be a reference cycle between two QML documents. The surface declares the

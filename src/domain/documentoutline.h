@@ -50,6 +50,12 @@ class DocumentOutline : public QAbstractListModel
     // scroll to and light up; -1 when before the first heading. Updated off
     // the caret-move signal without rebuilding the tree.
     Q_PROPERTY(int currentRow READ currentRow NOTIFY currentRowChanged)
+    // Which document this outline is built from, as a property so a
+    // projection a QML component owns can be pointed at a model that
+    // component owns too. The window's own instance is wired from C++ by
+    // AppContext; a second, embedded document builds its own, and this is how
+    // the two are joined. Mirrors DocumentSelection.
+    Q_PROPERTY(BlockModel *model READ model WRITE setModel NOTIFY modelChanged)
 
 public:
     enum Roles {
@@ -133,6 +139,7 @@ signals:
     void revisionChanged();
     void levelMaskChanged();
     void currentRowChanged();
+    void modelChanged();
     // Emitted only when the heading projection actually changes (heading
     // added/removed/moved/renamed or link target index changed). Consumers
     // that restyle or regenerate heading-derived UI listen to this rather

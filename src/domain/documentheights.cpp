@@ -114,6 +114,7 @@ void DocumentHeights::setModel(BlockModel *model)
     }
     syncCount();
     clear();
+    emit modelChanged();
 }
 
 void DocumentHeights::onModelDestroyed()

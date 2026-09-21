@@ -443,7 +443,7 @@ BlockDelegateBase {
         // Stay painted until the editor is actually latched so rebind flicker
         // does not blank the row or thrash text layout.
         visible: !root.editorLoaderActive
-        x: 57 + root.indentLevel * 24
+        x: root.gutterInset + 13 + root.indentLevel * 24
         y: 10
         width: Math.max(1, root.width - x - 14)
         text: root.editorLoaderActive ? "" : root.displayText
@@ -465,7 +465,7 @@ BlockDelegateBase {
         objectName: "selectionBackground"
         visible: !root.editorLoaderActive && root.blockSelected
         anchors.fill: parent
-        anchors.leftMargin: 44 + root.indentLevel * 24
+        anchors.leftMargin: root.gutterInset + root.indentLevel * 24
         radius: 4
         color: Theme.blockSelectionTint
         border.color: Theme.accent
@@ -476,7 +476,7 @@ BlockDelegateBase {
     Rectangle {
         visible: !root.editorLoaderActive && root.shellHovered && !root.blockSelected
         anchors.fill: parent
-        anchors.leftMargin: 44 + root.indentLevel * 24
+        anchors.leftMargin: root.gutterInset + root.indentLevel * 24
         radius: 4
         color: Theme.blockHoverTint
         z: -1
@@ -486,7 +486,7 @@ BlockDelegateBase {
         objectName: "focusIndicator"
         visible: !root.editorLoaderActive
         anchors.left: parent.left
-        anchors.leftMargin: 40 + root.indentLevel * 24
+        anchors.leftMargin: (root.gutterShown ? 40 : 0) + root.indentLevel * 24
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 3
@@ -500,7 +500,7 @@ BlockDelegateBase {
 
     Loader {
         id: gutterLoader
-        active: !root.editorLoaderActive && root.shellHovered
+        active: !root.editorLoaderActive && root.shellHovered && root.gutterShown
         x: root.indentLevel * 24
         y: 4
         width: 40
@@ -537,7 +537,7 @@ BlockDelegateBase {
                 mouse.accepted = true
                 return
             }
-            var gutterWidth = 44 + root.indentLevel * 24
+            var gutterWidth = root.gutterInset + root.indentLevel * 24
             if (mouse.x < gutterWidth) {
                 if ((root.selection.hasBlockSelection
                      || root.selection.hasTextSelection)
@@ -641,7 +641,8 @@ BlockDelegateBase {
 
             contentFontSize: root.contentFontSize
             contentFontWeight: root.contentFontWeight
-            placeholder: root.blockType === Block.Paragraph ? qsTr("Type something...") : ""
+            placeholder: root.blockType === Block.Paragraph && root.editor
+                         ? root.editor.paragraphPlaceholder : ""
         }
     }
 }

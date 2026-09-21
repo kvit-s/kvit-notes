@@ -315,7 +315,7 @@ BlockDelegateBase {
     // Selection / focus / hover background.
     Rectangle {
         anchors.fill: parent
-        anchors.leftMargin: 44
+        anchors.leftMargin: delegate.gutterInset
         anchors.rightMargin: 8
         radius: 4
         opacity: delegate.isDragSource ? 0.35 : 1
@@ -338,10 +338,10 @@ BlockDelegateBase {
         anchors.horizontalCenter: delegate.imageAlign === "center"
             ? parent.horizontalCenter : undefined
         // Centre within the content column rather than within the block,
-        // whose left end the gutter takes: (52 - 8) / 2.
-        anchors.horizontalCenterOffset: 22
+        // whose left end the gutter takes: half of what the strip reserves.
+        anchors.horizontalCenterOffset: delegate.gutterInset / 2
         anchors.left: delegate.imageAlign === "left" ? parent.left : undefined
-        anchors.leftMargin: 52
+        anchors.leftMargin: delegate.gutterInset + 8
         anchors.right: delegate.imageAlign === "right" ? parent.right : undefined
         anchors.rightMargin: 8
         spacing: 4

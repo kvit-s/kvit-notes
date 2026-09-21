@@ -46,11 +46,38 @@ Item {
     signal dragDropped()
     signal dragCanceled()
 
+    // The editing surface this strip belongs to, found by walking out of the
+    // row exactly as BlockDelegateBase finds it, and for the same reason: the
+    // strip is drawn by fourteen different delegates, and asking each of them
+    // to pass the answer down would be fourteen edits for one question. A
+    // strip built outside any editor — a drag snapshot, a test that
+    // instantiates one delegate — finds nothing and shows itself, which is
+    // what it did before there was anything to ask.
+    readonly property BlockEditorSurface surface: {
+        var candidate = root.parent
+        while (candidate) {
+            var found = candidate as BlockEditorSurface
+            if (found)
+                return found
+            candidate = candidate.parent
+        }
+        return null
+    }
+    // Whether this editor draws a gutter at all. A compact editor — a message
+    // composer, a capture box — has no room for one and no use for it.
+    readonly property bool shown: !root.surface || root.surface.showGutter
+
     // Wide enough for both columns and the gap between them. The plus and
     // delete occupy the left column; the drag handle and menu button occupy
     // the right. The HoverHandler must cover the second row so the controls
     // stay visible while the pointer moves between them.
-    width: Interface.px(40)
+    //
+    // Zero wide when the editor draws no gutter, rather than merely invisible:
+    // every delegate lays its content out to the right of this item, so a
+    // strip that still took its forty pixels would leave the text indented
+    // past nothing.
+    visible: root.shown
+    width: root.shown ? Interface.px(40) : 0
     height: Interface.px(44)
 
     HoverHandler {

@@ -85,6 +85,23 @@ Item {
         blockDelegateBase.editor ? blockDelegateBase.editor.decorations
                                  : DocumentDecorations
 
+    // Whether this editor draws the strip to the left of each row — the
+    // plus-button, the dotted drag handle and the menu button. A compact
+    // editor draws none of it: a two-line message box has no room for a strip
+    // and nothing for it to do (BlockEditorSurface.showGutter). A row built
+    // outside any editor keeps the strip, which is what it had before there
+    // was anything to ask.
+    readonly property bool gutterShown:
+        !blockDelegateBase.editor || blockDelegateBase.editor.showGutter
+
+    // How much of the row's left edge the strip takes: its own forty pixels
+    // and the four of the focus bar beside it. Every delegate that draws a
+    // background, a tint or a content column starts clear of it, and until
+    // this property existed each of them wrote the number 44 out by hand —
+    // eleven copies of one measurement, none of which could answer what a row
+    // with no strip should do.
+    readonly property real gutterInset: blockDelegateBase.gutterShown ? 44 : 0
+
     // Variable-height rows tell their own editor whenever their geometry
     // changes. The editor coalesces all notifications in the current event
     // turn before asking ListView to process outstanding layout. This also

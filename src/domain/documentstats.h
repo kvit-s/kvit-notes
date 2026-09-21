@@ -27,6 +27,12 @@
 class DocumentStats : public QObject
 {
     Q_OBJECT
+    // Which document these counts are over, as a property so a projection a
+    // QML component owns can be pointed at a model that component owns too.
+    // The window's own instance is wired from C++ by AppContext; a second,
+    // embedded document builds its own, and this is how the two are joined.
+    // Mirrors DocumentSelection.
+    Q_PROPERTY(BlockModel *model READ model WRITE setModel NOTIFY modelChanged)
 
 public:
     explicit DocumentStats(QObject *parent = nullptr);
@@ -52,6 +58,9 @@ public:
     static int charCount(const QString &displayText, bool withSpaces);
     // words / 200 wpm, rounded; at least 1 for any prose, 0 for none.
     static int readingMinutes(int words);
+
+signals:
+    void modelChanged();
 
 private:
     // Guarded: the projection is a long-lived context property and outlives

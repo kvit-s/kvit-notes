@@ -85,6 +85,7 @@ void DocumentSearch::setModel(BlockModel *model)
                 });
     }
     recompute();
+    emit modelChanged();
 }
 
 void DocumentSearch::onModelDestroyed()

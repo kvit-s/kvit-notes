@@ -77,6 +77,14 @@ void BlockModel::setBlockKindRegistry(BlockKindRegistry *registry)
     emit blockKindRegistryChanged();
 }
 
+void BlockModel::setUndoStack(UndoStack *stack)
+{
+    if (m_undoStack == stack)
+        return;
+    m_undoStack = stack;
+    emit undoStackChanged();
+}
+
 int BlockModel::delegateKindForBlock(Block::BlockType type,
                                      const QString &language) const
 {
