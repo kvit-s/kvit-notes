@@ -614,14 +614,6 @@ BlockDelegateBase {
         return delegate.editor && delegate.editor.crossBlockDrag ? delegate.editor.crossBlockDrag : null
     }
 
-    // Focus the window-level handler that owns keys while a block
-    // selection is active. The TextArea's focus loss collapses its
-    // reveal and dismisses any open menu — both intended in selection
-    // mode.
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
-
     function activateEditor() {
         editorRequested = true
     }
@@ -1272,6 +1264,11 @@ BlockDelegateBase {
     // (features.md §4.3 "position menu near cursor"). The anchor is in
     // window coordinates — the popup's overlay parent fills the window.
     function openBlockMenu(mode) {
+        // Nothing in the menu applies to a document that cannot be changed,
+        // and the menu itself belongs to the window, so a row of a drawn
+        // document opening one would open the open note's.
+        if (delegate.readOnly)
+            return
         var rect = textArea.positionToRectangle(textArea.cursorPosition)
         var topLeft = textArea.mapToItem(null, rect.x, rect.y)
         AppActions.requestBlockMenu(delegate.index, mode,
@@ -1367,7 +1364,7 @@ BlockDelegateBase {
     // edits it in place; otherwise it inserts a link at the selection,
     // prefilled with the selection's plain text.
     function openLinkDialog() {
-        if (delegate.verbatimEditing)
+        if (delegate.verbatimEditing || delegate.readOnly)
             return
         var info = editorEngine.linkSpanAtCursor(textArea.cursorPosition)
         if (info.found) {
@@ -1652,6 +1649,7 @@ BlockDelegateBase {
                     types: delegate.calloutTypes
                     currentType: delegate.calloutType
                     rowHovered: delegate.isHovered
+                    readOnly: delegate.readOnly
                     onFoldToggled: delegate.toggleCalloutFold()
                     onTitleCommitted: function(t) { delegate.setCalloutTitleText(t) }
                     onTypePicked: function(t) { delegate.setCalloutTypeName(t) }
@@ -1687,6 +1685,7 @@ BlockDelegateBase {
                     headerHeight: delegate.codeHeaderHeight
                     footerHeight: delegate.codeFooterHeight
                     caretInside: delegate.isFocused
+                    readOnly: delegate.readOnly
                     contentLeft: delegate.codeContentLeft
                     viewportWidth: delegate.codeViewportWidth
                     maxScroll: delegate.codeMaxScroll
@@ -2157,6 +2156,11 @@ BlockDelegateBase {
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.RightButton
+                    // The text menu holds cut, paste and the link commands,
+                    // and the window owns the one instance of it. A row of a
+                    // drawn document has nothing to put in it and no business
+                    // raising the open note's.
+                    enabled: !delegate.readOnly
                     onPressed: function(mouse) {
                         var pos = textArea.positionAt(mouse.x, mouse.y)
                         if (textArea.selectionEnd <= textArea.selectionStart
@@ -2214,7 +2218,17 @@ BlockDelegateBase {
                     radius: 4
                 }
 
-                readOnly: delegate.useReadOnlyText
+                // Two reasons to refuse typing, and they are different
+                // things. `useReadOnlyText` is the scroll-path optimisation
+                // above: the row is drawing its plain Text twin and the area
+                // is empty, so nothing must be typed into it. `readOnly` on
+                // the delegate is the editor's own — a surface drawing a
+                // document that cannot be changed — and it is a property of
+                // the whole row for as long as it exists. A read-only area
+                // still selects with the pointer, still answers Ctrl+C and
+                // still reports its presses to the cross-block coordinator,
+                // which is why the row is not simply switched off.
+                readOnly: delegate.useReadOnlyText || delegate.readOnly
                 wrapMode: delegate.codeChrome ? TextEdit.NoWrap : TextEdit.Wrap
 
                 // Keep the caret in view as it moves along a long line, and —
@@ -2376,6 +2390,18 @@ BlockDelegateBase {
                 Keys.onPressed: function(event) {
                     if (delegate.handleContextMenuKey(event))
                         return
+
+                    // A read-only surface, gated here rather than thirty
+                    // times below. What passes is what reads the document:
+                    // moving the caret, extending a selection, selecting
+                    // everything and copying. Everything else is swallowed,
+                    // including the keys that reach the WINDOW's objects —
+                    // Ctrl+Z would undo an edit to the open note from a row
+                    // of some other document.
+                    if (delegate.readOnly && !delegate.readOnlyKeyPasses(event)) {
+                        event.accepted = delegate.readOnlyKeySwallows(event)
+                        return
+                    }
                     // The open menus own their navigation keys; Enter is
                     // claimed in handleReturn. Everything else keeps typing,
                     // which is what filters them.
@@ -2460,7 +2486,8 @@ BlockDelegateBase {
                     // exclude Shift.
                     if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                         && (event.modifiers & Qt.ControlModifier)
-                        && (event.modifiers & Qt.ShiftModifier)) {
+                        && (event.modifiers & Qt.ShiftModifier)
+                        && !delegate.readOnly) {
                         if (delegate.listView)
                             delegate.listView.currentIndex = delegate.index
                         delegate.selection.selectBlock(delegate.index)
@@ -2475,7 +2502,13 @@ BlockDelegateBase {
                     if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
                         var wholeBlockSelected = text.length === 0
                             || (selectionStart === 0 && selectionEnd === text.length)
-                        if (wholeBlockSelected) {
+                        if (wholeBlockSelected && delegate.readOnly) {
+                            // Block selection is a mode with commands in it,
+                            // so a read-only surface selects the whole
+                            // document as text instead — which is what Ctrl+C
+                            // then copies, and what the reader asked for.
+                            delegate.selectWholeDocumentText()
+                        } else if (wholeBlockSelected) {
                             delegate.selection.selectAllBlocks()
                             delegate.focusSelectionHandler()
                         } else {
@@ -2813,6 +2846,17 @@ BlockDelegateBase {
                 //  - otherwise: continue/split (split inherits type and
                 //    indent; continuation type comes from createBlockBelow)
                 function handleReturn(event) {
+                    // A read-only surface, gated here as well as in
+                    // Keys.onPressed above: Qt emits the key-specific signals
+                    // before the general one, so a gate in `onPressed` alone
+                    // never sees Return. Swallowed rather than ignored, since
+                    // an ignored Return goes to the text area below, which
+                    // would write a line break into the block.
+                    if (delegate.readOnly) {
+                        event.accepted = true
+                        return
+                    }
+
                     // Enter takes the highlighted entry while either
                     // assisted-entry menu targets this editor.
                     if (mathEntry.handleReturn(event))

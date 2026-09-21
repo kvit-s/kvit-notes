@@ -760,6 +760,19 @@ target_link_libraries(test_windowchrome PRIVATE
 add_test(NAME WindowChromeTests COMMAND test_windowchrome)
 set_tests_properties(WindowChromeTests PROPERTIES TIMEOUT 300)
 
+# A markdown document drawn somewhere other than the editor pane, drawn by the
+# editor with `readOnly` set: every block kind through its own delegate, and
+# no path from the pointer or the keyboard to the document. It loads the
+# shipped shell for the same reason test_shell does — the shell's own
+# components have to be in the binary or the load hangs rather than failing.
+qt_add_executable(test_documentview
+    test_documentview.cpp
+)
+target_link_libraries(test_documentview PRIVATE
+    kvit-core Qt6::Test Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+add_test(NAME DocumentViewTests COMMAND test_documentview)
+set_tests_properties(DocumentViewTests PROPERTIES TIMEOUT 300)
+
 # Two editors in one window, each with its own document: a compact editor
 # created inside the shipped shell beside the note's own, and the six
 # projections that would otherwise be shared between them. It loads that shell
@@ -994,6 +1007,7 @@ set(KVIT_SHELL_TESTS
     WindowChromeTests
     ReadOnlyDocumentTests
     EmbeddedEditorTests
+    DocumentViewTests
     ScrollMetricsTests
     # The storyboard scenarios that do not need a focused window. Same
     # binary and same file as VisualTests, but offscreen and blocking; the

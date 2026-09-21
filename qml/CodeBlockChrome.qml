@@ -39,6 +39,9 @@ Item {
     // the caret is in this block — the hint only means anything then.
     property int footerHeight: 0
     property bool caretInside: false
+    // A surface drawing a document that cannot be changed. The language is
+    // still named and the copy button still copies; the picker does not open.
+    property bool readOnly: false
     // Left inset of the code text, past the gutter.
     property int contentLeft: 0
     // Visible width of the text, and how far it can scroll beyond it.
@@ -167,7 +170,7 @@ Item {
                                   ? root.language : qsTr("plain text"))
             Accessible.onPressAction: languagePicker.open()
             HoverHandler { id: langHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: languagePicker.open() }
+            TapHandler { enabled: !root.readOnly; onTapped: languagePicker.open() }
         }
 
         Rectangle {

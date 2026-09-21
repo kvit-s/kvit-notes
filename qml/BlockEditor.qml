@@ -79,6 +79,11 @@ BlockEditorSurface {
     // the viewport; a compact editor sets 0, since a box whose last line can
     // be scrolled out of sight is a box that looks empty.
     property real trailingScrollSpace: -1
+    // The blank-line rhythm between rows. The reading default is the
+    // paragraph spacing the reader chose; a preview of a stored version is
+    // read at a glance rather than at reading length and turns it down.
+    // Negative means that default.
+    property real blockSpacing: -1
 
     // The floating proxy a multi-block drag draws under the pointer. A host
     // that wants it over its own chrome supplies one, because an editor's own
@@ -149,10 +154,15 @@ BlockEditorSurface {
     // a focus change can settle after that signal, so this covers the handoff.
     onCaretBlockIndexChanged: {
         if (editor.typewriterMode && editor.caretBlockIndex >= 0)
-            Qt.callLater(function() {
-                if (editor.caretBlock)
-                    editor.centerCaretLine(editor.caretBlock)
-            })
+            caretCenterTimer.restart()
+    }
+    Timer {
+        id: caretCenterTimer
+        interval: 0
+        onTriggered: {
+            if (editor.caretBlock)
+                editor.centerCaretLine(editor.caretBlock)
+        }
     }
 
     function editorContentY() { return blockListView.contentY }
@@ -162,6 +172,28 @@ BlockEditorSurface {
                                - blockListView.height)
         blockListView.contentY = Math.max(0, Math.min(Number(value), maxY))
     }
+
+    // ---- Why these are Timers and not queued calls ----------------------
+    //
+    // Six things here are deferred to the end of the turn, and each of them
+    // used `Qt.callLater`, which is what it is for. A queued call cannot be
+    // cancelled, though, and it holds either this object or one of its
+    // functions: destroy the editor before the turn ends and the callback
+    // runs against something that is half gone —
+    //
+    //   Property 'recordBuiltBlockHeights' of object BlockEditor is not a
+    //   function (exception occurred during delayed function evaluation)
+    //
+    // which is not a guard anybody can write inside the closure. It never
+    // showed while the only editor was the window's, since that one lives as
+    // long as the window. A drawn document is created and destroyed as a
+    // dialog opens and closes (qml/DocumentView.qml), which is where it
+    // started appearing.
+    //
+    // A Timer belongs to the item, so destroying the item stops it. A
+    // zero-interval one fires on the next pass of the event loop, and
+    // restarting one that is already running leaves a single pending firing,
+    // which is the same compression the queued call gave.
 
     // ---- Completion-driven block geometry -------------------------------
     // ListView batches model and delegate geometry changes. Every block row
@@ -178,7 +210,12 @@ BlockEditorSurface {
         if (editor.blockRelayoutScheduled)
             return
         editor.blockRelayoutScheduled = true
-        Qt.callLater(editor.completeBlockRelayout)
+        blockRelayoutTimer.restart()
+    }
+    Timer {
+        id: blockRelayoutTimer
+        interval: 0
+        onTriggered: editor.completeBlockRelayout()
     }
     function completeBlockRelayout() {
         editor.blockRelayoutScheduled = false
@@ -271,10 +308,15 @@ BlockEditorSurface {
         if (!editor.revealTarget || editor.revealScheduled)
             return
         editor.revealScheduled = true
-        Qt.callLater(function() {
+        revealTimer.restart()
+    }
+    Timer {
+        id: revealTimer
+        interval: 0
+        onTriggered: {
             editor.revealScheduled = false
             editor.applyReveal()
-        })
+        }
     }
     function cancelRevealTracking() {
         editor.revealTarget = null
@@ -409,13 +451,18 @@ BlockEditorSurface {
         if (editor.trackedFocusValidationScheduled)
             return
         editor.trackedFocusValidationScheduled = true
-        Qt.callLater(function() {
+        trackedFocusTimer.restart()
+    }
+    Timer {
+        id: trackedFocusTimer
+        interval: 0
+        onTriggered: {
             editor.trackedFocusValidationScheduled = false
             editor.updateTrackedFocus()
             if (editor.revealTarget
                     && !editor.activeFocusIsInside(editor.revealTarget))
                 editor.cancelRevealTracking()
-        })
+        }
     }
     // The window's focus item, watched as a property of this editor so the
     // validation below runs without the editor knowing which window it is in.
@@ -427,7 +474,12 @@ BlockEditorSurface {
                 || editor.focusPositionScheduled)
             return
         editor.focusPositionScheduled = true
-        Qt.callLater(function() {
+        focusPositionTimer.restart()
+    }
+    Timer {
+        id: focusPositionTimer
+        interval: 0
+        onTriggered: {
             editor.focusPositionScheduled = false
             if (!editor.focusWatchItem || !editor.focusWatchHasFocus)
                 return
@@ -436,7 +488,7 @@ BlockEditorSurface {
             // top of the view where it does not, which for a table is its header.
             blockListView.positionViewAtIndex(editor.focusTargetIndex,
                                               ListView.Contain)
-        })
+        }
     }
     function clearBlockFocusLifecycle() {
         editor.focusRequestPending = false
@@ -487,11 +539,19 @@ BlockEditorSurface {
             return
         blockListView.currentIndex = idx
         blockListView.positionViewAtIndex(idx, ListView.Beginning)
-        Qt.callLater(function() {
-            var item = (blockListView.itemAtIndex(idx) as BlockDelegateBase)
+        scrollFocusTimer.index = idx
+        scrollFocusTimer.restart()
+    }
+    Timer {
+        id: scrollFocusTimer
+        property int index: -1
+        interval: 0
+        onTriggered: {
+            var item = (blockListView.itemAtIndex(scrollFocusTimer.index)
+                        as BlockDelegateBase)
             if (item && item.focusAtStart)
                 item.focusAtStart()
-        })
+        }
     }
 
     Connections {
@@ -518,7 +578,14 @@ BlockEditorSurface {
         scroller: edgeScroller
     }
 
-    blockDrag: BlockDragController {
+    // Reordering blocks by their handle. The delegates and the gap cursor read
+    // `blockDrag` to decide whether a press on the strip is a drag at all, so
+    // a read-only surface reports none rather than an object that would
+    // refuse every gesture. The controller is a plain QtObject and costs
+    // nothing to leave built.
+    blockDrag: editor.readOnly ? null : blockDragState
+
+    BlockDragController {
         id: blockDragState
         editor: editor
         listView: blockListView
@@ -530,7 +597,7 @@ BlockEditorSurface {
     // The editor's own drag proxy, built only when the host supplied none.
     Loader {
         id: ownDragLayer
-        active: !editor.dragLayer
+        active: !editor.dragLayer && !editor.readOnly
         anchors.fill: parent
         z: 1000
         sourceComponent: BlockDragLayer {
@@ -548,6 +615,10 @@ BlockEditorSurface {
         editor: editor
         listView: blockListView
         gapCursor: blockGapCursor
+        // Block selection is a mode whose keys are commands — delete,
+        // duplicate, indent, paste — so a read-only surface never enters it
+        // and the handler never takes the keyboard.
+        enabled: !editor.readOnly
 
         onOversizedPasteRequested: function(text, insertAt, plain) {
             editor.oversizedPasteRequested(text, insertAt, plain, plain, false)
@@ -563,7 +634,10 @@ BlockEditorSurface {
         id: blockGapCursor
         listView: blockListView
         editor: editor
-        dragState: blockDragState
+        dragState: editor.blockDrag
+        // The caret between two blocks exists to make one by typing into it.
+        enabled: !editor.readOnly
+        visible: !editor.readOnly
 
         onOversizedPasteRequested: function(text, insertAt, plain,
                                             stripFormatting) {
@@ -597,7 +671,7 @@ BlockEditorSurface {
         // Nothing to open in an editor that draws no strip, and no band it
         // would be in: the rows start at the left edge there, so the same
         // press is a press on a block's own text.
-        enabled: editor.showGutter
+        enabled: editor.showGutter && !editor.readOnly
         onPressed: function(mouse) {
             var idx = blockListView.indexAt(Math.max(1, mouse.x), mouse.y)
             var block = idx >= 0 ? editor.blocks.blockAt(idx) : null
@@ -626,11 +700,14 @@ BlockEditorSurface {
     }
 
     // External-drag ingestion (§5.4), in EditorDropArea.qml.
+    // Files and text dropped onto the editor become blocks, which is a change
+    // to the document.
     EditorDropArea {
         id: editorDropArea
         objectName: "editorDropArea"
         anchors.fill: scrollView
         z: 40
+        enabled: !editor.readOnly
         editor: editor
         listView: blockListView
     }
@@ -691,7 +768,8 @@ BlockEditorSurface {
 
             width: parent.width
             // Blank-line rhythm between blocks (§10.2).
-            spacing: Typography.paragraphSpacing
+            spacing: editor.blockSpacing >= 0 ? editor.blockSpacing
+                                              : Typography.paragraphSpacing
 
             reuseItems: true
             // Keep a small offscreen row window warm for ordinary

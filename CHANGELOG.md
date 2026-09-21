@@ -44,6 +44,25 @@ published; until then it is marked unreleased.
   block delegate used to write out as the literal `44` now answers
   (`BlockDelegateBase.gutterInset`).
 
+- A markdown document drawn somewhere other than the editor pane is now drawn
+  by the editor. `qml/DocumentView.qml` is one `BlockEditor` with
+  `BlockEditorSurface.readOnly` set, over a document it owns, sized to its
+  content so it can sit inside a scrolling area it does not own. What that
+  fixes is what the renderer it replaces could not draw: it switched on the
+  block type, so a pipe table came out as its pipe characters, and a Mermaid
+  diagram, a task board, a collection query and a table of contents each came
+  out as the source inside their fence — all four are stored as a code block
+  with a language — and a block kind a linked module registered could not be
+  drawn at all. The backup dialog's preview of a stored version uses it, so a
+  version holding a table now shows a table.
+
+  Read-only is enforced delegate by delegate rather than declared: the text
+  areas refuse writes while still selecting and copying, the keys that would
+  change the document or reach the window's own undo stack are swallowed, and
+  the gutter, the gap cursor, the drop area, the block menus, the to-do
+  checkbox and the pickers on callouts, fences, pictures and diagrams are each
+  gone rather than inert.
+
 ### Changed
 
 - The middle of the editor window — the note being edited, and the read-only
@@ -114,6 +133,16 @@ published; until then it is marked unreleased.
   that list against `qml/` as it did before.
 
 ### Fixed
+
+- Work the editor defers to the end of a turn no longer runs after the editor
+  or the row that asked for it has been destroyed. Selecting text across a
+  document and then clearing the selection promoted every row it covered and
+  demoted them again, and each demoted row left behind a queued callback that
+  logged `attempted to evaluate a function in an invalid context`; closing a
+  dialog holding a drawn document did the same for the editor's own deferred
+  layout and focus work. The eight places involved now use a `Timer` the item
+  owns, which stops when the item is destroyed.
+
 
 - Switching vaults no longer freezes the window. The global-search index keeps
   two SQLite connections on two threads of its own, and a switch had all three

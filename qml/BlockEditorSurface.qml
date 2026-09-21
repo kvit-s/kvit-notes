@@ -109,6 +109,23 @@ Item {
     // and says so here.
     signal returnPressed(int blockIndex)
 
+    // Whether this editor draws a document that cannot be changed.
+    //
+    // A read-only editor is the same editor: the same seventeen delegates,
+    // chosen from the same kind registry, so a table is a table, a Mermaid
+    // diagram is a drawing and a kind a linked module registered is drawn by
+    // the module's own QML. What it does not have is any path from the
+    // pointer or the keyboard to the model. The text areas hold their text
+    // with `readOnly` rather than being switched off, which is what keeps
+    // drag-selection, Ctrl+C and the cross-block coordinator working exactly
+    // as they do in the note; every key and every gesture that would write is
+    // refused where it is raised.
+    //
+    // It is a property of the editor rather than of the document, because the
+    // same BlockModel can be drawn in two surfaces at once — a note open for
+    // editing, and a stored version of it beside that.
+    property bool readOnly: false
+
     // What an empty paragraph shows when the caret is not in it. The editor's
     // own hint in a note; a composer says what the box is for instead
     // ("Message the agent…"), which is the whole of what a reader has to go
@@ -167,7 +184,13 @@ Item {
     // Both are derived here rather than in each caller because a row pasting
     // an image and the drop area receiving one have to agree on them, and
     // they were the same six lines written out twice before.
-    readonly property string documentDirectory: {
+    //
+    // The folder is a default rather than a fixed derivation, because a
+    // document is not always stored where its paths are anchored: a stored
+    // version of a note sits under `.kvit/backups` while the pictures in it
+    // are still written against the note's own folder. A host that knows
+    // better assigns it.
+    property string documentDirectory: {
         var slash = documentPath.lastIndexOf("/")
         return slash >= 0 ? documentPath.substring(0, slash) : ""
     }

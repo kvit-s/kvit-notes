@@ -136,10 +136,6 @@ BlockDelegateBase {
                                      : delegate.editor.blockDrag.sourceIndex === delegate.index
     }
 
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
-
     onIsFocusedChanged: {
         if (isFocused) {
             if (delegate.editor && delegate.editor.lastFocusedBlock !== undefined)
@@ -369,6 +365,7 @@ BlockDelegateBase {
 
             Image {
                 id: image
+                objectName: "imagePicture"
                 anchors.fill: parent
                 // Dropped while pooled so the delegate does not sit in the
                 // recycle pool holding a decoded pixmap and its texture for a
@@ -619,6 +616,7 @@ BlockDelegateBase {
                     id: effectsArea
                     anchors.fill: parent
                     hoverEnabled: true
+                    enabled: !delegate.readOnly
                     cursorShape: Qt.PointingHandCursor
                     onClicked: imageEffectsPopover.open()
                 }
@@ -639,6 +637,9 @@ BlockDelegateBase {
         TextArea {
             id: captionField
             objectName: "imageCaption"
+            // Read-only rather than disabled: the caption stays selectable
+            // and copyable, which is what drawing a document is for.
+            readOnly: delegate.readOnly
             width: imageFrame.width
             anchors.horizontalCenter: parent.horizontalCenter
             visible: delegate.resolvedSource !== "" || text !== ""
@@ -664,6 +665,12 @@ BlockDelegateBase {
             // through the model and the field's own editingFinished may not
             // arrive before the row is rebuilt.
             function handleReturn(event) {
+                // Qt emits the key-specific signals before the general one,
+                // so a read-only gate has to be here too.
+                if (delegate.readOnly) {
+                    event.accepted = true
+                    return
+                }
                 if (event.modifiers & Qt.ShiftModifier) {
                     if (captionField.selectionEnd > captionField.selectionStart)
                         captionField.remove(captionField.selectionStart,
@@ -719,7 +726,10 @@ BlockDelegateBase {
             mouse.accepted = false
         }
         onClicked: function(mouse) {
-            if (mouse.modifiers & Qt.ControlModifier) {
+            // Ctrl+click and Shift+click build a BLOCK selection, which is a
+            // mode with commands in it. A read-only picture answers the plain
+            // click below and nothing else.
+            if (!delegate.readOnly && (mouse.modifiers & Qt.ControlModifier)) {
                 delegate.selection.toggleBlock(delegate.index)
                 if (delegate.selection.hasBlockSelection)
                     delegate.focusSelectionHandler()
@@ -727,7 +737,7 @@ BlockDelegateBase {
                     focusTarget.forceActiveFocus()
                 return
             }
-            if (mouse.modifiers & Qt.ShiftModifier) {
+            if (!delegate.readOnly && (mouse.modifiers & Qt.ShiftModifier)) {
                 var anchor = delegate.editor && delegate.editor.lastFocusedBlock !== undefined
                         ? delegate.editor.lastFocusedBlock : -1
                 if (!delegate.selection.hasBlockSelection

@@ -635,6 +635,7 @@ set(KVIT_QML_FILES
     qml/DividerDelegate.qml
     qml/DividerStylePicker.qml
     qml/DocumentScrollBar.qml
+    qml/DocumentView.qml
     qml/DocumentSessionDialogs.qml
     qml/DropCapOverlay.qml
     qml/EdgeAutoScroller.qml

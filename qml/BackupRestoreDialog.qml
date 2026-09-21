@@ -14,11 +14,12 @@ import Kvit 1.0
 //
 // The collection rotates a copy of a note before overwriting it, and this
 // lists those copies with their timestamps above a rendered preview of the
-// version under the cursor. The preview is a ReadOnlyDocument
-// (selection.md "A document drawn read-only"): the stored markdown drawn as
-// blocks, with its inline markers hidden and its pictures drawn as pictures,
-// which the reader can sweep across and copy out as markdown, and whose links
-// open what they name, all without restoring anything. It is there because a
+// version under the cursor. The preview is a DocumentView
+// (selection.md "A document drawn read-only"): the stored markdown drawn by
+// the editor with every write refused, so its inline markers are hidden, its
+// tables are tables and its diagrams are drawings, and the reader can sweep
+// across it and copy it out as markdown and follow its links without
+// restoring anything. It is there because a
 // timestamp and a fragment of a first line do not tell two edits of the same
 // afternoon apart, and because wanting one paragraph out of an old version is
 // commoner than wanting the whole of it back.
@@ -191,7 +192,7 @@ KvitDialog {
 
             Component {
                 id: previewComponent
-                ReadOnlyDocument {
+                DocumentView {
                     id: preview
                     objectName: "backupPreviewDocument"
                     // A stored version is read at a glance rather than at
@@ -224,13 +225,22 @@ KvitDialog {
                     onChangedRangesChanged: preview.applyMarks()
                     Component.onCompleted: preview.applyMarks()
 
+                    // Registered on the surface's own decoration seam, which
+                    // is the same one a linked module marks the open note
+                    // through and takes the same addressing: a block index and
+                    // an offset in that block's display text. `owner` is what
+                    // lets this dialog take its own marks back without
+                    // touching anybody else's.
                     function applyMarks() {
-                        preview.marks.clear()
+                        preview.decorations.removeAll("backup-preview")
                         var ranges = preview.changedRanges
                         for (var i = 0; i < ranges.length; ++i) {
-                            preview.marks.add(ranges[i].block, ranges[i].start,
-                                              ranges[i].length,
-                                              Theme.changedTextBackground)
+                            preview.decorations.addSpan(
+                                "backup-preview",
+                                ranges[i].block, ranges[i].start,
+                                ranges[i].length,
+                                DocumentDecorations.Wash,
+                                Theme.changedTextBackground)
                         }
                     }
                 }
@@ -254,8 +264,16 @@ KvitDialog {
 
     // How much of the drawn version differs from the note. Zero while nothing
     // is drawn, and zero for a version identical to what the reader has.
-    readonly property int previewMarkCount: previewLoader.item
-        ? (previewLoader.item as ReadOnlyDocument).marks.count : 0
+    readonly property int previewMarkCount: {
+        var preview = previewLoader.item as DocumentView
+        if (!preview)
+            return 0
+        // The revision read is the subscription: a method call alone would
+        // depend on nothing, so the legend below would never appear. Same
+        // idiom the search and selection models are read through.
+        var revisionDep = preview.decorations.revision
+        return preview.decorations.spanCount()
+    }
 
     footer: DialogButtonBox {
         Button {

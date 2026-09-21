@@ -134,6 +134,8 @@ BlockDelegateBase {
     // the same one the insert flow uses), so the delegate asks for it through
     // AppActions and hands over the URL it currently shows.
     function editEmbedUrl() {
+        if (root.readOnly)
+            return
         AppActions.requestEditEmbed(root.index, root.embedUrl)
     }
 
@@ -185,9 +187,6 @@ BlockDelegateBase {
             return false
         return root.editor.blockDrag.isMulti ? root.blockSelected
                                      : root.editor.blockDrag.sourceIndex === root.index
-    }
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
     }
     onIsFocusedChanged: {
         if (isFocused) {

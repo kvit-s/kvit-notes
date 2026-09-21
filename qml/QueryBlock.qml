@@ -194,9 +194,6 @@ BlockDelegateBase {
         return root.editor.blockDrag.isMulti ? root.blockSelected
                                      : root.editor.blockDrag.sourceIndex === root.index
     }
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
     onIsFocusedChanged: {
         if (isFocused) {
             if (root.editor && root.editor.lastFocusedBlock !== undefined)
@@ -368,6 +365,7 @@ BlockDelegateBase {
 
             TextArea {
                 id: sourceArea
+                readOnly: root.readOnly
                 objectName: "querySourceArea"
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content
@@ -794,6 +792,7 @@ BlockDelegateBase {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            enabled: !root.readOnly
             onClicked: root.focusAtEnd()
         }
     }

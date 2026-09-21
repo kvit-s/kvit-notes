@@ -79,10 +79,6 @@ BlockDelegateBase {
                                      : delegate.editor.blockDrag.sourceIndex === delegate.index
     }
 
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
-
     // Gaining focus records this as the current block, like
     // EditableBlock (and like there, never via listView.currentIndex,
     // which would move focus to the delegate root).

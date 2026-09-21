@@ -211,10 +211,22 @@ BlockDelegateBase {
         }
         // Defer activation so a one-property-at-a-time ListView rebind that
         // briefly breaks displayText === content does not build EditableBlock.
-        Qt.callLater(function() {
+        editorLatchTimer.restart()
+    }
+    // A Timer the row owns rather than a queued call, because the row can go
+    // before the turn ends and a queued call cannot be cancelled. Selecting
+    // text across a document promotes every row it covers and clearing the
+    // selection demotes them again, so the rows tear down in bursts; with a
+    // queued call each one left behind a callback that ran against a context
+    // that no longer existed, and a page of "attempted to evaluate a function
+    // in an invalid context" with it. Destroying the row stops the Timer.
+    Timer {
+        id: editorLatchTimer
+        interval: 0
+        onTriggered: {
             if (!root.useReadOnlyShell)
                 root.editorLoaderActive = true
-        })
+        }
     }
 
     onUseReadOnlyShellChanged: root.syncEditorLoader()
@@ -258,10 +270,6 @@ BlockDelegateBase {
             return item[action].apply(item, args || [])
         promote(action, args)
         return undefined
-    }
-
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
     }
 
     function activateEditor() { promote("", []) }
@@ -514,8 +522,12 @@ BlockDelegateBase {
         acceptedButtons: Qt.LeftButton
         propagateComposedEvents: true
         onPressed: function(mouse) {
-            var ctrl = mouse.modifiers & Qt.ControlModifier
-            var shift = mouse.modifiers & Qt.ShiftModifier
+            // Ctrl+click and Shift+click build a BLOCK selection, which is a
+            // mode with commands in it. A read-only row answers the plain
+            // press below instead, which places the caret and lets the
+            // pointer sweep text across the document.
+            var ctrl = !root.readOnly && (mouse.modifiers & Qt.ControlModifier)
+            var shift = !root.readOnly && (mouse.modifiers & Qt.ShiftModifier)
             if (ctrl && !shift) {
                 root.selection.toggleBlock(root.index)
                 if (root.selection.hasBlockSelection)

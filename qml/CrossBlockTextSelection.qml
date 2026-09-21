@@ -109,15 +109,32 @@ QtObject {
 
     // ---- Rendering this block's portion ----
 
-    // The Qt.callLater re-apply sites below can outlive this object: a
-    // selection clear immediately followed by a document reload
-    // (find-and-replace flows do this) tears the row down before the queued
-    // call fires, and calling into its invalidated context is a TypeError.
+    // Re-applying this block's portion at the end of the turn, through a
+    // Timer this object owns rather than a queued call.
+    //
+    // The re-apply can outlive the row: a selection clear immediately
+    // followed by a document reload (find-and-replace does this), or a
+    // whole-document selection cleared in a drawn document, tears the row
+    // down before the end of the turn. A queued call cannot be cancelled, and
+    // the guard that used to sit inside its closure never got the chance to
+    // run — evaluating the closure at all in a context that has gone is
+    // itself the warning:
+    //
+    //   QQmlVMEMetaObject: Internal error - attempted to evaluate a function
+    //   in an invalid context
+    //
+    // A Timer stops when the object that owns it is destroyed, so there is
+    // nothing left to fire.
     function applyTextPortionLater(force) {
-        Qt.callLater(function() {
-            if (root && typeof root.applyTextPortion === "function")
-                root.applyTextPortion(force)
-        })
+        root.reapplyTimer.force = force === true
+        root.reapplyTimer.restart()
+    }
+    // Declared as a property rather than as a child: this object is a
+    // QtObject, which has no default property to put one in.
+    property Timer reapplyTimer: Timer {
+        property bool force: false
+        interval: 0
+        onTriggered: root.applyTextPortion(force)
     }
 
     // Apply this block's portion of the cross-block range to the

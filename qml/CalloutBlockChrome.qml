@@ -40,6 +40,11 @@ Item {
     // Whether the pointer is over the row. The color dot stays faint until
     // then, so an unhovered callout shows no editing affordance.
     property bool rowHovered: false
+    // A surface drawing a document that cannot be changed. The header still
+    // shows the callout's kind, its colour and its title; none of the three is
+    // pressable, and the fold is a stored state of the block rather than a
+    // view state, so it does not move either.
+    property bool readOnly: false
 
     // The kinds a callout can be, as [{ key, icon, label }] in header order,
     // and which one this is. Both come from the delegate so the picker and
@@ -96,7 +101,7 @@ Item {
             text: root.folded ? "▸" : "▾"
             color: root.accent
             font.pixelSize: Interface.body
-            TapHandler { onTapped: root.foldToggled() }
+            TapHandler { enabled: !root.readOnly; onTapped: root.foldToggled() }
         }
         // The type button: the callout's own icon with a caret, opening the
         // list of kinds. Sited and shaped like the code block's language
@@ -147,7 +152,7 @@ Item {
             Accessible.name: qsTr("Callout type: %1").arg(root.typeLabel)
             Accessible.onPressAction: typePicker.open()
             HoverHandler { id: typeHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: typePicker.open() }
+            TapHandler { enabled: !root.readOnly; onTapped: typePicker.open() }
 
             CalloutTypePicker {
                 id: typePicker
@@ -169,6 +174,9 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.title
             placeholderText: root.typeLabel
+            // Read-only rather than disabled: the title stays selectable and
+            // copyable, which is the whole point of drawing a document.
+            readOnly: root.readOnly
             color: root.accent
             font.pixelSize: Interface.strong
             font.bold: true
@@ -198,7 +206,7 @@ Item {
             Behavior on opacity {
                 NumberAnimation { duration: 150 * Theme.motionScale }
             }
-            TapHandler { onTapped: colorPicker.open() }
+            TapHandler { enabled: !root.readOnly; onTapped: colorPicker.open() }
 
             CalloutColorPicker {
                 id: colorPicker

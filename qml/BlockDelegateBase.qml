@@ -85,14 +85,25 @@ Item {
         blockDelegateBase.editor ? blockDelegateBase.editor.decorations
                                  : DocumentDecorations
 
+    // Whether the editor drawing this row refuses every change to the
+    // document (BlockEditorSurface.readOnly). A row built outside any editor
+    // is editable, which is what it was before there was anything to ask.
+    readonly property bool readOnly:
+        blockDelegateBase.editor ? blockDelegateBase.editor.readOnly : false
+
     // Whether this editor draws the strip to the left of each row — the
     // plus-button, the dotted drag handle and the menu button. A compact
     // editor draws none of it: a two-line message box has no room for a strip
     // and nothing for it to do (BlockEditorSurface.showGutter). A row built
     // outside any editor keeps the strip, which is what it had before there
     // was anything to ask.
+    // Never in a read-only surface: every button in the strip is an editing
+    // command — insert a block, delete one, drag one, open the block menu —
+    // so there is nothing for it to do there whatever the host asked for.
     readonly property bool gutterShown:
-        !blockDelegateBase.editor || blockDelegateBase.editor.showGutter
+        !blockDelegateBase.editor
+        || (blockDelegateBase.editor.showGutter
+            && !blockDelegateBase.editor.readOnly)
 
     // How much of the row's left edge the strip takes: its own forty pixels
     // and the four of the focus bar beside it. Every delegate that draws a
@@ -133,6 +144,73 @@ Item {
     // declared twelve times over with nothing recording that it had to be.
     property bool isFocused: false
 
+    // Focus the handler that owns the keyboard while a block selection is
+    // active. The row's own focus loss collapses its reveal and dismisses any
+    // open menu, both of which selection mode wants.
+    //
+    // It was these same three lines in twelve delegates. It is here because a
+    // read-only row must not run them: `AppActions` is the window's, so a row
+    // of a drawn document asking it to move the keyboard would take focus to
+    // the OPEN NOTE's selection handler.
+    function focusSelectionHandler() {
+        if (blockDelegateBase.readOnly)
+            return
+        AppActions.requestSelectionFocus()
+    }
+
+    // Select the whole document as one text range, which is what a read-only
+    // surface does for Ctrl+A. The editable answer is a block selection, and
+    // that is a mode with commands in it; this is the same thing a reader
+    // wants from a document they are only reading, and Ctrl+C copies it as
+    // markdown through the ordinary cross-block path.
+    function selectWholeDocumentText() {
+        var count = blockDelegateBase.blocks.count
+        if (count === 0)
+            return
+        blockDelegateBase.selection.beginTextSelection(
+            0, 0, DocumentSelection.BlockGranularity)
+        blockDelegateBase.selection.updateTextSelectionHead(
+            count - 1, blockDelegateBase.blocks.getContent(count - 1).length)
+    }
+
+    // Which keys a read-only row still answers: the ones that read the
+    // document. Moving the caret, extending a selection with Shift, dropping
+    // one with Escape, selecting everything, and copying.
+    //
+    // Everything else a row's key handler does either changes the document or
+    // reaches one of the WINDOW's objects — Ctrl+Z on the window's undo
+    // stack, the block menu through AppActions — and a row drawing a document
+    // that is not the open note must do neither. Gating once here is what
+    // keeps that from being thirty guards spread through the handlers.
+    function readOnlyKeyPasses(event) {
+        switch (event.key) {
+        case Qt.Key_Left:
+        case Qt.Key_Right:
+        case Qt.Key_Up:
+        case Qt.Key_Down:
+        case Qt.Key_Home:
+        case Qt.Key_End:
+        case Qt.Key_PageUp:
+        case Qt.Key_PageDown:
+        case Qt.Key_Escape:
+            return true
+        case Qt.Key_A:
+        case Qt.Key_C:
+        case Qt.Key_Insert:
+            return (event.modifiers & Qt.ControlModifier) !== 0
+        }
+        return false
+    }
+
+    // Whether a key a read-only row is not answering should be swallowed.
+    // Tab and Backtab are the exception: in the editor Tab indents a list
+    // item, and a read-only row has no indent to change — but swallowing it
+    // would leave the keyboard with no way out of the row, so it goes to the
+    // focus chain instead (accessibility.md §14.1).
+    function readOnlyKeySwallows(event) {
+        return event.key !== Qt.Key_Tab && event.key !== Qt.Key_Backtab
+    }
+
     // Standard context-menu keys, shared by every block's primary focus
     // target. Returning true lets each delegate put this first in its own key
     // handler without duplicating the gesture or the AppActions route.
@@ -140,7 +218,13 @@ Item {
         if (event.key === Qt.Key_Menu
             || (event.key === Qt.Key_F10
                 && (event.modifiers & Qt.ShiftModifier))) {
-            AppActions.requestBlockHandleMenu(blockDelegateBase)
+            // The block menu is where every structural command lives, so a
+            // read-only row has nothing to put in it. The key is swallowed
+            // rather than ignored: AppActions is the window's, so an ignored
+            // one would open the OPEN NOTE's menu from a row of some other
+            // document.
+            if (!blockDelegateBase.readOnly)
+                AppActions.requestBlockHandleMenu(blockDelegateBase)
             event.accepted = true
             return true
         }

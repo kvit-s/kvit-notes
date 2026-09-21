@@ -31,6 +31,7 @@
 #include "block.h"
 #include "blockmodel.h"
 #include "documentblockmarks.h"
+#include "documentdecorations.h"
 #include "documentselection.h"
 #include "documentserializer.h"
 #include "egresspolicy.h"
@@ -607,14 +608,20 @@ private slots:
             QStringLiteral("backupPreviewDocument"));
         QVERIFY(preview);
         // Two blocks, rendered: the paragraph with its markers hidden and the
-        // list item beside its bullet.
+        // list item beside its bullet. The preview is a DocumentView, so its
+        // rows are the editor's own delegates and what they draw is their
+        // `displayText` — the text with the inline markers taken out.
         QTRY_COMPARE(preview->property("blockCount").toInt(), 2);
-        QCOMPARE(rowText(preview, 0), QStringLiteral("A first version."));
-        QCOMPARE(rowText(preview, 1), QStringLiteral("with a list"));
+        // The rows are built by a list rather than placed by a column, so the
+        // first turn after the document arrives has the model and not yet the
+        // items.
+        QTRY_COMPARE(previewRowText(preview, 0),
+                     QStringLiteral("A first version."));
+        QCOMPARE(previewRowText(preview, 1), QStringLiteral("with a list"));
 
         // And it is selectable, which is the point of drawing it here rather
         // than in a Text.
-        sweep(preview, nearStartOf(preview, 0), nearEndOf(preview, 1));
+        QVERIFY(invoke(preview, "selectAll").toBool());
         QVERIFY(preview->property("hasSelection").toBool());
         QVERIFY2(invoke(preview, "selectedMarkdown").toString()
                      .contains(QStringLiteral("**first**")),
@@ -850,22 +857,28 @@ private slots:
         QTRY_COMPARE(preview->property("blockCount").toInt(), 1);
 
         // One mark, on the word the note replaced, in the theme's
-        // changed-text colour.
-        DocumentBlockMarks *marks = marksOf(preview);
-        QVERIFY(marks);
-        QTRY_COMPARE(marks->count(), 1);
-        const QVariantList entries = marks->marksForBlock(0);
+        // changed-text colour. The preview registers it on its own decoration
+        // seam, the same one a linked module marks the open note through.
+        auto *spans = preview->property("decorations")
+                          .value<DocumentDecorations *>();
+        QVERIFY(spans);
+        QVERIFY(spans != m_context->documentDecorations());
+        QTRY_COMPARE(spans->spanCount(), 1);
+        QTRY_VERIFY(!previewRowText(preview, 0).isEmpty());
+        const QVariantList entries = spans->spansForBlock(0);
         QCOMPARE(entries.size(), 1);
         const QVariantMap entry = entries.first().toMap();
-        QCOMPARE(rowText(preview, 0).mid(
+        QCOMPARE(previewRowText(preview, 0).mid(
                      entry.value(QStringLiteral("start")).toInt(),
                      entry.value(QStringLiteral("length")).toInt()),
                  QStringLiteral("second"));
-        const QColor changed = m_context->theme()->changedTextBackground();
-        QTRY_COMPARE(washAt(preview, 0,
-                            entry.value(QStringLiteral("start")).toInt()),
-                     changed);
-        QVERIFY(washAt(preview, 0, 0) != changed);
+        QCOMPARE(QColor(entry.value(QStringLiteral("wash")).toString()),
+                 m_context->theme()->changedTextBackground());
+        // And it is drawn where the characters are, which is what
+        // DocumentViewTests checks pixel by pixel.
+        QMetaObject::invokeMethod(preview, "forceLayout");
+        QTRY_VERIFY(!spans->spanRects(
+            entry.value(QStringLiteral("id")).toString()).isEmpty());
 
         // And the dialog says what the shading means, which it does not when
         // the version drawn is the one the reader already has.
@@ -1147,26 +1160,30 @@ private slots:
         // surface's default base directory is.
         QCOMPARE(preview->property("baseDir").toString(), m_vaultRoot);
 
-        QQuickItem *localRow = rowItem(preview, 1);
-        QVERIFY(localRow);
-        QQuickItem *localImage =
-            childItem(localRow, QStringLiteral("readOnlyPictureImage"));
-        QVERIFY(localImage);
+        // The preview is drawn by the editor, so a picture in it is the
+        // editor's own ImageBlock rather than a second implementation of one.
+        QQuickItem *localRow = nullptr;
+        QTRY_VERIFY((localRow = rowItem(preview, 1)));
+        QQuickItem *localImage = nullptr;
+        QTRY_VERIFY((localImage =
+                         childItem(localRow, QStringLiteral("imagePicture"))));
         QTRY_COMPARE(localImage->property("status").toInt(), 1);
         QCOMPARE(qRound(childItem(localRow,
-                                  QStringLiteral("readOnlyPictureFrame"))
+                                  QStringLiteral("imageAccessible"))
                             ->width()),
                  120);
 
         // The remote one is gated, and ungating it reaches the open dialog
         // rather than waiting for it to be reopened.
-        QQuickItem *remoteRow = rowItem(preview, 2);
-        QQuickItem *consent =
-            childItem(remoteRow, QStringLiteral("readOnlyPictureConsent"));
-        QVERIFY(consent);
+        QQuickItem *remoteRow = nullptr;
+        QTRY_VERIFY((remoteRow = rowItem(preview, 2)));
+        QQuickItem *consent = nullptr;
+        QTRY_VERIFY((consent = childItem(
+                         remoteRow, QStringLiteral("imageConsentPlaceholder"))));
         QVERIFY(consent->isVisible());
         QQuickItem *remoteImage =
-            childItem(remoteRow, QStringLiteral("readOnlyPictureImage"));
+            childItem(remoteRow, QStringLiteral("imagePicture"));
+        QVERIFY(remoteImage);
         QCOMPARE(remoteImage->property("source").toUrl(), QUrl());
 
         m_context->egressPolicy()->allowOrigin(remote);
@@ -1340,6 +1357,16 @@ private:
     }
 
     // The editor one row draws its text in, and the text it laid out.
+    // What one row of a DocumentView draws: the display text, markers taken
+    // out. The backup preview is drawn by the editor now, so its rows are the
+    // editor's delegates rather than the ReadOnlyBlock the helpers below
+    // reach into.
+    QString previewRowText(QQuickItem *preview, int index)
+    {
+        QQuickItem *row = rowItem(preview, index);
+        return row ? row->property("displayText").toString() : QString();
+    }
+
     QQuickItem *rowEditor(QQuickItem *surface, int index)
     {
         return childItem(rowItem(surface, index),

@@ -73,6 +73,10 @@ EditableBlock {
                    + Math.round((root.contentAscent - height) / 2)
                 anchors.horizontalCenter: parent.horizontalCenter
 
+                // Still drawn, and still published to a screen reader as a
+                // checkbox with its state; simply not pressable in a document
+                // that cannot be changed.
+                enabled: !root.readOnly
                 label: qsTr("Done")
                 help: qsTr("Done (Ctrl+Return)")
                 Accessible.role: Accessible.CheckBox
@@ -147,6 +151,7 @@ EditableBlock {
                           root.meta.priority === 2 ? qsTr("high")
                         : root.meta.priority === 1 ? qsTr("medium")
                         : root.meta.priority === -1 ? qsTr("low") : qsTr("none")
+                    enabled: !root.readOnly
                     label: qsTr("Priority: %1").arg(levelName)
                     help: qsTr("Priority: %1 — press to cycle").arg(levelName)
                     onClicked: root.cyclePriority()
@@ -188,6 +193,7 @@ EditableBlock {
                     }
                     width: dueMetrics.width + 16
                     anchors.verticalCenter: parent.verticalCenter
+                    enabled: !root.readOnly
                     label: root.meta.due !== ""
                            ? qsTr("Due %1").arg(
                                Qt.formatDate(new Date(root.meta.due), "MMMM d"))

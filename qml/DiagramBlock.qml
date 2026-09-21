@@ -74,9 +74,6 @@ BlockDelegateBase {
         return root.editor.blockDrag.isMulti ? root.blockSelected
                                      : root.editor.blockDrag.sourceIndex === root.index
     }
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
     onIsFocusedChanged: {
         if (isFocused) {
             if (root.editor && root.editor.lastFocusedBlock !== undefined) root.editor.lastFocusedBlock = index
@@ -643,7 +640,7 @@ BlockDelegateBase {
                         visible: root.content.trim().length === 0
                         text: qsTr("Empty Mermaid diagram — click to edit")
                         color: Theme.textFaint; font.italic: true; font.pixelSize: Interface.strong
-                        TapHandler { onTapped: root.focusAtEnd() }
+                        TapHandler { enabled: !root.readOnly; onTapped: root.focusAtEnd() }
                     }
                     Text {
                         visible: root.content.trim().length > 0 && readCanvas.unsupportedFamily
@@ -652,7 +649,7 @@ BlockDelegateBase {
                         text: qsTr("Unsupported Mermaid diagram type in this Kvit version. "
                                    + "The source is preserved — click to edit, or treat it as code.")
                         color: Theme.textMuted; font.pixelSize: Interface.body
-                        TapHandler { onTapped: root.focusAtEnd() }
+                        TapHandler { enabled: !root.readOnly; onTapped: root.focusAtEnd() }
                     }
                     Text {
                         visible: root.content.trim().length > 0 && readCanvas.hasError
@@ -663,7 +660,7 @@ BlockDelegateBase {
                               + (readCanvas.errorLine > 0
                                  ? " (line " + readCanvas.errorLine + ")" : "")
                         color: Theme.danger; font.pixelSize: Interface.body
-                        TapHandler { onTapped: root.focusAtEnd() }
+                        TapHandler { enabled: !root.readOnly; onTapped: root.focusAtEnd() }
                     }
                     Text {
                         visible: root.content.trim().length > 0 && !readCanvas.hasError
@@ -787,6 +784,7 @@ BlockDelegateBase {
 
             TextArea {
                 id: sourceArea
+                readOnly: root.readOnly
                 objectName: "mermaidSourceArea"
                 width: Math.max(implicitWidth, sourceFlick.width)
                 text: root.content

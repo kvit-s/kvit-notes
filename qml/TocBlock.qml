@@ -98,10 +98,6 @@ BlockDelegateBase {
                                      : delegate.editor.blockDrag.sourceIndex === delegate.index
     }
 
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
-
     onIsFocusedChanged: {
         if (isFocused) {
             if (delegate.editor && delegate.editor.lastFocusedBlock !== undefined)
@@ -123,6 +119,15 @@ BlockDelegateBase {
         // A reused delegate is a different block; it must not inherit however
         // far the previous one had been expanded.
         revealedEntries = entryWindowStep
+    }
+
+    // Scroll the document this card is IN to a heading. It goes to the editor
+    // drawing the row rather than through AppActions, which is the window's:
+    // a table of contents in a stored version of a note would otherwise have
+    // scrolled the open note to whatever block index it named.
+    function scrollToHeading(blockIndex) {
+        if (delegate.editor)
+            delegate.editor.scrollToBlock(blockIndex)
     }
 
     function focusAtStart() { focusTarget.forceActiveFocus() }
@@ -382,8 +387,7 @@ BlockDelegateBase {
                                      .arg(headingRow.heading.text)
                     Accessible.onPressAction: {
                         if (headingRow.heading.blockIndex >= 0)
-                            AppActions.requestScrollToBlock(
-                                headingRow.heading.blockIndex)
+                            delegate.scrollToHeading(headingRow.heading.blockIndex)
                     }
                     TapHandler {
                         // The request goes to AppActions, and an unconnected
@@ -393,8 +397,7 @@ BlockDelegateBase {
                             if (renderedSelection.suppressClick)
                                 return
                             if (headingRow.heading.blockIndex >= 0)
-                                AppActions.requestScrollToBlock(
-                                    headingRow.heading.blockIndex)
+                                delegate.scrollToHeading(headingRow.heading.blockIndex)
                         }
                     }
                 }

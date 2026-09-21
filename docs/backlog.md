@@ -286,3 +286,21 @@ explicit size sets its item's size. Doing it properly means repositioning the
 bar against `bar.editor` rather than against its parent, which is the more
 correct binding anyway. Worth doing when a host draws enough composers for the
 count to matter.
+
+## The second renderer is still in the tree
+
+`qml/ReadOnlyDocument.qml` and the four files only it uses —
+`ReadOnlyBlock.qml`, `ReadOnlyPicture.qml`, `ReadOnlyEquation.qml`,
+`ReadOnlyDocumentDrag.qml`, about 1,650 lines — draw a markdown document by
+switching on the block type. Nothing in this repository uses them any more:
+the backup dialog's preview is a `qml/DocumentView.qml`, which draws with the
+editor and so draws every kind through the delegate the kind registry names.
+`DocumentBlockMarks` (src/application/documentblockmarks.h) and its suite go
+with them; the per-surface mark registry it provides is what a surface's own
+`DocumentDecorations` spans replace.
+
+They are still here because the private `kvit-notes-pro` tree draws its agent
+transcripts with `ReadOnlyDocument`. Deleting them means moving that tree to
+`DocumentView` first, and then rewriting `tests/test_readonlydocument.cpp`,
+which is 1,570 lines and still the suite that covers drawing a document that
+is not the open note.

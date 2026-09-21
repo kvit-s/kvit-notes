@@ -552,9 +552,6 @@ BlockDelegateBase {
         return root.editor.blockDrag.isMulti ? root.blockSelected
                                      : root.editor.blockDrag.sourceIndex === root.index
     }
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
     onIsFocusedChanged: {
         if (isFocused) {
             if (root.editor && root.editor.lastFocusedBlock !== undefined) root.editor.lastFocusedBlock = index

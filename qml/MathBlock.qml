@@ -142,9 +142,6 @@ BlockDelegateBase {
         return root.editor.blockDrag.isMulti ? root.blockSelected
                                      : root.editor.blockDrag.sourceIndex === root.index
     }
-    function focusSelectionHandler() {
-        AppActions.requestSelectionFocus()
-    }
     onIsFocusedChanged: {
         if (isFocused) {
             if (root.editor && root.editor.lastFocusedBlock !== undefined) root.editor.lastFocusedBlock = index
@@ -393,13 +390,18 @@ BlockDelegateBase {
                 text: "(" + root.equationNumber + ")"
                 color: Theme.textMuted; font.pixelSize: Interface.px(14)
             }
-            TapHandler { onTapped: root.focusAtEnd() }
+            // A click shows the rendered equation in a read-only
+            // surface rather than swapping it for its TeX. The keyboard
+            // still reaches the source, where it is selectable and not
+            // writable.
+            TapHandler { enabled: !root.readOnly; onTapped: root.focusAtEnd() }
         }
 
         // ---- Source editor: shown when editing ----
         TextArea {
             id: sourceArea
             objectName: "mathSourceArea"
+            readOnly: root.readOnly
             width: parent.width
             opacity: root.editing ? 1 : 0
             height: root.editing ? implicitHeight : 0
@@ -746,7 +748,7 @@ BlockDelegateBase {
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.RightButton
-        enabled: !root.editing
+        enabled: !root.editing && !root.readOnly
         // The area itself is the block menu, reachable from the keyboard as
         // Menu / Shift+F10; naming it is what puts it in the tree beside the
         // equation rather than leaving a right-click-only route.

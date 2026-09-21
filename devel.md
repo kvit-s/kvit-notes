@@ -184,6 +184,34 @@ and by offset within a block, so a second instance is the whole of what a second
 document needs. It still has to be a second instance, because `BlockEditor`
 installs its own block list as the view those entries answer geometry from.
 
+**The same editor, drawing a document that cannot be changed.**
+`BlockEditorSurface.readOnly` turns every delegate's write path off, and
+`qml/DocumentView.qml` is the surface built from it: a document the component
+owns, drawn by the editor, sized to its content so it can sit inside a
+scrolling area it does not own. It replaces a second renderer that switched on
+the block type and drew a table as its pipe characters and a Mermaid diagram,
+a task board, a query and a table of contents each as the source inside their
+fence, because all four are stored as a `Block::CodeBlock` with a language.
+What read-only means, delegate by delegate, is in selection.md "A document
+drawn read-only"; the two rules worth knowing before adding a delegate are
+that a text area refuses writes with `readOnly` rather than `enabled: false`
+(the cross-block selection coordinator lives inside the rows and needs their
+presses), and that a key-specific `Keys` handler — `onReturnPressed` and its
+siblings — is emitted BEFORE `Keys.onPressed`, so a gate in the general
+handler alone never sees those keys.
+
+**Deferred work in the editor is a Timer, not `Qt.callLater`.** Six places in
+`BlockEditor.qml`, one in `TextBlockDelegate.qml` and one in
+`CrossBlockTextSelection.qml` defer work to the end of the turn. A queued call
+cannot be cancelled and holds the object or one of its functions, so an editor
+or a row destroyed before the turn ends leaves a callback that runs against a
+context that has gone — `attempted to evaluate a function in an invalid
+context`, and a page of it when a whole-document selection is cleared and
+every promoted row demotes at once. A guard inside the closure does not help,
+because evaluating the closure at all is the failure. A `Timer` belongs to its
+item and stops when the item does. It never showed while the only editor was
+the window's, which lives as long as the window.
+
 **How Enter reaches the host.** A row whose editor has `returnCreatesBlock`
 false does not leave the keystroke unaccepted — the row's `TextArea` handles
 Return itself, so an unaccepted Return is taken by the text area underneath and

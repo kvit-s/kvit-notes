@@ -160,24 +160,33 @@ public:
     // nothing until the module re-places it. An empty style or an invalid
     // color registers nothing and returns an empty id, since there would be
     // no channel to draw it through.
-    QString addSpan(const QString &owner, int block, int start, int length,
-                    SpanStyles style, const QColor &color);
+    // Invokable, because a caller marking text is not always a linked
+    // module written in C++: qml/DocumentView.qml draws a document somewhere
+    // other than the editor pane, and what a caller knows about part of it —
+    // which characters differ from the note as it stands, which phrase a
+    // search hit fell on — is registered from QML.
+    Q_INVOKABLE QString addSpan(const QString &owner, int block, int start,
+                                int length, SpanStyles style,
+                                const QColor &color);
     // A move may take the length to zero, where registering one at zero is
     // refused: an entry that never marked anything is a caller's mistake,
     // while a mark whose text the user has just deleted is an ordinary state
     // for a module to keep an id through until it re-places it.
-    bool setSpanRange(const QString &id, int block, int start, int length);
-    bool setSpanStyle(const QString &id, SpanStyles style, const QColor &color);
-    bool removeSpan(const QString &id);
+    Q_INVOKABLE bool setSpanRange(const QString &id, int block, int start,
+                                  int length);
+    Q_INVOKABLE bool setSpanStyle(const QString &id, SpanStyles style,
+                                  const QColor &color);
+    Q_INVOKABLE bool removeSpan(const QString &id);
 
     // Everything one module registered. A module calls this when it is done,
     // and a test calls it to isolate a case.
-    void removeAll(const QString &owner);
-    void clear();
+    Q_INVOKABLE void removeAll(const QString &owner);
+    Q_INVOKABLE void clear();
 
     int containerCount() const { return static_cast<int>(m_containers.size()); }
     int marginItemCount() const { return static_cast<int>(m_marginItems.size()); }
-    int spanCount() const { return static_cast<int>(m_spans.size()); }
+    Q_INVOKABLE int spanCount() const
+    { return static_cast<int>(m_spans.size()); }
 
     // ---- what the view reads -------------------------------------------
     //

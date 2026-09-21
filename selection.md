@@ -216,244 +216,99 @@ anything to serialize.
 
 ## A document drawn read-only
 
-Everything above is about the note the editor has open. Three places in the
-application put a *different* note's text on screen: the backup dialog offers
-the stored versions of the open note, the backlinks pane shows the lines a
-referring note mentions this one on, and search results show snippets.
-`qml/ReadOnlyDocument.qml` is the component that draws such a document the way
-the editor draws one, lets the pointer sweep across it, and lets a caller mark
-runs of characters inside it. The backup dialog's preview of the version under
-the cursor uses all three: it draws the stored version, allows a paragraph of
-it to be copied without restoring anything, and shades the part the note as it
-stands no longer has. The other two places draw plain `Text`, with the markdown
-showing as asterisks and nothing in them selectable, and are listed under "What
-is not covered" below.
+Everything above is about the note the editor has open. Several places put a
+*different* document on screen: the backup dialog offers the stored versions of
+the open note, and an application built on this one draws transcripts.
+`qml/DocumentView.qml` is the component for that, and what it is made of is the
+whole of the design: **one `BlockEditor` with `readOnly` set, over a document
+the surface owns.**
 
-### What it is made of
+### Why the editor draws it and not something else
 
-A surface takes a markdown string and holds four things:
+The alternative was a second renderer, and this repository had one for a year.
+A second renderer draws a subset. Block kinds reach the screen through
+`BlockKindRegistry::delegateChoices()`, so anything that does not go through
+the registry needs a hardcoded list of the kinds somebody remembered — and the
+kinds most easily forgotten are the ones that are not a block *type* at all. A
+task board, a table of contents, a Mermaid diagram and a collection query are
+each stored as a `Block::CodeBlock` with a language, so a renderer switching on
+the type drew all four as the source inside their fence, a pipe table as its
+pipe characters, and nothing whatever for a kind a linked module registered.
 
-- **Its own `BlockModel`**, filled by `DocumentSerializer::loadIntoModel`.
-  `parse` is a pure function of its argument, so the one shared serializer
-  serves every surface. No undo stack is attached to this model and no path
-  from the view writes to it; a caller that wants a document edited opens it
-  as a note.
-- **Its own `DocumentSelection`**, pointed at that model through
-  `setModel()`. This is the same object the editor uses for a cross-block
-  range, so `portionForBlock` tells each row what share of the range to paint
-  and `rangeMarkdown()` is what a copy produces: whole blocks serialized with
-  their prefixes, fences and ordinals, and a self-contained inline fragment at
-  each partially covered end.
-- **Its own `DocumentBlockMarks`**, the runs of characters a caller has
-  asked to be set apart (see "Marked ranges" below). Empty unless somebody
-  registers something, which is what every preview in the open editor except
-  the backup dialog's is.
-- **A row per block** (`qml/ReadOnlyBlock.qml`), whose running text goes
-  through `BlockEditorEngine` with `cursorActive` false. That is what hides
-  the inline markers, styles the spans from the theme's tokens, resolves
-  wiki-links against the open collection and reserves a box for each `$…$`
-  span that `qml/InlineMathOverlay.qml` paints the equation into. A code fence
-  goes through the same object in verbatim mode and is highlighted by
-  language. An image or media block is the exception: its content is a
-  markdown expression rather than running text, so it goes to
-  `qml/ReadOnlyPicture.qml` instead (see "Pictures" below).
+Drawing with the editor, a document drawn here is the document as the editor
+draws it, including kinds that did not exist when the component was written.
+`tests/test_documentview.cpp` asserts that block by block, by which delegate
+drew each row.
 
-None of the three objects is a singleton, which is the point: the editor's
-`BlockModel` and `DocumentSelection` are the open note, one per window, its
-`DocumentDecorations` marks that note, and a surface has to be able to exist
-several times over in the same window. They reach QML as the creatable types
-`DocumentBlocks`, `DocumentBlockSelection` and `DocumentBlockMarks`
-(`src/qml/qmlsingletons.h`), the same singleton-plus-creatable pair
-`SettingsStore` already has.
+### What read-only means
 
-The rows are a `Column` rather than a `ListView`, so a surface sizes to its
-content and can sit inside a scrolling area it does not own. Every block is
-instantiated, which is acceptable at the sizes these callers have — one stored
-version of one note, a handful of context lines. A `Column` places a row it
-has just been given at its next polish, which is a frame away, so the surface
-calls `forceLayout()` before it answers a geometry question or resolves a
-press; without it a surface built and measured in the same turn reports every
-row at the top.
+`BlockEditorSurface.readOnly` is the flag, and every delegate reads it through
+`BlockDelegateBase.readOnly`. The rule is that the surface still reads and
+never writes:
 
-### Why the rows are switched off
+- **The text areas hold their text with `readOnly`, not with `enabled: false`.**
+  That is the one decision that differs from the renderer this replaces, and it
+  follows from where the selection coordinator sits. The old surface put its
+  sweep *above* the rows, so the rows had to be out of event delivery entirely
+  for a press to reach it; the editor puts the coordinator *inside* the rows —
+  each `TextArea` hosts a passive `PointHandler` reporting to
+  `qml/CrossBlockTextDrag.qml` — so a read-only area keeps drag-selection,
+  Ctrl+C and the cross-block range working exactly as they do in the note.
+- **The keys that read pass; the rest are refused where they are raised.**
+  `BlockDelegateBase.readOnlyKeyPasses()` is the list: the arrows, Home, End,
+  the page keys, Escape, Ctrl+A and Ctrl+C. Everything else is swallowed by the
+  row, which matters beyond the document — Ctrl+Z reaches `AppActions` and the
+  window's undo stack, so an ungated one would undo an edit to the *open note*
+  from a row of some other document. Tab and Backtab are the exception and are
+  left for the focus chain, since swallowing them would leave the keyboard no
+  way out of the row.
+- **Enter is gated twice.** Qt emits the key-specific signals before the
+  general one, so a gate in `Keys.onPressed` alone never sees `Return`;
+  `handleReturn` refuses it again, and swallows it rather than ignoring it,
+  because an ignored Return goes to the text area underneath and is written
+  into the block as a line break.
+- **Ctrl+A selects the whole document as text** rather than as blocks. Block
+  selection is a mode whose keys are commands — delete, duplicate, indent,
+  paste — so a read-only surface never enters it, and what Ctrl+C then copies
+  is the whole document as markdown.
+- **Every editing affordance is gone rather than inert.** No gutter strip and
+  so no insert, delete, drag handle or block menu; no gap cursor, no drop area,
+  no formatting bar, no find bar, no scrollbar and no typewriter mode. A
+  to-do's checkbox is still drawn and still published to a screen reader with
+  its state, and is not pressable. The pickers on a callout, a code fence, a
+  picture and a diagram do not open, and the source editors behind a formula, a
+  diagram and a query are reachable by keyboard and not writable, so their
+  source can still be selected and copied.
 
-Each row's text sits in a `TextArea` with `enabled: false`. That is the same
-decision `SelectableText.qml` makes and for the same reason: a `TextArea`
-accepts the left mouse button whatever it intends to do with it, and an
-accepted press is never offered to the handlers behind it, so an enabled one
-would swallow every sweep that began on it. Disabling takes the item out of
-event delivery and changes nothing about how it draws. The one thing it does
-change is the palette a disabled `Control` draws from, where the selection
-colour is close enough to the background to be invisible, so the row sets
-`selectionColor` and `selectedTextColor` explicitly.
+### Sizing
 
-### The gesture, the keyboard, and what a copy contains
-
-`qml/ReadOnlyDocumentDrag.qml` is `CrossBlockTextDrag.qml` for a surface, and
-the two differ in one structural way. In the editor each block hosts a real
-`TextArea`, so a drag inside one block is Qt's own in-block selection and the
-document-level range only takes over once the pointer crosses into another
-block. On a surface nothing is editable and no block selects anything by
-itself, so the surface's own `DocumentSelection` holds every range from the
-first pixel of travel, including one that never leaves the block it started
-in. Everything else follows the gestures already in the tree: the five-pixel
-travel gate the block drag and the cross-block drag both use, and press
-multiplicity for word and whole-block granularity.
-
-A surface usually sits inside a `Flickable` it does not own, and a `Flickable`
-takes the grab away from its children once a drag has enough travel, which is
-the same conflict the editor resolves by stopping the block list flicking
-while a sweep runs. Here the sweep keeps the grab outright
-(`preventStealing`), so dragging inside a surface always selects and the pane
-around it is scrolled with the wheel or its scrollbar.
-
-The keyboard lands on the surface itself, since every row is switched off and
-nothing inside one can hold focus. Ctrl+C copies the selection in every
-clipboard flavour, Escape drops it, and Ctrl+A takes the whole surface — a
-second Ctrl+A with all of it already selected falls through, which is the two
-stages Ctrl+A has inside a paragraph and over a rendered block. A surface is
-also a tab stop and draws a focus ring when it holds the keyboard, since a tab
-stop that shows nothing when it is reached cannot be used.
-
-A copy is markdown, because there is markdown to copy. This is what separates
-a surface from the block-private rendered selection above: a query's rows come
-from other notes and have no markdown, whereas a stored version, a referring
-note's context and a search snippet all do.
-
-### Pictures
-
-An image block keeps its markdown expression as its content, the way the table
-and kanban types keep theirs. A surface that sent every non-verbatim block
-through the text engine therefore drew the characters
-`![Retention|180](charts/retention.png "Weekly retention")` where the picture
-belongs.
-`qml/ReadOnlyPicture.qml` is the read-only counterpart of `qml/ImageBlock.qml`:
-the same `ImageAssets` parse, the same path resolution and the same remote
-consent gate, without the resize handle, the effects popover, the editable
-caption and the lightbox, none of which a surface has any way to act on. The
-caption is drawn as text and the stored width is honoured, capped at the
-pane's width so a picture sized for the editor is not cut off in a preview.
-A media block draws a tile naming the file rather than a player, since a
-surface cannot play anything.
-
-Resolving a relative path needs to know where the document being drawn lives,
-and that is not the open note's directory whenever the document came from
-somewhere else: a stored version sits in the backup tree while its pictures
-are still written against the note's own folder, and a caller may build a
-surface from a string with no file behind it at all. So `baseDir` is a
-property of the surface, defaulting to the open note's directory, handed down
-to each row.
-
-A remote image is not fetched because a preview drew it. A note is untrusted
-input (docs/adr/0003-network-egress-policy.md) and a preview of one is no
-different, so the source goes through `EgressPolicy::imageSourceFor` exactly
-as the editor's does: empty until the reader approves the origin, with the
-same consent tile offering to load it. That tile carries the one control a
-surface's rows hold, which is why the rows stack above the sweep area rather
-than below it — everything else in a row is inert, so every other press falls
-straight through to the sweep. Approving an origin changes the reader's policy
-rather than the document, so it leaves the surface as read-only as it was, and
-the picture appears in place without the pane around it being rebuilt.
-
-A picture holds no characters, so it takes part in a range the way a divider
-does: `markdownPositionAt` answers 0, `DocumentSelection` reports a full
-portion for a block the range covers end to end, the row itself is tinted, and
-`rangeMarkdown()` contributes the expression. A sweep that crosses a picture
-does not stop at it.
-
-### Equations
-
-A `$$ … $$` block keeps its TeX as its content, and the same gap opened for
-the same reason: a surface that sent every verbatim block through the text
-engine drew `\int_0^\infty e^x dx` in a code well where the note itself shows
-the integral. The editor shows a math block's source only while that block has
-focus, and nothing in a drawn document can take focus, so a surface is in that
-unfocused state permanently.
-
-`qml/ReadOnlyEquation.qml` is the read-only counterpart of the unfocused half
-of `qml/MathBlock.qml`: the same `image://math/` provider, the same optical
-sizing of the formula against the prose x-height, display style rather than
-the text style an inline `$…$` span is set in, and the same rule that TeX
-which does not parse shows its source with the renderer's named message under
-it rather than nothing. What it leaves out is everything belonging to editing
-— the source area, the debounced live preview, the equation number, the drag
-proxy. The equation is not drawn on the code panel a verbatim block sits on:
-what stands in the page is the formula, which belongs to the prose around it.
-
-An equation takes part in a range exactly as a picture does, and a copy yields
-the `$$` fence, since `rangeMarkdown()` serializes the block from the model
-rather than from what was drawn.
-
-### Following a link
-
-Every link on a surface was inert: the rows are switched off and the sweep's
-`MouseArea` takes the press. A release that ended no selection is now treated
-as a click, so the row under it is asked for
-`BlockEditorEngine::linkAtDocumentPosition` and a non-empty answer goes to
-`AppActions.requestOpenLink`, which is the editor's own route. Wiki-links come
-back resolved against the open collection, which is the same resolver that
-styled them.
-
-The gesture rule is the one `qml/SelectableText.qml` and the editor's blocks
-settled on: a press that turned into a selection activates nothing. A sweep
-ends over whatever it ends over and very often ends over a link, so
-`ReadOnlyDocumentDrag` records whether the gesture left a selection behind and
-the surface asks that before following anything. A double or triple click
-selects on the press, so those activate nothing either.
+Height follows the document and width comes from the container, so a surface
+sits inside a scrolling area it does not own. A `ListView` whose height is its
+own `contentHeight` builds every row, which is what a content-sized surface
+means and what the `Column` this replaces did. `forceLayout()` is still there
+for the same reason it was: a list places a row it has just been given at its
+next polish, so a surface built and measured in the same turn would report
+every row at the top.
 
 ### Marked ranges
 
 A caller often knows something about part of the document it asked to be drawn:
 which characters differ from the note as it stands, which phrase a search hit
-fell on, which passage a panel beside the surface is about. A surface used to
-have no way to say so. Putting the marks into the markdown is not an option —
-the surface exists to show a document faithfully, and its `blockMarkdown()` and
-its clipboard are expected to give back what was handed in — and drawing
-rectangles over it needs the caret geometry of a run of characters inside a
-laid-out row, which only the item that laid the text out can answer.
+fell on, which passage a panel beside the surface is about. Putting that into
+the markdown is not an option — the surface exists to show a document
+faithfully, and its `blockMarkdown()` and its clipboard are expected to give
+back what was handed in.
 
-`DocumentBlockMarks` (src/application/documentblockmarks.h) is that channel,
-and it is deliberately the same shape as a module's spans on the note. A mark
-names `{block, start, length}` in the block's display text — the text with the
-inline markers taken out, which is what a search hit and a module's span
-already use — and carries up to two colours: a wash painted behind the
-characters and an outline drawn around them, one box per visual line. The two
-compose, so a persistent categorical mark and a transient "this is the current
-one" mark can fall on the same words and both stay readable. An entry with
-neither colour, or covering no characters, is refused.
-
-The registry belongs to the surface, which is the difference from
-`DocumentDecorations`: that object's spans mark the note, and there is one note
-per window. Two surfaces on screen at once — a preview beside a list, two
-panels in one window — hold marks of their own, and nothing a caller registers
-on one appears on the other. A surface publishes its registry as its `marks`
-property and hands it down to each row.
-
-The rendering is the editor's rather than a second copy of it. A row's
-`blockMarks` binding hands the answer straight to its `BlockEditorEngine` as
-`decorationSpans`, so the wash is merged into the character formats already set
-— a marked run keeps its bold, its link colour and its code styling — and the
-outline is drawn by `qml/SpanDecorationOverlay.qml`, the same layer the
-editor's blocks use, because a border is not expressible as a character format.
-
-Marks do not follow the text. A surface whose `markdown` is replaced re-lays
-its blocks and the caller re-places its ranges; until it does, a range that no
-longer lands on anything draws nothing and costs nothing. This is the same
-contract a module's spans have in the editor and for the same reason: the core
-draws what it is handed rather than guessing what an anchor was meant to point
-at. A block index the surface does not hold, a range running past the end of a
-block's text, and a mark on a divider or a picture all draw as much as there is
-to draw, which for the last two is nothing.
-
-`markRects(id)` answers where a mark was drawn, one rectangle per visual line
-it crosses, in the surface's own coordinates — which are its content
-coordinates, since a surface is sized to its document. That is what anchors
-something beside marked words, and it is the counterpart of
-`DocumentDecorations::spanRects()`.
-
-Nothing about marking makes a surface writable. The marks are drawn over text
-the surface has already laid out: the document, `blockMarkdown()`, the
-clipboard output and the selection are what they were with nothing registered.
+The channel is `decorations`, the surface's own `DocumentDecorations`, which is
+the same seam a linked module marks the *open note* through and takes the same
+addressing: `addSpan(owner, block, start, length, style, colour)`, where
+`start` and `length` are in the block's display text — the text with the inline
+markers taken out, which is what a search hit and a module's span already use.
+A span paints as a wash behind the characters, an outline around them (one box
+per visual line), or both, and `spanRects(id)` says where it was drawn, so a
+caller can anchor something beside the marked words. The registry is the
+surface's own, so two surfaces in one window mark their own documents and
+neither touches the note's.
 
 ### What the backup dialog marks
 
@@ -465,7 +320,7 @@ forgotten.
 
 The comparison is `DocumentCompare::changedRanges(markdown, baseline)`
 (src/domain/documentcompare.h), a pure function of two markdown strings that
-answers in the coordinates a mark is addressed in. Both strings are parsed into
+answers in the coordinates a span is addressed in. Both strings are parsed into
 blocks and the two block sequences are aligned by a longest common subsequence
 of their per-block keys, so a paragraph inserted into either document shifts
 nothing after it; a positional comparison would report the whole rest of the
@@ -501,29 +356,19 @@ the other mechanisms already follow, applied across the two documents. Two
 *surfaces* are not mutually exclusive: a window may hold several, each with a
 selection of its own, and nothing in one watches another.
 
-### What a surface does not draw
+### The renderer this replaces is still in the tree
 
-A divider is a rule, whatever style the block stores, and it joins a range
-that crosses it as a whole block the way an embed does. Code fences wrap
-rather than scrolling sideways, because a preview pane is narrow and a line
-scrolled out of view is a line the reader cannot see. Every other block kind
-whose content is verbatim — a `$$` math fence, a pipe table, and the fence
-kinds built on a code block such as `kanban`, `toc`, `mermaid` and `query` —
-is drawn as its source on a panel rather than as the live thing the editor
-draws, since the live thing is interactive and a surface is not. Internal
-links (`[text](#slug)`) render as ordinary links rather than being checked
-against the outline, because the outline belongs to the open note and this
-document is not it, and a click on one opens it as the link it appears to be.
+`qml/ReadOnlyDocument.qml` and the four files only it uses —
+`ReadOnlyBlock.qml`, `ReadOnlyPicture.qml`, `ReadOnlyEquation.qml`,
+`ReadOnlyDocumentDrag.qml` — are the second renderer described above, together
+with `DocumentBlockMarks` (src/application/documentblockmarks.h), the
+per-surface mark registry that `decorations` replaces. Nothing in this
+repository draws with them any more. They are still here because the private
+`kvit-notes-pro` tree draws its transcripts with `ReadOnlyDocument`, and they
+go once it has been moved to `DocumentView`.
 
-A picture is drawn without the editor's image effects. Rounded corners, the
-drop shadow, the border and the stretch override are block attributes rather
-than part of the expression, and a surface draws a document rather than a
-note's presentation of one.
-
-What a caller cannot set apart is a whole block as a block: there is no band
-behind a row and no glyph beside one, only marked runs of characters inside the
-rows. A block with no text — a divider, a picture — therefore cannot be marked
-at all, which is the one thing the backup dialog's comparison has to leave out.
+`qml/ReadOnlyTextFile.qml` is unrelated and stays: it is the viewer for a
+plain-text file that is not markdown at all.
 
 ## What is not covered
 
@@ -539,12 +384,10 @@ at all, which is the one thing the backup dialog's comparison has to leave out.
 - **Media blocks in the editor.** An audio or video block's path, state and
   timecodes are still plain `Text` in the editor's own delegate and still
   cannot be selected; there is no reason it could not use the same mechanism,
-  only that it has not been asked for. On a surface a media block is a tile
-  naming the file, which is all a surface can offer for something it cannot
-  play.
+  only that it has not been asked for.
 
 - **The backlinks pane and search results.** Both still draw their text as
   plain `Text`, so a `**bold**` phrase in a referring sentence still appears
-  with its asterisks and none of it can be copied. `ReadOnlyDocument` is what
-  they need and neither has been converted; the backup dialog is the only
-  place using it so far.
+  with its asterisks and none of it can be copied. `DocumentView` is what they
+  need and neither has been converted; the backup dialog is the only place
+  drawing a document this way so far.
