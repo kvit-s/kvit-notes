@@ -5,6 +5,7 @@
 
 #include <QColor>
 #include <QDir>
+#include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQuickItem>
@@ -399,6 +400,49 @@ private slots:
                                 .arg(shortView->height())));
     }
 
+    // ---- a picture's width ----
+    //
+    // An image block whose markdown carries no width — ![alt](chart.png)
+    // rather than ![alt|180](chart.png) — draws the picture at the picture's
+    // own width. The width it draws at and the number of pixels it asks the
+    // decoder for used to be read out of each other, which QML reports as a
+    // binding loop and breaks by refusing to re-evaluate: the block settled
+    // at the 320 px it falls back to before the file has been read, having
+    // decoded the file once per pass around the circle.
+    void aPictureWithNoStoredWidthIsDrawnAtItsOwnWidth()
+    {
+        const QString file = writePicture(QStringLiteral("chart.png"), 360, 240);
+        QVERIFY(!file.isEmpty());
+        const int before = g_warnings.size();
+
+        QQuickItem *view = makeView(QStringLiteral("![A chart](") + file
+                                    + QStringLiteral(")\n"));
+        QVERIFY(view);
+        QCOMPARE(view->property("blockCount").toInt(), 1);
+        QCOMPARE(delegateOf(view, 0), QStringLiteral("ImageBlock"));
+        QQuickItem *row = rowOf(view, 0);
+        QVERIFY(row);
+        // Otherwise the width below is the pane's cap rather than the
+        // picture's own size, and the case proves nothing.
+        QVERIFY(row->property("maxWidth").toInt() > 360);
+
+        QQuickItem *picture =
+            row->findChild<QQuickItem *>(QStringLiteral("imagePicture"));
+        QVERIFY(picture);
+        QTRY_COMPARE(picture->property("status").toInt(), 1 /* Image.Ready */);
+
+        QQuickItem *frame =
+            row->findChild<QQuickItem *>(QStringLiteral("imageAccessible"));
+        QVERIFY(frame);
+        QTRY_COMPARE(qRound(frame->width()), 360);
+        QTRY_COMPARE(qRound(frame->height()), 240);
+
+        for (const QString &warning : g_warnings.mid(before)) {
+            QVERIFY2(!warning.contains(QLatin1String("Binding loop")),
+                     qPrintable(warning));
+        }
+    }
+
 private:
     DocumentSelection *noteSelection()
     {
@@ -524,6 +568,16 @@ private:
         QMetaObject::invokeMethod(view, "forceLayout");
         QCoreApplication::processEvents();
         return view;
+    }
+
+    // A picture in the vault, answered as the absolute path an expression
+    // names it by.
+    QString writePicture(const QString &relPath, int width, int height)
+    {
+        const QString path = m_vaultRoot + QLatin1Char('/') + relPath;
+        QImage picture(width, height, QImage::Format_RGB32);
+        picture.fill(Qt::darkCyan);
+        return picture.save(path) ? path : QString();
     }
 
     void writeNote(const QString &relPath, const QString &text)

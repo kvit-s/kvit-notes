@@ -71,20 +71,35 @@ Item {
     // was given: a preview is narrower than the editor and an image sized for
     // the editor would otherwise be cut off at the pane's edge.
     readonly property int maxWidth: Math.max(40, Math.floor(picture.width))
+    // The picture's size in its file, read from the file's header rather than
+    // from the loaded image (ImageAssets::naturalSize). A scalable picture
+    // renders at whatever size it is asked for, so without this an SVG would
+    // be drawn the full width of the pane here and at its own size in the
+    // editor. Invalid — width -1 — for a remote picture, which no local read
+    // can measure.
+    readonly property size pictureSize:
+        ImageAssets.naturalSize(picture.resolvedSource)
     readonly property int displayWidth: {
         var w = picture.img.width > 0 ? picture.img.width
-              : (image.implicitWidth > 0 ? image.implicitWidth : 320)
+              : (picture.pictureSize.width > 0 ? picture.pictureSize.width
+                 : (image.implicitWidth > 0 ? image.implicitWidth : 320))
         return Math.min(w, picture.maxWidth)
     }
     // The width to decode at, which is deliberately NOT the displayed width.
-    // An image with no stored width is shown at its natural size, so the
-    // displayed width is read back out of what was decoded; asking to decode
-    // at the displayed width would make the two define each other, which QML
-    // reports as a binding loop and then resolves arbitrarily. The pane's own
-    // width is the ceiling instead, and a ceiling is all sourceSize is: a
-    // file smaller than it still decodes at its own size.
-    readonly property int decodeWidth: picture.img.width > 0
-        ? Math.min(picture.img.width, picture.maxWidth) : picture.maxWidth
+    // An image with no stored width is shown at its natural size, and where
+    // the file cannot be measured that width is read back out of what was
+    // decoded; asking to decode at the displayed width would then make the
+    // two define each other, which QML reports as a binding loop and then
+    // resolves arbitrarily. Every case here answers without reading the
+    // loaded image, and a ceiling is all sourceSize is: a file smaller than
+    // the answer still decodes at its own size.
+    readonly property int decodeWidth: {
+        if (picture.img.width > 0)
+            return Math.min(picture.img.width, picture.maxWidth)
+        if (picture.pictureSize.width > 0)
+            return Math.min(picture.pictureSize.width, picture.maxWidth)
+        return picture.maxWidth
+    }
     // The height a tile takes when there is no picture to measure: an
     // unresolved path, an unapproved origin, or a media file.
     readonly property int tileHeight: 160

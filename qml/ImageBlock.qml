@@ -100,11 +100,20 @@ BlockDelegateBase {
         delegate.resolvedSource !== "" && delegate.displaySource === ""
 
     readonly property int maxWidth: Math.max(80, delegate.width - 96)
-    // Displayed width: the stored width (capped), else the natural width
-    // (capped). Height follows the aspect ratio (PreserveAspectFit).
+    // The picture's size in its file, read from the file's header rather than
+    // from the loaded image: ImageAssets::naturalSize says why, and answers
+    // an invalid size (width -1) for a remote picture, which no local read
+    // can measure.
+    readonly property size pictureSize:
+        ImageAssets.naturalSize(delegate.resolvedSource)
+    // Displayed width: the stored width (capped), else the picture's own
+    // width (capped), else — for a remote picture — the width it loaded at,
+    // and 320 until it has. Height follows the aspect ratio
+    // (PreserveAspectFit).
     readonly property int displayWidth: {
         var w = img.width > 0 ? img.width
-              : (image.implicitWidth > 0 ? image.implicitWidth : 320)
+              : (pictureSize.width > 0 ? pictureSize.width
+                 : (image.implicitWidth > 0 ? image.implicitWidth : 320))
         return Math.min(w, maxWidth)
     }
     // Live width while a resize drag is in flight; 0 when none is. The frame
@@ -115,6 +124,22 @@ BlockDelegateBase {
     property int previewWidth: 0
     readonly property int effectiveWidth:
         previewWidth > 0 ? previewWidth : displayWidth
+    // How many pixels wide the decode is asked for, before the screen's scale
+    // factor is applied. Nothing here reads the loaded image, which is what
+    // keeps the request and the displayed width from depending on each other.
+    // The request is a ceiling and never an upscale, so a picture smaller
+    // than the answer still loads at its own size; a picture being dragged
+    // wider is decoded at the widest the drag can make it, once, rather than
+    // again at every pointer position.
+    readonly property int decodeWidth: {
+        if (previewWidth > 0)
+            return maxWidth
+        if (img.width > 0)
+            return Math.min(img.width, maxWidth)
+        if (pictureSize.width > 0)
+            return Math.min(pictureSize.width, maxWidth)
+        return maxWidth
+    }
 
     readonly property bool blockSelected: {
         var revision = delegate.selection.revision // dependency only
@@ -383,9 +408,11 @@ BlockDelegateBase {
                 // a source smaller than the box still loads at its own size,
                 // so only oversized images change. Setting the width alone
                 // keeps the aspect ratio, which the frame height below reads
-                // back out of implicitHeight/implicitWidth.
+                // back out of implicitHeight/implicitWidth. What is asked for
+                // is delegate.decodeWidth rather than the width being drawn,
+                // so that the answer cannot feed back into the question.
                 sourceSize.width: Math.max(
-                    1, Math.ceil(delegate.effectiveWidth
+                    1, Math.ceil(delegate.decodeWidth
                                  * imageFrame.Screen.devicePixelRatio))
                 // Maintain aspect by default (§1.2.8); `aspect=stretch` fills.
                 fillMode: delegate.imgStretch ? Image.Stretch : Image.PreserveAspectFit

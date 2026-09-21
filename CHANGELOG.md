@@ -134,6 +134,32 @@ published; until then it is marked unreleased.
 
 ### Fixed
 
+- A picture in a note is drawn at its own width again, and is decoded once
+  rather than several times over. An image block whose markdown carries no
+  width — `![alt](chart.png)` rather than `![alt|600](chart.png)` — took the
+  width to draw at from the size the picture had loaded at, while the number
+  of pixels it asked the decoder for was taken from the width it was drawing
+  at. Each of the two was computed from the other, which QML reports as
+  `Binding loop detected for property "displayWidth"` — once for every
+  picture on screen, and again each time a row was recycled — and then breaks
+  by refusing to re-evaluate, so which width survived depended on which
+  binding had been evaluated first. Changing what is asked of the decoder
+  reloads the file, so every pass around the circle decoded the picture
+  again.
+
+  `ImageAssets.naturalSize()` now measures the file instead of the loaded
+  image: `QImageReader` reads the header and stops, which costs one open and
+  a few hundred bytes whatever the picture's resolution, and a measurement is
+  remembered per path until that file's timestamp or length changes. The
+  width drawn and the width decoded are both taken from it, so neither
+  depends on the other. A picture loaded over the network cannot be measured
+  this way and still takes its width from the loaded image, which is safe now
+  that the decode request no longer follows it. `qml/ReadOnlyPicture.qml`,
+  which had avoided the loop by decoding at the full width of the pane
+  instead, measures the file as well: an SVG renders at whatever size it is
+  asked for, so it was drawn pane-wide there and at its own size in the
+  editor, and the two now agree.
+
 - Work the editor defers to the end of a turn no longer runs after the editor
   or the row that asked for it has been destroyed. Selecting text across a
   document and then clearing the selection promoted every row it covered and

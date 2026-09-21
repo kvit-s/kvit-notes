@@ -4,7 +4,10 @@
 #ifndef IMAGEASSETS_H
 #define IMAGEASSETS_H
 
+#include <QDateTime>
+#include <QHash>
 #include <QObject>
+#include <QSize>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -109,6 +112,32 @@ public:
                                 const QString &collectionRoot) const;
     Q_INVOKABLE QString kindOf(const QString &path) const;
 
+    // The size a picture has in its file, without decoding the picture.
+    //
+    // `resolvedSource` is what resolve() answered: a file:// URL, an http(s)
+    // URL, or "". Only a local file can be measured without fetching it, so
+    // everything else answers an invalid size (width -1) and the caller falls
+    // back to the size the loaded image reports.
+    //
+    // An image block whose markdown carries no width — ![alt](pic.png) rather
+    // than ![alt|600](pic.png) — draws the picture at its own width, and asks
+    // the decoder for exactly that many pixels so a 12-megapixel photo shown
+    // 600 px wide is not decoded at its full camera resolution. Reading the
+    // displayed width back out of the loaded image would make those two
+    // values depend on each other, which QML reports as a binding loop and
+    // breaks by refusing to re-evaluate — after decoding the file once per
+    // pass around the circle, and at a final width that depends on the
+    // screen's scale factor. Measuring the file instead settles both.
+    //
+    // QImageReader::size() reads the file's header and stops: one open and a
+    // few hundred bytes whatever the picture's resolution. An SVG answers
+    // with the size its own width and height attributes give it, which is the
+    // one case where the requested decode size would otherwise decide the
+    // answer, since a scalable image renders at whatever size it is asked
+    // for. Sizes are remembered per path and measured again when the file's
+    // timestamp or length changes.
+    Q_INVOKABLE QSize naturalSize(const QString &resolvedSource);
+
     // The name filters a file picker should offer for one kind ("image" or
     // "media"), read from the same extension sets kindForExtension uses. A
     // picker that filtered by its own list could hide a file the app would
@@ -116,6 +145,17 @@ public:
     // The trailing "All files" entry is what makes a path the lists do not
     // know still reachable.
     Q_INVOKABLE QStringList nameFilters(const QString &kind) const;
+
+private:
+    // One file already measured, with what it looked like when it was: a
+    // picture replaced on disk keeps its path, so the path alone cannot say
+    // whether the remembered size still describes it.
+    struct MeasuredSize {
+        QSize size;          // invalid when the header could not be read
+        QDateTime modified;
+        qint64 bytes = 0;
+    };
+    QHash<QString, MeasuredSize> m_measured;
 };
 
 #endif // IMAGEASSETS_H

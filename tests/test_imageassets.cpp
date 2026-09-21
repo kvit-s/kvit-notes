@@ -4,7 +4,9 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QUrl>
+#include <QDateTime>
 #include <QImage>
+#include <QImageReader>
 #include <QFile>
 #include <QDir>
 
@@ -299,6 +301,112 @@ private slots:
         // dialog falls back to when a caller names no kind.
         QCOMPARE(assets.nameFilters(QString()),
                  assets.nameFilters(QStringLiteral("image")));
+    }
+
+    // ---- measuring a file ----
+    //
+    // A block whose markdown carries no width draws the picture at the
+    // picture's own width, and asks the decoder for that many pixels. Both
+    // answers come from these measurements; reading them back out of the
+    // loaded image instead made each depend on the other, which QML reports
+    // as a binding loop.
+
+    void naturalSizeReadsThePicturesOwnSize()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QImage picture(360, 240, QImage::Format_RGB32);
+        picture.fill(Qt::darkCyan);
+        QVERIFY(picture.save(dir.filePath(QStringLiteral("chart.png"))));
+
+        ImageAssets assets;
+        const QString url = ImageAssets::resolveSource(
+            QStringLiteral("chart.png"), dir.path(), QString());
+        QCOMPARE(assets.naturalSize(url), QSize(360, 240));
+        // Asked again, it answers from what it remembered: a binding asks
+        // this once per row and again every time a row is recycled.
+        QCOMPARE(assets.naturalSize(url), QSize(360, 240));
+    }
+
+    void naturalSizeMeasuresAgainWhenTheFileChanges()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.filePath(QStringLiteral("chart.png"));
+        QImage first(360, 240, QImage::Format_RGB32);
+        first.fill(Qt::darkCyan);
+        QVERIFY(first.save(file));
+
+        ImageAssets assets;
+        const QString url = ImageAssets::resolveSource(
+            QStringLiteral("chart.png"), dir.path(), QString());
+        QCOMPARE(assets.naturalSize(url), QSize(360, 240));
+
+        // The same path, a different picture — what a reader who replaces an
+        // asset leaves behind.
+        QImage second(120, 90, QImage::Format_RGB32);
+        second.fill(Qt::magenta);
+        QVERIFY(second.save(file));
+        // Two files written in the same second can share a timestamp, so the
+        // length is what the remembered size is checked against here; moving
+        // the timestamp as well covers the case where the length matches too.
+        QFile touched(file);
+        QVERIFY(touched.open(QIODevice::ReadWrite));
+        QVERIFY(touched.setFileTime(QDateTime::currentDateTime().addSecs(5),
+                                    QFileDevice::FileModificationTime));
+        touched.close();
+
+        QCOMPARE(assets.naturalSize(url), QSize(120, 90));
+    }
+
+    void naturalSizeAnswersNothingForWhatItCannotOpen()
+    {
+        ImageAssets assets;
+        // Nothing resolved, a remote picture, and the provider URL a remote
+        // picture is actually loaded through: none of them is a file to read,
+        // and the delegate falls back to the size the image reports once it
+        // has arrived.
+        QVERIFY(!assets.naturalSize(QString()).isValid());
+        QVERIFY(!assets.naturalSize(
+                     QStringLiteral("https://pictures.invalid/a.png")).isValid());
+        QVERIFY(!assets.naturalSize(
+                     QStringLiteral("image://remote/https%3A%2F%2Fh%2Fa.png"))
+                     .isValid());
+
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QFile notAPicture(dir.filePath(QStringLiteral("chart.png")));
+        QVERIFY(notAPicture.open(QIODevice::WriteOnly));
+        notAPicture.write("this is text, whatever the extension says");
+        notAPicture.close();
+        const QString url = ImageAssets::resolveSource(
+            QStringLiteral("chart.png"), dir.path(), QString());
+        QVERIFY(!assets.naturalSize(url).isValid());
+        // Remembered as unmeasurable rather than opened again by every
+        // binding that asks.
+        QVERIFY(!assets.naturalSize(url).isValid());
+    }
+
+    void naturalSizeAnswersAScalablePictureItsOwnSize()
+    {
+        if (!QImageReader::supportedImageFormats().contains("svg"))
+            QSKIP("this Qt build has no SVG reader");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QFile svg(dir.filePath(QStringLiteral("logo.svg")));
+        QVERIFY(svg.open(QIODevice::WriteOnly));
+        svg.write("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"240\" "
+                  "height=\"120\"><rect width=\"240\" height=\"120\"/></svg>");
+        svg.close();
+
+        ImageAssets assets;
+        // The size the file itself gives, not the size something asked for.
+        // A scalable picture renders at whatever size it is asked for, so
+        // this is the one kind whose drawn width the decode request would
+        // otherwise decide.
+        QCOMPARE(assets.naturalSize(ImageAssets::resolveSource(
+                     QStringLiteral("logo.svg"), dir.path(), QString())),
+                 QSize(240, 120));
     }
 
     void uppercaseSchemeInAnImageExpression()

@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QRegularExpression>
 #include <QSet>
 #include <QUrl>
@@ -305,6 +306,35 @@ QString ImageAssets::resolve(const QString &stored, const QString &noteDir,
                              const QString &collectionRoot) const
 {
     return resolveSource(stored, noteDir, collectionRoot);
+}
+
+QSize ImageAssets::naturalSize(const QString &resolvedSource)
+{
+    // A remote picture arrives through the image://remote provider and a
+    // data: URL is its own bytes; neither is a file this can open.
+    if (!resolvedSource.startsWith(QLatin1String("file:")))
+        return QSize();
+
+    const QString path = QUrl(resolvedSource).toLocalFile();
+    if (path.isEmpty())
+        return QSize();
+    const QFileInfo info(path);
+    if (!info.exists() || !info.isFile())
+        return QSize();
+
+    const auto known = m_measured.constFind(path);
+    if (known != m_measured.cend() && known->modified == info.lastModified()
+        && known->bytes == info.size())
+        return known->size;
+
+    QImageReader reader(path);
+    QSize size = reader.size();
+    // A file the reader cannot make sense of is remembered as unmeasurable
+    // rather than opened again by every binding that asks about it.
+    if (size.width() <= 0 || size.height() <= 0)
+        size = QSize();
+    m_measured.insert(path, MeasuredSize{size, info.lastModified(), info.size()});
+    return size;
 }
 
 QString ImageAssets::kindOf(const QString &path) const
