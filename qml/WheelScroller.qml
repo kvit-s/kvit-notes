@@ -199,19 +199,31 @@ Item {
     // wide table — still gets its own wheel events first.
     WheelHandler {
         id: wheel
+        objectName: "editorWheelHandler"
         // The handler belongs to the list, not to this item: a pointer
         // handler is offered the event before the item it is attached to sees
         // it, which is how the flickable's own wheel handling is bypassed
         // without an item drawn over the list to catch the event first.
         parent: scroller.listView
+        // Not merely declining inside onWheel when there is nothing to
+        // scroll: a handler that is enabled takes the event out of the
+        // delivery that would have reached the host's own scrolling view,
+        // and setting accepted false in the signal does not put it back.
+        // Measured in a host that puts the read-only surface inside its own
+        // ScrollView: the pane did not move at all for as long as this
+        // handler was enabled over a list with nothing to scroll.
         enabled: scroller.enabled && scroller.listView !== null
+                 && scroller.scrollable
         // Everything that turns: an ordinary wheel, a free-spinning one, and
         // a touchpad's two fingers.
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         // A horizontal wheel has nothing to scroll here, and a modifier means
         // something else: Ctrl+wheel is the reading size.
         onWheel: function(event) {
-            if (event.modifiers !== Qt.NoModifier || !scroller.scrollable) {
+            // A modifier means something else: Ctrl+wheel is the reading
+            // size. The handler is disabled outright when the list has
+            // nothing to scroll, which is what lets the host scroll instead.
+            if (event.modifiers !== Qt.NoModifier) {
                 event.accepted = false
                 return
             }

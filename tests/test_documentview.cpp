@@ -476,6 +476,39 @@ private slots:
         QCOMPARE(qRound(frame->height()), 240);
     }
 
+    // A host that does its own scrolling. This surface is as tall as the
+    // document it draws, so its own list has nothing to scroll and the wheel
+    // turned over it belongs to whatever the host put it inside.
+    //
+    // The editor takes the wheel with a handler of its own rather than
+    // leaving it to the flickable (qml/WheelScroller.qml), and a handler that
+    // is enabled takes the event out of the delivery that would otherwise
+    // have reached the host, whether or not it does anything with it —
+    // declining the event inside the signal does not put it back. So the
+    // handler has to be disabled outright, and that is what this asserts. A
+    // host embedding this surface in its own ScrollView is where it shows:
+    // with the handler enabled over a list with nothing to scroll, the pane
+    // did not move at all.
+    void theWheelHandlerStandsDownWhenThereIsNothingToScroll()
+    {
+        QQuickItem *view = makeView(sampleMarkdown());
+        QVERIFY(view);
+        QObject *scroller = view->findChild<QObject *>(
+            QStringLiteral("editorWheelScroller"));
+        QVERIFY(scroller);
+        QVERIFY2(!scroller->property("scrollable").toBool(),
+                 "the surface grew with its document, so its list should have "
+                 "had nothing to scroll");
+        // Looked up from the surface rather than from the scroller: the
+        // handler attaches itself to the list, so that is where it lives.
+        QObject *handler = view->findChild<QObject *>(
+            QStringLiteral("editorWheelHandler"));
+        QVERIFY(handler);
+        QVERIFY2(!handler->property("enabled").toBool(),
+                 "the wheel handler was left enabled over a list with nothing "
+                 "to scroll, which takes the wheel away from the host");
+    }
+
 private:
     DocumentSelection *noteSelection()
     {
