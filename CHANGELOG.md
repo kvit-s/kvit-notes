@@ -160,6 +160,12 @@ published; until then it is marked unreleased.
   asked for, so it was drawn pane-wide there and at its own size in the
   editor, and the two now agree.
 
+  The block's height comes from the same measurement, so a picture takes the
+  space it is going to need before it has loaded. It used to stand 160 px
+  tall until then and again whenever the list recycled its row, and since the
+  list places the rows below a picture from the height that picture reports,
+  the document moved under the reader each time one arrived.
+
 - Work the editor defers to the end of a turn no longer runs after the editor
   or the row that asked for it has been destroyed. Selecting text across a
   document and then clearing the selection promoted every row it covered and

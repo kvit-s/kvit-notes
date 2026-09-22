@@ -5,6 +5,7 @@
 
 #include <QColor>
 #include <QDir>
+#include <QFile>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -441,6 +442,38 @@ private slots:
             QVERIFY2(!warning.contains(QLatin1String("Binding loop")),
                      qPrintable(warning));
         }
+    }
+
+    // The geometry comes from the measured file rather than from the decoded
+    // picture, so a row is the right shape whether or not it is holding one.
+    // A recycled row is where that shows: the list drops the decoded picture
+    // of a row scrolled out of view, and then asks it how tall it is in order
+    // to place the rows below it.
+    void aRecycledRowKeepsThePicturesShape()
+    {
+        const QString file = writePicture(QStringLiteral("chart.png"), 360, 240);
+        QVERIFY(!file.isEmpty());
+        QQuickItem *view = makeView(QStringLiteral("![A chart](") + file
+                                    + QStringLiteral(")\n"));
+        QVERIFY(view);
+        QQuickItem *row = rowOf(view, 0);
+        QVERIFY(row);
+        QVERIFY(row->property("maxWidth").toInt() > 360);
+        QQuickItem *frame =
+            row->findChild<QQuickItem *>(QStringLiteral("imageAccessible"));
+        QVERIFY(frame);
+        QTRY_COMPARE(qRound(frame->height()), 240);
+
+        // Pooled: the row lets go of the picture rather than sitting in the
+        // recycle pool holding a decoded pixmap for a block nobody is looking
+        // at, which is what leaves it with nothing of its own to measure.
+        row->setProperty("isPooled", true);
+        QQuickItem *image =
+            row->findChild<QQuickItem *>(QStringLiteral("imagePicture"));
+        QVERIFY(image);
+        QTRY_VERIFY(image->property("source").toString().isEmpty());
+        QCOMPARE(qRound(frame->width()), 360);
+        QCOMPARE(qRound(frame->height()), 240);
     }
 
 private:

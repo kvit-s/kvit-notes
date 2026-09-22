@@ -115,11 +115,23 @@ Item {
             id: frame
             objectName: "readOnlyPictureFrame"
             width: picture.displayWidth
-            height: (picture.showsPicture && image.status === Image.Ready
-                     && image.implicitWidth > 0)
-                ? Math.round(picture.displayWidth
-                             * (image.implicitHeight / image.implicitWidth))
-                : picture.tileHeight
+            // As in the editor's ImageBlock: the measured file gives the
+            // proportions before the picture has loaded, so the pane does not
+            // lay itself out twice. The loaded image answers for a picture
+            // that could not be measured, and the tile height stands until
+            // either can.
+            height: {
+                if (picture.showsPicture && picture.pictureSize.height > 0)
+                    return Math.round(picture.displayWidth
+                                      * (picture.pictureSize.height
+                                         / picture.pictureSize.width))
+                if (picture.showsPicture && image.status === Image.Ready
+                        && image.implicitWidth > 0)
+                    return Math.round(picture.displayWidth
+                                      * (image.implicitHeight
+                                         / image.implicitWidth))
+                return picture.tileHeight
+            }
 
             // Alt text surfaced to assistive technology, falling back to the
             // caption and then to a generic label, so a picture in a preview

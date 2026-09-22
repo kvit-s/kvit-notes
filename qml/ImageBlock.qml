@@ -379,9 +379,20 @@ BlockDelegateBase {
                 : (delegate.img.caption !== "" ? delegate.img.caption
                                                : qsTr("Image"))
             width: delegate.effectiveWidth
-            height: image.status === Image.Ready && image.implicitHeight > 0
-                ? delegate.effectiveWidth * (image.implicitHeight / image.implicitWidth)
-                : 160
+            // The height that keeps the picture's proportions, taken from the
+            // measured file where there is one. That is what a row is worth
+            // asking twice for: the list places every row below this one from
+            // the height this one reports, so a row that says 160 until its
+            // picture arrives and then changes its mind moves the document
+            // under the reader. A picture loaded over the network cannot be
+            // measured and still answers from the loaded image.
+            height: delegate.pictureSize.height > 0
+                ? delegate.effectiveWidth * (delegate.pictureSize.height
+                                             / delegate.pictureSize.width)
+                : (image.status === Image.Ready && image.implicitHeight > 0
+                   ? delegate.effectiveWidth * (image.implicitHeight
+                                                / image.implicitWidth)
+                   : 160)
             anchors.horizontalCenter: parent.horizontalCenter
 
             // Whether an effect needs the MultiEffect layer (rounding/shadow);
