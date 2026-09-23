@@ -2889,6 +2889,19 @@ BlockDelegateBase {
                         return
                     }
 
+                    // In a host that has taken Enter for itself, Ctrl+Enter
+                    // is reported from every block, whatever plain Enter does
+                    // there: it is the one key that always reaches the host.
+                    // It comes before the todo toggle, the callout fold and
+                    // the code block's way out below, which are the three
+                    // other things Ctrl+Enter means in a document.
+                    if ((event.modifiers & Qt.ControlModifier)
+                        && delegate.editor && !delegate.editor.returnCreatesBlock) {
+                        delegate.editor.returnPressed(delegate.index)
+                        event.accepted = true
+                        return
+                    }
+
                     if ((event.modifiers & Qt.ControlModifier)
                         && delegate.blockType === Block.Todo) {
                         delegate.blocks.setChecked(delegate.index, !delegate.checked)
@@ -2967,7 +2980,15 @@ BlockDelegateBase {
                     // newline. Everything above still runs, so a completion
                     // menu still takes Enter, a code block still writes a
                     // newline, and Shift+Enter still breaks a line.
-                    if (delegate.editor && !delegate.editor.returnCreatesBlock) {
+                    //
+                    // A list item with text in it is the exception: Enter
+                    // makes the next item, as it does in a document, since a
+                    // list has no other way to grow — Shift+Enter writes a
+                    // continuation line under the same marker. An empty item
+                    // has already left the list above, so a list is ended by
+                    // pressing Enter twice and the message sent by a third.
+                    if (delegate.editor && !delegate.editor.returnCreatesBlock
+                        && !delegate.isListFamily) {
                         delegate.editor.returnPressed(delegate.index)
                         event.accepted = true
                         return

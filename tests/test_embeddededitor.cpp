@@ -369,6 +369,71 @@ private slots:
         QVERIFY(boxMarkdown(box).contains(QLatin1String("second line")));
     }
 
+    // A list grows with Enter, as it does in a document: Shift+Enter writes a
+    // continuation line under the same marker, so without this there is no
+    // key that makes the second item. Enter on the empty item ends the list,
+    // and Enter after that sends.
+    void enterInAListMakesTheNextItem()
+    {
+        QQuickItem *box = makeBox();
+        QVERIFY(box);
+        setBoxMarkdown(box, QStringLiteral("- one"));
+
+        QSignalSpy submitted(box, SIGNAL(submitted(QString)));
+        typeIntoBox(box, QString());
+        QTest::keyClick(shellWindow(), Qt::Key_Return);
+        QTRY_COMPARE(boxBlocks(box)->count(), 2);
+        typeText(shellWindow(), QStringLiteral("two"));
+        QCoreApplication::processEvents();
+        QCOMPARE(submitted.count(), 0);
+        QCOMPARE(boxMarkdown(box).trimmed(), QStringLiteral("- one\n- two"));
+
+        // Enter on the next, empty item leaves the list rather than sending.
+        QTest::keyClick(shellWindow(), Qt::Key_Return);
+        QTRY_COMPARE(boxBlocks(box)->count(), 3);
+        QTest::keyClick(shellWindow(), Qt::Key_Return);
+        QTRY_VERIFY(boxMarkdown(box).trimmed() == QStringLiteral("- one\n- two"));
+        QCOMPARE(submitted.count(), 0);
+
+        // And on the paragraph that took its place, Enter sends.
+        QTest::keyClick(shellWindow(), Qt::Key_Return);
+        QCoreApplication::processEvents();
+        QCOMPARE(submitted.count(), 1);
+        QVERIFY(submitted.at(0).at(0).toString().contains(QLatin1String("- two")));
+    }
+
+    // Ctrl+Enter sends from any block, including the two where plain Enter
+    // does not: a list item, and a code block, where Ctrl+Enter would
+    // otherwise be the way out.
+    void ctrlEnterSendsFromAnyBlock()
+    {
+        QQuickItem *box = makeBox();
+        QVERIFY(box);
+        QSignalSpy submitted(box, SIGNAL(submitted(QString)));
+
+        setBoxMarkdown(box, QStringLiteral("- an item"));
+        typeIntoBox(box, QString());
+        QTest::keyClick(shellWindow(), Qt::Key_Return, Qt::ControlModifier);
+        QCoreApplication::processEvents();
+        QCOMPARE(submitted.count(), 1);
+        QCOMPARE(boxBlocks(box)->count(), 1);
+
+        setBoxMarkdown(box, QStringLiteral("```\ncode\n```"));
+        typeIntoBox(box, QString());
+        QTest::keyClick(shellWindow(), Qt::Key_Return, Qt::ControlModifier);
+        QCoreApplication::processEvents();
+        QCOMPARE(submitted.count(), 2);
+        QCOMPARE(boxBlocks(box)->count(), 1);
+
+        // With Enter given back to the editor, Ctrl+Enter is the code
+        // block's way out again.
+        box->setProperty("returnSubmits", false);
+        typeIntoBox(box, QString());
+        QTest::keyClick(shellWindow(), Qt::Key_Return, Qt::ControlModifier);
+        QTRY_COMPARE(boxBlocks(box)->count(), 2);
+        QCOMPARE(submitted.count(), 2);
+    }
+
     // The box is as tall as what has been typed into it, and stops.
     void theBoxGrowsWithItsContentAndStopsAtItsCap()
     {

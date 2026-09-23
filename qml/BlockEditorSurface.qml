@@ -94,8 +94,10 @@ Item {
     // through `returnPressed` below instead of acting on it, and the host
     // decides what Enter means. Everything else Enter does is unchanged: it
     // still takes the highlighted entry while a completion menu is open,
-    // still writes a newline inside a code block, still leaves an empty list
-    // item, and Shift+Enter still breaks a line.
+    // still writes a newline inside a code block, still makes the next item
+    // of a list and leaves an empty one, and Shift+Enter still breaks a line.
+    // Ctrl+Enter is reported from every block, a list item and a code block
+    // included, so the host always has one key that reaches it.
     property bool returnCreatesBlock: true
 
     // Enter, in an editor that was told not to make a block for it.

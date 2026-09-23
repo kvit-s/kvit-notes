@@ -54,8 +54,10 @@ Item {
 
     // Whether Enter sends. True is the chat convention — Enter sends,
     // Shift+Enter starts a new line — and it is what `submitted` is emitted
-    // from. False gives Enter back to the editor, where it makes the next
-    // block, which is what a capture box wants.
+    // from. In a list item Enter makes the next item instead, and on an empty
+    // item it ends the list; Ctrl+Enter sends from anywhere, a list or a code
+    // block included. False gives Enter back to the editor, where it makes
+    // the next block, which is what a capture box wants.
     property bool returnSubmits: true
 
     // What an empty box says it is for.
@@ -228,11 +230,11 @@ Item {
         // the only line of a message out of sight.
         trailingScrollSpace: 0
 
-        // Enter, reported by the row that declined to make a block for it.
-        // Everything else Enter does inside a block is unchanged: it still
-        // takes the highlighted entry of an open completion menu, still
-        // writes a newline inside a code fence, and Shift+Enter still breaks
-        // a line.
+        // Enter, reported by the row that declined to make a block for it,
+        // and Ctrl+Enter, reported by every row. Everything else Enter does
+        // inside a block is unchanged: it still takes the highlighted entry
+        // of an open completion menu, still writes a newline inside a code
+        // fence, still continues a list, and Shift+Enter still breaks a line.
         onReturnPressed: root.submitted(root.markdown())
     }
 
