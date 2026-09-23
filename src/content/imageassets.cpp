@@ -251,7 +251,8 @@ ImageAssets::Parsed ImageAssets::classifyLine(const QString &line)
 }
 
 QString ImageAssets::resolveSource(const QString &stored, const QString &noteDir,
-                                   const QString &collectionRoot)
+                                   const QString &collectionRoot,
+                                   const QString &siteRoot)
 {
     if (stored.isEmpty())
         return QString();
@@ -269,6 +270,13 @@ QString ImageAssets::resolveSource(const QString &stored, const QString &noteDir
     if (!collectionRoot.isEmpty())
         candidates << QDir(collectionRoot).absoluteFilePath(stored);
     candidates << QFileInfo(stored).absoluteFilePath();
+    // A site-root path. Tried last, so a real absolute path still wins.
+    const QString site = !siteRoot.isEmpty() ? siteRoot : collectionRoot;
+    if (stored.startsWith(QLatin1Char('/')) && !site.isEmpty()) {
+        const QString rel = stored.mid(1);
+        if (!rel.isEmpty() && !rel.startsWith(QLatin1Char('/')))
+            candidates << QDir(site).absoluteFilePath(rel);
+    }
 
     for (const QString &candidate : candidates) {
         const QFileInfo fi(candidate);
@@ -303,9 +311,10 @@ QString ImageAssets::build(const QString &path, const QString &alt,
 }
 
 QString ImageAssets::resolve(const QString &stored, const QString &noteDir,
-                             const QString &collectionRoot) const
+                             const QString &collectionRoot,
+                             const QString &siteRoot) const
 {
-    return resolveSource(stored, noteDir, collectionRoot);
+    return resolveSource(stored, noteDir, collectionRoot, siteRoot);
 }
 
 QSize ImageAssets::naturalSize(const QString &resolvedSource)

@@ -477,6 +477,7 @@ add_library(kvit-repository ${KVIT_LIB_TYPE}
     src/repository/vaultlock.cpp
     src/repository/vaultpaths.cpp
     src/repository/vaultscan.cpp
+    src/repository/vaultsettings.cpp
     src/repository/wikilinkindex.cpp
     src/repository/opendocumentsession.h
     src/repository/linkredirects.h

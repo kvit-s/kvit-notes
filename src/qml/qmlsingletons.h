@@ -254,6 +254,16 @@ struct BlockForeign
     QML_UNCREATABLE("Block is model data; the enum is what QML needs")
 };
 
+// A vault's own settings, reached as NoteCollection.vaultSettings. Registered
+// so QML knows its members; the collection owns the one instance.
+struct VaultSettingsForeign
+{
+    Q_GADGET
+    QML_FOREIGN(VaultSettings)
+    QML_NAMED_ELEMENT(VaultSettings)
+    QML_UNCREATABLE("Reached through NoteCollection.vaultSettings")
+};
+
 // The fence-kind numbering, read as `BlockKinds.Kanban` where the delegate
 // chooser used to carry bare integers.
 namespace BlockKindsForeign {

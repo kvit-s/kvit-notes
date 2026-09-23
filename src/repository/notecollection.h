@@ -23,6 +23,7 @@
 #include "linkredirects.h"
 #include "notebackupstore.h"
 #include "collectionstatestore.h"
+#include "vaultsettings.h"
 #include "vaultscan.h"
 #include "noteentry.h"
 #include "noteindexfile.h"
@@ -64,6 +65,8 @@ class NoteCollection : public QObject
     Q_PROPERTY(bool readOnly READ isReadOnly NOTIFY readOnlyChanged)
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
     Q_PROPERTY(bool scanInProgress READ scanInProgress NOTIFY scanInProgressChanged)
+    // How the notes in this vault refer to pictures (<root>/.kvit/settings.json).
+    Q_PROPERTY(VaultSettings *vaultSettings READ vaultSettings CONSTANT)
 
 public:
     // The indexed-note and indexed-folder records, defined in noteentry.h so
@@ -112,6 +115,7 @@ public:
     // asked for, so a read-only vault does not make the next one read-only.
     void setReadOnly(bool readOnly);
     bool isReadOnly() const { return m_readOnly; }
+    VaultSettings *vaultSettings() { return &m_vaultSettings; }
 
     // --- Root -----------------------------------------------------------
     // Opens (creating if missing) a notes root and scans it. Loading may refresh
@@ -634,6 +638,7 @@ private:
 
     SearchIndexFeed m_searchFeed;
     CollectionStateStore m_collectionState;
+    VaultSettings m_vaultSettings;
     OpenDocumentSession *m_openDocument = nullptr;
     IgnoreRules *m_ignoreRules = nullptr;
     OperationJournal m_operations;

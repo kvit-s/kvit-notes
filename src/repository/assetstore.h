@@ -42,17 +42,31 @@ public:
     static QString uniqueAssetName(const QString &dir, const QString &slug,
                                    const QString &stamp, const QString &ext);
 
+    // Every ingest below takes the same two optional arguments, which is how
+    // a vault's own settings (VaultSettings) reach it:
+    //   folder    where a new file is saved, relative to the root (or to the
+    //             note's folder in single-file mode); "" is `assets`. It is
+    //             refused, and the ingest fails, if any part of it is a link.
+    //   siteRoot  an absolute folder whose files are written from "/" and
+    //             relative to it (`/images/a.png` for <siteRoot>/images/a.png),
+    //             the form a website uses. "" or the root itself changes
+    //             nothing.
+
     // Save `image` under the assets directory, returning the stored path to
     // put in the markdown — relative to the collection root (or to the note
     // in single-file mode). "" on failure.
     QString ingestImage(const QImage &image, const QString &noteSlug,
-                        const QString &root, const QString &noteDir) const;
+                        const QString &root, const QString &noteDir,
+                        const QString &folder = QString(),
+                        const QString &siteRoot = QString()) const;
 
     // Ingest a local file (drop or file dialog): a file already under the
     // collection root is linked in place (its root-relative path is returned,
     // no copy); any other file is copied into assets/. "" on failure.
     QString ingestFile(const QString &sourcePath, const QString &noteSlug,
-                       const QString &root, const QString &noteDir) const;
+                       const QString &root, const QString &noteDir,
+                       const QString &folder = QString(),
+                       const QString &siteRoot = QString()) const;
 
     // ---- QML wrappers ----
 
@@ -61,18 +75,24 @@ public:
     // Save the clipboard image as an asset, returning the stored path or "".
     Q_INVOKABLE QString ingestClipboardImage(const QString &noteSlug,
                                              const QString &root,
-                                             const QString &noteDir) const;
+                                             const QString &noteDir,
+                                             const QString &folder = QString(),
+                                             const QString &siteRoot = QString()) const;
     // Save raw image bytes (a browser/OS drop that delivered pixels rather
     // than a file — spike b's bytes arm) as an asset. "" if not an image.
     Q_INVOKABLE QString ingestImageBytes(const QByteArray &bytes,
                                          const QString &noteSlug,
                                          const QString &root,
-                                         const QString &noteDir) const;
+                                         const QString &noteDir,
+                                         const QString &folder = QString(),
+                                         const QString &siteRoot = QString()) const;
     // QML wrapper for ingestFile (returns the stored path).
     Q_INVOKABLE QString ingestLocalFile(const QString &sourcePath,
                                         const QString &noteSlug,
                                         const QString &root,
-                                        const QString &noteDir) const;
+                                        const QString &noteDir,
+                                        const QString &folder = QString(),
+                                        const QString &siteRoot = QString()) const;
 };
 
 #endif // ASSETSTORE_H

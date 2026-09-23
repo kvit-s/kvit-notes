@@ -43,8 +43,9 @@ BlockDelegateBase {
     // them once, rather than from the collection each row asks itself.
     readonly property string noteDir: root.editor ? root.editor.documentDirectory : ""
     readonly property string assetRoot: root.editor ? root.editor.assetRoot : ""
+    readonly property string siteRoot: root.editor ? root.editor.siteRoot : ""
     readonly property string resolvedSource:
-        ImageAssets.resolve(media.path, noteDir, assetRoot)
+        ImageAssets.resolve(media.path, noteDir, assetRoot, siteRoot)
     // QtMultimedia never receives an http(s) URL. Approved media is fetched
     // through the guarded transport and played from a bounded temporary file.
     readonly property bool isRemote: /^https?:\/\//i.test(root.resolvedSource)

@@ -175,6 +175,9 @@ NoteCollection::NoteCollection(QObject *parent)
         [this]() { return collectionStateSnapshot(); });
     connect(&m_collectionState, &CollectionStateStore::saveFailed,
             this, &NoteCollection::operationFailed);
+    m_vaultSettings.setWritableCheck([this]() { return !m_readOnly; });
+    connect(&m_vaultSettings, &VaultSettings::saveFailed,
+            this, &NoteCollection::operationFailed);
 }
 
 NoteCollection::~NoteCollection()
@@ -453,6 +456,7 @@ void NoteCollection::attachStoresToRoot()
     m_operations.setRootPath(m_rootPath);
     m_redirects.setRootPath(m_rootPath);
     m_collectionState.setRoot(m_rootPath, m_canonicalRoot);
+    m_vaultSettings.setRoot(m_rootPath);
 }
 
 void NoteCollection::loadRecoveryEntries()

@@ -94,8 +94,14 @@ public:
     // nothing resolves (the broken-path placeholder). noteDir is the folder
     // of the note being edited; collectionRoot is the vault root (either may
     // be empty in single-file mode).
+    //
+    // A path starting with "/" is the form a website uses for its own root,
+    // so one that names no file on this machine is also looked up under
+    // siteRoot: `/images/a.png` in a Hugo vault is `<root>/static/images/
+    // a.png`. siteRoot defaults to collectionRoot, the vault's own root.
     static QString resolveSource(const QString &stored, const QString &noteDir,
-                                 const QString &collectionRoot);
+                                 const QString &collectionRoot,
+                                 const QString &siteRoot = QString());
 
     // Ingestion — saving a pasted, dropped or chosen file into the vault's
     // assets directory — is AssetStore (repository/assetstore.h). It writes,
@@ -109,7 +115,8 @@ public:
     Q_INVOKABLE QString build(const QString &path, const QString &alt,
                               const QString &caption, int width) const;
     Q_INVOKABLE QString resolve(const QString &stored, const QString &noteDir,
-                                const QString &collectionRoot) const;
+                                const QString &collectionRoot,
+                                const QString &siteRoot = QString()) const;
     Q_INVOKABLE QString kindOf(const QString &path) const;
 
     // The size a picture has in its file, without decoding the picture.

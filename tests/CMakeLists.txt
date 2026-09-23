@@ -190,6 +190,12 @@ add_test(NAME AssetStoreTests COMMAND test_assetstore)
 set_tests_properties(AssetStoreTests
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# A vault's own settings file (.kvit/settings.json): what it detects, what it
+# accepts, and that a read-only vault is not written.
+qt_add_executable(test_vaultsettings test_vaultsettings.cpp)
+target_link_libraries(test_vaultsettings PRIVATE kvit-core Qt6::Test)
+add_test(NAME VaultSettingsTests COMMAND test_vaultsettings)
+
 # TableData tests (pipe-table parse/serialize/mutate)
 qt_add_executable(test_tabledata test_tabledata.cpp)
 target_link_libraries(test_tabledata PRIVATE kvit-core Qt6::Test)

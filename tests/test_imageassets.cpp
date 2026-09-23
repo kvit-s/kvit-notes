@@ -183,6 +183,43 @@ private slots:
         QVERIFY(ImageAssets::resolveSource("missing.png", noteDir, root).isEmpty());
     }
 
+    // A website names a file at its own root with a leading "/": Hugo serves
+    // `/images/a.png` from `static/images/a.png`. Such a path used to be
+    // tried only as an absolute path on this machine, where it names nothing.
+    void siteRootPathResolvesUnderSiteFolder()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString root = dir.path();
+        QDir(root).mkpath("static/images");
+        QDir(root).mkpath("images");
+        QDir(root).mkpath("content/posts");
+        auto writeFile = [](const QString &p) {
+            QFile f(p); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("x"); f.close();
+        };
+        writeFile(root + "/static/images/a.png");
+        writeFile(root + "/images/b.png");
+        const QString noteDir = root + "/content/posts";
+
+        // Under the site folder when one is given.
+        QCOMPARE(ImageAssets::resolveSource("/images/a.png", noteDir, root,
+                                            root + "/static"),
+                 QUrl::fromLocalFile(root + "/static/images/a.png").toString());
+        // Under the vault root when none is.
+        QCOMPARE(ImageAssets::resolveSource("/images/b.png", noteDir, root),
+                 QUrl::fromLocalFile(root + "/images/b.png").toString());
+        // The site folder is where "/" points, not an extra search path.
+        QVERIFY(ImageAssets::resolveSource("/images/b.png", noteDir, root,
+                                           root + "/static").isEmpty());
+        // A real absolute path still resolves as itself.
+        QCOMPARE(ImageAssets::resolveSource(root + "/images/b.png", noteDir,
+                                            root, root + "/static"),
+                 QUrl::fromLocalFile(root + "/images/b.png").toString());
+        // "//host/x" is a protocol-relative URL, never a site path.
+        QVERIFY(ImageAssets::resolveSource("//images/b.png", noteDir, root)
+                    .isEmpty());
+    }
+
     // URL schemes are case-insensitive, so every stage has to read them the
     // same way. Classification always did; resolution compared literal
     // lowercase prefixes, so `HTTPS://…` was accepted as an image and then

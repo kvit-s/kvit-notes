@@ -67,9 +67,11 @@ Item {
     // meaning "there is no collection": with no `assetSink` a pasted image is
     // refused rather than written to a folder nobody chose, and with no
     // `linkResolver` a [[wiki link]] styles as an ordinary link. See the same
-    // four properties on BlockEditorSurface.
+    // properties on BlockEditorSurface.
     property string documentPath: ""
     property string assetRoot: ""
+    property string assetFolder: "assets"
+    property string siteRoot: assetRoot
     property AssetStore assetSink: null
     property NoteCollection linkResolver: null
 
@@ -212,6 +214,8 @@ Item {
 
         documentPath: root.documentPath
         assetRoot: root.assetRoot
+        assetFolder: root.assetFolder
+        siteRoot: root.siteRoot
         assetSink: root.assetSink
         linkResolver: root.linkResolver
 

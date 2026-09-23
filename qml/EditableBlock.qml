@@ -842,7 +842,9 @@ BlockDelegateBase {
             return false
         var stored = sink.ingestClipboardImage(delegate.editor.documentSlug,
                                                delegate.editor.assetRoot,
-                                               delegate.editor.documentDirectory)
+                                               delegate.editor.documentDirectory,
+                                               delegate.editor.assetFolder,
+                                               delegate.editor.siteRoot)
         if (stored === "")
             return false
         insertImageBlock(stored)

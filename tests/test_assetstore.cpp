@@ -87,6 +87,44 @@ private slots:
         QVERIFY(QFileInfo(QDir(root).filePath(stored)).exists());
     }
 
+    // A vault whose settings name a folder for new pictures and a site
+    // folder (VaultSettings): a Hugo site saves into static/images and
+    // writes /images/<name>, the path Hugo serves it at.
+    void ingestIntoSiteFolderWritesSitePath()
+    {
+        QTemporaryDir dir;
+        const QString root = dir.path();
+        const QString site = root + "/static";
+        AssetStore store;
+
+        QImage img(4, 4, QImage::Format_ARGB32);
+        img.fill(Qt::blue);
+        const QString stored = store.ingestImage(img, "post", root,
+                                                 root + "/content",
+                                                 "static/images", site);
+        QVERIFY2(stored.startsWith("/images/post-"), qPrintable(stored));
+        QVERIFY(QFileInfo(site + stored).isFile());
+        QCOMPARE(ImageAssets::resolveSource(stored, root + "/content", root, site),
+                 QUrl::fromLocalFile(site + stored).toString());
+
+        // A file already inside the site folder is linked where it is.
+        const QString inside = site + "/images/existing.png";
+        { QFile f(inside); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("x"); }
+        QCOMPARE(store.ingestFile(inside, "post", root, root, "static/images", site),
+                 QStringLiteral("/images/existing.png"));
+
+        // A folder for new files outside the site folder keeps the vault's
+        // own relative form.
+        const QString other = store.ingestImage(img, "post", root, root,
+                                                "media", site);
+        QVERIFY2(other.startsWith("media/post-"), qPrintable(other));
+
+        // A site folder that is the vault itself changes nothing.
+        const QString plain = store.ingestImage(img, "post", root, root,
+                                                QString(), root);
+        QVERIFY2(plain.startsWith("assets/"), qPrintable(plain));
+    }
+
     // The drop handler in main.qml strips the file:// scheme with a string
     // replace and hands the remainder to ingestLocalFile. QML renders a QUrl
     // with QUrl::toString(), which leaves a space literal but keeps the

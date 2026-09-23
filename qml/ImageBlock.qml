@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Effects
+import QtQuick.Layouts
+import QtQuick.Window
 import Kvit 1.0
 
 // Image block (features.md §1.2.8). The block's content is its markdown
@@ -11,7 +14,8 @@ import Kvit 1.0
 // delegate renders the image with a caption below and an alt tooltip,
 // resizes by dragging a corner handle (writing width, one undo step), opens
 // a lightbox on click, and shows a broken-path placeholder when the source
-// does not resolve. It keeps the non-text focus API of DividerDelegate so
+// does not resolve. While the block has focus, a panel under it edits the
+// path and the alt text, which is also the way to repair a broken path. It keeps the non-text focus API of DividerDelegate so
 // block navigation, selection, and drag stay uniform.
 BlockDelegateBase {
     id: delegate
@@ -67,7 +71,12 @@ BlockDelegateBase {
     property int blockIndex: index
     property bool isPooled: false
     property ListView listView: ListView.view
-    isFocused: focusTarget.activeFocus
+    isFocused: focusTarget.activeFocus || editPanel.activeFocus
+    // Whether the edit panel is showing: the block, its caption or the panel
+    // itself has the keyboard, in a document that can be changed.
+    readonly property bool editing: !delegate.readOnly
+        && (focusTarget.activeFocus || editPanel.activeFocus
+            || captionField.activeFocus)
     // The gutter's MouseAreas sit over hoverArea and steal its hover; fold
     // the gutter's own hover back in so the buttons do not vanish the moment
     // the pointer reaches them (as EditableBlock does).
@@ -81,8 +90,10 @@ BlockDelegateBase {
     // them once, rather than from the collection each row asks itself.
     readonly property string noteDir: delegate.editor ? delegate.editor.documentDirectory : ""
     readonly property string assetRoot: delegate.editor ? delegate.editor.assetRoot : ""
+    // Where a path starting with "/" is looked up (BlockEditorSurface).
+    readonly property string siteRoot: delegate.editor ? delegate.editor.siteRoot : ""
     readonly property string resolvedSource:
-        ImageAssets.resolve(img.path, noteDir, assetRoot)
+        ImageAssets.resolve(img.path, noteDir, assetRoot, siteRoot)
     // What the Image actually loads. A local file passes through; an http(s)
     // image is routed to the image://remote provider once the reader has
     // approved its origin, and is "" until then. A note is untrusted input,
@@ -169,9 +180,10 @@ BlockDelegateBase {
     }
 
     blockContentHeight: contentColumn.implicitHeight + 16
+        + (editPanel.visible ? editPanel.implicitHeight + 8 : 0)
 
     ListView.onPooled: {
-        captionField.commitPendingCaption()
+        delegate.commitPendingEdits()
         isPooled = true
         focusTarget.focus = false
         opacity = 0
@@ -181,6 +193,8 @@ BlockDelegateBase {
         isPooled = false
         opacity = 1
         captionField.text = Qt.binding(function() { return delegate.img.caption })
+        pathField.text = Qt.binding(function() { return delegate.img.path })
+        altField.text = Qt.binding(function() { return delegate.img.alt })
         // A drag interrupted by scrolling must not follow the delegate to
         // whatever block reuses it.
         previewWidth = 0
@@ -215,6 +229,42 @@ BlockDelegateBase {
     function writeImage(path, alt, caption, width) {
         delegate.blocks.updateContent(delegate.index,
                                       ImageAssets.build(path, alt, caption, width))
+    }
+
+    // Write whatever the path, alt and caption fields hold and the block does
+    // not, as one undo step. Every field commits through here, so an edit
+    // still open in one field is not lost when another one commits.
+    function commitPendingEdits() {
+        var path = pathField.text.trim()
+        if (path !== delegate.img.path || altField.text !== delegate.img.alt
+            || captionField.text !== delegate.img.caption)
+            delegate.writeImage(path, altField.text, captionField.text,
+                                delegate.img.width)
+    }
+
+    // Put a chosen file in the path. With a sink it is brought into the
+    // vault the way a dropped file is: linked where it is when it is already
+    // inside, copied into the folder for new pictures when it is not.
+    function useChosenFile(url) {
+        var ed = delegate.editor
+        var sink = ed ? ed.assetSink : null
+        var stored = sink ? sink.ingestLocalFile(url, ed.documentSlug, ed.assetRoot,
+                                                 ed.documentDirectory, ed.assetFolder,
+                                                 ed.siteRoot)
+                          : DocumentManager.toLocalPath(url)
+        if (stored === "")
+            return
+        pathField.text = stored
+        delegate.commitPendingEdits()
+    }
+
+    // How the edit panel names the folder "/" paths are looked up in.
+    readonly property string siteFolderLabel: {
+        if (siteRoot === "" || siteRoot === assetRoot)
+            return qsTr("the vault folder")
+        if (assetRoot !== "" && siteRoot.indexOf(assetRoot + "/") === 0)
+            return siteRoot.substring(assetRoot.length + 1) + "/"
+        return siteRoot
     }
 
     function deleteCurrentBlock() {
@@ -570,10 +620,13 @@ BlockDelegateBase {
                 enabled: delegate.displaySource !== "" && image.status === Image.Ready
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: {
+                    // Focus first, so the edit panel is open under the
+                    // picture when the lightbox closes.
+                    focusTarget.forceActiveFocus()
                     // The lightbox gets the gated source, not the raw URL:
                     // handing it the URL would reopen the direct-load path
                     // this delegate just closed.
-                        AppActions.requestLightbox(delegate.displaySource, delegate.img.alt)
+                    AppActions.requestLightbox(delegate.displaySource, delegate.img.alt)
                 }
             }
 
@@ -680,7 +733,7 @@ BlockDelegateBase {
             readOnly: delegate.readOnly
             width: imageFrame.width
             anchors.horizontalCenter: parent.horizontalCenter
-            visible: delegate.resolvedSource !== "" || text !== ""
+            visible: delegate.resolvedSource !== "" || text !== "" || delegate.editing
             text: delegate.img.caption
             placeholderText: qsTr("Add a caption…")
             // Left-aligned against the picture's own left edge: a wrapped
@@ -728,9 +781,7 @@ BlockDelegateBase {
             // never arrive if the model is replaced first, so the caption is
             // also committed on the document-level flush.
             function commitPendingCaption() {
-                if (text !== delegate.img.caption)
-                    delegate.writeImage(delegate.img.path, delegate.img.alt,
-                                        text, delegate.img.width)
+                delegate.commitPendingEdits()
             }
             Connections {
                 target: DocumentManager
@@ -742,6 +793,128 @@ BlockDelegateBase {
                 captionField.commitPendingCaption()
             }
         }
+    }
+
+
+    // ---- Edit panel ----
+    // The path and the alt text, which nothing else on the block can change.
+    // Each field writes on Enter or when it loses focus; Escape puts back
+    // what the block holds and returns to the block. A FocusScope, so that
+    // activeFocus on it says the keyboard is anywhere inside.
+    FocusScope {
+        id: editPanel
+        objectName: "imageEditPanel"
+        visible: delegate.editing
+        anchors.top: contentColumn.bottom
+        anchors.topMargin: 8
+        anchors.left: parent.left
+        anchors.leftMargin: delegate.gutterInset + 8
+        anchors.right: parent.right
+        anchors.rightMargin: 16
+        implicitHeight: panelLayout.implicitHeight
+
+        function revert(field, value) {
+            field.text = value
+            focusTarget.forceActiveFocus()
+        }
+
+        GridLayout {
+            id: panelLayout
+            width: parent.width
+            columns: 3
+            columnSpacing: 8
+            rowSpacing: 6
+
+            Label {
+                text: qsTr("Path")
+                color: Theme.textMuted
+                font.pixelSize: Interface.small
+            }
+            TextField {
+                id: pathField
+                objectName: "imagePathEdit"
+                Layout.fillWidth: true
+                text: delegate.img.path
+                placeholderText: qsTr("File path or URL")
+                font.pixelSize: Interface.small
+                selectByMouse: true
+                Accessible.name: qsTr("Image path")
+                onEditingFinished: delegate.commitPendingEdits()
+                // Setting the text leaves the cursor at its end, which
+                // scrolls a long value to its last words while nobody is
+                // typing in it.
+                onTextChanged: if (!activeFocus) cursorPosition = 0
+                Keys.onEscapePressed: editPanel.revert(pathField, delegate.img.path)
+            }
+            Button {
+                id: browseButton
+                objectName: "imageBrowseButton"
+                text: qsTr("Browse…")
+                font.pixelSize: Interface.small
+                Accessible.name: qsTr("Choose an image file")
+                onClicked: imageChooser.open()
+            }
+
+            Label {
+                text: qsTr("Alt text")
+                color: Theme.textMuted
+                font.pixelSize: Interface.small
+            }
+            TextField {
+                id: altField
+                objectName: "imageAltEdit"
+                Layout.fillWidth: true
+                Layout.columnSpan: 2
+                text: delegate.img.alt
+                placeholderText: qsTr("Describe the picture for screen readers")
+                font.pixelSize: Interface.small
+                selectByMouse: true
+                Accessible.name: qsTr("Alt text")
+                onEditingFinished: delegate.commitPendingEdits()
+                // Setting the text leaves the cursor at its end, which
+                // scrolls a long value to its last words while nobody is
+                // typing in it.
+                onTextChanged: if (!activeFocus) cursorPosition = 0
+                Keys.onEscapePressed: editPanel.revert(altField, delegate.img.alt)
+            }
+
+            // Where "/" paths are looked up, with the way to change it. Only
+            // a host that has a place for that setting offers it.
+            Label {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                visible: delegate.editor !== null && delegate.editor.offersImageSettings
+                wrapMode: Text.WordWrap
+                color: Theme.textFaint
+                font.pixelSize: Interface.small
+                text: qsTr("Paths starting with / are looked up in %1.")
+                    .arg(delegate.siteFolderLabel)
+            }
+            Button {
+                objectName: "imageSettingsButton"
+                visible: delegate.editor !== null && delegate.editor.offersImageSettings
+                text: qsTr("Change…")
+                font.pixelSize: Interface.small
+                Accessible.name: qsTr("Change where this vault looks for images")
+                onClicked: {
+                    delegate.commitPendingEdits()
+                    delegate.editor.imageSettingsRequested()
+                }
+            }
+        }
+    }
+
+    // The chooser behind Browse…. Outside the panel, because the panel hides
+    // as soon as the chooser takes the keyboard.
+    FileDialog {
+        id: imageChooser
+        // Kept inside this window for the reason BlockInsertDialogs gives for
+        // its own image chooser.
+        parentWindow: delegate.Window.window
+        popupType: Popup.Item
+        title: qsTr("Choose an image")
+        nameFilters: ImageAssets.nameFilters("image")
+        onAccepted: delegate.useChosenFile(imageChooser.selectedFile)
     }
 
     MouseArea {

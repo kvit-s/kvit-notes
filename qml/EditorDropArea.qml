@@ -81,6 +81,10 @@ DropArea {
         var slug = dropArea.currentNoteSlug()
         var root2 = dropArea.assetRoot()
         var nd = dropArea.editor ? dropArea.editor.documentDirectory : ""
+        // Which folder a new file is saved in, and the folder whose files are
+        // written from "/" (BlockEditorSurface says what each is for).
+        var folder = dropArea.editor ? dropArea.editor.assetFolder : ""
+        var site = dropArea.editor ? dropArea.editor.siteRoot : ""
         // The sink that turns dropped bytes into a file. Null in a host with
         // nowhere to put them, which leaves the two ingest arms below to fall
         // through to the plain-text arm rather than writing anywhere.
@@ -94,7 +98,7 @@ DropArea {
                 || fmts[f].indexOf("image/") === 0) {
                 var buf = sink ? drop.getDataAsArrayBuffer(fmts[f]) : null
                 if (buf) {
-                    var storedB = sink.ingestImageBytes(buf, slug, root2, nd)
+                    var storedB = sink.ingestImageBytes(buf, slug, root2, nd, folder, site)
                     if (storedB !== "") {
                         blocks.push({ type: Block.Image,
                             content: ImageAssets.build(storedB, "", "", 0) })
@@ -117,7 +121,7 @@ DropArea {
                     // silently ignored.
                     if (!sink || ImageAssets.kindOf(url) === "none")
                         continue  // no sink, or not an image/media file
-                    var stored = sink.ingestLocalFile(url, slug, root2, nd)
+                    var stored = sink.ingestLocalFile(url, slug, root2, nd, folder, site)
                     if (stored !== "")
                         blocks.push(dropArea.blockForPath(stored))
                 } else if (url.indexOf("http") === 0) {

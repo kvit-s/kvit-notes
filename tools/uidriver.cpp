@@ -1463,6 +1463,30 @@ int main(int argc, char *argv[])
             clearHover(window);
             grab(window, outDir + QStringLiteral("/") + shotName
                              + QStringLiteral(".png"));
+        } else if (scenario == QStringLiteral("imageedit")) {
+            // The first picture in --note, focused so its edit panel shows,
+            // then the vault page of Settings that the panel's Change…
+            // button opens.
+            if (!note.isEmpty())
+                ctx->documentManager()->open(QUrl::fromLocalFile(note));
+            settle(2500);
+            const int target = blockContaining(model, QStringLiteral("!["));
+            QQuickItem *d = target >= 0 ? showBlock(window, target) : nullptr;
+            if (!d) {
+                qWarning("uidriver: no picture in this note");
+            } else {
+                QMetaObject::invokeMethod(d, "focusAtStart");
+                settle(1500);
+                clearHover(window);
+                grab(window, outDir + QStringLiteral("/imageedit-panel.png"));
+                if (auto *button = d->findChild<QQuickItem *>(
+                        QStringLiteral("imageSettingsButton"))) {
+                    clickAt(window, centerOf(button), 1500);
+                    grab(window, outDir + QStringLiteral("/imageedit-settings.png"));
+                } else {
+                    qWarning("uidriver: the edit panel has no settings button");
+                }
+            }
         } else if (scenario == QStringLiteral("dropcap")) {
             // Start from a single paragraph with prose in it, then apply the
             // drop cap through the slash menu the way a user would.

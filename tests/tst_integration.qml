@@ -8545,6 +8545,61 @@ Item {
             compare(BlockModel.blockAt(0).blockType, 11, "the image stays")
         }
 
+        // Focusing an image opens a panel under it that edits the path and
+        // the alt text, which nothing else on the block can change. A broken
+        // picture has to be editable too, since that is how it gets fixed.
+        function test_zu3_imageEditPanelEditsPathAndAlt() {
+            if (isHeadless) {
+                skip("Focus tests require display")
+            }
+            DocumentManager.newDocument()
+            wait(100)
+            BlockModel.convertBlock(0, 11,    // Block.Image
+                ImageAssets.build("missing/nothing-here.png", "", "", 0))
+            tryVerify(function() {
+                var d = findBlockDelegate(0)
+                return d !== null && d.writeImage !== undefined
+            }, 1000, "the Image delegate is created")
+            var img = findBlockDelegate(0)
+            var panel = findChild(img, "imageEditPanel")
+            verify(panel !== null, "the edit panel exists")
+            compare(panel.visible, false, "and is closed until the block has focus")
+
+            img.focusAtStart()
+            tryCompare(panel, "visible", true, 1000,
+                       "focusing a broken image opens the panel")
+
+            var path = findChild(img, "imagePathEdit")
+            var undoBefore = UndoStack.count
+            path.forceActiveFocus()
+            tryCompare(panel, "visible", true, 1000,
+                       "the panel stays open while one of its fields is used")
+            path.selectAll()
+            typeString(sampleImagePath)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() {
+                return ImageAssets.parse(BlockModel.getContent(0)).path
+                    === sampleImagePath
+            }, 1000, "Enter writes the new path into the block")
+            verify(UndoStack.count > undoBefore, "as an undoable edit")
+
+            var alt = findChild(img, "imageAltEdit")
+            alt.forceActiveFocus()
+            typeString("a sample")
+            keyClick(Qt.Key_Escape)
+            compare(ImageAssets.parse(BlockModel.getContent(0)).alt, "",
+                    "Escape discards what was typed")
+            compare(alt.text, "", "and puts the block's value back")
+
+            alt.forceActiveFocus()
+            typeString("a sample")
+            keyClick(Qt.Key_Tab)
+            tryVerify(function() {
+                return ImageAssets.parse(BlockModel.getContent(0)).alt
+                    === "a sample"
+            }, 1000, "leaving the field writes the alt text")
+        }
+
         function test_zv_imageDropAndPasteWiring() {
             if (isHeadless) {
                 skip("Focus tests require display")

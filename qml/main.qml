@@ -1648,6 +1648,15 @@ ApplicationWindow {
             // and a [[wiki link]] styles as an ordinary link.
             documentPath: DocumentManager.currentFilePath
             assetRoot: NoteCollection.isOpen ? NoteCollection.rootPath : ""
+            // How this vault's notes refer to pictures, from its own settings
+            // (the "This vault" page of Settings, which an image being edited
+            // links to).
+            assetFolder: NoteCollection.isOpen
+                ? NoteCollection.vaultSettings.imageFolder : "assets"
+            siteRoot: NoteCollection.isOpen
+                ? NoteCollection.vaultSettings.siteRootPath : ""
+            offersImageSettings: NoteCollection.isOpen
+            onImageSettingsRequested: settingsDialog.openVaultPage()
             assetSink: AssetStore
             linkResolver: NoteCollection.isOpen ? NoteCollection : null
 

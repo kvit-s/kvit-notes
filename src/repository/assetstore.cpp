@@ -40,10 +40,18 @@ QString safeSegment(const QString &value, const QString &fallback)
 
 // The stored path to write into the markdown: relative to the collection root
 // when one is open (so a note move never breaks it), else relative to the
-// note's own folder (single-file mode).
+// note's own folder (single-file mode). A file inside a site folder that is
+// not the root itself is written the way the site serves it instead, from
+// "/", which is what ImageAssets::resolveSource looks up there.
 QString storedPathFor(const QString &absFile, const QString &root,
-                      const QString &noteDir)
+                      const QString &noteDir, const QString &siteRoot)
 {
+    if (!siteRoot.isEmpty() && !root.isEmpty()) {
+        const QString site = QDir::cleanPath(QDir(siteRoot).absolutePath());
+        if (site != QDir::cleanPath(QDir(root).absolutePath())
+            && absFile.startsWith(site + QLatin1Char('/')))
+            return QLatin1Char('/') + QDir(site).relativeFilePath(absFile);
+    }
     const QString base = !root.isEmpty() ? root : noteDir;
     if (base.isEmpty())
         return absFile;
@@ -51,6 +59,12 @@ QString storedPathFor(const QString &absFile, const QString &root,
     // If the file is outside `base`, relativeFilePath yields ../ segments;
     // fall back to the absolute path so the source still resolves.
     return rel.startsWith(QStringLiteral("..")) ? absFile : rel;
+}
+
+// The folder new files go in, below `base`: the caller's, or `assets`.
+QString folderOrDefault(const QString &folder)
+{
+    return folder.isEmpty() ? QStringLiteral("assets") : folder;
 }
 
 } // namespace
@@ -90,13 +104,15 @@ QString AssetStore::uniqueAssetName(const QString &dir, const QString &slug,
 }
 
 QString AssetStore::ingestImage(const QImage &image, const QString &noteSlug,
-                                const QString &root, const QString &noteDir) const
+                                const QString &root, const QString &noteDir,
+                                const QString &folder,
+                                const QString &siteRoot) const
 {
     if (image.isNull())
         return QString();
     const QString base = !root.isEmpty() ? root : noteDir;
     const QString dir =
-        VaultPaths::ensureOwnedDir(base, QStringLiteral("assets"));
+        VaultPaths::ensureOwnedDir(base, folderOrDefault(folder));
     if (dir.isEmpty())
         return QString();
     const QString stamp =
@@ -106,11 +122,13 @@ QString AssetStore::ingestImage(const QImage &image, const QString &noteSlug,
     const QString abs = QDir(dir).filePath(name);
     if (!image.save(abs, "PNG"))
         return QString();
-    return storedPathFor(abs, root, noteDir);
+    return storedPathFor(abs, root, noteDir, siteRoot);
 }
 
 QString AssetStore::ingestFile(const QString &sourcePath, const QString &noteSlug,
-                               const QString &root, const QString &noteDir) const
+                               const QString &root, const QString &noteDir,
+                               const QString &folder,
+                               const QString &siteRoot) const
 {
     const QFileInfo src(sourcePath);
     if (!src.exists() || !src.isFile())
@@ -122,13 +140,13 @@ QString AssetStore::ingestFile(const QString &sourcePath, const QString &noteSlu
     if (!root.isEmpty()) {
         const QString rootAbs = QDir(root).absolutePath();
         if (absSrc.startsWith(rootAbs + QLatin1Char('/')))
-            return storedPathFor(absSrc, root, noteDir);
+            return storedPathFor(absSrc, root, noteDir, siteRoot);
     }
 
-    // Otherwise copy into assets/.
+    // Otherwise copy into the folder for new files.
     const QString base = !root.isEmpty() ? root : noteDir;
     const QString dir =
-        VaultPaths::ensureOwnedDir(base, QStringLiteral("assets"));
+        VaultPaths::ensureOwnedDir(base, folderOrDefault(folder));
     if (dir.isEmpty())
         return QString();
     const QString stamp =
@@ -137,7 +155,7 @@ QString AssetStore::ingestFile(const QString &sourcePath, const QString &noteSlu
     const QString abs = QDir(dir).filePath(name);
     if (!QFile::copy(absSrc, abs))
         return QString();
-    return storedPathFor(abs, root, noteDir);
+    return storedPathFor(abs, root, noteDir, siteRoot);
 }
 
 // ---- QML wrappers ----
@@ -150,33 +168,39 @@ bool AssetStore::clipboardHasImage() const
 
 QString AssetStore::ingestClipboardImage(const QString &noteSlug,
                                          const QString &root,
-                                         const QString &noteDir) const
+                                         const QString &noteDir,
+                                         const QString &folder,
+                                         const QString &siteRoot) const
 {
     const QClipboard *cb = QGuiApplication::clipboard();
     if (!cb)
         return QString();
     const QImage image = cb->image();
-    return ingestImage(image, noteSlug, root, noteDir);
+    return ingestImage(image, noteSlug, root, noteDir, folder, siteRoot);
 }
 
 QString AssetStore::ingestImageBytes(const QByteArray &bytes,
                                      const QString &noteSlug,
                                      const QString &root,
-                                     const QString &noteDir) const
+                                     const QString &noteDir,
+                                     const QString &folder,
+                                     const QString &siteRoot) const
 {
     QImage image;
     if (!image.loadFromData(bytes))
         return QString();
-    return ingestImage(image, noteSlug, root, noteDir);
+    return ingestImage(image, noteSlug, root, noteDir, folder, siteRoot);
 }
 
 QString AssetStore::ingestLocalFile(const QString &sourcePath,
                                     const QString &noteSlug,
                                     const QString &root,
-                                    const QString &noteDir) const
+                                    const QString &noteDir,
+                                    const QString &folder,
+                                    const QString &siteRoot) const
 {
     QString path = sourcePath;
     if (path.startsWith(QStringLiteral("file://")))
         path = QUrl(path).toLocalFile();
-    return ingestFile(path, noteSlug, root, noteDir);
+    return ingestFile(path, noteSlug, root, noteDir, folder, siteRoot);
 }

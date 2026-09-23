@@ -386,8 +386,13 @@ QStringList DocumentExporter::stringsAtIndexes(const QStringList &strings,
 
 QString DocumentExporter::dataUriForImagePath(const QString &storedPath) const
 {
-    const QString resolved =
-        ImageAssets::resolveSource(storedPath, m_noteDir, m_collectionRoot);
+    // A path starting with "/" is looked up in the vault's site folder, which
+    // only the collection being exported knows.
+    const QString siteRoot =
+        (m_collection && m_collection->rootPath() == m_collectionRoot)
+            ? m_collection->vaultSettings()->siteRootPath() : QString();
+    const QString resolved = ImageAssets::resolveSource(
+        storedPath, m_noteDir, m_collectionRoot, siteRoot);
     if (resolved.isEmpty())
         return QString();
     if (resolved.startsWith(QLatin1String("http")))

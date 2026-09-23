@@ -169,6 +169,24 @@ Item {
     // vault root, which is what makes one note's picture visible to another.
     property string assetRoot: ""
 
+    // The folder, relative to assetRoot, that a pasted or dropped file is
+    // saved in. A notes vault keeps `assets`; a website keeps its pictures
+    // where the site serves them, such as `static/images` in Hugo.
+    property string assetFolder: "assets"
+
+    // The folder an image path starting with "/" is looked up in, which is
+    // how a website names a file at its own root. A file saved inside it is
+    // also written that way, `/images/a.png`, when it differs from assetRoot.
+    // Defaults to assetRoot.
+    property string siteRoot: assetRoot
+
+    // Whether the host has somewhere to change the two folders above. When it
+    // does, an image being edited says where "/" paths are looked up and
+    // offers a button that emits imageSettingsRequested; a host that leaves
+    // this false shows neither.
+    property bool offersImageSettings: false
+    signal imageSettingsRequested()
+
     // What turns pasted or dropped bytes into a file on disk. Null refuses
     // the paste, which is the right answer for a host that has nowhere to put
     // it. Typed, because qmllint checks every member read off it and this

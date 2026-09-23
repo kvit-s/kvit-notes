@@ -115,6 +115,20 @@ go stale at different rates:
 - Drag and drop images from web browsers
 - Paste images from clipboard
 - Image effects: rounded corners, shadow, border
+- While the block has focus, a panel under it edits the path (with a Browse…
+  button) and the alt text. Enter or leaving a field writes it as one undo
+  step, and Escape puts back what the block holds. A broken picture opens the
+  same panel, which is how its path gets repaired
+- A path starting with `/` names a file at a website's root, as Hugo writes
+  `/images/a.png` for `static/images/a.png`. It is looked up in the vault's
+  site folder: `static` in a folder with `hugo.toml` (or `config.toml` beside
+  `content/`), otherwise the vault folder itself
+- Each vault chooses its site folder and the folder new pictures are saved in
+  (default `assets`, or `<site folder>/images`) on the "This vault" page of
+  Settings, stored in `<vault>/.kvit/settings.json`. A picture saved inside
+  the site folder is written from `/`. The edit panel names the site folder
+  and links to that page; an application embedding the editor shows the link
+  only when it sets `offersImageSettings`
 
 #### 1.2.9 Divider/Separator Block
 - Horizontal line to visually separate content sections

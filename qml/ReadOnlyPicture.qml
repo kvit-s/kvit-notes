@@ -46,7 +46,8 @@ Item {
     readonly property var img: ImageAssets.parse(picture.content)
     readonly property string resolvedSource: ImageAssets.resolve(
         picture.img.path, picture.baseDir,
-        NoteCollection.isOpen ? NoteCollection.rootPath : "")
+        NoteCollection.isOpen ? NoteCollection.rootPath : "",
+        NoteCollection.isOpen ? NoteCollection.vaultSettings.siteRootPath : "")
     // What the Image actually loads: a local file passes through, an http(s)
     // image is routed to the image://remote provider once the reader has
     // approved its origin and is "" until then. Reading the policy's revision

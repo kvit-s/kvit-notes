@@ -22,6 +22,14 @@ KvitDialog {
     // the tab bar and the page stack both walk this list and have to agree on
     // its order for a tab to select the page beside it.
     readonly property var extensionPages: Extensions.settingsPages()
+
+    // Open straight at the page for the vault in this window, which is where
+    // an image being edited sends the reader to change how its paths are
+    // looked up.
+    function openVaultPage() {
+        pageBar.currentIndex = 3
+        open()
+    }
     standardButtons: Dialog.Close
     width: Interface.px(560)
     // Tall enough to show the Appearance page without scrolling at the
@@ -114,6 +122,7 @@ KvitDialog {
             TabButton { text: qsTr("Appearance"); objectName: "appearanceTab" }
             TabButton { text: qsTr("Typography"); objectName: "typographyTab" }
             TabButton { text: qsTr("General"); objectName: "generalTab" }
+            TabButton { text: qsTr("This vault"); objectName: "vaultTab" }
             // A linked module's own pages, after the editor's three so those
             // keep the positions they have always had. Each names itself, so
             // nothing here has to know what a module's settings are about;
@@ -801,6 +810,195 @@ KvitDialog {
                         text: qsTr("Keep running in the tray when the window is closed")
                         checked: SystemTray.closeToTray
                         onToggled: SystemTray.closeToTray = checked
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ---- This vault ----------------------------------------
+            //
+            // Settings kept in the vault rather than for the user
+            // (<vault>/.kvit/settings.json, VaultSettings), because they are
+            // decided by whatever else reads the folder. Both fields apply on
+            // Enter or when focus leaves them; a value the store refuses stays
+            // in the field with the reason under it.
+            ScrollView {
+                id: vaultPage
+                objectName: "vaultSettingsPage"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                contentWidth: availableWidth
+                clip: true
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                readonly property VaultSettings vault:
+                    NoteCollection.vaultSettings
+                readonly property bool editable:
+                    NoteCollection.isOpen && !NoteCollection.readOnly
+
+                // How a picture saved in `folder` is written into a note,
+                // the same rule AssetStore applies.
+                function writtenAs(folder, site) {
+                    if (site !== "" && folder === site)
+                        return "/name.png"
+                    if (site !== "" && folder.indexOf(site + "/") === 0)
+                        return "/" + folder.substring(site.length + 1) + "/name.png"
+                    return folder + "/name.png"
+                }
+
+                ColumnLayout {
+                    width: vaultPage.availableWidth
+                    spacing: Interface.px(10)
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: !NoteCollection.isOpen
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        text: qsTr("No vault is open in this window.")
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        visible: NoteCollection.isOpen
+                        wrapMode: Text.WrapAnywhere
+                        font.pixelSize: Interface.small
+                        color: Theme.textFaint
+                        text: qsTr("Saved in this vault, in %1")
+                            .arg(NoteCollection.rootPath + "/.kvit/settings.json")
+                    }
+
+                    Label {
+                        text: qsTr("Pictures")
+                        font.bold: true
+                        color: Theme.textSecondary
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: Interface.small
+                        color: Theme.textFaint
+                        text: qsTr("A website writes a picture as /images/a.png "
+                            + "and serves it from one of its folders: static/ "
+                            + "in Hugo. Name that folder here so those pictures "
+                            + "show in the editor. Leave it empty to look paths "
+                            + "starting with / up in the vault folder itself.")
+                    }
+
+                    Label {
+                        text: qsTr("Folder that paths starting with / point to")
+                        color: Theme.textSecondary
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        TextField {
+                            id: siteField
+                            objectName: "vaultSiteFolderField"
+                            Layout.fillWidth: true
+                            enabled: vaultPage.editable
+                            placeholderText: qsTr("The vault folder")
+                            text: vaultPage.vault.siteFolder
+                            Accessible.name: qsTr("Folder that paths starting with / point to")
+                            property string error: ""
+                            function apply() {
+                                // Leaving the field unchanged stores
+                                // nothing, so a detected value stays one.
+                                if (text === vaultPage.vault.siteFolder) {
+                                    error = ""
+                                    return
+                                }
+                                if (!vaultPage.vault.isValidFolder(text)) {
+                                    error = qsTr("Use a folder inside the vault, such as static.")
+                                    return
+                                }
+                                error = ""
+                                if (vaultPage.vault.setSiteFolder(text))
+                                    text = Qt.binding(function() {
+                                        return vaultPage.vault.siteFolder })
+                            }
+                            onEditingFinished: apply()
+                        }
+                        Button {
+                            objectName: "vaultSiteFolderReset"
+                            text: vaultPage.vault.detectedFrom !== ""
+                                  ? qsTr("Use detected") : qsTr("Reset")
+                            visible: !vaultPage.vault.siteFolderIsDefault
+                            enabled: vaultPage.editable
+                            onClicked: {
+                                siteField.error = ""
+                                vaultPage.vault.resetSiteFolder()
+                                siteField.text = Qt.binding(function() {
+                                    return vaultPage.vault.siteFolder })
+                            }
+                        }
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: Interface.small
+                        color: siteField.error !== "" ? Theme.danger : Theme.textFaint
+                        visible: text !== ""
+                        text: siteField.error !== "" ? siteField.error
+                            : (vaultPage.vault.siteFolderIsDefault
+                               && vaultPage.vault.detectedFrom !== ""
+                               ? qsTr("Detected: this folder has %1, so it is a Hugo site.")
+                                     .arg(vaultPage.vault.detectedFrom)
+                               : "")
+                    }
+
+                    Label {
+                        text: qsTr("Folder new pictures are saved in")
+                        color: Theme.textSecondary
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        TextField {
+                            id: imageField
+                            objectName: "vaultImageFolderField"
+                            Layout.fillWidth: true
+                            enabled: vaultPage.editable
+                            text: vaultPage.vault.imageFolder
+                            Accessible.name: qsTr("Folder new pictures are saved in")
+                            property string error: ""
+                            function apply() {
+                                if (text === vaultPage.vault.imageFolder) {
+                                    error = ""
+                                    return
+                                }
+                                if (!vaultPage.vault.isValidFolder(text)) {
+                                    error = qsTr("Use a folder inside the vault, such as static/images.")
+                                    return
+                                }
+                                error = ""
+                                if (vaultPage.vault.setImageFolder(text))
+                                    text = Qt.binding(function() {
+                                        return vaultPage.vault.imageFolder })
+                            }
+                            onEditingFinished: apply()
+                        }
+                        Button {
+                            objectName: "vaultImageFolderReset"
+                            text: qsTr("Reset")
+                            visible: !vaultPage.vault.imageFolderIsDefault
+                            enabled: vaultPage.editable
+                            onClicked: {
+                                imageField.error = ""
+                                vaultPage.vault.resetImageFolder()
+                                imageField.text = Qt.binding(function() {
+                                    return vaultPage.vault.imageFolder })
+                            }
+                        }
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: Interface.small
+                        color: imageField.error !== "" ? Theme.danger : Theme.textFaint
+                        text: imageField.error !== "" ? imageField.error
+                            : qsTr("A pasted or dropped picture is saved in %1 "
+                                   + "and written into the note as %2.")
+                                  .arg(vaultPage.vault.imageFolder + "/")
+                                  .arg(vaultPage.writtenAs(vaultPage.vault.imageFolder,
+                                                           vaultPage.vault.siteFolder))
                     }
                     Item { Layout.fillHeight: true }
                 }
