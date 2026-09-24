@@ -896,7 +896,8 @@ QVariantMap BlockEditorEngine::mathReservationMetrics(const QString &tex,
 // TextEdit has no line-height property, so the multiplier lands as
 // proportional block format on the whole document — an internal edit
 // like reveal transitions, never an undo step. Re-applied after every
-// minimal-diff rebuild; text blocks created by user edits inherit the
+// minimal-diff rebuild, including one that finds the text already right
+// but the format missing; text blocks created by user edits inherit the
 // previous block's format, so the typing path needs no hook.
 void BlockEditorEngine::applyLineHeight()
 {
@@ -1249,8 +1250,18 @@ void BlockEditorEngine::rebuildDocument(bool runRehighlight)
 void BlockEditorEngine::applyMinimalDiff(const QString &expected)
 {
     const QString actual = m_doc->toPlainText();
-    if (actual == expected)
+    if (actual == expected) {
+        // No text to replace, but the multiplier may still be missing: a
+        // block created empty (Enter at the end of a paragraph, say) arrives
+        // here with "" against "", and whatever the user then
+        // types inherits the empty block's format. Checked rather than
+        // re-applied, because typing brings every keystroke through here.
+        if (!qFuzzyCompare(m_lineHeight, 1.0)
+            && !qFuzzyCompare(m_doc->firstBlock().blockFormat().lineHeight(),
+                              m_lineHeight * 100.0))
+            applyLineHeight();
         return;
+    }
 
     int prefix = 0;
     const int maxCommon = qMin(actual.length(), expected.length());

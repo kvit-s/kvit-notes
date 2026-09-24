@@ -33,6 +33,7 @@ private slots:
     void testResetToDefaults();
     void testEngineAppliesLineHeight();
     void testEngineLineHeightSurvivesRebuild();
+    void testEngineLineHeightReachesAnEmptyBlock();
     void testEngineMonoFamilyRestylesInlineCode();
 
 private:
@@ -263,6 +264,36 @@ void TestTypography::testEngineLineHeightSurvivesRebuild()
     engine.setMarkdown("first version");
     engine.setMarkdown("completely different **text** now");
     QCOMPARE(doc.firstBlock().blockFormat().lineHeight(), 150.0);
+}
+
+void TestTypography::testEngineLineHeightReachesAnEmptyBlock()
+{
+    // The order QML creates an editor for a block that Enter just made:
+    // every property set before componentComplete, with no text anywhere,
+    // so no rebuild ever has text to replace.
+    QTextDocument doc;
+    BlockEditorEngine engine;
+    engine.classBegin();
+    engine.attachDocument(&doc);
+    engine.setMarkdown("");
+    engine.setLineHeight(1.35);
+    engine.componentComplete();
+    QCOMPARE(doc.firstBlock().blockFormat().lineHeight(), 135.0);
+
+    // What the user then types takes the empty block's format.
+    QTextCursor(&doc).insertText("typed into the new block");
+    QCOMPARE(doc.firstBlock().blockFormat().lineHeight(), 135.0);
+
+    // The editor's document can also arrive after creation, when the row
+    // switches from its plain-text rendering to the editor.
+    QTextDocument later;
+    BlockEditorEngine lateEngine;
+    lateEngine.classBegin();
+    lateEngine.setMarkdown("");
+    lateEngine.setLineHeight(1.35);
+    lateEngine.componentComplete();
+    lateEngine.attachDocument(&later);
+    QCOMPARE(later.firstBlock().blockFormat().lineHeight(), 135.0);
 }
 
 void TestTypography::testEngineMonoFamilyRestylesInlineCode()
