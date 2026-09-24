@@ -427,6 +427,27 @@ struct CodeRunScan {
 
 // Match one registry row at `pos`; fills `span` (start/end/type/markers/
 // flags) and returns true on a complete match.
+// Whether `def` can start at a position holding `c`: the first character of
+// its opening marker. Every matcher below refuses any other character before
+// spending budget or writing anything, so asking this first changes no
+// result. It spares the parse loop constructing a FormattedSpan (five strings
+// and a list) for each of the table's rows at every character of plain text,
+// which was most of the cost of indexing a vault.
+bool canStartWith(const SpanTypeDef &def, QChar c)
+{
+    switch (def.matcher) {
+    case DelimiterPair:   return c == QLatin1Char(def.openMarker[0]);
+    case CodeMatcher:     return c == u'`';
+    case MathMatcher:     return c == u'$';
+    case EscapeMatcher:   return c == u'\\';
+    case ColorMatcher:    return c == u'<';
+    case WikiLinkMatcher:
+    case LinkMatcher:     return c == u'[';
+    case AutolinkMatcher: return c == u'h';
+    }
+    return true;
+}
+
 bool matchTypeAt(const SpanTypeDef &def, const QString &md, int pos,
                  FormattedSpan &span, MarkdownParseState &state,
                  CodeRunScan &codeRuns)
@@ -823,7 +844,10 @@ QList<FormattedSpan> MarkdownFormatter::parseSpans(const QString &markdown,
 
     while (pos < markdown.length()) {
         bool matched = false;
+        const QChar lead = markdown.at(pos);
         for (const SpanTypeDef &def : kSpanTypes) {
+            if (!canStartWith(def, lead))
+                continue;
             FormattedSpan span;
             if (!matchTypeAt(def, markdown, pos, span, state, codeRuns))
                 continue;
