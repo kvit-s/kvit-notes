@@ -72,9 +72,14 @@ BlockDelegateBase {
     property bool isPooled: false
     property ListView listView: ListView.view
     isFocused: focusTarget.activeFocus || editPanel.activeFocus
+    // Whether this block has an edit panel at all: a document that can be
+    // changed, in an editor whose host did not turn the panel off
+    // (BlockEditorSurface.showImageEditPanel).
+    readonly property bool hasEditPanel: !delegate.readOnly
+        && (!delegate.editor || delegate.editor.showImageEditPanel)
     // Whether the edit panel is showing: the block, its caption or the panel
-    // itself has the keyboard, in a document that can be changed.
-    readonly property bool editing: !delegate.readOnly
+    // itself has the keyboard.
+    readonly property bool editing: delegate.hasEditPanel
         && (focusTarget.activeFocus || editPanel.activeFocus
             || captionField.activeFocus)
     // The gutter's MouseAreas sit over hoverArea and steal its hover; fold
@@ -621,8 +626,12 @@ BlockDelegateBase {
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: {
                     // Focus first, so the edit panel is open under the
-                    // picture when the lightbox closes.
-                    focusTarget.forceActiveFocus()
+                    // picture when the lightbox closes. With no panel the
+                    // keyboard stays where the reader left it: the lightbox
+                    // hands it back there, rather than to a picture that a
+                    // Backspace would delete.
+                    if (delegate.hasEditPanel)
+                        focusTarget.forceActiveFocus()
                     // The lightbox gets the gated source, not the raw URL:
                     // handing it the URL would reopen the direct-load path
                     // this delegate just closed.

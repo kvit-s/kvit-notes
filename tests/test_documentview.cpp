@@ -26,8 +26,10 @@
 #include "documentsearch.h"
 #include "documentselection.h"
 #include "documentstats.h"
+#include "notecollection.h"
 #include "qmlservices.h"
 #include "undostack.h"
+#include "vaultsettings.h"
 
 namespace {
 
@@ -476,6 +478,69 @@ private slots:
         QCOMPARE(qRound(frame->height()), 240);
     }
 
+    // ---- where a picture is looked up ----
+    //
+    // A drawn document is usually not in the vault's root folder, and it can
+    // name a picture in two ways its own folder does not answer: from the
+    // vault's root, `assets/a.png`, which is how a note in a subfolder names
+    // a pasted picture; and from a website's root, `/images/a.png`, which is
+    // found in the vault's site folder. Both are looked up in the open vault
+    // unless the host names another folder.
+    void aPictureIsFoundFromTheVaultRootAndFromTheSiteFolder()
+    {
+        QVERIFY(QDir(m_vaultRoot).mkpath(QStringLiteral("Sub")));
+        QVERIFY(QDir(m_vaultRoot).mkpath(QStringLiteral("assets")));
+        QVERIFY(QDir(m_vaultRoot).mkpath(QStringLiteral("static/images")));
+        const QString fromRoot =
+            writePicture(QStringLiteral("assets/from-root.png"), 60, 40);
+        const QString fromSite =
+            writePicture(QStringLiteral("static/images/from-site.png"), 60, 40);
+        QVERIFY(!fromRoot.isEmpty() && !fromSite.isEmpty());
+        VaultSettings *settings = m_context->noteCollection()->vaultSettings();
+        QVERIFY(settings->setSiteFolder(QStringLiteral("static")));
+        const auto reset = qScopeGuard([settings] { settings->resetSiteFolder(); });
+
+        QQuickItem *view = makeView(QStringLiteral(
+            "![](assets/from-root.png)\n\n![](/images/from-site.png)\n"));
+        QVERIFY(view);
+        view->setProperty("baseDir", m_vaultRoot + QStringLiteral("/Sub"));
+        QCOMPARE(view->property("blockCount").toInt(), 2);
+
+        QTRY_COMPARE(pictureFileOf(view, 0), fromRoot);
+        QTRY_COMPARE(pictureFileOf(view, 1), fromSite);
+    }
+
+    // A host drawing a file out of a copy of the vault kept in another folder
+    // names that folder, and gets the copy's pictures rather than the ones in
+    // the open vault. The site folder comes with it: the vault's setting, taken
+    // inside the copy.
+    void aHostDrawingACopyOfTheVaultGetsTheCopysPictures()
+    {
+        QVERIFY(QDir(m_vaultRoot).mkpath(QStringLiteral("static/images")));
+        QVERIFY(!writePicture(QStringLiteral("static/images/shared.png"), 60, 40)
+                     .isEmpty());
+        const QString copy = m_dir.filePath(QStringLiteral("copy"));
+        QVERIFY(QDir(copy).mkpath(QStringLiteral("static/images")));
+        const QString copied = copy + QStringLiteral("/static/images/shared.png");
+        QImage picture(50, 30, QImage::Format_RGB32);
+        picture.fill(Qt::darkMagenta);
+        QVERIFY(picture.save(copied));
+        VaultSettings *settings = m_context->noteCollection()->vaultSettings();
+        QVERIFY(settings->setSiteFolder(QStringLiteral("static")));
+        const auto reset = qScopeGuard([settings] { settings->resetSiteFolder(); });
+
+        QQuickItem *view = makeView(QStringLiteral("![](/images/shared.png)\n"));
+        QVERIFY(view);
+        QTRY_COMPARE(pictureFileOf(view, 0),
+                     m_vaultRoot + QStringLiteral("/static/images/shared.png"));
+
+        view->setProperty("baseDir", copy);
+        view->setProperty("assetRoot", copy);
+        QCOMPARE(view->property("siteRoot").toString(),
+                 copy + QStringLiteral("/static"));
+        QTRY_COMPARE(pictureFileOf(view, 0), copied);
+    }
+
     // A host that does its own scrolling. This surface is as tall as the
     // document it draws, so its own list has nothing to scroll and the wheel
     // turned over it belongs to whatever the host put it inside.
@@ -634,6 +699,14 @@ private:
         QMetaObject::invokeMethod(view, "forceLayout");
         QCoreApplication::processEvents();
         return view;
+    }
+
+    // The file an image row resolved its path to, or "" when it found none.
+    QString pictureFileOf(QQuickItem *view, int index)
+    {
+        QQuickItem *row = rowOf(view, index);
+        return row ? QUrl(row->property("resolvedSource").toString()).toLocalFile()
+                   : QString();
     }
 
     // A picture in the vault, answered as the absolute path an expression

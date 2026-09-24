@@ -75,6 +75,10 @@ Item {
     property AssetStore assetSink: null
     property NoteCollection linkResolver: null
 
+    // Whether a picture with the keyboard shows the panel that edits its
+    // path and alt text (BlockEditorSurface.showImageEditPanel).
+    property bool showImageEditPanel: true
+
     // ---- What the host reads --------------------------------------------
 
     // The editor itself, for a host that wants one of the switched-off pieces
@@ -218,6 +222,7 @@ Item {
         siteRoot: root.siteRoot
         assetSink: root.assetSink
         linkResolver: root.linkResolver
+        showImageEditPanel: root.showImageEditPanel
 
         showGutter: false
         showFindBar: false

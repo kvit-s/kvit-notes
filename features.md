@@ -118,7 +118,8 @@ go stale at different rates:
 - While the block has focus, a panel under it edits the path (with a Browse…
   button) and the alt text. Enter or leaving a field writes it as one undo
   step, and Escape puts back what the block holds. A broken picture opens the
-  same panel, which is how its path gets repaired
+  same panel, which is how its path gets repaired. An application embedding
+  the editor as a message box turns the panel off with `showImageEditPanel`
 - A path starting with `/` names a file at a website's root, as Hugo writes
   `/images/a.png` for `static/images/a.png`. It is looked up in the vault's
   site folder: `static` in a folder with `hugo.toml` (or `config.toml` beside

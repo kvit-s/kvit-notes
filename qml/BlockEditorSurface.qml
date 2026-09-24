@@ -187,6 +187,14 @@ Item {
     property bool offersImageSettings: false
     signal imageSettingsRequested()
 
+    // Whether a picture with the keyboard shows the panel under it that edits
+    // its path and alt text (ImageBlock). A message box turns it off: the
+    // path of a pasted picture is a file the box named itself, and the Enter
+    // that saves one of the panel's fields travels on to a host that sends
+    // on Enter. Off, a click on a picture also leaves the keyboard where it
+    // was, since opening the panel is the only reason the click moves it.
+    property bool showImageEditPanel: true
+
     // What turns pasted or dropped bytes into a file on disk. Null refuses
     // the paste, which is the right answer for a host that has nowhere to put
     // it. Typed, because qmllint checks every member read off it and this

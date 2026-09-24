@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <QtTest>
 
+#include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQuickItem>
@@ -434,6 +435,85 @@ private slots:
         QCOMPARE(submitted.count(), 2);
     }
 
+    // A picture with the keyboard shows the panel under it that edits its
+    // path and alt text, and a click on a picture puts the keyboard there
+    // first, so the panel is open when the lightbox closes. A host turns both
+    // off with showImageEditPanel: a message box has no use for the path of
+    // a picture it named itself, and the Enter that saves a field would reach
+    // a host that sends on Enter. Off, the click leaves the keyboard in the
+    // row the reader was typing in.
+    void aHostCanTurnThePicturePanelOff()
+    {
+        QQuickItem *box = makeBox();
+        QVERIFY(box);
+        // Above the shell's own items, which the click below must not land on.
+        box->setZ(1000);
+        const QString file = m_dir.filePath(QStringLiteral("shot.png"));
+        QImage shot(40, 30, QImage::Format_RGB32);
+        shot.fill(Qt::darkCyan);
+        QVERIFY(shot.save(file));
+        setBoxMarkdown(box, QStringLiteral("![](") + file
+                                + QStringLiteral(")\n\nunder it"));
+        QCOMPARE(boxBlocks(box)->count(), 2);
+        QQuickItem *pictureRow = rowOf(box, 0);
+        QVERIFY(pictureRow);
+        QQuickItem *panel =
+            pictureRow->findChild<QQuickItem *>(QStringLiteral("imageEditPanel"));
+        QVERIFY(panel);
+        QQuickItem *picture =
+            pictureRow->findChild<QQuickItem *>(QStringLiteral("imagePicture"));
+        QVERIFY(picture);
+        QTRY_COMPARE(picture->property("status").toInt(), 1 /* Image.Ready */);
+
+        // The keyboard on the picture opens the panel, which is the default.
+        QQuickWindow *window = shellWindow();
+        window->requestActivate();
+        QMetaObject::invokeMethod(surfaceOf(box), "focusBlockAtIndex",
+                                  Q_ARG(QVariant, QVariant(0)),
+                                  Q_ARG(QVariant, QVariant(true)),
+                                  Q_ARG(QVariant, QVariant(QString())));
+        QTRY_VERIFY(focusIsInside(pictureRow));
+        QTRY_VERIFY(panel->isVisible());
+        box->setProperty("showImageEditPanel", false);
+        QTRY_VERIFY(!panel->isVisible());
+
+        // Where the keyboard is once the lightbox a click opened has closed
+        // again: back on the picture with the panel, in the paragraph without.
+        auto clickPictureFromTheParagraph = [&]() -> QQuickItem * {
+            typeIntoBox(box, QString());
+            QQuickItem *paragraphRow = rowOf(box, 1);
+            if (!paragraphRow || !focusIsInside(paragraphRow))
+                return nullptr;
+            const QPointF centre = picture->mapToScene(
+                QPointF(picture->width() / 2, picture->height() / 2));
+            QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                              centre.toPoint());
+            QObject *lightbox =
+                window->findChild<QObject *>(QStringLiteral("lightbox"));
+            if (!lightbox || !QTest::qWaitFor([lightbox] {
+                    return lightbox->property("opened").toBool(); }))
+                return nullptr;
+            QMetaObject::invokeMethod(lightbox, "close");
+            QTest::qWaitFor([lightbox] {
+                return !lightbox->property("visible").toBool(); });
+            QCoreApplication::processEvents();
+            return window->activeFocusItem();
+        };
+
+        QQuickItem *held = clickPictureFromTheParagraph();
+        QVERIFY2(held, "the click did not open the lightbox from the paragraph");
+        QVERIFY2(isInside(held, rowOf(box, 1)),
+                 "with the panel off, the click moved the keyboard");
+        QVERIFY(!panel->isVisible());
+
+        box->setProperty("showImageEditPanel", true);
+        held = clickPictureFromTheParagraph();
+        QVERIFY2(held, "the click did not open the lightbox from the paragraph");
+        QVERIFY2(isInside(held, pictureRow),
+                 "with the panel on, the click left the keyboard in the paragraph");
+        QTRY_VERIFY(panel->isVisible());
+    }
+
     // The box is as tall as what has been typed into it, and stops.
     void theBoxGrowsWithItsContentAndStopsAtItsCap()
     {
@@ -683,9 +763,13 @@ private:
     bool focusIsInside(QQuickItem *box)
     {
         QQuickWindow *window = shellWindow();
-        QQuickItem *item = window ? window->activeFocusItem() : nullptr;
+        return isInside(window ? window->activeFocusItem() : nullptr, box);
+    }
+
+    static bool isInside(QQuickItem *item, QQuickItem *ancestor)
+    {
         while (item) {
-            if (item == box)
+            if (item == ancestor)
                 return true;
             item = item->parentItem();
         }

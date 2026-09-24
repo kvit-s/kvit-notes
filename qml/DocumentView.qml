@@ -76,6 +76,25 @@ Item {
         return cut >= 0 ? path.substring(0, cut) : ""
     }
 
+    // The vault a picture path is also looked up in when it is not beside
+    // the document: a note in a subfolder names `assets/a.png` from the
+    // vault's root (BlockEditorSurface.assetRoot). The open collection's root
+    // by default, which is where a stored version of one of its notes has its
+    // pictures. A host drawing a file from a copy of the vault kept in
+    // another folder names that folder, so the pictures drawn are the copy's.
+    property string assetRoot: NoteCollection.isOpen ? NoteCollection.rootPath : ""
+
+    // The folder a path starting with "/" is looked up in, as a website names
+    // a file at its root (BlockEditorSurface.siteRoot). The vault's own site
+    // folder, from its settings, taken inside assetRoot, so a host that names
+    // a copy of the vault gets the copy's site folder with it.
+    property string siteRoot: {
+        if (surface.assetRoot === "")
+            return ""
+        var folder = NoteCollection.isOpen ? NoteCollection.vaultSettings.siteFolder : ""
+        return folder === "" ? surface.assetRoot : surface.assetRoot + "/" + folder
+    }
+
     // What a `[[wiki link]]` in the drawn document resolves against. The open
     // collection by default, which is what makes a link in a stored version of
     // a note style as resolved.
@@ -181,6 +200,8 @@ Item {
         decorations: docDecorations
 
         documentDirectory: surface.baseDir
+        assetRoot: surface.assetRoot
+        siteRoot: surface.siteRoot
         linkResolver: surface.linkResolver
 
         readOnly: true

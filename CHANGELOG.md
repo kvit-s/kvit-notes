@@ -63,6 +63,19 @@ published; until then it is marked unreleased.
   checkbox and the pickers on callouts, fences, pictures and diagrams are each
   gone rather than inert.
 
+- `BlockEditorSurface.showImageEditPanel`, forwarded by `CompactEditor`, turns
+  off the panel that edits a focused picture's path and alt text. A message
+  box wants it off: the path of a pasted picture is a file the box named
+  itself, and the Enter that saves one of the panel's fields also reaches a
+  host that sends on Enter. With it off, a click on a picture opens the
+  lightbox without moving the keyboard onto the picture.
+
+- `DocumentView` takes the folder a picture path is looked up in from the
+  vault's root (`assetRoot`) and the folder a path starting with `/` is looked
+  up in (`siteRoot`). Both default to the open vault's, the second inside the
+  first, so a host drawing a file from a copy of the vault kept in another
+  folder names the copy once and gets the copy's pictures.
+
 ### Changed
 
 - The middle of the editor window — the note being edited, and the read-only
@@ -133,6 +146,12 @@ published; until then it is marked unreleased.
   that list against `qml/` as it did before.
 
 ### Fixed
+
+- A document drawn read-only (`DocumentView`, as in the backup dialog's preview
+  of a stored version) finds a picture its note names from the vault's root,
+  `assets/a.png` in a note inside a subfolder, and one named from a website's
+  root, `/images/a.png`. It was told only the note's own folder, so both drew
+  the broken-picture placeholder while the note itself showed them.
 
 - A picture in a note is drawn at its own width again, and is decoded once
   rather than several times over. An image block whose markdown carries no
