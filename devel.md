@@ -187,8 +187,10 @@ installs its own block list as the view those entries answer geometry from.
 **The same editor, drawing a document that cannot be changed.**
 `BlockEditorSurface.readOnly` turns every delegate's write path off, and
 `qml/DocumentView.qml` is the surface built from it: a document the component
-owns, drawn by the editor, sized to its content so it can sit inside a
-scrolling area it does not own. It replaces a second renderer that switched on
+owns, drawn by the editor, either sized to its content so it can sit inside a
+scrolling area it does not own, or, with `growsWithDocument` false, scrolling
+the document itself so that only the rows on screen are built, which is what a
+long document needs. It replaces a second renderer that switched on
 the block type and drew a table as its pipe characters and a Mermaid diagram,
 a task board, a query and a table of contents each as the source inside their
 fence, because all four are stored as a `Block::CodeBlock` with a language.

@@ -9,6 +9,8 @@
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
+#include <QQmlContext>
+#include <QQmlExpression>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -574,6 +576,151 @@ private slots:
                  "to scroll, which takes the wheel away from the host");
     }
 
+    // ---- a long document ----
+    //
+    // A surface that grows with its document builds every row, since every
+    // row is inside the list's own height, and a long file opened that way
+    // took seconds and made every frame pay for all of it. A surface that
+    // scrolls builds the rows on screen and recycles the rest, as the note's
+    // editor does, and draws the editor's scroll bar, since the reader has no
+    // other way to see how far through the document they are.
+    void aSurfaceThatScrollsBuildsOnlyTheRowsOnScreen()
+    {
+        QStringList paragraphs;
+        for (int i = 0; i < 1500; ++i)
+            paragraphs << QStringLiteral("Paragraph %1 of a long document, "
+                                         "with enough words to wrap once.")
+                              .arg(i);
+        QQuickItem *view = makeScrollingView(
+            paragraphs.join(QStringLiteral("\n\n")), 400);
+        QVERIFY(view);
+        QCOMPARE(view->property("blockCount").toInt(), 1500);
+
+        const int atTop = builtRows(view);
+        QVERIFY2(atTop > 0 && atTop < 100,
+                 qPrintable(QStringLiteral("a 400 px surface built %1 of 1500 "
+                                           "rows").arg(atTop)));
+
+        QObject *handler = view->findChild<QObject *>(
+            QStringLiteral("editorWheelHandler"));
+        QVERIFY(handler);
+        QVERIFY2(handler->property("enabled").toBool(),
+                 "a surface that scrolls its document should take the wheel");
+        auto *bar = view->findChild<QQuickItem *>(
+            QStringLiteral("editorScrollBar"));
+        QVERIFY(bar);
+        QVERIFY2(bar->isVisible(), "a surface that scrolls drew no scroll bar");
+        // Its height is the host's to give. The list's content height is an
+        // estimate for every row it has not built, so a layout that took it
+        // as the surface's preferred size would be sizing to a guess.
+        QCOMPARE(view->implicitHeight(), 0.0);
+
+        QObject *editor = view->property("editor").value<QObject *>();
+        QVERIFY(editor);
+        QMetaObject::invokeMethod(editor, "setEditorContentY",
+                                  Q_ARG(QVariant, QVariant(1.0e9)));
+        QTRY_VERIFY(rowOf(view, 1499));
+        const int atEnd = builtRows(view);
+        QVERIFY2(atEnd < 100,
+                 qPrintable(QStringLiteral("scrolled to the end, the surface "
+                                           "held %1 rows").arg(atEnd)));
+        QVERIFY2(!rowOf(view, 0), "the first row was not recycled");
+    }
+
+    // ---- the pointer over a read-only row ----
+    //
+    // The hover tint marks the block the strip and the block menu would act
+    // on. A read-only row has neither, and a document scrolled under a
+    // resting pointer lit each block in turn.
+    void aReadOnlyRowDrawsNoHoverTint()
+    {
+        QQuickItem *view = makeView(sampleMarkdown());
+        QVERIFY(view);
+        QQuickWindow *window = shellWindow();
+        QVERIFY(window);
+        for (int index = 0; index < kBlockCount; ++index) {
+            QQuickItem *row = rowOf(view, index);
+            QVERIFY(row);
+            const QPointF middle = row->mapToScene(
+                QPointF(row->width() / 2, qMin(row->height() / 2, 12.0)));
+            QTest::mouseMove(window, middle.toPoint());
+            QCoreApplication::processEvents();
+            const QString tinted = hoverTintedItem(row);
+            QVERIFY2(tinted.isEmpty(),
+                     qPrintable(QStringLiteral("row %1 (%2) drew the hover tint "
+                                               "on %3")
+                                    .arg(index).arg(delegateOf(view, index),
+                                                    tinted)));
+        }
+        QTest::mouseMove(window, QPoint(1, 1));
+    }
+
+    // ---- the first drag over a plain paragraph ----
+    //
+    // A paragraph with no markup is drawn as plain text until something needs
+    // the editing engine, and a press is what does: the row becomes an editor
+    // under the pointer. The text area that selects was not there when the
+    // press arrived, so the drag that followed selected nothing, and only a
+    // second drag in the same paragraph did. A reader of a drawn document
+    // sweeps text more than anything else, and each paragraph failed once.
+    void theFirstDragOverAPlainParagraphSelects()
+    {
+        QQuickItem *view = makeView(QStringLiteral(
+            "Plain words in a paragraph with nothing marked up in it.\n\n"
+            "A second paragraph under it."));
+        QVERIFY(view);
+        QQuickItem *row = rowOf(view, 0);
+        QVERIFY(row);
+        QVERIFY2(!row->property("editorLoaderActive").toBool(),
+                 "the paragraph should start as plain text");
+
+        const QPoint from = textPoint(row, 4);
+        const QPoint to = textPoint(row, 160);
+        sweep(from, to);
+
+        QObject *editable = row->property("editable").value<QObject *>();
+        QVERIFY(editable);
+        QObject *area = editable->property("textArea").value<QObject *>();
+        QVERIFY(area);
+        const QString selected = area->property("selectedText").toString();
+        QVERIFY2(selected.length() >= 5,
+                 qPrintable(QStringLiteral("the first drag selected \"%1\"")
+                                .arg(selected)));
+        QVERIFY(QStringLiteral("Plain words in a paragraph with nothing marked "
+                               "up in it.").contains(selected));
+    }
+
+    // The same drag carried on into the paragraph below becomes the
+    // document's own range, which is what a host reads and Ctrl+C copies.
+    void theFirstDragFromAPlainParagraphReachesTheNext()
+    {
+        QQuickItem *view = makeView(QStringLiteral(
+            "Plain words in a paragraph with nothing marked up in it.\n\n"
+            "A second paragraph under it."));
+        QVERIFY(view);
+        QQuickItem *first = rowOf(view, 0);
+        QQuickItem *second = rowOf(view, 1);
+        QVERIFY(first);
+        QVERIFY(second);
+        QVERIFY(!first->property("editorLoaderActive").toBool());
+
+        sweep(textPoint(first, 60), textPoint(second, 40));
+
+        QVERIFY2(view->property("hasSelection").toBool(),
+                 "a drag from one paragraph into the next made no range");
+        QVERIFY(QMetaObject::invokeMethod(view, "selectedRange",
+                                          Q_RETURN_ARG(QVariant, m_ret)));
+        const QVariantMap range = m_ret.toMap();
+        QCOMPARE(range.value(QStringLiteral("startIndex")).toInt(), 0);
+        QCOMPARE(range.value(QStringLiteral("endIndex")).toInt(), 1);
+        // Where the press was, as the editor hit-tests it. Plain text can
+        // only say which half of the row a point is in, which would put the
+        // start at 0 here, sixty pixels into the line.
+        const int start = range.value(QStringLiteral("startPos")).toInt();
+        QVERIFY2(start > 3 && start < 20,
+                 qPrintable(QStringLiteral("the range started at %1").arg(start)));
+    }
+
 private:
     DocumentSelection *noteSelection()
     {
@@ -699,6 +846,112 @@ private:
         QMetaObject::invokeMethod(view, "forceLayout");
         QCoreApplication::processEvents();
         return view;
+    }
+
+    // A surface that scrolls its own document inside `height` pixels. Only
+    // the first row is waited for, since the rest are built as they come on
+    // screen.
+    QQuickItem *makeScrollingView(const QString &markdown, qreal height)
+    {
+        QObject *window = m_engine.rootObjects().value(0);
+        auto *content = window ? window->property("contentItem")
+                                     .value<QQuickItem *>() : nullptr;
+        if (!content)
+            return nullptr;
+        QQmlComponent component(
+            &m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Kvit/DocumentView.qml")));
+        auto *view = qobject_cast<QQuickItem *>(component.create());
+        if (!view)
+            return nullptr;
+        m_surfaces.push_back(std::unique_ptr<QQuickItem>(view));
+        view->setParentItem(content);
+        view->setProperty("growsWithDocument", false);
+        view->setWidth(600);
+        view->setHeight(height);
+        view->setProperty("markdown", markdown);
+        for (int attempt = 0; attempt < 200; ++attempt) {
+            QCoreApplication::processEvents();
+            if (view->property("blockCount").toInt() > 0 && rowOf(view, 0))
+                break;
+            QTest::qWait(5);
+        }
+        QMetaObject::invokeMethod(view, "forceLayout");
+        QCoreApplication::processEvents();
+        return view;
+    }
+
+    // How many rows the surface's list holds right now, the recycled ones in
+    // its pool left out.
+    int builtRows(QQuickItem *view)
+    {
+        QObject *editor = view->property("editor").value<QObject *>();
+        auto *list = editor ? editor->property("listView").value<QQuickItem *>()
+                            : nullptr;
+        auto *content = list ? list->property("contentItem").value<QQuickItem *>()
+                             : nullptr;
+        if (!content)
+            return -1;
+        int built = 0;
+        for (QQuickItem *child : content->childItems()) {
+            if (child->isVisible() && child->property("index").isValid()
+                && child->opacity() > 0)
+                ++built;
+        }
+        return built;
+    }
+
+    // The first visible item inside `row` filled with the hover tint, by
+    // class name, or "" when there is none.
+    QString hoverTintedItem(QQuickItem *row)
+    {
+        QQmlExpression expression(qmlContext(row), row,
+                                  QStringLiteral("Theme.blockHoverTint"));
+        const QColor tint = expression.evaluate().value<QColor>();
+        if (!tint.isValid())
+            return QStringLiteral("<no tint colour>");
+        std::function<QString(QQuickItem *)> walk = [&](QQuickItem *item) {
+            if (!item->isVisible() || item->opacity() <= 0)
+                return QString();
+            const QVariant colour = item->property("color");
+            if (colour.isValid() && colour.value<QColor>() == tint
+                && item->width() > 0 && item->height() > 0)
+                return QString::fromLatin1(item->metaObject()->className());
+            for (QQuickItem *child : item->childItems()) {
+                const QString found = walk(child);
+                if (!found.isEmpty())
+                    return found;
+            }
+            return QString();
+        };
+        return walk(row);
+    }
+
+    // A scene point `dx` pixels into the first line of a text row's text.
+    QPoint textPoint(QQuickItem *row, qreal dx)
+    {
+        auto *text = row->findChild<QQuickItem *>(QStringLiteral("readOnlyText"));
+        const QPointF local = text
+            ? row->mapFromItem(text, QPointF(dx, 6)) : QPointF(dx + 16, 16);
+        return row->mapToScene(local).toPoint();
+    }
+
+    // Press at `from`, move to `to` a few pixels at a time with a frame's
+    // pause between, and release there: a drag a person makes, rather than
+    // one jump the list would take for a click at the far end.
+    void sweep(const QPoint &from, const QPoint &to)
+    {
+        QQuickWindow *window = shellWindow();
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, from);
+        QTest::qWait(20);
+        const int steps = 12;
+        for (int i = 1; i <= steps; ++i) {
+            const QPoint at = from + (to - from) * i / steps;
+            QTest::mouseMove(window, at);
+            QTest::qWait(10);
+        }
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, to);
+        QTest::qWait(20);
+        QCoreApplication::processEvents();
     }
 
     // The file an image row resolved its path to, or "" when it found none.

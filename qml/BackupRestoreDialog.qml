@@ -156,30 +156,17 @@ KvitDialog {
             radius: 4
             clip: true
 
-            Flickable {
-                id: previewScroll
+            // Behind a Loader: a dialog's content item is built with the shell
+            // whether the dialog is ever opened or not, and a surface holds a
+            // document model, a selection and an editing engine per block.
+            // Nothing exists until somebody asks to restore something.
+            Loader {
+                id: previewLoader
                 anchors.fill: parent
                 anchors.margins: Interface.px(8)
-                contentWidth: width
-                contentHeight: previewLoader.height
-                boundsBehavior: Flickable.StopAtBounds
-                clip: true
-
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-                // Behind a Loader: a dialog's content item is built with the
-                // shell whether the dialog is ever opened or not, and a
-                // surface holds a document model, a selection and an editing
-                // engine per block. Nothing exists until somebody asks to
-                // restore something.
-                Loader {
-                    id: previewLoader
-                    width: previewScroll.width
-                    height: item ? (item as Item).implicitHeight : 0
-                    active: backupDialog.visible
-                            && backupDialog.backups.length > 0
-                    sourceComponent: previewComponent
-                }
+                active: backupDialog.visible
+                        && backupDialog.backups.length > 0
+                sourceComponent: previewComponent
             }
 
             Label {
@@ -195,6 +182,11 @@ KvitDialog {
                 DocumentView {
                     id: preview
                     objectName: "backupPreviewDocument"
+                    // The pane scrolls the version rather than holding all of
+                    // it, so a stored copy of a long note builds the rows the
+                    // pane shows, and each click on another backup re-parses
+                    // it without laying out every block.
+                    growsWithDocument: false
                     // A stored version is read at a glance rather than at
                     // reading length, so the blank rhythm between its blocks
                     // is tighter than the editor's.

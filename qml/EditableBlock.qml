@@ -957,6 +957,20 @@ BlockDelegateBase {
         })
     }
 
+    // Select the text between two scene points, the first being where the
+    // selection is anchored. For a drag the text area did not start: a
+    // paragraph drawn as plain text becomes this editor on the press, so the
+    // press went to the plain text's handler and the area's own selection
+    // does not follow the pointer (TextBlockDelegate, `shellPress`). The
+    // points are hit-tested as the area's own drag would hit-test them, so a
+    // point past the text's end selects to the nearest character.
+    function selectBetweenScenePoints(anchorSceneX, anchorSceneY, sceneX, sceneY) {
+        var anchor = textArea.mapFromItem(null, anchorSceneX, anchorSceneY)
+        var head = textArea.mapFromItem(null, sceneX, sceneY)
+        textArea.select(textArea.positionAt(anchor.x, anchor.y),
+                        textArea.positionAt(head.x, head.y))
+    }
+
     // Type text in at the caret (BlockDelegateBase's typeText). Through the
     // document rather than through BlockModel, because the engine reports a
     // document edit as a user edit and a model write as a reload: only the
@@ -1447,8 +1461,9 @@ BlockDelegateBase {
             id: hoverBackground
             anchors.fill: parent
             anchors.leftMargin: delegate.gutterInset
-            color: delegate.isHovered && !delegate.isFocused
-                   && !delegate.blockSelected ? Theme.blockHoverTint : "transparent"
+            color: delegate.isHovered && !delegate.readOnly
+                   && !delegate.isFocused && !delegate.blockSelected
+                   ? Theme.blockHoverTint : "transparent"
             radius: 4
 
             Behavior on color {
@@ -1607,8 +1622,8 @@ BlockDelegateBase {
                     // are drawn under; the drop cap only renders unfocused.
                     maskColor: delegate.blockSelected
                         ? Theme.blockSelectionTint
-                        : (delegate.isHovered ? Theme.blockHoverTint
-                                              : Theme.windowBackground)
+                        : (delegate.isHovered && !delegate.readOnly
+                           ? Theme.blockHoverTint : Theme.windowBackground)
                     textOriginX: textArea.x + textArea.leftPadding
                     textOriginY: textArea.y + textArea.topPadding
                     letterColor: delegate.dropCapColor

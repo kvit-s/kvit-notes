@@ -11028,6 +11028,49 @@ Item {
             DocumentSelection.clear()
         }
 
+        // The first drag over a paragraph the reader has not been in selects.
+        // A paragraph of plain prose is drawn as plain text until a press
+        // makes it an editor, and the text area that selects was not there
+        // for that press, so the drag selected nothing and only a second one
+        // in the same paragraph did.
+        function test_zo6_firstDragOverAPlainParagraphSelects() {
+            if (isHeadless) {
+                skip("Mouse tests require display")
+            }
+            docWithBlocks(["first",
+                           "Plain words in a paragraph with nothing marked up in it.",
+                           "third"])
+            var row = findBlockDelegate(1)
+            verify(row !== null)
+            compare(row.editorLoaderActive, false,
+                    "The paragraph starts as plain text")
+            var text = findChild(row, "readOnlyText")
+            verify(text !== null)
+
+            var listView = findChild(appLoader.item, "blockListView")
+            var from = text.mapToItem(null, 4, 6)
+            mousePress(text, 4, 6)
+            wait(30)
+            for (var s = 1; s <= 10; s++) {
+                var p = listView.mapFromItem(null, from.x + 16 * s, from.y)
+                mouseMove(listView, p.x, p.y)
+                wait(20)
+            }
+            var end = listView.mapFromItem(null, from.x + 160, from.y)
+            mouseRelease(listView, end.x, end.y)
+            wait(50)
+
+            var area = findTextArea(row)
+            verify(area !== null, "The press made the paragraph an editor")
+            verify(area.selectedText.length >= 5,
+                   "The first drag selected '" + area.selectedText + "'")
+            compare(area.selectionStart, 0, "…anchored where the press was")
+            compare(DocumentSelection.hasTextSelection, false,
+                    "A drag inside one block stays that block's own selection")
+            verify(listView.interactive,
+                   "The list takes its own drags back on release")
+        }
+
         function test_zp_collectionContextMenus() {
             if (isHeadless) {
                 skip("Focus tests require display")

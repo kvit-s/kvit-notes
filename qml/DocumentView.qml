@@ -31,11 +31,17 @@ import Kvit 1.0
 // works, while every key and every gesture that would write is refused where
 // it is raised.
 //
-// Sizing. Height follows the document, so a surface can sit inside a
-// scrolling area it does not own; width comes from the container, since a
-// rendered document is as wide as it is given and wraps into it. The block
-// list builds every row at that height, which is what a document sized to its
-// content means and what the `Column` this replaces did.
+// Sizing. Width comes from the container, since a rendered document is as
+// wide as it is given and wraps into it. Height is one of two things, chosen
+// by `growsWithDocument`. By default it follows the document, so a surface
+// can sit inside a scrolling area it does not own; the block list then builds
+// every row, since every row is inside the list's own height. Set to false,
+// the surface is as tall as its host makes it and scrolls the document
+// itself, the way the note's editor does: only the rows on screen are built,
+// and a row scrolled away is recycled. A long document wants the second:
+// over 1,237 blocks of this repository's own documentation, a surface growing
+// with it took 3.8 s to open and 16.5 ms per wheel step, and one scrolling it
+// took 0.18 s and 1.7 ms.
 //
 // Marking. A caller that knows something about part of what it asked to be
 // drawn — which characters differ from the note as it stands, which phrase a
@@ -54,6 +60,15 @@ Item {
     // The blank-line rhythm between blocks. The editor's own by default; a
     // pane that wants a denser preview turns it down.
     property int blockSpacing: Typography.paragraphSpacing
+
+    // Whether the surface is as tall as its whole document (true, the
+    // default) or as tall as its host makes it, scrolling the document itself
+    // (false). See "Sizing" above. The first is for a surface inside a pane
+    // that scrolls it along with other things, such as a short passage among
+    // other content; it builds every row, which is slow for a long document.
+    // The second is for a surface that is the whole of a pane, and builds
+    // only what is on screen.
+    property bool growsWithDocument: true
 
     // The space between the surface's edge and the text. Smaller than the
     // editor's reading margin, which is the twenty pixels a page of prose
@@ -165,18 +180,22 @@ Item {
 
     // The item drawing one block, for a caller that needs the row itself
     // rather than the space it occupies. Null for a block the list has not
-    // built, which at this surface's sizing means only an index it does not
-    // hold.
+    // built: while the surface grows with its document that means only an
+    // index it does not hold, and while it scrolls it also means a block
+    // outside the rows on screen.
     function blockItem(index) {
         return blockEditor.listView.itemAtIndex(index)
     }
 
     // ---- The surface -----------------------------------------------------
 
-    // Height follows the document; width comes from the container. An implicit
-    // width taken from the rows would be circular: each row is as wide as the
-    // list, and the list is as wide as this.
-    implicitHeight: blockEditor.listView.contentHeight + 2 * surface.contentMargin
+    // Height follows the document unless the surface scrolls; width comes
+    // from the container. An implicit width taken from the rows would be
+    // circular: each row is as wide as the list, and the list is as wide as
+    // this. A surface that scrolls reports no height of its own, since the
+    // list's is an estimate for every row it has not built.
+    implicitHeight: surface.growsWithDocument
+        ? blockEditor.listView.contentHeight + 2 * surface.contentMargin : 0
 
     onMarkdownChanged: surface.reload()
     Component.onCompleted: surface.reload()
@@ -208,14 +227,16 @@ Item {
         showGutter: false
         showFindBar: false
         showFormattingBar: false
-        showScrollBar: false
+        // Nothing to scroll while the surface grows with its document.
+        showScrollBar: !surface.growsWithDocument
         typewriterMode: false
 
         contentMargin: surface.contentMargin
         contentTopMargin: surface.contentMargin
-        // Nothing to scroll past the end: the surface is as tall as its
-        // document, so there is no viewport for the last block to be pulled up
-        // into.
+        // Nothing to scroll past the end. A surface that grows with its
+        // document has no viewport for the last block to be pulled up into,
+        // and one that scrolls is read rather than written in, so its last
+        // line has no reason to leave the bottom edge.
         trailingScrollSpace: 0
         blockSpacing: surface.blockSpacing
     }

@@ -76,6 +76,17 @@ published; until then it is marked unreleased.
   first, so a host drawing a file from a copy of the vault kept in another
   folder names the copy once and gets the copy's pictures.
 
+- `DocumentView.growsWithDocument`, true by default, says whether a drawn
+  document is as tall as all of its blocks or as tall as its host makes it.
+  Set to false, the surface scrolls the document itself with the note
+  editor's own list, scroll bar and wheel handling, so it builds only the
+  rows on screen and recycles a row scrolled away. Growing with the document
+  builds every row, which is what a surface inside a pane that scrolls other
+  things with it needs and what makes a long document slow: over 1,237
+  blocks of this repository's own documentation, opening took 3.8 s and a
+  wheel step 16.5 ms, against 0.18 s and 1.7 ms scrolling. The backup
+  dialog's preview now scrolls the stored version this way.
+
 ### Changed
 
 - The middle of the editor window — the note being edited, and the read-only
@@ -146,6 +157,25 @@ published; until then it is marked unreleased.
   that list against `qml/` as it did before.
 
 ### Fixed
+
+- The first drag over a paragraph of plain prose selects text. Such a
+  paragraph is drawn as plain text until something needs the editing engine,
+  and a press is what does, so the row became an editor under the pointer
+  while the press that did it went to the plain text: the text area that
+  selects never saw it, and the drag selected nothing until it was tried a
+  second time. The row now keeps the press, selects between the two points
+  in the editor that replaced it, and reports the drag to the cross-block
+  coordinator, so a drag carried on into the next block becomes a range
+  anchored where the press was. It is the same in the note and in a document
+  drawn read-only, where selecting is most of what a reader does.
+
+- A document drawn read-only no longer lights the block under the pointer.
+  Every block kind drew the hover tint that marks the block the gutter and
+  the block menu act on, which a read-only surface has neither of, so a
+  document scrolled under a resting pointer lit each block in turn. A plain
+  paragraph's row there no longer tracks the pointer at all, which also
+  takes a measurable share out of each frame: a wheel step over 2,415 blocks
+  of prose drawn at full height went from 4.6 ms to 1.8 ms.
 
 - A document drawn read-only (`DocumentView`, as in the backup dialog's preview
   of a stored version) finds a picture its note names from the vault's root,

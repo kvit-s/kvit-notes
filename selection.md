@@ -69,7 +69,7 @@ mechanism above, pointed at a document that is not the open note.
 
 | Block | Its text on screen | Selectable with the pointer |
 |---|---|---|
-| Paragraph, headings | `TextArea` once the row is promoted; a plain `Text` in the reading state (`TextBlockDelegate.qml`) | Yes once promoted. A press promotes and places the caret, so the first drag on an untouched row selects nothing |
+| Paragraph, headings | `TextArea` once the row is promoted; a plain `Text` in the reading state (`TextBlockDelegate.qml`) | Yes, and across blocks. A press promotes the row; the `TextArea` that replaces the `Text` never saw that press, so the row keeps it and selects between the press and the pointer itself, reporting the drag to the cross-block coordinator as the `TextArea`'s own observer would |
 | Lists, to-do, quote, callout | the shared `TextArea`, always | Yes, and across blocks. A callout's title is a separate `TextField` (`CalloutBlockChrome.qml`), selectable but outside the range |
 | Code block | the shared `TextArea`, no wrap, inside the code chrome | Yes, and across blocks |
 | Math block | `TextArea` for the TeX while focused (`MathBlock.qml`); a rendered image otherwise | The source while editing. The rendered equation never |
@@ -271,6 +271,11 @@ never writes:
   selection is a mode whose keys are commands — delete, duplicate, indent,
   paste — so a read-only surface never enters it, and what Ctrl+C then copies
   is the whole document as markdown.
+- **The pointer does not light a block.** The hover tint marks the block the
+  gutter and the block menu act on, and a read-only surface has neither, so no
+  delegate draws it there, and a plain paragraph's row does not track the
+  pointer at all. Drawn anyway, it lit each block in turn as the document
+  scrolled under a resting pointer.
 - **Every editing affordance is gone rather than inert.** No gutter strip and
   so no insert, delete, drag handle or block menu; no gap cursor, no drop area,
   no formatting bar, no find bar, no scrollbar and no typewriter mode. A
@@ -282,13 +287,33 @@ never writes:
 
 ### Sizing
 
-Height follows the document and width comes from the container, so a surface
-sits inside a scrolling area it does not own. A `ListView` whose height is its
-own `contentHeight` builds every row, which is what a content-sized surface
-means and what the `Column` this replaces did. `forceLayout()` is still there
-for the same reason it was: a list places a row it has just been given at its
-next polish, so a surface built and measured in the same turn would report
-every row at the top.
+Width comes from the container. Height is one of two things, chosen by
+`growsWithDocument`:
+
+- **True, the default: the surface is as tall as its document**, so it sits
+  inside a scrolling area it does not own. A `ListView` whose height is its
+  own `contentHeight` builds every row, since every row is inside it, so this
+  suits a short document, or one among other content that the host scrolls
+  together, and is slow for a long one.
+- **False: the surface is as tall as its host makes it and scrolls the
+  document itself**, with the note editor's own list, scroll bar and wheel
+  handling. Only the rows on screen are built, and a row scrolled away is
+  recycled, as in the note. The backup dialog's preview is drawn this way.
+  `blockItem()` answers null for a block that is not on screen, and a
+  decoration's rectangles are empty for one.
+
+The difference for a long document, measured offscreen over 1,237 blocks of
+this repository's own documentation, most of whose paragraphs carry inline
+code:
+
+| | Open | Rows built | Wheel step, median |
+|---|---|---|---|
+| Grows with the document | 3.8 s | 1,237 | 16.5 ms |
+| Scrolls it | 0.18 s | 10–24 | 1.7 ms |
+
+`forceLayout()` is still there for the same reason it was: a list places a row
+it has just been given at its next polish, so a surface built and measured in
+the same turn would report every row at the top.
 
 ### Marked ranges
 

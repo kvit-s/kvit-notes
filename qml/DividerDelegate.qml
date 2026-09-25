@@ -247,7 +247,8 @@ BlockDelegateBase {
         opacity: delegate.isDragSource ? 0.35 : 1
         color: delegate.blockSelected ? Theme.blockSelectionTint
              : delegate.isFocused ? Theme.focusTint
-             : (delegate.isHovered ? Theme.blockHoverTint : "transparent")
+             : (delegate.isHovered && !delegate.readOnly ? Theme.blockHoverTint
+                                                          : "transparent")
         // A visible keyboard-focus ring (§14.1) in addition to the tint.
         border.color: delegate.blockSelected ? Theme.accent
                     : delegate.isFocused ? Theme.focusRing : "transparent"

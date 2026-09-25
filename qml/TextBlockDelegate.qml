@@ -273,6 +273,10 @@ BlockDelegateBase {
     }
 
     function activateEditor() { promote("", []) }
+    // The editor's cross-block drag coordinator, as EditableBlock reaches it.
+    function dragCoordinator() {
+        return root.editor && root.editor.crossBlockDrag ? root.editor.crossBlockDrag : null
+    }
     function focusAtStart() { forward("focusAtStart", []) }
     function focusAtEnd() { forward("focusAtEnd", []) }
     function focusAtPosition(markdownPos) { forward("focusAtPosition", [markdownPos]) }
@@ -501,8 +505,12 @@ BlockDelegateBase {
         color: root.isFocused ? Theme.focusRing : "transparent"
     }
 
+    // Hover lights the row and brings up the strip, and both are for editing
+    // it, so a read-only row does not track the pointer at all. Rows of a
+    // drawn document pass under a resting pointer one after another while
+    // the reader scrolls, and each would otherwise light up in turn.
     HoverHandler {
-        enabled: !root.editorLoaderActive
+        enabled: !root.editorLoaderActive && !root.readOnly
         onHoveredChanged: root.shellHovered = hovered
     }
 
@@ -517,10 +525,22 @@ BlockDelegateBase {
     }
 
     MouseArea {
+        id: shellPress
         anchors.fill: parent
-        enabled: !root.editorLoaderActive
+        // Enabled for the rest of a press it took, although the editor takes
+        // the plain text's place as soon as the press asks for it: disabling
+        // an item takes its grab away, and the drag that press began is a
+        // selection the reader is making.
+        enabled: !root.editorLoaderActive || shellPress.pressed
         acceptedButtons: Qt.LeftButton
         propagateComposedEvents: true
+
+        // Where the press that is sweeping began, in scene coordinates, and
+        // whether the coordinator has been told where in the text that is.
+        property point pressScene: Qt.point(0, 0)
+        property bool sweeping: false
+        property bool anchorPlaced: false
+
         onPressed: function(mouse) {
             // Ctrl+click and Shift+click build a BLOCK selection, which is a
             // mode with commands in it. A read-only row answers the plain
@@ -571,6 +591,64 @@ BlockDelegateBase {
             var scenePoint = root.mapToItem(null, mouse.x, mouse.y)
             root.focusAtScenePosition(scenePoint.x, scenePoint.y)
             mouse.accepted = true
+
+            // The press may be the start of a sweep, and the text area that
+            // selects text does not exist yet, so it never sees this press
+            // and would not select anything for the drag that follows. This
+            // row keeps the press and does the selecting (onPositionChanged).
+            // The coordinator hears of it now, as it would from the area's
+            // own press observer, because that is what stops the list taking
+            // a downward drag for a flick.
+            shellPress.pressScene = scenePoint
+            shellPress.sweeping = true
+            shellPress.anchorPlaced = false
+            var drag = root.dragCoordinator()
+            if (drag)
+                drag.beginPress(root.index,
+                                root.markdownPositionAt(scenePoint.x, scenePoint.y),
+                                scenePoint.x, scenePoint.y)
+        }
+
+        onPositionChanged: function(mouse) {
+            if (!shellPress.sweeping)
+                return
+            var item = root.editableItem()
+            var drag = root.dragCoordinator()
+            // The press was reported with a guess, since plain text cannot
+            // say which character is under a point; the editor can, from the
+            // next turn of the event loop after the press. Until then there
+            // is no anchor to select from.
+            if (item && !shellPress.anchorPlaced) {
+                if (drag)
+                    drag.pressMd = item.markdownPositionAt(
+                        shellPress.pressScene.x, shellPress.pressScene.y)
+                shellPress.anchorPlaced = true
+            }
+            if (!shellPress.anchorPlaced)
+                return
+            var at = root.mapToItem(null, mouse.x, mouse.y)
+            // A click is rarely pixel-still between press and release, and
+            // it should place the caret rather than select a character.
+            var moved = Math.abs(at.x - shellPress.pressScene.x) >= 5
+                     || Math.abs(at.y - shellPress.pressScene.y) >= 5
+            if (item && moved)
+                item.selectBetweenScenePoints(shellPress.pressScene.x,
+                                              shellPress.pressScene.y,
+                                              at.x, at.y)
+            if (drag)
+                drag.update(at.x, at.y)
+        }
+
+        onReleased: shellPress.endSweep()
+        onCanceled: shellPress.endSweep()
+
+        function endSweep() {
+            if (!shellPress.sweeping)
+                return
+            shellPress.sweeping = false
+            var drag = root.dragCoordinator()
+            if (drag)
+                drag.endPress()
         }
     }
 

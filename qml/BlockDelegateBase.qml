@@ -88,6 +88,11 @@ Item {
     // Whether the editor drawing this row refuses every change to the
     // document (BlockEditorSurface.readOnly). A row built outside any editor
     // is editable, which is what it was before there was anything to ask.
+    //
+    // A read-only row draws no hover tint. The tint marks the block the
+    // strip's buttons and the block menu would act on, and nothing acts on a
+    // block of a document that cannot change; drawn anyway, it lit each block
+    // in turn as the document scrolled under a resting pointer.
     readonly property bool readOnly:
         blockDelegateBase.editor ? blockDelegateBase.editor.readOnly : false
 

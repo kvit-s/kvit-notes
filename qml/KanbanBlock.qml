@@ -833,7 +833,8 @@ BlockDelegateBase {
         radius: 4
         opacity: root.isDragSource ? 0.35 : 1
         color: root.blockSelected ? Theme.blockSelectionTint
-             : (root.isHovered ? Theme.blockHoverTint : "transparent")
+             : (root.isHovered && !root.readOnly ? Theme.blockHoverTint
+                                                  : "transparent")
         border.color: root.blockSelected ? Theme.accent : "transparent"
         border.width: root.blockSelected ? 1 : 0
     }
