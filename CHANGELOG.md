@@ -158,6 +158,18 @@ published; until then it is marked unreleased.
 
 ### Fixed
 
+- A paragraph's words no longer move when it becomes an editor. A paragraph
+  or heading is drawn as plain text until something needs the editing
+  engine, and the plain text started its words at a fixed distance from the
+  row's edge that did not match where the engine's text area puts them: four
+  pixels to the left of it in the note, and eight in a document drawn
+  read-only, with a text column wider by the same amount. So a press moved a
+  paragraph's words to the right and could re-wrap its lines, and in a drawn
+  document every paragraph with bold, a link or a mark on it, which is an
+  editor from the start, sat to the right of its plain neighbours. The plain
+  text now starts where the text area does, worked out from the same four
+  measurements.
+
 - The first drag over a paragraph of plain prose selects text. Such a
   paragraph is drawn as plain text until something needs the editing engine,
   and a press is what does, so the row became an editor under the pointer

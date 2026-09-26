@@ -655,6 +655,69 @@ private slots:
         QTest::mouseMove(window, QPoint(1, 1));
     }
 
+    // ---- where a paragraph's words sit ----
+    //
+    // A paragraph is drawn as plain text until something needs the editing
+    // engine, and by the engine's text area from then on. The two have to
+    // put the words in the same place, or the words move the moment a row
+    // becomes an editor: a press in the note, a comment or a search match in
+    // a drawn document. In a drawn document every paragraph with bold or a
+    // link in it, which is an editor from the start, sat to the right of its
+    // plain neighbours and wrapped a narrower column.
+    void aParagraphsWordsStayPutWhenItBecomesAnEditor()
+    {
+        // In the note, where the strip beside each row is drawn. Found before
+        // any surface is made, so the only block list is the note's.
+        auto *noteList = shellWindow()->findChild<QQuickItem *>(
+            QStringLiteral("blockListView"));
+        QVERIFY(noteList);
+        QQuickItem *noteRow = nullptr;
+        QTRY_VERIFY((noteRow = listRow(noteList, 1)));
+        QVERIFY2(!noteRow->property("editorLoaderActive").toBool(),
+                 "the note's paragraph should start as plain text");
+        const QRectF noteBefore = wordsOf(noteRow);
+        QMetaObject::invokeMethod(noteRow, "activateEditor");
+        QTRY_VERIFY(textAreaOf(noteRow) && textAreaOf(noteRow)->isVisible());
+        compareWords(noteBefore, wordsOf(noteRow), "the note's paragraph");
+        if (QTest::currentTestFailed())
+            return;
+        // A heading is drawn by the same two layers.
+        QQuickItem *headingRow = nullptr;
+        QTRY_VERIFY((headingRow = listRow(noteList, 0)));
+        QVERIFY2(!headingRow->property("editorLoaderActive").toBool(),
+                 "the note's heading should start as plain text");
+        const QRectF headingBefore = wordsOf(headingRow);
+        QMetaObject::invokeMethod(headingRow, "activateEditor");
+        QTRY_VERIFY(textAreaOf(headingRow) && textAreaOf(headingRow)->isVisible());
+        compareWords(headingBefore, wordsOf(headingRow), "the note's heading");
+        if (QTest::currentTestFailed())
+            return;
+
+        // In a drawn document, where there is no strip.
+        QQuickItem *view = makeView(QStringLiteral(
+            "Plain words in a paragraph with nothing marked up in it.\n\n"
+            "A paragraph with **bold** words in it."));
+        QVERIFY(view);
+        QQuickItem *plain = rowOf(view, 0);
+        QQuickItem *marked = rowOf(view, 1);
+        QVERIFY(plain && marked);
+        QVERIFY2(!plain->property("editorLoaderActive").toBool(),
+                 "the plain paragraph should start as plain text");
+        QTRY_VERIFY(textAreaOf(marked) && textAreaOf(marked)->isVisible());
+        const QRectF plainBefore = wordsOf(plain);
+        const QRectF markedWords = wordsOf(marked);
+        QVERIFY2(qAbs(plainBefore.left() - markedWords.left()) < 0.5
+                     && qAbs(plainBefore.width() - markedWords.width()) < 0.5,
+                 qPrintable(QStringLiteral("a plain paragraph's words start at "
+                                           "x %1 in a column %2 wide, and a "
+                                           "marked-up one's at x %3 in %4")
+                                .arg(plainBefore.left()).arg(plainBefore.width())
+                                .arg(markedWords.left()).arg(markedWords.width())));
+        QMetaObject::invokeMethod(plain, "activateEditor");
+        QTRY_VERIFY(textAreaOf(plain) && textAreaOf(plain)->isVisible());
+        compareWords(plainBefore, wordsOf(plain), "the drawn paragraph");
+    }
+
     // ---- the first drag over a plain paragraph ----
     //
     // A paragraph with no markup is drawn as plain text until something needs
@@ -924,6 +987,62 @@ private:
             return QString();
         };
         return walk(row);
+    }
+
+    // The row a list built at `index`, or null.
+    QQuickItem *listRow(QQuickItem *list, int index)
+    {
+        QQuickItem *row = nullptr;
+        QMetaObject::invokeMethod(list, "itemAtIndex",
+                                  Q_RETURN_ARG(QQuickItem *, row),
+                                  Q_ARG(int, index));
+        return row;
+    }
+
+    // The engine's text area in a text row, or null while it has none.
+    QQuickItem *textAreaOf(QQuickItem *row)
+    {
+        QObject *editable = row->property("editable").value<QObject *>();
+        return editable ? editable->property("textArea").value<QQuickItem *>()
+                        : nullptr;
+    }
+
+    // Where a text row's words are drawn, in scene coordinates: the column
+    // its lines wrap in, from the plain text while that is what shows and
+    // from inside the text area's padding once the engine draws them.
+    QRectF wordsOf(QQuickItem *row)
+    {
+        QQuickItem *area = textAreaOf(row);
+        if (area && area->isVisible()) {
+            const qreal left = area->property("leftPadding").toReal();
+            const qreal right = area->property("rightPadding").toReal();
+            const qreal top = area->property("topPadding").toReal();
+            return QRectF(area->mapToScene(QPointF(left, top)),
+                          QSizeF(area->width() - left - right, 1));
+        }
+        auto *text = row->findChild<QQuickItem *>(QStringLiteral("readOnlyText"));
+        if (!text || !text->isVisible())
+            return {};
+        return QRectF(text->mapToScene(QPointF()), QSizeF(text->width(), 1));
+    }
+
+    void compareWords(const QRectF &plain, const QRectF &editor,
+                      const char *what)
+    {
+        QVERIFY2(!plain.isNull() && !editor.isNull(),
+                 qPrintable(QStringLiteral("%1 has no words to measure")
+                                .arg(QLatin1String(what))));
+        QVERIFY2(qAbs(plain.left() - editor.left()) < 0.5
+                     && qAbs(plain.top() - editor.top()) < 0.5
+                     && qAbs(plain.width() - editor.width()) < 0.5,
+                 qPrintable(QStringLiteral("%1 drew its words at (%2, %3) in a "
+                                           "column %4 wide, and at (%5, %6) in "
+                                           "%7 once it became an editor")
+                                .arg(QLatin1String(what))
+                                .arg(plain.left()).arg(plain.top())
+                                .arg(plain.width())
+                                .arg(editor.left()).arg(editor.top())
+                                .arg(editor.width())));
     }
 
     // A scene point `dx` pixels into the first line of a text row's text.

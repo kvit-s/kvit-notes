@@ -448,6 +448,19 @@ BlockDelegateBase {
             editable.applyTextPortionLater()
     }
 
+    // Where the row's words begin, from its left edge. The engine's text area
+    // puts them after four things (EditableBlock): the strip beside the row
+    // (BlockGutter, forty pixels when this editor draws one), the focus bar
+    // at rest (three), the gap before the content column (eight), and the
+    // left padding the Fusion style gives a text area (six, plus four). The
+    // plain text below starts at the same place, so a row that becomes an
+    // editor does not move its words; tests/test_documentview.cpp measures
+    // the two. The right edge already matched: the content column's margin
+    // of eight and the text area's right padding of six.
+    readonly property real wordsLeft:
+        ((!root.editor || root.editor.showGutter) ? Interface.px(40) : 0)
+        + 3 + 8 + 10 + root.indentLevel * 24
+
     // ---- Default scroll path: one Text + press routing ----
     Text {
         id: readOnlyText
@@ -455,7 +468,7 @@ BlockDelegateBase {
         // Stay painted until the editor is actually latched so rebind flicker
         // does not blank the row or thrash text layout.
         visible: !root.editorLoaderActive
-        x: root.gutterInset + 13 + root.indentLevel * 24
+        x: root.wordsLeft
         y: 10
         width: Math.max(1, root.width - x - 14)
         text: root.editorLoaderActive ? "" : root.displayText
