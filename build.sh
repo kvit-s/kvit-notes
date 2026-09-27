@@ -5,7 +5,8 @@
 #   ./build.sh --test        also check formatting, run go vet and the headless tests
 #   ./build.sh --cross       also build kvit-notes for windows/amd64, darwin/arm64,
 #                            darwin/amd64 and linux/amd64 into build/<os>-<arch>/
-#   ./build.sh --win         build kvit-notes for Windows onto D: and start it there
+#   ./build.sh --win         build kvit-notes for Windows onto D: and start it there, on a
+#                            copy of the Qt repository's demo vault (not your own notes)
 #   ./build.sh --win-check   the same, driving the editor through a scripted check in
 #                            its window, reading what Windows' screen-reader interface
 #                            reports, saving a picture of the window and its memory
@@ -65,7 +66,11 @@ if [ $win = 1 ]; then
     mkdir -p "$dest"
     GOOS=windows GOARCH=amd64 go build -o "$dest/kvit-notes.exe" ./cmd/kvit-notes
     if [ $check = 0 ]; then
-        "$dest/kvit-notes.exe" &
+        # A copy of the Qt app's demo vault, so trying the build never touches
+        # the vault you write in; kvit-notes.exe with no argument opens that.
+        demo=${KVIT_QT_REPO:-$HOME/kvit-notes}/screenshots/demo-vault
+        [ -d "$dest/demo-vault" ] || cp -r "$demo" "$dest/demo-vault"
+        "$dest/kvit-notes.exe" "$(wslpath -w "$dest/demo-vault")" &
         disown
     else
         cp tools/win-check.ps1 "$dest/"

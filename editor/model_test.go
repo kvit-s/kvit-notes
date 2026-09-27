@@ -281,3 +281,43 @@ func texts(d *Doc) string {
 	}
 	return strings.Join(s, " | ")
 }
+
+// Kvit keeps a block's presentation in a "<!--kvit ...-->" tag on its line
+// (or a code fence's opening line); it must survive a load and a save, and
+// not show as text.
+func TestAttributeTagsRoundTrip(t *testing.T) {
+	src := "Some text.  <!--kvit align=center-->\n\n" +
+		"## A heading  <!--kvit align=right-->\n\n" +
+		"---  <!--kvit style=dashed width=50%-->\n\n" +
+		"- an item  <!--kvit align=center-->\n\n" +
+		"```cpp  <!--kvit align=center-->\nint x = 1;\n```\n\n" +
+		"> quoted\n> twice  <!--kvit align=center-->\n"
+	blocks := ParseMarkdown(src)
+	want := []struct {
+		kind  Kind
+		text  string
+		attrs string
+	}{
+		{Paragraph, "Some text.", "align=center"},
+		{Heading2, "A heading", "align=right"},
+		{Divider, "", "style=dashed width=50%"},
+		{Bullet, "an item", "align=center"},
+		{Code, "int x = 1;", "align=center"},
+		{Quote, "quoted\ntwice", "align=center"},
+	}
+	if len(blocks) != len(want) {
+		t.Fatalf("blocks: %s", texts(NewDoc(blocks)))
+	}
+	for i, w := range want {
+		b := blocks[i]
+		if b.Kind != w.kind || b.Text != w.text || b.Attrs != w.attrs {
+			t.Errorf("block %d: %v %q %q, want %v %q %q", i, b.Kind, b.Text, b.Attrs, w.kind, w.text, w.attrs)
+		}
+	}
+	if got := Serialize(blocks); got != src {
+		t.Errorf("round trip changed the note:\n%s\nwant\n%s", got, src)
+	}
+	if got := canonicalAttrs("width=50% style=dashed width=40%"); got != "style=dashed width=40%" {
+		t.Errorf("canonical order: %q", got)
+	}
+}

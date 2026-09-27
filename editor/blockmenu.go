@@ -3,9 +3,8 @@ package editor
 // The block menu (Kvit's BlockMenu.qml, features.md 3.7): the gutter's menu
 // button, Shift+F10, the Menu key or a right-click opens it. Its commands act
 // on the block selection when the block is part of one, otherwise on the
-// block itself. It is kvit-ui's menu, which has no submenus, so Kvit's
-// "Turn into ▸" and "Copy as ▸" are lines that open a second menu in the
-// same place.
+// block itself. It is kvit-ui's menu; "Turn into" and "Copy as" open
+// submenus beside their lines, as in Kvit.
 
 import (
 	"strings"
@@ -15,22 +14,21 @@ import (
 	"github.com/richardwilkes/unison"
 )
 
-// blockCommand is one line of the block menu, or of a second menu one of its
-// lines opens.
+// blockCommand is one line of the block menu, or of a submenu.
 type blockCommand struct {
 	label string
 	sep   bool // a separator above this line
 	run   func(e *Editor, ids []int64)
-	more  []blockCommand // the second menu this line opens
+	more  []blockCommand // the submenu this line opens
 }
 
 var blockCommands = []blockCommand{
 	{label: "Copy", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
-	{label: "Copy as…", more: []blockCommand{
+	{label: "Copy as", more: []blockCommand{
 		{label: "Markdown", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
 		{label: "Plain text", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksPlain(ids)) }},
 	}},
-	{label: "Turn into…", sep: true, more: turnInto()},
+	{label: "Turn into", sep: true, more: turnInto()},
 	{label: "Remove line breaks", run: func(e *Editor, ids []int64) { e.Doc.JoinLines(ids) }},
 	{label: "Duplicate", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Duplicate(ids) }},
 	{label: "Delete", run: func(e *Editor, ids []int64) { e.Doc.DeleteBlocks(ids); e.clearBlockSel() }},
@@ -40,7 +38,7 @@ var blockCommands = []blockCommand{
 	{label: "Outdent", run: func(e *Editor, ids []int64) { e.Doc.Indent(ids, -1) }},
 }
 
-// turnInto is the second menu of "Turn into…": every kind a block can be
+// turnInto is the submenu of "Turn into": every kind a block can be
 // turned into, as the / menu names them.
 func turnInto() []blockCommand {
 	var out []blockCommand
@@ -59,7 +57,7 @@ func turnInto() []blockCommand {
 }
 
 // BlockMenuCommands are the block menu's lines, in order, and for a line
-// that opens a second menu, that menu's lines under its label.
+// that opens a submenu, the submenu's lines under its label.
 func BlockMenuCommands() (lines []string, more map[string][]string) {
 	more = map[string][]string{}
 	for _, c := range blockCommands {
@@ -95,29 +93,28 @@ func (e *Editor) openBlockMenu(id int64, at geom.Rect) {
 		ids = e.SelectedBlocks()
 	}
 	e.closeMenu()
-	e.showCommands("Block", blockCommands, ids, at)
+	e.ui.ShowMenuAt(e, at, "Block", e.menuItems(blockCommands, ids))
 }
 
-// showCommands opens a menu of commands for blocks under a part of the
-// editor.
-func (e *Editor) showCommands(title string, cmds []blockCommand, ids []int64, at geom.Rect) {
+// menuItems turns commands for blocks into menu lines.
+func (e *Editor) menuItems(cmds []blockCommand, ids []int64) []kvitui.MenuItem {
 	var items []kvitui.MenuItem
 	for _, c := range cmds {
 		if c.sep && len(items) > 0 {
 			items = append(items, kvitui.MenuItem{Separator: true})
 		}
+		if c.more != nil {
+			items = append(items, kvitui.MenuItem{Text: c.label, Items: e.menuItems(c.more, ids)})
+			continue
+		}
 		c := c
 		items = append(items, kvitui.MenuItem{Text: c.label, OnSelect: func() {
-			if c.more != nil {
-				e.showCommands(strings.TrimSuffix(c.label, "…"), c.more, ids, at)
-				return
-			}
 			c.run(e, ids)
 			e.touched()
 			e.changed()
 		}})
 	}
-	e.ui.ShowMenuAt(e, at, title, items)
+	return items
 }
 
 // openBlockMenuForCaret opens the block menu for the block holding the

@@ -1,9 +1,10 @@
-// Command kvit-notes edits one Markdown note in Kvit's block editor. It is
-// the start of the Go version of Kvit Notes: for now one window, the editor
-// and a status line; the rest of the app (vaults, search, the sidebar, export)
-// comes in the plan's step 6.
+// Command kvit-notes is the Go version of Kvit Notes, the Markdown block
+// editor. It opens a vault, a folder of notes, in a window with the sidebar,
+// the note list and the editor, or edits one note file on its own.
 //
-//	kvit-notes [note.md]                   open a note, or the sample note
+//	kvit-notes [folder]                    open a vault: the folder, else the one
+//	                                       the Qt app had open last, else Documents/Kvit
+//	kvit-notes note.md                     edit one note file on its own
 //	kvit-notes --scenario all --out DIR    run the scripted scenarios headlessly
 //	kvit-notes --check 12s                 drive the editor in a real window, then close
 //	kvit-notes --help                      every option
@@ -16,7 +17,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kvit-s/kvit-notes/app"
 	"github.com/kvit-s/kvit-notes/editor"
+	"github.com/kvit-s/kvit-notes/vault"
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
@@ -28,6 +31,7 @@ func main() {
 	compare := flag.String("compare", "", "with --scenario and --out: stack each screenshot under Kvit's of the same name from this directory, into OUT/compare")
 	theme := flag.String("theme", "", "light, dark, sepia or highContrast; the desktop's choice unless set")
 	check := flag.Duration("check", 0, "open a window, drive the editor through a scripted check, print the result, and close after this long")
+	closeAfter := flag.Duration("close-after", 0, "close the window after this long, printing when it first drew")
 	bench := flag.String("bench", "", "time opening, scrolling and typing in 1,237 blocks of Kvit's documentation, read from this `directory` (Kvit's Qt repository), and exit")
 	flag.Parse()
 
@@ -57,6 +61,12 @@ func main() {
 	}
 
 	path := flag.Arg(0)
+	if *check == 0 {
+		if root, ok := vaultRoot(path); ok {
+			runVault(root, *theme, *closeAfter)
+			return
+		}
+	}
 	doc, err := loadDoc(path)
 	if *check > 0 {
 		path, doc = "", editor.NewDoc(editor.ParseMarkdown(checkNote))
@@ -105,6 +115,67 @@ func main() {
 			n.win.ToFront()
 			if *check == 0 {
 				n.ed.FocusBlock(0, 0)
+			}
+		}))
+}
+
+// vaultRoot is the vault to open for the command-line argument: the folder
+// named, or with none named the vault the Qt app had open last, else
+// Documents/Kvit. A file argument opens that file on its own instead.
+func vaultRoot(arg string) (string, bool) {
+	if arg != "" {
+		info, err := os.Stat(arg)
+		return arg, err == nil && info.IsDir()
+	}
+	if open := vault.OpenVaults(); len(open) > 0 {
+		return open[0], true
+	}
+	return vault.DefaultRoot(), true
+}
+
+// runVault opens a vault in a window and runs until it closes, or for
+// closeAfter when that is set.
+func runVault(root, theme string, closeAfter time.Duration) {
+	started := time.Now()
+	v, err := vault.Open(root)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "kvit-notes: cannot open %s: %v\n", root, err)
+		os.Exit(1)
+	}
+	if len(v.Entries) == 0 && !v.ReadOnly {
+		// An empty vault starts with a note to read, as the Qt app's does.
+		if err := os.WriteFile(filepath.Join(v.Root, "Welcome.md"), []byte(sampleNote), 0o644); err == nil {
+			_ = v.Rescan()
+		}
+	}
+	ui, err := kvitui.New(kvitui.Options{SettingsPath: kvitui.DefaultSettingsPath("kvit-notes")})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if theme != "" {
+		ui.Theme.SetThemeID(theme)
+	}
+	unison.Start(
+		unison.ThemeChangedCallback(ui.Appearance.Refresh),
+		unison.StartupFinishedCallback(func() {
+			w, err := app.Open(ui, v)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			w.Win.ToFront()
+			if closeAfter > 0 {
+				draw := w.Editor.DrawCallback
+				first := true
+				w.Editor.DrawCallback = func(gc *unison.Canvas, r geom.Rect) {
+					draw(gc, r)
+					if first {
+						first = false
+						fmt.Printf("first frame after %d ms, %d notes\n", time.Since(started).Milliseconds(), len(v.Entries))
+					}
+				}
+				unison.InvokeTaskAfter(w.Win.Dispose, closeAfter)
 			}
 		}))
 }

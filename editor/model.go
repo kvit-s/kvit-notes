@@ -6,6 +6,7 @@ package editor
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -74,6 +75,11 @@ type Block struct {
 	Text    string
 	Checked bool
 	Lang    string
+	// Attrs is the block's presentation (alignment, a divider's style and so
+	// on) as Kvit stores it: the inside of a "<!--kvit ...-->" comment at the
+	// end of the block's Markdown, space-separated key=value tokens and bare
+	// flags in key order. The editor keeps it so a note saves unchanged.
+	Attrs string
 }
 
 var lastBlockID atomic.Int64
@@ -86,7 +92,7 @@ func NewBlock(kind Kind, text string) Block {
 }
 
 var (
-	reHeading  = regexp.MustCompile(`^(#{1,4}) (.*)$`)
+	reHeading  = regexp.MustCompile(`^(#{1,6}) (.*)$`)
 	reTodo     = regexp.MustCompile(`^([ \t]*)[-*+] \[( |x|X)\] ?(.*)$`)
 	reBullet   = regexp.MustCompile(`^([ \t]*)[-*+] (.*)$`)
 	reNumbered = regexp.MustCompile(`^([ \t]*)\d+[.)] (.*)$`)
@@ -94,6 +100,51 @@ var (
 	reDivider  = regexp.MustCompile(`^(\*{3,}|-{3,}|_{3,})\s*$`)
 	reFence    = regexp.MustCompile("^(```+|~~~+)\\s*(\\S*)")
 )
+
+// reTag is Kvit's attribute tag at the end of a line
+// (src/content/blockattributes.cpp).
+var reTag = regexp.MustCompile(`\s*<!--kvit (.*?)-->\s*$`)
+
+// stripTag splits a trailing attribute tag off a line, returning the line
+// without it and the tag's canonical payload.
+func stripTag(line string) (string, string) {
+	if !strings.Contains(line, "<!--kvit ") {
+		return line, ""
+	}
+	m := reTag.FindStringSubmatchIndex(line)
+	if m == nil {
+		return line, ""
+	}
+	return line[:m[0]], canonicalAttrs(line[m[2]:m[3]])
+}
+
+// canonicalAttrs orders a payload's tokens by key, the last of a repeated
+// key winning, as Kvit's BlockAttributes::canonical does.
+func canonicalAttrs(payload string) string {
+	byKey := map[string]string{}
+	for _, tok := range strings.Fields(payload) {
+		key, _, _ := strings.Cut(tok, "=")
+		byKey[key] = tok
+	}
+	keys := make([]string, 0, len(byKey))
+	for k := range byKey {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		out[i] = byKey[k]
+	}
+	return strings.Join(out, " ")
+}
+
+// attachTag appends a payload to Markdown as Kvit's attribute tag.
+func attachTag(md, attrs string) string {
+	if attrs == "" {
+		return md
+	}
+	return md + "  <!--kvit " + attrs + "-->"
+}
 
 func indentOf(ws string) int {
 	n := 0
@@ -130,9 +181,15 @@ func ParseMarkdown(src string) []Block {
 			}
 		}
 	}
+	// afterList is whether the line just read was a list item or one of its
+	// continuation lines: only then does an indented line join the item
+	// above, which is how a wrapped item survives a round trip.
+	afterList := false
 	for i < len(lines) {
-		line := lines[i]
-		if strings.TrimSpace(line) == "" {
+		prevList := afterList
+		afterList = false
+		line, attrs := stripTag(lines[i])
+		if strings.TrimSpace(line) == "" && attrs == "" {
 			i++
 			continue
 		}
@@ -144,6 +201,7 @@ func ParseMarkdown(src string) []Block {
 			}
 			b := NewBlock(Code, strings.Join(lines[i+1:min(j, len(lines))], "\n"))
 			b.Lang = m[2]
+			b.Attrs = attrs
 			out = append(out, b)
 			i = j + 1
 			continue
@@ -170,57 +228,88 @@ func ParseMarkdown(src string) []Block {
 			i = j
 			continue
 		}
-		if m := reHeading.FindStringSubmatch(line); m != nil {
-			out = append(out, NewBlock(Heading1+Kind(len(m[1])-1), m[2]))
+		one := func(b Block) {
+			b.Attrs = attrs
+			out = append(out, b)
 			i++
-			continue
 		}
 		if reDivider.MatchString(line) {
-			out = append(out, NewBlock(Divider, ""))
-			i++
+			one(NewBlock(Divider, ""))
 			continue
 		}
 		if m := reTodo.FindStringSubmatch(line); m != nil {
 			b := NewBlock(Todo, m[3])
 			b.Indent = indentOf(m[1])
 			b.Checked = m[2] != " "
-			out = append(out, b)
-			i++
+			one(b)
+			afterList = true
 			continue
 		}
 		if m := reBullet.FindStringSubmatch(line); m != nil {
 			b := NewBlock(Bullet, m[2])
 			b.Indent = indentOf(m[1])
-			out = append(out, b)
-			i++
+			one(b)
+			afterList = true
 			continue
 		}
 		if m := reNumbered.FindStringSubmatch(line); m != nil {
 			b := NewBlock(Numbered, m[2])
 			b.Indent = indentOf(m[1])
-			out = append(out, b)
+			one(b)
+			afterList = true
+			continue
+		}
+		// A continuation line: indented, with no marker of its own, directly
+		// under a list item, belongs to that item (Kvit's
+		// DocumentSerializer::parse).
+		if rest := strings.TrimLeft(line, " \t"); prevList && rest != line && rest != "" && len(out) > 0 && out[len(out)-1].Kind.IsList() {
+			item := &out[len(out)-1]
+			item.Text += "\n" + rest
+			if item.Attrs == "" {
+				item.Attrs = attrs
+			}
+			afterList = true
 			i++
+			continue
+		}
+		// Five and six hashes are a fourth-level heading, as in Kvit.
+		if m := reHeading.FindStringSubmatch(line); m != nil {
+			one(NewBlock(Heading1+Kind(min(len(m[1]), 4)-1), m[2]))
 			continue
 		}
 		if reQuote.MatchString(line) {
 			var body []string
+			var quoteAttrs string
 			for i < len(lines) {
-				m := reQuote.FindStringSubmatch(lines[i])
+				l, a := stripTag(lines[i])
+				m := reQuote.FindStringSubmatch(l)
 				if m == nil {
 					break
+				}
+				if a != "" {
+					quoteAttrs = a
 				}
 				body = append(body, m[1])
 				i++
 			}
-			out = append(out, NewBlock(Quote, strings.Join(body, "\n")))
+			b := NewBlock(Quote, strings.Join(body, "\n"))
+			b.Attrs = quoteAttrs
+			out = append(out, b)
 			continue
 		}
 		var body []string
+		var paraAttrs string
 		for i < len(lines) && strings.TrimSpace(lines[i]) != "" && (len(body) == 0 || !startsBlock(lines[i])) {
-			body = append(body, lines[i])
+			l, a := stripTag(lines[i])
+			if a != "" {
+				paraAttrs = a
+			}
+			body = append(body, l)
 			i++
 		}
-		out = append(out, NewBlock(Paragraph, strings.Join(body, "\n")))
+		b := NewBlock(Paragraph, strings.Join(body, "\n"))
+		b.Attrs = paraAttrs
+		out = append(out, b)
 	}
 	return out
 }
@@ -245,8 +334,21 @@ func ListNumber(blocks []Block, i int) int {
 }
 
 // BlockMarkdown writes one block as Markdown. number is the list number for
-// a numbered block.
+// a numbered block. A block's attribute tag trails its last line, or a code
+// fence's opening line, whose closing fence must stay bare to close it.
 func BlockMarkdown(b Block, number int) string {
+	md := blockMarkdown(b, number)
+	if b.Attrs == "" {
+		return md
+	}
+	if b.Kind == Code {
+		first, rest, _ := strings.Cut(md, "\n")
+		return attachTag(first, b.Attrs) + "\n" + rest
+	}
+	return attachTag(md, b.Attrs)
+}
+
+func blockMarkdown(b Block, number int) string {
 	pad := strings.Repeat("  ", b.Indent)
 	prefixLines := func(first, rest string) string {
 		ls := strings.Split(b.Text, "\n")
@@ -299,4 +401,37 @@ func Serialize(blocks []Block) string {
 	}
 	sb.WriteString("\n")
 	return sb.String()
+}
+
+// Summarize is what a note list shows of a note and what search reads: the
+// start of its text as drawn, up to 120 characters, its word count, and its
+// whole text as drawn, one block to a line. Dividers count for nothing, as in
+// Kvit (src/repository/vaultscan.cpp, analyzeBody).
+func Summarize(body string) (snippet string, words int, text string) {
+	const snippetLength = 120
+	var sb, all strings.Builder
+	for _, b := range ParseMarkdown(body) {
+		if b.Kind == Divider {
+			continue
+		}
+		drawn := b.Text
+		if b.Kind.HasInline() {
+			src := []rune(b.Text)
+			drawn = string(project(src, parseInline(src), nil).Disp)
+		}
+		words += len(strings.Fields(drawn))
+		all.WriteString(drawn)
+		all.WriteByte('\n')
+		if sb.Len() < snippetLength && b.Text != "" {
+			if sb.Len() > 0 {
+				sb.WriteByte(' ')
+			}
+			sb.WriteString(strings.Join(strings.Fields(drawn), " "))
+		}
+	}
+	snippet = sb.String()
+	if r := []rune(snippet); len(r) > snippetLength {
+		snippet = string(r[:snippetLength])
+	}
+	return snippet, words, all.String()
 }

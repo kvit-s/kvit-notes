@@ -518,11 +518,11 @@ var scenarios = []scenario{
 		dr.shot("visual_29_menus_03_block_menu.png")
 		lines, more := editor.BlockMenuCommands()
 		// The block menu opens with no line lit; the first Down lights the
-		// first line. "Turn into…" opens a second menu of kinds.
-		dr.keys(unison.KeyDown, slices.Index(lines, "Turn into…")+1)
-		dr.key(unison.KeyReturn, mod.None)
-		dr.expect(dr.popups() == 1, "Turn into… should open a second menu")
-		dr.keys(unison.KeyDown, slices.Index(more["Turn into…"], "Heading 2")+1)
+		// first line. Right opens "Turn into"'s submenu with its first line
+		// lit.
+		dr.keys(unison.KeyDown, slices.Index(lines, "Turn into")+1)
+		dr.key(unison.KeyRight, mod.None)
+		dr.keys(unison.KeyDown, slices.Index(more["Turn into"], "Heading 2"))
 		dr.key(unison.KeyReturn, mod.None)
 		dr.expect(dr.popups() == 0 && dr.kind(1) == editor.Heading2, "Turn into Heading 2 from the keyboard: %s", dr.blocks())
 		dr.focus(0, 3)

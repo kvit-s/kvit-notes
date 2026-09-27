@@ -3,7 +3,7 @@
 # window. build.sh --win-check runs it while the check holds its window open.
 #
 #   powershell.exe -File win-check.ps1 -Title "Kvit Notes check" -Shot out.png
-param([string]$Title = "Kvit Notes check", [string]$Shot = "", [string]$Method = "print")
+param([string]$Title = "Kvit Notes check", [string]$Shot = "", [string]$Method = "print", [switch]$Prefix)
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
 Add-Type @"
@@ -22,7 +22,13 @@ $A = [System.Windows.Automation.AutomationElement]
 $byName = New-Object System.Windows.Automation.PropertyCondition($A::NameProperty, $Title)
 $win = $null
 for ($i = 0; $i -lt 50 -and $win -eq $null; $i++) {
-    $win = $A::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $byName)
+    if ($Prefix) {
+        foreach ($c in $A::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)) {
+            if ($c.Current.Name.StartsWith($Title)) { $win = $c }
+        }
+    } else {
+        $win = $A::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $byName)
+    }
     if ($win -eq $null) { Start-Sleep -Milliseconds 200 }
 }
 if ($win -eq $null) { "no window titled '$Title'"; exit 1 }

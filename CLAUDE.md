@@ -29,7 +29,9 @@ Give the command behind every number, and save screenshots under
 | Package | What it holds |
 |---|---|
 | `editor` | The block editor as a unison widget, public so kvit-works-go and kvit-hub-go can embed it. `model.go` (blocks, Markdown in and out), `inline.go` (inline spans and which markers show), `doc.go` (every operation, and undo) know nothing of the toolkit. `editor.go` (the panel, row geometry), `layout.go` (one block's text through kvit-ui's `text` package), `draw.go`, `keys.go`, `pointer.go`, `slashmenu.go` (the / menu), `blockmenu.go`, `access.go` (what screen readers are told) and `probe.go` (positions for tests and tools) |
-| `cmd/kvit-notes` | The program: one window editing one note, with the scripted scenarios (`scenarios.go`), the real-window check (`check.go`), the benchmark (`bench.go`) and the screenshot comparison (`compare.go`) |
+| `vault` | A vault on disk, in the Qt app's formats: the scan (`scan.go`), front matter (`frontmatter.go`), `.kvit/collection.json` (`collection.go`), the lock shared with the Qt app (`lock*.go`), saving with backups and the one-time `.md.bak`, notes and folders created, renamed, moved and trashed (`vault.go`), and where a vault is found (`places*.go`) |
+| `app` | The vault window: the sidebar's list of scopes (`sidebar.go`), the note list (`notelist.go`), the tag strip, the toolbar, and `window.go`, which ties them to a vault and the editor, with the menus and dialogs in `actions.go` |
+| `cmd/kvit-notes` | The program: a vault window, or one note file on its own (`window.go`), with the scripted scenarios (`scenarios.go`), the real-window check (`check.go`), the benchmark (`bench.go`) and the screenshot comparison (`compare.go`) |
 | `tools/win-check.ps1` | Reads what Windows' UI Automation reports about the check window, and saves a picture of it |
 
 The editor started as a port of the Shirei prototype in `~/kvit-shirei`
@@ -59,8 +61,27 @@ rewritten for unison).
   match what is on the screen.
 - **Menus.** The / menu is the editor's own panel in the Kvit window's popup
   layer, because the keyboard stays in the editor while it filters. The block
-  menu is kvit-ui's menu, which has no submenus, so "Turn into…" and
-  "Copy as…" open a second menu.
+  menu is kvit-ui's menu, with "Turn into" and "Copy as" as submenus.
+
+## Sharing vaults with the Qt app
+
+During the migration the Qt and Go apps are used on the same vaults, so
+`vault` follows the Qt app's formats exactly (the survey behind them is in
+the migration log's step 6 entries):
+- **The lock** is `flock` on `.kvit/vault.lock` on Linux and macOS (not
+  `fcntl`, which would not exclude the Qt app) and `LockFileEx` on one byte at
+  offset 0x40000000 on Windows. Never change either.
+- **Front matter** is edited a key at a time and every other line kept; a key
+  Kvit knows is written in the Qt app's form (`tags: [a, b]`, `pinned: true`,
+  and `false` or no tags removes the key).
+- **`collection.json`** is rewritten whole by the Qt app, so every field it
+  has is kept in `Collection`, used or not.
+- **Never reuse** `.kvit/index.json`, `.kvit/embedcache/` or
+  `.kvit/cache/index.json`: the Qt app deletes the first two on every open and
+  trusts the third by size and time.
+- **Tests and trial runs never touch a real vault.** `./build.sh --win` opens
+  a copy of the Qt repository's demo vault; `kvit-notes` with no argument opens
+  the vault the Qt app last had open.
 
 ## Building and checking
 

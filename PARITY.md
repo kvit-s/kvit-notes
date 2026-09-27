@@ -13,10 +13,11 @@ Each line is marked:
 - `[ ]` not started.
 
 The editor itself is the plan's step 3 and is in the `editor` package. The
-rest of the app (vaults, the note list, search, export, settings, the
-window's chrome) is step 6. Test names below are in
+rest of the app is step 6, in the order `PLAN.md` gives; the vault is in
+`vault` and the window in `app`. Test names below are in
 `cmd/kvit-notes/scenarios_test.go` (`TestScenarios/<name>`, which also runs
-in the three other themes) and `editor/*_test.go`.
+in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
+`app/window_test.go`.
 
 ## 1. Block system
 
@@ -122,15 +123,35 @@ in the three other themes) and `editor/*_test.go`.
 
 ## 8. Document organisation
 
-- [ ] 8.1 Folders
-- [ ] 8.2 Tags
-- [ ] 8.3 Note list
-- [ ] 8.4 Search across notes
+- [~] 8.1 Folders: nested folders in the sidebar, opened and closed as
+  `collection.json` records, their colours shown; new folder, rename, move to
+  the trash; notes moved by dragging them onto a folder. Evidence:
+  `TestTheWindowShowsTheVault`, `TestDragANoteOntoAFolder`,
+  `TestCollectionStateRoundTrips`. Missing: choosing a colour, folder-level
+  search, dragging folders
+- [~] 8.2 Tags: a note's tags from its front matter, added and removed in the
+  tag strip, the vault's tags with counts in the sidebar, their colours shown,
+  and the note list filtered by one. Evidence: `TestNewNoteAndTags`,
+  `TestFrontMatterEditsKeepForeignLines`. Missing: completion while typing a
+  tag, renaming, deleting and merging tags, choosing colours
+- [~] 8.3 Note list: "Untitled N" notes named from their first block once it is
+  finished, each row's title, snippet, date and word count as the Qt app
+  derives them, sorting by modified, created or title either way, pinned
+  notes first, pin and favourite from the row's menu. Evidence:
+  `TestAnUntitledNoteIsNamedAfterItsFirstBlock`, `TestPinFromTheNotesMenu`,
+  `TestOpenScansNotesAndSkipsKvitsOwnFolders`. Missing: manual order, bulk
+  selection, renaming in the row itself (a dialog does it, with F2)
+- [~] 8.4 Search across notes: the sidebar's field keeps the notes whose title
+  or text holds what is typed. Missing: a search index, snippets around the
+  match, opening at the match, filters, recent searches (part 4 of `PLAN.md`)
 - [ ] 8.5 Linked-note navigation
 
 ## 9. User interface
 
-- [ ] 9.1 Main layout (one window with a stand-in toolbar and status line so far)
+- [~] 9.1 Main layout: the sidebar, the note list and the editor side by side,
+  resizable, and Ctrl+\\ hiding both side panes. Evidence:
+  `TestTheWindowShowsTheVault`, `TestCtrlBackslashHidesTheSidePanes`.
+  Missing: collapsing one pane at a time, full screen, remembering the widths
 - [~] 9.2 Toolbar: block type and six inline formats as buttons. Missing: the
   File and View menus, superscript, subscript, link, colour, alignment, Insert
 - [ ] 9.3 Formatting bar
@@ -163,10 +184,23 @@ in the three other themes) and `editor/*_test.go`.
 
 ## 12. Storage
 
-- [~] 12.1 Local storage: one Markdown file, read and written. Missing: vaults
-- [ ] 12.2 Auto-save
-- [x] 12.3 Manual save with Ctrl+S (in `cmd/kvit-notes`)
-- [ ] 12.4 Backup and recovery
+- [~] 12.1 Local storage: a vault folder read and written in the Qt app's
+  formats, atomic saves, the Qt app's lock on `.kvit/vault.lock` (flock, and
+  the same byte range on Windows), a vault that cannot be written opened read
+  only. Evidence: `TestTheVaultLockExcludesOtherOpeners`,
+  `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`. Missing: the
+  `.gitignore` rules and the Windows hidden attribute when scanning, the
+  read-only mode said aloud
+- [~] 12.2 Auto-save: two seconds after the typing stops, and on opening
+  another note and closing the window. Evidence: `TestAutoSaveAfterTypingStops`,
+  `TestEditingSavesTheNote`. Missing: the interval as a setting
+- [x] 12.3 Manual save with Ctrl+S. Evidence: `TestEditingSavesTheNote`
+- [~] 12.4 Backup and recovery: a backup in `.kvit/backups` before a save (at
+  most one every ten minutes, the ten newest kept) and a one-time `.md.bak`
+  when the editor rewrites a note's Markdown in its own form, both as the Qt
+  app keeps them. Evidence:
+  `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`. Missing: the restore
+  dialog, the crash-recovery journal, taking notes back out of the trash
 - [ ] 12.5 Export
 - [ ] 12.6 Import
 
