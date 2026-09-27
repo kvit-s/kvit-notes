@@ -1,0 +1,141 @@
+package editor
+
+// The block menu (Kvit's BlockMenu.qml, features.md 3.7): the gutter's menu
+// button, Shift+F10, the Menu key or a right-click opens it. Its commands act
+// on the block selection when the block is part of one, otherwise on the
+// block itself. It is kvit-ui's menu, which has no submenus, so Kvit's
+// "Turn into ▸" and "Copy as ▸" are lines that open a second menu in the
+// same place.
+
+import (
+	"strings"
+
+	kvitui "github.com/kvit-s/kvit-ui"
+	"github.com/richardwilkes/toolbox/v2/geom"
+	"github.com/richardwilkes/unison"
+)
+
+// blockCommand is one line of the block menu, or of a second menu one of its
+// lines opens.
+type blockCommand struct {
+	label string
+	sep   bool // a separator above this line
+	run   func(e *Editor, ids []int64)
+	more  []blockCommand // the second menu this line opens
+}
+
+var blockCommands = []blockCommand{
+	{label: "Copy", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
+	{label: "Copy as…", more: []blockCommand{
+		{label: "Markdown", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
+		{label: "Plain text", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksPlain(ids)) }},
+	}},
+	{label: "Turn into…", sep: true, more: turnInto()},
+	{label: "Remove line breaks", run: func(e *Editor, ids []int64) { e.Doc.JoinLines(ids) }},
+	{label: "Duplicate", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Duplicate(ids) }},
+	{label: "Delete", run: func(e *Editor, ids []int64) { e.Doc.DeleteBlocks(ids); e.clearBlockSel() }},
+	{label: "Move up", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Move(ids, -1) }},
+	{label: "Move down", run: func(e *Editor, ids []int64) { e.Doc.Move(ids, 1) }},
+	{label: "Indent", run: func(e *Editor, ids []int64) { e.Doc.Indent(ids, 1) }},
+	{label: "Outdent", run: func(e *Editor, ids []int64) { e.Doc.Indent(ids, -1) }},
+}
+
+// turnInto is the second menu of "Turn into…": every kind a block can be
+// turned into, as the / menu names them.
+func turnInto() []blockCommand {
+	var out []blockCommand
+	for _, it := range menuItems {
+		kind := it.kind
+		if kind == Divider {
+			continue
+		}
+		out = append(out, blockCommand{label: it.name, run: func(e *Editor, ids []int64) {
+			for _, id := range ids {
+				e.Doc.Convert(id, kind)
+			}
+		}})
+	}
+	return out
+}
+
+// BlockMenuCommands are the block menu's lines, in order, and for a line
+// that opens a second menu, that menu's lines under its label.
+func BlockMenuCommands() (lines []string, more map[string][]string) {
+	more = map[string][]string{}
+	for _, c := range blockCommands {
+		lines = append(lines, c.label)
+		for _, m := range c.more {
+			more[c.label] = append(more[c.label], m.label)
+		}
+	}
+	return lines, more
+}
+
+// blocksPlain is blocks' text without Markdown, a blank line between them.
+func (e *Editor) blocksPlain(ids []int64) string {
+	d := e.Doc
+	var parts []string
+	for _, id := range ids {
+		b := d.Block(id)
+		src := []rune(b.Text)
+		var spans []span
+		if b.Kind.HasInline() {
+			spans = parseInline(src)
+		}
+		parts = append(parts, string(project(src, spans, nil).Disp))
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// openBlockMenu opens the block menu for a block under a part of the
+// editor, given in the editor's coordinates.
+func (e *Editor) openBlockMenu(id int64, at geom.Rect) {
+	ids := []int64{id}
+	if e.blockSel[id] {
+		ids = e.SelectedBlocks()
+	}
+	e.closeMenu()
+	e.showCommands("Block", blockCommands, ids, at)
+}
+
+// showCommands opens a menu of commands for blocks under a part of the
+// editor.
+func (e *Editor) showCommands(title string, cmds []blockCommand, ids []int64, at geom.Rect) {
+	var items []kvitui.MenuItem
+	for _, c := range cmds {
+		if c.sep && len(items) > 0 {
+			items = append(items, kvitui.MenuItem{Separator: true})
+		}
+		c := c
+		items = append(items, kvitui.MenuItem{Text: c.label, OnSelect: func() {
+			if c.more != nil {
+				e.showCommands(strings.TrimSuffix(c.label, "…"), c.more, ids, at)
+				return
+			}
+			c.run(e, ids)
+			e.touched()
+			e.changed()
+		}})
+	}
+	e.ui.ShowMenuAt(e, at, title, items)
+}
+
+// openBlockMenuForCaret opens the block menu for the block holding the
+// caret, or the first selected block, under that block's row: what
+// Shift+F10 and the Menu key do.
+func (e *Editor) openBlockMenuForCaret() bool {
+	d := e.Doc
+	id := d.Caret.Block
+	if ids := e.SelectedBlocks(); len(ids) > 0 {
+		id = ids[0]
+	} else if !d.Focused {
+		return false
+	}
+	i := d.Index(id)
+	if i < 0 || i >= len(e.tops) {
+		return false
+	}
+	r := e.rowRect(i)
+	e.openBlockMenu(id, geom.NewRect(r.X+e.px(gutterWidth), r.Y, 0, r.Height))
+	return true
+}
