@@ -30,12 +30,30 @@ type mouseSel struct {
 
 func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Modifiers) bool {
 	if button == unison.ButtonRight {
-		// A right-click opens the block menu of the block under it.
-		if i := e.rowAt(where); i >= 0 {
-			e.openBlockMenu(e.Doc.Blocks[i].ID, geom.NewRect(where.X, where.Y, 0, 0))
+		// A right-click in text opens the text menu there, keeping a
+		// selection it lands in; elsewhere on a row, the block menu.
+		i := e.rowAt(where)
+		if i < 0 {
+			return false
+		}
+		if !e.Focused() {
+			e.RequestFocus()
+		}
+		if e.boardShows(i) && e.boardPress(i, where, true) {
 			return true
 		}
-		return false
+		at := geom.NewRect(where.X, where.Y, 0, 0)
+		if where.X >= e.bodyLeft() && e.Doc.Blocks[i].Kind.IsText() {
+			if pos, ok := e.posAtPoint(where); ok && !e.inSelection(pos) {
+				e.clearBlockSel()
+				e.Doc.SetCaret(pos.Block, pos.Off)
+				e.changed()
+			}
+			e.openTextMenu(at)
+			return true
+		}
+		e.openBlockMenu(e.Doc.Blocks[i].ID, at)
+		return true
 	}
 	if button != unison.ButtonLeft {
 		return false
@@ -46,7 +64,7 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 	e.closeMenu()
 	defer e.changed()
 	d := e.Doc
-	if i, part := e.partAt(where); part != partNone {
+	if i, part := e.partAt(where); part != partNone && !(d.ReadOnly && part != partHandle && part != partMenu && part != partCopy && part != partTocEntry && part != partEmbedOpen && part != partQueryRow) {
 		b := &d.Blocks[i]
 		switch part {
 		case partAdd:
@@ -62,10 +80,46 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 			d.ToggleTodo(b.ID)
 		case partCopy:
 			unison.ClipboardSetText(b.Text)
+		case partFold:
+			d.Edit("fold", func() { b.Checked = !b.Checked })
+		case partCalloutType:
+			_, icon, _, _ := e.calloutParts(i)
+			e.ui.ShowMenuAt(e, icon, "Callout type", e.calloutTypeItems(b.ID))
+		case partCalloutColor:
+			_, _, _, dot := e.calloutParts(i)
+			e.ui.ShowMenuAt(e, dot, "Callout color", e.calloutColorItems(b.ID))
+		case partCalloutTitle:
+			e.editCalloutTitle(i)
+		case partLanguage:
+			e.ui.ShowMenuAt(e, e.languageButton(i), "Code language", e.languageItems(b.ID))
+		case partEmbedLoad:
+			if _, ref, ok := e.embedCard(i); ok && e.LoadPreview != nil {
+				e.LoadPreview(ref.Path)
+			}
+		case partEmbedOpen:
+			if _, ref, ok := e.embedCard(i); ok && e.OpenURL != nil {
+				e.OpenURL(ref.Path)
+			}
+		case partQueryRow:
+			if k := e.queryRowAt(i, where); k >= 0 && e.OpenNote != nil {
+				e.OpenNote(e.queryResult(i).paths[k])
+			}
+		case partTocEntry:
+			if k := e.tocEntryAt(i, where); k >= 0 {
+				e.goToHeading(d.tocEntries()[k].block)
+			}
 		}
 		return true
 	}
-	if n := len(e.tops); n > 0 && where.Y > e.tops[n-1]+e.heights[n-1] {
+	if i := e.rowAt(where); i >= 0 && where.X >= e.bodyLeft() && e.boardShows(i) {
+		// A press on a board acts on it and never puts the caret in its
+		// Markdown.
+		if !d.ReadOnly {
+			e.boardPress(i, where, false)
+		}
+		return true
+	}
+	if n := len(e.tops); n > 0 && where.Y > e.tops[n-1]+e.heights[n-1] && !d.ReadOnly {
 		// A press below the last block puts the caret at its end, in a new
 		// paragraph when the last block is not an empty one.
 		last := d.Blocks[n-1]
@@ -84,6 +138,9 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 	}
 	pos, ok := e.posAtPoint(where)
 	if !ok {
+		return true
+	}
+	if clickCount == 1 && !mods.ShiftDown() && e.followAt(pos, mods.OSMenuCommandDown()) {
 		return true
 	}
 	e.clearBlockSel()
@@ -118,10 +175,14 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.cardDrag != nil:
+		e.dragCard(where)
+		e.MarkForRedraw()
+		return true
 	case e.drag != nil:
 		dv := where.Sub(e.drag.start)
 		limit := e.px(dragThreshold)
-		if !e.drag.active && dv.X*dv.X+dv.Y*dv.Y > limit*limit {
+		if !e.drag.active && dv.X*dv.X+dv.Y*dv.Y > limit*limit && !d.ReadOnly {
 			e.drag.active = true
 			e.drag.before = d.Begin()
 			e.drag.origIdx = d.Index(e.drag.id)
@@ -150,6 +211,8 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.cardDrag != nil:
+		e.dropCard()
 	case e.drag != nil:
 		if e.drag.active {
 			if d.Index(e.drag.id) != e.drag.origIdx {
@@ -170,13 +233,19 @@ func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 }
 
 func (e *Editor) mouseMove(where geom.Point, _ mod.Modifiers) bool {
-	hover, part := int64(0), partNone
+	hover, part, entry := int64(0), partNone, -1
 	if i := e.rowAt(where); i >= 0 {
 		hover = e.Doc.Blocks[i].ID
 		_, part = e.partAt(where)
+		if part == partTocEntry {
+			entry = e.tocEntryAt(i, where)
+		}
+		if part == partQueryRow {
+			e.queryHover = e.queryRowAt(i, where)
+		}
 	}
-	if hover != e.hover || part != e.part {
-		e.hover, e.part = hover, part
+	if hover != e.hover || part != e.part || entry != e.tocHover {
+		e.hover, e.part, e.tocHover = hover, part, entry
 		e.MarkForRedraw()
 	}
 	return true
@@ -233,6 +302,34 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 		return i, partCheck
 	case b.Kind == Code && where.In(e.copyButton(i)):
 		return i, partCopy
+	case b.Kind == Code && !e.tocShows(i) && where.In(e.languageButton(i)):
+		return i, partLanguage
+	case e.tocShows(i) && e.tocEntryAt(i, where) >= 0:
+		return i, partTocEntry
+	case e.queryShows(i) && e.queryRowAt(i, where) >= 0:
+		return i, partQueryRow
+	case b.Kind == Image || b.Kind == Media:
+		if card, ref, ok := e.embedCard(i); ok {
+			title, load := e.embedParts(card)
+			switch {
+			case where.In(load) && e.previews[ref.Path] == nil:
+				return i, partEmbedLoad
+			case where.In(title):
+				return i, partEmbedOpen
+			}
+		}
+	case b.Kind == Callout:
+		chevron, icon, title, dot := e.calloutParts(i)
+		switch {
+		case where.In(chevron):
+			return i, partFold
+		case where.In(icon):
+			return i, partCalloutType
+		case where.In(dot):
+			return i, partCalloutColor
+		case where.In(title):
+			return i, partCalloutTitle
+		}
 	}
 	return i, partNone
 }

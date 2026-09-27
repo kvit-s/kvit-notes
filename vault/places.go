@@ -1,11 +1,13 @@
 package vault
 
-// Where a vault is found when none is named: the vaults the Qt app had open
-// last (session.openVaults in its settings.json), else Documents/Kvit, as the
-// Qt app does (src/qml/windowregistry.cpp, src/qml/processservices.cpp).
+// Where a vault is found when none is named: the vaults open when the app
+// last closed (session.openVaults in the settings), else Documents/Kvit, as
+// the Qt app does (src/qml/windowregistry.cpp, src/qml/processservices.cpp);
+// and the Go app's settings file, which starts as a copy of the Qt app's.
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -34,8 +36,12 @@ func SettingsPath() string {
 
 // OpenVaults are the vaults the Qt app had open when it last closed, those
 // that still exist.
-func OpenVaults() []string {
-	data, err := os.ReadFile(SettingsPath())
+func OpenVaults() []string { return OpenVaultsIn(SettingsPath()) }
+
+// OpenVaultsIn are the vaults a settings file says were open, those that
+// still exist.
+func OpenVaultsIn(settings string) []string {
+	data, err := os.ReadFile(settings)
 	if err != nil {
 		return nil
 	}
@@ -58,4 +64,20 @@ func OpenVaults() []string {
 // Kvit in the reader's Documents folder.
 func DefaultRoot() string {
 	return filepath.Join(documentsDir(), "Kvit")
+}
+
+// SeedSettings makes the Go app's own settings file, the first time it
+// runs, a copy of the Qt app's, so the theme, typography, panes and vaults
+// carry over without the Go app ever writing the Qt app's file.
+func SeedSettings(goSettings string) {
+	if _, err := os.Stat(goSettings); !errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	data, err := os.ReadFile(SettingsPath())
+	if err != nil || !json.Valid(data) {
+		return
+	}
+	if os.MkdirAll(filepath.Dir(goSettings), 0o755) == nil {
+		_ = os.WriteFile(goSettings, data, 0o644)
+	}
 }

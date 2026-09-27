@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -130,7 +131,7 @@ func TestMarkdownRoundTrip(t *testing.T) {
 		"",
 	}, "\n")
 	blocks := ParseMarkdown(src)
-	kinds := []Kind{Heading1, Paragraph, Bullet, Bullet, Todo, Todo, Numbered, Numbered, Quote, Code, Divider, Raw}
+	kinds := []Kind{Heading1, Paragraph, Bullet, Bullet, Todo, Todo, Numbered, Numbered, Quote, Code, Divider, Table}
 	if len(blocks) != len(kinds) {
 		t.Fatalf("got %d blocks: %+v", len(blocks), blocks)
 	}
@@ -319,5 +320,108 @@ func TestAttributeTagsRoundTrip(t *testing.T) {
 	}
 	if got := canonicalAttrs("width=50% style=dashed width=40%"); got != "style=dashed width=40%" {
 		t.Errorf("canonical order: %q", got)
+	}
+}
+
+// Kvit's callouts: a quote headed [!type], folded with "-", written back as
+// Kvit writes it.
+func TestCalloutsRoundTrip(t *testing.T) {
+	src := "> [!tip] Files are the truth\n> No database, no accounts.\n>\n> A vault is a folder.\n\n> [!warning]- Folded\n> Hidden body\n\n> A plain quote\n>\n> with a gap\n"
+	blocks := ParseMarkdown(src)
+	if len(blocks) != 3 || blocks[0].Kind != Callout || blocks[0].Lang != "tip" || blocks[0].Title != "Files are the truth" ||
+		blocks[0].Text != "No database, no accounts.\n\nA vault is a folder." || !blocks[1].Checked || blocks[2].Kind != Quote {
+		t.Fatalf("blocks: %+v", blocks)
+	}
+	if got := Serialize(blocks); got != src {
+		t.Errorf("round trip:\n%s\nwant\n%s", got, src)
+	}
+}
+
+func TestTablesAreReadAsKvitReadsThem(t *testing.T) {
+	src := "| A | B \\| c |  <!--kvit align=center-->\n| :-- | --: |\n| 1 | **two** |\n| 3 |\n"
+	blocks := ParseMarkdown(src)
+	if len(blocks) != 1 || blocks[0].Kind != Table || blocks[0].Attrs != "align=center" {
+		t.Fatalf("blocks: %+v", blocks)
+	}
+	if got := Serialize(blocks); got != src {
+		t.Errorf("a table must be saved as written:\n%q\nwant\n%q", got, src)
+	}
+	tb, ok := parseTable(blocks[0].Text)
+	if !ok || len(tb.header) != 2 || tb.header[1] != "B | c" || tb.align[0] != alignLeft || tb.align[1] != alignRight ||
+		len(tb.rows) != 2 || tb.rows[1][1] != "" {
+		t.Errorf("table: %+v %v", tb, ok)
+	}
+	if _, ok := parseTable("| just | pipes |\n| no delimiter |"); ok {
+		t.Errorf("a table needs its delimiter row")
+	}
+}
+
+func TestInlineSupSubMathColor(t *testing.T) {
+	kinds := func(src string) []spanKind {
+		var out []spanKind
+		for _, sp := range parseInline([]rune(src)) {
+			out = append(out, sp.Kind)
+		}
+		return out
+	}
+	cases := []struct {
+		src  string
+		want []spanKind
+	}{
+		{"x^2^ and H~2~O", []spanKind{sSup, sSub}},
+		{"either ~5 or ~3", nil},
+		{"a ~~gone~~ word", []spanKind{sStrike}},
+		{"x^2 + y^2", nil},
+		{"area $\\pi r^2$ here", []spanKind{sMath}},
+		{"costs $5 and $6", nil},
+		{`<span style="color:#e05c5c">red</span>`, []spanKind{sColor}},
+		{`<span style='color: blue '>**b**</span>`, []spanKind{sColor, sBold}},
+		{`<span style="color:#e05c5c; x">no</span>`, nil},
+		{`<span style="color:red"></span>`, nil},
+	}
+	for _, c := range cases {
+		if got := kinds(c.src); !slices.Equal(got, c.want) {
+			t.Errorf("%q: spans %v, want %v", c.src, got, c.want)
+		}
+	}
+	d := NewDoc([]Block{NewBlock(Paragraph, "make this red")})
+	id := d.Blocks[0].ID
+	d.Anchor, d.Caret = Pos{id, 10}, Pos{id, 13}
+	d.SetColor("#e05c5c")
+	if got := d.Blocks[0].Text; got != `make this <span style="color:#e05c5c">red</span>` {
+		t.Fatalf("coloured: %q", got)
+	}
+	if d.CurrentColor() != "#e05c5c" {
+		t.Fatalf("current colour %q", d.CurrentColor())
+	}
+	d.SetColor("#4a90d9")
+	if got := d.Blocks[0].Text; got != `make this <span style="color:#4a90d9">red</span>` {
+		t.Fatalf("recoloured: %q", got)
+	}
+	d.SetColor("")
+	if got := d.Blocks[0].Text; got != "make this red" {
+		t.Fatalf("colour removed: %q", got)
+	}
+	if a, c := d.Anchor.Off, d.Caret.Off; a != 10 || c != 13 {
+		t.Fatalf("selection after removal %d..%d", a, c)
+	}
+}
+
+func TestStatisticsCountWhatTheReaderSees(t *testing.T) {
+	d := NewDoc(ParseMarkdown("# A **bold** title\n\n---\n\n```\nx := 1\n```\n\nTwo words\n"))
+	s := d.Stats()
+	if s.Words != 8 || s.Paragraphs != 3 || s.Blocks != 4 || s.ReadingMinutes != 1 {
+		t.Errorf("stats: %+v", s)
+	}
+	if s.Chars != len("A bold title")+len("x := 1")+len("Two words") {
+		t.Errorf("characters %d", s.Chars)
+	}
+	d.Anchor, d.Caret = Pos{d.Blocks[0].ID, 2}, Pos{d.Blocks[0].ID, 10}
+	sel, ok := d.SelectionStats()
+	if !ok || sel.Words != 1 || sel.Chars != 4 {
+		t.Errorf("the selection \"**bold**\" is one word of four letters: %+v", sel)
+	}
+	if readingMinutes(299) != 1 || readingMinutes(301) != 2 || readingMinutes(0) != 0 {
+		t.Errorf("reading minutes")
 	}
 }

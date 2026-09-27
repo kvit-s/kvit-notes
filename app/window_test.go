@@ -1,6 +1,9 @@
 package app
 
 import (
+	"bytes"
+	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -9,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kvit-s/kvit-notes/editor"
 	"github.com/kvit-s/kvit-notes/vault"
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/toolbox/v2/geom"
@@ -46,6 +50,12 @@ func openVault(t *testing.T, n notes) *session {
 			t.Fatal(err)
 		}
 	}
+	return openVaultAt(t, root)
+}
+
+// openVaultAt opens a vault folder in a window on a headless screen.
+func openVaultAt(t *testing.T, root string) *session {
+	t.Helper()
 	v, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
@@ -203,9 +213,12 @@ func TestTheWindowShowsTheVault(t *testing.T) {
 		t.Errorf("the start tag shows %q", got)
 	}
 	s.clickScope("All Notes")
+	s.waitFor("the index", func() bool { return s.w.index.Len() == 4 })
 	s.do(func() { s.w.search.SetText("summer") })
-	if got := s.listed(); !slices.Equal(got, []string{"Reading list"}) {
-		t.Errorf("searching summer shows %q", got)
+	var found []string
+	s.do(func() { found = s.w.Results() })
+	if !slices.Equal(found, []string{"Reading list", "  Books to read this summer, in order"}) {
+		t.Errorf("searching summer shows %q", found)
 	}
 	s.shot("vault_02_searched.png")
 }
@@ -401,5 +414,99 @@ func TestDragANoteOntoAFolder(t *testing.T) {
 	s.screen.MouseUp(to, unison.ButtonLeft, mod.None)
 	if !s.exists("Journal/Reading list.md") || s.exists("Reading list.md") {
 		t.Errorf("dropping the note on Journal should move it there")
+	}
+}
+
+// features.md 1.2.8: a lone image line shows its picture, found beside the
+// note or from the top of the vault.
+func TestPicturesAreDrawn(t *testing.T) {
+	var buf bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 200, 100))
+	for x := range 200 {
+		for y := range 100 {
+			img.Set(x, y, color.RGBA{R: uint8(x), G: 90, B: 160, A: 255})
+		}
+	}
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	s := openVault(t, notes{
+		"assets/pic.png": buf.String(),
+		"Pictures.md":    "Before\n\n![A test picture|150](assets/pic.png \"Its caption\")\n\n![Missing](assets/none.png)\n",
+	})
+	s.clickRow(slices.Index(s.listed(), "Pictures"))
+	var kinds []editor.Kind
+	var rows []float32
+	s.do(func() {
+		for i, b := range s.w.Editor.Doc.Blocks {
+			kinds = append(kinds, b.Kind)
+			rows = append(rows, s.w.Editor.RowRect(i).Height)
+		}
+	})
+	if !slices.Equal(kinds, []editor.Kind{editor.Paragraph, editor.Image, editor.Image}) {
+		t.Fatalf("kinds: %v", kinds)
+	}
+	// 150 wide keeps the picture's shape: 75 high, plus the caption.
+	if rows[1] < 75+28 || rows[1] > 75+28+30 {
+		t.Errorf("the picture's row is %v high", rows[1])
+	}
+	s.shot("vault_08_pictures.png")
+	if got := s.file("Pictures.md"); !strings.Contains(got, "![A test picture|150](assets/pic.png \"Its caption\")") {
+		t.Errorf("the line must stay as written: %q", got)
+	}
+}
+
+func TestAPictureFromOutsideIsCopiedIntoAssets(t *testing.T) {
+	s := openVault(t, demo)
+	outside := filepath.Join(t.TempDir(), "My Photo (1).png")
+	if err := os.WriteFile(outside, []byte("png bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stored string
+	var err error
+	s.do(func() { stored, err = s.w.ingestFile(outside, "Ideas/Reading List (2).md") })
+	if err != nil || !strings.HasPrefix(stored, "assets/reading-list-2-") || !strings.HasSuffix(stored, ".png") {
+		t.Fatalf("stored as %q: %v", stored, err)
+	}
+	if !s.exists(stored) {
+		t.Errorf("the copy should be in the vault")
+	}
+	inside := filepath.Join(s.root, "Ideas", "inside.png")
+	_ = os.WriteFile(inside, []byte("x"), 0o644)
+	s.do(func() { stored, err = s.w.ingestFile(inside, "Ideas/Reading List (2).md") })
+	if stored != "Ideas/inside.png" {
+		t.Errorf("a picture already in the vault is linked where it is: %q", stored)
+	}
+}
+
+func TestBackForwardAndTheQuickSwitcher(t *testing.T) {
+	s := openVault(t, demo)
+	first := s.openTitle()
+	s.clickRow(slices.Index(s.listed(), "Reading list"))
+	s.clickRow(slices.Index(s.listed(), "Plan"))
+	s.screen.KeyPress(unison.KeyLeft, mod.Option)
+	if s.openTitle() != "Reading list" {
+		t.Errorf("Alt+Left should go back to Reading list, it is %q", s.openTitle())
+	}
+	s.screen.KeyPress(unison.KeyLeft, mod.Option)
+	if s.openTitle() != first {
+		t.Errorf("and again to %q, it is %q", first, s.openTitle())
+	}
+	s.screen.KeyPress(unison.KeyRight, mod.Option)
+	if s.openTitle() != "Reading list" {
+		t.Errorf("Alt+Right should go forward, it is %q", s.openTitle())
+	}
+	s.screen.KeyPress(unison.KeyP, mod.Control)
+	s.screen.Type("kvit ed")
+	s.shot("vault_09_switcher.png")
+	s.screen.KeyPress(unison.KeyDown, mod.None)
+	s.screen.KeyPress(unison.KeyReturn, mod.None)
+	if s.openTitle() != "Kvit editor" {
+		t.Errorf("the switcher should open Kvit editor, open is %q", s.openTitle())
+	}
+	s.screen.KeyPress(unison.KeyP, mod.Control)
+	s.screen.Type("Brand new idea\n")
+	if s.openTitle() != "Brand new idea" || !s.exists("Brand new idea.md") {
+		t.Errorf("unmatched words should make a note: %q", s.openTitle())
 	}
 }

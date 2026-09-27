@@ -12,6 +12,7 @@ import (
 
 	"github.com/kvit-s/kvit-notes/app"
 	"github.com/kvit-s/kvit-notes/editor"
+	"github.com/kvit-s/kvit-notes/vault"
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/enums/align"
@@ -28,6 +29,9 @@ type noteWindow struct {
 	status  *kvitui.StatusBar
 	path    string
 	message string // what the last save said
+	// page is the file's front matter, kept as it was read and written back
+	// on save; nil for a note that had none.
+	page *vault.Page
 }
 
 // newNoteWindow opens a window editing doc, which is saved to path.
@@ -45,7 +49,7 @@ func newNoteWindow(ui *kvitui.UI, doc *editor.Doc, path string) (*noteWindow, er
 
 	body := unison.NewPanel()
 	body.SetLayout(&unison.FlexLayout{Columns: 1, HAlign: align.Fill, VAlign: align.Fill})
-	n.strip = app.NewToolbar(ui, n.ed)
+	n.strip = app.NewToolbar(ui, n.ed, app.ToolbarHooks{File: n.fileMenu})
 	strip := n.strip.Panel
 	strip.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, HGrab: true})
 	n.region.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, VAlign: align.Fill, HGrab: true, VGrab: true})
@@ -111,27 +115,113 @@ func (n *noteWindow) update() {
 	n.status.MarkForLayoutAndRedraw()
 }
 
-// save writes the note to its file.
+// save writes the note to its file, asking for one when it has none.
 func (n *noteWindow) save() {
+	if n.path == "" {
+		n.saveAs()
+		return
+	}
 	d := n.ed.Doc
-	switch {
-	case n.path == "":
-		n.message = "No file to save to"
-	default:
-		if err := os.WriteFile(n.path, []byte(editor.Serialize(d.Blocks)), 0o644); err != nil {
-			n.message = "Save failed: " + err.Error()
-		} else {
-			d.Dirty = false
-			n.message = ""
-		}
+	text := editor.Serialize(d.Blocks)
+	if n.page != nil {
+		n.page.Body = text
+		text = n.page.Text()
+	}
+	if err := os.WriteFile(n.path, []byte(text), 0o644); err != nil {
+		n.message = "Save failed: " + err.Error()
+	} else {
+		d.Dirty = false
+		n.message = ""
 	}
 	n.update()
+}
+
+// saveAs asks for a file and saves the note to it.
+func (n *noteWindow) saveAs() {
+	d := unison.NewSaveDialog()
+	d.SetAllowedExtensions("md")
+	name := "Untitled.md"
+	if n.path != "" {
+		name = filepath.Base(n.path)
+	}
+	d.SetInitialFileName(name)
+	if !d.RunModal() || d.Path() == "" {
+		return
+	}
+	n.path = d.Path()
+	if filepath.Ext(n.path) == "" {
+		n.path += ".md"
+	}
+	n.win.SetTitle(title(n.path))
+	n.save()
+}
+
+// fileMenu is the File menu of a window editing one file.
+func (n *noteWindow) fileMenu() []kvitui.MenuItem {
+	return []kvitui.MenuItem{
+		{Text: "Open File…", OnSelect: func() {
+			d := unison.NewOpenDialog()
+			d.SetAllowedExtensions("md", "markdown", "txt")
+			if d.RunModal() && len(d.Paths()) > 0 {
+				openFileWindow(n.ui, d.Paths()[0])
+			}
+		}},
+		{Text: "Open Folder…", OnSelect: func() {
+			d := unison.NewOpenDialog()
+			d.SetCanChooseFiles(false)
+			d.SetCanChooseDirectories(true)
+			if !d.RunModal() || len(d.Paths()) == 0 {
+				return
+			}
+			if w, err := app.OpenVault(n.ui, d.Paths()[0]); err != nil {
+				n.message = "Could not open the folder: " + err.Error()
+				n.update()
+			} else {
+				w.Win.ToFront()
+			}
+		}},
+		{Separator: true},
+		{Text: "Save", Key: unison.KeyBinding{KeyCode: unison.KeyS, Modifiers: mod.OSMenuCommand()}, OnSelect: n.save},
+		{Text: "Save As…", OnSelect: n.saveAs},
+		{Separator: true},
+		{Text: "Settings…", OnSelect: func() { app.OpenSettings(n.ui, n.win, nil) }},
+		{Text: "Keyboard shortcuts…", OnSelect: func() { app.OpenShortcuts(n.ui, n.win) }},
+	}
+}
+
+// openFileWindow opens a Markdown file on its own in a new window.
+func openFileWindow(ui *kvitui.UI, path string) {
+	doc, page, err := loadFile(path)
+	if err != nil {
+		return
+	}
+	n, err := newNoteWindow(ui, doc, path)
+	if err != nil {
+		return
+	}
+	n.page = page
+	n.win.ToFront()
+	n.ed.FocusBlock(0, 0)
+}
+
+// loadFile reads a note file, its front matter apart from its body; a
+// file that does not exist yet is an empty note.
+func loadFile(path string) (*editor.Doc, *vault.Page, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return editor.NewDoc(nil), nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	p := vault.ParseText(string(data))
+	return editor.NewDoc(editor.ParseMarkdown(p.Body)), p, nil
 }
 
 // loadDoc reads a note, or returns the sample note for an empty path.
 func loadDoc(path string) (*editor.Doc, error) {
 	if path == "" {
-		return editor.NewDoc(editor.ParseMarkdown(sampleNote)), nil
+		return editor.NewDoc(editor.ParseMarkdown(app.WelcomeNote)), nil
 	}
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -142,28 +232,3 @@ func loadDoc(path string) (*editor.Doc, error) {
 	}
 	return editor.NewDoc(editor.ParseMarkdown(string(data))), nil
 }
-
-const sampleNote = `# Welcome to Kvit Notes
-
-The quick **brown** fox has *seven* cubs. Markers such as the stars show only around the caret.
-
-## Things to try
-
-- Type ` + "`# `" + ` at the start of an empty paragraph to make a heading
-- Type ` + "`/`" + ` in an empty block for the block menu
-- [ ] Drag a block by the handle that appears on hover
-- [x] Undo anything with Ctrl+Z
-
-> A quotation keeps its lines
-> together.
-
-` + "```" + `
-func main() {
-    fmt.Println("code keeps its indentation")
-}
-` + "```" + `
-
----
-
-Bold with Ctrl+B, italic with Ctrl+I, ==highlight==, ~~strike~~, ++underline++ and [links](https://kvit.app).
-`

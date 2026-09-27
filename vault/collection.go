@@ -11,7 +11,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
+	"slices"
+	"sort"
+	"time"
 )
 
 // Collection is what collection.json holds. Its fields are in the order
@@ -88,4 +92,91 @@ func (c *Collection) encode() ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// SetFolderColor gives a folder a colour ("#rrggbb"), or takes it away
+// with "".
+func (c *Collection) SetFolderColor(folder, color string) {
+	s, ok := c.Folders[folder]
+	if !ok {
+		s.Expanded = true
+	}
+	s.Color = color
+	if s.Expanded && s.Color == "" {
+		delete(c.Folders, folder)
+		return
+	}
+	if c.Folders == nil {
+		c.Folders = map[string]FolderState{}
+	}
+	c.Folders[folder] = s
+}
+
+// SetTagColor gives a tag a colour, or takes it away with "".
+func (c *Collection) SetTagColor(tag, color string) {
+	if color == "" {
+		delete(c.TagColors, tag)
+		return
+	}
+	if c.TagColors == nil {
+		c.TagColors = map[string]string{}
+	}
+	c.TagColors[tag] = color
+}
+
+// ManualOrder is a folder's notes in the order the reader put them: the
+// names collection.json lists that still exist, then the rest, oldest
+// first (NoteCollection::manualOrder).
+func (v *Vault) ManualOrder(folder string) []*Entry {
+	var out []*Entry
+	listed := map[*Entry]bool{}
+	for _, name := range v.State.ManualOrder[folder] {
+		if e := v.Find(path.Join(folder, name)); e != nil && !listed[e] {
+			out = append(out, e)
+			listed[e] = true
+		}
+	}
+	var rest []*Entry
+	for _, e := range v.Entries {
+		if e.Folder == folder && !listed[e] {
+			rest = append(rest, e)
+		}
+	}
+	sort.SliceStable(rest, func(a, b int) bool {
+		ca, cb := createdTime(rest[a]), createdTime(rest[b])
+		if !ca.Equal(cb) {
+			return ca.Before(cb)
+		}
+		return rest[a].Path < rest[b].Path
+	})
+	return append(out, rest...)
+}
+
+// createdTime is when a note was made: its front matter's date, else its
+// file's time.
+func createdTime(e *Entry) time.Time {
+	if !e.Created.IsZero() {
+		return e.Created
+	}
+	return e.Modified
+}
+
+// SetManualPosition moves a note to a place in its folder's manual order,
+// and keeps the order in collection.json.
+func (v *Vault) SetManualPosition(e *Entry, position int) error {
+	if v.ReadOnly {
+		return ErrReadOnly
+	}
+	order := slices.DeleteFunc(v.ManualOrder(e.Folder), func(x *Entry) bool { return x == e })
+	position = max(0, min(position, len(order)))
+	order = slices.Insert(order, position, e)
+	names := make([]string, len(order))
+	for i, x := range order {
+		names[i] = path.Base(x.Path)
+	}
+	if v.State.ManualOrder == nil {
+		v.State.ManualOrder = map[string][]string{}
+	}
+	v.State.ManualOrder[e.Folder] = names
+	return v.SaveState()
 }

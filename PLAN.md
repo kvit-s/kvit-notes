@@ -70,10 +70,29 @@ for writing notes. After that the order can bend to what the owner uses most.
 
 ## Where it stands
 
-- **Part 1** is mostly done (2026-09-27): the vault in the Qt app's formats
-  with its lock, the three panes, opening, saving (on a pause, on switching
-  notes, on closing, with Ctrl+S), new notes named from their first block,
-  folders, tags, pinning, favourites, renaming, the trash, moving notes by
-  dragging, sorting, and a filter across notes. Left: `.gitignore` rules in
-  the scan, manual order, bulk selection, choosing colours, tag renaming,
-  collapsing one pane at a time, and remembering pane widths.
+`PARITY.md` has the detail, item by item, with the test behind each. In
+short, on 2026-09-27:
+
+- **Part 1** is done, with manual order, picking several notes, colours,
+  tag renaming and the `.gitignore` rules in the scan. Panes can be hidden
+  one at a time and their widths are remembered.
+- **Part 2** is done: backups and their restore dialog, the recovery journal,
+  other programs' changes, the trash, read-only vaults.
+- **Part 3** is done: following links, the link dialog, `[[` completion,
+  back and forward, the quick switcher, backlinks, and renames that update
+  links through `.kvit/redirects.json`.
+- **Part 4** is done: find and replace in a note, and search across notes
+  with an index of the Go app's own (the `search` package). No SQLite.
+- **Part 5**: code colouring, the language menu and line numbers, the text
+  menu and the formatting bar, superscript, subscript, text colour, images,
+  embeds, callouts, toggles, tables (as grids), divider styles, drop caps,
+  the table of contents, task boards, collection queries and HTML on the
+  clipboard exist, with cards dragged between columns. Left: math rendering
+  and Mermaid diagrams.
+- **Part 6**: settings, export (PDF too) and import, templates, focus and
+  typewriter modes, the outline, statistics and writing goals, quick capture
+  (the Qt app's hotkey also works only inside the app), one running copy,
+  menu access keys. Left: the tray icon with its notifications, and file
+  associations, which need operating-system code unison does not have.
+- **Part 7** has started: the ported packages carry the Qt tests of the
+  logic they port, and 21 storyboards are replayed as scenarios.

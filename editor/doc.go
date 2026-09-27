@@ -50,6 +50,10 @@ type Doc struct {
 	undo, redo []undoEntry
 	// Now is the clock, replaceable in tests.
 	Now func() time.Time
+	// ReadOnly refuses every change: the caret moves and text can be
+	// selected and copied, but nothing is edited. A note in a vault that
+	// cannot be written, in the trash or in a backup is read-only.
+	ReadOnly bool
 }
 
 func NewDoc(blocks []Block) *Doc {
@@ -92,6 +96,9 @@ func (d *Doc) restore(s DocState) {
 // into one step while the keystrokes are under 500 ms apart and each adds
 // fewer than 20 characters (src/domain/textchangecommand.cpp).
 func (d *Doc) Edit(kind string, fn func()) {
+	if d.ReadOnly {
+		return
+	}
 	before := d.snapshot()
 	fn()
 	d.Dirty = true
@@ -126,13 +133,16 @@ func (d *Doc) Seal() {
 func (d *Doc) Begin() DocState { return d.snapshot() }
 
 func (d *Doc) Commit(kind string, before DocState) {
+	if d.ReadOnly {
+		return
+	}
 	d.undo = append(d.undo, undoEntry{before: before, after: d.snapshot(), kind: kind, at: d.Now()})
 	d.redo = nil
 	d.Dirty = true
 }
 
 func (d *Doc) Undo() bool {
-	if len(d.undo) == 0 {
+	if len(d.undo) == 0 || d.ReadOnly {
 		return false
 	}
 	e := d.undo[len(d.undo)-1]
@@ -143,7 +153,7 @@ func (d *Doc) Undo() bool {
 }
 
 func (d *Doc) Redo() bool {
-	if len(d.redo) == 0 {
+	if len(d.redo) == 0 || d.ReadOnly {
 		return false
 	}
 	e := d.redo[len(d.redo)-1]
@@ -284,10 +294,18 @@ func (d *Doc) pasteBlocks(text string) {
 	if len(pasted) == 0 {
 		return
 	}
-	if pasted[0].Kind == Paragraph {
+	switch {
+	case pasted[0].Kind == Paragraph:
 		b.Text = head + pasted[0].Text
 		pasted = pasted[1:]
-	} else {
+	case head == "" && b.Kind == Paragraph:
+		// An empty paragraph, or the start of one, becomes the first block
+		// pasted rather than staying empty above it.
+		id := b.ID
+		*b = pasted[0]
+		b.ID = id
+		pasted = pasted[1:]
+	default:
 		b.Text = head
 	}
 	last := b
@@ -349,7 +367,7 @@ func (d *Doc) Backspace() {
 	switch {
 	case prev.Kind == Divider:
 		d.Edit("delete block", func() { d.Blocks = slices.Delete(d.Blocks, i-1, i) })
-	case prev.Kind == Code || prev.Kind == Raw:
+	case prev.Kind.isSource():
 		d.SetCaret(prev.ID, len(runes(prev.Text)))
 	default:
 		d.Edit("merge", func() {
@@ -385,7 +403,7 @@ func (d *Doc) DeleteForward() {
 	switch {
 	case next.Kind == Divider:
 		d.Edit("delete block", func() { d.Blocks = slices.Delete(d.Blocks, i+1, i+2) })
-	case next.Kind == Code || next.Kind == Raw || b.Kind == Code:
+	case next.Kind.isSource() || b.Kind.isSource():
 	default:
 		d.Edit("merge", func() {
 			b.Text += next.Text
@@ -411,7 +429,7 @@ func (d *Doc) Enter() {
 		return
 	}
 	b := &d.Blocks[i]
-	if b.Kind == Code || b.Kind == Raw {
+	if b.Kind.isSource() {
 		r := runes(b.Text)
 		lineStart := d.Caret.Off
 		for lineStart > 0 && r[lineStart-1] != '\n' {
@@ -483,7 +501,13 @@ func (d *Doc) Convert(id int64, k Kind) {
 		return
 	}
 	d.Edit("convert", func() {
+		if b.Kind == Code || b.Kind == Callout {
+			b.Lang = ""
+		}
 		b.Kind = k
+		if k == Callout {
+			b.Lang = "info"
+		}
 		if !k.IsList() && k != Quote {
 			b.Indent = 0
 		}
@@ -495,6 +519,29 @@ func (d *Doc) Convert(id int64, k Kind) {
 				d.Blocks = append(d.Blocks, nb)
 			}
 			d.SetCaret(d.Blocks[i+1].ID, 0)
+		}
+	})
+}
+
+// SetAttr sets one presentation attribute of blocks, "" removing it, as one
+// undo step: the alignment a menu chooses, a divider's style.
+func (d *Doc) SetAttr(ids []int64, key, value string) {
+	d.Edit("attributes", func() {
+		for _, id := range ids {
+			b := d.Block(id)
+			if b == nil {
+				continue
+			}
+			var keep []string
+			for _, tok := range strings.Fields(b.Attrs) {
+				if k, _, _ := strings.Cut(tok, "="); k != key {
+					keep = append(keep, tok)
+				}
+			}
+			if value != "" {
+				keep = append(keep, key+"="+value)
+			}
+			b.Attrs = canonicalAttrs(strings.Join(keep, " "))
 		}
 	})
 }
@@ -539,6 +586,9 @@ func (d *Doc) Move(ids []int64, dir int) bool {
 // MoveTo puts one block at index `to` without recording undo; a drag calls
 // it on every step and records a single step when it ends.
 func (d *Doc) MoveTo(id int64, to int) {
+	if d.ReadOnly {
+		return
+	}
 	from := d.Index(id)
 	if from < 0 || from == to {
 		return
@@ -732,4 +782,72 @@ func (d *Doc) Words() (words, chars int) {
 		words += len(strings.Fields(b.Text))
 	}
 	return
+}
+
+// colorSpanAt is the innermost colour span holding the selection, or false.
+func (d *Doc) colorSpanAt() (span, bool) {
+	b := d.CaretBlock()
+	if b == nil || d.CrossBlock() {
+		return span{}, false
+	}
+	a, c := d.Anchor.Off, d.Caret.Off
+	if a > c {
+		a, c = c, a
+	}
+	var found span
+	ok := false
+	for _, sp := range parseInline(runes(b.Text)) {
+		if sp.Kind == sColor && sp.CStart <= a && c <= sp.CEnd {
+			found, ok = sp, true
+		}
+	}
+	return found, ok
+}
+
+// CurrentColor is the text colour of the colour span holding the selection,
+// "" for none.
+func (d *Doc) CurrentColor() string {
+	sp, _ := d.colorSpanAt()
+	return sp.Color
+}
+
+// SetColor gives the selected text a colour, as Kvit writes one:
+// <span style="color:VALUE">…</span>. Inside a colour span it changes that
+// span's colour, and an empty value takes the span away, keeping its text.
+func (d *Doc) SetColor(value string) {
+	b := d.CaretBlock()
+	if b == nil || !b.Kind.HasInline() || d.CrossBlock() {
+		return
+	}
+	a, c := d.Anchor.Off, d.Caret.Off
+	if a > c {
+		a, c = c, a
+	}
+	r := runes(b.Text)
+	open := `<span style="color:` + value + `">`
+	if sp, ok := d.colorSpanAt(); ok && (a == c || a == sp.CStart && c == sp.CEnd) {
+		d.Edit("format", func() {
+			inner := string(r[sp.CStart:sp.CEnd])
+			if value == "" {
+				b.Text = string(r[:sp.Start]) + inner + string(r[sp.End:])
+				d.Anchor = Pos{b.ID, sp.Start + a - sp.CStart}
+				d.Caret = Pos{b.ID, sp.Start + c - sp.CStart}
+				return
+			}
+			b.Text = string(r[:sp.Start]) + open + inner + string(r[sp.CEnd:])
+			shift := len(runes(open)) - (sp.CStart - sp.Start)
+			d.Anchor = Pos{b.ID, a + shift}
+			d.Caret = Pos{b.ID, c + shift}
+		})
+		return
+	}
+	if a == c || value == "" {
+		return
+	}
+	d.Edit("format", func() {
+		b.Text = string(r[:a]) + open + string(r[a:c]) + "</span>" + string(r[c:])
+		n := len(runes(open))
+		d.Anchor = Pos{b.ID, a + n}
+		d.Caret = Pos{b.ID, c + n}
+	})
 }

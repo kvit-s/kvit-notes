@@ -1,0 +1,106 @@
+package kanban
+
+import "math/bits"
+
+// qtRandom reproduces Qt's QRandomGenerator constructed from one 32-bit seed,
+// so that TestMutationPreservationProperty builds the same 300 boards as
+// test_kanbandata.cpp. In Qt 6.10 (qrandom.h, qrandom.cpp) that generator is
+// a std::mt19937 seeded through a std::seed_seq holding the one seed value.
+type qtRandom struct {
+	state [624]uint32
+	next  int
+}
+
+func newQtRandom(seed uint32) *qtRandom {
+	const n = 624
+	r := &qtRandom{next: n}
+
+	// std::seed_seq::generate over 624 words for the one-value sequence
+	// {seed}, as the C++ standard specifies it ([rand.util.seedseq]).
+	a := &r.state
+	for i := range a {
+		a[i] = 0x8b8b8b8b
+	}
+	const s = 1
+	const t = 11 // n >= 623
+	const p = (n - t) / 2
+	const q = p + t
+	m := max(s+1, n)
+	mix := func(x uint32) uint32 { return x ^ (x >> 27) }
+	for k := 0; k < m; k++ {
+		r1 := 1664525 * mix(a[k%n]^a[(k+p)%n]^a[(k+n-1)%n])
+		var r2 uint32
+		switch {
+		case k == 0:
+			r2 = r1 + s
+		case k <= s:
+			r2 = r1 + uint32(k%n) + seed
+		default:
+			r2 = r1 + uint32(k%n)
+		}
+		a[(k+p)%n] += r1
+		a[(k+q)%n] += r2
+		a[k%n] = r2
+	}
+	for k := m; k < m+n; k++ {
+		r3 := 1566083941 * mix(a[k%n]+a[(k+p)%n]+a[(k+n-1)%n])
+		r4 := r3 - uint32(k%n)
+		a[(k+p)%n] ^= r3
+		a[(k+q)%n] ^= r4
+		a[k%n] = r4
+	}
+	// mersenne_twister_engine::seed(seed_seq&): a state of all zeros except
+	// for the bits the recurrence ignores is replaced by one that works.
+	zero := a[0]&0x80000000 == 0
+	for i := 1; i < n && zero; i++ {
+		zero = a[i] == 0
+	}
+	if zero {
+		a[0] = 0x80000000
+	}
+	return r
+}
+
+// generate returns the next output of std::mt19937.
+func (r *qtRandom) generate() uint32 {
+	const n, m = 624, 397
+	if r.next >= n {
+		for i := 0; i < n; i++ {
+			y := r.state[i]&0x80000000 | r.state[(i+1)%n]&0x7fffffff
+			v := r.state[(i+m)%n] ^ y>>1
+			if y&1 != 0 {
+				v ^= 0x9908b0df
+			}
+			r.state[i] = v
+		}
+		r.next = 0
+	}
+	y := r.state[r.next]
+	r.next++
+	y ^= y >> 11
+	y ^= y << 7 & 0x9d2c5680
+	y ^= y << 15 & 0xefc60000
+	y ^= y >> 18
+	return y
+}
+
+// bounded is QRandomGenerator::bounded(int): a value in [0, highest) scaled
+// from one 32-bit output.
+func (r *qtRandom) bounded(highest int) int {
+	return int(uint64(r.generate()) * uint64(highest) >> 32)
+}
+
+// bounded64 is QRandomGenerator::bounded(qint64), which the Qt test calls
+// with a list's size (a qsizetype): 64-bit outputs masked to the bits
+// highest needs, drawn again until one is below highest.
+func (r *qtRandom) bounded64(highest int) int {
+	width := bits.LeadingZeros64(uint64(highest - 1))
+	mask := uint64(1)<<(64-width) - 1
+	for {
+		lo := uint64(r.generate())
+		hi := uint64(r.generate())
+		if v := (lo | hi<<32) & mask; v < uint64(highest) {
+			return int(v)
+		}
+	}
+}

@@ -31,6 +31,14 @@ const (
 	// Raw keeps Markdown the editor does not model (tables, display math,
 	// front matter) verbatim, so a note survives a load and save unchanged.
 	Raw
+	// Image is a line holding only ![alt](picture), drawn as the picture.
+	Image
+	// Media is such a line naming a sound or a video.
+	Media
+	// Callout is a quote headed "[!type] Title": a tinted panel.
+	Callout
+	// Table is a pipe table, kept as written and drawn as a grid.
+	Table
 )
 
 var kindNames = [...]string{
@@ -46,6 +54,10 @@ var kindNames = [...]string{
 	Code:      "Code",
 	Divider:   "Divider",
 	Raw:       "Unsupported Markdown",
+	Image:     "Image",
+	Media:     "Media",
+	Callout:   "Callout",
+	Table:     "Table",
 }
 
 func (k Kind) String() string { return kindNames[k] }
@@ -56,7 +68,13 @@ func (k Kind) String() string { return kindNames[k] }
 func (k Kind) IsList() bool { return k == Bullet || k == Numbered || k == Todo }
 
 // HasInline reports whether the block's text is parsed as inline Markdown.
-func (k Kind) HasInline() bool { return k != Code && k != Raw && k != Divider }
+func (k Kind) HasInline() bool {
+	return k != Code && k != Raw && k != Divider && k != Image && k != Media && k != Table
+}
+
+// isSource reports whether the block is edited as its Markdown in a
+// monospace panel: code, what the editor does not model, and a table.
+func (k Kind) isSource() bool { return k == Code || k == Raw || k == Table }
 
 // IsText reports whether the block is edited as text at all.
 func (k Kind) IsText() bool { return k != Divider }
@@ -75,6 +93,8 @@ type Block struct {
 	Text    string
 	Checked bool
 	Lang    string
+	// Title is a callout's title.
+	Title string
 	// Attrs is the block's presentation (alignment, a divider's style and so
 	// on) as Kvit stores it: the inside of a "<!--kvit ...-->" comment at the
 	// end of the block's Markdown, space-separated key=value tokens and bare
@@ -136,6 +156,18 @@ func canonicalAttrs(payload string) string {
 		out[i] = byKey[k]
 	}
 	return strings.Join(out, " ")
+}
+
+// Attr is one of a block's presentation attributes: the value of key=value
+// in its payload, "" for a bare flag, and whether it is there at all.
+func (b *Block) Attr(key string) (string, bool) {
+	for _, tok := range strings.Fields(b.Attrs) {
+		k, v, _ := strings.Cut(tok, "=")
+		if k == key {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 // attachTag appends a payload to Markdown as Kvit's attribute tag.
@@ -224,7 +256,10 @@ func ParseMarkdown(src string) []Block {
 			for j < len(lines) && strings.HasPrefix(lines[j], "|") {
 				j++
 			}
-			out = append(out, NewBlock(Raw, strings.Join(lines[i:j], "\n")))
+			tableLines := append([]string{line}, lines[i+1:j]...)
+			tb := NewBlock(Table, strings.Join(tableLines, "\n"))
+			tb.Attrs = attrs
+			out = append(out, tb)
 			i = j
 			continue
 		}
@@ -232,6 +267,16 @@ func ParseMarkdown(src string) []Block {
 			b.Attrs = attrs
 			out = append(out, b)
 			i++
+		}
+		// A lone image expression at the margin is an image or media block
+		// (Kvit's DocumentSerializer::parse, after tables).
+		if ref, ok := ParseImageLine(line); ok {
+			kind := Image
+			if ref.Media {
+				kind = Media
+			}
+			one(NewBlock(kind, line))
+			continue
 		}
 		if reDivider.MatchString(line) {
 			one(NewBlock(Divider, ""))
@@ -293,6 +338,10 @@ func ParseMarkdown(src string) []Block {
 				i++
 			}
 			b := NewBlock(Quote, strings.Join(body, "\n"))
+			if m := reCallout.FindStringSubmatch(body[0]); m != nil {
+				b = NewBlock(Callout, strings.Join(body[1:], "\n"))
+				b.Lang, b.Checked, b.Title = m[1], m[2] == "-", m[3]
+			}
 			b.Attrs = quoteAttrs
 			out = append(out, b)
 			continue
@@ -341,8 +390,11 @@ func BlockMarkdown(b Block, number int) string {
 	if b.Attrs == "" {
 		return md
 	}
-	if b.Kind == Code {
-		first, rest, _ := strings.Cut(md, "\n")
+	if b.Kind == Code || b.Kind == Table {
+		first, rest, found := strings.Cut(md, "\n")
+		if !found {
+			return attachTag(first, b.Attrs)
+		}
 		return attachTag(first, b.Attrs) + "\n" + rest
 	}
 	return attachTag(md, b.Attrs)
@@ -376,7 +428,18 @@ func blockMarkdown(b Block, number int) string {
 		}
 		return prefixLines(pad+"- "+mark, pad+"      ")
 	case Quote:
-		return prefixLines("> ", "> ")
+		// An empty line is written as ">", so no line ends in a space.
+		var out []string
+		for _, l := range strings.Split(b.Text, "\n") {
+			if l == "" {
+				out = append(out, ">")
+			} else {
+				out = append(out, "> "+l)
+			}
+		}
+		return strings.Join(out, "\n")
+	case Callout:
+		return calloutMarkdown(b)
 	case Code:
 		return "```" + b.Lang + "\n" + b.Text + "\n```"
 	case Divider:
@@ -434,4 +497,11 @@ func Summarize(body string) (snippet string, words int, text string) {
 		snippet = string(r[:snippetLength])
 	}
 	return snippet, words, all.String()
+}
+
+// PlainText is a block's inline Markdown as it is drawn: the markers of
+// its formatted spans left out.
+func PlainText(src string) string {
+	r := []rune(src)
+	return string(project(r, parseInline(r), nil).Disp)
 }

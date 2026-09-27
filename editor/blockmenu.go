@@ -23,19 +23,30 @@ type blockCommand struct {
 }
 
 var blockCommands = []blockCommand{
-	{label: "Copy", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
-	{label: "Copy as", more: []blockCommand{
-		{label: "Markdown", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
-		{label: "Plain text", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksPlain(ids)) }},
+	{label: "&Copy", run: func(e *Editor, ids []int64) { e.copyMarkdown(e.blocksMarkdown(ids)) }},
+	{label: "Copy &as…", more: []blockCommand{
+		{label: "&Markdown", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
+		{label: "&Plain text", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksPlain(ids)) }},
 	}},
-	{label: "Turn into", sep: true, more: turnInto()},
-	{label: "Remove line breaks", run: func(e *Editor, ids []int64) { e.Doc.JoinLines(ids) }},
-	{label: "Duplicate", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Duplicate(ids) }},
-	{label: "Delete", run: func(e *Editor, ids []int64) { e.Doc.DeleteBlocks(ids); e.clearBlockSel() }},
-	{label: "Move up", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Move(ids, -1) }},
-	{label: "Move down", run: func(e *Editor, ids []int64) { e.Doc.Move(ids, 1) }},
-	{label: "Indent", run: func(e *Editor, ids []int64) { e.Doc.Indent(ids, 1) }},
-	{label: "Outdent", run: func(e *Editor, ids []int64) { e.Doc.Indent(ids, -1) }},
+	{label: "&Turn into", sep: true, more: turnInto()},
+	{label: "Ali&gn", more: []blockCommand{
+		{label: "&Left", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "align", "") }},
+		{label: "&Center", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "align", "center") }},
+		{label: "&Right", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "align", "right") }},
+	}},
+	{label: "Dro&p cap", more: []blockCommand{
+		{label: "&None", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "dropcap", "") }},
+		{label: "&2 lines", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "dropcap", "2") }},
+		{label: "&3 lines", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "dropcap", "3") }},
+		{label: "&5 lines", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "dropcap", "5") }},
+	}},
+	{label: "Remove &line breaks", run: func(e *Editor, ids []int64) { e.Doc.JoinLines(ids) }},
+	{label: "D&uplicate", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Duplicate(ids) }},
+	{label: "&Delete", run: func(e *Editor, ids []int64) { e.Doc.DeleteBlocks(ids); e.clearBlockSel() }},
+	{label: "&Move up", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Move(ids, -1) }},
+	{label: "Move dow&n", run: func(e *Editor, ids []int64) { e.Doc.Move(ids, 1) }},
+	{label: "&Indent", run: func(e *Editor, ids []int64) { e.Doc.Indent(ids, 1) }},
+	{label: "&Outdent", run: func(e *Editor, ids []int64) { e.Doc.Indent(ids, -1) }},
 }
 
 // turnInto is the submenu of "Turn into": every kind a block can be
@@ -44,7 +55,10 @@ func turnInto() []blockCommand {
 	var out []blockCommand
 	for _, it := range menuItems {
 		kind := it.kind
-		if kind == Divider {
+		// A divider has no text to keep, and the entries that make a new
+		// kind of block from scratch (a picture, a table) have none to
+		// start from.
+		if kind == Divider || it.init != nil {
 			continue
 		}
 		out = append(out, blockCommand{label: it.name, run: func(e *Editor, ids []int64) {
@@ -61,9 +75,11 @@ func turnInto() []blockCommand {
 func BlockMenuCommands() (lines []string, more map[string][]string) {
 	more = map[string][]string{}
 	for _, c := range blockCommands {
-		lines = append(lines, c.label)
+		label, _, _ := kvitui.AccessText(c.label)
+		lines = append(lines, label)
 		for _, m := range c.more {
-			more[c.label] = append(more[c.label], m.label)
+			sub, _, _ := kvitui.AccessText(m.label)
+			more[label] = append(more[label], sub)
 		}
 	}
 	return lines, more
@@ -104,7 +120,13 @@ func (e *Editor) menuItems(cmds []blockCommand, ids []int64) []kvitui.MenuItem {
 			items = append(items, kvitui.MenuItem{Separator: true})
 		}
 		if c.more != nil {
-			items = append(items, kvitui.MenuItem{Text: c.label, Items: e.menuItems(c.more, ids)})
+			sub := e.menuItems(c.more, ids)
+			if c.label == "Copy &as…" && e.BlocksHTML != nil {
+				sub = append(sub, kvitui.MenuItem{Text: "&HTML", OnSelect: func() {
+					unison.ClipboardSetText(e.BlocksHTML(e.Doc.Blocks, e.indexesOf(ids)))
+				}})
+			}
+			items = append(items, kvitui.MenuItem{Text: c.label, Items: sub})
 			continue
 		}
 		c := c
@@ -135,4 +157,67 @@ func (e *Editor) openBlockMenuForCaret() bool {
 	r := e.rowRect(i)
 	e.openBlockMenu(id, geom.NewRect(r.X+e.px(gutterWidth), r.Y, 0, r.Height))
 	return true
+}
+
+// inSelection reports whether a position is inside the text selection.
+func (e *Editor) inSelection(p Pos) bool {
+	d := e.Doc
+	if !d.HasSelection() {
+		return false
+	}
+	a, b := d.SelRange()
+	ia, ib, ip := d.Index(a.Block), d.Index(b.Block), d.Index(p.Block)
+	after := ip > ia || (ip == ia && p.Off >= a.Off)
+	before := ip < ib || (ip == ib && p.Off <= b.Off)
+	return after && before
+}
+
+// openTextMenu opens Kvit's menu for text (qml/EditorContextMenus.qml):
+// cut, copy and paste, the inline formats, and the block's own commands.
+func (e *Editor) openTextMenu(at geom.Rect) {
+	d := e.Doc
+	e.closeMenu()
+	has := d.HasSelection()
+	act := func(f func()) func() {
+		return func() {
+			f()
+			e.touched()
+			e.changed()
+		}
+	}
+	format := func(label, marker string) kvitui.MenuItem {
+		return kvitui.MenuItem{Text: label, Disabled: d.ReadOnly, OnSelect: act(func() { d.ToggleFormat(marker) })}
+	}
+	items := []kvitui.MenuItem{
+		{Text: "Cut", Disabled: !has || d.ReadOnly, OnSelect: act(func() {
+			e.copyMarkdown(d.SelectedMarkdown())
+			d.DeleteSelection()
+		})},
+		{Text: "Copy", Disabled: !has, OnSelect: func() { e.copyMarkdown(d.SelectedMarkdown()) }},
+		{Text: "Paste", Disabled: d.ReadOnly || !unison.ClipboardHasText(), OnSelect: act(e.pasteClipboard)},
+		{Text: "Paste as plain text", Disabled: d.ReadOnly || !unison.ClipboardHasText(), OnSelect: act(func() {
+			d.InsertText(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"))
+		})},
+		{Separator: true},
+		{Text: "Formatting", Items: []kvitui.MenuItem{
+			format("Bold", "**"), format("Italic", "*"), format("Underline", "++"),
+			format("Strikethrough", "~~"), format("Inline code", "`"), format("Highlight", "=="),
+		}},
+	}
+	if b := d.CaretBlock(); b != nil {
+		items = append(items, kvitui.MenuItem{Separator: true},
+			kvitui.MenuItem{Text: "Block", Items: e.menuItems(blockCommands, []int64{b.ID})})
+	}
+	e.ui.ShowMenuAt(e, at, "Text", items)
+}
+
+// indexesOf are blocks' places in the note, in order.
+func (e *Editor) indexesOf(ids []int64) []int {
+	var out []int
+	for _, id := range ids {
+		if i := e.Doc.Index(id); i >= 0 {
+			out = append(out, i)
+		}
+	}
+	return out
 }

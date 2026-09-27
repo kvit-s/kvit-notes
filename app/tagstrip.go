@@ -1,14 +1,14 @@
 package app
 
 // The tag strip above a note (Kvit's TagStrip.qml): the note's tags as
-// removable tags, and a small field that adds one on Return.
+// removable tags, and a small field that offers the vault's tags as the
+// reader types and adds the one chosen, or a new one.
 
 import (
 	"strings"
 
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/unison"
-	"github.com/richardwilkes/unison/enums/mod"
 )
 
 // tagFieldWidth is the add field's width in design pixels (TagStrip.qml).
@@ -18,7 +18,7 @@ const tagFieldWidth = 110
 type TagStrip struct {
 	*unison.Panel
 	ui    *kvitui.UI
-	field *kvitui.Field
+	field *kvitui.TypeAhead
 	tags  []string
 	// OnAdd and OnRemove run when the reader adds or removes a tag.
 	OnAdd    func(tag string)
@@ -28,26 +28,27 @@ type TagStrip struct {
 // NewTagStrip returns an empty strip.
 func NewTagStrip(ui *kvitui.UI) *TagStrip {
 	s := &TagStrip{ui: ui}
-	s.field = kvitui.NewField(ui)
-	s.field.Label = "Add a tag"
+	s.field = kvitui.NewTypeAhead(ui, "Add a tag", true)
 	s.field.Placeholder = "+ Tag"
-	edit := s.field.Edit()
-	keys := edit.KeyDownCallback
-	edit.KeyDownCallback = func(key unison.KeyCode, mods mod.Modifiers, repeat bool) bool {
-		if key == unison.KeyReturn || key == unison.KeyNumPadEnter {
-			tag := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s.field.Text()), "#"))
-			s.field.SetText("")
-			if tag != "" && s.OnAdd != nil {
-				s.OnAdd(tag)
-			}
-			return true
+	s.field.OnChoose = func(value string) {
+		tag := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(value), "#"))
+		s.field.SetText("")
+		if tag != "" && s.OnAdd != nil {
+			s.OnAdd(tag)
 		}
-		return keys != nil && keys(key, mods, repeat)
 	}
 	s.Panel = unison.NewPanel()
 	s.SetLayout(&unison.FlexLayout{Columns: 1})
 	s.rebuild()
 	return s
+}
+
+// SetSuggestions is every tag the field offers.
+func (s *TagStrip) SetSuggestions(tags []string) {
+	s.field.Source = s.field.Source[:0]
+	for _, t := range tags {
+		s.field.Source = append(s.field.Source, kvitui.Suggestion{Value: t})
+	}
 }
 
 // SetTags shows a note's tags.

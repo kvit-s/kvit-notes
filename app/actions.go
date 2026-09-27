@@ -7,11 +7,13 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/kvit-s/kvit-notes/editor"
 	"github.com/kvit-s/kvit-notes/vault"
 	kvitui "github.com/kvit-s/kvit-ui"
+	"github.com/kvit-s/kvit-ui/tokens"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/enums/mod"
@@ -24,6 +26,12 @@ func (w *Window) installMenus() {
 		if where == (geom.Point{}) {
 			i = w.list.Current
 		}
+		if w.scope.Kind == ScopeTrash {
+			if i < 0 || i >= len(w.trashList) {
+				return "", nil
+			}
+			return "Trash", w.trashMenu(w.trashList[i])
+		}
 		if i < 0 || i >= len(w.shown) {
 			return "", nil
 		}
@@ -34,14 +42,27 @@ func (w *Window) installMenus() {
 		if where == (geom.Point{}) {
 			i = w.scopes.currentRow()
 		}
-		if i < 0 || w.scopes.Rows[i].Scope.Kind != ScopeFolder {
+		if i < 0 {
 			return "", nil
 		}
-		return "Folder", w.folderMenu(w.scopes.Rows[i].Scope.Path)
+		switch sc := w.scopes.Rows[i].Scope; sc.Kind {
+		case ScopeFolder:
+			return "Folder", w.folderMenu(sc.Path)
+		case ScopeTag:
+			return "Tag", w.tagMenu(sc.Path)
+		}
+		return "", nil
 	})
 	keys := w.list.KeyDownCallback
 	w.list.KeyDownCallback = func(key unison.KeyCode, mods mod.Modifiers, repeat bool) bool {
 		i := w.list.Current
+		if w.scope.Kind == ScopeTrash {
+			if i >= 0 && i < len(w.trashList) && (key == unison.KeyDelete || key == unison.KeyBackspace) {
+				w.confirmDeleteForever(w.trashList[i])
+				return true
+			}
+			return keys(key, mods, repeat)
+		}
 		if i >= 0 && i < len(w.shown) {
 			switch key {
 			case unison.KeyDelete, unison.KeyBackspace:
@@ -75,11 +96,16 @@ func (w *Window) noteMenu(e *vault.Entry) []kvitui.MenuItem {
 
 func (w *Window) folderMenu(folder string) []kvitui.MenuItem {
 	return []kvitui.MenuItem{
-		{Text: "New note here", OnSelect: func() { w.scope = Scope{Kind: ScopeFolder, Path: folder}; w.newNote() }},
-		{Text: "New folder inside", OnSelect: func() { w.scope = Scope{Kind: ScopeFolder, Path: folder}; w.newFolder() }},
-		{Text: "Rename…", OnSelect: func() { w.askRenameFolder(folder) }},
+		{Text: "&New note", OnSelect: func() { w.scope = Scope{Kind: ScopeFolder, Path: folder}; w.newNote() }},
+		{Text: "New &subfolder…", OnSelect: func() { w.scope = Scope{Kind: ScopeFolder, Path: folder}; w.newFolder() }},
+		{Text: "&Rename…", OnSelect: func() { w.askRenameFolder(folder) }},
+		{Text: "&Color", Items: w.colorItems(w.Vault.State.Folders[folder].Color, func(c string) {
+			w.Vault.State.SetFolderColor(folder, c)
+			_ = w.Vault.SaveState()
+			w.refreshScopes()
+		})},
 		{Separator: true},
-		{Text: "Move to trash", Danger: true, OnSelect: func() { w.confirmTrashFolder(folder) }},
+		{Text: "&Delete…", Danger: true, OnSelect: func() { w.confirmTrashFolder(folder) }},
 	}
 }
 
@@ -96,13 +122,18 @@ func (w *Window) fail(what string, err error) {
 	w.update()
 }
 
-// askName asks for a name in a dialog.
+// askName asks for a new name in a dialog.
 func (w *Window) askName(title, current string, apply func(name string)) {
+	w.askNameWith(title, current, "Rename", apply)
+}
+
+// askNameWith asks for a name in a dialog whose button says confirm.
+func (w *Window) askNameWith(title, current, confirm string, apply func(name string)) {
 	field := kvitui.NewField(w.ui)
 	field.Label = "Name"
 	field.SetText(current)
 	d := kvitui.NewDialog(w.ui, title, field)
-	d.ConfirmText = "Rename"
+	d.ConfirmText = confirm
 	d.OnAccept = func() { apply(strings.TrimSpace(field.Text())) }
 	edit := field.Edit()
 	keys := edit.KeyDownCallback
@@ -127,32 +158,30 @@ func (w *Window) askRename(e *vault.Entry) {
 		if name == e.Title {
 			return
 		}
-		if e == w.open {
-			w.saveNow()
-		}
-		if err := w.Vault.Rename(e, name); err != nil {
-			w.fail("Could not rename the note", err)
-			return
-		}
-		w.refreshList()
-		w.update()
+		w.relocate(e, func() error { return w.Vault.Rename(e, name) }, func() {
+			w.refreshScopes()
+			w.refreshList()
+			w.update()
+		})
 	})
 }
 
 func (w *Window) askRenameFolder(folder string) {
 	w.askName("Rename folder", pathBase(folder), func(name string) {
-		to, err := w.Vault.RenameFolder(folder, name)
-		if err != nil {
-			w.fail("Could not rename the folder", err)
-			return
-		}
-		if w.scope.Kind == ScopeFolder && (w.scope.Path == folder || strings.HasPrefix(w.scope.Path, folder+"/")) {
-			w.scope.Path = to + strings.TrimPrefix(w.scope.Path, folder)
-		}
-		w.refreshScopes()
-		w.refreshList()
-		w.update()
+		w.relocateFolder(folder, func() (string, error) { return w.Vault.RenameFolder(folder, name) }, func(to string) {
+			w.folderRenamed(folder, to)
+		})
 	})
+}
+
+// folderRenamed follows a folder's new name in the sidebar and the list.
+func (w *Window) folderRenamed(folder, to string) {
+	if w.scope.Kind == ScopeFolder && (w.scope.Path == folder || strings.HasPrefix(w.scope.Path, folder+"/")) {
+		w.scope.Path = to + strings.TrimPrefix(w.scope.Path, folder)
+	}
+	w.refreshScopes()
+	w.refreshList()
+	w.update()
 }
 
 func pathBase(p string) string {
@@ -267,4 +296,86 @@ func (w *Window) autoTitle() {
 		return
 	}
 	w.refreshList()
+}
+
+// colorItems are a menu of the theme's palette for a folder or tag, the
+// current colour ticked, and No color.
+func (w *Window) colorItems(current string, set func(color string)) []kvitui.MenuItem {
+	names := tokens.ColorPaletteNames()
+	var items []kvitui.MenuItem
+	for i, c := range tokens.ColorPalette() {
+		hex := c.Hex()
+		items = append(items, kvitui.MenuItem{Text: names[i], Checked: strings.EqualFold(current, hex), OnSelect: func() { set(hex) }})
+	}
+	return append(items, kvitui.MenuItem{Separator: true}, kvitui.MenuItem{Text: "No color", Checked: current == "",
+		OnSelect: func() { set("") }})
+}
+
+// tagMenu is a tag's menu in the sidebar.
+func (w *Window) tagMenu(tag string) []kvitui.MenuItem {
+	return []kvitui.MenuItem{
+		{Text: "&Rename…", OnSelect: func() { w.askRenameTag(tag) }},
+		{Text: "&Color", Items: w.colorItems(w.Vault.State.TagColors[tag], func(c string) {
+			w.Vault.State.SetTagColor(tag, c)
+			_ = w.Vault.SaveState()
+			w.refreshScopes()
+		})},
+		{Separator: true},
+		{Text: "&Delete…", Danger: true, OnSelect: func() { w.confirmDeleteTag(tag) }},
+	}
+}
+
+// askRenameTag renames a tag on every note, asking first when the new name
+// is a tag already, since that merges the two.
+func (w *Window) askRenameTag(tag string) {
+	w.askName("Edit Tag", tag, func(name string) {
+		if name == "" || name == tag {
+			return
+		}
+		apply := func() {
+			w.saveNow()
+			if err := w.Vault.RenameTag(tag, name); err != nil {
+				w.fail("Could not rename the tag", err)
+			}
+			if w.scope.Kind == ScopeTag && w.scope.Path == tag {
+				w.scope.Path = name
+			}
+			if w.open != nil {
+				w.reload()
+			}
+			w.refreshScopes()
+			w.refreshList()
+		}
+		if w.Vault.TagCount(name) == 0 {
+			apply()
+			return
+		}
+		d := kvitui.NewDialog(w.ui, "Merge Tags")
+		d.Detail = fmt.Sprintf("Merge “%s” into “%s”? %d note(s) will be retagged.", tag, name, w.Vault.TagCount(tag))
+		d.ConfirmText = "Merge"
+		d.OnAccept = apply
+		d.Open(w.Win)
+	})
+}
+
+// confirmDeleteTag takes a tag off every note, once agreed.
+func (w *Window) confirmDeleteTag(tag string) {
+	d := kvitui.NewDialog(w.ui, "Delete Tag")
+	d.Detail = fmt.Sprintf("Remove tag “%s” from %d note(s)?", tag, w.Vault.TagCount(tag))
+	d.ConfirmText, d.Destructive = "Remove", true
+	d.OnAccept = func() {
+		w.saveNow()
+		if err := w.Vault.DeleteTag(tag); err != nil {
+			w.fail("Could not delete the tag", err)
+		}
+		if w.scope.Kind == ScopeTag && w.scope.Path == tag {
+			w.scope = Scope{Kind: ScopeAll}
+		}
+		if w.open != nil {
+			w.reload()
+		}
+		w.refreshScopes()
+		w.refreshList()
+	}
+	d.Open(w.Win)
 }

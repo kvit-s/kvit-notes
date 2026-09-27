@@ -275,3 +275,90 @@ func TestCollectionStateRoundTrips(t *testing.T) {
 		t.Errorf("collection.json:\n%s\nwant\n%s", got, want)
 	}
 }
+
+// The recovery journal is named as the Qt app names it: the note path
+// percent-encoded into one flat file name.
+func TestTheRecoveryJournal(t *testing.T) {
+	if got := journalName("Ideas/Reading list é.md"); got != "Ideas%2FReading%20list%20%C3%A9.md" {
+		t.Errorf("journal name: %q", got)
+	}
+	for _, bad := range []string{"..%2Fx.md", "a%2F%2Fb.md", "x.txt", "a%2fb.md"} {
+		if journalPath(bad) != "" {
+			t.Errorf("%q should not be accepted as a journal", bad)
+		}
+	}
+	root := t.TempDir()
+	write(t, root, "Ideas/Note.md", "saved\n")
+	v, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	if err := v.WriteJournal("Ideas/Note.md", "unsaved\n"); err != nil {
+		t.Fatal(err)
+	}
+	got := v.Journals()
+	if len(got) != 1 || got[0].Path != "Ideas/Note.md" || got[0].Text != "unsaved\n" {
+		t.Fatalf("journals: %+v", got)
+	}
+	p, err := v.Restore(v.Find("Ideas/Note.md"), got[0].Text)
+	if err != nil || p.Body != "unsaved\n" || read(t, root, "Ideas/Note.md") != "unsaved\n" {
+		t.Errorf("restore: %v %q", err, read(t, root, "Ideas/Note.md"))
+	}
+	if len(v.Backups("Ideas/Note.md")) != 1 {
+		t.Errorf("restoring should back up the version it replaces")
+	}
+	v.ClearJournal("Ideas/Note.md")
+	if len(v.Journals()) != 0 {
+		t.Errorf("the journal should be gone")
+	}
+}
+
+func TestTheTrashCanBeListedRestoredAndEmptied(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "Old.md", "old\n")
+	write(t, root, "Keep/Inside.md", "in\n")
+	v, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	if err := v.Trash(v.Find("Old.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.TrashFolder("Keep"); err != nil {
+		t.Fatal(err)
+	}
+	items := v.TrashItems()
+	if len(items) != 2 {
+		t.Fatalf("trash: %+v", items)
+	}
+	var note, folder Trashed
+	for _, it := range items {
+		if it.Dir {
+			folder = it
+		} else {
+			note = it
+		}
+	}
+	if note.Title != "Old" || folder.Title != "Keep" || note.Time.IsZero() {
+		t.Errorf("items: %+v %+v", note, folder)
+	}
+	if text, _ := v.ReadTrashed(note); text != "old\n" {
+		t.Errorf("trashed text: %q", text)
+	}
+	write(t, root, "Old.md", "a new note of the same name\n")
+	rel, err := v.Untrash(note)
+	if err != nil || rel != "Old 2.md" || v.Find("Old 2.md") == nil {
+		t.Errorf("untrash: %v %q", err, rel)
+	}
+	if err := v.DeleteForever(folder); err != nil || v.TrashCount() != 0 {
+		t.Errorf("delete forever: %v, %d left", err, v.TrashCount())
+	}
+	if err := v.Trash(v.Find("Old 2.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.EmptyTrash(); err != nil || v.TrashCount() != 0 {
+		t.Errorf("empty trash: %v", err)
+	}
+}

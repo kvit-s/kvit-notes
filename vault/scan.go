@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/kvit-s/kvit-notes/ignore"
 )
 
 // Note is one note of a vault, as the note list shows it.
@@ -40,59 +42,54 @@ type Folder struct {
 var controlDirs = map[string]bool{".kvit": true, "assets": true}
 
 // scan walks the note tree: every .md file and every folder, not following
-// symbolic links, and leaving out hidden entries and the vault's own
-// directories.
-func scan(root string) (notes []Note, folders []Folder, err error) {
-	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			if p == root {
-				return walkErr
-			}
-			return nil
-		}
-		if p == root {
-			return nil
-		}
-		rel, _ := filepath.Rel(root, p)
-		rel = filepath.ToSlash(rel)
-		name := d.Name()
-		if strings.HasPrefix(name, ".") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.Type()&fs.ModeSymlink != 0 {
-			return nil
-		}
-		if d.IsDir() {
-			if !strings.Contains(rel, "/") && controlDirs[name] {
-				return filepath.SkipDir
-			}
-			folders = append(folders, Folder{Path: rel, Name: name})
-			return nil
-		}
-		if !strings.EqualFold(path.Ext(name), ".md") || !d.Type().IsRegular() {
-			return nil
-		}
-		info, err := d.Info()
+// symbolic links, and leaving out hidden entries, the vault's own
+// directories, and what the ignore rules exclude (.git/info/exclude, each
+// folder's .gitignore, and the patterns set for the vault), as the Qt app's
+// scan does.
+func scan(root string, rules ignore.Snapshot) (notes []Note, folders []Folder, err error) {
+	var walk func(dir string, rules ignore.Snapshot) error
+	walk = func(dir string, rules ignore.Snapshot) error {
+		entries, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(dir)))
 		if err != nil {
-			return nil
+			return err
 		}
-		folder := path.Dir(rel)
-		if folder == "." {
-			folder = ""
+		for _, d := range entries {
+			name := d.Name()
+			rel := path.Join(dir, name)
+			if strings.HasPrefix(name, ".") || hiddenOnDisk(d) || d.Type()&fs.ModeSymlink != 0 {
+				continue
+			}
+			if d.IsDir() {
+				if dir == "" && controlDirs[name] || rules.IsExcluded(rel, true) {
+					continue
+				}
+				folders = append(folders, Folder{Path: rel, Name: name})
+				_ = walk(rel, rules.WithDirectory(rel))
+				continue
+			}
+			if !strings.EqualFold(path.Ext(name), ".md") || !d.Type().IsRegular() || rules.IsExcluded(rel, false) {
+				continue
+			}
+			info, err := d.Info()
+			if err != nil {
+				continue
+			}
+			notes = append(notes, Note{Path: rel, Title: strings.TrimSuffix(name, path.Ext(name)), Folder: dir,
+				Modified: info.ModTime(), Size: info.Size()})
 		}
-		notes = append(notes, Note{Path: rel, Title: strings.TrimSuffix(name, path.Ext(name)), Folder: folder,
-			Modified: info.ModTime(), Size: info.Size()})
 		return nil
-	})
+	}
+	err = walk("", rules)
+	sort.Slice(notes, func(a, b int) bool { return notes[a].Path < notes[b].Path })
 	sort.Slice(folders, func(a, b int) bool { return folders[a].Path < folders[b].Path })
 	return notes, folders, err
 }
 
 // abs is a vault path as a path on this machine.
 func (v *Vault) abs(rel string) string { return filepath.Join(v.Root, filepath.FromSlash(rel)) }
+
+// Path is a note's file, from its path in the vault.
+func (v *Vault) Path(rel string) string { return v.abs(rel) }
 
 // exists reports whether a vault path exists.
 func (v *Vault) exists(rel string) bool {

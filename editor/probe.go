@@ -26,7 +26,9 @@ func (e *Editor) CaretRect() (geom.Rect, bool) { return e.caretRect() }
 
 // PartRect is one of block i's controls in the editor's coordinates: the
 // gutter's "add", "handle", "delete" and "menu" (shown while the pointer is
-// on the row), a to-do's "check" box and a code block's "copy" button.
+// on the row), a to-do's "check" box, a code block's "copy" button, and a
+// callout's "fold" arrow, "type", "title" and "color" dot, and an embed
+// card's "load" button and "open" title.
 func (e *Editor) PartRect(i int, part string) geom.Rect {
 	switch part {
 	case "add":
@@ -41,9 +43,33 @@ func (e *Editor) PartRect(i int, part string) geom.Rect {
 		return e.checkBox(i)
 	case "copy":
 		return e.copyButton(i)
+	case "language":
+		return e.languageButton(i)
+	case "load", "open":
+		card, _, ok := e.embedCard(i)
+		if !ok {
+			return geom.Rect{}
+		}
+		title, load := e.embedParts(card)
+		if part == "load" {
+			return load
+		}
+		return title
+	case "fold", "type", "title", "color":
+		chevron, icon, title, dot := e.calloutParts(i)
+		return map[string]geom.Rect{"fold": chevron, "type": icon, "title": title, "color": dot}[part]
 	}
 	return geom.Rect{}
 }
 
 // UndoSteps is how many steps Undo can take back.
 func (d *Doc) UndoSteps() int { return len(d.undo) }
+
+// PreviewTitle is the title an embed card shows from its page, "" before
+// the page is read.
+func (e *Editor) PreviewTitle(address string) string {
+	if p := e.previews[address]; p != nil {
+		return p.Title
+	}
+	return ""
+}

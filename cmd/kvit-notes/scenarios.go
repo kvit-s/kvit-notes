@@ -547,6 +547,111 @@ var scenarios = []scenario{
 		dr.expect(dr.caret().Off == 10, "the caret should follow the committed text: %d", dr.caret().Off)
 		dr.shot("scenario_30_input_method_text.png")
 	}},
+	{"35_callouts", "# Callouts\n\n> [!info] Information\n> This is an info callout with **bold** text.\n\n> [!warning] Warning\n> Be careful here.\n\n> [!success]\n> It worked.\n\n> [!error] Error\n> Something broke.\n\n> [!tip] Tip\n> Pro tip inside.\n\n> [!question]\n> Foreign callout body.\n\n> [!toggle]- Click to expand\n> Hidden content revealed when expanded.\n", func(dr *driver) {
+		dr.clearFocus()
+		dr.shot("visual_35_callouts_03_toggle_collapsed.png")
+		folded := func() bool {
+			var f bool
+			dr.do(func() { f = dr.doc().Blocks[7].Checked })
+			return f
+		}
+		dr.expect(folded(), "the toggle should start folded")
+		dr.hoverRow(7)
+		dr.click(dr.partCentre(7, "fold"), mod.None)
+		dr.expect(!folded(), "the fold arrow should open the toggle")
+		dr.clearFocus()
+		dr.shot("visual_35_callouts_04_toggle_expanded.png")
+		dr.expect(strings.Contains(editor.Serialize(dr.doc().Blocks), "> [!toggle] Click to expand\n> Hidden"), "an open toggle is written without the fold mark")
+		dr.do(func() { dr.ui.Theme.SetThemeID("dark") })
+		dr.shot("visual_35_callouts_02_types_dark.png")
+		dr.do(func() { dr.ui.Theme.SetThemeID("light") })
+	}},
+	{"43_toc", "# User Guide\n\n```toc\n```\n\n## Installation\n\nSteps.\n\n## Configuration\n\n### Settings\n\nDetails.\n\n## Troubleshooting\n\nHelp.\n", func(dr *driver) {
+		dr.clearFocus()
+		dr.do(func() { dr.ed().Refresh() })
+		dr.shot("visual_43_toc_01_rendered.png")
+		dr.expect(dr.text(1) == "- [User Guide](#user-guide)\n  - [Installation](#installation)\n  - [Configuration](#configuration)\n    - [Settings](#settings)\n  - [Troubleshooting](#troubleshooting)",
+			"the contents should list the headings: %q", dr.text(1))
+		// Renaming a heading rewrites the contents.
+		dr.focus(2, len("Installation"))
+		dr.typ(" guide")
+		dr.clearFocus()
+		dr.expect(strings.Contains(dr.text(1), "[Installation guide](#installation-guide)"), "the contents should follow the rename: %q", dr.text(1))
+		dr.shot("visual_43_toc_02_after_rename.png")
+		// An entry goes to its heading.
+		var p geom.Point
+		dr.do(func() {
+			r := dr.ed().RowRect(1)
+			p = dr.screen.PanelPoint(dr.ed(), geom.NewPoint(r.X+80, r.Y+4+8+20+3*22+11))
+		})
+		dr.hoverRow(1)
+		dr.click(p, mod.None)
+		dr.expect(dr.caret().Block == dr.blockID(5), "the Settings entry should put the caret in its heading, it is in the block of id %d", dr.caret().Block)
+	}},
+	{"31_code", "# Code highlighting\n\n```python\ndef greet(name):  # say hello\n    msg = f\"Hi {name}\"\n    return msg  # 42 done\n```\n\n```javascript\nconst nums = [1, 2, 3];  // a list\nfunction total(xs) { return xs.reduce((a, b) => a + b, 0); }\n```\n\n```cpp\n#include <vector>\nint main() {\n    std::vector<int> v = {1, 2};  /* init */\n    return 0;\n}\n```\n", func(dr *driver) {
+		dr.clearFocus()
+		dr.shot("visual_31_code_01_light.png")
+		dr.do(func() { dr.ed().LineNumbers = true; dr.ed().Refresh() })
+		dr.shot("visual_31_code_02_line_numbers.png")
+		dr.do(func() { dr.ed().LineNumbers = false; dr.ed().Refresh() })
+		// The language menu from the header changes the fence's language.
+		dr.hoverRow(1)
+		dr.click(dr.partCentre(1, "language"), mod.None)
+		dr.shot("visual_31_code_03_language_menu.png")
+		dr.expect(dr.popups() == 1, "the language menu should be open")
+		dr.key(unison.KeyEscape, mod.None)
+	}},
+	{"38_kanban", "# Project board\n\n```kanban\n## To do\n- [ ] Design the API #backend 📅 2026-08-01\n  Sketch the endpoints and payloads\n- [ ] Write the spec #docs\n## In progress\n- [ ] Build the parser #backend #urgent\n## Done\n- [x] Set up CI #infra\n```\n", func(dr *driver) {
+		dr.clearFocus()
+		dr.shot("visual_38_kanban_01_board.png")
+		board := func() string {
+			var s string
+			dr.do(func() { s = dr.ed().BoardText(1) })
+			return s
+		}
+		press := func(part string, col, index int) {
+			var p geom.Point
+			dr.do(func() { p = dr.screen.PanelPoint(dr.ed(), dr.ed().BoardPart(1, part, col, index).Center()) })
+			dr.click(p, mod.None)
+		}
+		dr.expect(board() == "To do: [ ] Design the API; [ ] Write the spec;\nIn progress: [ ] Build the parser;\nDone: [x] Set up CI;\n", "board: %q", board())
+		// Ticking a card, then taking it back with undo.
+		press("box", 0, 1)
+		dr.expect(strings.Contains(dr.text(1), "- [x] Write the spec #docs"), "ticking a card: %q", dr.text(1))
+		dr.shot("visual_38_kanban_03_card_done.png")
+		dr.key(unison.KeyZ, mod.Control)
+		dr.expect(strings.Contains(dr.text(1), "- [ ] Write the spec #docs"), "undo: %q", dr.text(1))
+		// Moving a column right.
+		press("right", 0, 0)
+		dr.expect(strings.HasPrefix(board(), "In progress:"), "moving To do right: %q", board())
+		dr.shot("visual_38_kanban_05_column_moved.png")
+		// Filtering by a label.
+		press("#backend", 0, 0)
+		dr.expect(board() == "In progress: [ ] Build the parser;\nTo do: [ ] Design the API;\nDone:\n", "filtered by #backend: %q", board())
+		dr.shot("visual_38_kanban_10_filtered.png")
+		press("#backend", 0, 0)
+		// Adding a card opens its line for typing.
+		press("addcard", 2, 0)
+		dr.typ("Release notes #docs\n")
+		dr.expect(strings.Contains(dr.text(1), "- [ ] Release notes #docs"), "a new card: %q", dr.text(1))
+		dr.shot("visual_38_kanban_10c_card_added.png")
+		// Dragging the parser card into Done.
+		var from, to geom.Point
+		dr.do(func() {
+			from = dr.screen.PanelPoint(dr.ed(), dr.ed().BoardPart(1, "card", 0, 0).Center())
+			done := dr.ed().BoardPart(1, "addcard", 2, 0)
+			to = dr.screen.PanelPoint(dr.ed(), geom.NewPoint(done.Center().X, done.Y-4))
+		})
+		dr.screen.MouseDown(from, unison.ButtonLeft, mod.None)
+		dr.screen.MouseMove(geom.NewPoint(from.X+30, from.Y), mod.None)
+		dr.screen.MouseMove(to, mod.None)
+		dr.shot("visual_38_kanban_16_card_dragging.png")
+		dr.screen.MouseUp(to, unison.ButtonLeft, mod.None)
+		dr.screen.Sync()
+		dr.expect(board() == "In progress:\nTo do: [ ] Design the API; [ ] Write the spec;\nDone: [x] Set up CI; [ ] Release notes; [ ] Build the parser;\n",
+			"after dragging the parser card into Done: %q", board())
+		dr.shot("visual_38_kanban_17_card_dragged.png")
+	}},
 	{"20_caret_nav", "First paragraph, long enough that it wraps onto a second visual line: it keeps going with more words, and then some more words after those, and still more, until the line is certainly wider than the text column of the window and has to wrap.\n\n## A heading\n\n- item\n\n```\n  indented code\n```\n", func(dr *driver) {
 		dr.focus(0, 3)
 		dr.key(unison.KeyDown, mod.None)

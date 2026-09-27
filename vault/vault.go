@@ -3,6 +3,7 @@ package vault
 import (
 	"errors"
 	"fmt"
+	"github.com/kvit-s/kvit-notes/ignore"
 	"os"
 	"path"
 	"path/filepath"
@@ -28,10 +29,18 @@ type Vault struct {
 	Entries []*Entry
 	// Folders are the note folders, in path order.
 	Folders []Folder
+	// Pictures are where pictures are read from and saved.
+	Pictures PictureSettings
+	// IgnorePatterns are the patterns set for the vault in the app's
+	// settings, which the scan leaves out beside what .gitignore does.
+	IgnorePatterns []string
 
 	lock *os.File
 	// baked holds the notes given a one-time .md.bak this session.
 	baked map[string]bool
+	// written is the text of each note as this app last read or wrote it,
+	// so a change the watcher reports can be told from its own.
+	written map[string]string
 }
 
 // Entry is a note with what the note list shows about it.
@@ -66,7 +75,7 @@ func Open(root string) (*Vault, error) {
 		return nil, err
 	}
 	canon, _ = filepath.Abs(canon)
-	v := &Vault{Root: canon, baked: map[string]bool{}}
+	v := &Vault{Root: canon, baked: map[string]bool{}, written: map[string]string{}}
 	for _, owned := range []string{".kvit", "assets"} {
 		if info, err := os.Lstat(filepath.Join(canon, owned)); err == nil && info.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("vault: %s in %s is a link; Kvit refuses a vault whose own directories point elsewhere", owned, canon)
@@ -82,6 +91,7 @@ func Open(root string) (*Vault, error) {
 		}
 	}
 	v.State = loadCollection(canon)
+	v.loadPictureSettings()
 	if err := v.Rescan(); err != nil {
 		v.Close()
 		return nil, err
@@ -99,14 +109,25 @@ func (v *Vault) Close() {
 
 // Rescan reads the note tree again.
 func (v *Vault) Rescan() error {
-	notes, folders, err := scan(v.Root)
+	notes, folders, err := scan(v.Root, ignore.New(v.Root, v.IgnorePatterns).Snapshot())
 	if err != nil {
 		return err
 	}
 	v.Folders = folders
+	// Entries that are still there keep their identity, so a caller holding
+	// one, as the window holds the open note, still holds the same note.
+	old := make(map[string]*Entry, len(v.Entries))
+	for _, e := range v.Entries {
+		old[e.Path] = e
+	}
 	v.Entries = v.Entries[:0]
 	for _, n := range notes {
-		v.Entries = append(v.Entries, v.entry(n))
+		fresh := v.entry(n)
+		if e, ok := old[n.Path]; ok {
+			*e = *fresh
+			fresh = e
+		}
+		v.Entries = append(v.Entries, fresh)
 	}
 	sort.Slice(v.Entries, func(a, b int) bool { return v.Entries[a].Path < v.Entries[b].Path })
 	return nil
@@ -122,6 +143,7 @@ func (v *Vault) entry(n Note) *Entry {
 	if err != nil {
 		return e
 	}
+	v.written[n.Path] = string(data)
 	v.fill(e, parsePage(string(data)))
 	return e
 }
@@ -151,6 +173,7 @@ func (v *Vault) Load(path string) (*Page, error) {
 	if err != nil {
 		return nil, err
 	}
+	v.written[path] = string(data)
 	p := parsePage(string(data))
 	// Whether writing the note back unedited would change its Markdown, as
 	// it does for Markdown the editor writes in its own form.
@@ -183,6 +206,7 @@ func (v *Vault) Save(e *Entry, p *Page) error {
 		}
 		v.backup(e.Path, current)
 	}
+	v.written[e.Path] = text
 	if err := writeAtomic(target, []byte(text)); err != nil {
 		return err
 	}
@@ -294,14 +318,21 @@ func (e *Entry) Untitled() bool { return reUntitled.MatchString(e.Title) }
 
 // Create makes an empty note named "Untitled", "Untitled 2" and so on in a
 // folder, whichever is free first.
-func (v *Vault) Create(folder string) (*Entry, error) {
+func (v *Vault) Create(folder string) (*Entry, error) { return v.CreateTitled(folder, "Untitled") }
+
+// CreateTitled makes an empty note with a title in a folder, or when a
+// note of that title is there, the title followed by 2, 3 and so on.
+func (v *Vault) CreateTitled(folder, base string) (*Entry, error) {
 	if v.ReadOnly {
 		return nil, ErrReadOnly
 	}
+	if !validName(base) {
+		return nil, ErrName
+	}
 	for n := 1; ; n++ {
-		title := "Untitled"
+		title := base
 		if n > 1 {
-			title = fmt.Sprintf("Untitled %d", n)
+			title = fmt.Sprintf("%s %d", base, n)
 		}
 		rel := path.Join(folder, title+".md")
 		f, err := os.OpenFile(v.abs(rel), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
@@ -318,6 +349,57 @@ func (v *Vault) Create(folder string) (*Entry, error) {
 		v.sortEntries()
 		return e, nil
 	}
+}
+
+// Capture makes a note of captured text in the vault's top folder, named
+// from its first line, or "Untitled" when that is taken or cannot be a
+// name, and writes it in one write, since the text is usually its only copy
+// (NoteCollection::captureNote).
+func (v *Vault) Capture(text string) (*Entry, error) {
+	if v.ReadOnly {
+		return nil, ErrReadOnly
+	}
+	if title := TitleFromText(text); title != "" {
+		if e, err := v.createWith("", title, text); err == nil {
+			return e, nil
+		}
+	}
+	for n := 1; ; n++ {
+		title := "Untitled"
+		if n > 1 {
+			title = fmt.Sprintf("Untitled %d", n)
+		}
+		e, err := v.createWith("", title, text)
+		if errors.Is(err, ErrExists) {
+			continue
+		}
+		return e, err
+	}
+}
+
+// createWith makes a note of a title holding text, failing with ErrExists
+// when a file of that name is there.
+func (v *Vault) createWith(folder, title, text string) (*Entry, error) {
+	rel := path.Join(folder, title+".md")
+	f, err := os.OpenFile(v.abs(rel), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, os.ErrExist) {
+		return nil, ErrExists
+	}
+	if err != nil {
+		return nil, err
+	}
+	_, werr := f.WriteString(text)
+	if err := errors.Join(werr, f.Close()); err != nil {
+		os.Remove(v.abs(rel))
+		return nil, err
+	}
+	v.written[rel] = text
+	info, _ := os.Stat(v.abs(rel))
+	e := &Entry{Note: Note{Path: rel, Title: title, Folder: folder, Modified: info.ModTime()}}
+	v.fill(e, parsePage(text))
+	v.Entries = append(v.Entries, e)
+	v.sortEntries()
+	return e, nil
 }
 
 func (v *Vault) sortEntries() {
@@ -371,6 +453,7 @@ func (v *Vault) move(e *Entry, rel string) error {
 		return err
 	}
 	old := e.Path
+	v.written[rel] = v.written[old]
 	e.Path = rel
 	e.Title = strings.TrimSuffix(path.Base(rel), ".md")
 	e.Folder = Parent(rel)

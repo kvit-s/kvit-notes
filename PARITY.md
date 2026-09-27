@@ -16,8 +16,8 @@ The editor itself is the plan's step 3 and is in the `editor` package. The
 rest of the app is step 6, in the order `PLAN.md` gives; the vault is in
 `vault` and the window in `app`. Test names below are in
 `cmd/kvit-notes/scenarios_test.go` (`TestScenarios/<name>`, which also runs
-in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
-`app/window_test.go`.
+in the three other themes), `editor/*_test.go`, `vault/*_test.go` and
+`app/*_test.go`.
 
 ## 1. Block system
 
@@ -33,21 +33,57 @@ in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
   - [x] 1.2.5 Numbered list, restarting when nested. Evidence: `07_block_types`
   - [x] 1.2.6 Quote. Evidence: `07_block_types`
   - [~] 1.2.7 Code block: monospace, whitespace kept, Enter keeps the line's
-    indentation, Ctrl+Enter leaves, Copy button. Evidence: `20_caret_nav`,
-    `visual_07_types_01`. Missing: syntax colouring, the language menu, line
-    numbers, horizontal scrolling (long lines wrap), the Ctrl+Enter hint in the
-    footer, Tab to the next four-column stop over a selection
-  - [ ] 1.2.8 Image
+    indentation, Ctrl+Enter leaves, Copy button, syntax colouring in Kvit's
+    sixteen languages (the `highlight` package, with the Qt tests), the
+    language menu, line numbers from View. Evidence: `20_caret_nav`, `31_code`,
+    `visual_31_code_*`. Missing: horizontal scrolling (long lines wrap), the
+    Ctrl+Enter hint in the footer, Tab to the next four-column stop over a
+    selection
+  - [x] 1.2.8 Image and media: an image line drawn as its picture (beside the
+    note, from the top of the vault, or from the site folder for a path
+    starting with "/"), at its width, with its caption; the line shown for
+    editing while the caret is in it; a sound or video drawn as a card; a
+    new picture copied into the vault's picture folder and named after the
+    note. Evidence: `TestPicturesAreDrawn`, `TestAPictureFromOutsideIsCopiedIntoAssets`,
+    `TestPictureFolders`. Missing: playing media, the lightbox, image effects
   - [x] 1.2.9 Divider. Evidence: `07_block_types`, `13_select`
-  - [ ] 1.2.10 Callout
-  - [ ] 1.2.11 Table (kept verbatim as a raw block, so it survives a save)
-  - [ ] 1.2.12 Task board
-  - [ ] 1.2.13 Toggle
-  - [ ] 1.2.14 Embed
-  - [ ] 1.2.15 Math (display math kept verbatim)
-  - [ ] 1.2.16 Drop cap
-  - [ ] 1.2.17 Diagrams
-  - [ ] 1.2.18 Collection query
+  - [x] 1.2.10 Callout: Kvit's six types and any other, the header's fold
+    arrow, type menu, title (edited in place) and colour dot, the "color"
+    attribute. Evidence: `35_callouts`, `visual_35_callouts_*`, `TestCalloutsRoundTrip`
+  - [~] 1.2.11 Table: drawn as a grid away from the caret, its Markdown with
+    the caret in it; column alignment; inline formats in cells. Evidence:
+    `TestTablesAreReadAsKvitReadsThem`. Missing: editing cells in the grid,
+    sorting, the grid picker, column widths
+  - [~] 1.2.12 Task board: the `kanban` fence drawn as columns and cards
+    (labels, due dates, descriptions), ticking a card, adding and editing
+    cards in place, renaming, moving, folding, adding and deleting columns,
+    moving a card to another column from its menu or by dragging it (with a
+    line where it will go), deleting it, and the label and Hide done
+    filters; the Markdown is the `kanban` package's port, which keeps every
+    line it does not change. Evidence: `38_kanban`, `visual_38_kanban_*`.
+    Missing: dragging columns (‹ and › move them), the card drawn under the
+    pointer while dragged, the date picker and label chips for adding, the
+    card details popover, the dates at a card's foot
+  - [x] 1.2.13 Toggle: a callout of type "toggle", folded and opened by its
+    arrow, the fold kept in the file. Evidence: `35_callouts`,
+    `visual_35_callouts_03_toggle_collapsed`, `visual_35_callouts_04_toggle_expanded`
+  - [~] 1.2.14 Embed: a web page's card, read only when Load preview is
+    pressed (title, description and picture from its tags), its title
+    opening the page. Evidence: `TestAnEmbedCardLoadsItsPreviewOnRequest`.
+    Missing: Edit URL, dimensions, the video players' previews
+  - [~] 1.2.15 Math: display math kept verbatim and edited as source, inline
+    `$…$` read by Pandoc's rule and drawn in italics. Missing: rendering
+    (the plan's MicroTeX helper), the command menu, equation numbers
+  - [x] 1.2.16 Drop cap: `dropcap=<lines>` with `dropcapcolor` and
+    `dropcapfont`, from the / menu and the block menu, drawn as the Qt app
+    approximates it (the paragraph indented, its first letter blank in place)
+  - [~] 1.2.17 Diagrams: a Mermaid fence is kept and edited as coloured
+    source. Missing: drawing it (the plan's Go port of the renderer)
+  - [x] 1.2.18 Collection query: the `query` fence's spec (the `query`
+    package, with the Qt tests) over the vault's notes and their front
+    matter, as a table or a board, its errors shown in the block, a row
+    opening its note, worked out again as notes change. Evidence:
+    `TestAQueryBlock`
 
 ## 2. Text editing and formatting
 
@@ -58,11 +94,20 @@ in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
   `TestRevealFollowsCaret`, `TestClickMapsInsideSpan`, `01_reveal` (caret
   offsets after 14 and 17 presses of Right match Kvit's), `visual_01_reveal_*`,
   `visual_03_types_*`, `visual_04_nested_*`, `visual_05_links_*`
-- [~] 2.3 Markdown syntax: everything listed except images and the
-  `[[note|alias]]` and `[[note#heading]]` forms, which parse as wiki-links but
-  are not resolved. Evidence: `TestMarkdownRoundTrip`, `09_prefix`
-- [ ] 2.4 Links: Ctrl+K dialog, following links, completion of `[[`,
-  resolving wiki targets
+- [~] 2.3 Markdown syntax: everything listed, with superscript `^x^`,
+  subscript `~x~` (no spaces inside, Pandoc's rule), text colour
+  `<span style="color:…">` by Kvit's exact grammar, and inline math. The
+  `[[note|alias]]` and `[[note#heading]]` forms parse as wiki-links but are
+  not resolved yet. Evidence: `TestMarkdownRoundTrip`, `09_prefix`,
+  `TestInlineSupSubMathColor`
+- [x] 2.4 Links: Ctrl+K inserts or edits a link (with a heading to link to,
+  and Remove link); Ctrl+click, or a click in a block not being edited,
+  follows it: a wiki link to the note its name resolves to (the `links`
+  package's port), at its heading, a missing note made where the Qt app
+  makes it, a shared name offering the notes to choose from; a web address
+  in the browser; `#heading` in the note; `[[` offers the notes, and after
+  "#" their headings. Evidence: `TestFollowingLinksAndTheLinkDialog`,
+  `TestWikiLinkCompletion`
 - [~] 2.5 Text selection: drag, double- and triple-click, Shift+arrows,
   Shift+click, across blocks, Ctrl+A. Evidence: `15_xsel`, `13_select`. Missing: the
   selection of blocks that draw rather than edit their text (none exist yet)
@@ -87,25 +132,34 @@ in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
 - [x] 3.6 Duplication: Ctrl+D, below the original. Evidence: `14_ops`
 - [~] 3.7 Creation: Enter, "/", the gutter's +, the block menu from its
   button, Shift+F10 and the Menu key, recently used kinds first. Evidence: `12_plus`,
-  `10_menu`, `29_block_menu`. Missing: the caret in the space between blocks,
-  Ctrl+Enter on selected blocks, "Copy as HTML" and "Export" in the block menu
+  `10_menu`, `29_block_menu`; Ctrl+Enter on selected blocks makes a
+  paragraph after them with the caret in it, the keyboard's way below a table
+  or a board, and "Copy as HTML" is in the block menu. Evidence:
+  `TestCtrlEnterAfterSelectedBlocks`. Missing: a caret in the space between
+  blocks before anything is typed (a paragraph is made at once), "Export" in
+  the block menu
 
 ## 4. Slash commands and the block menu
 
 - [x] 4.1 Activation, filtering, arrows, Enter, Escape, a press outside. Evidence:
   `10_menu`, `11_menu_flip`, `visual_10_menu_*`, `visual_11_menu_05`
-- [~] 4.2 Contents: the eleven kinds above. Missing: image, table, callout,
-  toggle, task board, embed, math, diagram, collection query
+- [~] 4.2 Contents: the kinds above, and image, table, callout, toggle,
+  math, Mermaid diagram (as its source), table of contents, task board,
+  collection query and drop cap, with the Qt app's names, words and starter
+  text. Missing: an embed from a typed address
 - [x] 4.3 Behaviour: fuzzy matching, symbols, descriptions, groups, scrolling,
   placed under the caret or above it near the bottom. Evidence: `10_menu`, `11_menu_flip`
 
 ## 5. Clipboard
 
-- [~] 5.1 Copy: text in a block, across blocks as Markdown, whole blocks. Evidence:
-  `15_xsel`. Missing: HTML and an internal format beside the plain text
-- [~] 5.2 Cut. Evidence: `15_xsel`. Same formats missing
-- [~] 5.3 Paste: text at the caret, Markdown with blank lines becomes blocks.
-  Missing: HTML, images, URLs, pasting after selected blocks, Ctrl+Shift+V
+- [~] 5.1 Copy: text in a block, across blocks as Markdown, whole blocks,
+  with HTML beside the Markdown on the clipboard. Evidence: `15_xsel`,
+  `TestHTMLOnTheClipboard`. Missing: an internal format
+- [x] 5.2 Cut, with the same formats. Evidence: `15_xsel`
+- [~] 5.3 Paste: text at the caret, Markdown with blank lines becomes blocks,
+  HTML becomes Markdown (the export package's port of Qt's converter),
+  Ctrl+Shift+V pastes plain text. Evidence: `TestHTMLOnTheClipboard`.
+  Missing: images, URLs, pasting after selected blocks
 - [~] 5.4 Drag and drop: blocks by their handle, Escape cancels. Missing:
   files, images and text from other applications
 
@@ -118,8 +172,14 @@ in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
 
 ## 7. Search and replace
 
-- [ ] 7.1 Find
-- [ ] 7.2 Find and replace
+- [~] 7.1 Find: Ctrl+F, matches in what the reader sees (across markers),
+  the current one in its own colour, Enter and Shift+Enter, match case,
+  whole word, regular expressions, an invalid pattern said so; Escape puts
+  the caret at the match. Evidence: `TestFindAndReplace`. Missing: the "in
+  selection" toggle
+- [x] 7.2 Find and replace: Ctrl+H, Replace moving to the next match, All
+  with the list of changes first, preserve case, one undo step. Evidence:
+  `TestFindAndReplace`
 
 ## 8. Document organisation
 
@@ -127,50 +187,80 @@ in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
   `collection.json` records, their colours shown; new folder, rename, move to
   the trash; notes moved by dragging them onto a folder. Evidence:
   `TestTheWindowShowsTheVault`, `TestDragANoteOntoAFolder`,
-  `TestCollectionStateRoundTrips`. Missing: choosing a colour, folder-level
-  search, dragging folders
+  `TestCollectionStateRoundTrips`, and a colour chosen from the folder's
+  menu. Missing: dragging folders
 - [~] 8.2 Tags: a note's tags from its front matter, added and removed in the
-  tag strip, the vault's tags with counts in the sidebar, their colours shown,
-  and the note list filtered by one. Evidence: `TestNewNoteAndTags`,
-  `TestFrontMatterEditsKeepForeignLines`. Missing: completion while typing a
-  tag, renaming, deleting and merging tags, choosing colours
+  tag strip with the vault's tags offered as they are typed, the vault's
+  tags with counts in the sidebar, their colours shown, and the note list
+  filtered by one; renaming a tag on every note (merging when the new name
+  is a tag already, after asking), deleting it from every note, and its
+  colour, from its menu in the sidebar. Evidence: `TestNewNoteAndTags`,
+  `TestFrontMatterEditsKeepForeignLines`, `TestTagsAreRenamedMergedAndDeleted`,
+  `TestTagManagementFromTheSidebar`
 - [~] 8.3 Note list: "Untitled N" notes named from their first block once it is
   finished, each row's title, snippet, date and word count as the Qt app
-  derives them, sorting by modified, created or title either way, pinned
-  notes first, pin and favourite from the row's menu. Evidence:
+  derives them, sorting by modified, created or title either way (kept in
+  the settings), pinned notes first, pin and favourite from the row's menu. Evidence:
   `TestAnUntitledNoteIsNamedAfterItsFirstBlock`, `TestPinFromTheNotesMenu`,
-  `TestOpenScansNotesAndSkipsKvitsOwnFolders`. Missing: manual order, bulk
-  selection, renaming in the row itself (a dialog does it, with F2)
-- [~] 8.4 Search across notes: the sidebar's field keeps the notes whose title
-  or text holds what is typed. Missing: a search index, snippets around the
-  match, opening at the match, filters, recent searches (part 4 of `PLAN.md`)
-- [ ] 8.5 Linked-note navigation
+  `TestOpenScansNotesAndSkipsKvitsOwnFolders`; the Manual order in a
+  folder, changed by dragging a note within the list and kept in
+  `collection.json`; picking notes with Ctrl and Shift and pinning, marking,
+  tagging or trashing them together. Evidence: `TestManualOrder`,
+  `TestBulkActionsAndManualOrder`. Missing: renaming in the row itself (a
+  dialog does it, with F2)
+- [~] 8.4 Search across notes: the sidebar's field searches the index (the
+  `search` package, kept up to date as notes change) within the scope shown,
+  the results grouped by note with the lines found and a date menu, a line
+  opening its note at the match. Evidence: `TestSearchAcrossNotes`,
+  `TestTheWindowShowsTheVault`. Missing: recent searches
+- [~] 8.5 Linked-note navigation: back and forward (Alt+Left, Alt+Right and
+  the toolbar's arrows) and the quick switcher (Ctrl+P), which makes a note
+  from words no note matches. Evidence: `TestBackForwardAndTheQuickSwitcher`.
+  Following links and the backlinks pane (Ctrl+Shift+B, View), renames that
+  update the links (Update links, Rename only, through
+  `.kvit/redirects.json`). Evidence: `TestTheBacklinksPane`,
+  `TestRenamingUpdatesLinks`
 
 ## 9. User interface
 
-- [~] 9.1 Main layout: the sidebar, the note list and the editor side by side,
-  resizable, and Ctrl+\\ hiding both side panes. Evidence:
-  `TestTheWindowShowsTheVault`, `TestCtrlBackslashHidesTheSidePanes`.
-  Missing: collapsing one pane at a time, full screen, remembering the widths
-- [~] 9.2 Toolbar: block type and six inline formats as buttons. Missing: the
-  File and View menus, superscript, subscript, link, colour, alignment, Insert
-- [ ] 9.3 Formatting bar
+- [x] 9.1 Main layout: the sidebar, the note list, the editor and the
+  outline side by side, resizable, their widths remembered; each side pane
+  hidden on its own (its « button, View) and both with Ctrl+\\. Evidence:
+  `TestTheWindowShowsTheVault`, `TestCtrlBackslashHidesTheSidePanes`,
+  `TestPanesHideOneAtATime`
+- [~] 9.2 Toolbar: File and View menus, back and forward, the block type
+  list, the inline formats with superscript, subscript and text colour,
+  alignment, and Insert, as flat buttons. Evidence:
+  `TestTheToolbarChangesAndInsertsBlocks`, `TestANoteFromATemplate`.
+  Missing: Link (with the link dialog), hiding groups from its menu
+- [x] 9.3 Formatting bar: over a selection in one block, once it is made.
+  Evidence: `TestTheFormattingBar`
 - [x] 9.4 Gutter: + and × over the handle and the menu button, shown on hover,
   drawn as Kvit draws them. Evidence: `12_plus`, `visual_12_plus_01`
-- [~] 9.5 Context menus: the block menu on right-click. Missing: the text
-  menu (cut, copy, paste, formats) on a right-click in text
-- [~] 9.6 Keyboard navigation: every editing action above has a key. Missing:
-  menu access keys (9.6.1)
-- [~] 9.7 Status bar: block, line and column, kind, counts, save state.
-  Missing: the Qt layout of the bar
+- [~] 9.5 Context menus: the block menu (with Align, Drop cap and Copy as
+  HTML) and the text menu on right-click. Missing: Export in the block menu,
+  the link menu
+- [~] 9.6 Keyboard navigation: every editing action above has a key, and the
+  menus have the Qt app's access keys (Alt+F, Alt+V, Alt+I for the toolbar's
+  menus, a line's letter inside a menu). Evidence: `TestMenuAccessKeys`.
+  Missing: F6 between panes
+- [~] 9.7 Status bar: block, kind, path, counts, save state, the word count
+  opening the statistics and the writing goal; hidden from View. Missing:
+  the Qt layout of the bar, line and column in the vault window
 
 ## 10. Themes and appearance
 
 - [x] 10.1 The four themes. Evidence: `TestScenariosInTheOtherThemes`
-- [~] 10.2 Typography: family, base size, line height and the code family are
-  read from kvit-ui's typography settings. Missing: paragraph spacing and the
-  maximum content width
-- [ ] 10.3 Customisation
+- [x] 10.2 Typography: family, base size, line height, block spacing, the
+  maximum content width (centred) and the code family, from kvit-ui's
+  typography settings. Evidence: `TestSettingsChangeTheEditor`
+- [~] 10.3 Customisation: the settings dialog's Appearance (theme, accent and
+  highlight colours, interface size, motion), Typography and This vault
+  (the site and picture folders in `.kvit/settings.json`). The Go app keeps
+  its own settings file, which starts as a copy of the Qt app's. Evidence:
+  `TestSettingsChangeTheEditor`, `TestPictureFolders`. Missing: a list of the
+  installed fonts (the family is typed), remote content, updates and tray
+  settings
 
 ## 11. Performance
 
@@ -188,29 +278,43 @@ in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
   formats, atomic saves, the Qt app's lock on `.kvit/vault.lock` (flock, and
   the same byte range on Windows), a vault that cannot be written opened read
   only. Evidence: `TestTheVaultLockExcludesOtherOpeners`,
-  `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`. Missing: the
-  `.gitignore` rules and the Windows hidden attribute when scanning, the
-  read-only mode said aloud
+  `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`; the scan leaves
+  out what `.git/info/exclude`, each folder's `.gitignore` and the patterns
+  set for the vault exclude (the `ignore` package, with the Qt tests), and
+  what Windows marks hidden. Evidence: `TestTheScanFollowsGitignore`.
+  Missing: the read-only mode said aloud
 - [~] 12.2 Auto-save: two seconds after the typing stops, and on opening
   another note and closing the window. Evidence: `TestAutoSaveAfterTypingStops`,
   `TestEditingSavesTheNote`. Missing: the interval as a setting
 - [x] 12.3 Manual save with Ctrl+S. Evidence: `TestEditingSavesTheNote`
-- [~] 12.4 Backup and recovery: a backup in `.kvit/backups` before a save (at
+- [x] 12.4 Backup and recovery: a backup in `.kvit/backups` before a save (at
   most one every ten minutes, the ten newest kept) and a one-time `.md.bak`
   when the editor rewrites a note's Markdown in its own form, both as the Qt
-  app keeps them. Evidence:
-  `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`. Missing: the restore
-  dialog, the crash-recovery journal, taking notes back out of the trash
-- [ ] 12.5 Export
-- [ ] 12.6 Import
+  app keeps them; the restore dialog showing each version; the recovery
+  journal in `.kvit/recovery` offered back after an interruption; a note
+  changed by another program reloaded, or the choice offered when there are
+  unsaved changes; the trash shown read-only, put back or deleted for good.
+  Evidence: `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`,
+  `TestRestoringAnEarlierVersion`, `TestUnsavedChangesAreOfferedBackAfterAnInterruption`,
+  `TestTheJournalFollowsUnsavedChanges`, `TestAChangeByAnotherProgramReloadsTheNote`,
+  `TestTheTrashShowsNotesReadOnlyAndPutsThemBack`, `TestTheRecoveryJournal`,
+  `TestTheTrashCanBeListedRestoredAndEmptied`
+- [x] 12.5 Export: the open note (as the editor holds it) or the whole
+  vault, as Markdown, HTML in the theme's colours or plain text, one file a
+  note or one combined file (the `export` package's port); and the open note
+  as a PDF, drawn onto A4 pages by the editor itself in the light theme,
+  with its fonts. Evidence: `TestExportAndImport`, `TestPDFExport`
+- [x] 12.6 Import: files or a folder of Markdown and text, into the folder
+  shown, after a summary; never over a note. Evidence: `TestExportAndImport`
 
 ## 13. Keyboard shortcuts
 
-- [~] 13.1 Text formatting: Ctrl+B, I, U, E, Ctrl+Shift+S. Missing: Ctrl+K
+- [x] 13.1 Text formatting: Ctrl+B, I, U, E, Ctrl+Shift+S, Ctrl+K
 - [x] 13.2 Block operations: Ctrl+D, Ctrl+Shift+D, Alt+Up/Down, Tab, Shift+Tab
 - [x] 13.3 Block conversion: Ctrl+0–4, Ctrl+T, Ctrl+Shift+T
-- [~] 13.4 General: undo, redo, save, select all. Missing: the app-level ones
-  (new note, find, quick switcher and so on)
+- [~] 13.4 General: undo, redo, save, select all, new note, Ctrl+\\, F11,
+  Ctrl+P, Alt+Left and Right, Ctrl+Alt+N, Ctrl+F, Ctrl+H, Ctrl+Shift+B,
+  and the list in File, Keyboard shortcuts
 
 ## 14. Accessibility
 
@@ -231,17 +335,43 @@ in the three other themes), `editor/*_test.go`, `vault/vault_test.go` and
 
 ## 15–19. Integration and extras
 
-- [ ] 15.1 Quick-capture hotkey
-- [ ] 15.2 System tray
+- [x] 15.1 Quick capture: the window (File, Ctrl+Alt+N in the app), the note
+  named from its first line and written in one write. Evidence:
+  `TestQuickCapture`. The Qt app has no hotkey from other applications
+  either: its `src/platform/globalhotkey.cpp` has no system backend, so the
+  chord works only inside the app there too
+- [ ] 15.2 System tray: the Qt app's icon, its menu, closing to the tray and
+  its balloons (`src/platform/systemtray.cpp`); unison has no tray icon, so
+  this needs system code of its own
+- [x] One running copy: a second start hands its folder or file to the
+  running app through a socket and exits. Evidence:
+  `TestASecondCopyHandsOverToTheFirst`
 - [ ] 15.3 File associations
 - [ ] 15.4 Notifications
-- [ ] 16.1 Focus mode
-- [ ] 16.2 Typewriter mode
-- [ ] 17.1 Outline panel
-- [ ] 17.2 Table of contents block
-- [ ] 18.1 Note templates
-- [~] 19.1 Statistics: block, word and character counts in the status line
-- [ ] 19.2 Writing goals
+- [~] 16.1 Focus mode: F11 or View leaves the editor alone with its text in
+  a centred column; Escape leaves. The window is maximised rather than made
+  full screen, which unison v0.108.0 has no call for. Evidence: `TestFocusMode`
+- [x] 16.2 Typewriter mode: the caret's line kept in the middle of the view,
+  the other blocks faded
+- [x] 17.1 Outline panel: headings by level, the current section
+  highlighted, folding, the levels shown chosen, a heading gone to on a
+  click. Evidence: `TestTheOutline`
+- [x] 17.2 Table of contents block: kept in step with the headings in the
+  file, drawn as a card whose entries go to their headings. Evidence:
+  `43_toc`, `visual_43_toc_*`
+- [x] 18.1 Note templates: New from template, the three built-ins written
+  when a vault has none, `{{title}}`, `{{date}}`, `{{time}}` and Qt date
+  formats, the tags and favourite mark carried over, and the templates
+  dialog. A second note from one template takes the next free name, where
+  the Qt app refuses. Evidence: `TestANoteFromATemplate`,
+  `TestTemplatesAreSeededOnceAndFilledIn`, `TestQtDateFormats`
+- [x] 19.1 Statistics: words, characters with and without spaces,
+  paragraphs, blocks and reading time for the note or the selection, and the
+  words written this session. Evidence: `TestStatisticsAndTheWritingGoal`,
+  `TestStatisticsCountWhatTheReaderSees`
+- [x] 19.2 Writing goals: set from the status line, kept as `goal` in the
+  front matter, shown as a share of the goal. Evidence:
+  `TestStatisticsAndTheWritingGoal`
 
 ## Differences from Kvit's storyboard screenshots
 

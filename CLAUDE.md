@@ -28,10 +28,11 @@ Give the command behind every number, and save screenshots under
 
 | Package | What it holds |
 |---|---|
-| `editor` | The block editor as a unison widget, public so kvit-works-go and kvit-hub-go can embed it. `model.go` (blocks, Markdown in and out), `inline.go` (inline spans and which markers show), `doc.go` (every operation, and undo) know nothing of the toolkit. `editor.go` (the panel, row geometry), `layout.go` (one block's text through kvit-ui's `text` package), `draw.go`, `keys.go`, `pointer.go`, `slashmenu.go` (the / menu), `blockmenu.go`, `access.go` (what screen readers are told) and `probe.go` (positions for tests and tools) |
-| `vault` | A vault on disk, in the Qt app's formats: the scan (`scan.go`), front matter (`frontmatter.go`), `.kvit/collection.json` (`collection.go`), the lock shared with the Qt app (`lock*.go`), saving with backups and the one-time `.md.bak`, notes and folders created, renamed, moved and trashed (`vault.go`), and where a vault is found (`places*.go`) |
-| `app` | The vault window: the sidebar's list of scopes (`sidebar.go`), the note list (`notelist.go`), the tag strip, the toolbar, and `window.go`, which ties them to a vault and the editor, with the menus and dialogs in `actions.go` |
-| `cmd/kvit-notes` | The program: a vault window, or one note file on its own (`window.go`), with the scripted scenarios (`scenarios.go`), the real-window check (`check.go`), the benchmark (`bench.go`) and the screenshot comparison (`compare.go`) |
+| `editor` | The block editor as a unison widget, public so kvit-works-go and kvit-hub-go can embed it. `model.go` (blocks, Markdown in and out), `inline.go` (inline spans and which markers show), `doc.go` (every operation, and undo) know nothing of the toolkit. `editor.go` (the panel, row geometry), `layout.go` (one block's text through kvit-ui's `text` package), `draw.go`, `keys.go`, `pointer.go`, `slashmenu.go` (the / menu), `blockmenu.go`, `access.go` (what screen readers are told) and `probe.go` (positions for tests and tools). The block kinds drawn as something other than text each have a file: `image.go` (pictures and media), `embed.go` (web page cards), `callout.go` (callouts and toggles), `table.go`, `toc.go` (table of contents), `board.go` (task boards), `queryblock.go` (collection queries), `dropcap.go`. `print.go` cuts the note into pages for PDF. `commands.go` is what a toolbar asks of the editor, `formatbar.go` the bar over a selection, `wikicomplete.go` the `[[` list, `links.go` following and editing links, `marks.go` the find bar's matches, `stats.go` the counts |
+| `vault` | A vault on disk, in the Qt app's formats: the scan (`scan.go`), front matter (`frontmatter.go`), `.kvit/collection.json` (`collection.go`), the lock shared with the Qt app (`lock*.go`), saving with backups and the one-time `.md.bak`, notes and folders created, renamed, moved, captured and trashed (`vault.go`), the recovery journal, backups and trash (`safety.go`), other programs' changes (`watch.go`), templates (`templates.go`), the picture folders in `.kvit/settings.json` (`vaultsettings.go`), and where a vault and the settings are found (`places*.go`) |
+| `highlight`, `links`, `search`, `export`, `kanban`, `query`, `ignore` | Ports of Qt logic without any interface, each with the Qt tests ported beside it: code colouring by language; wiki-link scanning, resolution, backlinks and the redirects that keep links working after a rename; finding in a note, replacing, and the search index across notes; export to Markdown, HTML and text, import, and HTML to Markdown; the task board's Markdown; the collection query's spec and evaluation; the `.gitignore` rules a vault's scan follows |
+| `app` | The vault window. `window.go` ties the panes to a vault and the editor and arranges them; the sidebar's scopes (`sidebar.go`), the note list (`notelist.go`), the tag strip, the toolbar (`toolbar.go`), the File and View menus (`menus.go`), the note and folder menus and dialogs (`actions.go`), keeping work safe (`safety.go`), moving between notes (`navigate.go`), the outline (`outline.go`) and backlinks (`backlinks.go`) panes, the find bar (`find.go`), search across notes (`searchview.go`), links (`links.go`) and renames that keep them working (`rename.go`), templates, settings, statistics, quick capture, export and import (`templates.go`, `settings.go`, `stats.go`, `capture.go`, `exchange.go`), pictures (`images.go`), embed previews (`embed.go`), query blocks' notes (`queries.go`), acting on several notes (`bulk.go`), PDF export (`pdf.go`), HTML on the clipboard (`clipboard.go`) and the ranking of notes by name (`fuzzy.go`); `prefs.go` reads and writes the app's settings |
+| `cmd/kvit-notes` | The program: a vault window, or one note file on its own (`window.go`), one running copy (`instance.go`), with the scripted scenarios (`scenarios.go`), the real-window check (`check.go`), the benchmark (`bench.go`) and the screenshot comparison (`compare.go`) |
 | `tools/win-check.ps1` | Reads what Windows' UI Automation reports about the check window, and saves a picture of it |
 
 The editor started as a port of the Shirei prototype in `~/kvit-shirei`
@@ -81,7 +82,14 @@ the migration log's step 6 entries):
   trusts the third by size and time.
 - **Tests and trial runs never touch a real vault.** `./build.sh --win` opens
   a copy of the Qt repository's demo vault; `kvit-notes` with no argument opens
-  the vault the Qt app last had open.
+  the vault the Go app, or before it the Qt app, last had open.
+- **The settings are the Go app's own file** (`ui.json` in the user's
+  configuration folder, under `kvit-notes`), made the first time as a copy of
+  the Qt app's `settings.json`, whose keys it keeps. The Go app never writes
+  the Qt app's settings, so trying it cannot change what the Qt app opens.
+- **`.kvit/redirects.json` and `.kvit/settings.json`** are the Qt app's
+  files: the table of renamed notes the links follow, and a vault's picture
+  folders. Both are written in its format.
 
 ## Building and checking
 

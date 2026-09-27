@@ -1,0 +1,1411 @@
+qt-python-keywords	python	0-3:K 4-9:T 18-26:C 31-37:K 38-45:S
+qt-python-keywords	javascript	4-9:T 31-37:K 38-45:S
+qt-python-keywords	typescript	4-9:T 31-37:K 38-45:S
+qt-python-keywords	cpp	4-9:T 31-37:K 38-45:S
+qt-python-keywords	csharp	4-9:T 31-37:K 38-45:S
+qt-python-keywords	java	4-9:T 31-37:K 38-45:S
+qt-python-keywords	go	4-9:T 31-37:K 38-45:S
+qt-python-keywords	rust	4-9:T 31-37:K 38-45:S
+qt-python-keywords	qml	4-9:T 31-37:K 38-45:S
+qt-python-keywords	html	
+qt-python-keywords	css	18-19:T 38-45:S
+qt-python-keywords	sql	4-9:T 38-45:S
+qt-python-keywords	bash	18-26:C 31-37:K 38-45:S
+qt-python-keywords	json	
+qt-python-keywords	xml	
+qt-python-keywords	markdown	
+qt-python-keywords	mermaid	9-15:S
+qt-python-numbers	python	0-10:T 15-19:N 22-28:N
+qt-python-numbers	javascript	15-19:N 22-28:N
+qt-python-numbers	typescript	15-19:N 22-28:N
+qt-python-numbers	cpp	15-19:N 22-28:N
+qt-python-numbers	csharp	15-19:N 22-28:N
+qt-python-numbers	java	0-10:T 15-19:N 22-28:N
+qt-python-numbers	go	15-19:N 22-28:N
+qt-python-numbers	rust	15-19:N 22-28:N
+qt-python-numbers	qml	15-19:N 22-28:N
+qt-python-numbers	html	
+qt-python-numbers	css	0-10:K 15-19:N 22-28:N
+qt-python-numbers	sql	15-19:N 22-28:N
+qt-python-numbers	bash	15-19:N 22-28:N
+qt-python-numbers	json	15-19:N 22-28:N
+qt-python-numbers	xml	
+qt-python-numbers	markdown	
+qt-python-numbers	mermaid	15-19:N 22-28:N
+qt-python-triple	python	4-15:S 16-28:S 29-32:S 37-38:N
+qt-python-triple	javascript	4-6:S 6-15:S 29-31:S 31-32:S 37-38:N
+qt-python-triple	typescript	4-6:S 6-15:S 22-28:T 29-31:S 31-32:S 37-38:N
+qt-python-triple	cpp	4-6:S 6-15:S 22-28:T 29-31:S 31-32:S 37-38:N
+qt-python-triple	csharp	4-6:S 6-15:S 22-28:T 29-31:S 31-32:S 37-38:N
+qt-python-triple	java	4-6:S 6-15:S 29-31:S 31-32:S 37-38:N
+qt-python-triple	go	4-6:S 6-15:S 22-28:T 29-31:S 31-32:S 37-38:N
+qt-python-triple	rust	4-6:S 6-15:S 29-31:S 31-32:S 37-38:N
+qt-python-triple	qml	4-6:S 6-15:S 22-28:T 29-31:S 31-32:S 37-38:N
+qt-python-triple	html	
+qt-python-triple	css	4-6:S 6-15:S 29-31:S 31-32:S 37-38:N
+qt-python-triple	sql	37-38:N
+qt-python-triple	bash	4-6:S 6-15:S 29-31:S 31-32:S 37-38:N
+qt-python-triple	json	4-6:S 6-15:S 29-31:S 31-32:S 37-38:N
+qt-python-triple	xml	
+qt-python-triple	markdown	
+qt-python-triple	mermaid	4-6:S 6-15:S 29-31:S 31-32:S 37-38:N
+qt-javascript	python	46-48:N
+qt-javascript	javascript	0-5:K 10-19:S 21-29:C 30-37:C 38-41:K 46-48:N
+qt-javascript	typescript	0-5:K 10-19:S 21-29:C 30-37:C 38-41:K 46-48:N
+qt-javascript	cpp	0-5:K 21-29:C 30-37:C 46-48:N
+qt-javascript	csharp	0-5:K 21-29:C 30-37:C 46-48:N
+qt-javascript	java	0-5:K 21-29:C 30-37:C 46-48:N
+qt-javascript	go	0-5:K 10-19:S 21-29:C 30-37:C 46-48:N
+qt-javascript	rust	0-5:K 21-29:C 30-37:C 38-41:K 46-48:N
+qt-javascript	qml	0-5:K 10-19:S 21-29:C 30-37:C 38-41:K 46-48:N
+qt-javascript	html	
+qt-javascript	css	21-29:C 30-37:C 46-48:N
+qt-javascript	sql	21-29:C 30-37:C 46-48:N
+qt-javascript	bash	14-18:T 46-48:N
+qt-javascript	json	46-48:N
+qt-javascript	xml	
+qt-javascript	markdown	10-19:S
+qt-javascript	mermaid	15-18:S 46-48:N
+qt-cpp-preprocessor	python	0-17:C 18-21:T 22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	javascript	22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	typescript	22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	cpp	0-8:K 10-16:T 18-21:T 22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	csharp	0-8:K 18-21:T 22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	java	18-21:T 22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	go	18-21:T 22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	rust	22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	qml	18-21:T 22-26:T 31-37:K 38-39:N
+qt-cpp-preprocessor	html	10-16:K
+qt-cpp-preprocessor	css	0-8:T 38-39:N
+qt-cpp-preprocessor	sql	18-21:T 22-26:T 38-39:N
+qt-cpp-preprocessor	bash	0-17:C 31-37:K 38-39:N
+qt-cpp-preprocessor	json	38-39:N
+qt-cpp-preprocessor	xml	10-16:K
+qt-cpp-preprocessor	markdown	0-17:K
+qt-cpp-preprocessor	mermaid	26-28:S 29-42:S
+qt-cpp-string	python	9-15:S
+qt-cpp-string	javascript	9-15:S 17-28:C
+qt-cpp-string	typescript	9-15:S 17-28:C
+qt-cpp-string	cpp	0-4:K 9-15:S 17-28:C
+qt-cpp-string	csharp	9-15:S 17-28:C
+qt-cpp-string	java	9-15:S 17-28:C
+qt-cpp-string	go	9-15:S 17-28:C
+qt-cpp-string	rust	9-15:S 17-28:C
+qt-cpp-string	qml	9-15:S 17-28:C
+qt-cpp-string	html	
+qt-cpp-string	css	9-15:S
+qt-cpp-string	sql	
+qt-cpp-string	bash	9-15:S
+qt-cpp-string	json	9-15:S
+qt-cpp-string	xml	
+qt-cpp-string	markdown	
+qt-cpp-string	mermaid	9-15:S
+qt-java	python	0-9:T 23-26:T 31-32:N
+qt-java	javascript	31-32:N
+qt-java	typescript	10-16:K 31-32:N
+qt-java	cpp	10-16:K 17-22:K 23-26:T 31-32:N
+qt-java	csharp	10-16:K 23-26:T 31-32:N
+qt-java	java	0-9:T 10-16:K 17-22:K 23-26:T 31-32:N
+qt-java	go	23-26:T 31-32:N
+qt-java	rust	31-32:N
+qt-java	qml	23-26:T 31-32:N
+qt-java	html	
+qt-java	css	0-9:K 31-32:N
+qt-java	sql	23-26:T 31-32:N
+qt-java	bash	31-32:N
+qt-java	json	31-32:N
+qt-java	xml	
+qt-java	markdown	
+qt-java	mermaid	31-32:N
+qt-go	python	5-9:T 20-23:T 26-28:N 30-37:T 38-42:S
+qt-go	javascript	5-9:T 14-17:K 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	typescript	5-9:T 14-17:K 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	cpp	5-9:T 20-23:T 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	csharp	5-9:T 14-17:T 20-23:T 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	java	5-9:T 14-17:K 20-23:T 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	go	0-4:K 5-9:T 14-17:K 20-23:T 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	rust	5-9:T 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	qml	5-9:T 14-17:K 20-23:T 26-28:N 30-37:T 38-42:S 46-53:C
+qt-go	html	
+qt-go	css	26-28:N 38-42:S
+qt-go	sql	5-9:T 20-23:T 26-28:N 30-37:T
+qt-go	bash	26-28:N 38-42:S
+qt-go	json	26-28:N 38-42:S
+qt-go	xml	
+qt-go	markdown	
+qt-go	mermaid	9-11:S 12-45:S 49-53:K
+qt-rust	python	3-7:T 25-27:N 29-36:T 37-43:S
+qt-rust	javascript	3-7:T 12-15:K 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	typescript	3-7:T 12-15:K 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	cpp	3-7:T 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	csharp	3-7:T 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	java	3-7:T 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	go	3-7:T 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	rust	0-2:K 3-7:T 12-15:K 19-22:T 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	qml	3-7:T 12-15:K 25-27:N 29-36:T 37-43:S 48-55:C
+qt-rust	html	
+qt-rust	css	16-17:T 25-27:N 37-43:S
+qt-rust	sql	3-7:T 25-27:N 29-36:T
+qt-rust	bash	25-27:N 37-43:S
+qt-rust	json	25-27:N 37-43:S
+qt-rust	xml	
+qt-rust	markdown	
+qt-rust	mermaid	7-9:S 10-47:S 51-55:K
+qt-typescript	python	42-44:N 64-68:S
+qt-typescript	javascript	32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	typescript	0-9:K 23-29:T 32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	cpp	23-29:T 32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	csharp	0-9:K 23-29:T 32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	java	0-9:K 32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	go	0-9:K 23-29:T 32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	rust	32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	qml	23-29:T 32-37:K 42-44:N 46-53:C 54-59:K 64-68:S
+qt-typescript	html	
+qt-typescript	css	16-21:T 42-44:N 64-68:S
+qt-typescript	sql	42-44:N
+qt-typescript	bash	42-44:N 64-68:S
+qt-typescript	json	42-44:N 64-68:S
+qt-typescript	xml	
+qt-typescript	markdown	
+qt-typescript	mermaid	14-31:S 42-44:N 49-53:K 64-68:S
+qt-csharp	python	7-12:K 30-34:S 36-39:T 44-46:N
+qt-csharp	javascript	7-12:K 30-34:S 44-46:N 50-57:C
+qt-csharp	typescript	0-6:K 7-12:K 19-25:T 30-34:S 44-46:N 50-57:C
+qt-csharp	cpp	0-6:K 7-12:K 19-25:T 30-34:S 36-39:T 44-46:N 50-57:C
+qt-csharp	csharp	0-6:K 7-12:K 19-25:T 30-34:S 36-39:T 44-46:N 50-57:C
+qt-csharp	java	0-6:K 7-12:K 30-34:S 36-39:T 44-46:N 50-57:C
+qt-csharp	go	19-25:T 30-34:S 36-39:T 44-46:N 50-57:C
+qt-csharp	rust	30-34:S 44-46:N 50-57:C
+qt-csharp	qml	19-25:T 30-34:S 36-39:T 44-46:N 50-57:C
+qt-csharp	html	
+qt-csharp	css	30-34:S 44-46:N
+qt-csharp	sql	36-39:T 44-46:N
+qt-csharp	bash	30-34:S 44-46:N
+qt-csharp	json	30-34:S 44-46:N
+qt-csharp	xml	
+qt-csharp	markdown	
+qt-csharp	mermaid	7-12:K 17-49:S 53-57:K
+qt-qml	python	35-40:S 49-51:N
+qt-qml	javascript	35-40:S 49-51:N 54-61:C
+qt-qml	typescript	21-27:T 35-40:S 49-51:N 54-61:C
+qt-qml	cpp	21-27:T 35-40:S 49-51:N 54-61:C
+qt-qml	csharp	21-27:T 35-40:S 49-51:N 54-61:C
+qt-qml	java	35-40:S 49-51:N 54-61:C
+qt-qml	go	21-27:T 35-40:S 49-51:N 54-61:C
+qt-qml	rust	35-40:S 49-51:N 54-61:C
+qt-qml	qml	0-9:T 12-20:K 21-27:T 35-40:S 49-51:N 54-61:C
+qt-qml	html	
+qt-qml	css	28-33:T 35-40:S 42-47:T 49-51:N
+qt-qml	sql	49-51:N
+qt-qml	bash	35-40:S 49-51:N
+qt-qml	json	35-40:S 49-51:N
+qt-qml	xml	
+qt-qml	markdown	
+qt-qml	mermaid	10-53:S 57-61:K
+qt-sql	python	9-13:K 38-41:S 41-44:S
+qt-sql	javascript	38-41:S 41-44:S
+qt-sql	typescript	9-13:K 38-41:S 41-44:S
+qt-sql	cpp	38-41:S 41-44:S
+qt-sql	csharp	38-41:S 41-44:S
+qt-sql	java	38-41:S 41-44:S
+qt-sql	go	38-41:S 41-44:S
+qt-sql	rust	38-41:S 41-44:S
+qt-sql	qml	33-35:K 38-41:S 41-44:S
+qt-sql	html	
+qt-sql	css	38-41:S 41-44:S
+qt-sql	sql	0-6:K 9-13:K 20-26:C 27-32:K 38-44:S
+qt-sql	bash	38-41:S 41-44:S
+qt-sql	json	
+qt-sql	xml	
+qt-sql	markdown	
+qt-sql	mermaid	20-22:T
+qt-bash	python	11-20:C 21-24:K 27-29:K 32-36:T
+qt-bash	javascript	21-24:K 27-29:K 39-41:K
+qt-bash	typescript	21-24:K 27-29:K 39-41:K
+qt-bash	cpp	21-24:K 39-41:K
+qt-bash	csharp	21-24:K 27-29:K 39-41:K
+qt-bash	java	21-24:K 39-41:K
+qt-bash	go	21-24:K
+qt-bash	rust	21-24:K 27-29:K
+qt-bash	qml	21-24:K 27-29:K 32-36:T 39-41:K
+qt-bash	html	
+qt-bash	css	11-12:T 39-41:T
+qt-bash	sql	27-29:K
+qt-bash	bash	0-4:T 5-10:T 11-20:C 21-24:K 27-29:K 30-37:T 39-41:K 45-49:K
+qt-bash	json	
+qt-bash	xml	
+qt-bash	markdown	
+qt-bash	mermaid	31-37:S
+qt-json	python	1-6:S 14-17:S 20-23:N 25-28:S
+qt-json	javascript	1-6:S 8-12:T 14-17:S 20-23:N 25-28:S 30-34:T
+qt-json	typescript	1-6:S 14-17:S 20-23:N 25-28:S 30-34:T
+qt-json	cpp	1-6:S 8-12:T 14-17:S 20-23:N 25-28:S
+qt-json	csharp	1-6:S 8-12:T 14-17:S 20-23:N 25-28:S 30-34:T
+qt-json	java	1-6:S 8-12:T 14-17:S 20-23:N 25-28:S 30-34:T
+qt-json	go	1-6:S 8-12:T 14-17:S 20-23:N 25-28:S
+qt-json	rust	1-6:S 8-12:K 14-17:S 20-23:N 25-28:S
+qt-json	qml	1-6:S 8-12:T 14-17:S 20-23:N 25-28:S 30-34:T
+qt-json	html	
+qt-json	css	1-6:S 14-17:S 20-23:N 25-28:S
+qt-json	sql	2-5:K 20-23:N 30-34:K
+qt-json	bash	1-6:S 8-12:T 14-17:S 20-23:N 25-28:S
+qt-json	json	1-6:S 8-12:K 14-17:S 20-23:N 25-28:S 30-34:K
+qt-json	xml	
+qt-json	markdown	
+qt-json	mermaid	0-35:S
+qt-html	python	8-11:S
+qt-html	javascript	8-11:S
+qt-html	typescript	8-11:S
+qt-html	cpp	8-11:S
+qt-html	csharp	8-11:S
+qt-html	java	8-11:S
+qt-html	go	8-11:S
+qt-html	rust	8-11:S
+qt-html	qml	8-11:S
+qt-html	html	1-2:K 3-7:T 8-11:S 15-16:K 17-30:C 30-35:N
+qt-html	css	8-11:S 18-19:K
+qt-html	sql	19-35:C
+qt-html	bash	8-11:S
+qt-html	json	8-11:S
+qt-html	xml	1-2:K 3-7:T 8-11:S 15-16:K 17-30:C 30-35:N
+qt-html	markdown	
+qt-html	mermaid	3-7:K 8-11:S 16-18:T 19-21:T 22-26:K 27-30:T
+qt-xml	python	
+qt-xml	javascript	
+qt-xml	typescript	
+qt-xml	cpp	
+qt-xml	csharp	
+qt-xml	java	
+qt-xml	go	
+qt-xml	rust	
+qt-xml	qml	
+qt-xml	html	1-5:K 6-12:C 13-18:C 20-21:K 25-29:K
+qt-xml	css	7-8:K
+qt-xml	sql	8-12:C 15-18:C
+qt-xml	bash	
+qt-xml	json	
+qt-xml	xml	1-5:K 6-12:C 13-18:C 20-21:K 25-29:K
+qt-xml	markdown	
+qt-xml	mermaid	5-7:T 8-10:T 15-18:T 22-24:T
+qt-css	python	14-45:C
+qt-css	javascript	30-34:N 38-45:C
+qt-css	typescript	30-34:N 38-45:C
+qt-css	cpp	30-34:N 38-45:C
+qt-css	csharp	30-34:N 38-45:C
+qt-css	java	30-34:N 38-45:C
+qt-css	go	30-34:N 38-45:C
+qt-css	rust	30-34:N 38-45:C
+qt-css	qml	7-12:T 30-34:N 38-45:C
+qt-css	html	
+qt-css	css	0-4:T 7-12:T 14-21:N 23-28:T 30-34:N 38-45:C
+qt-css	sql	30-34:N 38-45:C
+qt-css	bash	14-45:C
+qt-css	json	30-34:N
+qt-css	xml	
+qt-css	markdown	
+qt-css	mermaid	5-37:S
+qt-css-at-rule	python	0-6:T
+qt-css-at-rule	javascript	
+qt-css-at-rule	typescript	
+qt-css-at-rule	cpp	
+qt-css-at-rule	csharp	
+qt-css-at-rule	java	0-6:T
+qt-css-at-rule	go	
+qt-css-at-rule	rust	
+qt-css-at-rule	qml	20-25:T
+qt-css-at-rule	html	
+qt-css-at-rule	css	0-6:K 20-25:T 31-41:K
+qt-css-at-rule	sql	
+qt-css-at-rule	bash	
+qt-css-at-rule	json	
+qt-css-at-rule	xml	
+qt-css-at-rule	markdown	
+qt-css-at-rule	mermaid	14-46:S
+qt-markdown	python	0-7:C
+qt-markdown	javascript	15-21:S 39-43:C
+qt-markdown	typescript	15-21:S 39-43:C
+qt-markdown	cpp	0-1:K 39-43:C
+qt-markdown	csharp	0-1:K 39-43:C
+qt-markdown	java	39-43:C
+qt-markdown	go	15-21:S 39-43:C
+qt-markdown	rust	39-43:C
+qt-markdown	qml	15-21:S 39-43:C
+qt-markdown	html	
+qt-markdown	css	0-1:T 34-38:T
+qt-markdown	sql	
+qt-markdown	bash	0-7:C
+qt-markdown	json	
+qt-markdown	xml	
+qt-markdown	markdown	0-7:K 8-9:T 15-21:S 22-29:C 33-43:T
+qt-markdown	mermaid	30-33:S 33-43:S
+qt-mermaid-flowchart	python	
+qt-mermaid-flowchart	javascript	
+qt-mermaid-flowchart	typescript	
+qt-mermaid-flowchart	cpp	
+qt-mermaid-flowchart	csharp	
+qt-mermaid-flowchart	java	
+qt-mermaid-flowchart	go	
+qt-mermaid-flowchart	rust	
+qt-mermaid-flowchart	qml	
+qt-mermaid-flowchart	html	
+qt-mermaid-flowchart	css	
+qt-mermaid-flowchart	sql	26-41:C 48-64:C
+qt-mermaid-flowchart	bash	
+qt-mermaid-flowchart	json	
+qt-mermaid-flowchart	xml	
+qt-mermaid-flowchart	markdown	
+qt-mermaid-flowchart	mermaid	0-9:K 10-12:T 18-25:S 26-29:T 31-41:S 48-51:T 51-56:S 58-64:S
+qt-mermaid-labels	python	11-12:T 28-35:S
+qt-mermaid-labels	javascript	11-12:T 28-35:S
+qt-mermaid-labels	typescript	11-12:T 28-35:S
+qt-mermaid-labels	cpp	11-12:T 28-35:S
+qt-mermaid-labels	csharp	11-12:T 28-35:S
+qt-mermaid-labels	java	11-12:T 28-35:S
+qt-mermaid-labels	go	11-12:T 28-35:S
+qt-mermaid-labels	rust	11-12:T 28-35:S
+qt-mermaid-labels	qml	11-12:T 28-35:S
+qt-mermaid-labels	html	
+qt-mermaid-labels	css	28-35:S
+qt-mermaid-labels	sql	11-12:T 22-36:C
+qt-mermaid-labels	bash	28-35:S
+qt-mermaid-labels	json	28-35:S
+qt-mermaid-labels	xml	
+qt-mermaid-labels	markdown	
+qt-mermaid-labels	mermaid	0-5:K 6-8:T 12-21:S 22-25:T 27-36:S 40-47:S
+qt-mermaid-comments	python	
+qt-mermaid-comments	javascript	
+qt-mermaid-comments	typescript	
+qt-mermaid-comments	cpp	
+qt-mermaid-comments	csharp	
+qt-mermaid-comments	java	
+qt-mermaid-comments	go	
+qt-mermaid-comments	rust	
+qt-mermaid-comments	qml	
+qt-mermaid-comments	html	
+qt-mermaid-comments	css	
+qt-mermaid-comments	sql	27-44:C
+qt-mermaid-comments	bash	
+qt-mermaid-comments	json	
+qt-mermaid-comments	xml	
+qt-mermaid-comments	markdown	
+qt-mermaid-comments	mermaid	0-9:C 10-19:K 20-22:T 27-30:T 33-44:C
+qt-mermaid-directive	python	13-20:S 22-28:S
+qt-mermaid-directive	javascript	13-20:S 22-28:S
+qt-mermaid-directive	typescript	13-20:S 22-28:S
+qt-mermaid-directive	cpp	13-20:S 22-28:S
+qt-mermaid-directive	csharp	13-20:S 22-28:S
+qt-mermaid-directive	java	13-20:S 22-28:S
+qt-mermaid-directive	go	13-20:S 22-28:S
+qt-mermaid-directive	rust	13-20:S 22-28:S
+qt-mermaid-directive	qml	13-20:S 22-28:S
+qt-mermaid-directive	html	
+qt-mermaid-directive	css	3-7:T 13-20:S 22-28:S
+qt-mermaid-directive	sql	13-20:S 22-28:S
+qt-mermaid-directive	bash	13-20:S 22-28:S
+qt-mermaid-directive	json	
+qt-mermaid-directive	xml	
+qt-mermaid-directive	markdown	
+qt-mermaid-directive	mermaid	0-10:C 11-28:C 29-34:C
+qt-mermaid-sequence	python	
+qt-mermaid-sequence	javascript	60-62:K
+qt-mermaid-sequence	typescript	60-62:K
+qt-mermaid-sequence	cpp	
+qt-mermaid-sequence	csharp	
+qt-mermaid-sequence	java	
+qt-mermaid-sequence	go	
+qt-mermaid-sequence	rust	82-86:K
+qt-mermaid-sequence	qml	60-62:K
+qt-mermaid-sequence	html	
+qt-mermaid-sequence	css	28-32:T 63-67:T
+qt-mermaid-sequence	sql	54-59:K 104-107:K
+qt-mermaid-sequence	bash	
+qt-mermaid-sequence	json	
+qt-mermaid-sequence	xml	
+qt-mermaid-sequence	markdown	
+qt-mermaid-sequence	mermaid	0-15:K 25-28:T 32-44:S 49-53:K 54-59:T 60-62:T 67-77:S 82-86:K 104-107:K
+qt-mermaid-class	python	25-28:T
+qt-mermaid-class	javascript	
+qt-mermaid-class	typescript	
+qt-mermaid-class	cpp	25-28:T
+qt-mermaid-class	csharp	25-28:T
+qt-mermaid-class	java	25-28:T
+qt-mermaid-class	go	25-28:T
+qt-mermaid-class	rust	
+qt-mermaid-class	qml	25-28:T
+qt-mermaid-class	html	
+qt-mermaid-class	css	15-21:T
+qt-mermaid-class	sql	25-28:T
+qt-mermaid-class	bash	
+qt-mermaid-class	json	
+qt-mermaid-class	xml	
+qt-mermaid-class	markdown	
+qt-mermaid-class	mermaid	0-12:K
+qt-mermaid-style	python	28-32:C
+qt-mermaid-style	javascript	
+qt-mermaid-style	typescript	
+qt-mermaid-style	cpp	
+qt-mermaid-style	csharp	
+qt-mermaid-style	java	
+qt-mermaid-style	go	
+qt-mermaid-style	rust	
+qt-mermaid-style	qml	
+qt-mermaid-style	html	
+qt-mermaid-style	css	23-27:T 28-32:N
+qt-mermaid-style	sql	
+qt-mermaid-style	bash	28-32:C
+qt-mermaid-style	json	
+qt-mermaid-style	xml	
+qt-mermaid-style	markdown	
+qt-mermaid-style	mermaid	0-9:K 10-12:T 15-20:K
+qt-mermaid-state	python	
+qt-mermaid-state	javascript	
+qt-mermaid-state	typescript	
+qt-mermaid-state	cpp	
+qt-mermaid-state	csharp	28-33:K
+qt-mermaid-state	java	
+qt-mermaid-state	go	
+qt-mermaid-state	rust	
+qt-mermaid-state	qml	
+qt-mermaid-state	html	
+qt-mermaid-state	css	24-25:T
+qt-mermaid-state	sql	20-33:C
+qt-mermaid-state	bash	
+qt-mermaid-state	json	
+qt-mermaid-state	xml	
+qt-mermaid-state	markdown	
+qt-mermaid-state	mermaid	0-12:K 20-23:T 26-33:S
+qt-mermaid-arrowheads	python	
+qt-mermaid-arrowheads	javascript	
+qt-mermaid-arrowheads	typescript	
+qt-mermaid-arrowheads	cpp	
+qt-mermaid-arrowheads	csharp	
+qt-mermaid-arrowheads	java	
+qt-mermaid-arrowheads	go	
+qt-mermaid-arrowheads	rust	
+qt-mermaid-arrowheads	qml	
+qt-mermaid-arrowheads	html	27-31:T
+qt-mermaid-arrowheads	css	
+qt-mermaid-arrowheads	sql	24-31:C
+qt-mermaid-arrowheads	bash	
+qt-mermaid-arrowheads	json	
+qt-mermaid-arrowheads	xml	27-31:T
+qt-mermaid-arrowheads	markdown	
+qt-mermaid-arrowheads	mermaid	0-12:K 22-26:T 36-40:T
+qt-cpp-lines	python	0-3:T 37-40:T
+qt-cpp-lines	javascript	7-14:C 15-28:C 29-36:C
+qt-cpp-lines	typescript	7-14:C 15-28:C 29-36:C
+qt-cpp-lines	cpp	0-3:T 7-14:C 15-28:C 29-36:C 37-40:T
+qt-cpp-lines	csharp	0-3:T 7-14:C 15-28:C 29-36:C 37-40:T
+qt-cpp-lines	java	0-3:T 7-14:C 15-28:C 29-36:C 37-40:T
+qt-cpp-lines	go	0-3:T 7-14:C 15-28:C 29-36:C 37-40:T
+qt-cpp-lines	rust	7-14:C 15-28:C 29-36:C
+qt-cpp-lines	qml	0-3:T 7-14:C 15-28:C 29-36:C 37-40:T
+qt-cpp-lines	html	
+qt-cpp-lines	css	7-14:C 15-28:C 29-36:C
+qt-cpp-lines	sql	0-3:T 7-14:C 15-28:C 29-36:C 37-40:T
+qt-cpp-lines	bash	29-33:K
+qt-cpp-lines	json	
+qt-cpp-lines	xml	
+qt-cpp-lines	markdown	
+qt-cpp-lines	mermaid	
+qt-cpp-threaded	python	4-5:N 20-21:N
+qt-cpp-threaded	javascript	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	typescript	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	cpp	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	csharp	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	java	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	go	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	rust	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	qml	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	html	
+qt-cpp-threaded	css	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	sql	4-5:N 6-10:C 11-15:C 20-21:N
+qt-cpp-threaded	bash	4-5:N 20-21:N
+qt-cpp-threaded	json	4-5:N 20-21:N
+qt-cpp-threaded	xml	
+qt-cpp-threaded	markdown	
+qt-cpp-threaded	mermaid	4-5:N 20-21:N
+python	python	0-6:K 10-14:K 22-28:K 35-45:T 53-57:T 59-64:K 76-87:S 89-112:S 120-125:T 128-131:N 139-144:T 147-157:N 163-166:K 167-171:T 172-176:T 181-186:T 196-208:C 217-223:K 225-229:T 235-236:N 239-243:T 249-250:N 255-257:N 259-264:K 265-268:K 269-273:T 285-288:T 294-298:T 308-315:S 324-333:S 334-343:S 346-352:S 357-359:K 362-364:K 365-368:K 369-373:T 374-377:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 440-445:K 460-464:K 493-497:K
+python	javascript	0-6:K 22-28:K 36-45:T 59-64:K 76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 167-171:T 217-223:K 235-236:N 249-250:N 255-257:N 259-264:K 269-273:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 460-464:K
+python	typescript	0-6:K 10-14:K 22-28:K 36-45:T 59-64:K 76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 167-171:T 217-223:K 235-236:N 249-250:N 255-257:N 259-264:K 269-273:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 460-464:K
+python	cpp	36-45:T 59-64:K 76-78:S 78-87:S 109-111:S 111-112:S 120-125:T 128-131:N 139-144:T 147-157:N 167-171:T 181-186:T 196-197:K 217-223:K 235-236:N 249-250:N 255-257:N 269-273:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 365-368:K 374-377:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 460-464:K
+python	csharp	29-33:T 36-45:T 59-64:K 76-78:S 78-87:S 109-111:S 111-112:S 120-125:T 128-131:N 139-144:T 147-157:N 167-171:T 181-186:T 196-197:K 217-223:K 235-236:N 249-250:N 255-257:N 259-264:K 269-273:T 280-284:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 362-364:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 460-464:K
+python	java	0-6:K 22-28:K 29-33:T 35-45:T 59-64:K 76-78:S 78-87:S 109-111:S 111-112:S 120-125:T 128-131:N 139-144:T 147-157:N 167-171:T 181-186:T 217-223:K 235-236:N 249-250:N 255-257:N 269-273:T 280-284:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 460-464:K
+python	go	0-6:K 22-28:K 36-45:T 76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 167-171:T 217-223:K 235-236:N 249-250:N 255-257:N 269-273:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 460-464:K
+python	rust	36-45:T 76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 167-171:T 172-176:K 217-223:K 225-229:K 235-236:N 239-243:K 249-250:N 255-257:N 259-264:K 269-273:T 285-288:T 294-298:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 369-373:T 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 440-445:K
+python	qml	0-6:K 22-28:K 36-45:T 76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 167-171:T 217-223:K 235-236:N 249-250:N 255-257:N 269-273:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 378-381:T 390-394:N 404-409:T 411-420:S 422-428:N 430-434:N 460-464:K
+python	html	
+python	css	35-45:K 65-70:T 76-78:S 78-87:S 109-111:S 111-112:S 117-118:T 128-131:N 136-137:T 147-157:N 181-186:T 196-197:T 229-231:T 235-236:N 243-245:T 249-250:N 255-257:N 274-278:T 294-298:T 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 390-394:N 411-420:S 422-428:N 430-434:N 446-450:T
+python	sql	10-14:K 36-45:T 120-125:T 128-131:N 139-144:T 147-157:N 167-171:T 181-186:T 217-223:T 235-236:N 249-250:N 255-257:N 269-273:T 308-313:S 314-315:S 324-333:S 340-352:S 362-364:K 365-368:K 374-377:K 378-381:T 390-394:N 404-409:T 422-428:N 430-434:N 460-464:K
+python	bash	76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 196-208:C 217-223:K 235-236:N 249-250:N 255-257:N 308-315:S 324-326:S 326-333:S 340-342:S 342-352:S 357-359:K 390-394:N 411-420:S 422-428:N 430-434:N 460-464:K
+python	json	76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 235-236:N 249-250:N 255-257:N 346-352:S 390-394:N 411-420:S 422-428:N 430-434:N
+python	xml	
+python	markdown	196-208:K
+python	mermaid	45-58:S 59-64:K 76-78:S 78-87:S 109-111:S 111-112:S 128-131:N 147-157:N 171-177:S 178-180:T 186-187:S 224-251:S 256-257:N 273-290:S 291-293:T 298-299:S 346-352:S 374-377:K 381-387:S 390-394:N 409-435:S 465-479:S
+javascript	python	12-18:K 32-36:K 37-41:S 58-63:K 73-77:T 101-106:K 107-115:T 122-128:S 168-171:N 174-178:N 181-184:N 188-194:K 204-207:K 232-237:K 269-273:T 278-284:K 310-313:T
+javascript	javascript	0-11:C 12-18:K 37-41:S 43-49:K 50-57:K 58-63:K 64-72:K 73-77:T 88-93:K 101-106:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 160-163:K 168-171:N 174-178:N 181-184:N 188-194:K 195-213:S 224-228:T 232-237:K 242-249:K 250-255:T 258-264:K 265-268:K 269-273:T 278-284:K 285-289:K 302-309:T 310-313:T 314-320:K 321-330:T 332-335:T 337-345:T
+javascript	typescript	0-11:C 12-18:K 32-36:K 37-41:S 43-49:K 50-57:K 58-63:K 64-72:K 73-77:T 88-93:K 101-106:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 160-163:K 168-171:N 174-178:N 181-184:N 188-194:K 195-213:S 224-228:T 232-237:K 242-249:K 250-255:T 258-264:K 265-268:K 269-273:T 278-284:K 285-289:K 310-313:T 314-320:K 321-330:T
+javascript	cpp	0-11:C 37-41:S 43-49:K 50-57:K 73-77:T 88-93:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 168-171:N 174-178:N 181-184:N 188-194:K 204-207:K 232-237:K 258-264:K 269-273:T 278-284:K 285-289:K 310-313:T
+javascript	csharp	0-11:C 37-41:S 50-57:K 58-63:K 73-77:T 88-93:K 101-106:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 168-171:N 174-178:N 181-184:N 188-194:K 224-228:T 232-237:K 258-264:K 269-273:T 278-284:K 285-289:K 310-313:T 314-320:K
+javascript	java	0-11:C 12-18:K 37-41:S 50-57:K 73-77:T 88-93:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 168-171:N 174-178:N 181-184:N 188-194:K 224-228:T 232-237:K 242-249:K 258-264:K 269-273:T 278-284:K 285-289:K 310-313:T
+javascript	go	0-11:C 12-18:K 37-41:S 50-57:K 73-77:T 88-93:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 168-171:N 174-178:N 181-184:N 188-194:K 195-213:S 269-273:T 278-284:K 310-313:T
+javascript	rust	0-11:C 37-41:S 58-63:K 73-77:T 88-93:K 101-106:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 160-163:K 168-171:N 174-178:N 181-184:N 188-194:K 238-241:T 258-264:K 269-273:T 278-284:K 310-313:T
+javascript	qml	0-11:C 12-18:K 37-41:S 43-49:K 50-57:K 64-72:K 73-77:T 88-93:K 107-115:T 122-128:S 133-143:C 144-154:C 155-159:C 160-163:K 168-171:N 174-178:N 181-184:N 188-194:K 195-213:S 224-228:T 242-249:K 269-273:T 278-284:K 285-289:K 310-313:T 314-320:K 321-330:T
+javascript	html	
+javascript	css	37-41:S 122-128:S 133-143:C 144-154:C 155-159:C 168-171:N 174-178:N 181-184:N 213-220:T 289-296:T 309-313:T
+javascript	sql	32-36:K 37-41:S 50-57:K 73-77:T 94-98:T 107-115:T 133-143:C 144-154:C 155-159:C 168-171:N 174-178:N 181-184:N 198-202:T 204-207:K 224-228:K 269-273:T 310-313:T
+javascript	bash	37-41:S 43-49:K 64-72:K 122-128:S 168-171:N 174-178:N 181-184:N 188-194:K 196-203:T 208-212:T 278-284:K
+javascript	json	122-128:S 168-171:N 174-178:N 181-184:N 224-228:K
+javascript	xml	
+javascript	markdown	195-213:S
+javascript	mermaid	19-31:S 77-83:S 84-85:S 115-129:S 168-171:N 174-178:N 181-184:N 197-203:S 204-207:K 209-212:S 232-237:K 256-301:S 313-346:S
+typescript	python	0-4:T 169-175:K 179-183:T 214-219:K 240-243:N
+typescript	javascript	78-84:K 85-93:K 101-108:K 119-124:T 142-151:T 156-168:C 169-175:K 179-183:T 205-219:C 222-227:K 240-243:N 245-248:K 298-303:K 311-319:S
+typescript	typescript	0-4:K 10-16:T 19-25:T 27-36:K 44-52:K 68-74:T 78-84:K 85-93:K 101-108:K 119-124:T 142-151:T 156-168:C 169-175:K 179-183:T 205-219:C 222-227:K 231-237:T 240-243:N 245-248:K 254-260:T 261-267:T 269-276:T 290-297:K 298-303:K 311-319:S
+typescript	cpp	10-16:T 68-74:T 78-84:K 156-168:C 169-175:K 179-183:T 205-219:C 222-227:K 240-243:N 261-267:T 298-303:K
+typescript	csharp	10-16:T 27-36:K 44-52:K 68-74:T 156-168:C 169-175:K 179-183:T 205-219:C 222-227:K 240-243:N 261-267:T 298-303:K
+typescript	java	27-36:K 101-108:K 156-168:C 169-175:K 179-183:T 205-219:C 222-227:K 240-243:N 298-303:K
+typescript	go	0-4:K 10-16:T 27-36:K 68-74:T 156-168:C 169-175:K 179-183:T 205-219:C 222-227:K 240-243:N 261-267:T 298-303:K 311-319:S
+typescript	rust	0-4:K 156-168:C 169-175:K 179-183:T 205-219:C 222-227:K 240-243:N 245-248:K 298-303:K
+typescript	qml	10-16:T 44-52:K 53-55:K 68-74:T 78-84:K 85-93:K 101-108:K 129-131:K 142-151:T 156-168:C 169-175:K 179-183:T 193-195:K 200-202:K 205-219:C 222-227:K 240-243:N 245-248:K 261-267:T 298-303:K 311-319:S
+typescript	html	99-100:K 101-108:T 109-113:T 125-126:K 261-267:K 269-276:T 277-281:T
+typescript	css	53-55:T 115-117:T 129-131:T 156-168:C 178-183:T 192-195:T 228-229:T 240-243:N 249-252:T
+typescript	sql	156-168:C 179-183:T 231-237:T 240-243:N
+typescript	bash	44-52:K 78-84:K 85-93:K 94-98:T 169-175:K 179-183:T 240-243:N 290-297:K 314-318:T
+typescript	json	240-243:N
+typescript	xml	99-100:K 101-108:T 109-113:T 125-126:K 261-267:K 269-276:T 277-281:T
+typescript	markdown	311-319:S
+typescript	mermaid	42-77:S 114-136:S 152-153:S 183-203:S 240-243:N 281-283:T 286-288:S 315-318:S
+cpp	python	0-18:C 21-46:C 135-141:T 158-164:K 174-177:T 178-182:T 183-186:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 281-284:T 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 357-360:T 370-376:K 377-378:N 380-397:C
+cpp	javascript	33-35:N 36-46:C 64-74:C 75-88:C 135-141:T 158-164:K 178-182:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 370-376:K 377-378:N
+cpp	typescript	33-35:N 36-46:C 47-56:K 64-74:C 75-88:C 135-141:T 158-164:K 178-182:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 370-376:K 377-378:N
+cpp	cpp	0-8:K 21-28:K 33-35:N 36-46:C 47-56:K 64-74:C 75-88:C 89-97:K 99-107:K 111-120:K 121-124:T 126-134:T 135-141:T 147-155:K 158-164:K 174-177:T 178-182:T 183-186:T 193-197:T 212-220:T 221-225:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 269-272:T 274-280:T 281-284:T 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 329-336:K 338-344:K 345-356:K 357-360:T 370-376:K 377-378:N 382-385:K
+cpp	csharp	0-8:K 21-28:K 33-35:N 36-46:C 47-56:K 64-74:C 75-88:C 135-141:T 158-164:K 174-177:T 178-182:T 183-186:T 193-197:T 221-225:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 281-284:T 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 357-360:T 370-376:K 377-378:N
+cpp	java	33-35:N 36-46:C 64-74:C 75-88:C 135-141:T 158-164:K 174-177:T 178-182:T 183-186:T 193-197:T 221-225:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 281-284:T 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 357-360:T 370-376:K 377-378:N
+cpp	go	33-35:N 36-46:C 64-74:C 75-88:C 135-141:T 158-164:K 174-177:T 178-182:T 183-186:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 281-284:T 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 357-360:T 370-376:K 377-378:N
+cpp	rust	33-35:N 36-46:C 64-74:C 75-88:C 135-141:T 158-164:K 178-182:T 193-197:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 370-376:K 377-378:N
+cpp	qml	33-35:N 36-46:C 64-74:C 75-88:C 135-141:T 158-164:K 174-177:T 178-182:T 183-186:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 281-284:T 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 357-360:T 370-376:K 377-378:N
+cpp	html	10-17:K 99-107:K 108-109:T 281-284:K 357-360:K
+cpp	css	0-8:T 21-28:T 33-35:N 64-74:C 75-88:C 121-124:T 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 269-272:T 288-289:N 291-292:N 294-295:N 313-314:N 323-324:N 326-327:K 377-378:N 380-381:T
+cpp	sql	29-32:K 33-35:N 41-46:K 64-74:C 75-88:C 135-141:T 174-177:T 178-182:T 183-186:T 193-197:T 230-235:N 238-242:N 245-250:N 253-256:S 259-264:S 281-284:T 288-289:N 291-292:N 294-295:N 302-304:T 313-314:N 323-324:N 357-360:T 377-378:N 382-385:K
+cpp	bash	0-18:C 21-46:C 158-164:K 230-235:N 238-242:N 245-250:N 253-256:S 259-263:S 288-289:N 291-292:N 294-295:N 302-304:K 313-314:N 323-324:N 338-344:K 370-376:K 377-378:N 380-397:C
+cpp	json	33-35:N 230-235:N 238-242:N 245-250:N 288-289:N 291-292:N 294-295:N 313-314:N 323-324:N 377-378:N
+cpp	xml	10-17:K 99-107:K 108-109:T 281-284:K 357-360:K
+cpp	markdown	0-18:K 21-46:K 76-77:T
+cpp	mermaid	33-35:N 47-56:K 62-63:S 69-74:K 141-146:S 156-173:S 182-205:S 206-207:S 230-235:N 238-242:N 245-250:N 287-296:S 305-337:S 361-364:S 377-378:N
+csharp	python	0-13:C 61-66:K 130-133:T 148-153:K 159-162:T 164-172:T 234-236:N 244-251:T 259-261:K 276-285:T 287-292:S 301-307:K 308-313:K 319-329:T 358-368:C
+csharp	javascript	61-66:K 130-133:K 148-153:K 164-172:T 196-207:C 208-211:K 234-236:N 244-251:T 253-256:K 259-261:K 276-285:T 287-292:S 301-307:K 308-313:K 319-329:T 338-345:C
+csharp	typescript	28-37:K 47-53:K 61-66:K 91-98:K 99-107:K 113-119:T 130-133:K 141-147:K 148-153:K 164-172:T 173-179:T 196-207:C 208-211:K 234-236:N 244-251:T 253-256:K 259-261:K 276-285:T 287-292:S 301-307:K 308-313:K 319-329:T 338-345:C
+csharp	cpp	0-7:K 14-19:K 28-37:K 47-53:K 61-66:K 91-98:K 113-119:T 130-133:K 141-147:K 159-162:T 164-172:T 173-179:T 196-207:C 234-236:N 244-251:T 276-285:T 287-292:S 301-307:K 319-329:T 338-345:C 358-368:K
+csharp	csharp	0-7:K 14-19:K 28-37:K 47-53:K 54-60:K 61-66:K 91-98:K 99-107:K 108-112:T 113-119:T 130-133:K 141-147:K 148-153:K 154-158:T 159-162:T 164-172:T 173-179:T 196-207:C 208-211:T 234-236:N 244-251:K 253-256:T 259-261:K 276-285:T 287-292:S 301-307:K 308-313:K 314-318:T 319-329:T 338-345:C 358-368:K
+csharp	java	20-26:T 47-53:K 54-60:K 61-66:K 91-98:K 108-112:T 130-133:K 141-147:K 159-162:T 164-172:T 196-207:C 208-211:K 234-236:N 244-251:T 253-256:K 276-285:T 287-292:S 301-307:K 319-329:T 338-345:C
+csharp	go	113-119:T 130-133:T 159-162:T 164-172:T 173-179:T 196-207:C 208-211:K 234-236:N 244-251:T 253-256:K 276-285:T 287-292:S 301-307:K 319-329:T 338-345:C
+csharp	rust	130-133:T 148-153:K 164-172:T 196-207:C 234-236:N 244-251:T 259-261:K 276-285:T 287-292:S 301-307:K 308-313:K 319-329:T 338-345:C
+csharp	qml	99-107:K 113-119:T 130-133:K 159-162:T 164-172:T 173-179:T 196-207:C 208-211:K 234-236:N 244-251:T 253-256:K 259-261:K 276-285:T 287-292:S 301-307:K 319-329:T 338-345:C
+csharp	html	113-119:K 159-162:K
+csharp	css	0-7:T 67-70:T 196-207:C 224-231:T 234-236:N 275-285:T 287-292:S 318-329:T 358-368:T
+csharp	sql	130-133:T 159-162:T 164-172:T 196-207:C 212-217:K 234-236:N 244-251:T 259-261:K 276-285:T 319-329:T 330-335:K
+csharp	bash	0-13:C 99-107:K 234-236:N 259-261:K 286-287:T 287-292:S 301-307:K 341-345:K 358-368:C
+csharp	json	234-236:N 287-292:S
+csharp	xml	113-119:K 159-162:K
+csharp	markdown	0-13:K 358-368:K
+csharp	mermaid	28-37:K 43-44:S 61-66:K 85-86:S 133-135:S 172-187:S 188-189:S 234-236:N 252-267:S 285-293:S 329-336:S
+java	python	21-27:K 45-65:T 100-104:T 132-137:K 192-196:T 219-228:T 262-264:T 265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 335-339:S 360-367:T 371-375:T 391-396:T 407-416:T 431-439:T 444-450:K 451-457:S
+java	javascript	21-27:K 100-104:T 105-111:T 132-137:K 149-168:C 180-186:K 187-191:K 192-196:T 197-203:T 244-250:T 262-264:K 265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 335-339:S 360-367:T 371-375:T 388-396:C 424-430:T 431-439:T 444-450:K 451-457:S
+java	typescript	21-27:K 66-72:K 73-82:K 92-99:T 100-104:T 119-125:K 132-137:K 149-168:C 173-179:K 180-186:K 187-191:K 192-196:T 262-264:K 265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 335-339:S 360-367:T 371-375:T 388-396:C 417-423:K 431-439:T 444-450:K 451-457:S
+java	cpp	66-72:K 100-104:T 119-125:K 126-131:K 132-137:K 149-168:C 173-179:K 180-186:K 187-191:T 192-196:T 262-264:T 265-268:S 270-273:S 284-288:T 297-301:N 304-308:N 311-316:N 326-330:T 335-339:S 360-367:T 371-375:T 388-396:C 417-423:K 431-439:T 444-450:K 451-457:S
+java	csharp	38-42:T 66-72:K 73-82:K 100-104:T 105-111:T 119-125:K 132-137:K 149-168:C 173-179:K 180-186:K 187-191:T 192-196:T 197-203:T 239-243:T 244-250:T 257-261:T 262-264:T 265-268:S 270-273:S 284-288:T 297-301:N 304-308:N 311-316:N 326-330:T 335-339:S 356-359:K 360-367:T 371-375:T 388-396:C 417-423:K 424-430:T 431-439:T 444-450:K 451-457:S
+java	java	0-7:K 21-27:K 38-42:T 45-65:T 66-72:K 73-82:K 92-99:T 100-104:T 105-111:T 119-125:K 126-131:K 132-137:K 149-168:C 173-179:K 180-186:K 187-191:K 192-196:T 197-203:T 212-218:K 219-228:T 239-243:T 244-250:T 257-261:T 262-264:T 265-268:S 270-273:S 284-288:T 297-301:N 304-308:N 311-316:N 326-330:T 335-339:S 349-355:T 360-367:T 371-375:T 388-396:C 407-416:T 417-423:K 424-430:T 431-439:T 444-450:K 451-457:S
+java	go	0-7:K 21-27:K 73-82:K 100-104:T 149-168:C 192-196:T 262-264:T 265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 335-339:S 360-367:T 371-375:T 388-396:C 431-439:T 444-450:K 451-457:S
+java	rust	100-104:T 105-111:T 149-168:C 180-186:K 192-196:T 197-203:T 244-250:T 262-264:T 265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 326-330:T 335-339:S 360-367:T 371-375:T 388-396:C 424-430:T 431-439:T 444-450:K 451-457:S
+java	qml	21-27:K 100-104:T 149-168:C 187-191:K 192-196:T 262-264:K 265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 335-339:S 360-367:T 371-375:T 388-396:C 431-439:T 444-450:K 451-457:S
+java	html	244-250:K
+java	css	12-18:T 32-37:T 37-42:T 45-65:K 149-168:C 261-264:T 265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 335-339:S 355-359:T 359-367:T 370-375:T 407-416:K 451-457:S
+java	sql	92-99:T 100-104:T 149-168:C 192-196:T 262-264:T 297-301:N 304-308:N 311-316:N 326-330:T 335-339:S 360-367:T 371-375:T 431-439:T
+java	bash	265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 335-339:S 444-450:K 451-457:S
+java	json	265-268:S 270-273:S 297-301:N 304-308:N 311-316:N 451-457:S
+java	xml	244-250:K
+java	markdown	
+java	mermaid	90-117:S 132-137:K 143-144:S 196-211:S 229-230:S 262-264:T 264-274:S 297-301:N 304-308:N 311-316:N 367-386:S 439-441:S 442-460:S
+go	python	14-20:K 24-29:S 31-40:S 53-55:K 65-69:T 127-131:T 148-151:N 153-154:N 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	javascript	14-20:K 24-29:S 31-40:S 44-64:C 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 162-172:S 174-177:K 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	typescript	14-20:K 24-29:S 31-40:S 44-64:C 65-69:K 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 162-172:S 174-177:K 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	cpp	14-20:T 24-29:S 31-40:S 44-64:C 76-82:K 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	csharp	14-20:T 24-29:S 31-40:S 44-64:C 76-82:K 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 174-177:T 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	java	0-7:K 14-20:K 24-29:S 31-40:S 44-64:C 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 174-177:K 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	go	0-7:K 14-20:K 24-29:S 31-40:S 44-64:C 65-69:K 76-82:K 89-96:T 100-110:C 111-121:C 122-126:K 127-131:T 148-151:N 153-154:N 162-172:S 174-177:K 180-184:T 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 282-285:T 290-295:T
+go	rust	14-20:T 24-29:S 31-40:S 44-64:C 65-69:K 76-82:K 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	qml	14-20:K 24-29:S 31-40:S 44-64:C 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 162-172:S 174-177:K 187-190:S 196-203:T 212-219:T 220-224:S 236-239:T 244-248:N 250-255:N 258-260:K 268-271:T 290-295:T
+go	html	
+go	css	24-29:S 31-40:S 100-110:C 111-121:C 137-138:T 148-151:N 153-154:N 157-158:T 187-190:S 195-203:T 211-219:T 220-224:S 244-248:N 250-255:N 261-264:T 279-280:K
+go	sql	14-20:T 53-55:K 100-110:C 111-121:C 127-131:T 148-151:N 153-154:N 187-190:S 196-203:T 212-219:T 236-239:T 244-248:N 250-255:N 268-271:T 290-295:T
+go	bash	24-29:S 31-40:S 148-151:N 153-154:N 167-171:T 187-190:S 220-224:S 244-248:N 250-255:N 258-260:K
+go	json	24-29:S 31-40:S 148-151:N 153-154:N 220-224:S 244-248:N 250-255:N
+go	xml	
+go	markdown	162-172:S
+go	mermaid	21-22:S 24-29:S 31-40:S 82-98:S 105-110:K 131-133:S 134-135:S 147-155:S 168-171:S 203-256:S 271-273:S 286-287:S 295-300:S
+rust	python	47-63:C 143-146:T 152-156:T 165-168:T 226-230:T 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 342-345:S 373-377:N 389-400:S
+rust	javascript	32-46:C 49-55:T 101-107:T 143-146:T 195-209:C 218-221:K 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 334-337:K 342-345:S 347-350:K 365-371:T 373-377:N 389-400:S
+rust	typescript	32-46:C 49-55:T 143-146:T 195-209:C 218-221:K 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 334-337:K 342-345:S 347-350:K 373-377:N 389-400:S
+rust	cpp	4-7:T 32-46:C 47-48:K 49-55:T 68-74:K 143-146:T 195-209:C 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 342-345:S 373-377:N 389-400:S
+rust	csharp	32-46:C 47-48:K 49-55:T 68-74:K 101-107:T 143-146:T 195-209:C 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 342-345:S 365-371:T 373-377:N 389-400:S
+rust	java	32-46:C 49-55:T 101-107:T 143-146:T 195-209:C 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 342-345:S 365-371:T 373-377:N 389-400:S
+rust	go	32-46:C 49-55:T 68-74:K 143-146:T 195-209:C 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 342-345:S 373-377:N 380-387:T 389-400:S
+rust	rust	0-3:K 32-46:C 49-55:T 64-67:K 68-74:K 101-107:T 109-112:T 117-121:K 136-139:K 140-142:K 143-146:T 148-151:K 152-156:K 165-168:T 173-179:T 180-183:T 195-209:C 218-221:K 226-230:K 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 322-324:K 325-329:T 334-337:K 342-345:S 347-350:K 355-357:T 360-363:T 365-371:T 373-377:N 389-400:S
+rust	qml	32-46:C 49-55:T 143-146:T 195-209:C 218-221:K 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 334-337:K 342-345:S 347-350:K 373-377:N 389-400:S
+rust	html	101-107:K 109-112:T 180-183:K 360-363:K 365-371:T
+rust	css	4-7:T 9-20:T 47-48:T 85-91:T 158-162:T 195-209:C 230-237:T 237-243:T 248-258:T 261-271:T 272-273:N 290-292:N 292-294:N 342-345:S 355-357:T 373-377:N 387-388:K 389-400:S
+rust	sql	49-55:T 143-146:K 195-209:C 238-243:T 249-258:T 262-271:T 272-273:N 290-292:N 292-294:N 304-308:T 325-329:T 342-345:S 373-377:N
+rust	bash	47-63:C 272-273:N 290-292:N 292-294:N 342-345:S 373-377:N 389-400:S
+rust	json	272-273:N 290-292:N 292-294:N 373-377:N 389-400:S
+rust	xml	101-107:K 109-112:T 180-183:K 360-363:K 365-371:T
+rust	markdown	47-63:K
+rust	mermaid	48-63:S 83-115:S 130-131:S 146-169:S 170-172:T 185-186:S 243-261:S 271-274:S 290-292:N 292-294:N 308-312:S 329-331:S 332-404:S
+qml	python	0-6:K 15-21:K 92-99:S 122-125:T 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 322-324:N 390-397:T
+qml	javascript	0-6:K 15-21:K 92-99:S 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 280-304:S 322-324:N 327-335:C 390-397:T
+qml	typescript	0-6:K 15-21:K 78-84:T 92-99:S 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 280-304:S 322-324:N 327-335:C 390-397:T
+qml	cpp	78-84:T 92-99:S 122-125:T 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 322-324:N 327-335:C 390-397:T
+qml	csharp	78-84:T 92-99:S 122-125:T 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 322-324:N 327-335:C 390-397:T
+qml	java	0-6:K 15-21:K 92-99:S 122-125:T 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 322-324:N 327-335:C 390-397:T
+qml	go	0-6:K 15-21:K 78-84:T 92-99:S 122-125:T 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 280-304:S 322-324:N 327-335:C 390-397:T
+qml	rust	92-99:S 143-150:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 322-324:N 327-335:C 390-397:T
+qml	qml	0-6:K 15-21:K 40-49:T 56-58:K 69-77:K 78-84:T 92-99:S 104-112:K 113-121:K 122-125:T 136-142:K 143-150:T 151-155:T 170-173:N 183-186:N 199-204:T 206-208:T 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 267-271:T 280-304:S 306-310:T 322-324:N 327-335:C 340-349:T 390-397:T
+qml	html	
+qml	css	29-38:T 56-58:T 85-90:T 92-99:S 163-168:T 170-173:N 175-181:T 183-186:N 199-204:T 208-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 274-278:T 287-293:T 310-320:T 322-324:N 359-364:T 374-383:T 389-397:T 403-405:T
+qml	sql	122-125:T 126-131:K 143-150:T 151-155:T 170-173:N 183-186:N 209-213:T 214-217:N 219-220:N 222-223:N 225-226:N 232-241:C 242-262:C 267-271:T 274-278:T 297-302:K 322-324:N 390-397:T
+qml	bash	92-99:S 170-173:N 183-186:N 214-217:N 219-220:N 222-223:N 225-226:N 281-294:T 295-303:T 322-324:N
+qml	json	92-99:S 170-173:N 183-186:N 214-217:N 219-220:N 222-223:N 225-226:N 322-324:N
+qml	xml	
+qml	markdown	280-304:S
+qml	mermaid	50-51:S 92-99:S 150-158:S 170-173:N 183-186:N 213-227:S 237-241:K 249-253:T 272-326:S 350-408:S
+html	python	27-31:S 56-63:S 115-120:K 121-127:S 135-136:N 199-243:C 265-269:S
+html	javascript	27-31:S 56-63:S 115-120:K 121-127:S 135-136:N 200-203:N 265-269:S
+html	typescript	27-31:S 56-63:S 115-120:K 121-127:S 135-136:N 200-203:N 265-269:S
+html	cpp	27-31:S 56-63:S 115-120:K 121-127:S 135-136:N 200-203:N 265-269:S
+html	csharp	27-31:S 56-63:S 115-120:K 121-127:S 135-136:N 200-203:N 265-269:S
+html	java	27-31:S 56-63:S 115-120:K 121-127:S 135-136:N 200-203:N 265-269:S
+html	go	27-31:S 56-63:S 121-127:S 135-136:N 200-203:N 265-269:S
+html	rust	27-31:S 56-63:S 121-127:S 135-136:N 200-203:N 265-269:S
+html	qml	27-31:S 56-63:S 121-127:S 135-136:N 200-203:N 251-255:T 265-269:S
+html	html	2-9:K 10-14:T 17-21:K 22-26:T 27-31:S 34-38:K 43-47:K 48-55:T 56-63:S 68-73:K 79-86:N 94-99:K 103-107:K 110-114:K 115-120:T 121-127:S 128-134:T 140-154:C 155-180:C 184-185:K 189-197:N 198-204:N 205-214:N 241-242:K 247-255:K 256-264:T 265-269:S 274-278:K 282-286:K
+html	css	1-9:K 27-31:S 56-63:S 121-127:S 135-136:N 141-142:K 199-203:N 206-213:T 247-250:T 256-259:T 265-269:S
+html	sql	56-63:S 135-136:N 142-154:C 177-180:C 200-203:N
+html	bash	27-31:S 56-63:S 121-127:S 135-136:N 199-243:C 265-269:S
+html	json	27-31:S 61-62:N 121-127:S 135-136:N 200-203:N 265-269:S
+html	xml	2-9:K 10-14:T 17-21:K 22-26:T 27-31:S 34-38:K 43-47:K 48-55:T 56-63:S 68-73:K 79-86:N 94-99:K 103-107:K 110-114:K 115-120:T 121-127:S 128-134:T 140-154:C 155-180:C 184-185:K 189-197:N 198-204:N 205-214:N 241-242:K 247-255:K 256-264:T 265-269:S 274-278:K 282-286:K
+html	markdown	
+html	mermaid	27-31:S 61-62:N 68-73:K 94-99:K 115-120:K 121-127:S 135-136:N 142-144:T 162-166:T 177-180:T 200-203:N 251-255:K 265-269:S
+xml	python	14-19:S 29-36:S 53-59:S 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	javascript	14-19:S 29-36:S 53-59:S 60-67:K 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	typescript	14-19:S 29-36:S 53-59:S 60-67:K 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	cpp	14-19:S 29-36:S 53-59:S 60-67:K 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	csharp	14-19:S 29-36:S 53-59:S 60-67:K 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	java	14-19:S 29-36:S 53-59:S 60-67:K 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	go	14-19:S 29-36:S 53-59:S 60-67:K 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	rust	14-19:S 29-36:S 53-59:S 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	qml	14-19:S 29-36:S 53-59:S 60-67:K 68-75:S 111-118:S 127-133:S 153-180:S 257-260:S
+xml	html	2-5:K 6-13:T 14-19:S 20-28:T 29-36:S 40-47:K 48-52:T 53-59:S 60-67:T 68-75:S 79-95:C 99-105:K 106-110:T 111-118:S 119-126:T 127-133:S 140-144:K 145-152:T 153-180:S 187-193:K 200-205:T 207-210:T 213-217:T 224-233:C 234-245:C 249-252:K 253-256:T 257-260:S 267-270:K 274-281:K
+xml	css	14-19:S 29-36:S 53-59:S 68-75:S 80-81:K 111-118:S 127-133:S 153-180:S 198-199:K 225-226:K 249-250:T 253-254:T 257-260:S 267-268:T
+xml	sql	15-18:N 34-35:N 60-67:K 81-95:C 213-217:T 226-233:C 242-245:C 257-260:S 261-265:T
+xml	bash	14-19:S 29-36:S 53-59:S 68-75:S 111-118:S 127-133:S 140-144:T 153-180:S 257-260:S
+xml	json	14-19:S 29-36:S 53-59:S 68-75:S 111-118:S 127-133:S 153-180:S 258-259:N
+xml	xml	2-5:K 6-13:T 14-19:S 20-28:T 29-36:S 40-47:K 48-52:T 53-59:S 60-67:T 68-75:S 79-95:C 99-105:K 106-110:T 111-118:S 119-126:T 127-133:S 140-144:K 145-152:T 153-180:S 187-193:K 200-205:T 207-210:T 213-217:T 224-233:C 234-245:C 249-252:K 253-256:T 257-260:S 267-270:K 274-281:K
+xml	markdown	
+xml	mermaid	14-19:S 29-36:S 53-59:S 68-75:S 81-83:T 92-95:T 111-118:S 127-133:S 153-180:S 199-220:S 226-228:T 242-245:T 258-259:N
+css	python	0-7:T 8-11:T 12-23:S 60-84:C 100-114:C 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 223-240:C 255-260:C 263-269:T 282-287:N 310-313:N 314-317:N
+css	javascript	1-7:K 8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 264-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	typescript	1-7:K 8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 264-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	cpp	8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 130-137:S 161-162:N 163-167:K 178-182:T 183-186:N 190-195:N 209-212:N 264-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	csharp	8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 264-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	java	0-7:T 8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 263-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	go	1-7:K 8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 264-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	rust	8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 264-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	qml	1-7:K 8-11:T 12-23:S 26-41:C 61-63:N 63-64:N 73-77:N 77-81:N 117-121:T 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 216-221:T 264-269:T 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	html	
+css	css	0-7:K 12-23:S 26-41:C 52-58:T 60-64:N 68-70:T 72-81:N 91-96:T 100-106:T 117-128:T 130-137:S 153-159:T 161-162:N 171-176:T 183-187:N 190-195:N 200-207:T 209-212:N 216-221:T 223-228:N 229-239:K 243-253:T 255-259:T 263-269:K 271-280:T 282-287:N 293-298:T 301-308:T 310-313:N 314-317:N 321-329:C 330-342:C
+css	sql	8-11:T 26-41:C 50-84:C 130-137:S 161-162:N 178-182:T 183-186:N 190-195:N 209-212:N 264-269:T 271-274:K 282-287:N 310-313:N 314-317:N 321-329:C 330-342:C
+css	bash	12-23:S 60-84:C 100-114:C 130-137:S 161-162:N 183-186:N 190-195:N 209-212:N 223-240:C 255-260:C 282-287:N 310-313:N 314-317:N
+css	json	12-23:S 61-63:N 63-64:N 73-77:N 77-81:N 161-162:N 183-186:N 190-195:N 209-212:N 282-287:N 310-313:N 314-317:N
+css	xml	
+css	markdown	
+css	mermaid	11-24:S 48-84:S 113-114:S 161-162:N 182-196:S 210-212:N 270-288:S 289-290:S 299-320:S
+sql	python	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 176-181:T 260-272:S 288-292:N 331-333:N 342-347:T 354-358:K
+sql	javascript	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 260-272:S 288-292:N 331-333:N 342-347:T
+sql	typescript	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 260-272:S 288-292:N 331-333:N 342-347:T 354-358:K
+sql	cpp	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 260-272:S 288-292:N 331-333:N 342-347:T
+sql	csharp	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 260-272:S 288-292:N 331-333:N 342-347:T
+sql	java	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 260-272:S 288-292:N 331-333:N 342-347:T
+sql	go	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 260-272:S 288-292:N 331-333:N 335-341:K 342-347:T
+sql	rust	34-39:T 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 260-272:S 288-292:N 331-333:N 342-347:T
+sql	qml	34-39:T 44-46:K 74-81:T 82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 176-181:T 239-241:K 260-272:S 288-292:N 331-333:N 342-347:T
+sql	html	
+sql	css	82-85:N 117-121:S 121-128:S 132-143:C 144-160:C 169-174:T 226-234:T 238-241:T 249-257:T 260-272:S 278-284:T 288-292:N 303-308:T 331-333:N
+sql	sql	0-20:C 21-27:K 28-33:K 34-39:T 47-53:T 54-61:K 62-65:K 74-81:T 82-85:N 87-90:K 91-95:K 104-108:T 109-116:K 117-128:S 132-143:C 144-160:C 161-167:K 176-181:K 185-187:K 190-194:K 203-207:K 208-212:K 222-224:K 242-247:K 260-272:S 273-276:K 288-292:N 293-298:K 299-301:K 309-314:K 315-317:K 320-324:K 325-330:K 331-333:N 335-341:K 342-347:T 354-358:K
+sql	bash	82-85:N 117-121:S 121-128:S 260-272:S 288-292:N 331-333:N 335-341:K
+sql	json	82-85:N 261-265:N 266-268:N 269-271:N 288-292:N 331-333:N
+sql	xml	
+sql	markdown	
+sql	mermaid	0-2:T 40-41:S 81-86:S 99-103:K 147-151:T 181-184:S 261-265:N 266-268:N 269-271:N 285-287:T 288-292:N 331-333:N 347-353:S
+bash	python	0-19:C 20-23:T 38-60:C 61-64:K 69-71:K 72-76:S 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 204-211:S 229-230:N 243-244:N 247-266:C 276-281:T 298-299:N 308-314:S 315-325:S
+bash	javascript	20-23:K 61-64:K 69-71:K 72-76:S 78-80:K 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 204-211:S 229-230:N 243-244:N 267-275:K 276-281:T 298-299:N 308-314:S 315-325:S
+bash	typescript	20-23:K 61-64:K 69-71:K 72-76:S 78-80:K 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 187-195:K 204-211:S 229-230:N 243-244:N 267-275:K 276-281:T 298-299:N 308-314:S 315-325:S
+bash	cpp	0-1:K 20-23:T 38-39:K 61-64:K 72-76:S 78-80:K 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 204-211:S 229-230:N 243-244:N 276-281:T 298-299:N 308-314:S 315-325:S
+bash	csharp	0-1:K 38-39:K 61-64:K 69-71:K 72-76:S 78-80:K 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 187-195:K 204-211:S 229-230:N 243-244:N 276-281:T 298-299:N 308-314:S 315-325:S
+bash	java	52-59:K 61-64:K 72-76:S 78-80:K 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 204-211:S 229-230:N 243-244:N 276-281:T 298-299:N 308-314:S 315-325:S
+bash	go	52-59:K 61-64:K 72-76:S 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 158-162:T 175-176:N 204-211:S 229-230:N 243-244:N 276-281:T 298-299:N 308-314:S 315-325:S
+bash	rust	61-64:K 69-71:K 72-76:S 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 204-211:S 229-230:N 243-244:N 276-281:T 298-299:N 308-314:S 315-325:S
+bash	qml	61-64:K 69-71:K 72-76:S 78-80:K 83-85:K 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 187-195:K 204-211:S 229-230:N 243-244:N 267-275:K 276-281:T 298-299:N 308-314:S 315-325:S
+bash	html	
+bash	css	0-1:T 1-2:K 38-39:T 72-76:S 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 204-211:S 229-230:N 243-244:N 247-251:T 252-253:K 298-299:N 308-314:S 315-325:S
+bash	sql	20-23:K 69-71:K 107-111:K 139-140:N 175-176:N 204-211:S 212-217:K 221-226:K 229-230:N 243-244:N 276-281:T 298-299:N 308-314:S
+bash	bash	0-19:C 20-23:T 38-60:C 61-64:K 69-71:K 72-76:S 78-80:K 83-85:K 91-103:S 107-111:K 116-120:T 121-136:S 139-140:N 145-147:T 148-154:S 170-174:K 175-176:N 179-181:K 182-186:K 187-195:K 204-211:S 218-219:T 229-230:N 234-238:T 239-240:T 242-244:T 245-255:T 256-266:T 267-275:K 286-291:K 297-299:T 301-307:T 308-314:S 315-325:S
+bash	json	72-76:S 91-103:S 121-136:S 139-140:N 148-154:S 175-176:N 205-208:N 208-210:N 229-230:N 243-244:N 298-299:N 315-325:S
+bash	xml	
+bash	markdown	0-19:K 38-60:K
+bash	mermaid	72-76:S 86-105:S 121-136:S 139-140:N 148-154:S 167-169:S 175-176:N 205-208:N 209-210:N 219-232:S 243-244:N 246-255:S 257-266:S 281-283:S 284-328:S
+json	python	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 139-147:S 150-154:S 163-166:S 168-169:N
+json	javascript	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:T 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 131-135:T 139-147:S 150-154:S 156-161:T 163-166:S 168-169:N
+json	typescript	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 131-135:T 139-147:S 150-154:S 163-166:S 168-169:N
+json	cpp	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:T 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 139-147:S 150-154:S 156-161:T 163-166:S 168-169:N
+json	csharp	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:T 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 131-135:T 139-147:S 150-154:S 156-161:T 163-166:S 168-169:N
+json	java	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:T 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 131-135:T 139-147:S 150-154:S 156-161:T 163-166:S 168-169:N
+json	go	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:T 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 139-147:S 150-154:S 156-161:T 163-166:S 168-169:N
+json	rust	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:K 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 139-147:S 150-154:S 156-161:K 163-166:S 168-169:N
+json	qml	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:T 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 131-135:T 139-147:S 150-154:S 156-161:T 163-166:S 168-169:N
+json	html	
+json	css	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 139-147:S 150-154:S 163-166:S 168-169:N
+json	sql	34-37:N 37-39:N 71-77:N 89-93:N 131-135:K 168-169:N
+json	bash	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:T 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 139-147:S 150-154:S 156-161:T 163-166:S 168-169:N
+json	json	4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 55-59:K 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 106-109:S 111-117:S 122-129:S 131-135:K 139-147:S 150-154:S 156-161:K 163-166:S 168-169:N
+json	xml	
+json	markdown	
+json	mermaid	0-1:S 4-10:S 12-18:S 22-31:S 33-40:S 44-53:S 63-69:S 71-77:N 81-86:S 89-93:N 97-103:S 105-118:S 122-129:S 139-147:S 149-170:S
+markdown	python	0-12:C 26-30:K 38-41:K 75-94:C 105-109:K 154-157:K 160-164:T 165-168:N 177-181:N 199-203:T 272-275:K
+markdown	javascript	26-30:K 31-37:S 57-72:C 105-109:K 110-116:S 165-168:N 177-181:N 188-190:S 190-193:S 199-203:T 209-211:S 211-212:S 215-217:S 217-218:S 230-232:S 232-233:S 250-253:C 276-290:S
+markdown	typescript	26-30:K 31-37:S 57-72:C 105-109:K 110-116:S 165-168:N 177-181:N 188-190:S 190-193:S 199-203:T 209-211:S 211-212:S 215-217:S 217-218:S 230-232:S 232-233:S 250-253:C 276-290:S
+markdown	cpp	0-1:K 38-41:K 57-72:C 75-76:K 154-157:K 165-168:N 177-181:N 199-203:T 250-253:C 272-275:K
+markdown	csharp	0-1:K 57-72:C 75-76:K 165-168:N 177-181:N 199-203:T 250-253:C
+markdown	java	57-72:C 165-168:N 177-181:N 199-203:T 250-253:C
+markdown	go	31-37:S 57-72:C 110-116:S 165-168:N 177-181:N 188-190:S 190-193:S 194-198:K 199-203:T 209-211:S 211-212:S 215-217:S 217-218:S 230-232:S 232-233:S 250-253:C 276-290:S
+markdown	rust	14-18:T 57-72:C 165-168:N 177-181:N 199-203:T 250-253:C
+markdown	qml	26-30:K 31-37:S 57-72:C 105-109:K 110-116:S 160-164:T 165-168:N 177-181:N 188-190:S 190-193:S 199-203:T 209-211:S 211-212:S 215-217:S 217-218:S 230-232:S 232-233:S 250-253:C 276-290:S
+markdown	html	
+markdown	css	0-1:T 51-56:T 66-70:T 75-76:T 76-77:T 165-168:N 177-181:N 245-249:T 254-255:K 266-270:T
+markdown	sql	20-24:T 26-30:K 38-41:K 105-109:K 154-157:K 165-168:N 177-181:N 199-203:T 272-275:K
+markdown	bash	0-12:C 75-94:C 165-168:N 177-181:N
+markdown	json	165-168:N 177-181:N
+markdown	xml	
+markdown	markdown	0-12:K 31-37:S 50-71:T 75-94:K 95-116:C 118-119:T 129-130:T 140-141:T 165-168:T 177-179:T 188-193:S 194-208:S 209-212:S 215-218:S 219-229:S 230-233:S 244-253:T 262-271:T 276-290:S
+markdown	mermaid	38-41:K 44-50:S 50-71:S 165-168:N 177-181:N 203-205:S 206-208:S 234-244:S 244-253:S 255-262:S 262-271:S 272-275:K
+mermaid	python	10-17:S 19-25:S 77-78:T 240-256:C 272-293:S 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	javascript	10-17:S 19-25:S 77-78:T 253-256:N 272-293:S 406-408:K 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	typescript	10-17:S 19-25:S 77-78:T 253-256:N 272-293:S 406-408:K 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	cpp	10-17:S 19-25:S 77-78:T 253-256:N 272-293:S 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	csharp	10-17:S 19-25:S 77-78:T 253-256:N 272-293:S 414-416:N 468-472:T 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	java	10-17:S 19-25:S 77-78:T 253-256:N 272-293:S 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	go	10-17:S 19-25:S 73-75:K 77-78:T 253-256:N 272-293:S 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	rust	10-17:S 19-25:S 77-78:T 253-256:N 272-293:S 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	qml	10-17:S 19-25:S 77-78:T 253-256:N 272-293:S 406-408:K 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	html	
+mermaid	css	3-7:T 10-17:S 19-25:S 235-239:T 240-244:N 245-251:T 252-256:N 272-293:S 340-343:T 378-381:T 409-412:T 414-416:N 468-472:T 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	sql	69-87:C 133-138:C 143-148:C 153-161:C 208-213:C 216-219:K 253-256:N 401-405:K 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 520-523:N
+mermaid	bash	10-17:S 19-25:S 240-256:C 272-293:S 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	json	10-17:S 19-25:S 253-256:N 272-293:S 414-416:N 478-482:N 483-485:N 486-488:N 490-493:N 511-517:S 520-523:N
+mermaid	xml	
+mermaid	markdown	
+mermaid	mermaid	0-29:C 30-39:K 40-42:T 45-57:C 61-68:S 69-72:T 72-76:S 78-87:S 92-96:T 98-107:S 112-115:T 115-120:S 133-136:T 143-146:T 153-155:T 164-172:K 177-184:S 189-198:K 199-201:T 208-211:T 216-219:K 222-230:K 253-256:N 259-264:K 267-271:K 272-293:S 294-309:K 312-323:K 337-340:T 343-348:S 348-359:C 367-371:T 396-400:K 401-405:T 406-408:T 412-423:S 424-429:K 432-442:K 456-463:K 478-482:N 483-485:N 486-488:N 490-493:N 494-497:K 498-503:K 511-517:S 520-523:N 524-532:C 533-546:C 547-552:K
+empty	python	
+empty	javascript	
+empty	typescript	
+empty	cpp	
+empty	csharp	
+empty	java	
+empty	go	
+empty	rust	
+empty	qml	
+empty	html	
+empty	css	
+empty	sql	
+empty	bash	
+empty	json	
+empty	xml	
+empty	markdown	
+empty	mermaid	
+blank-lines	python	
+blank-lines	javascript	
+blank-lines	typescript	
+blank-lines	cpp	
+blank-lines	csharp	
+blank-lines	java	
+blank-lines	go	
+blank-lines	rust	
+blank-lines	qml	
+blank-lines	html	
+blank-lines	css	
+blank-lines	sql	
+blank-lines	bash	
+blank-lines	json	
+blank-lines	xml	
+blank-lines	markdown	
+blank-lines	mermaid	
+trailing-newline	python	4-5:N
+trailing-newline	javascript	4-5:N
+trailing-newline	typescript	4-5:N
+trailing-newline	cpp	4-5:N
+trailing-newline	csharp	4-5:N
+trailing-newline	java	4-5:N
+trailing-newline	go	4-5:N
+trailing-newline	rust	4-5:N
+trailing-newline	qml	4-5:N
+trailing-newline	html	
+trailing-newline	css	4-5:N
+trailing-newline	sql	4-5:N
+trailing-newline	bash	4-5:N
+trailing-newline	json	4-5:N
+trailing-newline	xml	
+trailing-newline	markdown	
+trailing-newline	mermaid	4-5:N
+unterminated-strings	python	4-9:S 14-19:S 34-55:S
+unterminated-strings	javascript	4-9:S 14-19:S 24-29:S 34-55:S
+unterminated-strings	typescript	4-9:S 14-19:S 24-29:S 34-55:S
+unterminated-strings	cpp	4-9:S 14-19:S 34-55:S
+unterminated-strings	csharp	4-9:S 14-19:S 34-55:S
+unterminated-strings	java	4-9:S 14-19:S 34-55:S
+unterminated-strings	go	4-9:S 14-19:S 24-29:S 34-55:S
+unterminated-strings	rust	4-9:S 14-19:S 34-55:S
+unterminated-strings	qml	4-9:S 14-19:S 24-29:S 34-55:S
+unterminated-strings	html	
+unterminated-strings	css	4-9:S 14-19:S 34-55:S
+unterminated-strings	sql	14-19:S 40-44:K
+unterminated-strings	bash	4-9:S 14-19:S 34-55:S
+unterminated-strings	json	4-9:S 34-55:S
+unterminated-strings	xml	
+unterminated-strings	markdown	24-29:S
+unterminated-strings	mermaid	4-9:S 34-55:S
+escape-at-end	python	4-9:S 10-11:S
+escape-at-end	javascript	4-9:S 10-11:S
+escape-at-end	typescript	4-9:S 10-11:S
+escape-at-end	cpp	4-9:S 10-11:S
+escape-at-end	csharp	4-9:S 10-11:S
+escape-at-end	java	4-9:S 10-11:S
+escape-at-end	go	4-9:S 10-11:S
+escape-at-end	rust	4-9:S 10-11:S
+escape-at-end	qml	4-9:S 10-11:S
+escape-at-end	html	
+escape-at-end	css	4-9:S 10-11:S
+escape-at-end	sql	4-9:S 10-11:S
+escape-at-end	bash	4-9:S 10-11:S
+escape-at-end	json	
+escape-at-end	xml	
+escape-at-end	markdown	
+escape-at-end	mermaid	
+numbers	python	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	javascript	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	typescript	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	cpp	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	csharp	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	java	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	go	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	rust	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	qml	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	html	
+numbers	css	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-79:N 80-84:N
+numbers	sql	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	bash	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	json	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 34-36:N 37-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+numbers	xml	
+numbers	markdown	
+numbers	mermaid	0-2:N 3-7:N 8-13:N 14-18:N 19-21:N 22-25:N 26-30:N 31-34:N 35-36:N 38-39:N 40-42:N 43-52:N 53-57:N 58-62:N 63-66:N 67-75:N 76-78:N 80-84:N
+dotted	python	4-5:T 14-16:N 16-18:N
+dotted	javascript	4-5:T 14-16:N 16-18:N
+dotted	typescript	4-5:T 14-16:N 16-18:N
+dotted	cpp	4-5:T 14-16:N 16-18:N
+dotted	csharp	4-5:T 14-16:N 16-18:N
+dotted	java	4-5:T 14-16:N 16-18:N
+dotted	go	4-5:T 14-16:N 16-18:N
+dotted	rust	4-5:T 14-16:N 16-18:N
+dotted	qml	4-5:T 14-16:N 16-18:N
+dotted	html	
+dotted	css	1-3:T 3-5:T 11-13:T 14-16:N 16-18:N
+dotted	sql	4-5:T 14-16:N 16-18:N
+dotted	bash	14-16:N 16-18:N
+dotted	json	14-16:N 16-18:N
+dotted	xml	
+dotted	markdown	
+dotted	mermaid	5-8:S 15-18:N
+unicode-words	python	8-12:T 13-14:N 34-39:S 45-46:T 47-48:N 50-54:C
+unicode-words	javascript	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	typescript	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	cpp	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	csharp	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	java	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	go	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	rust	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	qml	8-12:T 13-14:N 16-24:C 34-39:S 45-46:T 47-48:N
+unicode-words	html	
+unicode-words	css	13-14:N 34-39:S 47-48:N 50-51:T
+unicode-words	sql	8-12:T 13-14:N 45-46:T 47-48:N
+unicode-words	bash	13-14:N 34-39:S 47-48:N 50-54:C
+unicode-words	json	13-14:N 34-39:S 47-48:N
+unicode-words	xml	
+unicode-words	markdown	
+unicode-words	mermaid	12-15:S 34-39:S 46-49:S
+emoji	python	4-13:S 16-17:N 33-34:N 37-38:N 53-54:N 60-63:S
+emoji	javascript	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	typescript	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	cpp	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	csharp	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	java	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	go	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	rust	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	qml	4-13:S 16-17:N 18-28:C 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	html	56-57:K 58-59:T 60-63:S 64-69:N 72-73:K
+emoji	css	4-13:S 16-17:N 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N 60-63:S
+emoji	sql	16-17:N 33-34:N 37-38:N 39-43:C 44-48:C 53-54:N
+emoji	bash	4-13:S 16-17:N 33-34:N 37-38:N 53-54:N 60-63:S
+emoji	json	4-13:S 16-17:N 33-34:N 37-38:N 53-54:N 60-63:S
+emoji	xml	56-57:K 58-59:T 60-63:S 64-69:N 72-73:K
+emoji	markdown	
+emoji	mermaid	4-13:S 16-17:N 33-34:N 37-38:N 53-54:N 60-63:S
+tabs	python	1-3:K 19-25:K 26-29:S 34-47:C
+tabs	javascript	1-3:K 10-16:C 19-25:K 26-29:S 46-47:N
+tabs	typescript	1-3:K 10-16:C 19-25:K 26-29:S 46-47:N
+tabs	cpp	1-3:K 10-16:C 19-25:K 26-29:S 34-41:K 46-47:N
+tabs	csharp	1-3:K 10-16:C 19-25:K 26-29:S 34-41:K 46-47:N
+tabs	java	1-3:K 10-16:C 19-25:K 26-29:S 46-47:N
+tabs	go	1-3:K 10-16:C 19-25:K 26-29:S 46-47:N
+tabs	rust	1-3:K 10-16:C 19-25:K 26-29:S 46-47:N
+tabs	qml	1-3:K 10-16:C 19-25:K 26-29:S 46-47:N
+tabs	html	
+tabs	css	26-29:S 34-41:T 46-47:N
+tabs	sql	1-3:T 26-29:S 46-47:N
+tabs	bash	1-3:K 19-25:K 26-29:S 34-47:C
+tabs	json	46-47:N
+tabs	xml	
+tabs	markdown	34-47:K
+tabs	mermaid	4-7:S 8-16:S 46-47:N
+nested-comments	python	
+nested-comments	javascript	0-20:C
+nested-comments	typescript	0-20:C
+nested-comments	cpp	0-20:C
+nested-comments	csharp	0-20:C
+nested-comments	java	0-20:C
+nested-comments	go	0-20:C
+nested-comments	rust	0-20:C
+nested-comments	qml	0-20:C
+nested-comments	html	35-52:C
+nested-comments	css	0-20:C 36-37:K 43-44:K
+nested-comments	sql	0-20:C 37-58:C
+nested-comments	bash	
+nested-comments	json	
+nested-comments	xml	35-52:C
+nested-comments	markdown	
+nested-comments	mermaid	37-39:T 44-46:T 49-52:T 55-58:T 59-68:C 72-74:C
+comment-markers-in-strings	python	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	javascript	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	typescript	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	cpp	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	csharp	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	java	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	go	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	rust	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	qml	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	html	77-84:C
+comment-markers-in-strings	css	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	sql	8-11:K 28-44:S 58-65:C 66-70:S 72-84:C
+comment-markers-in-strings	bash	4-22:S 28-44:S 50-57:S 66-70:S 71-75:S 76-82:S
+comment-markers-in-strings	json	4-22:S 50-57:S 71-75:S
+comment-markers-in-strings	xml	77-84:C
+comment-markers-in-strings	markdown	
+comment-markers-in-strings	mermaid	4-22:S 50-57:S 58-60:T 67-69:T 71-75:S 79-81:T
+unclosed-block-comment	python	
+unclosed-block-comment	javascript	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	typescript	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	cpp	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	csharp	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	java	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	go	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	rust	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	qml	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	html	
+unclosed-block-comment	css	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	sql	2-17:C 18-19:C 20-21:C
+unclosed-block-comment	bash	
+unclosed-block-comment	json	
+unclosed-block-comment	xml	
+unclosed-block-comment	markdown	
+unclosed-block-comment	mermaid	
+unclosed-html-comment	python	
+unclosed-html-comment	javascript	
+unclosed-html-comment	typescript	8-13:T
+unclosed-html-comment	cpp	
+unclosed-html-comment	csharp	
+unclosed-html-comment	java	
+unclosed-html-comment	go	
+unclosed-html-comment	rust	
+unclosed-html-comment	qml	
+unclosed-html-comment	html	1-2:K 3-20:C 21-29:C
+unclosed-html-comment	css	4-5:K
+unclosed-html-comment	sql	5-20:C
+unclosed-html-comment	bash	
+unclosed-html-comment	json	
+unclosed-html-comment	xml	1-2:K 3-20:C 21-29:C
+unclosed-html-comment	markdown	
+unclosed-html-comment	mermaid	2-4:T 5-7:T
+unclosed-tag	python	8-11:S 20-23:S
+unclosed-tag	javascript	8-11:S 20-23:S
+unclosed-tag	typescript	8-11:S 20-23:S
+unclosed-tag	cpp	8-11:S 20-23:S
+unclosed-tag	csharp	8-11:S 20-23:S
+unclosed-tag	java	8-11:S 20-23:S
+unclosed-tag	go	8-11:S 20-23:S
+unclosed-tag	rust	8-11:S 20-23:S
+unclosed-tag	qml	8-11:S 20-23:S
+unclosed-tag	html	1-2:K 3-7:T 8-11:S 30-31:K
+unclosed-tag	css	8-11:S 20-23:S
+unclosed-tag	sql	20-23:S 24-28:T
+unclosed-tag	bash	8-11:S 20-23:S
+unclosed-tag	json	8-11:S
+unclosed-tag	xml	1-2:K 3-7:T 8-11:S 30-31:K
+unclosed-tag	markdown	
+unclosed-tag	mermaid	3-7:K 8-11:S 14-19:K
+tag-shapes	python	6-8:N 34-35:N 50-53:S
+tag-shapes	javascript	6-8:N 34-35:N 50-53:S
+tag-shapes	typescript	6-8:N 34-35:N 50-53:S
+tag-shapes	cpp	6-8:N 34-35:N 50-53:S
+tag-shapes	csharp	6-8:N 34-35:N 50-53:S
+tag-shapes	java	6-8:N 34-35:N 50-53:S
+tag-shapes	go	6-8:N 34-35:N 50-53:S
+tag-shapes	rust	6-8:N 34-35:N 50-53:S
+tag-shapes	qml	6-8:N 34-35:N 50-53:S
+tag-shapes	html	2-3:T 6-8:K 11-13:K 25-28:K 29-33:T 40-41:K 42-43:T 44-45:T 46-47:T 50-53:S 54-55:T
+tag-shapes	css	6-8:N 20-21:K 34-35:N 50-53:S
+tag-shapes	sql	6-8:N 34-35:N
+tag-shapes	bash	6-8:N 29-33:T 34-35:N 50-53:S
+tag-shapes	json	6-8:N 34-35:N 50-53:S
+tag-shapes	xml	2-3:T 6-8:K 11-13:K 25-28:K 29-33:T 40-41:K 42-43:T 44-45:T 46-47:T 50-53:S 54-55:T
+tag-shapes	markdown	
+tag-shapes	mermaid	6-8:N 10-13:T 34-35:N 50-53:S
+entities	python	39-54:C
+entities	javascript	40-47:N
+entities	typescript	40-47:N
+entities	cpp	40-47:N
+entities	csharp	40-47:N
+entities	java	40-47:N
+entities	go	40-47:N
+entities	rust	40-47:N
+entities	qml	40-47:N
+entities	html	0-5:N 6-8:N 9-12:N 13-24:N 38-48:N 50-53:N
+entities	css	39-47:T
+entities	sql	40-47:N
+entities	bash	39-54:C
+entities	json	40-47:N
+entities	xml	0-5:N 6-8:N 9-12:N 13-24:N 38-48:N 50-53:N
+entities	markdown	
+entities	mermaid	40-47:N
+css-hashes	python	0-72:C
+css-hashes	javascript	54-56:N
+css-hashes	typescript	54-56:N
+css-hashes	cpp	0-4:K 54-56:N
+css-hashes	csharp	0-4:K 54-56:N
+css-hashes	java	54-56:N
+css-hashes	go	54-56:N
+css-hashes	rust	54-56:N
+css-hashes	qml	54-56:N
+css-hashes	html	
+css-hashes	css	0-4:N 5-10:N 11-17:T 18-25:N 26-34:T 35-44:N 45-52:N 53-56:T 57-58:T 59-62:T 63-67:T 68-72:N
+css-hashes	sql	54-56:N
+css-hashes	bash	0-72:C
+css-hashes	json	54-56:N
+css-hashes	xml	
+css-hashes	markdown	0-72:K
+css-hashes	mermaid	54-56:N
+css-bangs-ats	python	18-20:T 23-29:T 47-51:N
+css-bangs-ats	javascript	47-51:N
+css-bangs-ats	typescript	47-51:N
+css-bangs-ats	cpp	47-51:N
+css-bangs-ats	csharp	47-51:N
+css-bangs-ats	java	18-20:T 23-29:T 47-51:N
+css-bangs-ats	go	47-51:N
+css-bangs-ats	rust	47-51:N
+css-bangs-ats	qml	47-51:N
+css-bangs-ats	html	
+css-bangs-ats	css	0-1:K 2-4:K 5-15:K 16-17:K 18-22:K 23-29:K 32-33:T 36-37:T 42-46:T 47-51:N
+css-bangs-ats	sql	47-51:N
+css-bangs-ats	bash	47-51:N
+css-bangs-ats	json	47-51:N
+css-bangs-ats	xml	
+css-bangs-ats	markdown	
+css-bangs-ats	mermaid	29-31:S 48-51:N 52-55:T
+dollar	python	15-16:N
+dollar	javascript	15-16:N
+dollar	typescript	15-16:N
+dollar	cpp	15-16:N
+dollar	csharp	15-16:N
+dollar	java	15-16:N
+dollar	go	15-16:N
+dollar	rust	15-16:N
+dollar	qml	15-16:N
+dollar	html	
+dollar	css	15-16:N 25-27:T
+dollar	sql	15-16:N
+dollar	bash	0-1:T 2-4:T 5-9:T 10-31:T
+dollar	json	15-16:N
+dollar	xml	
+dollar	markdown	
+dollar	mermaid	6-9:S 11-31:S
+hash-and-at	python	0-7:C 10-17:C 20-27:C 30-32:T 33-39:T 41-42:N 44-46:T
+hash-and-at	javascript	41-42:N
+hash-and-at	typescript	41-42:N
+hash-and-at	cpp	0-1:K 10-17:K 41-42:N
+hash-and-at	csharp	0-1:K 10-17:K 41-42:N
+hash-and-at	java	30-32:T 33-39:T 41-42:N 44-46:T
+hash-and-at	go	41-42:N
+hash-and-at	rust	41-42:N
+hash-and-at	qml	41-42:N
+hash-and-at	html	
+hash-and-at	css	0-1:T 10-17:T 20-21:T 28-29:K 30-32:K 33-35:K 35-37:T 37-39:T 40-42:K 44-46:K
+hash-and-at	sql	41-42:N
+hash-and-at	bash	0-7:C 10-17:C 20-27:C 41-42:N
+hash-and-at	json	41-42:N
+hash-and-at	xml	
+hash-and-at	markdown	0-7:K 10-17:K
+hash-and-at	mermaid	41-42:N
+calls	python	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	javascript	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	typescript	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	cpp	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	csharp	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	java	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	go	0-1:T 5-6:T 11-12:T 17-19:K 23-28:T 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	rust	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	qml	0-1:T 5-6:T 11-12:T 17-19:K 23-28:K 30-31:N 33-36:T 37-38:N 40-46:T 47-48:N 54-57:T 58-59:N
+calls	html	
+calls	css	30-31:N 37-38:N 47-48:N 53-57:T 58-59:N
+calls	sql	0-1:T 5-6:T 11-12:T 17-19:T 23-28:T 30-31:N 33-36:T 37-38:N 40-46:K 47-48:N 54-57:T 58-59:N
+calls	bash	17-19:K 23-28:K 30-31:N 37-38:N 47-48:N 58-59:N
+calls	json	30-31:N 37-38:N 47-48:N 58-59:N
+calls	xml	
+calls	markdown	
+calls	mermaid	1-4:S 7-10:S 13-16:S 19-22:S 29-32:S 36-39:S 46-49:S 57-60:S
+sql-case	python	56-59:T
+sql-case	javascript	35-39:T
+sql-case	typescript	35-39:T
+sql-case	cpp	56-59:T
+sql-case	csharp	35-39:T 56-59:T
+sql-case	java	35-39:T 56-59:T
+sql-case	go	56-59:T
+sql-case	rust	
+sql-case	qml	35-39:T 56-59:T
+sql-case	html	
+sql-case	css	
+sql-case	sql	0-6:K 7-11:K 12-17:K 18-24:K 25-29:K 30-34:K 35-39:K 40-47:T 48-55:T 56-59:T 60-63:T
+sql-case	bash	
+sql-case	json	35-39:K
+sql-case	xml	
+sql-case	markdown	
+sql-case	mermaid	
+sql-case-special	python	
+sql-case-special	javascript	
+sql-case-special	typescript	
+sql-case-special	cpp	
+sql-case-special	csharp	
+sql-case-special	java	
+sql-case-special	go	
+sql-case-special	rust	
+sql-case-special	qml	
+sql-case-special	html	
+sql-case-special	css	
+sql-case-special	sql	7-10:K
+sql-case-special	bash	
+sql-case-special	json	
+sql-case-special	xml	
+sql-case-special	markdown	
+sql-case-special	mermaid	
+python-triple-shapes	python	4-11:S 16-23:S 28-44:S 45-52:S 58-78:S 79-86:S 89-98:S
+python-triple-shapes	javascript	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	typescript	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	cpp	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	csharp	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	java	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	go	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	rust	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	qml	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	html	
+python-triple-shapes	css	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	sql	4-11:S 28-44:S 49-52:S 75-78:S 95-98:S
+python-triple-shapes	bash	4-6:S 6-9:S 9-11:S 16-18:S 18-21:S 21-23:S 28-30:S 30-32:S 32-44:S 49-51:S 51-52:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	json	16-18:S 18-21:S 21-23:S 38-40:S 40-42:S 42-44:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-shapes	xml	
+python-triple-shapes	markdown	
+python-triple-shapes	mermaid	16-18:S 18-21:S 21-23:S 38-40:S 40-42:S 42-44:S 58-60:S 60-78:S 83-85:S 85-87:S 89-91:S 91-98:S
+python-triple-after-code	python	4-5:N 6-9:S 10-13:S 14-17:S 22-23:N
+python-triple-after-code	javascript	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	typescript	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	cpp	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	csharp	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	java	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	go	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	rust	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	qml	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	html	
+python-triple-after-code	css	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	sql	4-5:N 22-23:N
+python-triple-after-code	bash	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	json	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+python-triple-after-code	xml	
+python-triple-after-code	markdown	
+python-triple-after-code	mermaid	4-5:N 6-8:S 8-9:S 14-16:S 16-23:S
+markdown-fences	python	4-17:C 22-31:C 43-45:K
+markdown-fences	javascript	0-2:S 2-3:S 18-20:S 20-21:S 35-37:S 37-40:S 43-45:K 55-57:S 57-58:S
+markdown-fences	typescript	0-2:S 2-3:S 18-20:S 20-21:S 35-37:S 37-40:S 43-45:K 55-57:S 57-58:S
+markdown-fences	cpp	4-5:K 6-9:K 22-23:K
+markdown-fences	csharp	4-5:K 22-23:K 43-45:K
+markdown-fences	java	
+markdown-fences	go	0-2:S 2-3:S 18-20:S 20-21:S 35-37:S 37-40:S 55-57:S 57-58:S
+markdown-fences	rust	43-45:K
+markdown-fences	qml	0-2:S 2-3:S 18-20:S 20-21:S 35-37:S 37-40:S 43-45:K 55-57:S 57-58:S
+markdown-fences	html	
+markdown-fences	css	4-5:T 22-23:T
+markdown-fences	sql	6-9:K 43-45:K
+markdown-fences	bash	4-17:C 22-31:C 43-45:K
+markdown-fences	json	
+markdown-fences	xml	
+markdown-fences	markdown	0-3:S 4-17:S 18-21:S 22-31:K 35-40:S 41-51:S 55-58:S 59-66:C
+markdown-fences	mermaid	
+markdown-lists	python	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	javascript	9-12:S 18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	typescript	9-12:S 18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	cpp	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	csharp	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	java	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	go	9-12:S 18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	rust	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	qml	9-12:S 18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	html	
+markdown-lists	css	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	sql	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	bash	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	json	18-20:N 23-27:N 28-29:N 34-36:N
+markdown-lists	xml	
+markdown-lists	markdown	0-1:T 7-8:T 9-12:S 13-14:T 18-20:T 23-26:T 41-42:T 46-49:T
+markdown-lists	mermaid	18-20:N 23-27:N 28-29:N 35-36:N 43-46:S 46-49:S 50-53:S 54-57:S
+mermaid-links	python	
+mermaid-links	javascript	
+mermaid-links	typescript	
+mermaid-links	cpp	
+mermaid-links	csharp	
+mermaid-links	java	
+mermaid-links	go	
+mermaid-links	rust	
+mermaid-links	qml	
+mermaid-links	html	26-28:K 78-79:T 80-81:T
+mermaid-links	css	70-72:T
+mermaid-links	sql	1-101:C
+mermaid-links	bash	
+mermaid-links	json	
+mermaid-links	xml	26-28:K 78-79:T 80-81:T
+mermaid-links	markdown	
+mermaid-links	mermaid	1-4:T 7-10:T 13-16:T 19-22:T 25-29:T 32-35:T 38-40:T 44-46:T 50-53:T 55-58:T 60-62:T 74-78:T 81-85:T 88-91:S 94-97:T 97-100:S
+mermaid-colons	python	46-47:N 55-59:C
+mermaid-colons	javascript	46-47:N
+mermaid-colons	typescript	46-47:N
+mermaid-colons	cpp	46-47:N
+mermaid-colons	csharp	46-47:N
+mermaid-colons	java	46-47:N
+mermaid-colons	go	46-47:N
+mermaid-colons	rust	46-47:N
+mermaid-colons	qml	46-47:N
+mermaid-colons	html	
+mermaid-colons	css	0-1:T 12-13:T 23-27:T 32-33:T 46-47:N 48-54:T 55-59:N
+mermaid-colons	sql	8-22:C 46-47:N 62-75:C
+mermaid-colons	bash	46-47:N 55-59:C
+mermaid-colons	json	46-47:N
+mermaid-colons	xml	
+mermaid-colons	markdown	
+mermaid-colons	mermaid	8-11:T 14-18:S 18-22:C 23-27:K 28-31:S 36-45:K 46-47:N 62-64:T 70-73:T
+mermaid-labels-edge	python	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	javascript	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	typescript	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	cpp	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	csharp	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	java	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	go	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	rust	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	qml	16-17:T 18-22:S 37-46:S 54-55:T
+mermaid-labels-edge	html	
+mermaid-labels-edge	css	18-22:S 37-46:S
+mermaid-labels-edge	sql	16-17:T 54-55:T
+mermaid-labels-edge	bash	18-22:S 37-46:S
+mermaid-labels-edge	json	18-22:S 37-46:S
+mermaid-labels-edge	xml	
+mermaid-labels-edge	markdown	
+mermaid-labels-edge	mermaid	1-15:S 17-23:S 25-34:S 36-46:S 48-53:S 55-60:S 62-71:S
+mermaid-directive-lines	python	
+mermaid-directive-lines	javascript	
+mermaid-directive-lines	typescript	
+mermaid-directive-lines	cpp	
+mermaid-directive-lines	csharp	
+mermaid-directive-lines	java	
+mermaid-directive-lines	go	
+mermaid-directive-lines	rust	
+mermaid-directive-lines	qml	
+mermaid-directive-lines	html	
+mermaid-directive-lines	css	
+mermaid-directive-lines	sql	
+mermaid-directive-lines	bash	
+mermaid-directive-lines	json	
+mermaid-directive-lines	xml	
+mermaid-directive-lines	markdown	
+mermaid-directive-lines	mermaid	0-3:C 4-8:C 9-12:C 13-22:K 23-32:C 32-36:C 37-45:C
+mixed-everything	python	0-4:C 25-28:C 39-42:S 43-46:S 51-52:N 53-56:N 57-59:T 70-75:C
+mixed-everything	javascript	14-19:C 29-33:C 39-42:S 43-46:S 47-50:S 51-52:N 53-56:N
+mixed-everything	typescript	14-19:C 29-33:C 39-42:S 43-46:S 47-50:S 51-52:N 53-56:N
+mixed-everything	cpp	0-1:K 14-19:C 25-26:K 29-33:C 39-42:S 43-46:S 51-52:N 53-56:N
+mixed-everything	csharp	0-1:K 14-19:C 25-26:K 29-33:C 39-42:S 43-46:S 51-52:N 53-56:N
+mixed-everything	java	14-19:C 29-33:C 39-42:S 43-46:S 51-52:N 53-56:N 57-59:T
+mixed-everything	go	14-19:C 29-33:C 39-42:S 43-46:S 47-50:S 51-52:N 53-56:N
+mixed-everything	rust	14-19:C 29-33:C 39-42:S 43-46:S 51-52:N 53-56:N
+mixed-everything	qml	14-19:C 29-33:C 39-42:S 43-46:S 47-50:S 51-52:N 53-56:N
+mixed-everything	html	5-13:C 63-66:N
+mixed-everything	css	0-1:T 1-2:K 6-7:K 14-19:C 25-26:T 39-42:S 43-46:S 51-52:N 53-56:N 57-59:K 67-69:T 70-72:T 73-75:K
+mixed-everything	sql	7-13:C 14-19:C 20-24:C 43-46:S 51-52:N 53-56:N
+mixed-everything	bash	0-4:C 25-28:C 39-42:S 43-46:S 51-52:N 53-56:N 60-62:T 70-75:C
+mixed-everything	json	39-42:S 51-52:N 53-56:N
+mixed-everything	xml	5-13:C 63-66:N
+mixed-everything	markdown	0-4:K 25-28:K 47-50:S
+mixed-everything	mermaid	7-9:T 10-13:T 20-22:T 34-38:C 39-42:S 51-52:N 53-56:N
+long-line	python	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N
+long-line	javascript	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	typescript	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	cpp	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	csharp	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	java	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	go	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	rust	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	qml	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 292-298:C
+long-line	html	
+long-line	css	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N
+long-line	sql	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 295-298:K
+long-line	bash	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N
+long-line	json	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N
+long-line	xml	
+long-line	markdown	
+long-line	mermaid	4-5:N 8-9:N 12-13:N 16-17:N 20-21:N 24-25:N 28-29:N 32-33:N 36-37:N 40-41:N 44-46:N 49-51:N 54-56:N 59-61:N 64-66:N 69-71:N 74-76:N 79-81:N 84-86:N 89-91:N 94-96:N 99-101:N 104-106:N 109-111:N 114-116:N 119-121:N 124-126:N 129-131:N 134-136:N 139-141:N 144-146:N 149-151:N 154-156:N 159-161:N 164-166:N 169-171:N 174-176:N 179-181:N 184-186:N 189-191:N 194-196:N 199-201:N 204-206:N 209-211:N 214-216:N 219-221:N 224-226:N 229-231:N 234-236:N 239-241:N 244-246:N 249-251:N 254-256:N 259-261:N 264-266:N 269-271:N 274-276:N 279-281:N 284-286:N 289-291:N 295-298:K
+carriage-returns-free	python	4-5:N 11-16:S
+carriage-returns-free	javascript	4-5:N 11-16:S 18-29:C
+carriage-returns-free	typescript	4-5:N 11-16:S 18-29:C
+carriage-returns-free	cpp	4-5:N 11-16:S 18-29:C
+carriage-returns-free	csharp	4-5:N 11-16:S 18-29:C
+carriage-returns-free	java	4-5:N 11-16:S 18-29:C
+carriage-returns-free	go	4-5:N 11-16:S 18-29:C
+carriage-returns-free	rust	4-5:N 11-16:S 18-29:C
+carriage-returns-free	qml	4-5:N 11-16:S 18-29:C
+carriage-returns-free	html	
+carriage-returns-free	css	4-5:N 11-16:S 18-29:C
+carriage-returns-free	sql	4-5:N 11-16:S 18-29:C
+carriage-returns-free	bash	4-5:N 11-16:S
+carriage-returns-free	json	4-5:N
+carriage-returns-free	xml	
+carriage-returns-free	markdown	
+carriage-returns-free	mermaid	4-5:N

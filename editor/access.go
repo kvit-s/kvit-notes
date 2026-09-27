@@ -72,6 +72,7 @@ func (e *Editor) describeBlock(b *unison.AccessibilityBuilder, i int) accessibil
 		}
 		n.Role = role.TextArea
 		n.Name = blk.Kind.String() + " block"
+		n.ReadOnly = d.ReadOnly
 		if blk.Kind == Paragraph && blk.Text == "" {
 			n.Placeholder = e.Placeholder
 		}
@@ -90,7 +91,7 @@ func (e *Editor) describeBlock(b *unison.AccessibilityBuilder, i int) accessibil
 	if id == 0 {
 		return 0
 	}
-	if e.hover == blk.ID && e.drag == nil {
+	if e.hover == blk.ID && e.drag == nil && !d.ReadOnly {
 		for _, g := range gutterControls {
 			r := e.gutterCellRect(i, g.part)
 			b.AddVirtualChildOf(id, partKey{blk.ID, g.part}, func(n *accessibility.Node) {

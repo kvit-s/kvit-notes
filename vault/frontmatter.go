@@ -249,6 +249,10 @@ type Page struct {
 	loaded   string
 }
 
+// ParseText splits a note's text into its front matter and body, for a
+// version that is shown rather than saved, such as a backup.
+func ParseText(text string) *Page { return parsePage(text) }
+
 // parsePage splits a note's text into a page.
 func parsePage(raw string) *Page {
 	fm, body := splitFrontMatter(raw)
@@ -338,6 +342,15 @@ func (p *Page) Created() time.Time {
 	return time.Time{}
 }
 
+// SetGoal sets the note's writing goal in words; 0 takes it away.
+func (p *Page) SetGoal(words int) {
+	line := ""
+	if words > 0 {
+		line = "goal: " + strconv.Itoa(words)
+	}
+	p.ensure().set("goal", line)
+}
+
 // Goal is the note's writing goal in words, or 0.
 func (p *Page) Goal() int {
 	if p.fm == nil {
@@ -349,4 +362,23 @@ func (p *Page) Goal() int {
 		return 0
 	}
 	return n
+}
+
+// Fields are the front matter's first-level keys with their values as
+// written after the colon, spaces around them removed and nothing unquoted;
+// a key whose value is a list below it has "". The last of a key written
+// twice counts (NoteFrontMatter::Metadata::fields).
+func (p *Page) Fields() map[string]string {
+	out := map[string]string{}
+	if p.fm == nil {
+		return out
+	}
+	for _, l := range p.fm.lines {
+		if _, key := mappingLine(l); !key {
+			continue
+		}
+		k, v, _ := strings.Cut(l, ":")
+		out[k] = strings.TrimSpace(v)
+	}
+	return out
 }

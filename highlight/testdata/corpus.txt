@@ -1,0 +1,536 @@
+# Samples every language is coloured with, by the Qt app's highlighter into
+# qt-spans.txt (see qtspans/main.cpp) and by this package in TestQtSpans.
+# A sample starts after a line "==== name" and runs to the next one.
+==== qt-python-keywords
+def greet(name):  # say hi
+    return 'hello'
+==== qt-python-numbers
+@decorator
+x = 0xFF + 3.14e2
+==== qt-python-triple
+a = """line one
+still string
+"""
+b = 1
+==== qt-javascript
+const s = `hi ${x}`; /* multi
+line */ let n = 42;
+==== qt-cpp-preprocessor
+#include <vector>
+int main() { return 0; }
+==== qt-cpp-string
+auto x = "a\"b"; // trailing
+==== qt-java
+@Override
+public final int x = 5;
+==== qt-go
+func main() { var n int = 42; println("go") } // note
+==== qt-rust
+fn main() { let n: i32 = 42; println("rust"); } // note
+==== qt-typescript
+interface Row { value: string } const n = 42; // note
+const s = "ts";
+==== qt-csharp
+public class App { string s = "cs"; int n = 42; } // note
+==== qt-qml
+Rectangle { property string label: "qml"; width: 42 } // note
+==== qt-sql
+SELECT * from users -- all
+WHERE id = 'x''y';
+==== qt-bash
+echo $HOME # comment
+for i in ${list}; do :; done
+==== qt-json
+{"key": true, "n": -1.5, "z": null}
+==== qt-html
+<a href="x">t</a><!-- note -->&amp;
+==== qt-xml
+<root><!-- a
+b -->
+<x/></root>
+==== qt-css
+.btn { color: #ff0000; width: 20px; } /* c */
+==== qt-css-at-rule
+@media screen { a { color: red !important; } }
+==== qt-markdown
+# Title
+- item `code`
+> quote
+[t](http://u)
+==== qt-mermaid-flowchart
+flowchart LR
+    A[Start] --> B{Decision}
+    B -->|yes| C[Done]
+==== qt-mermaid-labels
+graph TD
+  A((Round)) --> B["a ] b"]
+  C{{Hex}}
+==== qt-mermaid-comments
+%% a note
+flowchart LR
+  A --> B %% trailing
+==== qt-mermaid-directive
+%%{init: {
+  'theme': 'dark'
+} }%%
+==== qt-mermaid-sequence
+sequenceDiagram
+    Alice->>John: Hello John
+    note right of John: thinking
+    loop every minute
+    end
+==== qt-mermaid-class
+classDiagram
+  Animal : +int age
+==== qt-mermaid-style
+flowchart LR
+  style A fill:#f9f
+==== qt-mermaid-state
+stateDiagram-v2
+  A --> B : event
+==== qt-mermaid-arrowheads
+classDiagram
+  Animal <|-- Duck
+  A ..|> B
+==== qt-cpp-lines
+int x; /* open
+still comment
+done */ int y;
+==== qt-cpp-threaded
+x = 1 /* c
+d */ y = 2
+==== python
+import os
+from typing import List
+
+@dataclass(frozen=True)
+class Point:
+    """A point.
+
+    Two coordinates."""
+    x: float = 0.0
+    y: float = 1_000.5e-3
+
+    def norm(self) -> float:
+        # the length
+        return (self.x ** 2 + self.y ** 2) ** .5
+
+async def main(args: List[str]) -> None:
+    s = 'it\'s'
+    t = '''single
+triple''' + "done"
+    if s is not None and len(args) > 0x1F:
+        print(f"{s} {t}", 0b1010, 0o17)
+    match args:
+        case [first, *rest]:
+            pass
+
+==== javascript
+// a module
+import { readFile } from 'fs';
+export default async function load(path) {
+  const text = await readFile(path, "utf8");
+  /* several
+     lines
+  */ let n = 10n + 0xff + 1e3;
+  return `${text} and ${n}`.length ?? null;
+}
+class Box extends Array { static get size() { return this.length; } }
+console.log(typeof undefined, NaN, Infinity);
+
+==== typescript
+type Id = string | number;
+interface User { readonly id: Id; name?: string; }
+export function find<T extends User>(xs: Array<T>, id: Id): T | undefined {
+  /* linear */ return xs.find((x) => x.id === id); // first match
+}
+const n: bigint = 12n;
+let rec: Record<string, Partial<User>> = {};
+declare const tmpl = `a ${n}`;
+
+==== cpp
+#include <cstdint>
+  #define MAX 10 // a limit
+namespace kvit {
+/* A block
+ * comment */
+template <typename T>
+constexpr std::uint64_t square(T x) noexcept { return x * x; }
+int main(int argc, char **argv) {
+    unsigned long n = 0x1Fu + 3.5f + 1e-9L + 'c' + '\'';
+    std::vector<int> v{1, 2, 3};
+    if (argc > 1 && argv[1] != nullptr) return static_cast<int>(n);
+    return 0; # not a directive
+}
+}
+
+==== csharp
+#region Setup
+using System;
+namespace Kvit {
+  public sealed class App : IDisposable {
+    private readonly List<string> _names = new();
+    public async Task<int> RunAsync(string[] args) {
+      /* start */ var count = args.Length + 42;
+      foreach (var a in args) Console.WriteLine($"{a}");
+      return await Task.FromResult(count); // done
+    }
+  }
+}
+#endregion
+
+==== java
+package kvit.notes;
+
+import java.util.List;
+
+@FunctionalInterface
+public interface Filter { boolean keep(String s); }
+
+public final class Main {
+    /** Entry point. */
+    public static void main(String[] args) throws Exception {
+        List<String> xs = List.of("a", "b");
+        long total = 100L + 0x10 + 2.5e3;
+        char c = '\n';
+        System.out.println(xs.size() + total); // print
+    }
+    @Override public String toString() { return "Main"; }
+}
+
+==== go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// Point is a point.
+type Point struct{ X, Y float64 }
+
+/* A block
+comment */
+func main() {
+	p := Point{1.5, 2}
+	s := `raw ${p}`
+	var r rune = 'x'
+	fmt.Println(strings.ToUpper("go"), p, s, r, len(s), 0x1F, 1_000)
+	if err := run(); err != nil {
+		panic(err)
+	}
+}
+
+==== rust
+use std::collections::HashMap;
+
+/// A counter.
+#[derive(Debug)]
+pub struct Counter { counts: HashMap<String, u64> }
+
+impl Counter {
+    pub fn add(&mut self, word: &str) -> Option<u64> {
+        /* count it */
+        let n = self.counts.entry(word.to_string()).or_insert(0);
+        *n += 1u64;
+        Some(*n)
+    }
+}
+
+fn main() { let c = 'x'; let r = Ok::<i32, String>(0xff); println!("{c} {r:?}"); }
+
+==== qml
+import QtQuick
+import QtQuick.Controls
+
+Rectangle {
+    id: root
+    property string label: "Hello"
+    required property int count
+    signal clicked(real x)
+    width: 200; height: 1.5 * width
+    color: Qt.rgba(0.5, 0, 0, 1)
+    /* a note
+       over lines */
+    Text { text: `${root.label} ${count}`; font.pixelSize: 14 } // label
+    MouseArea { anchors.fill: parent; onClicked: root.clicked(mouse.x) }
+}
+
+==== html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset='utf-8'>
+  <title>Kvit &mdash; notes</title>
+</head>
+<body class="main" data-x=1>
+  <!-- a comment
+       over two lines -->
+  <p>Caf&eacute; &#169; &#x1F600; &notanentityatall; a & b</p>
+  <svg:rect xml:lang="en"/>
+</body>
+</html>
+
+==== xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="kvit" default="build">
+  <!-- targets -->
+  <target name="build" depends="init">
+    <echo message="Building &quot;kvit&quot;"/>
+  </target>
+  <![CDATA[ raw < text ]]>
+  <!-- open
+  still -->
+  <x:y a:b='1'>text</x:y>
+</project>
+
+==== css
+@import url("theme.css");
+/* The page. */
+:root { --accent: #3a7; --fg: #1e1e1eff; }
+body, .card > p#intro:hover {
+  font-family: 'Inter', sans-serif;
+  margin: 0 auto;
+  width: calc(100% - 2.5em);
+  opacity: .75;
+  color: #abcd !important;
+  background: #zzz;
+}
+@media (max-width: 600px) {
+  .card { padding: 4px 8px; } /* small
+  screens */
+}
+
+==== sql
+-- Users by country.
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  note TEXT DEFAULT 'it''s new'
+);
+/* A report
+   over lines */
+SELECT u.name, COUNT(*) AS n
+FROM users u LEFT JOIN orders o ON o.user_id = u.id
+WHERE u.created > '2024-01-01' AND o.total >= 10.5
+GROUP BY u.name ORDER BY n DESC LIMIT 10;
+select lower(name) from users;
+
+==== bash
+#!/usr/bin/env bash
+set -euo pipefail
+# Build every package.
+for dir in "$@"; do
+  if [ -d "${dir}/src" ]; then
+    echo "building $dir" >&2
+    cd "$dir" && make -j4 || exit 1
+  fi
+done
+readonly VERSION='1.2.3'
+count=$((count + 1)); echo $? $1 ${#arr[@]} ${unclosed
+function greet() { local name=$1; printf '%s\n' "hi $name"; }
+
+==== json
+{
+  "name": "kvit",
+  "version": "1.0.0",
+  "private": true,
+  "size": 12.5e3,
+  "neg": -0.25,
+  "tags": ["a", "b\"c"],
+  "empty": null,
+  "nested": {"ok": false, "n": 0}
+}
+
+==== markdown
+# Kvit notes
+
+Some *text* with `code` and a [link](https://example.com).
+  ## Indented heading
+> A quote with `code`
+
+- item one
+* item two
++ item three
+-not a list
+12. twelfth
+3.no space
+```go
+func main() {}
+```
+  ```
+still code
+```
+[unclosed](http://x
+![image](pic.png) and `unclosed code
+
+==== mermaid
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  %% the steps
+  A[Start] -->|go| B((Think))
+  B -.-> C{Choose?}
+  C ==>|yes| D>Done]
+  C --o E
+  C --x F
+  C --oops G
+  subgraph one [First]
+    direction LR
+    G --- H
+  end
+  classDef hot fill:#f96,stroke:#333
+  click A href "https://example.com"
+sequenceDiagram
+  participant Alice
+  Alice->>Bob: Hi %% trailing
+  Note over Alice,Bob: plain Note
+  note left of Bob: 42 things
+gantt
+  dateFormat YYYY-MM-DD
+  section A
+  Task :a1, 2024-01-01, 30d
+pie title Pets
+  "Dogs" : 386
+%%{ open
+directive }%% graph
+
+==== empty
+
+==== blank-lines
+
+
+  
+
+==== trailing-newline
+x = 1
+
+==== unterminated-strings
+a = "open
+b = 'also
+c = `tick
+d = "ends with backslash\
+==== escape-at-end
+s = 'abc\
+'
+==== numbers
+0x 0xG1 0b102 0o78 1e 1e+ 1E-5 1.2.3 .5 5. 1_000_000 12px 3.0f 10n 0.5e10km 99% 7abc
+==== dotted
+a.b.c(x) . .x .5.6
+==== unicode-words
+naïve = café(1) // übung
+привет = "мир"
+変数 = 値(2) # 注釈
+if日本 return1
+==== emoji
+x = "😀 smile" + 1 // 🎉 party
+y = 2 😀 3 /* 🙂
+🙂 */ z = 4
+<a t="😀">&amp;😀</a>
+==== tabs
+	if (x)	{	// tab
+		return	'y';	}
+	#define	TAB	1
+==== nested-comments
+/* outer /* inner */ after */ code
+<!-- a <!-- b --> c -->
+%%{ a }%% b }%%
+==== comment-markers-in-strings
+s = "// not a comment"; t = '/* nor this */'; u = "# nor" -- sql?
+'--' "--" '<!--' x
+==== unclosed-block-comment
+a /* never closed
+b
+c
+
+==== unclosed-html-comment
+<p><!-- never closed
+<b>x</b>
+
+==== unclosed-tag
+<a href="x"
+  title='t'>text</a>
+==== tag-shapes
+< a> <1x> <-x> </> <!> <?php echo 1 ?> <a b=c d = "e" f>
+==== entities
+&amp; &; & ; &abcdefghi; &abcdefghij; &#1234567; x&y;z
+==== css-hashes
+#abc #abcd #abcde #abcdef #abcdefa #abcdef01 #ABCDEF #12 # #-x #a_b #aBc
+==== css-bangs-ats
+! !x !important @ @x-y @media{} a:b c : d .x-y .5em .-x
+==== dollar
+$ $x ${x} ${x $1 $_ $- $x.y a$b
+==== hash-and-at
+# first
+  #second
+x # third
+@ @x @x.y.z @1 a@b
+==== calls
+f(x) g (y) h	(z) if(x) while (1) int(3) SELECT(1) Foo.bar(2)
+==== sql-case
+Select FROM wHeRe InSeRt NULL Null null VARCHAR Varchar int Int
+==== sql-case-special
+x İN y KEY STRAßE ÉND
+==== python-triple-shapes
+a = '''x''' b = """y""" c = ''''' d = """"""
+e = '''
+open
+""" still single '''
+f = """a
+b""" + 'c'
+==== python-triple-after-code
+x = 1 """
+doc
+""" y = 2
+==== markdown-fences
+```
+# not heading
+```
+# heading
+   ```js
+> in fence
+   ```
+> quote
+==== markdown-lists
+- a
+-b
+* `c`
++  d
+1. e
+10.f
+1 . g
+.1 h
+  - [x](y) [z] (w)
+==== mermaid-links
+a-->b a---b a-.-b a==>b a<-->b a~~~b a--ob a--xb a--o a--x a--xy a-b a.b a<|--b a..|>b a|b| a -->|x|b
+==== mermaid-colons
+A : x
+A --> B : y %% c
+note : z
+A:B
+linkStyle 0 stroke:#f00
+A -- text --> B
+==== mermaid-labels-edge
+A[a [nested] b] B("q)") C{a {b} c} D["unclosed
+E[open
+F((x)) G[/slash/]
+==== mermaid-directive-lines
+%%{
+init
+}%% flowchart
+%%{ a }%%%% b
+%% %%{ c
+==== mixed-everything
+#!/x
+<!-- -->
+/* */
+-- x
+# y
+// z
+%% w
+"s" 's' `t` 1 0x1 @a $b &c; .d #e !f
+==== long-line
+x = 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + 21 + 22 + 23 + 24 + 25 + 26 + 27 + 28 + 29 + 30 + 31 + 32 + 33 + 34 + 35 + 36 + 37 + 38 + 39 + 40 + 41 + 42 + 43 + 44 + 45 + 46 + 47 + 48 + 49 + 50 + 51 + 52 + 53 + 54 + 55 + 56 + 57 + 58 + 59 // end
+==== carriage-returns-free
+a = 1;
+b = 'two';
+/* three */

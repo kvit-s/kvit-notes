@@ -6,6 +6,7 @@ package editor
 // is drawn (the projection of the source) and in which style.
 
 import (
+	"github.com/kvit-s/kvit-notes/highlight"
 	"math"
 	"slices"
 
@@ -27,12 +28,15 @@ type blockLayout struct {
 // until one of them changes.
 type layoutKey struct {
 	text       string
+	attrs      string
+	lang       string // a code block's language, which its colours follow
 	kind       Kind
 	checked    bool
 	width      float32
-	caret      int // -1 when the block does not hold the caret
-	selA, selB int // the selection inside the block, in source offsets
-	generation int // bumped when the theme or typography changes
+	caret      int    // -1 when the block does not hold the caret
+	selA, selB int    // the selection inside the block, in source offsets
+	generation int    // bumped when the theme or typography changes
+	marks      string // the find bar's matches in the block (marksKey)
 }
 
 // styleFor is the style of a drawn character with the given inline flags.
@@ -42,6 +46,10 @@ func (e *Editor) styleFor(f runeFlags, base text.Style) text.Style {
 	if f&fMarker != 0 {
 		st.Color = colour(t.Marker)
 		return withSelection(e, st, f)
+	}
+	if f&fBlank != 0 {
+		st.Color.A = 0
+		return st
 	}
 	if f&fBold != 0 {
 		st.Weight = text.Bold
@@ -66,7 +74,70 @@ func (e *Editor) styleFor(f runeFlags, base text.Style) text.Style {
 		st.Color = colour(t.Link)
 		st.Underline = true
 	}
+	if f&fMath != 0 {
+		st.Italic = true
+	}
+	switch {
+	case f&fMatchCurrent != 0:
+		st.Background = colour(t.SearchCurrentBackground)
+	case f&fMatch != 0:
+		st.Background = colour(t.SearchMatchBackground)
+	}
+	switch {
+	case f&fCodeKeyword != 0:
+		st.Color = colour(t.CodeKeyword)
+	case f&fCodeType != 0:
+		st.Color = colour(t.CodeType)
+	case f&fCodeString != 0:
+		st.Color = colour(t.CodeString)
+	case f&fCodeComment != 0:
+		st.Color = colour(t.CodeComment)
+	case f&fCodeNumber != 0:
+		st.Color = colour(t.CodeNumber)
+	}
+	// Superscript and subscript at three quarters of the size, raised or
+	// lowered from the line's baseline.
+	if f&fSup != 0 {
+		st.Size, st.Rise = base.Size*0.75, base.Size*0.33
+	}
+	if f&fSub != 0 {
+		st.Size, st.Rise = base.Size*0.75, -base.Size*0.15
+	}
 	return withSelection(e, st, f)
+}
+
+// codeClassFlag is the flag each syntax class is drawn with.
+var codeClassFlag = map[highlight.Class]runeFlags{
+	highlight.Keyword: fCodeKeyword, highlight.Type: fCodeType, highlight.String: fCodeString,
+	highlight.Comment: fCodeComment, highlight.Number: fCodeNumber,
+}
+
+// runs are a projection's drawn text split where its style changes: its
+// flags, and its colour from a colour span.
+func (e *Editor) runs(proj projection, fl []runeFlags, base text.Style) []text.Span {
+	colorAt := func(i int) string {
+		if proj.colors == nil {
+			return ""
+		}
+		return proj.colors[i]
+	}
+	var out []text.Span
+	for i := 0; i < len(fl); {
+		j := i
+		for j < len(fl) && fl[j] == fl[i] && colorAt(j) == colorAt(i) {
+			j++
+		}
+		st := e.styleFor(fl[i], base)
+		if c, ok := parseColor(colorAt(i)); ok && fl[i]&(fMarker|fSelected|fLink|fBlank) == 0 {
+			st.Color = c
+		}
+		out = append(out, text.Span{Text: string(proj.Disp[i:j]), Style: st})
+		i = j
+	}
+	if len(out) == 0 {
+		out = []text.Span{{Style: base}}
+	}
+	return out
 }
 
 // withSelection draws selected text in the accent's ground and label colour.
@@ -97,10 +168,30 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 	}
 	proj := project(src, spans, reveal)
 	fl := proj.flags
+	if b.Kind == Code && b.Lang != "" {
+		// Syntax colours, a class to a run (codelanguages.cpp).
+		fl = slices.Clone(fl)
+		for _, sp := range highlight.Highlight(b.Lang, b.Text) {
+			for k := sp.Start; k < sp.End && k < len(fl); k++ {
+				fl[k] |= codeClassFlag[sp.Class]
+			}
+		}
+	}
 	if b.Kind == Todo && b.Checked {
 		fl = slices.Clone(fl)
 		for k := range fl {
 			fl[k] |= fStrike
+		}
+	}
+	for _, m := range e.marks[b.ID] {
+		fl = slices.Clone(fl)
+		f := fMatch
+		if m.Current {
+			f = fMatchCurrent
+		}
+		a, c := max(0, min(m.Start, len(src))), max(0, min(m.End, len(src)))
+		for k := proj.S2D[a]; k < proj.S2D[c] && k < len(fl); k++ {
+			fl[k] |= f
 		}
 	}
 	if selA != selB {
@@ -110,20 +201,24 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 		}
 	}
 	base := e.blockStyle(b)
-	var runs []text.Span
-	for i := 0; i < len(fl); {
-		j := i
-		for j < len(fl) && fl[j] == fl[i] {
-			j++
-		}
-		runs = append(runs, text.Span{Text: string(proj.Disp[i:j]), Style: e.styleFor(fl[i], base)})
-		i = j
+	if _, on := e.dropCap(b); on && caret < 0 && len(fl) > 0 {
+		// The first letter is left blank in place, the drop cap drawn
+		// beside the text standing in for it.
+		fl = slices.Clone(fl)
+		fl[0] |= fBlank
 	}
-	if len(runs) == 0 {
-		runs = []text.Span{{Style: base}}
-	}
+	runs := e.runs(proj, fl, base)
 	pitch := e.pitch(base)
-	tl := e.ui.Fonts.Layout(runs, text.Options{MaxWidth: width, Pitch: pitch, KeepTrailingSpace: true})
+	opt := text.Options{MaxWidth: width, Pitch: pitch, KeepTrailingSpace: true}
+	// A block's alignment, as the Qt app applies it (EditableBlock.qml,
+	// blockAlign).
+	switch a, _ := b.Attr("align"); a {
+	case "center":
+		opt.Align = text.AlignMiddle
+	case "right":
+		opt.Align = text.AlignEnd
+	}
+	tl := e.ui.Fonts.Layout(runs, opt)
 	return &blockLayout{proj: proj, text: tl, style: base, pitch: pitch, width: width}
 }
 

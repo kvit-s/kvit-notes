@@ -58,25 +58,60 @@ type NoteList struct {
 	// OnDrag runs while a row is dragged, and OnDrop when it is let go,
 	// with the pointer in the window's root coordinates.
 	OnDrag, OnDrop func(i int, where geom.Point)
-	hover          int
-	pressed        int        // the row a press started on, or -1
-	pressAt        geom.Point // where it started
-	dragging       bool
+	// Selected are the rows picked with Ctrl or Shift for acting on
+	// together; OnSelect runs when they change.
+	Selected map[int]bool
+	OnSelect func()
+	// DropLine is the gap a dragged row would go into, drawn as a line:
+	// before row DropLine, or -1 for none.
+	DropLine int
+	hover    int
+	pressed  int        // the row a press started on, or -1
+	pressAt  geom.Point // where it started
+	dragging bool
 }
 
 // NewNoteList returns an empty note list.
 func NewNoteList(ui *kvitui.UI) *NoteList {
-	l := &NoteList{ui: ui, Current: -1, hover: -1, pressed: -1}
+	l := &NoteList{ui: ui, Current: -1, hover: -1, pressed: -1, Selected: map[int]bool{}, DropLine: -1}
 	l.Self = l
 	l.SetFocusable(true)
 	l.SetSizer(l.sizes)
 	l.DrawCallback = l.draw
-	l.MouseDownCallback = func(where geom.Point, button, _ int, _ mod.Modifiers) bool {
-		if i := l.rowAt(where.Y); i >= 0 && button == unison.ButtonLeft {
-			l.RequestFocus()
-			l.choose(i)
-			l.pressed, l.pressAt, l.dragging = i, where, false
+	l.MouseDownCallback = func(where geom.Point, button, _ int, mods mod.Modifiers) bool {
+		i := l.rowAt(where.Y)
+		if i < 0 || button != unison.ButtonLeft {
+			return true
 		}
+		l.RequestFocus()
+		switch {
+		case mods.OSMenuCommandDown():
+			// Ctrl picks a row, or leaves it, keeping the others; the open
+			// note is part of the pick.
+			if len(l.Selected) == 0 && l.Current >= 0 {
+				l.Selected[l.Current] = true
+			}
+			if l.Selected[i] {
+				delete(l.Selected, i)
+			} else {
+				l.Selected[i] = true
+			}
+			l.selectionChanged()
+			return true
+		case mods.ShiftDown() && l.Current >= 0:
+			clear(l.Selected)
+			for k := min(i, l.Current); k <= max(i, l.Current); k++ {
+				l.Selected[k] = true
+			}
+			l.selectionChanged()
+			return true
+		}
+		if len(l.Selected) > 0 {
+			clear(l.Selected)
+			l.selectionChanged()
+		}
+		l.choose(i)
+		l.pressed, l.pressAt, l.dragging = i, where, false
 		return true
 	}
 	l.MouseDragCallback = func(where geom.Point, _ int, _ mod.Modifiers) bool {
@@ -110,9 +145,48 @@ func NewNoteList(ui *kvitui.UI) *NoteList {
 	return l
 }
 
+// selectionChanged redraws the picked rows and says they changed.
+func (l *NoteList) selectionChanged() {
+	l.MarkForRedraw()
+	if l.OnSelect != nil {
+		l.OnSelect()
+	}
+}
+
+// SelectedRows are the picked rows, in order.
+func (l *NoteList) SelectedRows() []int {
+	var out []int
+	for i := range l.Items {
+		if l.Selected[i] {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// ClearSelection drops every picked row.
+func (l *NoteList) ClearSelection() {
+	if len(l.Selected) > 0 {
+		clear(l.Selected)
+		l.selectionChanged()
+	}
+}
+
 // SetItems replaces the rows, keeping the current row on the same key when
-// it is still there.
+// it is still there, and the picked rows on theirs.
 func (l *NoteList) SetItems(items []ListItem, current string) {
+	picked := map[string]bool{}
+	for i := range l.Selected {
+		if i < len(l.Items) {
+			picked[l.Items[i].Key] = true
+		}
+	}
+	clear(l.Selected)
+	for i, it := range items {
+		if picked[it.Key] {
+			l.Selected[i] = true
+		}
+	}
 	l.Items = items
 	l.Current = -1
 	for i, it := range items {
@@ -224,12 +298,21 @@ func (l *NoteList) draw(gc *unison.Canvas, dirty geom.Rect) {
 		it := l.Items[i]
 		row := geom.NewRect(0, float32(i)*h, w, h)
 		switch {
+		case l.Selected[i]:
+			fill(row, kvitui.Color(t.SelectionActiveTint))
 		case i == l.Current && l.Focused():
 			fill(row, kvitui.Color(t.SelectionActiveTint))
 		case i == l.Current:
 			fill(row, kvitui.Color(t.SelectionTint))
 		case i == l.hover:
 			fill(row, kvitui.Color(t.HoverTint))
+		}
+		if l.DropLine == i || (l.DropLine == len(l.Items) && i == len(l.Items)-1) {
+			y := row.Y
+			if l.DropLine == len(l.Items) {
+				y = row.Bottom() - l.px(2)
+			}
+			fill(geom.NewRect(0, y, w, l.px(2)), kvitui.Color(t.Accent))
 		}
 		fill(geom.NewRect(row.X, row.Bottom()-l.px(1), w, l.px(1)), kvitui.Color(t.Border))
 		x, y := l.px(rowPadSide), row.Y+l.px(rowPadTop)
@@ -261,7 +344,7 @@ func (l *NoteList) draw(gc *unison.Canvas, dirty geom.Rect) {
 		}
 		y += line(snippet, ss, l.px(rowPadSide)) + l.px(rowGap)
 		line(it.Details, ds, l.px(rowPadSide))
-		if i == l.Current && l.Focused() {
+		if i == l.Current && l.Focused() && len(l.Selected) == 0 {
 			ring := row.Inset(geom.NewUniformInsets(l.px(rowRingInset)))
 			p := kvitui.Color(t.FocusRing).Paint(gc, ring, paintstyle.Stroke)
 			p.SetStrokeWidth(l.px(rowRing))
@@ -314,4 +397,11 @@ func (l *NoteList) PerformAccessibilityAction(req accessibility.ActionRequest) b
 	}
 	l.choose(i)
 	return true
+}
+
+// gapAt is the gap between rows nearest to a point in the list: 0 before
+// the first row, len(Items) after the last.
+func (l *NoteList) gapAt(y float32) int {
+	h := l.rowHeight()
+	return max(0, min(len(l.Items), int((y+h/2)/h)))
 }

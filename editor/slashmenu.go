@@ -26,20 +26,47 @@ type menuItem struct {
 	group, name, desc, icon string
 	kind                    Kind
 	aliases                 string
+	// init fills a new block of this kind: a table's first rows, a
+	// callout's type, a fence's language. The caret goes to caret.
+	init  func(b *Block)
+	caret int
 }
 
 var menuItems = []menuItem{
-	{"Basic", "Text", "Plain paragraph", "¶", Paragraph, "paragraph p"},
-	{"Basic", "Heading 1", "Largest heading, for titles", "H1", Heading1, "h1 title"},
-	{"Basic", "Heading 2", "Section heading", "H2", Heading2, "h2"},
-	{"Basic", "Heading 3", "Subsection heading", "H3", Heading3, "h3"},
-	{"Basic", "Heading 4", "Minor heading", "H4", Heading4, "h4"},
-	{"Lists", "Bulleted List", "Unordered list item", "•", Bullet, "ul bullet"},
-	{"Lists", "Numbered List", "Ordered list item", "1.", Numbered, "ol number"},
-	{"Lists", "To-do", "Checkbox item", "☐", Todo, "todo task check"},
-	{"Advanced", "Quote", "Block quotation", "❝", Quote, "blockquote"},
-	{"Advanced", "Code", "Code block with syntax colouring", "<>", Code, "pre fence"},
-	{"Advanced", "Divider", "Horizontal rule", "—", Divider, "hr rule line"},
+	{"Basic", "Text", "Plain paragraph", "¶", Paragraph, "paragraph p", nil, 0},
+	{"Basic", "Heading 1", "Largest heading, for titles", "H1", Heading1, "h1 title", nil, 0},
+	{"Basic", "Heading 2", "Section heading", "H2", Heading2, "h2", nil, 0},
+	{"Basic", "Heading 3", "Subsection heading", "H3", Heading3, "h3", nil, 0},
+	{"Basic", "Heading 4", "Minor heading", "H4", Heading4, "h4", nil, 0},
+	{"Lists", "Bulleted List", "Unordered list item", "•", Bullet, "ul bullet", nil, 0},
+	{"Lists", "Numbered List", "Ordered list item", "1.", Numbered, "ol number", nil, 0},
+	{"Lists", "To-do", "Checkbox item", "☐", Todo, "todo task check", nil, 0},
+	{"Media", "Image", "Picture from a file", "▣", Image, "picture img photo", func(b *Block) { b.Text = "![]()" }, 4},
+	{"Advanced", "Quote", "Block quotation", "❝", Quote, "blockquote", nil, 0},
+	{"Advanced", "Code", "Code block with syntax colouring", "<>", Code, "pre fence", nil, 0},
+	{"Advanced", "Divider", "Horizontal rule", "—", Divider, "hr rule line", nil, 0},
+	{"Advanced", "Table", "Grid of rows and columns", "▦", Table, "grid",
+		func(b *Block) { b.Text = "| Column 1 | Column 2 |\n| --- | --- |\n|  |  |" }, 2},
+	{"Advanced", "Callout", "Highlighted info/warning/tip box", "!", Callout, "callout admonition note info warning [!",
+		func(b *Block) { b.Lang = "info" }, 0},
+	{"Advanced", "Toggle", "Collapsible section", "▸", Callout, "toggle collapse fold details",
+		func(b *Block) { b.Lang = "toggle" }, 0},
+	{"Advanced", "Math", "Display equation", "∑", Raw, "equation latex tex formula",
+		func(b *Block) { b.Text = "$$\n\n$$" }, 3},
+	{"Advanced", "Mermaid Diagram", "Flowchart or sequence diagram", "◈", Code, "mermaid flowchart graph flow diagram",
+		func(b *Block) {
+			b.Lang, b.Text = "mermaid", "flowchart LR\n  A[Start] --> B{Decision}\n  B -->|yes| C[Done]\n  B -->|no| A"
+		}, 0},
+	{"Advanced", "Table of Contents", "Auto-generated list of headings", "☰", Code, "toc contents outline index headings",
+		func(b *Block) { b.Lang = "toc" }, 0},
+	{"Advanced", "Collection Query", "Live table of notes by their fields", "⌕", Code, "query table database dataview",
+		func(b *Block) {
+			b.Lang, b.Text = "query", "# Notes changed most recently\nview: table\ncolumns: title, modified\nsort: modified desc\nlimit: 10"
+		}, 0},
+	{"Advanced", "Task Board", "Columns of cards", "▥", Code, "kanban board tasks",
+		func(b *Block) { b.Lang, b.Text = "kanban", "## To do\n## In progress\n## Done" }, 0},
+	{"Advanced", "Drop Cap", "Enlarge this paragraph's first letter", "A", Paragraph, "dropcap drop cap initial illuminated capital",
+		func(b *Block) { b.Attrs = canonicalAttrs("dropcap=3") }, 0},
 }
 
 // slashMenu is the open / menu.
@@ -52,6 +79,7 @@ type slashMenu struct {
 	// slash is true when a typed "/" opened the menu and starts the query;
 	// the + button opens it on an empty block whose whole text is the query.
 	slash  bool
+	query  string // the filter the entries were last chosen by
 	scroll float32
 	popup  *kvitui.Popup
 	hide   func()
@@ -174,9 +202,9 @@ func (e *Editor) syncMenu() {
 		return
 	}
 	var items []menuItem
-	for _, k := range e.recent {
+	for _, name := range e.recent {
 		for _, it := range menuItems {
-			if it.kind == k && (fuzzy(q, it.name) || fuzzy(q, it.aliases)) {
+			if it.name == name && (fuzzy(q, it.name) || fuzzy(q, it.aliases)) {
 				it.group = "Recently used"
 				items = append(items, it)
 			}
@@ -189,6 +217,11 @@ func (e *Editor) syncMenu() {
 	}
 	m := e.menu
 	m.items = items
+	if q != m.query {
+		// A new filter starts the highlight over at the top, as Kvit's
+		// menu does.
+		m.query, m.sel, m.scroll = q, 0, 0
+	}
 	m.sel = min(m.sel, max(0, len(items)-1))
 	m.reveal()
 	m.relayout()
@@ -239,13 +272,33 @@ func (e *Editor) chooseMenu(it menuItem) {
 		b.Text = ""
 		d.SetCaret(id, 0)
 	})
-	d.Convert(id, it.kind)
-	e.recent = slices.DeleteFunc(e.recent, func(k Kind) bool { return k == it.kind })
-	e.recent = append([]Kind{it.kind}, e.recent...)
+	e.applyItem(id, it)
+	e.recent = slices.DeleteFunc(e.recent, func(name string) bool { return name == it.name })
+	e.recent = append([]string{it.name}, e.recent...)
 	if len(e.recent) > 3 {
 		e.recent = e.recent[:3]
 	}
 	e.touched()
+}
+
+// applyItem turns a block into an entry's kind and fills it as the entry
+// says, asking for the picture of an image.
+func (e *Editor) applyItem(id int64, it menuItem) {
+	d := e.Doc
+	b := d.Block(id)
+	if b == nil {
+		return
+	}
+	d.Convert(id, it.kind)
+	if it.init != nil {
+		d.Edit("insert", func() {
+			it.init(b)
+			d.SetCaret(id, min(it.caret, len([]rune(b.Text))))
+		})
+	}
+	if it.kind == Image && e.PickImage != nil {
+		e.PickImage(id)
+	}
 }
 
 // rows are the menu's lines: a group heading before each group's first

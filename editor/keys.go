@@ -4,6 +4,7 @@ package editor
 // block selection and the / menu take.
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/richardwilkes/unison"
@@ -27,6 +28,9 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	if e.menu != nil && e.menuKey(key) {
 		return true
 	}
+	if e.wiki != nil && !ctrl && !alt && e.wikiKey(key) {
+		return true
+	}
 	if (key == unison.KeyF10 && shift) || key == unison.KeyMenu {
 		return e.openBlockMenuForCaret()
 	}
@@ -47,10 +51,15 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		d.Redo()
 		e.afterStructural()
 		return true
-	case ctrl && key == unison.KeyV:
-		if unison.ClipboardHasText() {
-			e.paste(unison.ClipboardGetText())
+	case ctrl && key == unison.KeyV && !d.ReadOnly:
+		if shift {
+			if unison.ClipboardHasText() {
+				d.InsertText(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"))
+				e.afterStructural()
+			}
+			return true
 		}
+		e.pasteClipboard()
 		return true
 	}
 
@@ -79,7 +88,7 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return true
 	case ctrl && (key == unison.KeyC || key == unison.KeyX):
 		if d.HasSelection() {
-			unison.ClipboardSetText(d.SelectedMarkdown())
+			e.copyMarkdown(d.SelectedMarkdown())
 			if key == unison.KeyX {
 				d.DeleteSelection()
 				e.afterStructural()
@@ -118,10 +127,14 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		e.blockSel[id] = true
 		e.blockAnchor = id
 	case key == unison.KeyReturn && ctrl:
-		if b.Kind == Todo {
+		switch b.Kind {
+		case Todo:
 			d.ToggleTodo(id)
-		} else if b.Kind == Code || b.Kind == Raw {
+		case Code, Raw, Table:
 			d.LeaveBlock()
+		case Callout:
+			// Ctrl+Enter folds or unfolds a callout (features.md 1.2.10).
+			d.Edit("fold", func() { b.Checked = !b.Checked })
 		}
 	case key == unison.KeyReturn && shift:
 		d.InsertText("\n")
@@ -370,6 +383,18 @@ func (e *Editor) blockSelectionKey(key unison.KeyCode, ctrl, shift, alt bool) bo
 	switch {
 	case key == unison.KeyEscape:
 		e.clearBlockSel()
+	case ctrl && key == unison.KeyReturn && !d.ReadOnly:
+		// The keyboard's way to the space after a table, a code block or a
+		// board, whose own Enter edits them: a paragraph after the blocks
+		// selected, with the caret in it.
+		last := d.Index(ids[len(ids)-1])
+		nb := NewBlock(Paragraph, "")
+		d.Edit("insert block", func() {
+			d.Blocks = slices.Insert(d.Blocks, last+1, nb)
+			d.SetCaret(nb.ID, 0)
+		})
+		e.clearBlockSel()
+		e.touched()
 	case key == unison.KeyBackspace || key == unison.KeyDelete || (ctrl && shift && key == unison.KeyD):
 		d.DeleteBlocks(ids)
 		e.clearBlockSel()
@@ -380,7 +405,7 @@ func (e *Editor) blockSelectionKey(key unison.KeyCode, ctrl, shift, alt bool) bo
 			e.blockSel[id] = true
 		}
 	case ctrl && (key == unison.KeyC || key == unison.KeyX):
-		unison.ClipboardSetText(e.blocksMarkdown(ids))
+		e.copyMarkdown(e.blocksMarkdown(ids))
 		if key == unison.KeyX {
 			d.DeleteBlocks(ids)
 			e.clearBlockSel()
@@ -473,6 +498,9 @@ func (e *Editor) typeText(s string) bool {
 	if !d.Focused || b == nil {
 		return false
 	}
+	if d.ReadOnly {
+		return false
+	}
 	openMenu := s == "/" && b.Text == "" && b.Kind != Code && b.Kind != Raw
 	d.InsertText(s)
 	e.selectAllN = 0
@@ -489,6 +517,30 @@ func (e *Editor) typeText(s string) bool {
 
 // paste inserts text from the clipboard at the caret; Markdown with blank
 // lines in it becomes blocks.
+// copyMarkdown puts Markdown on the clipboard, with its HTML beside it when
+// the application gives the editor a way to make it.
+func (e *Editor) copyMarkdown(md string) {
+	if e.CopyRich != nil {
+		e.CopyRich(md)
+		return
+	}
+	unison.ClipboardSetText(md)
+}
+
+// pasteClipboard pastes what the clipboard holds: HTML turned into
+// Markdown when the application reads it, else the text.
+func (e *Editor) pasteClipboard() {
+	if e.PasteRich != nil {
+		if md, ok := e.PasteRich(); ok {
+			e.paste(md)
+			return
+		}
+	}
+	if unison.ClipboardHasText() {
+		e.paste(unison.ClipboardGetText())
+	}
+}
+
 func (e *Editor) paste(s string) {
 	d := e.Doc
 	s = strings.ReplaceAll(s, "\r\n", "\n")

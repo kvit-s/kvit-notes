@@ -61,6 +61,16 @@ func main() {
 	}
 
 	path := flag.Arg(0)
+	if *check == 0 && *closeAfter == 0 {
+		// A copy already running opens what this one was asked to.
+		target := ""
+		if path != "" {
+			target, _ = filepath.Abs(path)
+		}
+		if handOff(socketPath(), target) {
+			return
+		}
+	}
 	if *check == 0 {
 		if root, ok := vaultRoot(path); ok {
 			runVault(root, *theme, *closeAfter)
@@ -68,6 +78,10 @@ func main() {
 		}
 	}
 	doc, err := loadDoc(path)
+	var page *vault.Page
+	if path != "" && *check == 0 {
+		doc, page, err = loadFile(path)
+	}
 	if *check > 0 {
 		path, doc = "", editor.NewDoc(editor.ParseMarkdown(checkNote))
 	}
@@ -75,7 +89,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	opt := kvitui.Options{SettingsPath: kvitui.DefaultSettingsPath("kvit-notes")}
+	opt := kvitui.Options{SettingsPath: settingsPath()}
 	if *check > 0 {
 		// The check leaves the reader's settings alone and looks the same on
 		// every machine.
@@ -90,6 +104,7 @@ func main() {
 		ui.Theme.SetThemeID(*theme)
 	}
 	started := time.Now()
+	app.OpenFile = openFileWindow
 	unison.Start(
 		unison.ThemeChangedCallback(ui.Appearance.Refresh),
 		unison.StartupFinishedCallback(func() {
@@ -97,6 +112,10 @@ func main() {
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
+			}
+			n.page = page
+			if *check == 0 && *closeAfter == 0 {
+				serveLaterCopies(ui)
 			}
 			if *check > 0 {
 				n.win.SetTitle(checkTitle)
@@ -119,6 +138,14 @@ func main() {
 		}))
 }
 
+// settingsPath is the Go app's settings file: the theme, typography, panes
+// and vaults, under the Qt app's keys. It starts as a copy of the Qt app's.
+func settingsPath() string {
+	p := kvitui.DefaultSettingsPath("kvit-notes")
+	vault.SeedSettings(p)
+	return p
+}
+
 // vaultRoot is the vault to open for the command-line argument: the folder
 // named, or with none named the vault the Qt app had open last, else
 // Documents/Kvit. A file argument opens that file on its own instead.
@@ -127,28 +154,20 @@ func vaultRoot(arg string) (string, bool) {
 		info, err := os.Stat(arg)
 		return arg, err == nil && info.IsDir()
 	}
+	if open := vault.OpenVaultsIn(settingsPath()); len(open) > 0 {
+		return open[0], true
+	}
 	if open := vault.OpenVaults(); len(open) > 0 {
 		return open[0], true
 	}
 	return vault.DefaultRoot(), true
 }
 
-// runVault opens a vault in a window and runs until it closes, or for
-// closeAfter when that is set.
+// runVault opens a vault in a window and runs until the last window
+// closes, or for closeAfter when that is set.
 func runVault(root, theme string, closeAfter time.Duration) {
 	started := time.Now()
-	v, err := vault.Open(root)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "kvit-notes: cannot open %s: %v\n", root, err)
-		os.Exit(1)
-	}
-	if len(v.Entries) == 0 && !v.ReadOnly {
-		// An empty vault starts with a note to read, as the Qt app's does.
-		if err := os.WriteFile(filepath.Join(v.Root, "Welcome.md"), []byte(sampleNote), 0o644); err == nil {
-			_ = v.Rescan()
-		}
-	}
-	ui, err := kvitui.New(kvitui.Options{SettingsPath: kvitui.DefaultSettingsPath("kvit-notes")})
+	ui, err := kvitui.New(kvitui.Options{SettingsPath: settingsPath()})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -156,15 +175,19 @@ func runVault(root, theme string, closeAfter time.Duration) {
 	if theme != "" {
 		ui.Theme.SetThemeID(theme)
 	}
+	app.OpenFile = openFileWindow
 	unison.Start(
 		unison.ThemeChangedCallback(ui.Appearance.Refresh),
 		unison.StartupFinishedCallback(func() {
-			w, err := app.Open(ui, v)
+			w, err := app.OpenVault(ui, root)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				fmt.Fprintf(os.Stderr, "kvit-notes: cannot open %s: %v\n", root, err)
 				os.Exit(1)
 			}
 			w.Win.ToFront()
+			if closeAfter == 0 {
+				serveLaterCopies(ui)
+			}
 			if closeAfter > 0 {
 				draw := w.Editor.DrawCallback
 				first := true
@@ -172,10 +195,38 @@ func runVault(root, theme string, closeAfter time.Duration) {
 					draw(gc, r)
 					if first {
 						first = false
-						fmt.Printf("first frame after %d ms, %d notes\n", time.Since(started).Milliseconds(), len(v.Entries))
+						fmt.Printf("first frame after %d ms, %d notes\n", time.Since(started).Milliseconds(), len(w.Vault.Entries))
 					}
 				}
 				unison.InvokeTaskAfter(w.Win.Dispose, closeAfter)
 			}
 		}))
+}
+
+// serveLaterCopies listens for copies started after this one and opens
+// what each hands over: a folder as a vault, a file on its own, and with
+// nothing, the app brought forward.
+func serveLaterCopies(ui *kvitui.UI) {
+	_, err := listen(socketPath(), func(req instanceRequest) {
+		done := make(chan struct{})
+		unison.InvokeTask(func() {
+			defer close(done)
+			switch info, err := os.Stat(req.Open); {
+			case req.Open == "" || err != nil:
+				if ws := unison.Windows(); !app.RaiseAny() && len(ws) > 0 {
+					ws[0].ToFront()
+				}
+			case info.IsDir():
+				if err := app.OpenOrRaise(ui, req.Open); err != nil {
+					fmt.Fprintf(os.Stderr, "kvit-notes: cannot open %s: %v\n", req.Open, err)
+				}
+			default:
+				openFileWindow(ui, req.Open)
+			}
+		})
+		<-done
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "kvit-notes: later copies will open their own windows:", err)
+	}
 }

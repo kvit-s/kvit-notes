@@ -11,6 +11,8 @@
 package editor
 
 import (
+	"github.com/kvit-s/kvit-notes/query"
+	"math"
 	"time"
 
 	kvitui "github.com/kvit-s/kvit-ui"
@@ -30,6 +32,64 @@ type Editor struct {
 	OnChange func()
 	// Placeholder is shown in an empty paragraph.
 	Placeholder string
+	// PickImage, when set, is asked for a picture for a new image block:
+	// the application shows a file dialog and writes the block's line.
+	PickImage func(block int64)
+	// LoadImage loads the picture an image block names, by the path as
+	// written; nil draws every picture as a card naming it.
+	LoadImage func(path string) (unison.Drawable, error)
+	// RunQuery, when set, answers a query block's spec, and OpenNote opens a
+	// note one of its rows names.
+	RunQuery   func(body string) query.Answer
+	OpenNote   func(path string)
+	queryCache map[int64]*queryLayout
+	queryFresh map[int64]bool // which query blocks were worked out since the last change
+	queryHover int
+	// boardViews are each task board's folded columns and filter, and
+	// boards its layout.
+	boardViews map[int64]*boardView
+	boards     map[int64]cachedBoard
+	cardDrag   *cardDrag // a card pressed on a board, until let go
+	// marks are the find bar's matches by block, drawn behind the text.
+	marks map[int64][]Mark
+	// Printing lays the note out for pages: no gutter and no side margins.
+	Printing bool
+	// LineNumbers numbers the lines of code blocks (View, Code line numbers).
+	LineNumbers bool
+	// FormatBar shows the formatting bar over a text selection.
+	FormatBar bool
+	// CompleteLink, when set, is what typing after "[[" offers: the notes,
+	// or after a "#", a note's headings, for what is typed.
+	CompleteLink func(query string) []Completion
+	wiki         *wikiMenu
+	// CopyRich, when set, puts Markdown on the clipboard with its HTML, and
+	// PasteRich reads HTML off the clipboard as Markdown, reporting false
+	// when there is none worth reading.
+	CopyRich  func(markdown string)
+	PasteRich func() (string, bool)
+	// BlocksHTML, when set, writes blocks as HTML for the block menu's
+	// Copy as, HTML.
+	BlocksHTML func(blocks []Block, indexes []int) string
+	// FollowLink, when set, follows a link a press landed on.
+	FollowLink func(LinkRef)
+	// OnLink, when set, opens the link dialog, as Ctrl+K does.
+	OnLink       func()
+	formatBar    func()        // hides the formatting bar while it is shown
+	formatBarRow *unison.Panel // the bar's buttons
+	// LoadPreview, when set, is asked to read a web page for its embed card,
+	// and answers through SetPreview; OpenURL opens an address.
+	LoadPreview func(address string)
+	OpenURL     func(address string)
+	previews    map[string]*Preview
+	// Centered keeps the text to a column in the middle, as focus mode does,
+	// when the reader has set no width of their own.
+	Centered bool
+	// Typewriter, when set to the region the editor scrolls in, keeps the
+	// caret's line in the middle of the view and fades the other blocks
+	// (typewriter mode, features.md 16.2).
+	Typewriter *kvitui.Region
+	pictures   map[string]picture
+	grids      map[int64]cachedGrid
 
 	layouts    map[int64]cachedLayout
 	tops       []float32 // the top of each block's row, in the editor's coordinates
@@ -44,12 +104,15 @@ type Editor struct {
 	blockAnchor int64          // where Shift extends a block selection from
 	selectAllN  int            // Ctrl+A presses in a row
 
-	menu   *slashMenu
-	drag   *dragState
-	msel   *mouseSel
-	hover  int64      // the block under the pointer, 0 for none
-	part   gutterPart // the gutter control under the pointer
-	recent []Kind     // the / menu's recently used kinds, newest first
+	menu  *slashMenu
+	drag  *dragState
+	msel  *mouseSel
+	hover int64      // the block under the pointer, 0 for none
+	part  gutterPart // the gutter control under the pointer
+	// tocHover is the table of contents entry under the pointer, -1 for
+	// none.
+	tocHover int
+	recent   []string // the / menu's recently used entries, newest first
 
 	blinkOff  bool      // the caret is in the off half of its blink
 	blinkFrom time.Time // when the caret last moved, which restarts the blink
@@ -64,7 +127,7 @@ type cachedLayout struct {
 // New returns an editor showing doc.
 func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something...", layouts: map[int64]cachedLayout{},
-		blockSel: map[int64]bool{}}
+		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tocHover: -1, queryHover: -1}
 	e.Self = e
 	e.SetFocusable(true)
 	e.SetSizer(e.sizes)
@@ -78,8 +141,8 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e.MouseMoveCallback = e.mouseMove
 	e.MouseExitCallback = e.mouseExit
 	e.UpdateCursorCallback = e.cursor
-	e.GainedFocusCallback = func() { e.touched(); e.MarkForRedraw() }
-	e.LostFocusCallback = func() { e.MarkForRedraw() }
+	e.GainedFocusCallback = func() { e.touched(); e.MarkForRedraw(); e.syncFormatBar() }
+	e.LostFocusCallback = func() { e.MarkForRedraw(); e.syncFormatBar() }
 	e.FrameChangeCallback = func() {
 		if w := e.ContentRect(false).Width; w > 0 {
 			e.measureAt(w)
@@ -97,6 +160,8 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 func (e *Editor) SetDoc(doc *Doc) {
 	e.Doc = doc
 	clear(e.layouts)
+	clear(e.pictures)
+	clear(e.grids)
 	clear(e.blockSel)
 	e.closeMenu()
 	e.drag, e.msel = nil, nil
@@ -153,6 +218,8 @@ func (e *Editor) clearBlockSel() {
 // changed, asks for a new layout when the note's height changed, and
 // redraws.
 func (e *Editor) changed() {
+	e.syncTocs()
+	clear(e.queryFresh)
 	before := e.total()
 	e.measure()
 	if e.total() != before {
@@ -164,6 +231,8 @@ func (e *Editor) changed() {
 	if e.menu != nil {
 		e.menu.relayout()
 	}
+	e.syncFormatBar()
+	e.syncWikiMenu()
 	if e.OnChange != nil {
 		e.OnChange()
 	}
@@ -196,9 +265,39 @@ const defaultWidth = 800
 
 // bodyLeft and bodyRight are the left and right edges of a row's body: the
 // part after the gutter and the focus bar, which is tinted on hover.
-func (e *Editor) bodyLeft() float32 { return e.px(pageMargin + gutterWidth + focusBar) }
+func (e *Editor) bodyLeft() float32 {
+	if e.Printing {
+		return 0
+	}
+	return e.side() + e.px(gutterWidth+focusBar)
+}
 
-func (e *Editor) bodyRight() float32 { return e.width() - e.px(pageMargin) }
+func (e *Editor) bodyRight() float32 { return e.width() - e.side() }
+
+// focusColumn is the width focus mode keeps the text to when the reader has
+// set no limit of their own (BlockEditor.qml).
+const focusColumn = 760
+
+// side is the space left and right of the rows: the page margin, and, when
+// the reader limits the width of the text (Settings, Typography) or focus
+// mode is on, half of the width left over, which centres the column.
+func (e *Editor) side() float32 {
+	if e.Printing {
+		return 0
+	}
+	s := e.px(pageMargin)
+	limit := float32(e.ui.Typography.MaxContentWidth())
+	if limit <= 0 && e.Centered {
+		limit = focusColumn
+	}
+	if limit <= 0 {
+		return s
+	}
+	return s + max(0, float32(math.Floor(float64(e.width()-2*s-e.px(limit))/2)))
+}
+
+// gap is the space between rows: the reader's block spacing.
+func (e *Editor) gap() float32 { return e.px(float32(e.ui.Typography.ParagraphSpacing())) }
 
 // textLeft is how far a block's text starts from the body's left edge.
 func (e *Editor) textLeft(b *Block) float32 {
@@ -207,10 +306,12 @@ func (e *Editor) textLeft(b *Block) float32 {
 		return e.markerLeft(b) + e.px(markerWidth(b.Kind))
 	case b.Kind == Quote:
 		return e.markerLeft(b) + e.px(quoteMarker)
-	case b.Kind == Code || b.Kind == Raw:
-		return e.px(codeInset + codePadSide + codeTextInset)
+	case b.Kind.isSource():
+		return e.px(codeInset+codePadSide+codeTextInset) + e.lineNumberWidth(b)
+	case b.Kind == Callout:
+		return e.px(codeInset + calloutText)
 	}
-	return e.px(contentLeft)
+	return e.px(contentLeft) + e.dropCapWidth(b)
 }
 
 // markerLeft is where a list item's marker, or a quote's bar, starts from
@@ -249,16 +350,22 @@ func markerWidth(k Kind) float32 {
 // textWidth is the width a block's text wraps at.
 func (e *Editor) textWidth(b *Block) float32 {
 	right := e.px(contentRight)
-	if b.Kind == Code || b.Kind == Raw {
+	switch b.Kind {
+	case Code, Raw, Table:
 		right += e.px(codePadSide)
+	case Callout:
+		right += e.px(calloutBottom)
 	}
 	return max(e.bodyRight()-e.bodyLeft()-e.textLeft(b)-right, e.px(40))
 }
 
 // textTop is how far a block's text starts below its row's top.
 func (e *Editor) textTop(b *Block) float32 {
-	if b.Kind == Code || b.Kind == Raw {
+	if b.Kind.isSource() {
 		return e.px(codeRowTop + codeHeader + codeTextPad)
+	}
+	if b.Kind == Callout {
+		return e.px(codeRowTop + calloutHeader)
 	}
 	return e.px(rowPadTop)
 }
@@ -271,7 +378,7 @@ func (e *Editor) textOrigin(i int) geom.Point {
 
 // rowRect is block i's whole row, the gutter included.
 func (e *Editor) rowRect(i int) geom.Rect {
-	return geom.NewRect(e.px(pageMargin), e.tops[i], e.width()-2*e.px(pageMargin), e.heights[i])
+	return geom.NewRect(e.side(), e.tops[i], e.width()-2*e.side(), e.heights[i])
 }
 
 // bodyRect is block i's row after the gutter and the focus bar.
@@ -284,8 +391,8 @@ func (e *Editor) bodyRect(i int) geom.Rect {
 func (e *Editor) layout(i int) *blockLayout {
 	d := e.Doc
 	b := &d.Blocks[i]
-	key := layoutKey{text: b.Text, kind: b.Kind, checked: b.Checked, width: e.textWidth(b), caret: -1,
-		generation: e.generation}
+	key := layoutKey{text: b.Text, attrs: b.Attrs, lang: b.Lang, kind: b.Kind, checked: b.Checked, width: e.textWidth(b), caret: -1,
+		generation: e.generation, marks: marksKey(e.marks[b.ID])}
 	if d.Focused && d.Caret.Block == b.ID {
 		key.caret = min(d.Caret.Off, len([]rune(b.Text)))
 	}
@@ -312,8 +419,34 @@ func (e *Editor) rowHeight(i int) float32 {
 	if b.Kind == Divider {
 		return e.px(dividerRow)
 	}
-	if b.Kind == Code || b.Kind == Raw {
+	if g, ok := e.tableShowsGrid(i); ok {
+		return e.px(codeRowTop+codeRowBottom) + g.height
+	}
+	if e.tocShows(i) {
+		return e.tocHeight()
+	}
+	if e.boardShows(i) {
+		return e.boardHeight(i)
+	}
+	if e.queryShows(i) {
+		return e.px(codeRowTop+codeRowBottom) + e.queryResult(i).height
+	}
+	if b.Kind.isSource() {
 		return e.px(codeRowTop+codeHeader+2*codeTextPad+codeFooter+codeRowBottom) + e.layout(i).height()
+	}
+	if b.Kind == Callout {
+		h := e.px(codeRowTop + calloutHeader + codeRowBottom)
+		if e.calloutOpen(b) {
+			h += e.layout(i).height() + e.px(calloutBottom)
+		}
+		return h
+	}
+	if _, ok, shows := e.pictureBlock(i); ok {
+		h := e.px(rowPadTop+rowPadBottom) + e.pictureHeight(i, shows)
+		if shows {
+			h += e.layout(i).height()
+		}
+		return h
 	}
 	return e.px(rowPadTop+rowPadBottom) + e.layout(i).height()
 }
@@ -329,7 +462,7 @@ func (e *Editor) measure() {
 		h := e.rowHeight(i)
 		e.tops = append(e.tops, y)
 		e.heights = append(e.heights, h)
-		y += h + e.px(blockGap)
+		y += h + e.gap()
 	}
 	// Forget the layouts of blocks that are gone.
 	if len(e.layouts) > 2*n+16 {
@@ -443,6 +576,10 @@ func (e *Editor) caretRect() (geom.Rect, bool) {
 func (e *Editor) revealCaret() {
 	r, ok := e.caretRect()
 	if !ok {
+		return
+	}
+	if e.Typewriter != nil {
+		e.Typewriter.ScrollTo(r.Y + r.Height/2 - e.Typewriter.ViewHeight()/2)
 		return
 	}
 	room := e.px(8)
