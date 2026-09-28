@@ -196,14 +196,13 @@ kvit-ui-go's `platform` package for the tray.
   `TestRevealFollowsCaret`, `TestClickMapsInsideSpan`, `01_reveal` (caret
   offsets after 14 and 17 presses of Right match Kvit's), `visual_01_reveal_*`,
   `visual_03_types_*`, `visual_04_nested_*`, `visual_05_links_*`
-- [~] 2.3 Markdown syntax: everything listed, with superscript `^x^`,
+- [x] 2.3 Markdown syntax: everything listed, with superscript `^x^`,
   subscript `~x~` (no spaces inside, Pandoc's rule), text colour
   `<span style="color:…">` by Kvit's exact grammar, and inline math. The
   `[[note|alias]]` and `[[note#heading|alias]]` forms go to their note and
-  heading. Evidence: `TestMarkdownRoundTrip`, `09_prefix`,
-  `TestInlineSupSubMathColor`, `TestFollowingLinksAndTheLinkDialog`.
-  Missing: away from the caret an aliased wiki-link shows its whole inside,
-  where the Qt app shows only the alias
+  heading, and show only the alias away from the caret. Evidence: `TestMarkdownRoundTrip`, `09_prefix`,
+  `TestInlineSupSubMathColor`, `TestFollowingLinksAndTheLinkDialog`,
+  `TestWikiAliasShowsAlias`
 - [x] 2.4 Links: Ctrl+K inserts or edits a link (with a heading to link to,
   and Remove link); Ctrl+click, or a click in a block not being edited,
   follows it: a wiki link to the note its name resolves to (the `links`
@@ -248,10 +247,11 @@ kvit-ui-go's `platform` package for the tray.
 
 - [x] 4.1 Activation, filtering, arrows, Enter, Escape, a press outside. Evidence:
   `10_menu`, `11_menu_flip`, `visual_10_menu_*`, `visual_11_menu_05`
-- [~] 4.2 Contents: the kinds above, and image, table, callout, toggle,
+- [x] 4.2 Contents: the kinds above, and image, table, callout, toggle,
   math (a display equation), Mermaid diagram, table of contents, task board,
-  collection query and drop cap, with the Qt app's names, words and starter
-  text. Missing: an embed from a typed address
+  collection query, drop cap and web embed, with the Qt app's names, words and starter
+  text. A typed web address offers a Web Embed of that address first.
+  Evidence: `10_menu`, `11_menu_flip`, `TestSlashMenuEmbedFromTypedAddress`
 - [x] 4.3 Behaviour: fuzzy matching, symbols, descriptions, groups, scrolling,
   placed under the caret or above it near the bottom. Evidence: `10_menu`, `11_menu_flip`
 

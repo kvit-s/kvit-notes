@@ -14,6 +14,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/kvit-s/kvit-notes/links"
 	"github.com/kvit-s/kvit-ui/palette"
 	"github.com/kvit-s/kvit-ui/text"
 )
@@ -139,19 +140,19 @@ func (p *iparser) matchAt(i, to int, closing string, record bool) (int, bool) {
 		}
 		return 0, false
 	case p.has(i, "[["):
-		for j := i + 2; j+1 < to; j++ {
-			if s[j] == '\n' {
-				break
-			}
-			if s[j] == ']' && s[j+1] == ']' {
-				if j == i+2 {
-					break
+		// A wiki link by the shared grammar (links.MatchAt, the port of
+		// WikiLinkScanner::matchAt): with an alias the opening marker
+		// swallows "target|", so only the alias shows away from the caret,
+		// as in the Qt app.
+		if l, ok := links.MatchAt(s, i); ok && i+l.Length <= to {
+			if record {
+				cstart := i + 2
+				if l.AliasStart >= 0 {
+					cstart = i + 2 + l.TargetLength + 1
 				}
-				if record {
-					p.out = append(p.out, span{Kind: sWiki, Start: i, End: j + 2, CStart: i + 2, CEnd: j})
-				}
-				return j + 2, true
+				p.out = append(p.out, span{Kind: sWiki, Start: i, End: i + l.Length, CStart: cstart, CEnd: i + l.Length - 2})
 			}
+			return i + l.Length, true
 		}
 		return 0, false
 	case s[i] == '[':

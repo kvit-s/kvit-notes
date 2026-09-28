@@ -712,3 +712,42 @@ func TestAsCodeOptsOut(t *testing.T) {
 		t.Errorf("a paste into a plain block retagged or straightened it: %q\n%s", p.Blocks[0].Lang, p.Blocks[0].Text)
 	}
 }
+
+// An aliased wiki link shows only its alias away from the caret, the whole
+// inside with the caret in it (Qt's BlockEditorEngine over
+// WikiLinkScanner::matchAt); following still resolves the target.
+func TestWikiAliasShowsAlias(t *testing.T) {
+	const src = "See [[Plan|the plan]] now"
+	sps := spansOf(src)
+	if len(sps) != 1 || sps[0].Kind != sWiki {
+		t.Fatalf("spans: %+v", sps)
+	}
+	if got := string([]rune(src)[sps[0].CStart:sps[0].CEnd]); got != "the plan" {
+		t.Errorf("content %q, want %q", got, "the plan")
+	}
+	if got := PlainText(src); got != "See the plan now" {
+		t.Errorf("drawn %q", got)
+	}
+	if got := render(src, 0, false); got != "See the plan now" {
+		t.Errorf("unfocused %q", got)
+	}
+	if got := render(src, 7, true); got != src {
+		t.Errorf("caret in the link should reveal it: %q", got)
+	}
+	for _, bad := range []string{"[[a|b|c]]", "[[|alias]]", "[[  ]]", "[[]]", "[[a|]]", "[[a#]]", "[[a#b#c]]"} {
+		if len(spansOf(bad)) != 0 {
+			t.Errorf("%q should be no link: %+v", bad, spansOf(bad))
+		}
+		if got := PlainText(bad); got != bad {
+			t.Errorf("%q draws as %q", bad, got)
+		}
+	}
+	ref, _, ok := linkAt("Go to [[Plan#Goals|goals]] now", 9)
+	if !ok || !ref.Wiki || ref.Target != "Plan#Goals" {
+		t.Errorf("follow resolves %+v %v", ref, ok)
+	}
+	ref, _, ok = linkAt("Go to [[Plan#Goals|goals]] now", 21)
+	if !ok || !ref.Wiki || ref.Target != "Plan#Goals" {
+		t.Errorf("follow from the alias resolves %+v %v", ref, ok)
+	}
+}

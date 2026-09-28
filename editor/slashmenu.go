@@ -42,6 +42,7 @@ var menuItems = []menuItem{
 	{"Lists", "Numbered List", "Ordered list item", "1.", Numbered, "ol number", nil, 0},
 	{"Lists", "To-do", "Checkbox item", "☐", Todo, "todo task check", nil, 0},
 	{"Media", "Image", "Picture from a file", "▣", Image, "picture img photo", func(b *Block) { b.Text = "![]()" }, 4},
+	{"Media", "Web Embed", "Preview card for a web page or video URL", "◧", Image, "embed bookmark link url youtube web", func(b *Block) { b.Text = "![]()" }, 4},
 	{"Advanced", "Quote", "Block quotation", "❝", Quote, "blockquote", nil, 0},
 	{"Advanced", "Code", "Code block with syntax colouring", "<>", Code, "pre fence", nil, 0},
 	{"Advanced", "Divider", "Horizontal rule", "—", Divider, "hr rule line", nil, 0},
@@ -178,22 +179,31 @@ func fuzzy(q, s string) bool {
 
 // query is what filters the menu: the block's text after the "/" (or its
 // whole text when + opened the menu), and false once the menu should close.
+// A typed web address may run longer than the usual limit, so the menu stays
+// open for it.
 func (e *Editor) query() (string, bool) {
 	b := e.Doc.Block(e.menu.block)
-	if b == nil || e.Doc.Caret.Block != b.ID || strings.Contains(b.Text, "\n") || len(b.Text) > 30 {
+	if b == nil || e.Doc.Caret.Block != b.ID || strings.Contains(b.Text, "\n") {
 		return "", false
 	}
+	var q string
 	if !e.menu.slash {
-		return b.Text, true
+		q = b.Text
+	} else {
+		if !strings.HasPrefix(b.Text, "/") {
+			return "", false
+		}
+		q = strings.TrimPrefix(b.Text, "/")
 	}
-	if !strings.HasPrefix(b.Text, "/") {
+	if len(b.Text) > 30 && embedQueryURL(q) == "" {
 		return "", false
 	}
-	return strings.TrimPrefix(b.Text, "/"), true
+	return q, true
 }
 
 // syncMenu filters the entries by the query, and closes the menu when the
-// "/" is gone.
+// "/" is gone. A query naming a web address offers it first as a Web Embed,
+// as Kvit's Web Embed row is reached by typing its address.
 func (e *Editor) syncMenu() {
 	q, ok := e.query()
 	if !ok {
@@ -201,6 +211,11 @@ func (e *Editor) syncMenu() {
 		return
 	}
 	var items []menuItem
+	if u := embedQueryURL(q); u != "" {
+		md := "![](" + u + ")"
+		items = append(items, menuItem{"Media", "Web Embed: " + u, "Preview card for " + u, "◧", Image,
+			"embed bookmark link url youtube web", func(b *Block) { b.Text = md }, len([]rune(md))})
+	}
 	for _, name := range e.recent {
 		for _, it := range menuItems {
 			if it.name == name && (fuzzy(q, it.name) || fuzzy(q, it.aliases)) {
@@ -258,7 +273,8 @@ func (e *Editor) menuKey(key unison.KeyCode) bool {
 }
 
 // chooseMenu turns the menu's block into a kind: its query text goes, as one
-// undo step, and the conversion is another.
+// undo step, and the conversion is another. A dynamic Web Embed entry (its
+// name carrying the typed address) is remembered as Web Embed.
 func (e *Editor) chooseMenu(it menuItem) {
 	d := e.Doc
 	id := e.menu.block
@@ -272,8 +288,12 @@ func (e *Editor) chooseMenu(it menuItem) {
 		d.SetCaret(id, 0)
 	})
 	e.applyItem(id, it)
-	e.recent = slices.DeleteFunc(e.recent, func(name string) bool { return name == it.name })
-	e.recent = append([]string{it.name}, e.recent...)
+	name := it.name
+	if strings.HasPrefix(name, "Web Embed: ") {
+		name = "Web Embed"
+	}
+	e.recent = slices.DeleteFunc(e.recent, func(n string) bool { return n == name })
+	e.recent = append([]string{name}, e.recent...)
 	if len(e.recent) > 3 {
 		e.recent = e.recent[:3]
 	}
@@ -281,7 +301,8 @@ func (e *Editor) chooseMenu(it menuItem) {
 }
 
 // applyItem turns a block into an entry's kind and fills it as the entry
-// says, asking for the picture of an image.
+// says, asking for the picture of an image. A web embed names an address
+// the reader typed, so it never asks for a picture file.
 func (e *Editor) applyItem(id int64, it menuItem) {
 	d := e.Doc
 	b := d.Block(id)
@@ -295,7 +316,7 @@ func (e *Editor) applyItem(id int64, it menuItem) {
 			d.SetCaret(id, min(it.caret, len([]rune(b.Text))))
 		})
 	}
-	if it.kind == Image && e.PickImage != nil {
+	if it.kind == Image && it.name == "Image" && e.PickImage != nil {
 		e.PickImage(id)
 	}
 }

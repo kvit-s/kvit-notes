@@ -10,6 +10,7 @@ package editor
 import (
 	"net/url"
 	"strings"
+	"unicode"
 
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/kvit-s/kvit-ui/icons"
@@ -32,6 +33,110 @@ type Preview struct {
 func isEmbed(ref ImageRef) bool {
 	ext := extensionOf(ref.Path)
 	return ref.Remote && !imageExts[ext] && !mediaExts[ext]
+}
+
+// isRemoteURL reports whether s has an http or https scheme, case
+// insensitively (ImageAssets::isRemote, via QUrl::scheme).
+func isRemoteURL(s string) bool {
+	sch := embedScheme(s)
+	return strings.EqualFold(sch, "http") || strings.EqualFold(sch, "https")
+}
+
+// embedScheme is the URL scheme of s, "" when it has none: a leading
+// letter followed by letters, digits, "+", "-" or "." before the first
+// colon.
+func embedScheme(s string) string {
+	i := strings.IndexByte(s, ':')
+	if i <= 0 {
+		return ""
+	}
+	if c := s[0]; !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+		return ""
+	}
+	for j := 1; j < i; j++ {
+		c := s[j]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '+' || c == '-' || c == '.') {
+			return ""
+		}
+	}
+	return s[:i]
+}
+
+// isHostWithPort reports whether s is a bare host with a numeric port,
+// such as "localhost:8080/wiki", which parses as a URL whose scheme is the
+// host (ImageAssets::isHostWithPort).
+func isHostWithPort(s string) bool {
+	i := strings.IndexByte(s, ':')
+	if i <= 0 {
+		return false
+	}
+	for _, r := range s[:i] {
+		if unicode.IsSpace(r) || r == ':' || r == '/' || r == '?' || r == '#' {
+			return false
+		}
+	}
+	rest := s[i+1:]
+	if rest == "" || rest[0] < '0' || rest[0] > '9' {
+		return false
+	}
+	j := 0
+	for j < len(rest) && rest[j] >= '0' && rest[j] <= '9' {
+		j++
+	}
+	if j == len(rest) {
+		return true
+	}
+	return rest[j] == '/' || rest[j] == '?' || rest[j] == '#'
+}
+
+// normalizeEmbedURL is ImageAssets::normalizeEmbedUrl: what typed text is
+// inserted as. A bare host gains "https://"; text that cannot be a web
+// address yields "".
+func normalizeEmbedURL(input string) string {
+	u := strings.TrimSpace(input)
+	if u == "" || strings.ContainsFunc(u, unicode.IsSpace) {
+		return ""
+	}
+	if isRemoteURL(u) {
+		return u
+	}
+	if strings.HasPrefix(u, "//") {
+		return "https:" + u
+	}
+	if sch := embedScheme(u); sch != "" && !isHostWithPort(u) {
+		return ""
+	}
+	return "https://" + u
+}
+
+// isEmbedURL reports whether u is an address the embed card draws: remote
+// with no picture or media extension (ImageAssets::isEmbedUrl).
+func isEmbedURL(u string) bool {
+	if !isRemoteURL(u) {
+		return false
+	}
+	ext := extensionOf(u)
+	return !imageExts[ext] && !mediaExts[ext]
+}
+
+// embedQueryURL is the address a / menu query names, "" when it names none:
+// the query itself, or the address after "embed ". A bare word is not an
+// address: the candidate must hold a ".", "/" or ":" so filtering for
+// "h1" or "embed" does not offer an embed of "https://h1".
+func embedQueryURL(q string) string {
+	t := strings.TrimSpace(q)
+	if rest, ok := strings.CutPrefix(strings.ToLower(t), "embed "); ok {
+		t = strings.TrimSpace(t[len(t)-len(rest):])
+	} else if !strings.ContainsAny(t, "./:") {
+		return ""
+	}
+	if t == "" || !strings.ContainsAny(t, "./:") {
+		return ""
+	}
+	if u := normalizeEmbedURL(t); u != "" && isEmbedURL(u) {
+		return u
+	}
+	return ""
 }
 
 // SetPreview gives a page's card what the page says, once it is read.

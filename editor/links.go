@@ -23,15 +23,27 @@ type LinkRef struct {
 	Target string
 }
 
-// linkAt is the link whose text holds a source offset of a block.
+// linkAt is the link whose text holds a source offset of a block. A wiki
+// link counts over its whole source, so a press on its hidden target while
+// its source shows still follows it; the alias is what shows, the target
+// what following resolves.
 func linkAt(src string, off int) (LinkRef, span, bool) {
 	r := []rune(src)
 	for _, sp := range parseInline(r) {
-		if (sp.Kind != sLink && sp.Kind != sWiki) || off < sp.CStart || off > sp.CEnd {
+		if sp.Kind != sLink && sp.Kind != sWiki {
 			continue
 		}
 		if sp.Kind == sWiki {
+			if off < sp.Start || off > sp.End {
+				continue
+			}
+			if l, ok := links.MatchAt(r, sp.Start); ok && l.Start+l.Length == sp.End {
+				return LinkRef{Wiki: true, Target: l.Target}, sp, true
+			}
 			return LinkRef{Wiki: true, Target: string(r[sp.CStart:sp.CEnd])}, sp, true
+		}
+		if off < sp.CStart || off > sp.CEnd {
+			continue
 		}
 		if sp.Start == sp.CStart {
 			// A bare address is its own link.
