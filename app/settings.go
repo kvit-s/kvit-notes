@@ -2,9 +2,10 @@ package app
 
 // The settings dialog (Kvit's SettingsDialog.qml): Appearance (theme,
 // accent and highlight colours, interface size, motion), Typography (the
-// note's font, size, line height, block spacing, width and code font), and
-// This vault (where pictures are read from and saved). The first two are
-// kvit-ui's settings, which the Qt app shares; the third is the vault's own
+// note's font, size, line height, block spacing, width and code font),
+// General (keeping the app in the tray, where there is one) and This vault
+// (where pictures are read from and saved). The first two are kvit-ui's
+// settings, which the Qt app shares; the last is the vault's own
 // .kvit/settings.json. Each change applies as it is made.
 
 import (
@@ -36,6 +37,9 @@ func OpenSettings(ui *kvitui.UI, win *kvitui.Window, v *vault.Vault) {
 	sections := []section{
 		{"Appearance", func() *unison.Panel { return appearanceSettings(ui) }},
 		{"Typography", func() *unison.Panel { return typographySettings(ui, relayout) }},
+	}
+	if tray != nil {
+		sections = append(sections, section{"General", func() *unison.Panel { return generalSettings(ui) }})
 	}
 	if v != nil {
 		sections = append(sections, section{"This vault", func() *unison.Panel { return vaultSettings(ui, v, relayout) }})
@@ -224,6 +228,18 @@ func typographySettings(ui *kvitui.UI, relayout func()) *unison.Panel {
 		settingRow(ui, "Content width, in pixels, centered", limit, width),
 		settingRow(ui, "Code font", mono),
 		reset)
+}
+
+// generalSettings is the General section. The Qt app's also has remote
+// content and the update check; this one has the tray, and is shown only
+// where the desktop has a notification area, as the Qt app shows its tray
+// setting.
+func generalSettings(ui *kvitui.UI) *unison.Panel {
+	p := newPrefs(ui)
+	keep := kvitui.NewCheck(ui, "Keep running in the tray when the window is closed")
+	keep.Checked = p.bool(closeToTrayKey, false)
+	keep.OnChange = func(on bool) { p.set(closeToTrayKey, on) }
+	return kvitui.Column(ui, kvitui.SizeSpace, settingRow(ui, "System tray", keep))
 }
 
 func vaultSettings(ui *kvitui.UI, v *vault.Vault, relayout func()) *unison.Panel {

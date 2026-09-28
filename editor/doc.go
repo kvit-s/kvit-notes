@@ -5,10 +5,13 @@ package editor
 // window.
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/kvit-s/kvit-notes/textdiagram"
 )
 
 // Pos is a caret position: a block and a source rune offset in it.
@@ -258,9 +261,30 @@ func (d *Doc) DeleteSelection() {
 
 // InsertText types text at the caret, replacing any selection. Pasted text
 // with blank lines becomes blocks.
-func (d *Doc) InsertText(text string) {
+func (d *Doc) InsertText(text string) { d.insert(text, false, false) }
+
+// Paste inserts pasted text at the caret, replacing any selection, as
+// InsertText does, with two more rules the Qt app applies to text arriving
+// from outside the note (the paste in EditableBlock.qml):
+//   - Into a text block, several lines that open a code fence become blocks
+//     even with no blank line among them, so the fence is read as one. A
+//     plain-text paste keeps its lines as text.
+//   - Into a code block, the block's text after the paste goes through the
+//     step a fence takes when a note is opened (textdiagram.Ingest): a
+//     character diagram in an untagged or `text` block is tagged `diagram`,
+//     and a diagram is straightened, in the same undo step as the paste.
+//     Typing into the block never does this, since retagging a block while
+//     someone types in it would change it under them.
+func (d *Doc) Paste(text string, plain bool) { d.insert(text, !plain, true) }
+
+// reOpensFence is a line of pasted text starting a code fence.
+var reOpensFence = regexp.MustCompile("(^|\n)[ \t]*(```|~~~)")
+
+// insert is InsertText and Paste. fences reads several lines opening a
+// fence as blocks; ingest runs the fence step over a code block pasted into.
+func (d *Doc) insert(text string, fences, ingest bool) {
 	kind := "typing"
-	if d.HasSelection() || strings.Contains(text, "\n") {
+	if d.HasSelection() || strings.Contains(text, "\n") || ingest && d.ingestChanges(text) {
 		kind = "insert"
 	}
 	d.Edit(kind, func() {
@@ -271,15 +295,40 @@ func (d *Doc) InsertText(text string) {
 		if b == nil {
 			return
 		}
-		if b.Kind.HasInline() && strings.Contains(text, "\n\n") {
+		multi := strings.Contains(text, "\n")
+		if b.Kind.HasInline() && (strings.Contains(text, "\n\n") || fences && multi && reOpensFence.MatchString(text)) {
 			d.pasteBlocks(text)
 			return
 		}
 		r := runes(b.Text)
 		off := min(d.Caret.Off, len(r))
 		b.Text = string(r[:off]) + text + string(r[off:])
-		d.SetCaret(b.ID, off+len(runes(text)))
+		off += len(runes(text))
+		if ingest && b.Kind == Code {
+			// The straightening moves nothing to the right of what it
+			// fixes, so the caret stays after the pasted text; trailing
+			// spaces it trims from a line above can shorten the text, which
+			// the clamp covers.
+			b.Lang, b.Text = textdiagram.Ingest(b.Lang, b.Text)
+			off = min(off, len(runes(b.Text)))
+		}
+		d.SetCaret(b.ID, off)
 	})
+}
+
+// ingestChanges reports whether pasting text at the caret, with no
+// selection, would retag or straighten the code block the caret is in. Such
+// a paste is its own undo step rather than one merged into typing.
+func (d *Doc) ingestChanges(text string) bool {
+	b := d.CaretBlock()
+	if b == nil || b.Kind != Code || d.HasSelection() {
+		return false
+	}
+	r := runes(b.Text)
+	off := min(d.Caret.Off, len(r))
+	after := string(r[:off]) + text + string(r[off:])
+	lang, body := textdiagram.Ingest(b.Lang, after)
+	return lang != b.Lang || body != after
 }
 
 // pasteBlocks splits the block at the caret and puts the pasted Markdown's
@@ -314,8 +363,50 @@ func (d *Doc) pasteBlocks(text string) {
 		last = &d.Blocks[i+len(pasted)]
 	}
 	off := len(runes(last.Text))
-	last.Text += tail
-	d.SetCaret(last.ID, off)
+	id := last.ID
+	if tail != "" && !last.Kind.HasInline() {
+		// Text after the caret does not run on into a pasted code block or
+		// table: it follows as a paragraph of its own, as in the Qt app.
+		d.Blocks = slices.Insert(d.Blocks, i+len(pasted)+1, NewBlock(Paragraph, tail))
+	} else {
+		last.Text += tail
+	}
+	d.SetCaret(id, off)
+}
+
+// SetCodeLanguage gives a code block a language from the language menu, as
+// one undo step. The block's text goes through textdiagram.Ingest with the
+// new language, as the Qt app's setCodeLanguage does: choosing "Text
+// diagram" straightens the drawing, and choosing plain text for a block
+// holding a diagram tags it `diagram` again. "Plain code" (`plain`) is the
+// language that keeps a block from being tagged.
+func (d *Doc) SetCodeLanguage(id int64, lang string) {
+	b := d.Block(id)
+	if b == nil || b.Kind != Code {
+		return
+	}
+	lang, text := textdiagram.Ingest(lang, b.Text)
+	if lang == b.Lang && text == b.Text {
+		return
+	}
+	d.Edit("language", func() {
+		b.Lang, b.Text = lang, text
+		if d.Caret.Block == id {
+			d.Caret.Off = min(d.Caret.Off, len(runes(text)))
+			d.Anchor.Off = min(d.Anchor.Off, len(runes(text)))
+		}
+	})
+}
+
+// AsCode is a rendered diagram's "As code" control (DiagramBlock.qml): the
+// block is shown as its source in a code block tagged `plain`, which no
+// later open or paste examines again. It is one undo step.
+func (d *Doc) AsCode(id int64) {
+	b := d.Block(id)
+	if b == nil || b.Kind != Code || b.Lang == "plain" {
+		return
+	}
+	d.Edit("as code", func() { d.Block(id).Lang = "plain" })
 }
 
 // Backspace at a caret with no selection. Kvit's order at the start of a
@@ -430,13 +521,21 @@ func (d *Doc) Enter() {
 	}
 	b := &d.Blocks[i]
 	if b.Kind.isSource() {
+		// The new line takes the indentation the current line opens with,
+		// up to the caret (or the start of a selection, which the line
+		// break replaces), so Enter inside that indentation never makes
+		// more of it (EditableBlock.qml's leadingIndentAt).
 		r := runes(b.Text)
-		lineStart := d.Caret.Off
+		pos := d.Caret.Off
+		if d.Anchor.Block == d.Caret.Block && d.Anchor.Off < pos {
+			pos = d.Anchor.Off
+		}
+		lineStart := pos
 		for lineStart > 0 && r[lineStart-1] != '\n' {
 			lineStart--
 		}
 		ws := 0
-		for lineStart+ws < len(r) && (r[lineStart+ws] == ' ' || r[lineStart+ws] == '\t') {
+		for lineStart+ws < pos && (r[lineStart+ws] == ' ' || r[lineStart+ws] == '\t') {
 			ws++
 		}
 		d.InsertText("\n" + string(r[lineStart:lineStart+ws]))

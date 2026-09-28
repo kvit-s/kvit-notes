@@ -118,8 +118,17 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 			e.drawQuery(gc, i)
 			return
 		}
+		if e.diagramReads(i) {
+			e.drawDiagram(gc, i)
+			return
+		}
 		e.drawCodePanel(gc, i)
 		e.drawLineNumbers(gc, i)
+		e.drawDiagramPreview(gc, i)
+	case Math:
+		if e.drawMath(gc, i) {
+			return
+		}
 	case Callout:
 		e.drawCallout(gc, i)
 		if !e.calloutOpen(b) {
@@ -140,6 +149,7 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 			return
 		}
 		l.text.Draw(gc, o.X, o.Y)
+		drawInlineMath(gc, l.text, l.proj, o.X, o.Y)
 		e.drawPicture(gc, i, geom.NewPoint(o.X, o.Y+l.height()+e.px(pictureGap)))
 		return
 	}
@@ -149,6 +159,7 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 		e.ui.Fonts.Layout([]text.Span{{Text: e.Placeholder, Style: st}}, text.Options{Pitch: l.pitch}).Draw(gc, o.X, o.Y)
 	}
 	l.text.Draw(gc, o.X, o.Y)
+	drawInlineMath(gc, l.text, l.proj, o.X, o.Y)
 	e.drawDropCap(gc, i)
 }
 
@@ -316,6 +327,8 @@ func languageLabel(b *Block) string {
 		return "Markdown kept as written"
 	case b.Kind == Table:
 		return "table"
+	case b.Kind == Math:
+		return "math"
 	case b.Lang == "":
 		return "plain text"
 	}
@@ -333,7 +346,10 @@ func (e *Editor) languageButton(i int) geom.Rect {
 }
 
 // languageItems are the language menu (LanguagePicker.qml): plain text,
-// plain code, the two diagram kinds, then every language Kvit colours.
+// plain code, the two diagram kinds, then every language Kvit colours. A
+// choice goes through Doc.SetCodeLanguage, so choosing "Text diagram"
+// straightens the block's drawing, and "Plain code" keeps the block from
+// ever being tagged as a diagram.
 func (e *Editor) languageItems(id int64) []kvitui.MenuItem {
 	b := e.Doc.Block(id)
 	if b == nil {
@@ -341,10 +357,8 @@ func (e *Editor) languageItems(id int64) []kvitui.MenuItem {
 	}
 	set := func(lang string) func() {
 		return func() {
-			if blk := e.Doc.Block(id); blk != nil && blk.Lang != lang {
-				e.Doc.Edit("language", func() { blk.Lang = lang })
-				e.changed()
-			}
+			e.Doc.SetCodeLanguage(id, lang)
+			e.changed()
 		}
 	}
 	item := func(name, lang string) kvitui.MenuItem {

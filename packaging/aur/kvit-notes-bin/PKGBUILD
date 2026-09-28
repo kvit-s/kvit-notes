@@ -1,0 +1,38 @@
+# Maintainer: Kvit Notes project <info@kvit.app>
+#
+# AUR -bin package: installs the release tar.gz, which holds the program, its
+# math library and resources, the launcher, the icons and the licence texts in
+# a bin/, lib/, share/ tree, into /usr. The program finds the math library in
+# /usr/lib/kvit-notes and its resources in /usr/share/kvit-notes.
+#
+# This file has a placeholder version and digest. packaging/linux/build-linux.sh
+# writes dist/aur/PKGBUILD from it with the version it packaged and the SHA-256
+# of the tar.gz it built, which is the release asset this file downloads;
+# publish that copy. Never set the digest to SKIP: makepkg would then install
+# whatever the download URL returns, and a release asset can be replaced after
+# it was published. The placeholder is not a valid digest, so an unfilled
+# PKGBUILD fails instead of installing unchecked bytes.
+pkgname=kvit-notes-bin
+_version=2.0.0
+pkgver=2.0.0
+pkgrel=1
+pkgdesc="Markdown block editor with live preview, math, and diagrams"
+arch=('x86_64')
+url="https://github.com/kvit-s/kvit-notes"
+license=('MPL-2.0')
+provides=('kvit-notes')
+conflicts=('kvit-notes')
+# The program loads libX11 and libGL when it starts; the math library needs
+# glibc 2.28 or later.
+depends=('glibc' 'libx11' 'libglvnd' 'hicolor-icon-theme')
+options=('!strip')
+source=("https://github.com/kvit-s/kvit-notes/releases/download/v${_version}/Kvit_Notes-${_version}-linux-x86_64.tar.gz")
+sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
+
+package() {
+    cd "Kvit_Notes-${_version}-linux-x86_64"
+    install -d "$pkgdir/usr"
+    cp -a bin lib share "$pkgdir/usr/"
+    # Arch keeps a package's licence texts under its package name.
+    mv "$pkgdir/usr/share/licenses/kvit-notes" "$pkgdir/usr/share/licenses/$pkgname"
+}

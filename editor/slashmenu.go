@@ -51,8 +51,7 @@ var menuItems = []menuItem{
 		func(b *Block) { b.Lang = "info" }, 0},
 	{"Advanced", "Toggle", "Collapsible section", "▸", Callout, "toggle collapse fold details",
 		func(b *Block) { b.Lang = "toggle" }, 0},
-	{"Advanced", "Math", "Display equation", "∑", Raw, "equation latex tex formula",
-		func(b *Block) { b.Text = "$$\n\n$$" }, 3},
+	{"Advanced", "Math", "Display equation", "∑", Math, "equation latex tex formula", nil, 0},
 	{"Advanced", "Mermaid Diagram", "Flowchart or sequence diagram", "◈", Code, "mermaid flowchart graph flow diagram",
 		func(b *Block) {
 			b.Lang, b.Text = "mermaid", "flowchart LR\n  A[Start] --> B{Decision}\n  B -->|yes| C[Done]\n  B -->|no| A"

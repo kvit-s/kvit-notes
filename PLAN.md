@@ -51,9 +51,10 @@ the Qt app through kvit-ui-go. The app's own settings follow the Qt keys.
    and line numbers; the text context menu; the caret between blocks; HTML on
    the clipboard; then the other block kinds in order of use: images (and
    `assets/`), callouts, toggles, tables, divider styles, drop caps, embeds,
-   task boards, collection queries, the table of contents, media. Math is a
-   C++ helper program (MicroTeX) and diagrams a Go port of the Mermaid
-   renderer (plan section 3).
+   task boards, collection queries, the table of contents, media. Math is
+   MicroTeX, kept in C++ and built as a shared library that the app loads
+   and calls without cgo; diagrams are a Go port of the Mermaid renderer
+   (plan section 3).
 6. **The rest of the app.** Settings, export (Markdown, HTML, PDF, plain text)
    and import, templates, focus and typewriter modes, the outline panel,
    statistics and writing goals, quick capture with its global hotkey, the
@@ -83,16 +84,27 @@ short, on 2026-09-27:
   links through `.kvit/redirects.json`.
 - **Part 4** is done: find and replace in a note, and search across notes
   with an index of the Go app's own (the `search` package). No SQLite.
-- **Part 5**: code colouring, the language menu and line numbers, the text
-  menu and the formatting bar, superscript, subscript, text colour, images,
-  embeds, callouts, toggles, tables (as grids), divider styles, drop caps,
-  the table of contents, task boards, collection queries and HTML on the
-  clipboard exist, with cards dragged between columns. Left: math rendering
-  and Mermaid diagrams.
-- **Part 6**: settings, export (PDF too) and import, templates, focus and
-  typewriter modes, the outline, statistics and writing goals, quick capture
-  (the Qt app's hotkey also works only inside the app), one running copy,
-  menu access keys. Left: the tray icon with its notifications, and file
-  associations, which need operating-system code unison does not have.
-- **Part 7** has started: the ported packages carry the Qt tests of the
-  logic they port, and 21 storyboards are replayed as scenarios.
+- **Part 5** is done: code colouring, the language menu and line numbers,
+  the text menu and the formatting bar, superscript, subscript, text
+  colour, images, embeds, callouts, toggles, tables (as grids), divider
+  styles, drop caps, the table of contents, task boards (their cards'
+  lines and descriptions edited in place), collection queries and HTML on
+  the clipboard. Math is typeset by MicroTeX, built from
+  `third_party/microtex` with zig as a shared library that `mathtex` loads
+  without cgo: display equations with their numbers, inline math in prose,
+  tables and cards, and the `$` pair and the command menu for typing it.
+  Mermaid diagrams are drawn by the Go port of the renderer (`mermaid`,
+  `diagram`) and edited on the drawing, and character diagrams are tagged
+  and straightened (`textdiagram`). What each block kind still lacks is in
+  `PARITY.md`.
+- **Part 6** is done: settings, export (PDF too) and import, templates, focus
+  and typewriter modes, the outline, statistics and writing goals, quick
+  capture (the Qt app's hotkey also works only inside the app), one running
+  copy, menu access keys, the tray icon with closing to the tray, the
+  desktop's notifications (which the app, like the Qt one, does not post),
+  and file associations: a file named on the command line or dropped on a
+  window, and the packages' association of `.md` files (`packaging/`). The
+  tray, notifications and opening files on macOS are compiled but have not
+  been run on a Mac.
+- **Part 7** has started: the ported packages hold the Qt tests of the
+  logic they port, and 25 storyboards are replayed as scenarios.

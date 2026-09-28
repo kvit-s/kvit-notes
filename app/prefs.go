@@ -21,7 +21,18 @@ type prefs struct {
 	mem map[string]any
 }
 
-func newPrefs(ui *kvitui.UI) *prefs { return &prefs{ui: ui, mem: map[string]any{}} }
+// memPrefs are the settings of each UI without a settings file, shared by
+// every window and dialog of that UI, as a file would be.
+var memPrefs = map[*kvitui.UI]map[string]any{}
+
+func newPrefs(ui *kvitui.UI) *prefs {
+	mem := memPrefs[ui]
+	if mem == nil {
+		mem = map[string]any{}
+		memPrefs[ui] = mem
+	}
+	return &prefs{ui: ui, mem: mem}
+}
 
 func (p *prefs) value(key string) (any, bool) {
 	if p.ui.Settings != nil {

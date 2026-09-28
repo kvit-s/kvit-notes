@@ -66,7 +66,7 @@ type Window struct {
 	bodyCache map[string]cachedBody
 	queries   *query.Tools // the answers of query blocks
 	hidden    bool         // Ctrl+\ hid the sidebar and the note list
-	focus     bool         // focus mode: the editor alone, full screen
+	focus     bool         // focus mode: the editor alone, the window maximised
 	// maximized is set when focus mode maximized the window, which leaving
 	// it undoes.
 	maximized   bool
@@ -230,6 +230,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	w.Editor.FormatBar = true
 	w.Editor.FollowLink = w.followLink
 	w.Editor.CompleteLink = w.completeLink
+	w.Editor.SetMathCommands(MathCommands(ui))
 	w.Editor.CopyRich = w.copyRich
 	w.Editor.RunQuery = w.runQuery
 	w.Editor.OpenNote = func(p string) {
@@ -243,6 +244,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	}
 	w.Editor.OnLink = w.openLinkDialog
 	w.Editor.LoadPreview = w.loadPreview
+	w.wireDiagrams()
 	w.Editor.OpenURL = func(address string) {
 		if err := unison.OpenBrowser(address); err != nil {
 			w.fail("Could not open "+address, err)
@@ -311,6 +313,8 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 		_ = v.SaveState()
 		v.Close()
 	})
+	ClosesToTray(ui, win, w.saveNow)
+	AcceptDroppedNotes(win, w.openDropped)
 
 	w.hidden = !w.prefs.bool("panels.visible", true)
 	w.sortBy = w.prefs.string("noteList.sortMode", "modified")
@@ -342,6 +346,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	w.prefs.rememberVault(v.Root)
 	w.recordOpenVaults()
 	w.Editor.LineNumbers = w.prefs.bool("view.codeLineNumbers", false)
+	w.Editor.EquationNumbers = w.prefs.bool("view.equationNumbers", false)
 	if w.prefs.bool("view.typewriterMode", false) {
 		w.Editor.Typewriter = w.region
 	}

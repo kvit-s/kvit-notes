@@ -118,6 +118,7 @@ type grid struct {
 	cols   []float32
 	rowsH  []float32
 	cells  [][]*text.Layout // [row][col], the header first
+	projs  [][]projection   // what each cell draws, for its typeset math
 	align  []int
 	height float32
 }
@@ -125,14 +126,21 @@ type grid struct {
 // cellLayout lays a cell's inline Markdown out, markers hidden, "<br>" as a
 // line break.
 func (e *Editor) cellLayout(src string, header bool, width float32) *text.Layout {
+	l, _ := e.cellText(src, header, width)
+	return l
+}
+
+// cellText is cellLayout with the projection the cell was laid out from,
+// whose typeset math the grid draws over it.
+func (e *Editor) cellText(src string, header bool, width float32) (*text.Layout, projection) {
 	src = strings.ReplaceAll(strings.ReplaceAll(src, "<br>", "\n"), "<br/>", "\n")
 	r := []rune(src)
-	proj := project(r, parseInline(r), nil)
 	base := e.blockStyle(&Block{Kind: Paragraph})
 	if header {
 		base.Weight = text.Bold
 	}
-	return e.ui.Fonts.Layout(e.runs(proj, proj.flags, base), text.Options{MaxWidth: width, Pitch: e.pitch(base)})
+	proj := e.typesetInline(project(r, parseInline(r), nil), base)
+	return e.ui.Fonts.Layout(e.runs(proj, proj.flags, base), text.Options{MaxWidth: width, Pitch: e.pitch(base)}), proj
 }
 
 // gridFor lays a table block out at its width, from a cache.
@@ -187,15 +195,18 @@ func (e *Editor) layOutGrid(t table, width float32) *grid {
 	for r, row := range all {
 		var h float32
 		var cells []*text.Layout
+		var projs []projection
 		for c, cell := range row {
-			l := e.cellLayout(cell, r == 0, max(1, cols[c]-pad))
+			l, p := e.cellText(cell, r == 0, max(1, cols[c]-pad))
 			_, lh := l.Size()
 			h = max(h, lh)
 			cells = append(cells, l)
+			projs = append(projs, p)
 		}
 		h += 2 * e.px(cellPadY)
 		g.rowsH = append(g.rowsH, h)
 		g.cells = append(g.cells, cells)
+		g.projs = append(g.projs, projs)
 		g.height += h
 	}
 	return g
@@ -233,6 +244,7 @@ func (e *Editor) drawGrid(gc *unison.Canvas, i int, g *grid) {
 				tx = x + w - e.px(cellPadX) - lw
 			}
 			l.Draw(gc, tx, y+e.px(cellPadY))
+			drawInlineMath(gc, l, g.projs[r][c], tx, y+e.px(cellPadY))
 			x += w
 		}
 		y += h

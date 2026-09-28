@@ -1,0 +1,96 @@
+# Flatpak manifest for Flathub: Kvit Notes built from source on the
+# freedesktop runtime, with Go from the golang SDK extension and zig (for the
+# math library) as a pinned download.
+#
+# Flathub builds without network access, so every Go module comes from the
+# release asset Kvit_Notes-<version>-flatpak-sources.tar.gz, which
+# packaging/flatpak/make-sources.sh makes: vendor/ (the output of
+# `go mod vendor`, including kvit-ui and its patched typesetting, which go.mod
+# takes from ../kvit-ui-go) and licenses/ (the licence folder of the Linux
+# packages). make-sources.sh also writes dist/flatpak/org.kvit.Notes.yaml,
+# this file with the version and that archive's digest filled in; submit that
+# copy, after setting the commit below.
+#
+# flatpak-builder was not installed where this was written, so the manifest
+# has not been built. What was checked: make-sources.sh builds the program
+# from a copy of the source with vendor/, without ../kvit-ui-go and with the
+# module download turned off (GOPROXY=off), as the build here does.
+#
+# The golang extension must provide Go 1.27 or later (go.mod's go line), and
+# GOTOOLCHAIN=local stops Go from trying to download a newer toolchain. If the
+# 25.08 extension is older, replace it with the official Go archive, the
+# commented source at the end.
+app-id: org.kvit.Notes
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.golang
+command: kvit-notes
+# Flatpak exports only files named after the app ID, so the launcher and the
+# icon are renamed from kvit-notes to org.kvit.Notes when exported.
+rename-desktop-file: kvit-notes.desktop
+rename-icon: kvit-notes
+finish-args:
+  # unison draws through X11 and OpenGL (on a Wayland desktop, through
+  # XWayland).
+  - --share=ipc
+  - --socket=x11
+  - --device=dri
+  # Notes live where the user keeps them; a vault is an ordinary folder.
+  - --filesystem=home
+  # Link previews, images and the release check, which the program asks
+  # before fetching.
+  - --share=network
+  # The tray icon and notifications (kvit-ui's platform package): it takes
+  # the D-Bus name org.kde.StatusNotifierItem-<process id>-<n>, registers it
+  # with the desktop's StatusNotifierWatcher, and sends notifications. Inside
+  # the sandbox the program is process 2 and its first tray icon is n=1.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.kde.StatusNotifierItem-2-1
+  - --talk-name=org.freedesktop.Notifications
+modules:
+  - name: kvit-notes
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/golang/bin:/run/build/kvit-notes/zig
+      env:
+        CGO_ENABLED: '0'
+        GOTOOLCHAIN: local
+        GOPROXY: 'off'
+        GOFLAGS: -mod=vendor -trimpath
+        GOCACHE: /run/build/kvit-notes/.cache/go-build
+        KVIT_VERSION: 2.0.0
+    sources:
+      - type: git
+        url: https://github.com/kvit-s/kvit-notes.git
+        # A tag can be moved after submission; the commit is what fixes the
+        # source, and Flathub requires it. The placeholder is not a real
+        # object, so an unpinned manifest fails to fetch.
+        tag: v2.0.0
+        commit: '0000000000000000000000000000000000000000'
+      - type: archive
+        url: https://github.com/kvit-s/kvit-notes/releases/download/v2.0.0/Kvit_Notes-2.0.0-flatpak-sources.tar.gz
+        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+      - type: archive
+        url: https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
+        sha256: 70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+        dest: zig
+      # - type: archive
+      #   url: https://go.dev/dl/go1.27.1.linux-amd64.tar.gz
+      #   sha256: 63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445
+      #   dest: go
+      # (then put /run/build/kvit-notes/go/bin first in append-path and drop
+      # the golang extension)
+    build-commands:
+      # The math library, with the same script and compiler as the other
+      # packages, into the place the program looks for it from /app/bin.
+      - tools/build-mathlib.sh linux/amd64 /app/lib/kvit-notes/libkvitmath.so
+      - go build -ldflags "-s -w -X main.version=${KVIT_VERSION}" -o /app/bin/kvit-notes ./cmd/kvit-notes
+      - mkdir -p /app/share/kvit-notes && cp -R third_party/microtex/res /app/share/kvit-notes/math-res
+      - install -Dm644 packaging/linux/kvit-notes.desktop /app/share/applications/kvit-notes.desktop
+      - for size in 16 24 32 48 64 128 256 512; do install -Dm644 packaging/icons/hicolor/${size}x${size}/apps/kvit-notes.png
+        /app/share/icons/hicolor/${size}x${size}/apps/kvit-notes.png; done
+      - install -Dm644 packaging/icons/kvit.svg /app/share/icons/hicolor/scalable/apps/kvit-notes.svg
+      - install -Dm644 packaging/flatpak/org.kvit.Notes.metainfo.xml /app/share/metainfo/org.kvit.Notes.metainfo.xml
+      - mkdir -p /app/share/licenses/kvit-notes && cp -R licenses/. /app/share/licenses/kvit-notes/

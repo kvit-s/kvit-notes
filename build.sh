@@ -16,6 +16,18 @@
 #   ./build.sh --bench       time opening, scrolling and typing in 1,237 blocks
 #   ./build.sh --run         start kvit-notes here (needs a display)
 #
+# LaTeX math is drawn by MicroTeX, a C++ engine built as a shared library the
+# program loads at run time (tools/build-mathlib.sh). Building it needs zig on
+# the PATH (https://ziglang.org/download/), whose C++ compiler builds all four
+# platforms' libraries here; it is rebuilt only when its sources change. Every
+# build puts the library, and the math-res folder of fonts it reads, beside
+# the program: build/libkvitmath.so here (the program finds the resources in
+# third_party/microtex/res), kvitmath.dll or libkvitmath.dylib and math-res in
+# each build/<os>-<arch>/ with --cross, and beside kvit-notes.exe with --win.
+# Without zig a plain build leaves the library out, with a warning, and the
+# program shows TeX as its source; --cross and --win stop, because what they
+# build is what gets shipped.
+#
 # Everything builds with cgo off. KVIT_WIN_DIR overrides where Windows builds go
 # (default /mnt/d/projects/kvit-notes-go); KVIT_QT_SHOTS where Kvit's storyboard
 # screenshots are (default ~/kvit-qt-reference/kvit-notes-storyboards); KVIT_QT_REPO
@@ -33,17 +45,44 @@ for a in "$@"; do
         --shots) shots=1 ;;
         --bench) bench=1 ;;
         --run) run=1 ;;
-        -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $a" >&2; exit 2 ;;
     esac
 done
 
+# mathres copies the math library's resources into a folder beside a program.
+mathres() {
+    mkdir -p "$1/math-res"
+    if command -v rsync >/dev/null; then
+        rsync -a --delete third_party/microtex/res/ "$1/math-res/"
+    else
+        rm -rf "$1/math-res" && cp -R third_party/microtex/res "$1/math-res"
+    fi
+}
+
 mkdir -p build
 go build ./...
 go build -o build/kvit-notes ./cmd/kvit-notes
+case "$(go env GOOS)/$(go env GOARCH)" in
+    linux/amd64) lib=build/libkvitmath.so ;;
+    darwin/arm64 | darwin/amd64) lib=build/libkvitmath.dylib ;;
+    *) lib= ;;
+esac
+if [ -n "$lib" ]; then
+    if command -v zig >/dev/null; then
+        tools/build-mathlib.sh "$(go env GOOS)/$(go env GOARCH)" "$lib"
+    else
+        echo "build.sh: zig is not on the PATH, so the math library is not built:" \
+            "the program shows TeX as its source and the math tests skip (see tools/build-mathlib.sh)" >&2
+    fi
+fi
 
 if [ $test = 1 ]; then
-    unformatted=$(gofmt -l .)
+    # The toolchain's own gofmt, which reads the Go version go.mod asks for,
+    # over the repository's Go files, tracked or new; ignored build output
+    # such as the packages' staged sources under build/ is left out.
+    unformatted=$(git ls-files -z --cached --others --exclude-standard -- '*.go' |
+        xargs -0 "$(go env GOROOT)/bin/gofmt" -l)
     if [ -n "$unformatted" ]; then
         echo "not formatted with gofmt:" >&2
         echo "$unformatted" >&2
@@ -58,6 +97,11 @@ if [ $cross = 1 ]; then
         os=${target%/*} arch=${target#*/} ext=
         [ "$os" = windows ] && ext=.exe
         GOOS=$os GOARCH=$arch go build -o "build/$os-$arch/kvit-notes$ext" ./cmd/kvit-notes
+        lib=libkvitmath.so
+        [ "$os" = windows ] && lib=kvitmath.dll
+        [ "$os" = darwin ] && lib=libkvitmath.dylib
+        tools/build-mathlib.sh "$target" "build/$os-$arch/$lib"
+        mathres "build/$os-$arch"
     done
 fi
 
@@ -65,6 +109,8 @@ if [ $win = 1 ]; then
     dest=${KVIT_WIN_DIR:-/mnt/d/projects/kvit-notes-go}
     mkdir -p "$dest"
     GOOS=windows GOARCH=amd64 go build -o "$dest/kvit-notes.exe" ./cmd/kvit-notes
+    tools/build-mathlib.sh windows/amd64 "$dest/kvitmath.dll"
+    mathres "$dest"
     if [ $check = 0 ]; then
         # A copy of the Qt app's demo vault, so trying the build never touches
         # the vault you write in; kvit-notes.exe with no argument opens that.

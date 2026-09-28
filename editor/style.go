@@ -113,7 +113,7 @@ func headingRole(k Kind) tokens.FontRole {
 		return tokens.Heading3
 	case Heading4:
 		return tokens.Heading4
-	case Code, Raw, Table:
+	case Code, Raw, Table, Math:
 		return tokens.Mono
 	}
 	return tokens.Body
@@ -138,7 +138,7 @@ func (e *Editor) blockStyle(b *Block) text.Style {
 		st.Weight = text.Medium
 	case Quote:
 		st.Color = colour(t.TextSecondary)
-	case Code, Raw, Table:
+	case Code, Raw, Table, Math:
 		st.Family = e.monoFamily()
 	case Todo:
 		if b.Checked {

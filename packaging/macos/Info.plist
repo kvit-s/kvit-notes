@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Contents/Info.plist of kvit-notes.app. packaging/macos/build-macos.sh
+  replaces @VERSION@ with the release version's three numbers (2.0.0 for
+  2.0.0-rc1: macOS reads these two keys as numbers) and @COPYRIGHT_YEAR@.
+
+  The bundle identifier, name and icon are the Qt app's, so the Go app
+  replaces it in /Applications as the same application and keeps its
+  preferences domain. LSMinimumSystemVersion is macOS 13 Ventura: Go 1.27
+  writes 13.0 into every executable it links, and the script fails if any
+  executable or library in the bundle asks for a later version. The document
+  type makes Kvit Notes one of the applications that can open Markdown files
+  (rank Alternate: it does not claim to be the default).
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.kvit.Notes</string>
+	<key>CFBundleName</key>
+	<string>Kvit Notes</string>
+	<key>CFBundleDisplayName</key>
+	<string>Kvit Notes</string>
+	<key>CFBundleExecutable</key>
+	<string>kvit-notes</string>
+	<key>CFBundleIconFile</key>
+	<string>kvit.icns</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© @COPYRIGHT_YEAR@ Kvit Notes project. Mozilla Public License 2.0.</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Markdown note</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>net.daringfireball.markdown</string>
+			</array>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>md</string>
+				<string>markdown</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>net.daringfireball.markdown</string>
+			<key>UTTypeDescription</key>
+			<string>Markdown document</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>md</string>
+					<string>markdown</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>text/markdown</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

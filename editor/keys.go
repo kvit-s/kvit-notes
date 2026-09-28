@@ -31,6 +31,12 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	if e.wiki != nil && !ctrl && !alt && e.wikiKey(key) {
 		return true
 	}
+	if e.math.menu != nil && !ctrl && !alt && e.mathMenuKey(key, shift) {
+		return true
+	}
+	if !alt && e.diagramKey(key, ctrl, shift) {
+		return true
+	}
 	if (key == unison.KeyF10 && shift) || key == unison.KeyMenu {
 		return e.openBlockMenuForCaret()
 	}
@@ -54,7 +60,7 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	case ctrl && key == unison.KeyV && !d.ReadOnly:
 		if shift {
 			if unison.ClipboardHasText() {
-				d.InsertText(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"))
+				d.Paste(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"), true)
 				e.afterStructural()
 			}
 			return true
@@ -71,6 +77,10 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return false
 	}
 	id := b.ID
+	if !alt && e.mathKey(key, ctrl, shift) {
+		e.afterStructural()
+		return true
+	}
 
 	switch {
 	case ctrl && key == unison.KeyA:
@@ -130,7 +140,7 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		switch b.Kind {
 		case Todo:
 			d.ToggleTodo(id)
-		case Code, Raw, Table:
+		case Code, Raw, Table, Math:
 			d.LeaveBlock()
 		case Callout:
 			// Ctrl+Enter folds or unfolds a callout (features.md 1.2.10).
@@ -148,6 +158,9 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		switch {
 		case b.Kind == Code && shift:
 			e.outdentCodeLine()
+		case isMermaid(b):
+			// Mermaid source indents by two spaces (DiagramBlock.qml).
+			d.InsertText("  ")
 		case b.Kind == Code:
 			d.InsertText("    ")
 		case shift:
@@ -501,6 +514,9 @@ func (e *Editor) typeText(s string) bool {
 	if d.ReadOnly {
 		return false
 	}
+	if e.mathTyped(s) {
+		return true
+	}
 	openMenu := s == "/" && b.Text == "" && b.Kind != Code && b.Kind != Raw
 	d.InsertText(s)
 	e.selectAllN = 0
@@ -515,8 +531,6 @@ func (e *Editor) typeText(s string) bool {
 	return true
 }
 
-// paste inserts text from the clipboard at the caret; Markdown with blank
-// lines in it becomes blocks.
 // copyMarkdown puts Markdown on the clipboard, with its HTML beside it when
 // the application gives the editor a way to make it.
 func (e *Editor) copyMarkdown(md string) {
@@ -541,12 +555,14 @@ func (e *Editor) pasteClipboard() {
 	}
 }
 
+// paste inserts text from the clipboard at the caret: Markdown with blank
+// lines in it, or lines opening a code fence, becomes blocks (Doc.Paste).
 func (e *Editor) paste(s string) {
 	d := e.Doc
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	if !d.Focused {
 		return
 	}
-	d.InsertText(s)
+	d.Paste(s, false)
 	e.afterStructural()
 }

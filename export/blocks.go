@@ -201,6 +201,9 @@ func convert(b editor.Block) []block {
 		return []block{{kind: k, text: b.Text, lang: b.Lang, attrs: b.Attrs}}
 	case editor.Divider:
 		return []block{{kind: kDivider, attrs: b.Attrs}}
+	case editor.Math:
+		// A display equation's text is its TeX, without the $$ lines.
+		return []block{{kind: kMath, text: b.Text, attrs: b.Attrs}}
 	case editor.Raw:
 		return raw(b.Text, b.Attrs)
 	}

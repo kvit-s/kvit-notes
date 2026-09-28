@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <!--
+    The application manifest embedded in kvit-notes.exe (through winres.json and
+    make-syso.sh). What each part does:
+
+    - supportedOS: the program is written for Windows 10 and 11, so Windows
+      gives it their behaviour rather than an older version's.
+    - dpiAware and dpiAwareness: per-monitor DPI awareness (version 2, falling
+      back to version 1 on Windows 10 before 1703). The window draws at each
+      monitor's own scale instead of being stretched by Windows. unison also
+      asks for this at start-up; declaring it here makes it apply before the
+      first window exists.
+    - activeCodePage UTF-8: every "ANSI" Windows call the program or a library
+      makes uses UTF-8, so a file name outside the system code page cannot be
+      mangled. Go itself uses the wide-character calls.
+    - longPathAware and highResolutionScrollingAware: paths longer than 260
+      characters, and smooth scrolling from precise touchpads, as unison's own
+      packaging tool declares them.
+    - Common Controls 6: native dialogs and message boxes drawn in the current
+      Windows style.
+    - requestedExecutionLevel asInvoker: never ask for administrator rights.
+  -->
+  <description>Kvit Notes</description>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+      <highResolutionScrollingAware xmlns="http://schemas.microsoft.com/SMI/2013/WindowsSettings">true</highResolutionScrollingAware>
+    </windowsSettings>
+  </application>
+
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0"
+                        processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
+    </dependentAssembly>
+  </dependency>
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>

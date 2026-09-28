@@ -70,6 +70,9 @@ func (e *Editor) describeBlock(b *unison.AccessibilityBuilder, i int) accessibil
 			n.Name = "Divider"
 			return
 		}
+		if e.describeDiagram(i, n) {
+			return
+		}
 		n.Role = role.TextArea
 		n.Name = blk.Kind.String() + " block"
 		n.ReadOnly = d.ReadOnly
@@ -102,7 +105,8 @@ func (e *Editor) describeBlock(b *unison.AccessibilityBuilder, i int) accessibil
 			})
 		}
 	}
-	if blk.Kind == Code {
+	e.describeDiagramParts(b, id, i)
+	if blk.Kind == Code && !e.diagramReads(i) {
 		r := e.copyButton(i)
 		b.AddVirtualChildOf(id, partKey{blk.ID, partCopy}, func(n *accessibility.Node) {
 			n.Role = role.Button
@@ -195,6 +199,11 @@ func (e *Editor) PerformAccessibilityAction(req accessibility.ActionRequest) boo
 		i := d.Index(pk.block)
 		if i < 0 || req.Action != accessibility.Press {
 			return false
+		}
+		if pk.part >= partDiagramFit {
+			e.diagramAct(i, pk.part)
+			e.changed()
+			return true
 		}
 		switch pk.part {
 		case partAdd:

@@ -277,8 +277,13 @@ func (w *Window) autoTitle() {
 		return
 	}
 	first := d.Blocks[0]
+	// Only the kinds whose text describes the note name it, as in the Qt
+	// app's titleBearing: a note that opens with code, a table, a picture or
+	// an equation is left alone.
 	switch first.Kind {
-	case editor.Code, editor.Raw, editor.Divider:
+	case editor.Paragraph, editor.Heading1, editor.Heading2, editor.Heading3, editor.Heading4,
+		editor.Bullet, editor.Numbered, editor.Todo, editor.Quote, editor.Callout:
+	default:
 		return
 	}
 	if d.Focused && d.Caret.Block == first.ID {

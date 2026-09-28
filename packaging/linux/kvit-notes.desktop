@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Kvit Notes
+GenericName=Markdown Editor
+Comment=Markdown block editor with live preview, math, and diagrams
+Exec=kvit-notes %f
+Icon=kvit-notes
+Terminal=false
+Categories=Office;Utility;TextEditor;
+MimeType=text/markdown;
+StartupWMClass=kvit-notes

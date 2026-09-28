@@ -89,6 +89,11 @@ func (w *Window) viewMenu() []kvitui.MenuItem {
 			w.prefs.set("view.codeLineNumbers", w.Editor.LineNumbers)
 			w.Editor.Refresh()
 		}},
+		{Text: "&Equation numbers", Checked: w.Editor.EquationNumbers, OnSelect: func() {
+			w.Editor.EquationNumbers = !w.Editor.EquationNumbers
+			w.prefs.set("view.equationNumbers", w.Editor.EquationNumbers)
+			w.Editor.Refresh()
+		}},
 		{Separator: true},
 		{Text: "T&heme", Items: themes},
 		{Text: "Reduced &motion", Checked: w.ui.Theme.MotionScale() == 0, OnSelect: func() {

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata, installed as usr/share/metainfo/org.kvit.Notes.metainfo.xml
+     in the AppImage and the tar.gz, and by the Flatpak manifest.
+     packaging/linux/build-linux.sh adds a <release> entry for the version it
+     packages when this file has none; add the entry here when tagging a
+     release, because the Flatpak is built from this file as it is.
+     The screenshots are the Qt app's, kept in the Qt repository's history at
+     the tag qt-final; replace them with pictures of the Go app. -->
+<component type="desktop-application">
+  <id>org.kvit.Notes</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MPL-2.0</project_license>
+  <name>Kvit Notes</name>
+  <summary>Markdown block editor with live preview, math, and diagrams</summary>
+  <description>
+    <p>
+      Kvit Notes is a notes app for Markdown files. Text renders as you
+      write, and Markdown syntax shows only where the cursor is. It stores
+      everything as plain Markdown files in ordinary folders.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Live-preview editing: syntax hides when rendered and shows at the cursor</li>
+      <li>Blocks: headings, lists, to-dos, quotes, code, tables, task boards, callouts, toggles, images, embeds</li>
+      <li>LaTeX math</li>
+      <li>Mermaid diagrams</li>
+      <li>A notes collection with folders, tags, full-text search, wiki-links and backlinks</li>
+      <li>Export to HTML, PDF and plain text</li>
+      <li>No telemetry, no accounts, no database: the files are the notes</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">kvit-notes.desktop</launchable>
+  <provides>
+    <binary>kvit-notes</binary>
+    <mediatype>text/markdown</mediatype>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <url type="homepage">https://kvit.app</url>
+  <url type="bugtracker">https://github.com/kvit-s/kvit-notes/issues</url>
+  <developer id="app.kvit">
+    <name>Kvit Notes project</name>
+  </developer>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/kvit-s/kvit-notes/qt-final/screenshots/press/hero-shell.png</image>
+      <caption>The three-pane window with live-preview editing</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/kvit-s/kvit-notes/qt-final/screenshots/press/mermaid-flowchart.png</image>
+      <caption>A Mermaid flowchart</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="1.0.0" date="2026-09-30">
+      <description>
+        <p>First public release (the Qt version).</p>
+      </description>
+    </release>
+  </releases>
+</component>

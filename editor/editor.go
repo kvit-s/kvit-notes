@@ -62,6 +62,7 @@ type Editor struct {
 	// or after a "#", a note's headings, for what is typed.
 	CompleteLink func(query string) []Completion
 	wiki         *wikiMenu
+	math         mathEntry // what the math typing aids remember (mathassist.go)
 	// CopyRich, when set, puts Markdown on the clipboard with its HTML, and
 	// PasteRich reads HTML off the clipboard as Markdown, reporting false
 	// when there is none worth reading.
@@ -90,6 +91,20 @@ type Editor struct {
 	Typewriter *kvitui.Region
 	pictures   map[string]picture
 	grids      map[int64]cachedGrid
+	// DiagramMath, when set, typesets the $$…$$ labels of Mermaid diagrams
+	// (diagram.go); without it they are drawn as their source.
+	DiagramMath DiagramMath
+	// EquationNumbers numbers the display equations at their right (View,
+	// Equation numbers).
+	EquationNumbers bool
+	// SaveDiagramPNG, when set, is given a diagram's PNG by its PNG
+	// control; without it a file dialog asks where to write it.
+	SaveDiagramPNG func(png []byte)
+	// OnStatus, when set, shows a short message about what was just done,
+	// such as where a diagram was saved.
+	OnStatus func(message string)
+	diagrams map[int64]*diagramView // each Mermaid block's drawing and zoom
+	diagPan  *diagramPan            // a press on a diagram, until let go
 
 	layouts    map[int64]cachedLayout
 	tops       []float32 // the top of each block's row, in the editor's coordinates
@@ -140,6 +155,7 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e.MouseEnterCallback = e.mouseMove
 	e.MouseMoveCallback = e.mouseMove
 	e.MouseExitCallback = e.mouseExit
+	e.MouseWheelCallback = e.diagramWheel
 	e.UpdateCursorCallback = e.cursor
 	e.GainedFocusCallback = func() { e.touched(); e.MarkForRedraw(); e.syncFormatBar() }
 	e.LostFocusCallback = func() { e.MarkForRedraw(); e.syncFormatBar() }
@@ -149,6 +165,7 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 		}
 	}
 	e.Accessibility.Name = "Note"
+	e.useMath()
 	ui.OnChanged(func() {
 		e.generation++
 		e.changed()
@@ -162,6 +179,7 @@ func (e *Editor) SetDoc(doc *Doc) {
 	clear(e.layouts)
 	clear(e.pictures)
 	clear(e.grids)
+	clear(e.diagrams)
 	clear(e.blockSel)
 	e.closeMenu()
 	e.drag, e.msel = nil, nil
@@ -233,6 +251,7 @@ func (e *Editor) changed() {
 	}
 	e.syncFormatBar()
 	e.syncWikiMenu()
+	e.syncMath()
 	if e.OnChange != nil {
 		e.OnChange()
 	}
@@ -301,6 +320,9 @@ func (e *Editor) gap() float32 { return e.px(float32(e.ui.Typography.ParagraphSp
 
 // textLeft is how far a block's text starts from the body's left edge.
 func (e *Editor) textLeft(b *Block) float32 {
+	if x, ok := e.mathTextLeft(b); ok {
+		return x
+	}
 	switch {
 	case b.Kind.IsList():
 		return e.markerLeft(b) + e.px(markerWidth(b.Kind))
@@ -351,7 +373,7 @@ func markerWidth(k Kind) float32 {
 func (e *Editor) textWidth(b *Block) float32 {
 	right := e.px(contentRight)
 	switch b.Kind {
-	case Code, Raw, Table:
+	case Code, Raw, Table, Math:
 		right += e.px(codePadSide)
 	case Callout:
 		right += e.px(calloutBottom)
@@ -361,6 +383,9 @@ func (e *Editor) textWidth(b *Block) float32 {
 
 // textTop is how far a block's text starts below its row's top.
 func (e *Editor) textTop(b *Block) float32 {
+	if y, ok := e.mathTextTop(b); ok {
+		return y
+	}
 	if b.Kind.isSource() {
 		return e.px(codeRowTop + codeHeader + codeTextPad)
 	}
@@ -431,6 +456,12 @@ func (e *Editor) rowHeight(i int) float32 {
 	if e.queryShows(i) {
 		return e.px(codeRowTop+codeRowBottom) + e.queryResult(i).height
 	}
+	if h, ok := e.diagramHeight(i); ok {
+		return h
+	}
+	if h, ok := e.mathHeight(i); ok {
+		return h
+	}
 	if b.Kind.isSource() {
 		return e.px(codeRowTop+codeHeader+2*codeTextPad+codeFooter+codeRowBottom) + e.layout(i).height()
 	}
@@ -464,6 +495,7 @@ func (e *Editor) measure() {
 		e.heights = append(e.heights, h)
 		y += h + e.gap()
 	}
+	e.pruneDiagrams()
 	// Forget the layouts of blocks that are gone.
 	if len(e.layouts) > 2*n+16 {
 		live := make(map[int64]bool, n)
@@ -567,9 +599,11 @@ func (e *Editor) caretRect() (geom.Rect, bool) {
 		return geom.Rect{}, false
 	}
 	l := e.layout(i)
-	x, top := l.caretAt(l.drawn(d.Caret.Off))
+	// As tall as the caret's line: the pitch, or more where a formula has
+	// grown the line (mathinline.go).
+	x, top, h := l.text.CaretAt(l.drawn(d.Caret.Off))
 	o := e.textOrigin(i)
-	return geom.NewRect(o.X+x, o.Y+top, e.px(caretWidth), l.pitch), true
+	return geom.NewRect(o.X+x, o.Y+top, e.px(caretWidth), h), true
 }
 
 // revealCaret scrolls the caret into view, with a little room around it.

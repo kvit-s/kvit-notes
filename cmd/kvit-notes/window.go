@@ -43,6 +43,7 @@ func newNoteWindow(ui *kvitui.UI, doc *editor.Doc, path string) (*noteWindow, er
 	n := &noteWindow{ui: ui, win: w, path: path}
 	n.ed = editor.New(ui, doc)
 	n.ed.OnChange = n.update
+	n.ed.SetMathCommands(app.MathCommands(ui))
 	n.region = kvitui.NewRegion(ui, n.ed)
 	n.region.Padding = kvitui.Px(0)
 	n.status = kvitui.NewStatusBar(ui)
@@ -65,6 +66,8 @@ func newNoteWindow(ui *kvitui.UI, doc *editor.Doc, path string) (*noteWindow, er
 		}
 		return false
 	}
+	app.ClosesToTray(ui, w, n.saveToFile)
+	app.AcceptDroppedNotes(w, func(p string) { openFileWindow(ui, p) })
 	n.update()
 	return n, nil
 }
@@ -134,6 +137,14 @@ func (n *noteWindow) save() {
 		n.message = ""
 	}
 	n.update()
+}
+
+// saveToFile saves a note that has a file and changes, without asking for
+// a file: what closing the window into the tray does.
+func (n *noteWindow) saveToFile() {
+	if n.path != "" && n.ed.Doc.Dirty {
+		n.save()
+	}
 }
 
 // saveAs asks for a file and saves the note to it.

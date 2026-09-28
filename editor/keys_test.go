@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/richardwilkes/unison"
@@ -75,6 +76,65 @@ func TestCtrlEnterAfterSelectedBlocks(t *testing.T) {
 		d := e.Doc
 		if len(d.Blocks) != 3 || d.Blocks[1].Kind != Paragraph || d.Blocks[1].Text != "" || d.Caret.Block != d.Blocks[1].ID {
 			t.Errorf("blocks %d, the second %v %q, caret in %d", len(d.Blocks), d.Blocks[1].Kind, d.Blocks[1].Text, d.Caret.Block)
+		}
+	})
+}
+
+// Ctrl+V of a crooked drawing into a code block straightens it and tags the
+// block `diagram`, and Ctrl+Z takes both back in one step
+// (tst_integration.qml's test_69h4, through the keyboard).
+func TestCtrlVStraightensADiagramPastedIntoCode(t *testing.T) {
+	s, e := openEditor(t, "```\n```\n")
+	s.Do(func() {
+		unison.ClipboardSetText(crookedDrawing)
+		e.FocusBlock(0, 0)
+	})
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyV, mod.Control)
+	s.Do(func() {
+		b := e.Doc.Blocks[0]
+		if b.Lang != "diagram" || b.Text != straightDrawing {
+			t.Errorf("after the paste: language %q, text:\n%s", b.Lang, b.Text)
+		}
+	})
+	s.Screen.KeyPress(unison.KeyZ, mod.Control)
+	s.Do(func() {
+		if b := e.Doc.Blocks[0]; b.Lang != "" || b.Text != "" {
+			t.Errorf("after one undo: language %q, text %q", b.Lang, b.Text)
+		}
+	})
+}
+
+// The language menu's "Text diagram" straightens the block's drawing, and
+// its "Plain code" tags the block `plain` (test_69h5).
+func TestLanguageMenuDeclaresAndOptsOut(t *testing.T) {
+	crooked := "┌──────────┐\n│ ab    │\n│ cd    │\n└───────┘"
+	straight := "┌───────┐\n│ ab    │\n│ cd    │\n└───────┘"
+	s, e := openEditor(t, "```python\n"+crooked+"\n```\n")
+	choose := func(name string) {
+		s.Do(func() {
+			for _, it := range e.languageItems(e.Doc.Blocks[0].ID) {
+				if it.Text == name {
+					it.OnSelect()
+					return
+				}
+			}
+			t.Errorf("no %q in the language menu", name)
+		})
+	}
+	choose("Text diagram")
+	s.Do(func() {
+		if b := e.Doc.Blocks[0]; b.Lang != "diagram" || b.Text != straight {
+			t.Errorf("Text diagram: language %q, text:\n%s", b.Lang, b.Text)
+		}
+	})
+	choose("Plain code")
+	s.Do(func() {
+		if b := e.Doc.Blocks[0]; b.Lang != "plain" || b.Text != straight {
+			t.Errorf("Plain code: language %q, text:\n%s", b.Lang, b.Text)
+		}
+		if got := Serialize(e.Doc.Blocks); !strings.HasPrefix(got, "```plain\n") {
+			t.Errorf("written as:\n%s", got)
 		}
 	})
 }

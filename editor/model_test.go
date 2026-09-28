@@ -425,3 +425,290 @@ func TestStatisticsCountWhatTheReaderSees(t *testing.T) {
 		t.Errorf("reading minutes")
 	}
 }
+
+// The tests from here to TestAsCodeOptsOut are the character-diagram tests
+// of the Qt app's tests/test_documentserializer.cpp
+// (testIngestTagsCharacterDiagram to testDiagramFenceRoundTrips), with the
+// same inputs, then the Doc's side of tests/tst_integration.qml's
+// test_69h4 and test_69h5.
+
+// diagramBody is a compact two-box character diagram the classifier
+// accepts: two framed regions joined by a connector.
+const diagramBody = "┌─────────┐\n" +
+	"│  START  │\n" +
+	"└────┬────┘\n" +
+	"     │\n" +
+	"     ▼\n" +
+	"┌─────────┐\n" +
+	"│   END   │\n" +
+	"└─────────┘"
+
+// An untagged fence holding a character diagram is tagged `diagram` when it
+// is read; its body is left byte for byte.
+func TestIngestTagsCharacterDiagram(t *testing.T) {
+	blocks := ParseMarkdown("```\n" + diagramBody + "\n```\n")
+	if len(blocks) != 1 || blocks[0].Kind != Code {
+		t.Fatalf("blocks: %+v", blocks)
+	}
+	if blocks[0].Lang != "diagram" || blocks[0].Text != diagramBody {
+		t.Errorf("language %q, text changed %v", blocks[0].Lang, blocks[0].Text != diagramBody)
+	}
+	// `text`, `plaintext` and `ascii` wrappers are as eligible.
+	for _, lang := range []string{"text", "plaintext", "ascii"} {
+		b := ParseMarkdown("```" + lang + "\n" + diagramBody + "\n```\n")
+		if len(b) != 1 || b[0].Lang != "diagram" {
+			t.Errorf("%s: %+v", lang, b)
+		}
+	}
+}
+
+// Reading a tagged fence again leaves it as it is.
+func TestIngestTaggingIsIdempotent(t *testing.T) {
+	once := ParseMarkdown("```\n" + diagramBody + "\n```\n")
+	if once[0].Lang != "diagram" {
+		t.Fatalf("language %q", once[0].Lang)
+	}
+	twice := ParseMarkdown("```diagram\n" + diagramBody + "\n```\n")
+	if len(twice) != 1 || twice[0].Lang != "diagram" || twice[0].Text != diagramBody {
+		t.Errorf("second read: %+v", twice)
+	}
+}
+
+// A `plain` fence is the way to keep a body that looks like a diagram as
+// code, and any other language is kept too.
+func TestIngestLeavesExplicitLanguages(t *testing.T) {
+	if b := ParseMarkdown("```plain\n" + diagramBody + "\n```\n"); b[0].Lang != "plain" {
+		t.Errorf("plain became %q", b[0].Lang)
+	}
+	if b := ParseMarkdown("```python\n" + diagramBody + "\n```\n"); b[0].Lang != "python" {
+		t.Errorf("python became %q", b[0].Lang)
+	}
+}
+
+// An untagged fence shaped like a `tree` listing stays code: it has no
+// framed regions.
+func TestIngestLeavesOrdinaryCode(t *testing.T) {
+	tree := ParseMarkdown("```\nproject/\n├── src/\n│   └── main.cpp\n└── README.md\n```\n")
+	if len(tree) != 1 || tree[0].Lang != "" {
+		t.Errorf("tree listing: %+v", tree)
+	}
+}
+
+// A diagram fence with a ragged edge, the first box's top-right corner two
+// columns short of its walls, is straightened when it is read, and a
+// `plain` fence is not.
+func TestIngestStraightensDiagramFences(t *testing.T) {
+	flawed := "┌─────┐\n" +
+		"│  A     │\n" +
+		"└────┬───┘\n" +
+		"     │\n" +
+		"     ▼\n" +
+		"┌────────┐\n" +
+		"│  B     │\n" +
+		"└────────┘"
+	tagged := ParseMarkdown("```diagram\n" + flawed + "\n```\n")
+	if len(tagged) != 1 || tagged[0].Text == flawed {
+		t.Fatalf("not straightened: %+v", tagged)
+	}
+	first, _, _ := strings.Cut(tagged[0].Text, "\n")
+	if col := slices.Index([]rune(first), '┐'); col != 9 {
+		t.Errorf("the top-right corner is at column %d, want 9:\n%s", col, tagged[0].Text)
+	}
+	again := ParseMarkdown("```diagram\n" + tagged[0].Text + "\n```\n")
+	if again[0].Text != tagged[0].Text {
+		t.Errorf("a second read changed the diagram:\n%s", again[0].Text)
+	}
+	if plain := ParseMarkdown("```plain\n" + flawed + "\n```\n"); plain[0].Text != flawed {
+		t.Errorf("a plain fence was straightened:\n%s", plain[0].Text)
+	}
+}
+
+// The tagged fence is written back as a `diagram` fence, and reading that
+// again writes the same note.
+func TestDiagramFenceRoundTrips(t *testing.T) {
+	out := Serialize(ParseMarkdown("```\n" + diagramBody + "\n```\n"))
+	if !strings.Contains(out, "```diagram") {
+		t.Fatalf("written as:\n%s", out)
+	}
+	if again := Serialize(ParseMarkdown(out)); again != out {
+		t.Errorf("a second round trip changed the note:\n%s", again)
+	}
+}
+
+// crookedDrawing and straightDrawing are test_69h4's diagram before and
+// after straightening: a short top edge, a tee one column off its
+// connector, and a ragged right wall.
+const crookedDrawing = "┌──────────┐\n" +
+	"│ Editor     │\n" +
+	"│ (QML)      │\n" +
+	"└────┬───────┘\n" +
+	"      │\n" +
+	"┌─────▼──────┐        ┌───────────┐\n" +
+	"│ Serializer │ ─────► │ Markdown    │\n" +
+	"│ blocks     │        │ file       │\n" +
+	"└────────────┘        └───────────┘"
+
+const straightDrawing = "┌────────────┐\n" +
+	"│ Editor     │\n" +
+	"│ (QML)      │\n" +
+	"└─────┬──────┘\n" +
+	"      │\n" +
+	"┌─────▼──────┐        ┌───────────┐\n" +
+	"│ Serializer │ ─────► │ Markdown  │\n" +
+	"│ blocks     │        │ file      │\n" +
+	"└────────────┘        └───────────┘"
+
+// A crooked drawing pasted into a code block is straightened and the block
+// tagged `diagram`, as opening a note holding it would do, and one undo
+// takes back the paste and the straightening together. Ordinary code is
+// pasted as it is.
+func TestPasteIntoCodeBlockStraightensDiagram(t *testing.T) {
+	d := newTestDoc("```\n```")
+	d.SetCaret(d.Blocks[0].ID, 0)
+	d.Paste(crookedDrawing, false)
+	if d.Blocks[0].Text != straightDrawing || d.Blocks[0].Lang != "diagram" {
+		t.Fatalf("language %q, text:\n%s", d.Blocks[0].Lang, d.Blocks[0].Text)
+	}
+	if d.Caret.Off != len([]rune(straightDrawing)) {
+		t.Errorf("caret at %d, want the end of the paste", d.Caret.Off)
+	}
+	d.Undo()
+	if d.Blocks[0].Text != "" || d.Blocks[0].Lang != "" {
+		t.Errorf("after one undo: language %q, text %q", d.Blocks[0].Lang, d.Blocks[0].Text)
+	}
+
+	program := "def f(x):\n    return x + 1\n\nprint(f(2))"
+	code := newTestDoc("```\n```")
+	code.SetCaret(code.Blocks[0].ID, 0)
+	code.Paste(program, false)
+	if code.Blocks[0].Text != program || code.Blocks[0].Lang != "" {
+		t.Errorf("ordinary code: language %q, text %q", code.Blocks[0].Lang, code.Blocks[0].Text)
+	}
+
+	// Typing the same text is not a paste and changes nothing on its way in.
+	typed := newTestDoc("```\n```")
+	typed.SetCaret(typed.Blocks[0].ID, 0)
+	typed.InsertText(crookedDrawing)
+	if typed.Blocks[0].Text != crookedDrawing || typed.Blocks[0].Lang != "" {
+		t.Errorf("typing: language %q, text:\n%s", typed.Blocks[0].Lang, typed.Blocks[0].Text)
+	}
+}
+
+// Markdown pasted into a paragraph goes through the same step as a note
+// being opened: an untagged diagram fence arrives tagged and straightened,
+// as one undo step. Lines opening a fence become blocks even with no blank
+// line among them (tst_integration.qml's test_zx0i).
+func TestPastedFenceBecomesItsBlock(t *testing.T) {
+	d := newTestDoc("")
+	d.SetCaret(d.Blocks[0].ID, 0)
+	d.Paste("```\n"+crookedDrawing+"\n```", false)
+	if len(d.Blocks) != 1 || d.Blocks[0].Kind != Code || d.Blocks[0].Lang != "diagram" ||
+		d.Blocks[0].Text != straightDrawing {
+		t.Fatalf("pasted: %s\n%s", texts(d), d.Blocks[0].Text)
+	}
+	d.Undo()
+	if len(d.Blocks) != 1 || d.Blocks[0].Kind != Paragraph || d.Blocks[0].Text != "" {
+		t.Errorf("after one undo: %s", texts(d))
+	}
+
+	fence := "```mermaid\nflowchart LR\n" +
+		"    A([Start]) --> B{Vault set?}\n" +
+		"    B -- yes --> C[Open collection]\n```"
+	m := newTestDoc("")
+	m.SetCaret(m.Blocks[0].ID, 0)
+	m.Paste(fence, false)
+	if len(m.Blocks) != 1 || m.Blocks[0].Kind != Code || m.Blocks[0].Lang != "mermaid" ||
+		!strings.HasPrefix(m.Blocks[0].Text, "flowchart LR") || strings.Contains(m.Blocks[0].Text, "```") {
+		t.Errorf("the paste should land as the mermaid fence it was: %s", texts(m))
+	}
+
+	// Inside a code block the same paste is text, markers included.
+	c := newTestDoc("```\n```")
+	c.SetCaret(c.Blocks[0].ID, 0)
+	c.Paste(fence, false)
+	if len(c.Blocks) != 1 || !strings.Contains(c.Blocks[0].Text, "```mermaid") {
+		t.Errorf("a fence pasted into a listing keeps its markers: %s", texts(c))
+	}
+
+	// Text after the caret follows a pasted fence as its own paragraph
+	// rather than running on inside the code.
+	tail := newTestDoc("before after")
+	tail.SetCaret(tail.Blocks[0].ID, 7)
+	tail.Paste("```\nx := 1\n```", false)
+	if got := texts(tail); got != "Paragraph:before  | Code:x := 1 | Paragraph:after" {
+		t.Errorf("paste in the middle of a paragraph: %s", got)
+	}
+
+	// A plain-text paste keeps its lines as text.
+	p := newTestDoc("")
+	p.SetCaret(p.Blocks[0].ID, 0)
+	p.Paste("```\nx := 1\n```", true)
+	if len(p.Blocks) != 1 || p.Blocks[0].Kind != Paragraph {
+		t.Errorf("a plain paste became blocks: %s", texts(p))
+	}
+}
+
+// Choosing "Text diagram" for a code block that holds a crooked drawing
+// straightens it; choosing a programming language leaves the text alone
+// (test_69h5).
+func TestDeclaringATextDiagramStraightensIt(t *testing.T) {
+	crooked := "┌──────────┐\n│ ab    │\n│ cd    │\n└───────┘"
+	straight := "┌───────┐\n│ ab    │\n│ cd    │\n└───────┘"
+	d := newTestDoc("```python\n" + crooked + "\n```")
+	id := d.Blocks[0].ID
+	d.SetCodeLanguage(id, "diagram")
+	if d.Blocks[0].Lang != "diagram" || d.Blocks[0].Text != straight {
+		t.Fatalf("language %q, text:\n%s", d.Blocks[0].Lang, d.Blocks[0].Text)
+	}
+	d.Undo()
+	if d.Blocks[0].Lang != "python" || d.Blocks[0].Text != crooked {
+		t.Errorf("one undo should bring back the language and the text: %q\n%s", d.Blocks[0].Lang, d.Blocks[0].Text)
+	}
+
+	d.Blocks[0].Lang = ""
+	d.SetCodeLanguage(id, "python")
+	if d.Blocks[0].Lang != "python" || d.Blocks[0].Text != crooked {
+		t.Errorf("choosing a code language rewrote the body: %q\n%s", d.Blocks[0].Lang, d.Blocks[0].Text)
+	}
+}
+
+// "Plain code" and a rendered diagram's "As code" both tag a block `plain`,
+// and a `plain` block is never tagged as a diagram again: not when the note
+// is opened, and not when text is pasted into it.
+func TestAsCodeOptsOut(t *testing.T) {
+	d := newTestDoc("```mermaid\nflowchart LR\n  A --> B\n```")
+	id := d.Blocks[0].ID
+	d.AsCode(id)
+	if d.Blocks[0].Lang != "plain" || d.Blocks[0].Kind != Code {
+		t.Fatalf("As code: %+v", d.Blocks[0])
+	}
+	d.Undo()
+	if d.Blocks[0].Lang != "mermaid" {
+		t.Errorf("one undo should bring back the diagram: %q", d.Blocks[0].Lang)
+	}
+
+	p := newTestDoc("```\n" + diagramBody + "\n```")
+	if p.Blocks[0].Lang != "diagram" {
+		t.Fatalf("not tagged on open: %q", p.Blocks[0].Lang)
+	}
+	p.SetCodeLanguage(p.Blocks[0].ID, "plain")
+	if p.Blocks[0].Lang != "plain" {
+		t.Fatalf("Plain code: %q", p.Blocks[0].Lang)
+	}
+	// Choosing plain text instead tags it again at once, as in the Qt app.
+	p.SetCodeLanguage(p.Blocks[0].ID, "")
+	if p.Blocks[0].Lang != "diagram" {
+		t.Errorf("plain text on a diagram: %q", p.Blocks[0].Lang)
+	}
+	p.SetCodeLanguage(p.Blocks[0].ID, "plain")
+
+	reopened := ParseMarkdown(Serialize(p.Blocks))
+	if reopened[0].Lang != "plain" {
+		t.Errorf("reopened as %q", reopened[0].Lang)
+	}
+	p.SetCaret(p.Blocks[0].ID, 0)
+	p.Paste(crookedDrawing+"\n", false)
+	if p.Blocks[0].Lang != "plain" || !strings.HasPrefix(p.Blocks[0].Text, crookedDrawing) {
+		t.Errorf("a paste into a plain block retagged or straightened it: %q\n%s", p.Blocks[0].Lang, p.Blocks[0].Text)
+	}
+}

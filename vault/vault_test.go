@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/kvit-s/kvit-notes/editor"
 )
 
 func write(t *testing.T, root, rel, text string) {
@@ -192,6 +194,72 @@ func TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes(t *testing.T) {
 	leftovers, _ := filepath.Glob(filepath.Join(root, ".*.md.*"))
 	if len(leftovers) != 0 {
 		t.Errorf("temporary files left behind: %q", leftovers)
+	}
+}
+
+// A note holding an untagged box diagram opens with the fence tagged
+// `diagram` and the drawing straightened (textdiagram.Ingest, which the
+// editor's parser runs). Saving it therefore changes the file, so the first
+// save keeps the note as it was in "<note>.md.bak", and later saves leave
+// that file alone, as the Qt app's one-time backup does.
+func TestOpeningADiagramRetagsItAndTheFirstSaveKeepsABak(t *testing.T) {
+	crooked := "Before the drawing.\n\n```\n" +
+		"┌──────────┐\n" +
+		"│ Editor     │\n" +
+		"└────┬───────┘\n" +
+		"      │\n" +
+		"┌─────▼──────┐\n" +
+		"│ Serializer │\n" +
+		"└────────────┘\n" +
+		"```\n"
+	root := t.TempDir()
+	write(t, root, "Drawing.md", crooked)
+	v, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	e := v.Find("Drawing.md")
+	p, err := v.Load("Drawing.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocks := editor.ParseMarkdown(p.Body)
+	if len(blocks) != 2 || blocks[1].Kind != editor.Code || blocks[1].Lang != "diagram" {
+		t.Fatalf("the fence did not open as a diagram: %+v", blocks)
+	}
+	if !strings.HasPrefix(blocks[1].Text, "┌────────────┐\n│ Editor     │\n└─────┬──────┘") {
+		t.Errorf("the drawing was not straightened:\n%s", blocks[1].Text)
+	}
+
+	// The window saves what the editor holds.
+	p.Body = editor.Serialize(blocks)
+	if err := v.Save(e, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "Drawing.md"); !strings.Contains(got, "```diagram\n┌────────────┐") {
+		t.Errorf("the note was saved as:\n%s", got)
+	}
+	if got := read(t, root, "Drawing.md.bak"); got != crooked {
+		t.Errorf("Drawing.md.bak should hold the note as it was:\n%s", got)
+	}
+
+	blocks[0].Text = "Edited before the drawing."
+	p.Body = editor.Serialize(blocks)
+	if err := v.Save(e, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "Drawing.md.bak"); got != crooked {
+		t.Errorf("a second save changed Drawing.md.bak:\n%s", got)
+	}
+
+	// Opened again, the note is already in the editor's form.
+	again, err := v.Load("Drawing.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.reshapes {
+		t.Errorf("the saved note still changes when it is opened")
 	}
 }
 

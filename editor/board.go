@@ -84,6 +84,7 @@ type cardBox struct {
 	box        geom.Rect // the done box
 	title      *text.Layout
 	desc       *text.Layout
+	descProj   projection // the description as drawn, for its typeset math
 	chips      []chip
 }
 
@@ -223,7 +224,9 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 					h = chipY - cy + e.px(boardChipH+4)
 				}
 				if card.Description != "" {
-					box.desc = e.ui.Fonts.Layout([]text.Span{{Text: card.Description, Style: small}}, text.Options{MaxWidth: max(1, inner)})
+					// Drawn as a prose block draws its text: markers hidden,
+					// math typeset (features.md 1.2.12).
+					box.desc, box.descProj = e.inlineText(card.Description, small, inner)
 					_, dh := box.desc.Size()
 					h += dh + e.px(4)
 				}
@@ -386,6 +389,7 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 		if c.desc != nil {
 			_, dh := c.desc.Size()
 			c.desc.Draw(gc, c.r.X+e.px(boardCardPad), c.r.Bottom()-e.px(boardCardPad)-dh)
+			drawInlineMath(gc, c.desc, c.descProj, c.r.X+e.px(boardCardPad), c.r.Bottom()-e.px(boardCardPad)-dh)
 		}
 	}
 	if e.cardDrag != nil && e.cardDrag.block == b.ID {
@@ -521,33 +525,8 @@ func (e *Editor) cardItems(id int64, col, index int) []kvitui.MenuItem {
 	}
 }
 
-// editCard edits a card's line in place: its title with its "#labels" and
-// "📅 date" as the file holds them. An emptied new card is taken away.
-func (e *Editor) editCard(i, col, index int) {
-	if i < 0 {
-		return
-	}
-	b := &e.Doc.Blocks[i]
-	id := b.ID
-	board := kanban.Parse(b.Text)
-	if col >= len(board.Columns) || index >= len(board.Columns[col].Cards) {
-		return
-	}
-	card := board.Columns[col].Cards[index]
-	var at geom.Rect
-	for _, c := range e.board(i).cards {
-		if c.col == col && c.index == index {
-			at = c.r
-		}
-	}
-	e.editBoardText(i, at, "Card", card.Line(), func(text string) string {
-		cur := e.Doc.Block(id).Text
-		if strings.TrimSpace(text) == "" && card.Title == "" && len(card.Labels) == 0 {
-			return kanban.RemoveCard(cur, col, index)
-		}
-		return kanban.SetCardLine(cur, col, index, text, time.Now().Format(time.DateOnly))
-	})
-}
+// editCard edits a card's line in place (cardedit.go).
+func (e *Editor) editCard(i, col, index int) { e.editCardField(i, col, index, cardLine) }
 
 // editBoardText opens a field over part of a board, and on Return writes
 // what change makes of the text typed; Escape leaves the board as it was.
@@ -709,7 +688,7 @@ func (e *Editor) dropCard() {
 		return
 	}
 	if !cd.active {
-		e.editCard(i, cd.col, cd.index)
+		e.editCardField(i, cd.col, cd.index, e.cardFieldAt(i, cd.col, cd.index, cd.start))
 		return
 	}
 	if cd.toCol < 0 {

@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"github.com/kvit-s/kvit-notes/textdiagram"
 )
 
 // Kind is what a block is: a paragraph, a heading, a list item and so on.
@@ -39,6 +41,9 @@ const (
 	Callout
 	// Table is a pipe table, kept as written and drawn as a grid.
 	Table
+	// Math is a display equation, a "$$ … $$" fence: its text is the TeX
+	// between the fences, typeset away from the caret (mathblock.go).
+	Math
 )
 
 var kindNames = [...]string{
@@ -58,6 +63,7 @@ var kindNames = [...]string{
 	Media:     "Media",
 	Callout:   "Callout",
 	Table:     "Table",
+	Math:      "Math",
 }
 
 func (k Kind) String() string { return kindNames[k] }
@@ -69,12 +75,13 @@ func (k Kind) IsList() bool { return k == Bullet || k == Numbered || k == Todo }
 
 // HasInline reports whether the block's text is parsed as inline Markdown.
 func (k Kind) HasInline() bool {
-	return k != Code && k != Raw && k != Divider && k != Image && k != Media && k != Table
+	return k != Code && k != Raw && k != Divider && k != Image && k != Media && k != Table && k != Math
 }
 
 // isSource reports whether the block is edited as its Markdown in a
-// monospace panel: code, what the editor does not model, and a table.
-func (k Kind) isSource() bool { return k == Code || k == Raw || k == Table }
+// monospace panel: code, what the editor does not model, a table, and an
+// equation's TeX.
+func (k Kind) isSource() bool { return k == Code || k == Raw || k == Table || k == Math }
 
 // IsText reports whether the block is edited as text at all.
 func (k Kind) IsText() bool { return k != Divider }
@@ -234,21 +241,23 @@ func ParseMarkdown(src string) []Block {
 			b := NewBlock(Code, strings.Join(lines[i+1:min(j, len(lines))], "\n"))
 			b.Lang = m[2]
 			b.Attrs = attrs
+			// A fence arriving from outside the note (a note opened,
+			// Markdown pasted) holding a character diagram is tagged and
+			// straightened, as in the Qt app's parse. Its whole info
+			// string decides, as there, though only its first word is kept.
+			info := strings.TrimSpace(line[len(fence):])
+			lang, text := textdiagram.Ingest(info, b.Text)
+			if lang != info {
+				b.Lang = lang
+			}
+			b.Text = text
 			out = append(out, b)
 			i = j + 1
 			continue
 		}
-		if strings.HasPrefix(line, "$$") {
-			j := i + 1
-			if strings.TrimSpace(line) == "$$" {
-				for j < len(lines) && strings.TrimSpace(lines[j]) != "$$" {
-					j++
-				}
-				j++
-			}
-			j = min(j, len(lines))
-			out = append(out, NewBlock(Raw, strings.Join(lines[i:j], "\n")))
-			i = j
+		if b, next, ok := parseMathFence(lines, i, line, attrs); ok {
+			out = append(out, b)
+			i = next
 			continue
 		}
 		if strings.HasPrefix(line, "|") {
@@ -390,7 +399,7 @@ func BlockMarkdown(b Block, number int) string {
 	if b.Attrs == "" {
 		return md
 	}
-	if b.Kind == Code || b.Kind == Table {
+	if b.Kind == Code || b.Kind == Table || b.Kind == Math {
 		first, rest, found := strings.Cut(md, "\n")
 		if !found {
 			return attachTag(first, b.Attrs)
@@ -442,6 +451,8 @@ func blockMarkdown(b Block, number int) string {
 		return calloutMarkdown(b)
 	case Code:
 		return "```" + b.Lang + "\n" + b.Text + "\n```"
+	case Math:
+		return "$$\n" + b.Text + "\n$$"
 	case Divider:
 		return "---"
 	}

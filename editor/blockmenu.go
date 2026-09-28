@@ -196,7 +196,7 @@ func (e *Editor) openTextMenu(at geom.Rect) {
 		{Text: "Copy", Disabled: !has, OnSelect: func() { e.copyMarkdown(d.SelectedMarkdown()) }},
 		{Text: "Paste", Disabled: d.ReadOnly || !unison.ClipboardHasText(), OnSelect: act(e.pasteClipboard)},
 		{Text: "Paste as plain text", Disabled: d.ReadOnly || !unison.ClipboardHasText(), OnSelect: act(func() {
-			d.InsertText(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"))
+			d.Paste(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"), true)
 		})},
 		{Separator: true},
 		{Text: "Formatting", Items: []kvitui.MenuItem{

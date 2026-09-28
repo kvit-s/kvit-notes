@@ -7,6 +7,10 @@
 //	kvit-notes note.md                     edit one note file on its own
 //	kvit-notes --scenario all --out DIR    run the scripted scenarios headlessly
 //	kvit-notes --check 12s                 drive the editor in a real window, then close
+//	kvit-notes --tray-check 20s [folder]   show the tray icon and a notification, print
+//	                                       what the tray reports, then quit
+//	kvit-notes --math-selftest             find the math library, draw one formula, say how it went
+//	kvit-notes --version                   print the version
 //	kvit-notes --help                      every option
 package main
 
@@ -19,6 +23,7 @@ import (
 
 	"github.com/kvit-s/kvit-notes/app"
 	"github.com/kvit-s/kvit-notes/editor"
+	"github.com/kvit-s/kvit-notes/mathtex"
 	"github.com/kvit-s/kvit-notes/vault"
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/toolbox/v2/geom"
@@ -32,8 +37,28 @@ func main() {
 	theme := flag.String("theme", "", "light, dark, sepia or highContrast; the desktop's choice unless set")
 	check := flag.Duration("check", 0, "open a window, drive the editor through a scripted check, print the result, and close after this long")
 	closeAfter := flag.Duration("close-after", 0, "close the window after this long, printing when it first drew")
+	trayCheck := flag.Duration("tray-check", 0, "open the vault with the tray icon, post a notification, print what the tray reports, and quit after this long")
 	bench := flag.String("bench", "", "time opening, scrolling and typing in 1,237 blocks of Kvit's documentation, read from this `directory` (Kvit's Qt repository), and exit")
+	mathSelftest := flag.Bool("math-selftest", false, "find the math library and its resources, draw one formula, print where they were found and whether it drew, and exit")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	usage := flag.Usage
+	flag.Usage = func() {
+		useParentConsole()
+		usage()
+	}
 	flag.Parse()
+
+	// These two print and exit before any window starts; a Windows release
+	// build prints into the terminal it was started from (console_windows.go).
+	if *showVersion {
+		useParentConsole()
+		fmt.Println("kvit-notes", appVersion())
+		return
+	}
+	if *mathSelftest {
+		useParentConsole()
+		os.Exit(mathtex.SelfTest(os.Stdout))
+	}
 
 	if *bench != "" {
 		if err := runBench(*bench); err != nil {
@@ -61,7 +86,7 @@ func main() {
 	}
 
 	path := flag.Arg(0)
-	if *check == 0 && *closeAfter == 0 {
+	if *check == 0 && *closeAfter == 0 && *trayCheck == 0 {
 		// A copy already running opens what this one was asked to.
 		target := ""
 		if path != "" {
@@ -73,7 +98,7 @@ func main() {
 	}
 	if *check == 0 {
 		if root, ok := vaultRoot(path); ok {
-			runVault(root, *theme, *closeAfter)
+			runVault(root, *theme, *closeAfter, *trayCheck)
 			return
 		}
 	}
@@ -107,6 +132,9 @@ func main() {
 	app.OpenFile = openFileWindow
 	unison.Start(
 		unison.ThemeChangedCallback(ui.Appearance.Refresh),
+		unison.AllowQuitCallback(app.AllowQuit),
+		unison.QuittingCallback(app.Quitting),
+		unison.OpenFilesCallback(func(paths []string) { openPaths(ui, paths) }),
 		unison.StartupFinishedCallback(func() {
 			n, err := newNoteWindow(ui, doc, path)
 			if err != nil {
@@ -116,6 +144,7 @@ func main() {
 			n.page = page
 			if *check == 0 && *closeAfter == 0 {
 				serveLaterCopies(ui)
+				startTray()
 			}
 			if *check > 0 {
 				n.win.SetTitle(checkTitle)
@@ -164,8 +193,9 @@ func vaultRoot(arg string) (string, bool) {
 }
 
 // runVault opens a vault in a window and runs until the last window
-// closes, or for closeAfter when that is set.
-func runVault(root, theme string, closeAfter time.Duration) {
+// closes, or for closeAfter when that is set; trayCheck runs the tray
+// check for that long instead.
+func runVault(root, theme string, closeAfter, trayCheck time.Duration) {
 	started := time.Now()
 	ui, err := kvitui.New(kvitui.Options{SettingsPath: settingsPath()})
 	if err != nil {
@@ -178,6 +208,9 @@ func runVault(root, theme string, closeAfter time.Duration) {
 	app.OpenFile = openFileWindow
 	unison.Start(
 		unison.ThemeChangedCallback(ui.Appearance.Refresh),
+		unison.AllowQuitCallback(app.AllowQuit),
+		unison.QuittingCallback(app.Quitting),
+		unison.OpenFilesCallback(func(paths []string) { openPaths(ui, paths) }),
 		unison.StartupFinishedCallback(func() {
 			w, err := app.OpenVault(ui, root)
 			if err != nil {
@@ -185,8 +218,14 @@ func runVault(root, theme string, closeAfter time.Duration) {
 				os.Exit(1)
 			}
 			w.Win.ToFront()
-			if closeAfter == 0 {
+			if closeAfter == 0 && trayCheck == 0 {
 				serveLaterCopies(ui)
+			}
+			if closeAfter == 0 {
+				startTray()
+			}
+			if trayCheck > 0 {
+				runTrayCheck(trayCheck)
 			}
 			if closeAfter > 0 {
 				draw := w.Editor.DrawCallback
@@ -204,29 +243,51 @@ func runVault(root, theme string, closeAfter time.Duration) {
 }
 
 // serveLaterCopies listens for copies started after this one and opens
-// what each hands over: a folder as a vault, a file on its own, and with
-// nothing, the app brought forward.
+// what each hands over, as openPath does.
 func serveLaterCopies(ui *kvitui.UI) {
 	_, err := listen(socketPath(), func(req instanceRequest) {
 		done := make(chan struct{})
 		unison.InvokeTask(func() {
 			defer close(done)
-			switch info, err := os.Stat(req.Open); {
-			case req.Open == "" || err != nil:
-				if ws := unison.Windows(); !app.RaiseAny() && len(ws) > 0 {
-					ws[0].ToFront()
-				}
-			case info.IsDir():
-				if err := app.OpenOrRaise(ui, req.Open); err != nil {
-					fmt.Fprintf(os.Stderr, "kvit-notes: cannot open %s: %v\n", req.Open, err)
-				}
-			default:
-				openFileWindow(ui, req.Open)
-			}
+			openPath(ui, req.Open)
 		})
 		<-done
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "kvit-notes: later copies will open their own windows:", err)
+	}
+}
+
+// openPath opens what the running app is asked to open, by a copy started
+// later with a path or by the desktop: a folder as a vault, or the window
+// it is already open in; a file on its own; and with nothing, or with a
+// path that is not there, the app brought forward.
+func openPath(ui *kvitui.UI, path string) {
+	switch info, err := os.Stat(path); {
+	case path == "" || err != nil:
+		if ws := unison.Windows(); !app.RaiseAny() && len(ws) > 0 {
+			ws[0].ToFront()
+		}
+	case info.IsDir():
+		if err := app.OpenOrRaise(ui, path); err != nil {
+			fmt.Fprintf(os.Stderr, "kvit-notes: cannot open %s: %v\n", path, err)
+		}
+	default:
+		openFileWindow(ui, path)
+	}
+}
+
+// openPaths is unison's OpenFilesCallback, which macOS calls with the files
+// and folders Finder or the Dock asks the app to open: a double-click on a
+// Markdown file, which the bundle's Info.plist declares the app opens, or
+// something dropped on the Dock icon. macOS starts no second copy for them;
+// when the app is not running, it starts it without a path and asks
+// afterwards, so the vault opened last opens as well. Each path goes where
+// one handed over by a later copy goes. Only macOS makes this call; it is
+// compiled here but has not run on a Mac. TestPathsOpenAsOnTheCommandLine
+// runs the routing.
+func openPaths(ui *kvitui.UI, paths []string) {
+	for _, p := range paths {
+		openPath(ui, p)
 	}
 }

@@ -1,2 +1,6 @@
 build/
 .clauding
+# Release artifacts (packaging/build-all.sh) and the build tools the packaging
+# scripts download (appimagetool, the AppImage runtime).
+dist/
+packaging/.tools/

@@ -42,6 +42,9 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 		if e.boardShows(i) && e.boardPress(i, where, true) {
 			return true
 		}
+		if e.diagramRightClick(i, where) {
+			return true
+		}
 		at := geom.NewRect(where.X, where.Y, 0, 0)
 		if where.X >= e.bodyLeft() && e.Doc.Blocks[i].Kind.IsText() {
 			if pos, ok := e.posAtPoint(where); ok && !e.inSelection(pos) {
@@ -64,6 +67,10 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 	e.closeMenu()
 	defer e.changed()
 	d := e.Doc
+	if i, part := e.partAt(where); part >= partDiagramFit {
+		e.diagramClick(i, part, where, clickCount)
+		return true
+	}
 	if i, part := e.partAt(where); part != partNone && !(d.ReadOnly && part != partHandle && part != partMenu && part != partCopy && part != partTocEntry && part != partEmbedOpen && part != partQueryRow) {
 		b := &d.Blocks[i]
 		switch part {
@@ -175,6 +182,9 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.diagPan != nil:
+		e.diagramDrag(where)
+		return true
 	case e.cardDrag != nil:
 		e.dragCard(where)
 		e.MarkForRedraw()
@@ -211,6 +221,8 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.diagPan != nil:
+		e.diagramRelease(where)
 	case e.cardDrag != nil:
 		e.dropCard()
 	case e.drag != nil:
@@ -297,6 +309,9 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 		return -1, partNone
 	}
 	b := &e.Doc.Blocks[i]
+	if p := e.diagramPartAt(i, where); p != partNone {
+		return i, p
+	}
 	switch {
 	case b.Kind == Todo && where.In(e.checkBox(i)):
 		return i, partCheck
@@ -358,6 +373,12 @@ func (e *Editor) posAtPoint(p geom.Point) (Pos, bool) {
 	}
 	if best < 0 {
 		return Pos{}, false
+	}
+	if e.mathReads(best) {
+		// A press on a typeset equation opens its TeX with the caret at
+		// the end (MathBlock.qml, focusAtEnd).
+		b := &d.Blocks[best]
+		return Pos{b.ID, len(runes(b.Text))}, true
 	}
 	l := e.layout(best)
 	o := e.textOrigin(best)

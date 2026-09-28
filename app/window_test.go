@@ -329,6 +329,25 @@ func TestAnUntitledNoteIsNamedAfterItsFirstBlock(t *testing.T) {
 	}
 }
 
+// A note that opens with a display equation keeps its automatic name, as the
+// Qt app's titleBearing (qml/NoteAutoTitle.qml) leaves a note that opens with
+// code, a table or a picture.
+func TestAnUntitledNoteOpeningWithAnEquationKeepsItsName(t *testing.T) {
+	s := openVault(t, demo)
+	s.screen.KeyPress(unison.KeyN, mod.Control)
+	s.screen.Type("/math")
+	s.screen.KeyPress(unison.KeyReturn, mod.None)
+	s.screen.Type("x^2")
+	if k := s.w.Editor.Doc.Blocks[0].Kind; k != editor.Math {
+		t.Fatalf("the / menu's Math should make the first block an equation, it is %v", k)
+	}
+	s.screen.KeyPress(unison.KeyReturn, mod.Control)
+	s.screen.Type("milk")
+	if s.openTitle() != "Untitled" {
+		t.Errorf("a note opening with an equation should keep its name, it is %q", s.openTitle())
+	}
+}
+
 func TestPinFromTheNotesMenu(t *testing.T) {
 	s := openVault(t, demo)
 	i := slices.Index(s.listed(), "Reading list")

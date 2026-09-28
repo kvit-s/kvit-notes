@@ -32,7 +32,7 @@ const (
 	sWiki
 	sSup   // ^sup^, content without spaces (Pandoc's rule)
 	sSub   // ~sub~, likewise
-	sMath  // $x^2$, drawn as it is written for now
+	sMath  // $x^2$, typeset away from the caret (mathinline.go)
 	sColor // <span style="color:VALUE">…</span>
 )
 
@@ -415,6 +415,7 @@ const (
 	fCodeNumber
 	fMatch        // a find bar match
 	fMatchCurrent // the find bar's current match
+	fMathBox      // a typeset $…$ span, laid out as its formula's box (mathinline.go)
 )
 
 func (k spanKind) flags() runeFlags {
@@ -456,6 +457,9 @@ type projection struct {
 	colors []string
 	D2S    []int // drawn rune -> source offset
 	S2D    []int // source offset (0..len) -> drawn offset
+	// boxes are the typeset $…$ spans by the drawn offset of the one
+	// character each is drawn as, which stands for the whole span.
+	boxes map[int]*inlineBox
 }
 
 // revealed reports whether a span shows its markers for this caret and
@@ -519,6 +523,9 @@ func project(src []rune, spans []span, reveal func(span) bool) projection {
 func (p *projection) afterPrev(d int) int {
 	if d <= 0 {
 		return 0
+	}
+	if bx := p.boxes[d-1]; bx != nil {
+		return bx.span.End
 	}
 	return p.D2S[d-1] + 1
 }

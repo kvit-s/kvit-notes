@@ -7,6 +7,7 @@ package editor
 
 import (
 	"github.com/kvit-s/kvit-notes/highlight"
+	"github.com/kvit-s/kvit-notes/mathtex"
 	"math"
 	"slices"
 
@@ -74,7 +75,10 @@ func (e *Editor) styleFor(f runeFlags, base text.Style) text.Style {
 		st.Color = colour(t.Link)
 		st.Underline = true
 	}
-	if f&fMath != 0 {
+	if f&fMath != 0 && !mathtex.Available() {
+		// Without the math library a formula's TeX is drawn in italics. With
+		// it, the TeX shows only while it is edited, upright as Kvit shows
+		// it; the rest of the time the formula is typeset (mathinline.go).
 		st.Italic = true
 	}
 	switch {
@@ -123,11 +127,14 @@ func (e *Editor) runs(proj projection, fl []runeFlags, base text.Style) []text.S
 	}
 	var out []text.Span
 	for i := 0; i < len(fl); {
-		j := i
-		for j < len(fl) && fl[j] == fl[i] && colorAt(j) == colorAt(i) {
+		j := i + 1
+		for j < len(fl) && fl[j] == fl[i] && colorAt(j) == colorAt(i) && fl[i]&fMathBox == 0 {
 			j++
 		}
 		st := e.styleFor(fl[i], base)
+		if fl[i]&fMathBox != 0 {
+			st = mathBoxStyle(proj, i, st)
+		}
 		if c, ok := parseColor(colorAt(i)); ok && fl[i]&(fMarker|fSelected|fLink|fBlank) == 0 {
 			st.Color = c
 		}
@@ -166,7 +173,7 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 		a, c := selA, selB
 		reveal = func(sp span) bool { return revealed(sp, caret, a, c) }
 	}
-	proj := project(src, spans, reveal)
+	proj := e.typesetInline(project(src, spans, reveal), e.blockStyle(b))
 	fl := proj.flags
 	if b.Kind == Code && b.Lang != "" {
 		// Syntax colours, a class to a run (codelanguages.cpp).
