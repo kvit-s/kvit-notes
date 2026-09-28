@@ -1127,6 +1127,54 @@ func TestReadOnlyAnnounced(t *testing.T) {
 	}
 }
 
+// features.md 5.1: a copy carries the internal type and pastes back as its
+// text, never through the HTML converter.
+func TestInternalFormatPastesAsText(t *testing.T) {
+	s := openVault(t, notes{"A.md": "text\n"})
+	const md = "```go\nfunc main() {}\n```\n"
+	s.do(func() { s.w.copyRich(md) })
+	s.do(func() {
+		if !unison.ClipboardHasDataType(internalType) {
+			t.Error("the copy should carry the internal type")
+		}
+		if got := unison.ClipboardGetText(); got != md {
+			t.Errorf("the text: %q", got)
+		}
+		if _, ok := pasteRich(); ok {
+			t.Error("the internal copy should not go through the converter")
+		}
+	})
+}
+
+// features.md 8.3: F2 renames a note in its row; Enter keeps it, Escape
+// drops it.
+func TestRenameInRow(t *testing.T) {
+	s := openVault(t, notes{"Old.md": "text\n"})
+	s.do(func() { s.w.list.choose(0) })
+	s.do(func() { s.w.list.RequestFocus() })
+	s.screen.KeyPress(unison.KeyF2, mod.None)
+	var popups int
+	s.do(func() { popups = len(s.w.Win.Popups()) })
+	if popups != 1 {
+		t.Fatalf("%d popups, want the rename field", popups)
+	}
+	s.screen.Type("New")
+	s.screen.KeyPress(unison.KeyReturn, mod.None)
+	if got := s.listed(); !slices.Equal(got, []string{"New"}) {
+		t.Fatalf("renamed list: %q", got)
+	}
+	if s.openTitle() != "New" {
+		t.Errorf("open note follows the rename: %q", s.openTitle())
+	}
+	// Escape leaves the name.
+	s.screen.KeyPress(unison.KeyF2, mod.None)
+	s.screen.Type("XXX")
+	s.screen.KeyPress(unison.KeyEscape, mod.None)
+	if got := s.listed(); !slices.Equal(got, []string{"New"}) {
+		t.Errorf("escaped list: %q", got)
+	}
+}
+
 // features.md 3.7 and 9.5: the block menu exports through the export dialog,
 // scoped to the blocks; the dialog opens without a scope otherwise.
 func TestBlockExportOpensScopedDialog(t *testing.T) {
@@ -1147,4 +1195,20 @@ func TestBlockExportOpensScopedDialog(t *testing.T) {
 		t.Fatalf("%d popups, want one more for the export dialog", got)
 	}
 	s.screen.KeyPress(unison.KeyEscape, mod.None)
+}
+
+// features.md 10.3: the typography section lists the installed fonts.
+func TestInstalledFontsListed(t *testing.T) {
+	options := installedFontOptions()
+	if len(options) == 0 || options[0].Value != "" {
+		t.Fatalf("a placeholder first: %+v", options[:min(1, len(options))])
+	}
+	for _, name := range unison.FontFamilies() {
+		if !slices.ContainsFunc(options[1:], func(o kvitui.Option) bool { return o.Value == name }) {
+			t.Fatalf("%q missing from %+v", name, options)
+		}
+	}
+	if len(options)-1 != len(unison.FontFamilies()) {
+		t.Errorf("%d options for %d families", len(options)-1, len(unison.FontFamilies()))
+	}
 }

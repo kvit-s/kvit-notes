@@ -157,6 +157,16 @@ func appearanceSettings(ui *kvitui.UI) *unison.Panel {
 		settingRow(ui, "Motion", motion))
 }
 
+// installedFontOptions are the typography section's installed-fonts list:
+// a placeholder choosing nothing, then every family the system reports.
+func installedFontOptions() []kvitui.Option {
+	options := []kvitui.Option{{Value: "", Label: "Choose a font for the field above"}}
+	for _, name := range unison.FontFamilies() {
+		options = append(options, kvitui.Option{Value: name, Label: name})
+	}
+	return options
+}
+
 func typographySettings(ui *kvitui.UI, relayout func()) *unison.Panel {
 	ty := ui.Typography
 	family := kvitui.NewField(ui)
@@ -164,6 +174,14 @@ func typographySettings(ui *kvitui.UI, relayout func()) *unison.Panel {
 	family.Placeholder = "System default"
 	family.SetText(ty.FontFamily())
 	family.OnChange = func(s string) { ty.SetFontFamily(strings.TrimSpace(s)) }
+
+	installed := kvitui.NewSelect(ui, "Installed fonts", installedFontOptions()...)
+	installed.OnChoose = func(name string) {
+		if name != "" {
+			ty.SetFontFamily(name)
+			family.SetText(name)
+		}
+	}
 	size := kvitui.NewStepper(ui, "Font size", tokens.MinBaseSize, tokens.MaxBaseSize)
 	size.Unit = "px"
 	size.Value = ty.BaseSize()
@@ -221,7 +239,7 @@ func typographySettings(ui *kvitui.UI, relayout func()) *unison.Panel {
 		relayout()
 	}
 	return kvitui.Column(ui, kvitui.SizeSpace,
-		settingRow(ui, "Editor font", family),
+		settingRow(ui, "Editor font", family, installed),
 		settingRow(ui, "Font size", size),
 		settingRow(ui, "Line height", line),
 		settingRow(ui, "Block spacing, in pixels between blocks", spacing),

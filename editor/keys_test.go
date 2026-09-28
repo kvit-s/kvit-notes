@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/enums/mod"
 )
@@ -137,4 +138,158 @@ func TestLanguageMenuDeclaresAndOptsOut(t *testing.T) {
 			t.Errorf("written as:\n%s", got)
 		}
 	})
+}
+
+// Tab in a code block pads to the next four-column stop, Shift+Tab takes a
+// stop back off, and over several lines they indent or outdent every line
+// touched (Qt's indentCodeLines).
+func TestTabStopsInCode(t *testing.T) {
+	const body = "  ab\ncd\n\n  ef\n"
+	s, e := openEditor(t, "```\n"+body+"```")
+	setCode := func(text string, anchor, caret int) {
+		s.Do(func() {
+			d := e.Doc
+			id := d.Blocks[0].ID
+			d.Edit("test", func() { d.Blocks[0].Text = text })
+			d.Anchor = Pos{id, anchor}
+			d.Caret = Pos{id, caret}
+			d.Focused = true
+		})
+		s.Sync()
+	}
+	code := func() string {
+		var text string
+		s.Do(func() { text = e.Doc.Blocks[0].Text })
+		return text
+	}
+	// Caret at column 2 pads two spaces to the next stop.
+	setCode(body, 2, 2)
+	s.Screen.KeyPress(unison.KeyTab, mod.None)
+	if got := code(); got != "    ab\ncd\n\n  ef\n" {
+		t.Errorf("tab pads to the stop: %q", got)
+	}
+	s.Do(func() {
+		if a, c := e.Doc.Anchor.Off, e.Doc.Caret.Off; a != 4 || c != 4 {
+			t.Errorf("caret after the pad: %d/%d", a, c)
+		}
+	})
+	// Shift+Tab takes one stop back off the line.
+	setCode(body, 2, 2)
+	s.Screen.KeyPress(unison.KeyTab, mod.Shift)
+	if got := code(); got != "ab\ncd\n\n  ef\n" {
+		t.Errorf("shift+tab outdents: %q", got)
+	}
+	// From column zero Tab and Shift+Tab round-trip.
+	setCode(body, 0, 0)
+	s.Screen.KeyPress(unison.KeyTab, mod.None)
+	if got := code(); got != "      ab\ncd\n\n  ef\n" {
+		t.Errorf("tab at column zero: %q", got)
+	}
+	s.Screen.KeyPress(unison.KeyTab, mod.Shift)
+	if got := code(); got != body {
+		t.Errorf("shift+tab restores: %q", got)
+	}
+	// A selection over lines indents every non-blank line it touches.
+	setCode(body, 0, 8)
+	s.Screen.KeyPress(unison.KeyTab, mod.None)
+	if got := code(); got != "      ab\n    cd\n\n  ef\n" {
+		t.Errorf("tab indents touched lines: %q", got)
+	}
+	s.Screen.KeyPress(unison.KeyTab, mod.Shift)
+	if got := code(); got != body {
+		t.Errorf("shift+tab outdents touched lines: %q", got)
+	}
+	// A selection inside one line is replaced by the pad.
+	setCode(body, 2, 4)
+	s.Screen.KeyPress(unison.KeyTab, mod.None)
+	if got := code(); got != "    \ncd\n\n  ef\n" {
+		t.Errorf("tab replaces an in-line selection: %q", got)
+	}
+}
+
+// The [[ list stays shut inside inline math and code, as Kvit's does.
+func TestWikiMenuStaysShutInMath(t *testing.T) {
+	s, e := openEditor(t, "cost $x + [[y]]$ here")
+	s.Do(func() {
+		e.CompleteLink = func(string) []Completion { return []Completion{{Label: "n", Insert: "n"}} }
+		d := e.Doc
+		id := d.Blocks[0].ID
+		// Inside the math span.
+		d.SetCaret(id, 9)
+		d.Focused = true
+		if _, _, ok := e.wikiQuery(); ok {
+			t.Error("no completion inside $…$")
+		}
+		// Outside it, after "[[", it opens.
+		d.Edit("test", func() { d.Blocks[0].Text = "see [[pl" })
+		d.SetCaret(id, len([]rune(d.Blocks[0].Text)))
+		d.Anchor = d.Caret
+		if q, _, ok := e.wikiQuery(); !ok || q != "pl" {
+			t.Errorf("plain text still completes: %q %v", q, ok)
+		}
+		// Inside a code span it stays shut.
+		d.Edit("test", func() { d.Blocks[0].Text = "a `code [[z]]` end" })
+		d.SetCaret(id, 11)
+		d.Anchor = d.Caret
+		if _, _, ok := e.wikiQuery(); ok {
+			t.Error("no completion inside code")
+		}
+	})
+}
+
+// The code panel names Ctrl+Enter in its footer while the caret is in the
+// block, as Kvit's BlockKeyHint does: the footer's pixels change with the
+// caret.
+func TestCodeFooterHint(t *testing.T) {
+	s, e := openEditor(t, "```\nx = 1\n```")
+	footer := func() geom.Rect {
+		var r geom.Rect
+		s.Do(func() {
+			p := e.codePanel(0)
+			r = geom.NewRect(p.Right()-e.px(150), p.Bottom()-e.px(codeFooter), e.px(150), e.px(codeFooter))
+		})
+		return r
+	}
+	shot := func() []uint8 {
+		var out []uint8
+		s.Do(func() {
+			img := s.Screen.CaptureWindow(s.Window.Window)
+			if img == nil {
+				return
+			}
+			r := footer()
+			off := s.Screen.PanelPoint(e, geom.NewPoint(0, 0))
+			b := img.Bounds()
+			for y := int(r.Y); y < int(r.Bottom()); y++ {
+				for x := int(r.X); x < int(r.Right()); x++ {
+					px, py := x+int(off.X), y+int(off.Y)
+					if px < b.Min.X || py < b.Min.Y || px >= b.Max.X || py >= b.Max.Y {
+						continue
+					}
+					c := img.NRGBAAt(px, py)
+					out = append(out, c.R, c.G, c.B, c.A)
+				}
+			}
+		})
+		return out
+	}
+	s.Do(func() { e.FocusBlock(0, 0) })
+	s.Sync()
+	r := footer()
+	with := shot()
+	s.Do(func() { e.ClearFocus() })
+	s.Sync()
+	without := shot()
+	if len(with) == 0 || len(without) == 0 || len(with) != len(without) {
+		t.Fatalf("no footer pixels: %d vs %d in %v", len(with), len(without), r)
+	}
+	var diff int
+	for k := range with {
+		if with[k] != without[k] {
+			diff++
+		}
+	}
+	if diff < 100 {
+		t.Errorf("the footer should name Ctrl+Enter with the caret in it: %d bytes differ", diff)
+	}
 }

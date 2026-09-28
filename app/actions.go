@@ -154,15 +154,78 @@ func (w *Window) askNameWith(title, current, confirm string, apply func(name str
 }
 
 func (w *Window) askRename(e *vault.Entry) {
-	w.askName("Rename note", e.Title, func(name string) {
-		if name == e.Title {
+	w.renameInRow(e)
+}
+
+// renameInRow renames a note in the note list's row itself: a field over
+// the row, seeded with the title, Enter renames, Escape leaves it. When
+// the note's row is not shown the dialog asks instead.
+func (w *Window) renameInRow(e *vault.Entry) {
+	i := -1
+	for k, shown := range w.shown {
+		if shown == e {
+			i = k
+			break
+		}
+	}
+	if i < 0 {
+		w.askName("Rename note", e.Title, func(name string) { w.applyRename(e, name) })
+		return
+	}
+	ui := w.ui
+	field := kvitui.NewField(ui)
+	field.Label = "Rename note"
+	field.SetText(e.Title)
+	commit := func() {
+		name := strings.TrimSpace(field.Text())
+		if name == "" || name == e.Title {
 			return
 		}
-		w.relocate(e, func() error { return w.Vault.Rename(e, name) }, func() {
-			w.refreshScopes()
-			w.refreshList()
-			w.update()
-		})
+		w.applyRename(e, name)
+	}
+	var hide func()
+	hide = w.Win.Show(&kvitui.Popup{Panel: kvitui.Width(ui, kvitui.Px(220), field), Anchor: w.list,
+		OnEscape:       func() { hide() },
+		OnPressOutside: func() { hide() },
+		Place: func(bounds geom.Rect, size geom.Size) geom.Rect {
+			h := w.list.rowHeight()
+			row := geom.NewRect(0, float32(i)*h, w.list.ContentRect(false).Width, h)
+			r := w.Win.Content().RectFromRoot(w.list.RectToRoot(row))
+			width := min(r.Width, max(size.Width, 100))
+			return geom.NewRect(r.X, r.Y, width, min(size.Height, r.Height))
+		}})
+	edit := field.Edit()
+	prev := edit.KeyDownCallback
+	edit.KeyDownCallback = func(key unison.KeyCode, mods mod.Modifiers, repeat bool) bool {
+		switch key {
+		case unison.KeyReturn, unison.KeyNumPadEnter:
+			commit()
+			hide()
+			return true
+		case unison.KeyEscape:
+			hide()
+			return true
+		}
+		if prev != nil {
+			return prev(key, mods, repeat)
+		}
+		return false
+	}
+	unison.InvokeTask(func() {
+		field.Focus()
+		field.Edit().SelectAll()
+	})
+}
+
+// applyRename renames a note after a dialog asked for its name.
+func (w *Window) applyRename(e *vault.Entry, name string) {
+	if name == e.Title {
+		return
+	}
+	w.relocate(e, func() error { return w.Vault.Rename(e, name) }, func() {
+		w.refreshScopes()
+		w.refreshList()
+		w.update()
 	})
 }
 

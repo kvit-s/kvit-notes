@@ -157,12 +157,12 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	case key == unison.KeyTab:
 		switch {
 		case b.Kind == Code && shift:
-			e.outdentCodeLine()
+			e.indentCodeLines(true)
 		case isMermaid(b):
 			// Mermaid source indents by two spaces (DiagramBlock.qml).
 			d.InsertText("  ")
 		case b.Kind == Code:
-			d.InsertText("    ")
+			e.indentCodeLines(false)
 		case shift:
 			d.Indent([]int64{id}, -1)
 		default:
@@ -228,6 +228,95 @@ func (e *Editor) outdentCodeLine() {
 		b.Text = string(r[:ls]) + string(r[ls+n:])
 		d.SetCaret(b.ID, max(ls, d.Caret.Off-n))
 	})
+}
+
+// codeIndentWidth is the columns of one indent stop in code (Qt's
+// codeIndentWidth).
+const codeIndentWidth = 4
+
+// indentCodeLines indents code by Tab's rule (EditableBlock.qml's
+// indentCodeLines): without a multi-line selection Tab pads to the next
+// four-column stop, replacing a selection inside the line, and Shift+Tab
+// takes one stop back off; a selection spanning lines indents or outdents
+// every line it touches, blank lines gaining nothing.
+func (e *Editor) indentCodeLines(outdent bool) {
+	d := e.Doc
+	b := d.CaretBlock()
+	if b == nil || b.Kind != Code {
+		return
+	}
+	r := runes(b.Text)
+	a, c := d.Anchor.Off, d.Caret.Off
+	if d.CrossBlock() {
+		a = c
+	}
+	selStart, selEnd := min(a, c), max(a, c)
+	lineStart := selStart
+	for lineStart > 0 && r[lineStart-1] != '\n' {
+		lineStart--
+	}
+	nextBreak := -1
+	for k := selStart; k < len(r); k++ {
+		if r[k] == '\n' {
+			nextBreak = k
+			break
+		}
+	}
+	spansLines := selEnd > selStart && nextBreak >= 0 && nextBreak < selEnd
+	if !spansLines && !outdent {
+		column := selStart - lineStart
+		pad := codeIndentWidth - (column % codeIndentWidth)
+		d.Edit("typing", func() {
+			b.Text = string(r[:selStart]) + strings.Repeat(" ", pad) + string(r[selEnd:])
+			d.SetCaret(b.ID, selStart+pad)
+			d.Anchor = d.Caret
+		})
+		return
+	}
+	if !spansLines {
+		strip := 0
+		for strip < codeIndentWidth && lineStart+strip < len(r) && r[lineStart+strip] == ' ' {
+			strip++
+		}
+		if strip == 0 {
+			return
+		}
+		back := max(lineStart, selStart-strip)
+		d.Edit("typing", func() {
+			b.Text = string(r[:lineStart]) + string(r[lineStart+strip:])
+			d.SetCaret(b.ID, back)
+			d.Anchor = d.Caret
+		})
+		return
+	}
+	lastEnd := selEnd
+	for lastEnd < len(r) && r[lastEnd] != '\n' {
+		lastEnd++
+	}
+	lines := strings.Split(string(r[lineStart:lastEnd]), "\n")
+	delta := 0
+	unit := strings.Repeat(" ", codeIndentWidth)
+	for k := range lines {
+		if outdent {
+			off := 0
+			for off < codeIndentWidth && off < len(lines[k]) && lines[k][off] == ' ' {
+				off++
+			}
+			lines[k] = lines[k][off:]
+			delta -= off
+		} else if len(lines[k]) > 0 {
+			lines[k] = unit + lines[k]
+			delta += codeIndentWidth
+		}
+	}
+	d.Edit("typing", func() {
+		b.Text = string(r[:lineStart]) + strings.Join(lines, "\n") + string(r[lastEnd:])
+		d.Anchor = Pos{b.ID, lineStart}
+		d.Caret = Pos{b.ID, lastEnd + delta}
+		d.Focused = true
+	})
+	e.RequestFocus()
+	e.touched()
 }
 
 // moveKey moves the caret. Within a block it follows the drawn layout; at a
@@ -532,7 +621,8 @@ func (e *Editor) typeText(s string) bool {
 }
 
 // copyMarkdown puts Markdown on the clipboard, with its HTML beside it when
-// the application gives the editor a way to make it.
+// the application gives the editor a way to make it, and the internal type
+// beside those, so pasting it back uses the text as it is.
 func (e *Editor) copyMarkdown(md string) {
 	if e.CopyRich != nil {
 		e.CopyRich(md)
@@ -542,7 +632,8 @@ func (e *Editor) copyMarkdown(md string) {
 }
 
 // pasteClipboard pastes what the clipboard holds: HTML turned into
-// Markdown when the application reads it, else the text.
+// Markdown when the application reads it, else the text. A copy carrying
+// the internal type pastes as its text, never through the converter.
 func (e *Editor) pasteClipboard() {
 	if e.PasteRich != nil {
 		if md, ok := e.PasteRich(); ok {

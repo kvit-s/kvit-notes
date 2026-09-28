@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	kvitui "github.com/kvit-s/kvit-ui"
+	"github.com/kvit-s/kvit-ui/text"
 	"github.com/kvit-s/kvit-ui/uitest"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
@@ -363,4 +364,49 @@ func TestDiagramMathLabels(t *testing.T) {
 			t.Error("TeX that does not typeset should be drawn as its source")
 		}
 	})
+}
+
+// Equation numbers print: with View, Equation numbers on, the printed page
+// carries the number at the equation's right; off, it does not.
+func TestEquationNumbersPrint(t *testing.T) {
+	needMath(t)
+	s, e := mathEditor(t, "$$\nx\n$$")
+	numberInk := func(on bool) bool {
+		var inked bool
+		s.Do(func() {
+			e.EquationNumbers = on
+			pages := e.Paginate(600, 800)
+			if len(pages) != 1 {
+				t.Fatalf("%d pages", len(pages))
+			}
+			img, err := unison.NewImageFromDrawing(600, int(pages[0].To-pages[0].From)+1, 72, func(gc *unison.Canvas) {
+				e.DrawPage(gc, pages[0])
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			px, err := img.ToNRGBA()
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := e.mathColumn(e.tops[0])
+			n := e.label("(1)", e.chrome(roleStrong, text.Regular, e.tok().TextMuted))
+			w, nh := n.Size()
+			r := geom.NewRect(c.Right()-w, c.Y+(e.mathReadHeight(0)-nh)/2, w, nh)
+			for y := int(r.Y); y < int(r.Bottom()); y++ {
+				for x := int(r.X); x < int(r.Right()); x++ {
+					if px.NRGBAAt(x, y).A > 0 {
+						inked = true
+					}
+				}
+			}
+		})
+		return inked
+	}
+	if numberInk(false) {
+		t.Error("the number's corner should be blank with numbering off")
+	}
+	if !numberInk(true) {
+		t.Error("the printed page should carry the equation number")
+	}
 }

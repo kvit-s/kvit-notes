@@ -35,6 +35,18 @@ var htmlType = func() *uti.DataType {
 	return uti.Register(&uti.DataType{UTI: name, MimeTypes: []string{"text/html"}})
 }()
 
+// internalType is the clipboard type copying from a note adds beside the
+// text and the HTML: Kvit's application/x-kvit-markdown. Pasting it back
+// uses the text as it is, so a copy never round-trips through the HTML
+// converter, which would mistake its fence for content.
+var internalType = func() *uti.DataType {
+	const name = "application/x-kvit-markdown"
+	if dt := uti.ByUTI(name); dt != nil {
+		return dt
+	}
+	return uti.Register(&uti.DataType{UTI: name})
+}()
+
 // withWindowsHeader wraps HTML in the offsets Windows' "HTML Format" needs
 // before it.
 func withWindowsHeader(html string) string {
@@ -65,11 +77,17 @@ func (w *Window) copyRich(md string) {
 	if runtime.GOOS == "windows" {
 		html = withWindowsHeader(html)
 	}
-	unison.ClipboardSetData(drag.Data{Type: uti.UTF8PlainText, Data: []byte(md)}, drag.Data{Type: htmlType, Data: []byte(html)})
+	unison.ClipboardSetData(drag.Data{Type: uti.UTF8PlainText, Data: []byte(md)}, drag.Data{Type: htmlType, Data: []byte(html)},
+		drag.Data{Type: internalType, Data: []byte(md)})
 }
 
-// pasteRich reads HTML off the clipboard as Markdown.
+// pasteRich reads HTML off the clipboard as Markdown. A copy this app made
+// carries the internal type, and pastes as its text, never through the
+// converter.
 func pasteRich() (string, bool) {
+	if unison.ClipboardHasDataType(internalType) {
+		return "", false
+	}
 	if !unison.ClipboardHasDataType(htmlType) {
 		return "", false
 	}

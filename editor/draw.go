@@ -396,6 +396,15 @@ func (e *Editor) drawCodePanel(gc *unison.Canvas, i int) {
 		cp := e.label("Copy", e.chrome(kvitui.RoleCaption, text.Regular, c))
 		cp.Draw(gc, btn.X+e.px(codeCopyPad), y)
 	}
+	// The key that leaves the block, while the caret is in it, as Kvit's
+	// BlockKeyHint names it.
+	if d := e.Doc; d.Focused && d.Caret.Block == b.ID {
+		hintSize := max(9, e.ui.Typography.MonoSize()-4)
+		hint := e.ui.Fonts.Layout([]text.Span{{Text: "Ctrl+Enter: new block",
+			Style: text.Style{Family: e.ui.Typography.FontFamily(), Size: float32(hintSize), Color: colour(t.TextFaint)}}}, text.Options{})
+		hw, hh := hint.Size()
+		hint.Draw(gc, p.Right()-e.px(codePadSide)-hw, p.Bottom()-(e.px(codeFooter)+hh)/2)
+	}
 }
 
 // gutterPart is one of the gutter's controls, or a part of a row that acts

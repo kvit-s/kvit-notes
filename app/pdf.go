@@ -51,6 +51,7 @@ func (w *Window) writePDF(blocks []editor.Block, title, path string) error {
 	doc.ReadOnly = true
 	ed := editor.New(ui, doc)
 	ed.Placeholder = ""
+	ed.EquationNumbers = w.Editor.EquationNumbers
 	if w.open != nil {
 		ed.LoadImage = w.imageLoader(w.open.Path)
 	}

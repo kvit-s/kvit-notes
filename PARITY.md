@@ -27,7 +27,7 @@ kvit-ui-go's `platform` package for the tray.
   indent level and Markdown source. Evidence: `TestMarkdownRoundTrip`, `TestEnterAndBackspace`
 - 1.2 Block types
   - [x] 1.2.1 Paragraph. Evidence: `01_reveal`, `visual_01_reveal_*`
-  - [~] 1.2.2 Headings 1–4. Evidence: `07_block_types`, `visual_07_types_01`. Heading 1's
+  - [x] 1.2.2 Headings 1–4. Evidence: `07_block_types`, `visual_07_types_01`. Heading 1's
     row is 1 px taller than Qt's (see "Differences" below)
   - [x] 1.2.3 To-do with check box, click and Ctrl+Enter to tick. Evidence: `07_block_types`,
     `visual_07_types_02_todo_toggled`
@@ -35,14 +35,17 @@ kvit-ui-go's `platform` package for the tray.
   - [x] 1.2.5 Numbered list, restarting when nested. Evidence: `07_block_types`
   - [x] 1.2.6 Quote. Evidence: `07_block_types`
   - [~] 1.2.7 Code block: monospace, whitespace kept, Enter keeps the line's
-    indentation, Ctrl+Enter leaves, Copy button, syntax colouring in Kvit's
+    indentation, Ctrl+Enter leaves, Copy button, the Ctrl+Enter hint in the
+    footer while the caret is in it, Tab padding to the next four-column stop
+    (a selection over lines indenting or outdenting every line it touches),
+    syntax colouring in Kvit's
     sixteen languages (the `highlight` package, with the Qt tests), the
     language menu (with Plain code, Mermaid and Text diagram), line numbers
     from View. Evidence: `20_caret_nav`, `31_code`, `visual_31_code_*`,
-    `TestLanguageMenuDeclaresAndOptsOut`. Missing: horizontal scrolling (long
-    lines wrap), the Ctrl+Enter hint in the footer, Tab to the next
-    four-column stop over a selection
-  - [x] 1.2.8 Image and media: an image line drawn as its picture (beside the
+    `TestLanguageMenuDeclaresAndOptsOut`, `TestTabStopsInCode`,
+    `TestCodeFooterHint`. Missing: horizontal scrolling (long
+    lines wrap)
+  - [~] 1.2.8 Image and media: an image line drawn as its picture (beside the
     note, from the top of the vault, or from the site folder for a path
     starting with "/"), at its width, with its caption; the line shown for
     editing while the caret is in it; a sound or video drawn as a card; a
@@ -85,7 +88,7 @@ kvit-ui-go's `platform` package for the tray.
     pressed (title, description and picture from its tags), its title
     opening the page. Evidence: `TestAnEmbedCardLoadsItsPreviewOnRequest`.
     Missing: Edit URL, dimensions, the video players' previews
-  - [~] 1.2.15 Math: typeset by MicroTeX, the Qt app's engine, kept in C++
+  - [x] 1.2.15 Math: typeset by MicroTeX, the Qt app's engine, kept in C++
     (`third_party/microtex`) and built as a shared library that the
     `mathtex` package loads without cgo; without the library the TeX shows
     as source. A `$$ … $$` fence is a display equation, typeset centred away
@@ -119,9 +122,10 @@ kvit-ui-go's `platform` package for the tray.
     `kvit-notes --math-selftest` run from the Windows and Linux packages.
     An inline formula away from the caret is heard as its TeX, with its
     lines, runs, caret and selection mapped onto that text (evidence:
-    `TestInlineMathIsHeardAsItsTeX`). Missing: the PDF
-    export draws no equation numbers; `[[` completion opens inside `$…$`,
-    where the Qt app's does not. The macOS library is built and packaged but
+    `TestInlineMathIsHeardAsItsTeX`); the `[[` list stays shut inside
+    `$…$` (evidence: `TestWikiMenuStaysShutInMath`); the PDF export numbers
+    its equations with View, Equation numbers (evidence:
+    `TestEquationNumbersPrint`). The macOS library is built and packaged but
     has not been loaded on a Mac
   - [x] 1.2.16 Drop cap: `dropcap=<lines>` with `dropcapcolor` and
     `dropcapfont`, from the / menu and the block menu, drawn as the Qt app
@@ -238,10 +242,11 @@ kvit-ui-go's `platform` package for the tray.
   button, Shift+F10 and the Menu key, recently used kinds first. Evidence: `12_plus`,
   `10_menu`, `29_block_menu`; Ctrl+Enter on selected blocks makes a
   paragraph after them with the caret in it, the keyboard's way below a table
-  or a board, and "Copy as HTML" is in the block menu. Evidence:
-  `TestCtrlEnterAfterSelectedBlocks`. Missing: a caret in the space between
-  blocks before anything is typed (a paragraph is made at once), "Export" in
-  the block menu
+  or a board, "Copy as HTML" is in the block menu, and "Export…" opens the
+  export dialog scoped to the blocks. Evidence:
+  `TestCtrlEnterAfterSelectedBlocks`, `TestBlockMenuHasExport`,
+  `TestBlockExportOpensScopedDialog`. Missing: a caret in the space between
+  blocks before anything is typed (a paragraph is made at once)
 
 ## 4. Slash commands and the block menu
 
@@ -256,10 +261,11 @@ kvit-ui-go's `platform` package for the tray.
   placed under the caret or above it near the bottom. Evidence: `10_menu`, `11_menu_flip`
 
 ## 5. Clipboard
-
-- [~] 5.1 Copy: text in a block, across blocks as Markdown, whole blocks,
-  with HTML beside the Markdown on the clipboard. Evidence: `15_xsel`,
-  `TestHTMLOnTheClipboard`. Missing: an internal format
+- [x] 5.1 Copy: text in a block, across blocks as Markdown, whole blocks,
+  with HTML beside the Markdown on the clipboard, and the internal
+  `application/x-kvit-markdown` type beside those, so a copy pastes back as
+  its text and never round-trips through the HTML converter. Evidence: `15_xsel`,
+  `TestHTMLOnTheClipboard`, `TestInternalFormatPastesAsText`
 - [x] 5.2 Cut, with the same formats. Evidence: `15_xsel`
 - [~] 5.3 Paste: text at the caret; Markdown with blank lines becomes
   blocks, and so do several lines opening a code fence, which becomes the
@@ -303,7 +309,7 @@ kvit-ui-go's `platform` package for the tray.
   `TestTheWindowShowsTheVault`, `TestDragANoteOntoAFolder`,
   `TestCollectionStateRoundTrips`, and a colour chosen from the folder's
   menu. Missing: dragging folders
-- [~] 8.2 Tags: a note's tags from its front matter, added and removed in the
+- [x] 8.2 Tags: a note's tags from its front matter, added and removed in the
   tag strip with the vault's tags offered as they are typed, the vault's
   tags with counts in the sidebar, their colours shown, and the note list
   filtered by one; renaming a tag on every note (merging when the new name
@@ -311,23 +317,25 @@ kvit-ui-go's `platform` package for the tray.
   colour, from its menu in the sidebar. Evidence: `TestNewNoteAndTags`,
   `TestFrontMatterEditsKeepForeignLines`, `TestTagsAreRenamedMergedAndDeleted`,
   `TestTagManagementFromTheSidebar`
-- [~] 8.3 Note list: "Untitled N" notes named from their first block once it is
+- [x] 8.3 Note list: "Untitled N" notes named from their first block once it is
   finished, each row's title, snippet, date and word count as the Qt app
   derives them, sorting by modified, created or title either way (kept in
-  the settings), pinned notes first, pin and favourite from the row's menu. Evidence:
+  the settings), pinned notes first, pin and favourite from the row's menu,
+  and renaming in the row itself with F2 (a field over the row, Enter keeps
+  it, Escape leaves it). Evidence:
   `TestAnUntitledNoteIsNamedAfterItsFirstBlock`, `TestPinFromTheNotesMenu`,
-  `TestOpenScansNotesAndSkipsKvitsOwnFolders`; the Manual order in a
+  `TestOpenScansNotesAndSkipsKvitsOwnFolders`, `TestRenameInRow`; the Manual order in a
   folder, changed by dragging a note within the list and kept in
   `collection.json`; picking notes with Ctrl and Shift and pinning, marking,
   tagging or trashing them together. Evidence: `TestManualOrder`,
-  `TestBulkActionsAndManualOrder`. Missing: renaming in the row itself (a
-  dialog does it, with F2)
-- [~] 8.4 Search across notes: the sidebar's field searches the index (the
+  `TestBulkActionsAndManualOrder`
+- [x] 8.4 Search across notes: the sidebar's field searches the index (the
   `search` package, kept up to date as notes change) within the scope shown,
   the results grouped by note with the lines found and a date menu, a line
-  opening its note at the match. Evidence: `TestSearchAcrossNotes`,
-  `TestTheWindowShowsTheVault`. Missing: recent searches
-- [~] 8.5 Linked-note navigation: back and forward (Alt+Left, Alt+Right and
+  opening its note at the match, and recent searches under the empty field,
+  kept newest-first in the settings. Evidence: `TestSearchAcrossNotes`,
+  `TestTheWindowShowsTheVault`, `TestRecentSearches`
+- [x] 8.5 Linked-note navigation: back and forward (Alt+Left, Alt+Right and
   the toolbar's arrows) and the quick switcher (Ctrl+P), which makes a note
   from words no note matches. Evidence: `TestBackForwardAndTheQuickSwitcher`.
   Following links and the backlinks pane (Ctrl+Shift+B, View), renames that
@@ -342,25 +350,29 @@ kvit-ui-go's `platform` package for the tray.
   hidden on its own (its « button, View) and both with Ctrl+\\. Evidence:
   `TestTheWindowShowsTheVault`, `TestCtrlBackslashHidesTheSidePanes`,
   `TestPanesHideOneAtATime`
-- [~] 9.2 Toolbar: File and View menus, back and forward, the block type
-  list, the inline formats with superscript, subscript and text colour,
-  alignment, and Insert, as flat buttons. Evidence:
-  `TestTheToolbarChangesAndInsertsBlocks`, `TestANoteFromATemplate`.
-  Missing: Link (with the link dialog), hiding groups from its menu
+- [x] 9.2 Toolbar: File and View menus, back and forward, the block type
+  list, the inline formats with superscript, subscript and text colour, Link
+  (with the link dialog), alignment, and Insert, as flat buttons, each group
+  hidden from its menu and kept in the settings. Evidence:
+  `TestTheToolbarChangesAndInsertsBlocks`, `TestANoteFromATemplate`,
+  `TestToolbarGroupsHide`
 - [x] 9.3 Formatting bar: over a selection in one block, once it is made.
   Evidence: `TestTheFormattingBar`
 - [x] 9.4 Gutter: + and × over the handle and the menu button, shown on hover,
   drawn as Kvit draws them. Evidence: `12_plus`, `visual_12_plus_01`
-- [~] 9.5 Context menus: the block menu (with Align, Drop cap and Copy as
-  HTML) and the text menu on right-click. Missing: Export in the block menu,
-  the link menu
-- [~] 9.6 Keyboard navigation: every editing action above has a key, and the
+- [x] 9.5 Context menus: the block menu (with Align, Drop cap, Copy as
+  HTML and Export, which opens the export dialog scoped to the blocks) and
+  the text menu on right-click, with Link…; a press on a link opens the link
+  menu (Open link, Edit link…, Remove link). Evidence: `TestBlockMenuHasExport`,
+  `TestBlockExportOpensScopedDialog`, `TestLinkMenuItems`, `TestRemoveLinkAt`
+- [x] 9.6 Keyboard navigation: every editing action above has a key, F6 moves
+  between the panes drawn, and the
   menus have the Qt app's access keys (Alt+F, Alt+V, Alt+I for the toolbar's
-  menus, a line's letter inside a menu). Evidence: `TestMenuAccessKeys`.
-  Missing: F6 between panes
-- [~] 9.7 Status bar: block, kind, path, counts, save state, the word count
-  opening the statistics and the writing goal; hidden from View. Missing:
-  the Qt layout of the bar, line and column in the vault window
+  menus, a line's letter inside a menu). Evidence: `TestMenuAccessKeys`,
+  `TestF6CyclesPanes`
+- [~] 9.7 Status bar: block, kind, line and column, path, counts, save state, the word count
+  opening the statistics and the writing goal; hidden from View. Evidence:
+  `TestStatusShowsLineAndColumn`. Missing: the Qt layout of the bar
 
 ## 10. Themes and appearance
 
@@ -369,12 +381,13 @@ kvit-ui-go's `platform` package for the tray.
   maximum content width (centred) and the code family, from kvit-ui's
   typography settings. Evidence: `TestSettingsChangeTheEditor`
 - [~] 10.3 Customisation: the settings dialog's Appearance (theme, accent and
-  highlight colours, interface size, motion), Typography, General (the tray,
-  where there is one) and This vault (the site and picture folders in
+  highlight colours, interface size, motion), Typography (with a list of the
+  installed fonts beside the family field), General (the tray,
+  where there is one, and the auto-save wait in seconds) and This vault (the site and picture folders in
   `.kvit/settings.json`). The Go app keeps
   its own settings file, which starts as a copy of the Qt app's. Evidence:
-  `TestSettingsChangeTheEditor`, `TestPictureFolders`. Missing: a list of the
-  installed fonts (the family is typed), remote content and updates
+  `TestSettingsChangeTheEditor`, `TestPictureFolders`, `TestInstalledFontsListed`.
+  Missing: remote content and updates
 
 ## 11. Performance
 
@@ -388,18 +401,19 @@ kvit-ui-go's `platform` package for the tray.
 
 ## 12. Storage
 
-- [~] 12.1 Local storage: a vault folder read and written in the Qt app's
+- [x] 12.1 Local storage: a vault folder read and written in the Qt app's
   formats, atomic saves, the Qt app's lock on `.kvit/vault.lock` (flock, and
   the same byte range on Windows), a vault that cannot be written opened read
-  only. Evidence: `TestTheVaultLockExcludesOtherOpeners`,
-  `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`; the scan leaves
+  only and said aloud. Evidence: `TestTheVaultLockExcludesOtherOpeners`,
+  `TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes`,
+  `TestAVaultThatCannotBeWrittenOpensReadOnly`, `TestReadOnlyAnnounced`; the scan leaves
   out what `.git/info/exclude`, each folder's `.gitignore` and the patterns
   set for the vault exclude (the `ignore` package, with the Qt tests), and
   what Windows marks hidden. Evidence: `TestTheScanFollowsGitignore`.
-  Missing: the read-only mode said aloud
-- [~] 12.2 Auto-save: two seconds after the typing stops, and on opening
+- [x] 12.2 Auto-save: after the typing stops (two seconds unless the settings
+  name another wait), and on opening
   another note and closing the window. Evidence: `TestAutoSaveAfterTypingStops`,
-  `TestEditingSavesTheNote`. Missing: the interval as a setting
+  `TestEditingSavesTheNote`, `TestSaveIntervalSetting`
 - [x] 12.3 Manual save with Ctrl+S. Evidence: `TestEditingSavesTheNote`
 - [x] 12.4 Backup and recovery: a backup in `.kvit/backups` before a save (at
   most one every ten minutes, the ten newest kept) and a one-time `.md.bak`
@@ -418,9 +432,10 @@ kvit-ui-go's `platform` package for the tray.
   note or one combined file (the `export` package's port), with math
   written for MathJax and diagrams for the Mermaid module in HTML; and the
   open note as a PDF, drawn onto A4 pages by the editor itself in the light
-  theme, with its fonts, its math typeset and its diagrams drawn. Evidence:
+  theme, with its fonts, its math typeset and its diagrams drawn, numbered
+  with View, Equation numbers. Evidence:
   `TestExportAndImport`, `TestPDFExport`, `TestHTMLExport`, `TestMathPrints`,
-  `TestDiagramPrints`
+  `TestDiagramPrints`, `TestEquationNumbersPrint`
 - [x] 12.6 Import: files or a folder of Markdown and text, into the folder
   shown, after a summary; never over a note. Evidence: `TestExportAndImport`
 
@@ -429,7 +444,7 @@ kvit-ui-go's `platform` package for the tray.
 - [x] 13.1 Text formatting: Ctrl+B, I, U, E, Ctrl+Shift+S, Ctrl+K
 - [x] 13.2 Block operations: Ctrl+D, Ctrl+Shift+D, Alt+Up/Down, Tab, Shift+Tab
 - [x] 13.3 Block conversion: Ctrl+0–4, Ctrl+T, Ctrl+Shift+T
-- [~] 13.4 General: undo, redo, save, select all, new note, Ctrl+\\, F11,
+- [x] 13.4 General: undo, redo, save, select all, new note, Ctrl+\\, F11,
   Ctrl+P, Alt+Left and Right, Ctrl+Alt+N, Ctrl+F, Ctrl+H, Ctrl+Shift+B,
   and the list in File, Keyboard shortcuts
 

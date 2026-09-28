@@ -47,6 +47,13 @@ func (e *Editor) wikiQuery() (string, int, bool) {
 	}
 	r := []rune(b.Text)
 	c := min(d.Caret.Off, len(r))
+	// No completion inside inline math (or code): the Qt app's does not
+	// open there either.
+	for _, sp := range parseInline(r) {
+		if (sp.Kind == sMath || sp.Kind == sCode) && c > sp.Start && c <= sp.End {
+			return "", 0, false
+		}
+	}
 	for i := c - 1; i >= 1; i-- {
 		switch r[i] {
 		case '\n', ']':
