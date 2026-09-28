@@ -9,6 +9,7 @@ package editor
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -109,6 +110,10 @@ func normalizeEmbedURL(input string) string {
 	return "https://" + u
 }
 
+// NormalizeEmbedURL is normalizeEmbedURL for the application: what typed
+// text an embed Edit URL… dialog writes.
+func NormalizeEmbedURL(input string) string { return normalizeEmbedURL(input) }
+
 // isEmbedURL reports whether u is an address the embed card draws: remote
 // with no picture or media extension (ImageAssets::isEmbedUrl).
 func isEmbedURL(u string) bool {
@@ -149,6 +154,114 @@ func (e *Editor) SetPreview(address string, p Preview) {
 	e.changed()
 }
 
+// escapeImageField escapes a field of an image line, as written.
+func escapeImageField(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	s = strings.ReplaceAll(s, "]", "\\]")
+	s = strings.ReplaceAll(s, "\"", "\\\"")
+	s = strings.ReplaceAll(s, "|", "\\|")
+	return s
+}
+
+// formatImageRef writes an image line, preserving its alt text, width and
+// caption (src/content/imageassets.cpp).
+func formatImageRef(ref ImageRef) string {
+	alt := escapeImageField(ref.Alt)
+	if ref.Width > 0 {
+		alt = escapeImageField(ref.Alt) + "|" + strconv.Itoa(ref.Width)
+	}
+	line := "![" + alt + "](" + ref.Path
+	if ref.Caption != "" {
+		line += " \"" + escapeImageField(ref.Caption) + "\""
+	}
+	return line + ")"
+}
+
+// SetEmbedURL rewrites an embed block's address, keeping its alt text, as
+// one undo step (the block menu's Edit URL…, EmbedBlock.qml editEmbedUrl).
+func (e *Editor) SetEmbedURL(id int64, url string) bool {
+	b := e.Doc.Block(id)
+	if b == nil {
+		return false
+	}
+	ref, ok := ParseImageLine(strings.TrimSpace(b.Text))
+	if !ok || !isEmbed(ref) && !isEmbedURL(url) && !ref.Remote {
+		// Only embed lines are retargeted; other blocks are left alone.
+		if !ok {
+			return false
+		}
+	}
+	ref.Path = strings.TrimSpace(url)
+	ref.Remote = isRemoteURL(ref.Path)
+	e.Doc.Edit("embed", func() {
+		b.Text = formatImageRef(ref)
+	})
+	e.touched()
+	e.changed()
+	return true
+}
+
+// SetEmbedSize gives embed blocks a configured width and height in px, kept
+// in their attributes (EmbedBlock.qml embedWidth/embedHeight): 0 clears to
+// the default full-width card.
+func (e *Editor) SetEmbedSize(ids []int64, width, height int) {
+	set := func(id int64, key, value string) {
+		b := e.Doc.Block(id)
+		if b == nil {
+			return
+		}
+		var keep []string
+		for _, tok := range strings.Fields(b.Attrs) {
+			if k, _, _ := strings.Cut(tok, "="); k != key {
+				keep = append(keep, tok)
+			}
+		}
+		if value != "" {
+			keep = append(keep, key+"="+value)
+		}
+		b.Attrs = canonicalAttrs(strings.Join(keep, " "))
+	}
+	e.Doc.Edit("attributes", func() {
+		for _, id := range ids {
+			if width <= 0 {
+				set(id, "width", "")
+			} else {
+				set(id, "width", strconv.Itoa(width))
+			}
+			if height <= 0 {
+				set(id, "height", "")
+			} else {
+				set(id, "height", strconv.Itoa(height))
+			}
+		}
+	})
+	e.touched()
+	e.changed()
+}
+
+// videoHosts are the video addresses an embed card draws with a play
+// badge, opening externally (EmbedBlock.qml isVideo).
+var videoHosts = []string{
+	"youtube.com", "youtu.be", "vimeo.com", "dailymotion.com",
+	"dai.ly", "tiktok.com", "twitch.tv", "peertube",
+}
+
+// isVideoHost reports whether an address is a video host's page.
+func isVideoHost(address string) bool {
+	u, err := url.Parse(strings.TrimSpace(address))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimPrefix(u.Host, "www."))
+	for _, h := range videoHosts {
+		if host == h || strings.HasSuffix(host, "."+h) || strings.Contains(host, h) {
+			return true
+		}
+	}
+	return false
+}
+
 // The card in design pixels (EmbedBlock.qml): its height, padding and
 // corner, and the picture's size.
 const (
@@ -183,6 +296,23 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 	r := e.px(embedRadius)
 	gc.DrawRoundedRect(card, geom.NewSize(r, r), kvitui.Color(t.PanelBackground).Paint(gc, card, paintstyle.Fill))
 	e.stroke(gc, card, r, e.px(1), t.Border)
+	title, load := e.embedParts(card)
+	// A drawn selection of its own highlights its lines behind the text.
+	if id := e.drawnBlockIn(card); id != 0 {
+		if from, to, ok := e.drawnLineRange(id); ok {
+			lines := e.drawnLines(id)
+			band := func(line int, rect geom.Rect) {
+				if line >= from && line <= to && line < len(lines) {
+					e.fill(gc, rect, t.SelectionTint)
+				}
+			}
+			band(0, title)
+			if len(lines) == 3 {
+				band(1, geom.NewRect(load.X, load.Y, title.Width, e.px(22)))
+			}
+			band(len(lines)-1, geom.NewRect(title.X, load.Bottom()+e.px(4), title.Width, e.px(16)))
+		}
+	}
 	thumb := geom.NewRect(card.X+e.px(embedPad), card.Y+e.px(embedPad), e.px(embedThumbW), e.px(embedThumbH))
 	p := e.previews[ref.Path]
 	if p != nil && p.Image != nil {
@@ -195,7 +325,16 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 			l.Draw(gc, thumb.X+(thumb.Width-w)/2, thumb.Y+(thumb.Height-h)/2)
 		}
 	}
-	title, load := e.embedParts(card)
+	if isVideoHost(ref.Path) {
+		// The play affordance over a video host's thumbnail, as
+		// EmbedBlock.qml draws it; the card opens externally.
+		cx, cy := thumb.X+thumb.Width/2, thumb.Y+thumb.Height/2
+		rad := e.px(15)
+		gc.DrawOval(geom.NewRect(cx-rad, cy-rad, 2*rad, 2*rad), kvitui.Color(t.TextPrimary).Paint(gc, thumb, paintstyle.Fill))
+		l := e.label("▶", e.chrome(kvitui.RoleSmall, text.Bold, t.PanelBackground))
+		w, h := l.Size()
+		l.Draw(gc, cx-w/2, cy-h/2)
+	}
 	words := ref.Path
 	if ref.Alt != "" {
 		words = ref.Alt
@@ -229,7 +368,8 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 }
 
 // embedCard is where the embed card of row i is, when the row is an embed
-// drawn as its card.
+// drawn as its card: the configured width and height from its attributes,
+// or the default full-width card (EmbedBlock.qml effectiveWidth).
 func (e *Editor) embedCard(i int) (geom.Rect, ImageRef, bool) {
 	ref, ok, shows := e.pictureBlock(i)
 	if !ok || !isEmbed(ref) {
@@ -240,5 +380,18 @@ func (e *Editor) embedCard(i int) (geom.Rect, ImageRef, bool) {
 		o.Y += e.layout(i).height() + e.px(pictureGap)
 	}
 	body := e.bodyRect(i)
-	return geom.NewRect(body.X+e.px(tocInset), o.Y, body.Width-2*e.px(tocInset), e.px(embedHeight)), ref, true
+	w := body.Width - 2*e.px(tocInset)
+	h := e.px(embedHeight)
+	b := &e.Doc.Blocks[i]
+	if v, ok := b.Attr("width"); ok {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			w = min(w, e.px(float32(n)))
+		}
+	}
+	if v, ok := b.Attr("height"); ok {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			h = e.px(float32(n))
+		}
+	}
+	return geom.NewRect(body.X+e.px(tocInset), o.Y, w, h), ref, true
 }

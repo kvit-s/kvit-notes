@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/kvit-s/kvit-notes/editor"
+	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 )
@@ -125,4 +126,29 @@ func (w *Window) loadPreview(address string) {
 		}
 		unison.InvokeTask(func() { ed.SetPreview(address, p) })
 	}()
+}
+
+// editEmbed rewrites an embed block's address from the block menu's Edit
+// URL… (features.md 1.2.14, BlockInsertDialogs.editEmbed).
+func (w *Window) editEmbed(id int64, current string) {
+	ed := w.Editor
+	if ed.Doc.ReadOnly {
+		return
+	}
+	ui := w.ui
+	field := kvitui.NewField(ui)
+	field.Label = "URL"
+	field.SetText(current)
+	d := kvitui.NewDialog(ui, "Edit Embed", settingRow(ui, "URL", field))
+	d.ConfirmText = "OK"
+	d.OnAccept = func() {
+		if u := editor.NormalizeEmbedURL(field.Text()); u != "" {
+			ed.SetEmbedURL(id, u)
+		}
+	}
+	d.Open(w.Win)
+	unison.InvokeTask(func() {
+		field.Focus()
+		field.Edit().SelectAll()
+	})
 }

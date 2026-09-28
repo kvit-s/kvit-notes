@@ -20,6 +20,8 @@ type blockCommand struct {
 	sep   bool // a separator above this line
 	run   func(e *Editor, ids []int64)
 	more  []blockCommand // the submenu this line opens
+	// only limits a line to embed or image blocks; "" shows it always.
+	only string // "embed", "image", or ""
 }
 
 var blockCommands = []blockCommand{
@@ -46,6 +48,30 @@ var blockCommands = []blockCommand{
 		{label: "&5 lines", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "dropcap", "5") }},
 	}},
 	{label: "Remove &line breaks", run: func(e *Editor, ids []int64) { e.Doc.JoinLines(ids) }},
+	{label: "Edit &URL…", only: "embed", run: func(e *Editor, ids []int64) {
+		for _, id := range ids {
+			if b := e.Doc.Block(id); b != nil {
+				if ref, ok := ParseImageLine(strings.TrimSpace(b.Text)); ok && isEmbed(ref) {
+					if e.OnEditEmbed != nil {
+						e.OnEditEmbed(id, ref.Path)
+					}
+					break
+				}
+			}
+		}
+	}},
+	{label: "Embe&d size", only: "embed", more: []blockCommand{
+		{label: "&Default", run: func(e *Editor, ids []int64) { e.SetEmbedSize(embedIDs(e, ids), 0, 0) }},
+		{label: "&320 px", run: func(e *Editor, ids []int64) { e.SetEmbedSize(embedIDs(e, ids), 320, 0) }},
+		{label: "&480 px", run: func(e *Editor, ids []int64) { e.SetEmbedSize(embedIDs(e, ids), 480, 0) }},
+		{label: "&640 px", run: func(e *Editor, ids []int64) { e.SetEmbedSize(embedIDs(e, ids), 640, 0) }},
+	}},
+	{label: "Image e&ffects", only: "image", more: []blockCommand{
+		{label: "&Rounded", run: func(e *Editor, ids []int64) { e.toggleImageEffect(imageIDs(e, ids), "rounded", "") }},
+		{label: "&Shadow", run: func(e *Editor, ids []int64) { e.toggleImageEffect(imageIDs(e, ids), "shadow", "") }},
+		{label: "&Border", run: func(e *Editor, ids []int64) { e.toggleImageEffect(imageIDs(e, ids), "border", "") }},
+		{label: "&Plain", run: func(e *Editor, ids []int64) { e.SetImageEffects(imageIDs(e, ids), -1, false, "", "", false) }},
+	}},
 	{label: "D&uplicate", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Duplicate(ids) }},
 	{label: "&Delete", run: func(e *Editor, ids []int64) { e.Doc.DeleteBlocks(ids); e.clearBlockSel() }},
 	{label: "&Move up", sep: true, run: func(e *Editor, ids []int64) { e.Doc.Move(ids, -1) }},
@@ -106,6 +132,70 @@ func (e *Editor) blocksPlain(ids []int64) string {
 	return strings.Join(parts, "\n\n")
 }
 
+// embedIDs are the ids that are embed cards.
+func embedIDs(e *Editor, ids []int64) []int64 {
+	var out []int64
+	for _, id := range ids {
+		if b := e.Doc.Block(id); b != nil {
+			if ref, ok := ParseImageLine(strings.TrimSpace(b.Text)); ok && isEmbed(ref) {
+				out = append(out, id)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return ids
+	}
+	return out
+}
+
+// imageIDs are the ids that are pictures or media.
+func imageIDs(e *Editor, ids []int64) []int64 {
+	var out []int64
+	for _, id := range ids {
+		if b := e.Doc.Block(id); b != nil && (b.Kind == Image || b.Kind == Media) {
+			out = append(out, id)
+		}
+	}
+	if len(out) == 0 {
+		return ids
+	}
+	return out
+}
+
+// toggleImageEffect toggles one image effect flag: rounded (default 12),
+// shadow or border.
+func (e *Editor) toggleImageEffect(ids []int64, key, value string) {
+	e.Doc.Edit("attributes", func() {
+		for _, id := range ids {
+			b := e.Doc.Block(id)
+			if b == nil {
+				continue
+			}
+			has := false
+			var keep []string
+			for _, tok := range strings.Fields(b.Attrs) {
+				if k, _, _ := strings.Cut(tok, "="); k == key {
+					has = true
+					continue
+				}
+				keep = append(keep, tok)
+			}
+			if !has {
+				if value != "" {
+					keep = append(keep, key+"="+value)
+				} else if key == "rounded" {
+					keep = append(keep, key+"=12")
+				} else {
+					keep = append(keep, key)
+				}
+			}
+			b.Attrs = canonicalAttrs(strings.Join(keep, " "))
+		}
+	})
+	e.touched()
+	e.changed()
+}
+
 // openBlockMenu opens the block menu for a block under a part of the
 // editor, given in the editor's coordinates.
 func (e *Editor) openBlockMenu(id int64, at geom.Rect) {
@@ -117,10 +207,34 @@ func (e *Editor) openBlockMenu(id int64, at geom.Rect) {
 	e.ui.ShowMenuAt(e, at, "Block", e.menuItems(blockCommands, ids))
 }
 
+// hasOnly reports whether ids hold a block of the menu's limited kind.
+func (e *Editor) hasOnly(ids []int64, only string) bool {
+	for _, id := range ids {
+		b := e.Doc.Block(id)
+		if b == nil {
+			continue
+		}
+		switch only {
+		case "embed":
+			if ref, ok := ParseImageLine(strings.TrimSpace(b.Text)); ok && isEmbed(ref) {
+				return true
+			}
+		case "image":
+			if b.Kind == Image || b.Kind == Media {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // menuItems turns commands for blocks into menu lines.
 func (e *Editor) menuItems(cmds []blockCommand, ids []int64) []kvitui.MenuItem {
 	var items []kvitui.MenuItem
 	for _, c := range cmds {
+		if c.only != "" && !e.hasOnly(ids, c.only) {
+			continue
+		}
 		if c.sep && len(items) > 0 {
 			items = append(items, kvitui.MenuItem{Separator: true})
 		}

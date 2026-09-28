@@ -304,7 +304,7 @@ func (e *Editor) pictureHeight(i int, showsLine bool) float32 {
 }
 
 // drawPicture draws an image block's picture, or its card, and caption at a
-// point.
+// point, with its image effects (rounded, shadow, border).
 func (e *Editor) drawPicture(gc *unison.Canvas, i int, at geom.Point) {
 	ref, ok, _ := e.pictureBlock(i)
 	if !ok {
@@ -318,11 +318,28 @@ func (e *Editor) drawPicture(gc *unison.Canvas, i int, at geom.Point) {
 		e.drawEmbed(gc, ref, card)
 		return
 	}
+	fx := e.effectsOf(&e.Doc.Blocks[i])
+	rad := e.px(pictureRadius)
+	if fx.rounded {
+		rad = e.px(float32(fx.radius))
+	}
 	p := e.pictureFor(ref)
 	if p.img != nil {
-		p.img.DrawInRect(gc, r, nil, nil)
+		if fx.shadow {
+			sh := geom.NewRect(r.X+e.px(4), r.Y+e.px(4), r.Width, r.Height)
+			e.fillRound(gc, sh, rad, t.TextFaint)
+		}
+		if fx.rounded {
+			n := clipRounded(gc, r, rad)
+			p.img.DrawInRect(gc, r, nil, nil)
+			gc.RestoreToCount(n)
+		} else {
+			p.img.DrawInRect(gc, r, nil, nil)
+		}
+		if fx.border {
+			e.stroke(gc, r, rad, e.px(1.5), fx.color)
+		}
 	} else {
-		rad := e.px(pictureRadius)
 		e.fillRound(gc, r, rad, t.ChipBackground)
 		e.stroke(gc, r, rad, e.px(1), t.Border)
 		label := p.failed

@@ -54,7 +54,23 @@ const (
 	boardAddCardH = 28
 	boardRadius   = 6
 	boardCtl      = 18 // a header control's width
+	boardFootH    = 16 // a card's added/changed days at its foot
 )
+
+// cardFoot is the days a card shows at its foot: when it was added and
+// when it last changed, from the HTML comment at the end of its line; one
+// date when they are the same, "" when neither is known.
+func cardFoot(card kanban.Card) string {
+	switch {
+	case card.Created != "" && card.Modified != "" && card.Modified != card.Created:
+		return "added " + card.Created + " · changed " + card.Modified
+	case card.Created != "":
+		return "added " + card.Created
+	case card.Modified != "":
+		return "changed " + card.Modified
+	}
+	return ""
+}
 
 // boardView is what the reader has chosen for a board while it is open:
 // folded columns and the filter. It is not written to the note.
@@ -86,6 +102,7 @@ type cardBox struct {
 	desc       *text.Layout
 	descProj   projection // the description as drawn, for its typeset math
 	chips      []chip
+	foot       string // the added/changed days at the card's foot, "" for none
 }
 
 // chip is a label or due date under a card's title, or a filter chip.
@@ -229,6 +246,11 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 					box.desc, box.descProj = e.inlineText(card.Description, small, inner)
 					_, dh := box.desc.Size()
 					h += dh + e.px(4)
+				}
+				// The days the card was added and last changed, at its foot.
+				box.foot = cardFoot(card)
+				if box.foot != "" {
+					h += e.px(boardFootH)
 				}
 				h += e.px(boardCardPad) - e.px(4)
 				box.r = geom.NewRect(x+e.px(boardPad), cy, colW-2*e.px(boardPad), h)
@@ -388,8 +410,17 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 		}
 		if c.desc != nil {
 			_, dh := c.desc.Size()
-			c.desc.Draw(gc, c.r.X+e.px(boardCardPad), c.r.Bottom()-e.px(boardCardPad)-dh)
-			drawInlineMath(gc, c.desc, c.descProj, c.r.X+e.px(boardCardPad), c.r.Bottom()-e.px(boardCardPad)-dh)
+			dy := c.r.Bottom() - e.px(boardCardPad) - dh
+			if c.foot != "" {
+				dy -= e.px(boardFootH)
+			}
+			c.desc.Draw(gc, c.r.X+e.px(boardCardPad), dy)
+			drawInlineMath(gc, c.desc, c.descProj, c.r.X+e.px(boardCardPad), dy)
+		}
+		if c.foot != "" {
+			l := e.label(c.foot, e.chrome(kvitui.RoleSmall, text.Regular, t.TextFaint))
+			_, fh := l.Size()
+			l.Draw(gc, c.r.X+e.px(boardCardPad), c.r.Bottom()-e.px(boardCardPad)-fh)
 		}
 	}
 	if e.cardDrag != nil && e.cardDrag.block == b.ID {

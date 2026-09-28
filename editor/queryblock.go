@@ -143,6 +143,7 @@ func (e *Editor) drawQuery(gc *unison.Canvas, i int) {
 		_, lh := l.Size()
 		l.Draw(gc, x, y+(h-lh)/2)
 	}
+	selFrom, selTo, selOK := e.drawnLineRange(e.Doc.Blocks[i].ID)
 	switch {
 	case !a.OK:
 		cell(a.Error, e.chrome(kvitui.RoleBody, text.Regular, t.Danger), pad, y, c.Width-2*pad, e.px(queryRowH))
@@ -160,6 +161,9 @@ func (e *Editor) drawQuery(gc *unison.Canvas, i int) {
 				rr := ql.rows[k]
 				e.fillRound(gc, rr, e.px(4), t.WindowBackground)
 				e.stroke(gc, rr, e.px(4), e.px(1), t.Border)
+				if selOK && k >= selFrom && k <= selTo {
+					e.fillRound(gc, rr, e.px(4), t.SelectionTint)
+				}
 				words := row.Path
 				if len(row.Cells) > 0 {
 					words = row.Cells[0]
@@ -183,6 +187,9 @@ func (e *Editor) drawQuery(gc *unison.Canvas, i int) {
 			rr := ql.rows[ri]
 			if e.queryHover == ri && e.hover == e.Doc.Blocks[i].ID {
 				e.fill(gc, rr, t.HoverTint)
+			}
+			if selOK && ri >= selFrom && ri <= selTo {
+				e.fill(gc, rr, t.SelectionTint)
 			}
 			for k, v := range row.Cells {
 				st := body

@@ -169,6 +169,12 @@ func (e *Editor) drawToc(gc *unison.Canvas, i int) {
 	for _, en := range entries {
 		top = min(top, en.level)
 	}
+	if from, to, ok := e.drawnLineRange(e.Doc.Blocks[i].ID); ok {
+		for k := from; k <= to && k < len(entries); k++ {
+			ry := y + float32(k)*e.px(tocEntryH)
+			e.fill(gc, geom.NewRect(x, ry, c.Right()-e.px(tocPad)-x, e.px(tocEntryH)), t.SelectionTint)
+		}
+	}
 	for k, en := range entries {
 		st := e.chrome(kvitui.RoleStrong, text.Regular, t.Link)
 		if e.tocHover == k && e.hover == e.Doc.Blocks[i].ID {

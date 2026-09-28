@@ -67,6 +67,7 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 		e.drawRow(gc, i)
 	}
 	e.drawGap(gc)
+	e.drawLightbox(gc)
 	if r, ok := e.caretRect(); ok && e.Focused() && !e.blinkOff && e.caretVisible(r) {
 		e.fill(gc, r, e.tok().TextPrimary)
 	}
@@ -76,6 +77,12 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 // the accent line where it is armed, blinking with the text caret, and the
 // drop indicator while a multi-block drag is over a seam.
 func (e *Editor) drawGap(gc *unison.Canvas) {
+	if e.dropIndex >= 0 {
+		if y, ok := e.gapRect(e.dropIndex, 3); ok {
+			e.fill(gc, y, e.tok().Accent)
+		}
+		return
+	}
 	if e.drag != nil && e.drag.active && e.drag.multi && e.drag.gap >= 0 {
 		if y, ok := e.gapRect(e.drag.gap, 3); ok {
 			e.fill(gc, y, e.tok().Accent)

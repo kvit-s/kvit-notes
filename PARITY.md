@@ -52,13 +52,18 @@ kvit-ui-go's `platform` package for the tray.
     `TestCodeFooterHint`, `TestCodeLongLinesDoNotWrap`,
     `TestCodeCaretScrollsIntoView`, `TestCodeBarDragScrolls`,
     `TestPrintingWrapsCode`.
-  - [~] 1.2.8 Image and media: an image line drawn as its picture (beside the
+  - [x] 1.2.8 Image and media: an image line drawn as its picture (beside the
     note, from the top of the vault, or from the site folder for a path
     starting with "/"), at its width, with its caption; the line shown for
-    editing while the caret is in it; a sound or video drawn as a card; a
-    new picture copied into the vault's picture folder and named after the
-    note. Evidence: `TestPicturesAreDrawn`, `TestAPictureFromOutsideIsCopiedIntoAssets`,
-    `TestPictureFolders`. Missing: playing media, the lightbox, image effects
+    editing while the caret is in it; a sound or video drawn as a card opening
+    externally; a new picture copied into the vault's picture folder and named
+    after the note; the effects (rounded with its radius, shadow, border with
+    an optional colour) from the block menu, drawn as Kvit draws them; a click
+    on a resolved picture opening it full-size over the note (Escape or a press
+    closing it). Evidence: `TestPicturesAreDrawn`, `TestAPictureFromOutsideIsCopiedIntoAssets`,
+    `TestPictureFolders`, `TestImageEffectsRoundTrip`, `TestLightboxOpensAndCloses`,
+    `TestBlockMenuHasExport`. Playing inline has no Go toolkit behind it, so a
+    sound or video opens in the reader's player instead; see "Differences" below
   - [x] 1.2.9 Divider. Evidence: `07_block_types`, `13_select`
   - [x] 1.2.10 Callout: Kvit's six types and any other, the header's fold
     arrow, type menu, title (edited in place) and colour dot, the "color"
@@ -113,19 +118,23 @@ kvit-ui-go's `platform` package for the tray.
     line it does not change. Evidence: `38_kanban`, `visual_38_kanban_*`,
     `TestCardDescriptionHasTheMathAids`,
     `TestCardLineHasTheMathAidsAndTabGoesToTheDescription`,
-    `TestCellsAndCardsTypesetMath`. Missing: dragging columns (‹ and › move
+    `TestCellsAndCardsTypesetMath`, `TestCardFootDates`. The days a card was
+    added and last changed show at its foot, and a press under a card without
+    a description opens an empty one. Missing: dragging columns (‹ and › move
     them), the card drawn under the pointer while dragged, the date picker
-    and label chips for adding, the card details popover, the dates at a
-    card's foot, a press under a card without a description opening an empty
-    one (Tab from its line does). Escape drops what was typed, where the Qt
-    card editor has already written it
+    and label chips for adding, the card details popover. Escape drops what
+    was typed, where the Qt card editor has already written it; see
+    "Differences" below
   - [x] 1.2.13 Toggle: a callout of type "toggle", folded and opened by its
     arrow, the fold kept in the file. Evidence: `35_callouts`,
     `visual_35_callouts_03_toggle_collapsed`, `visual_35_callouts_04_toggle_expanded`
-  - [~] 1.2.14 Embed: a web page's card, read only when Load preview is
+  - [x] 1.2.14 Embed: a web page's card, read only when Load preview is
     pressed (title, description and picture from its tags), its title
-    opening the page. Evidence: `TestAnEmbedCardLoadsItsPreviewOnRequest`.
-    Missing: Edit URL, dimensions, the video players' previews
+    opening the page; Edit URL from the block menu, the configured width and
+    height from the block menu kept in the block's attributes, and a play
+    badge over a video host's thumbnail opening externally. Evidence:
+    `TestAnEmbedCardLoadsItsPreviewOnRequest`, `TestSetEmbedURLKeepsAlt`,
+    `TestSetEmbedSizeAndVideoHosts`, `TestNormalizeEmbedURL`
   - [x] 1.2.15 Math: typeset by MicroTeX, the Qt app's engine, kept in C++
     (`third_party/microtex`) and built as a shared library that the
     `mathtex` package loads without cgo; without the library the TeX shows
@@ -253,10 +262,14 @@ kvit-ui-go's `platform` package for the tray.
   in the browser; `#heading` in the note; `[[` offers the notes, and after
   "#" their headings. Evidence: `TestFollowingLinksAndTheLinkDialog`,
   `TestWikiLinkCompletion`
-- [~] 2.5 Text selection: drag, double- and triple-click, Shift+arrows,
-  Shift+click, across blocks, Ctrl+A. Evidence: `15_xsel`, `13_select`. Missing: the
-  selection of its own that a block drawing its text has (an embed card,
-  a collection query's results, a table of contents)
+- [x] 2.5 Text selection: drag, double- and triple-click, Shift+arrows,
+  Shift+click, across blocks, Ctrl+A. Evidence: `15_xsel`, `13_select`; a block
+  drawing its text carries a selection of its own over what it drew (an embed
+  card, a collection query's results, a table of contents): drag for a character
+  span, double-click for a word, a third click for a whole line, Ctrl+A for the
+  block before the document, Ctrl+C to copy the text on screen as plain text
+  (tabs between cells, newlines between lines), Escape to drop. Evidence:
+  `TestDrawnTextOfTocQueryEmbed`, `TestDrawnWordAndLine`
 - [x] 2.6 Caret: blinking (steady with motion reduced), goal column, Home/End,
   Ctrl+Home/End to the ends of the note, word moves, Page Up/Down, the space
   below the last block. Evidence: `20_caret_nav`, `TestCtrlHomeAndEndReachTheEndsOfTheNote`
@@ -334,8 +347,15 @@ kvit-ui-go's `platform` package for the tray.
   `TestPastedURLLinksThroughTheKeyboard`, `TestInsertAtInsertsBlocks`,
   `TestPasteAfterSelectedBlocks`, `TestPastedImageInsertsAnImageBlock`,
   `TestPastedPictureIsSavedAsAnImageBlock`, `TestFenceFromPlainTextBeatsHTML`
-- [~] 5.4 Drag and drop: blocks by their handle, Escape cancels. Missing:
-  files, images and text from other applications
+- [x] 5.4 Drag and drop: blocks by their handle, Escape cancels; files, images
+  and text from other applications land where they are dropped (an image file
+  as an image block, copied into the vault's picture folder first, a web
+  address as an embed, text as blocks the way pasted text goes), with a drop
+  indicator at the insertion row. Note files still open in the window.
+  Evidence: `TestDropFilesSplitNotesImagesOther`,
+  `TestCanAcceptExternalDeclinesNoteOnly`, `TestDropExternalInsertsImageAtIndex`,
+  `TestDropExternalInsertsText`, `TestDropExternalLoneURLBecomesEmbed`,
+  `TestDroppedNoteFilesOpen`
 
 ## 6. Undo and redo
 
@@ -528,8 +548,10 @@ kvit-ui-go's `platform` package for the tray.
 
 ## 14. Accessibility
 
-- [~] 14.1 Keyboard accessibility: all editing from the keyboard. Missing: the
-  app's own focus order and chrome
+- [x] 14.1 Keyboard accessibility: all editing from the keyboard, and the app's
+  own focus order: F6 walks the panes drawn (search, note list, editor,
+  backlinks, outline, toolbar), skipping hidden panes, and the menus carry the
+  Qt app's access keys. Evidence: `TestF6CyclesPanes`, `TestMenuAccessKeys`
 - [~] 14.2 Screen readers: every block is an editable text named by its kind
   ("Heading 2 block"), a to-do has its state, the keyboard focus is
   reported on the block with the caret, with its text, lines, styled runs,
@@ -592,9 +614,10 @@ kvit-ui-go's `platform` package for the tray.
   none either. Evidence: kvit-ui's `TestNotificationsNeedAuthorizationAndTheIcon`,
   `TestClicksReachTheCallbacks`, `TestAuthorizationIsAskedOnce`, and on
   Windows the balloon `kvit-notes --tray-check` posts, shown as a toast
-- [~] 16.1 Focus mode: F11 or View leaves the editor alone with its text in
+- [x] 16.1 Focus mode: F11 or View leaves the editor alone with its text in
   a centred column; Escape leaves. The window is maximised rather than made
-  full screen, which unison v0.108.0 has no call for. Evidence: `TestFocusMode`
+  full screen, which unison v0.108.0 has no call for; see "Differences" below.
+  Evidence: `TestFocusMode`
 - [x] 16.2 Typewriter mode: the caret's line kept in the middle of the view,
   the other blocks faded
 - [x] 17.1 Outline panel: headings by level, the current section
@@ -659,3 +682,12 @@ kvit-ui-go's `platform` package for the tray.
   reach of the last seam the press arms the gap caret as above; further down,
   in the editor's tail space Qt has no equivalent of, the caret goes to a new
   paragraph at the end, as the Go editor always did.
+- **Sounds and videos open outside the note.** No Go toolkit plays video in
+  place, so a media card opens its file in the reader's player (a remote page
+  in the browser), where Qt plays it inside the block.
+- **Focus mode maximises instead of going full screen.** Qt takes the window
+  full screen; unison v0.108.0 has no call for that, so the Go app maximises,
+  hides the panes and centres the column.
+- **Escape in a card editor drops what was typed.** Qt's card editor writes as
+  typed, so Escape keeps it; the Go field writes on Enter, so Escape leaves the
+  card as it was.

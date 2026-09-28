@@ -4,9 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/kvit-s/kvit-notes/editor"
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/kvit-s/kvit-ui/platform"
 	"github.com/richardwilkes/toolbox/v2/geom"
@@ -245,7 +247,21 @@ func TestDroppedNoteFilesOpen(t *testing.T) {
 		t.Errorf("a file from outside the vault should open on its own: %q", opened)
 	}
 	picture := filepath.Join(t.TempDir(), "photo.png")
-	if op := drop(picture); op != drag.None || len(opened) != 1 {
-		t.Errorf("a picture should not be taken: op %v, opened %q", op, opened)
+	if op := drop(picture); op == drag.None {
+		t.Errorf("a picture should be taken by the editor: op %v", op)
+	}
+	if !slices.Equal(opened, []string{outside}) {
+		t.Errorf("a picture should not open as a note: opened %q", opened)
+	}
+	var found bool
+	s.do(func() {
+		for _, b := range s.w.Editor.Doc.Blocks {
+			if b.Kind == editor.Image && strings.Contains(b.Text, "photo.png") {
+				found = true
+			}
+		}
+	})
+	if !found {
+		t.Errorf("a dropped picture should land as an image block")
 	}
 }

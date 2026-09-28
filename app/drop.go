@@ -19,9 +19,12 @@ import (
 // AcceptDroppedNotes makes a window take note files dropped anywhere on it,
 // giving each to open. A part of the window that takes drops of its own
 // comes first, as unison asks the panel under the pointer before its
-// parents, and the window's content is the last of those.
+// parents, and the window's content is the last of those. The window also
+// registers the text and address types so the editor can take drops from
+// other applications (features.md 5.4); the content itself only takes note
+// files.
 func AcceptDroppedNotes(win *kvitui.Window, open func(path string)) {
-	win.RegisterForDragTypes(uti.FileURL)
+	win.RegisterForDragTypes(uti.FileURL, uti.URL, uti.UTF8PlainText)
 	content := win.Content()
 	content.CanAcceptDropCallback = func(di drag.Info) bool { return len(droppedNotes(di)) > 0 }
 	content.DragEnteredCallback = func(di drag.Info, _ geom.Point, _ mod.Modifiers) drag.Op {

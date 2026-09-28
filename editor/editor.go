@@ -82,6 +82,10 @@ type Editor struct {
 	// reports the stored path, as Qt's assetSink does. Nil keeps image data
 	// from being pasted, leaving the text path to run instead.
 	PasteImage func() (string, bool)
+	// SaveDroppedImage, when set, copies an image file dropped from another
+	// application into the vault's picture folder and reports the stored
+	// path (features.md 5.4). Nil keeps the file path as written.
+	SaveDroppedImage func(sourcePath string) (stored string, ok bool)
 	// BlocksHTML, when set, writes blocks as HTML for the block menu's
 	// Copy as, HTML.
 	BlocksHTML func(blocks []Block, indexes []int) string
@@ -89,6 +93,9 @@ type Editor struct {
 	FollowLink func(LinkRef)
 	// OnLink, when set, opens the link dialog, as Ctrl+K does.
 	OnLink func()
+	// OnEditEmbed, when set, edits an embed block's address, as the block
+	// menu's Edit URL… does (features.md 1.2.14).
+	OnEditEmbed func(id int64, current string)
 	// OnExport, when set, exports blocks, as the block menu's Export does.
 	OnExport     func(ids []int64)
 	formatBar    func()        // hides the formatting bar while it is shown
@@ -159,6 +166,10 @@ type Editor struct {
 	selectAllN  int            // Ctrl+A presses in a row
 	gapArmed    int            // the armed seam above block gapArmed, count is below last, -1 off
 	gapHover    int            // the seam under the pointer, -1 for none
+	dropIndex   int            // the row an external drag would insert before, -1 for none
+	drawn       *drawnSel      // a drawn block's own selection (features.md 2.5), nil for none
+	drawnDrag   *drawnAnchor   // a drawn selection being made by dragging
+	light       *lightbox      // a picture opened full-size (features.md 1.2.8), nil for none
 
 	menu  *slashMenu
 	drag  *dragState
@@ -184,7 +195,7 @@ type cachedLayout struct {
 func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something...", layouts: map[int64]cachedLayout{},
 		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tableHold: map[int64]bool{}, tocHover: -1, queryHover: -1,
-		codeScroll: map[int64]float32{}, gapArmed: -1, gapHover: -1}
+		codeScroll: map[int64]float32{}, gapArmed: -1, gapHover: -1, dropIndex: -1}
 	e.Self = e
 	e.SetFocusable(true)
 	e.SetSizer(e.sizes)
@@ -208,6 +219,7 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 	}
 	e.Accessibility.Name = "Note"
 	e.useMath()
+	e.enableExternalDrops()
 	ui.OnChanged(func() {
 		e.generation++
 		e.changed()
@@ -239,6 +251,9 @@ func (e *Editor) SetDoc(doc *Doc) {
 	e.closeMenu()
 	e.drag, e.msel = nil, nil
 	e.gapArmed, e.gapHover = -1, -1
+	e.dropIndex = -1
+	e.drawn, e.drawnDrag = nil, nil
+	e.light = nil
 	e.changed()
 }
 

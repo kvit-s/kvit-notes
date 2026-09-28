@@ -47,7 +47,16 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return true
 	}
 
+	if e.light != nil && key == unison.KeyEscape {
+		e.CloseLightbox()
+		return true
+	}
+
 	if e.tableSweepKey(key, ctrl, shift, alt) {
+		return true
+	}
+
+	if e.drawnKey(key, ctrl, shift, alt) {
 		return true
 	}
 

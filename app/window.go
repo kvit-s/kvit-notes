@@ -270,10 +270,12 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	}
 	w.Editor.PasteRich = pasteRich
 	w.Editor.PasteImage = w.pasteImage
+	w.Editor.SaveDroppedImage = w.saveDroppedImage
 	w.Editor.BlocksHTML = func(blocks []editor.Block, indexes []int) string {
 		return export.HTMLFromSelection(blocks, indexes, "", w.exportOptions())
 	}
 	w.Editor.OnLink = w.openLinkDialog
+	w.Editor.OnEditEmbed = w.editEmbed
 	w.Editor.OnExport = w.openExportFor
 	w.Editor.LoadPreview = w.loadPreview
 	w.Editor.RemotePolicy = w.egress

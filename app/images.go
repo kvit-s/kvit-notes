@@ -450,3 +450,18 @@ func (w *Window) ingestImageBytes(data []byte, dt *uti.DataType, note string) (s
 	}
 	return w.storedPath(target), nil
 }
+
+// saveDroppedImage copies an image file dropped from another application
+// into the vault's picture folder (features.md 5.4), through ingestFile's
+// rule: a file already in the vault is linked where it is, any other is
+// copied as "<note>-<yyyyMMdd-HHmmss>.<ext>".
+func (w *Window) saveDroppedImage(source string) (string, bool) {
+	note := ""
+	if w.open != nil {
+		note = w.open.Path
+	}
+	if stored, err := w.ingestFile(source, note); err == nil {
+		return stored, true
+	}
+	return "", false
+}

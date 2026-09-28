@@ -35,6 +35,11 @@ type mouseSel struct {
 }
 
 func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Modifiers) bool {
+	if e.light != nil {
+		// A press anywhere closes the full-size picture.
+		e.CloseLightbox()
+		return true
+	}
 	if e.tableActive != nil && e.tableField == nil {
 		// The live-cell field just closed on an outside press (its popup kept
 		// the live cell so a + Row / + Column press still sees it). Keep it
@@ -179,8 +184,10 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 				e.LoadPreview(ref.Path)
 			}
 		case partEmbedOpen:
-			if _, ref, ok := e.embedCard(i); ok && e.OpenURL != nil {
-				e.OpenURL(ref.Path)
+			// A press on an embed's title opens the page on release (a
+			// single click); a drag, double- or triple-click selects the
+			// card's own text instead (features.md 2.5).
+			if e.drawnPress(i, where, clickCount) {
 			}
 		case partPictureLoad:
 			if ref, ok, _ := e.pictureBlock(i); ok && e.RemotePolicy != nil {
@@ -232,12 +239,15 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 					scroll: e.codeScrollOf(b.ID), trackW: track.Width, content: e.codeContent(i)}
 			}
 		case partQueryRow:
-			if k := e.queryRowAt(i, where); k >= 0 && e.OpenNote != nil {
-				e.OpenNote(e.queryResult(i).paths[k])
+			// A press on a query's row opens its note on release; a drag,
+			// double- or triple-click selects the results' own text.
+			if e.drawnPress(i, where, clickCount) {
 			}
 		case partTocEntry:
-			if k := e.tocEntryAt(i, where); k >= 0 {
-				e.goToHeading(d.tocEntries()[k].block)
+			// A press on a table of contents entry goes to its heading on
+			// release; a drag, double- or triple-click selects the card's
+			// own text.
+			if e.drawnPress(i, where, clickCount) {
 			}
 		}
 		return true
@@ -258,6 +268,25 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 			e.boardPress(i, where, false)
 		}
 		return true
+	}
+	if i := e.rowAt(where); i >= 0 {
+		// A press on a resolved picture opens it full-size; on a sound
+		// or video it opens externally, as playing inline has no Go
+		// toolkit behind it (features.md 1.2.8).
+		if ref, ok, shows := e.pictureBlock(i); ok && !shows {
+			if _, _, ok := e.embedCard(i); !ok && where.In(e.pictureRect(i)) {
+				if ref.Media {
+					if e.OpenURL != nil {
+						e.OpenURL(ref.Path)
+					}
+					return true
+				}
+				if p := e.pictureFor(ref); p.img != nil {
+					e.OpenLightbox(ref.Path, ref.Alt)
+					return true
+				}
+			}
+		}
 	}
 	if n := len(e.tops); n > 0 && where.Y > e.tops[n-1]+e.heights[n-1] && !d.ReadOnly {
 		// A press below the last block puts the caret at its end, in a new
@@ -315,6 +344,15 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.drawnDrag != nil:
+		i := e.rowAt(where)
+		if i < 0 {
+			i = e.Doc.Index(e.drawnDrag.block)
+		}
+		if i >= 0 {
+			e.drawnDragStep(i, where)
+		}
+		return true
 	case e.tableResize != nil:
 		e.tableDragResize(where)
 		return true
@@ -397,6 +435,16 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.drawnDrag != nil:
+		i := e.rowAt(where)
+		if i < 0 {
+			i = e.Doc.Index(e.drawnDrag.block)
+		}
+		if i < 0 {
+			e.drawnDrag = nil
+			return true
+		}
+		e.drawnRelease(i, where)
 	case e.tableResize != nil:
 		e.tableEndResize()
 	case e.codeDrag != nil:

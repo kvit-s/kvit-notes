@@ -62,13 +62,26 @@ func (s fieldSurface) caretRect() (geom.Rect, bool) {
 
 // cardFieldAt is the field of a card a press at where, in the editor's
 // coordinates, edits: the description when it is on the card's
-// description, the line otherwise.
+// description, or under a card without one (opening an empty description),
+// the line otherwise.
 func (e *Editor) cardFieldAt(i, col, index int, where geom.Point) string {
 	p := where.Sub(e.boardOrigin(i))
 	for _, c := range e.board(i).cards {
 		if c.col == col && c.index == index {
 			if r, ok := e.cardDescriptionRect(c); ok && p.In(r) {
 				return cardDescription
+			}
+			if c.desc == nil {
+				// A press under a card without a description opens an
+				// empty one: the lower part of the card above its foot.
+				foot := float32(0)
+				if c.foot != "" {
+					foot = e.px(boardFootH)
+				}
+				zone := geom.NewRect(c.r.X, c.r.Y+c.r.Height/2, c.r.Width, c.r.Height/2-e.px(boardCardPad)-foot)
+				if p.In(zone) {
+					return cardDescription
+				}
 			}
 		}
 	}
@@ -82,7 +95,11 @@ func (e *Editor) cardDescriptionRect(c cardBox) (geom.Rect, bool) {
 		return geom.Rect{}, false
 	}
 	w, h := c.desc.Size()
-	return geom.NewRect(c.r.X+e.px(boardCardPad), c.r.Bottom()-e.px(boardCardPad)-h, w, h), true
+	y := c.r.Bottom() - e.px(boardCardPad) - h
+	if c.foot != "" {
+		y -= e.px(boardFootH)
+	}
+	return geom.NewRect(c.r.X+e.px(boardCardPad), y, w, h), true
 }
 
 // editCardField opens a field over a card for its line or its description,
