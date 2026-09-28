@@ -103,6 +103,10 @@ type cardBox struct {
 	descProj   projection // the description as drawn, for its typeset math
 	chips      []chip
 	foot       string // the added/changed days at the card's foot, "" for none
+	// addTag and addDue are the hovered card's + tag and due affordances,
+	// in board coordinates; hasAdd reports whether they were laid out.
+	addTag, addDue geom.Rect
+	hasAdd         bool
 }
 
 // chip is a label or due date under a card's title, or a filter chip.
@@ -236,8 +240,34 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 						chipY += e.px(boardChipH + 3)
 					}
 					box.chips = append(box.chips, chip{words: words, due: true, r: geom.NewRect(chipX, chipY, w+e.px(10), e.px(boardChipH))})
+					chipX += w + e.px(14)
 				}
 				if len(box.chips) > 0 {
+					h = chipY - cy + e.px(boardChipH+4)
+				}
+				// The hovered card offers + tag, and + due when it has no
+				// due date yet: the chip row's way in, as in Kvit.
+				if e.boardHoverID == b.ID && e.boardHoverCol == ci && e.boardHoverIdx == k {
+					box.hasAdd = true
+					if len(box.chips) == 0 {
+						chipY = cy + h
+					}
+					w, _ := e.label("+ tag", small).Size()
+					if chipX+w+e.px(10) > cx+inner && chipX > cx {
+						chipX = cx
+						chipY += e.px(boardChipH + 3)
+					}
+					box.addTag = geom.NewRect(chipX, chipY, w+e.px(10), e.px(boardChipH))
+					chipX += w + e.px(14)
+					if card.Due == "" {
+						w, _ := e.label("+ due", small).Size()
+						if chipX+w+e.px(10) > cx+inner && chipX > cx {
+							chipX = cx
+							chipY += e.px(boardChipH + 3)
+						}
+						box.addDue = geom.NewRect(chipX, chipY, w+e.px(10), e.px(boardChipH))
+						chipX += w + e.px(14)
+					}
 					h = chipY - cy + e.px(boardChipH+4)
 				}
 				if card.Description != "" {
@@ -279,7 +309,8 @@ func (e *Editor) board(i int) *boardLayout {
 	b := &e.Doc.Blocks[i]
 	width := e.bodyRight() - e.bodyLeft()
 	v := e.viewOf(b.ID)
-	key := fmt.Sprintf("%s|%v|%d|%v|%s|%v", b.Text, width, e.generation, v.hideDone, v.label, v.folded)
+	key := fmt.Sprintf("%s|%v|%d|%v|%s|%v|%v|%d|%d", b.Text, width, e.generation, v.hideDone, v.label, v.folded,
+		e.boardHoverID == b.ID, e.boardHoverCol, e.boardHoverIdx)
 	if c, ok := e.boards[b.ID]; ok && c.key == key {
 		return c.layout
 	}
@@ -382,9 +413,14 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 			center("+ Add card", faint, cb.addCard)
 		}
 	}
+	dragged := e.cardDrag != nil && e.cardDrag.active && e.cardDrag.block == b.ID
 	for _, c := range bl.cards {
 		card := bl.board.Columns[c.col].Cards[c.index]
 		r := e.px(4)
+		faded := dragged && c.col == e.cardDrag.col && c.index == e.cardDrag.index
+		if faded {
+			gc.SaveWithOpacity(0.35)
+		}
 		gc.DrawRoundedRect(c.r, geom.NewSize(r, r), kvitui.Color(t.WindowBackground).Paint(gc, c.r, paintstyle.Fill))
 		e.stroke(gc, c.r, r, e.px(1), t.Border)
 		if card.Done {
@@ -408,6 +444,19 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 			w, h := l.Size()
 			l.Draw(gc, ch.r.X+(ch.r.Width-w)/2, ch.r.Y+(ch.r.Height-h)/2)
 		}
+		if c.hasAdd {
+			add := func(words string, at geom.Rect) {
+				e.fillRound(gc, at, e.px(4), t.ChipBackground)
+				e.stroke(gc, at, e.px(4), e.px(1), t.BorderStrong)
+				l := e.label(words, e.chrome(kvitui.RoleSmall, text.Regular, t.TextSecondary))
+				w, h := l.Size()
+				l.Draw(gc, at.X+(at.Width-w)/2, at.Y+(at.Height-h)/2)
+			}
+			add("+ tag", c.addTag)
+			if card.Due == "" {
+				add("+ due", c.addDue)
+			}
+		}
 		if c.desc != nil {
 			_, dh := c.desc.Size()
 			dy := c.r.Bottom() - e.px(boardCardPad) - dh
@@ -422,10 +471,17 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 			_, fh := l.Size()
 			l.Draw(gc, c.r.X+e.px(boardCardPad), c.r.Bottom()-e.px(boardCardPad)-fh)
 		}
+		if faded {
+			gc.Restore()
+		}
+	}
+	if dragged {
+		e.drawCardGhost(gc, i, bl)
 	}
 	if e.cardDrag != nil && e.cardDrag.block == b.ID {
 		e.drawCardDrop(gc, bl)
 	}
+	e.drawColumnGap(gc, bl)
 	e.fillRound(gc, bl.addCol, e.px(boardRadius), t.PanelBackground)
 	e.stroke(gc, bl.addCol, e.px(boardRadius), e.px(1), t.Border)
 	l := e.label("+ Column", small)
@@ -467,13 +523,20 @@ func (e *Editor) boardPress(i int, where geom.Point, right bool) bool {
 			e.ui.ShowMenuAt(e, geom.NewRect(where.X, where.Y, 0, 0), "Card", e.cardItems(id, c.col, c.index))
 			return true
 		}
+		// The chip row answers chip by chip; a press there is never the
+		// card's (KanbanBlock.qml metaRow).
+		if hit, ok := e.cardChipAt(c, p); ok {
+			e.actOnCardChip(i, c, hit)
+			return true
+		}
 		if p.In(c.box.Inset(geom.NewUniformInsets(-e.px(3)))) {
 			apply(kanban.ToggleCardDone(b.Text, c.col, c.index, today))
 			return true
 		}
 		// A press on a card edits it when let go where it was, and moves it
 		// when dragged (boardDrag).
-		e.cardDrag = &cardDrag{block: id, col: c.col, index: c.index, start: where, toCol: -1}
+		hot := p.Sub(c.r.Point)
+		e.cardDrag = &cardDrag{block: id, col: c.col, index: c.index, start: where, toCol: -1, at: where, hot: hot}
 		return true
 	}
 	for ci, cb := range bl.cols {
@@ -498,12 +561,13 @@ func (e *Editor) boardPress(i int, where geom.Point, right bool) bool {
 		case p.In(cb.right) && ci < len(bl.cols)-1:
 			apply(kanban.MoveColumn(b.Text, ci, ci+1))
 		case p.In(cb.name):
-			e.editBoardText(i, cb.name, "Column name", name, func(text string) string {
-				if text == "" {
-					return ""
-				}
-				return kanban.RenameColumn(e.Doc.Block(id).Text, ci, text)
-			})
+			if right {
+				return true
+			}
+			// A press on a header renames it when let go where it was,
+			// and drags the column when moved, as Kvit's header does
+			// ("Click to rename, drag to reorder").
+			e.colDrag = &colDragState{block: id, from: ci, start: where, slot: -1}
 		}
 		return true
 	}
@@ -550,6 +614,7 @@ func (e *Editor) cardItems(id int64, col, index int) []kvitui.MenuItem {
 	}
 	return []kvitui.MenuItem{
 		{Text: "&Edit card", OnSelect: func() { e.editCard(e.Doc.Index(id), col, index) }},
+		{Text: "La&bels and due date…", OnSelect: func() { e.OpenCardDetails(e.Doc.Index(id), col, index) }},
 		{Text: "&Move to column", Items: moves, Disabled: len(moves) == 0},
 		{Separator: true},
 		{Text: "&Delete card", Danger: true, OnSelect: func() { apply(kanban.RemoveCard(e.Doc.Block(id).Text, col, index)) }},
@@ -636,12 +701,26 @@ func (e *Editor) BoardText(i int) string {
 
 // BoardPart is where a part of a task board is, in the editor: "column N"
 // parts ("fold", "name", "left", "right", "add", "close", "addcard"), a
-// card's "box" or "card", "addcolumn", or a filter chip by its words.
+// card's "box" or "card", "addtag" or "adddue" on the hovered card,
+// "addcolumn", or a filter chip by its words.
 func (e *Editor) BoardPart(i int, part string, col, index int) geom.Rect {
 	bl := e.board(i)
 	o := e.boardOrigin(i)
 	shift := func(r geom.Rect) geom.Rect { return geom.NewRect(r.X+o.X, r.Y+o.Y, r.Width, r.Height) }
 	switch part {
+	case "addtag", "adddue":
+		for _, c := range bl.cards {
+			if c.col == col && c.index == index && c.hasAdd {
+				if part == "addtag" {
+					return shift(c.addTag)
+				}
+				// A card with a due date has no + due affordance.
+				if c.addDue.Width > 0 {
+					return shift(c.addDue)
+				}
+			}
+		}
+		return geom.Rect{}
 	case "addcolumn":
 		return shift(bl.addCol)
 	case "box", "card":
@@ -675,13 +754,16 @@ type cardDrag struct {
 	col, index   int
 	start        geom.Point
 	active       bool
-	toCol, toIdx int // where it would go: a column and a place in it
+	toCol, toIdx int        // where it would go: a column and a place in it
+	at           geom.Point // the pointer in editor coordinates while dragging
+	hot          geom.Point // the press offset inside the card, board coordinates
 }
 
 // dragCard follows the pointer while a card is dragged: the column under it
 // and the gap between that column's cards nearest to it.
 func (e *Editor) dragCard(where geom.Point) {
 	cd := e.cardDrag
+	cd.at = where
 	dv := where.Sub(cd.start)
 	if !cd.active && dv.X*dv.X+dv.Y*dv.Y > e.px(dragThreshold)*e.px(dragThreshold) {
 		cd.active = true

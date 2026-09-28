@@ -52,6 +52,19 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return true
 	}
 
+	// A press started on a board that turned into a drag is dropped
+	// without writing anything.
+	if key == unison.KeyEscape && e.cardDrag != nil {
+		e.cardDrag = nil
+		e.changed()
+		return true
+	}
+	if key == unison.KeyEscape && e.colDrag != nil {
+		e.colDrag = nil
+		e.changed()
+		return true
+	}
+
 	if e.tableSweepKey(key, ctrl, shift, alt) {
 		return true
 	}

@@ -378,6 +378,10 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 		e.dragCard(where)
 		e.MarkForRedraw()
 		return true
+	case e.colDrag != nil:
+		e.dragColumn(where)
+		e.MarkForRedraw()
+		return true
 	case e.drag != nil:
 		dv := where.Sub(e.drag.start)
 		limit := e.px(dragThreshold)
@@ -460,6 +464,8 @@ func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 		e.diagramRelease(where)
 	case e.cardDrag != nil:
 		e.dropCard()
+	case e.colDrag != nil:
+		e.dropColumn()
 	case e.drag != nil:
 		if e.drag.active {
 			if e.drag.multi {
@@ -505,12 +511,17 @@ func (e *Editor) mouseMove(where geom.Point, _ mod.Modifiers) bool {
 		e.hover, e.part, e.tocHover = hover, part, entry
 		e.MarkForRedraw()
 	}
+	e.updateBoardHover(where)
 	return true
 }
 
 func (e *Editor) mouseExit() bool {
 	if e.hover != 0 || e.part != partNone {
 		e.hover, e.part = 0, partNone
+		e.MarkForRedraw()
+	}
+	if e.boardHoverID != 0 {
+		e.boardHoverID, e.boardHoverCol, e.boardHoverIdx = 0, -1, -1
 		e.MarkForRedraw()
 	}
 	return true

@@ -18,22 +18,32 @@ import (
 const boardNote = "Intro\n\n```kanban\n## To do\n- [ ] First card\n  a description\n```\n"
 
 // pressCard presses and lets go on a point of a card of the board in block
-// 1: its description when desc is set, else its title.
+// 1: its description when desc is set, else its title. The pointer moves
+// there first, as in real use: the hovered card grows its + tag row, so
+// aiming before the hover would land in the wrong row.
 func pressCard(t *testing.T, s *uitest.Session, e *Editor, desc bool) {
 	t.Helper()
 	var p geom.Point
-	s.Do(func() {
-		for _, c := range e.board(1).cards {
-			if c.col != 0 || c.index != 0 {
-				continue
+	aim := func() geom.Point {
+		var q geom.Point
+		s.Do(func() {
+			for _, c := range e.board(1).cards {
+				if c.col != 0 || c.index != 0 {
+					continue
+				}
+				r := geom.NewRect(c.r.X, c.r.Y, c.r.Width, e.px(boardCardPad+boardBox))
+				if desc {
+					r, _ = e.cardDescriptionRect(c)
+				}
+				q = s.Screen.PanelPoint(e, r.Center().Add(e.boardOrigin(1)))
 			}
-			r := geom.NewRect(c.r.X, c.r.Y, c.r.Width, e.px(boardCardPad+boardBox))
-			if desc {
-				r, _ = e.cardDescriptionRect(c)
-			}
-			p = s.Screen.PanelPoint(e, r.Center().Add(e.boardOrigin(1)))
-		}
-	})
+		})
+		return q
+	}
+	p = aim()
+	s.Screen.MouseMove(p, mod.None)
+	s.Sync()
+	p = aim()
 	s.Screen.MouseDown(p, unison.ButtonLeft, mod.None)
 	s.Screen.MouseUp(p, unison.ButtonLeft, mod.None)
 	s.Sync()

@@ -713,10 +713,12 @@ var scenarios = []scenario{
 		dr.typ("Release notes #docs\n")
 		dr.expect(strings.Contains(dr.text(1), "- [ ] Release notes #docs"), "a new card: %q", dr.text(1))
 		dr.shot("visual_38_kanban_10c_card_added.png")
-		// Dragging the parser card into Done.
+		// Dragging the parser card into Done, by its title strip (the card's
+		// middle is its chip row, which answers chip by chip).
 		var from, to geom.Point
 		dr.do(func() {
-			from = dr.screen.PanelPoint(dr.ed(), dr.ed().BoardPart(1, "card", 0, 0).Center())
+			card := dr.ed().BoardPart(1, "card", 0, 0)
+			from = dr.screen.PanelPoint(dr.ed(), geom.NewPoint(card.Center().X, card.Y+10))
 			done := dr.ed().BoardPart(1, "addcard", 2, 0)
 			to = dr.screen.PanelPoint(dr.ed(), geom.NewPoint(done.Center().X, done.Y-4))
 		})
@@ -729,6 +731,41 @@ var scenarios = []scenario{
 		dr.expect(board() == "In progress:\nTo do: [ ] Design the API; [ ] Write the spec;\nDone: [x] Set up CI; [ ] Release notes; [ ] Build the parser;\n",
 			"after dragging the parser card into Done: %q", board())
 		dr.shot("visual_38_kanban_17_card_dragged.png")
+		// Dragging the In progress column past Done by its header.
+		var head, tail geom.Point
+		dr.do(func() {
+			head = dr.screen.PanelPoint(dr.ed(), dr.ed().BoardPart(1, "name", 0, 0).Center())
+			last := dr.ed().BoardPart(1, "name", 2, 0)
+			tail = dr.screen.PanelPoint(dr.ed(), geom.NewPoint(last.Right()+80, last.Center().Y))
+		})
+		dr.screen.MouseDown(head, unison.ButtonLeft, mod.None)
+		dr.screen.MouseMove(geom.NewPoint(head.X+30, head.Y), mod.None)
+		dr.screen.MouseMove(tail, mod.None)
+		dr.shot("visual_38_kanban_18_column_dragging.png")
+		dr.screen.MouseUp(tail, unison.ButtonLeft, mod.None)
+		dr.screen.Sync()
+		dr.expect(strings.HasPrefix(board(), "To do:"),
+			"after dragging In progress past Done: %q", board())
+		dr.shot("visual_38_kanban_19_column_dragged.png")
+		// Pressing the parser card's #urgent chip removes the label.
+		var chip geom.Point
+		dr.do(func() {
+			// Find the parser card wherever the column drag left it.
+			for ci := 0; ci < 3; ci++ {
+				for ki := 0; ki < 4; ki++ {
+					words, rects := dr.ed().BoardChipRects(1, ci, ki)
+					for n, w := range words {
+						if w == "#urgent" {
+							chip = dr.screen.PanelPoint(dr.ed(), rects[n].Center())
+						}
+					}
+				}
+			}
+		})
+		dr.click(chip, mod.None)
+		dr.expect(!strings.Contains(dr.text(1), "#urgent") && strings.Contains(dr.text(1), "#backend"),
+			"pressing a label chip removes it: %q", dr.text(1))
+		dr.shot("visual_38_kanban_20_label_removed.png")
 	}},
 	{"20_caret_nav", "First paragraph, long enough that it wraps onto a second visual line: it keeps going with more words, and then some more words after those, and still more, until the line is certainly wider than the text column of the window and has to wrap.\n\n## A heading\n\n- item\n\n```\n  indented code\n```\n", func(dr *driver) {
 		dr.focus(0, 3)

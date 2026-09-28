@@ -59,7 +59,16 @@ type Editor struct {
 	// boards its layout.
 	boardViews map[int64]*boardView
 	boards     map[int64]cachedBoard
-	cardDrag   *cardDrag // a card pressed on a board, until let go
+	cardDrag   *cardDrag     // a card pressed on a board, until let go
+	colDrag    *colDragState // a column header pressed for dragging, until let go
+	// boardHover is the card under the pointer, for its add-tag and due
+	// affordances; -1 when none. The layout shows them on that card only,
+	// as Kvit does.
+	boardHoverID  int64
+	boardHoverCol int
+	boardHoverIdx int
+	tagEdit       *tagEditState // a card's chip row taking a label
+	duePick       *duePickState // a card's date picker, open or nil
 	// marks are the find bar's matches by block, drawn behind the text.
 	marks map[int64][]Mark
 	// Printing lays the note out for pages: no gutter and no side margins.
@@ -195,7 +204,7 @@ type cachedLayout struct {
 func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something...", layouts: map[int64]cachedLayout{},
 		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tableHold: map[int64]bool{}, tocHover: -1, queryHover: -1,
-		codeScroll: map[int64]float32{}, gapArmed: -1, gapHover: -1, dropIndex: -1}
+		codeScroll: map[int64]float32{}, gapArmed: -1, gapHover: -1, dropIndex: -1, boardHoverCol: -1, boardHoverIdx: -1}
 	e.Self = e
 	e.SetFocusable(true)
 	e.SetSizer(e.sizes)
@@ -254,6 +263,10 @@ func (e *Editor) SetDoc(doc *Doc) {
 	e.dropIndex = -1
 	e.drawn, e.drawnDrag = nil, nil
 	e.light = nil
+	e.cardDrag, e.colDrag = nil, nil
+	e.boardHoverID, e.boardHoverCol, e.boardHoverIdx = 0, -1, -1
+	e.closeTagEdit()
+	e.closeDuePicker()
 	e.changed()
 }
 

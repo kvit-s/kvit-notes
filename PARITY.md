@@ -103,7 +103,7 @@ kvit-ui-go's `platform` package for the tray.
     buttons under the grid (one undo step each, the live cell kept for the
     next edit, named to screen readers). Evidence: `visual_36_tables_02_cell_editing`,
     `TestTableAddButtons`.
-  - [~] 1.2.12 Task board: the `kanban` fence drawn as columns and cards
+  - [x] 1.2.12 Task board: the `kanban` fence drawn as columns and cards
     (labels, due dates, descriptions with their `$…$` math typeset), ticking
     a card, adding cards and editing them in place: a press on a card's text
     edits its line, where "#label" and "📅 date" are written as the file
@@ -111,20 +111,33 @@ kvit-ui-go's `platform` package for the tray.
     goes from the line to the description and out, Shift+Tab back, Enter
     keeps what was typed, Shift+Enter breaks a description's line, and
     Escape leaves the card as it was; both fields have the math typing aids
-    of 1.2.15. Renaming, moving, folding, adding and deleting columns,
-    moving a card to another column from its menu or by dragging it (with a
-    line where it will go), deleting it, and the label and Hide done
-    filters; the Markdown is the `kanban` package's port, which keeps every
-    line it does not change. Evidence: `38_kanban`, `visual_38_kanban_*`,
+    of 1.2.15. Renaming, moving, folding, adding and deleting columns, and
+    moving a column by dragging its header (a click renames instead, with a
+    gap indicator while dragged, Escape cancels) as well as with ‹ and ›.
+    Moving a card to another column from its menu or by dragging it (with a
+    line where it will go and the card drawn under the pointer, Escape
+    cancels), deleting it, and the label and Hide done filters; the Markdown
+    is the `kanban` package's port, which keeps every line it does not
+    change. The days a card was added and last changed show at its foot, and
+    a press under a card without a description opens an empty one. A strip
+    under the title holds the card's labels and its due date, and is where
+    both are set: each label chip removes itself, + tag adds one offering the
+    board's labels for reuse, and the date chip and + due open a calendar
+    for the due date. The card-details popover holds the labels, the due
+    date (an invalid date refused, staying open), moving to another column
+    and deleting the card, from the card's menu. Evidence: `38_kanban`,
+    `visual_38_kanban_*` (column drag, ghost and label removal added),
     `TestCardDescriptionHasTheMathAids`,
     `TestCardLineHasTheMathAidsAndTabGoesToTheDescription`,
-    `TestCellsAndCardsTypesetMath`, `TestCardFootDates`. The days a card was
-    added and last changed show at its foot, and a press under a card without
-    a description opens an empty one. Missing: dragging columns (‹ and › move
-    them), the card drawn under the pointer while dragged, the date picker
-    and label chips for adding, the card details popover. Escape drops what
-    was typed, where the Qt card editor has already written it; see
-    "Differences" below
+    `TestCellsAndCardsTypesetMath`, `TestCardFootDates`,
+    `TestColumnDropIndex`, `TestColumnDragMovesColumn`,
+    `TestColumnClickRenamesWithoutMoving`, `TestCardGhostFollowsPointer`,
+    `TestLabelChipsAddRemoveAndOffer`, `TestChipPressRemovesLabel`,
+    `TestTagFieldTakesHighlightAndTyped`, `TestSetCardDue`,
+    `TestMonthGridMondayFirst`, `TestDuePickerPickAndClear`,
+    `TestDueChipOpensPicker`, `TestCardDetailsApply`, `TestCardMenuHasDetails`.
+    Escape drops what was typed, where the Qt card editor has already
+    written it; see "Differences" below
   - [x] 1.2.13 Toggle: a callout of type "toggle", folded and opened by its
     arrow, the fold kept in the file. Evidence: `35_callouts`,
     `visual_35_callouts_03_toggle_collapsed`, `visual_35_callouts_04_toggle_expanded`
